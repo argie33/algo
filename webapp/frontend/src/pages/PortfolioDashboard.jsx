@@ -179,23 +179,32 @@ function PortfolioDashboardPage() {
   const hasCachedTrades = trades?.fromCache;
   const hasCachedEquity = equityItems?.fromCache;
 
+  // Check for _error keys in response data (fetcher-level errors)
+  const perfDataError = perf?._error;
+  const tradesDataError = trades?._error;
+  const posDataError = positions?._error;
+  const marketsDataError = markets?._error;
+  const equityDataError = equityItems?._error;
+  const statusDataError = status?._error;
+
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
   const criticalErrors = [
-    statusError, posError,
-    (perfError && !hasCachedPerf ? perfError : null),
-    (tradesError && !hasCachedTrades ? tradesError : null),
-    marketsError,
-    (equityError && !hasCachedEquity ? equityError : null)
+    statusError || statusDataError,
+    posError || posDataError,
+    (perfError && !hasCachedPerf ? perfError : null) || (perfDataError && !hasCachedPerf ? perfDataError : null),
+    (tradesError && !hasCachedTrades ? tradesError : null) || (tradesDataError && !hasCachedTrades ? tradesDataError : null),
+    marketsError || marketsDataError,
+    (equityError && !hasCachedEquity ? equityError : null) || (equityDataError && !hasCachedEquity ? equityDataError : null)
   ];
   const hasAnyError = criticalErrors.some(err => err);
   const errorList = [];
-  if (statusError) errorList.push({ section: 'Status', error: statusError });
-  if (posError) errorList.push({ section: 'Positions', error: posError });
-  if (perfError && !hasCachedPerf) errorList.push({ section: 'Performance', error: perfError });
-  if (tradesError && !hasCachedTrades) errorList.push({ section: 'Recent Trades', error: tradesError });
-  if (marketsError) errorList.push({ section: 'Markets', error: marketsError });
-  if (equityError && !hasCachedEquity) errorList.push({ section: 'Equity Curve', error: equityError });
+  if (statusError || statusDataError) errorList.push({ section: 'Status', error: statusError || statusDataError });
+  if (posError || posDataError) errorList.push({ section: 'Positions', error: posError || posDataError });
+  if ((perfError && !hasCachedPerf) || (perfDataError && !hasCachedPerf)) errorList.push({ section: 'Performance', error: perfError || perfDataError });
+  if ((tradesError && !hasCachedTrades) || (tradesDataError && !hasCachedTrades)) errorList.push({ section: 'Recent Trades', error: tradesError || tradesDataError });
+  if (marketsError || marketsDataError) errorList.push({ section: 'Markets', error: marketsError || marketsDataError });
+  if ((equityError && !hasCachedEquity) || (equityDataError && !hasCachedEquity)) errorList.push({ section: 'Equity Curve', error: equityError || equityDataError });
 
   // Show stale data banner (but not as error — just informational)
   const staleSections = [];
@@ -294,6 +303,20 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
           <SkeletonKpi />
         </div>
+      ) : (perfDataError && !hasCachedPerf) || posDataError ? (
+        <div className="card card-danger">
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Critical Data Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>
+                  {perfDataError && !hasCachedPerf ? perfDataError : posDataError}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-4">
           <Kpi
@@ -333,6 +356,18 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
           <SkeletonKpi />
           <SkeletonKpi />
+        </div>
+      ) : perfDataError && !hasCachedPerf ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Performance Metrics Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{perfDataError}</div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-4" style={{ marginTop: hasCachedPerf ? 'var(--space-2)' : 'var(--space-4)' }}>

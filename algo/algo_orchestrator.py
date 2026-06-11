@@ -5,6 +5,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from algo.algo_config import get_subprocess_timeout
+from utils.market_timing_constants import (
+    MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
+    ORCHESTRATOR_RUN_TIMES_TUPLE, ORCHESTRATOR_KILL_BUFFER_MINUTES
+)
 
 import os
 import time
@@ -130,9 +134,6 @@ class Orchestrator:
 
                         trigger_date = trigger_et.date()
                         now_date_et = now_et.date()
-
-                        MARKET_OPEN_HOUR = 9
-                        MARKET_OPEN_MINUTE = 30
 
                         # Check if halt is from a previous trading day
                         if trigger_date < now_date_et:

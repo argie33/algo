@@ -154,17 +154,17 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
     """
     if cfg:
         return {
-            'vix_alert': float(cfg.get('vix_alert_threshold', 30.0)),
-            'vix_caution': float(cfg.get('vix_caution_threshold', 25.0)),
-            'put_call_bullish': float(cfg.get('put_call_bullish_threshold', 0.8)),
-            'put_call_fearful': float(cfg.get('put_call_fearful_threshold', 1.0)),
-            'upvol_good': float(cfg.get('upvol_good_threshold', 60.0)),
-            'upvol_caution': float(cfg.get('upvol_caution_threshold', 50.0)),
+            'vix_alert': safe_float(cfg.get('vix_alert_threshold', 30.0), 30.0),
+            'vix_caution': safe_float(cfg.get('vix_caution_threshold', 25.0), 25.0),
+            'put_call_bullish': safe_float(cfg.get('put_call_bullish_threshold', 0.8), 0.8),
+            'put_call_fearful': safe_float(cfg.get('put_call_fearful_threshold', 1.0), 1.0),
+            'upvol_good': safe_float(cfg.get('upvol_good_threshold', 60.0), 60.0),
+            'upvol_caution': safe_float(cfg.get('upvol_caution_threshold', 50.0), 50.0),
             'breadth_good': int(cfg.get('breadth_good_threshold', 50)),
             'breadth_caution': int(cfg.get('breadth_caution_threshold', 0)),
-            'yield_curve_good': float(cfg.get('yield_curve_good_threshold', 0.5)),
-            'beta_warning': float(cfg.get('beta_warning_threshold', 1.2)),
-            'beta_caution': float(cfg.get('beta_caution_threshold', 0.8)),
+            'yield_curve_good': safe_float(cfg.get('yield_curve_good_threshold', 0.5), 0.5),
+            'beta_warning': safe_float(cfg.get('beta_warning_threshold', 1.2), 1.2),
+            'beta_caution': safe_float(cfg.get('beta_caution_threshold', 0.8), 0.8),
         }
     # Fallback hardcoded defaults (M2 issue: these were previously hardcoded everywhere)
     return {
@@ -176,45 +176,6 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
         'beta_warning': 1.2, 'beta_caution': 0.8,
     }
 
-# Deprecated: These are kept for reference but should be replaced with load_grade_thresholds()
-GRADE_A_PLUS = 90
-GRADE_A = 80
-GRADE_B = 70
-GRADE_C = 60
-
-HBAR_CRITICAL = 1.0
-HBAR_WARNING = 0.75
-
-MINIBAR_HIGH = 0.75
-MINIBAR_MED = 0.35
-
-TIER_THRESHOLD_CONFIRMED = 80
-TIER_THRESHOLD_HEALTHY = 60
-TIER_THRESHOLD_PRESSURE = 40
-TIER_THRESHOLD_CAUTION = 20
-
-YIELD_CURVE_GOOD = 0.5
-IG_OAS_GOOD = 1.0
-IG_OAS_WARNING = 2.0
-HY_OAS_GOOD = 3.5
-HY_OAS_WARNING = 6.0
-CPI_GOOD = 2.5
-CPI_WARNING = 4.0
-UNRATE_GOOD = 4.5
-UNRATE_WARNING = 6.0
-NFCI_NEGATIVE = -0.3
-NFCI_POSITIVE = 0.3
-DXY_WARNING = 100
-DXY_CRITICAL = 110
-BE_CRITICAL = 3.0
-BE_WARNING = 2.5
-MORTGAGE_WARNING = 6.0
-MORTGAGE_CRITICAL = 7.0
-UMCSENT_GOOD = 80
-UMCSENT_WARNING = 60
-
-SWING_SCORE_EXCELLENT = 80  # Deprecated: use get_swing_score_thresholds() instead
-SWING_SCORE_GOOD = 60       # Deprecated: use get_swing_score_thresholds() instead
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
@@ -720,7 +681,8 @@ def fmt_age(ts: any) -> str:
 
 def fmt_money(v: any) -> str:
     if v is None: return "--"
-    v = float(v)
+    v = safe_float(v)
+    if v is None: return "--"
     s = "-" if v < 0 else ""
     av = abs(v)
     if av >= 1e6: return f"{s}${av / 1e6:.2f}M"
@@ -730,7 +692,8 @@ def fmt_money(v: any) -> str:
 def fmt_money_short(v: any) -> str:
     """Compact dollar format: $45K, $1.2M, $850 — for narrow table columns."""
     if v is None: return "--"
-    v = float(v)
+    v = safe_float(v)
+    if v is None: return "--"
     s = "-" if v < 0 else ""
     av = abs(v)
     if av >= 1e6: return f"{s}${av/1e6:.1f}M"
@@ -738,7 +701,8 @@ def fmt_money_short(v: any) -> str:
     return f"{s}${av:.0f}"
 
 def grade(s: float) -> str:
-    s = float(s)
+    s = safe_float(s)
+    if s is None: return "--"
     if s >= GRADE_A_PLUS: return "A+"
     if s >= GRADE_A: return "A"
     if s >= GRADE_B: return "B"
@@ -760,7 +724,8 @@ def tier_from_pct(p: Optional[float], thresholds: Optional[dict] = None) -> str:
         tier classification string
     """
     if p is None: return "unknown"
-    p = float(p)
+    p = safe_float(p)
+    if p is None: return "unknown"
 
     # Use provided thresholds or fallback to hardcoded defaults
     t_confirmed = TIER_THRESHOLD_CONFIRMED if thresholds is None else thresholds.get("confirmed", TIER_THRESHOLD_CONFIRMED)
@@ -854,7 +819,9 @@ def hbar(cur: float, thr: float, w: int = 6) -> str:
     # TIER 1A FIX: Handle None values safely
     if cur is None or thr is None:
         return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
-    r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
+    cur_f = safe_float(cur)
+    thr_f = safe_float(thr)
+    r = min(cur_f / thr_f, 1.0) if cur_f is not None and thr_f is not None and thr_f > 0 else 0
     f = int(r * w)
     c = R if r >= HBAR_CRITICAL else (Y if r >= HBAR_WARNING else G)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
@@ -863,7 +830,10 @@ def exp_bar(pct, w=12):
     # TIER 1A FIX: Handle None safely instead of "or 0"
     if pct is None:
         return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
-    f = int(min(float(pct), 100) / 100 * w)
+    pct_f = safe_float(pct)
+    if pct_f is None:
+        return f"[dim]{'░' * w}[/]"
+    f = int(min(pct_f, 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
@@ -871,7 +841,9 @@ def mini_bar(pts: Optional[float], max_pts: Optional[float], w: int = 5) -> str:
     # TIER 1A FIX: Handle None safely instead of "or 0"
     if pts is None or max_pts is None:
         return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
-    r = min(float(pts) / float(max_pts), 1.0) if max_pts > 0 else 0
+    pts_f = safe_float(pts)
+    max_pts_f = safe_float(max_pts)
+    r = min(pts_f / max_pts_f, 1.0) if pts_f is not None and max_pts_f is not None and max_pts_f > 0 else 0
     f = int(r * w)
     c = G if r >= MINIBAR_HIGH else (Y if r >= MINIBAR_MED else R)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
@@ -880,7 +852,10 @@ def sign(v) -> str:
     """Return '+' for non-negative, '-' for negative, '' for None. TIER 1A FIX: safe None handling."""
     if v is None:
         return ""
-    return "+" if float(v) >= 0 else ""
+    v_f = safe_float(v)
+    if v_f is None:
+        return ""
+    return "+" if v_f >= 0 else ""
 
 def safe_float(v: any, default: float = None) -> Optional[float]:
     """Safely convert value to float, returning default if conversion fails."""
@@ -892,7 +867,12 @@ def safe_float(v: any, default: float = None) -> Optional[float]:
         return default
 
 def sparkline(values: list, width: int = 24) -> str:
-    vals = [v for v in (values or []) if v is not None and float(v) > 0]
+    vals = []
+    for v in (values or []):
+        if v is not None:
+            v_f = safe_float(v)
+            if v_f is not None and v_f > 0:
+                vals.append(v_f)
     if len(vals) < 2:
         return f"[{DIM}]{'─' * width}[/]"
     mn, mx = min(vals), max(vals)
@@ -1175,7 +1155,7 @@ def fetch_market(c):
                              'market_tier_threshold_pressure', 'market_tier_threshold_caution')
             """)
             if tier_config_r and len(tier_config_r) == 4:
-                tier_config = {r.get('key'): float(r.get('value', 0)) for r in tier_config_r if r.get('value')}
+                tier_config = {r.get('key'): safe_float(r.get('value', 0), 0) for r in tier_config_r if r.get('value')}
                 tier_thresholds = {
                     'confirmed': tier_config.get('market_tier_threshold_confirmed', TIER_THRESHOLD_CONFIRMED),
                     'healthy': tier_config.get('market_tier_threshold_healthy', TIER_THRESHOLD_HEALTHY),
