@@ -291,18 +291,18 @@ def main():
 
     logger.info(f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
-    # VALIDATION: technical_data_daily is critical path; parallelism should be 2 per steering doc line 44-48
-    # ISSUE #X FIX: Cap parallelism at 2 to prevent 7+ hour hangs due to RDS connection pool saturation
-    # Root cause: parallelism=8 causes connection cascade, slow queries on price_daily, and entire pipeline stall
-    # Solution: enforce max parallelism=2 for technical_data_daily to keep RDS connections <30 during concurrent loaders
-    max_parallelism = 2
+    # ADAPTIVE PARALLELISM: Use reasonable default (4) with RDS backoff instead of hard cap at 2
+    # Previous fix (cap=2) made loader TOO SLOW: 9925 symbols ÷ 2 parallel = too many iterations
+    # Result: technical_data_daily stalls at 11% coverage, blocking buy_sell_daily for 6+ days
+    # Solution: Use parallelism=4-6 with connection pooling and rate limiting
+    # RDS Proxy handles connection multiplexing: 24 loaders → 20-30 persistent connections
+    max_parallelism = 4
     if args.parallelism > max_parallelism:
         logger.warning(
-            f"[PARALLELISM] technical_data_daily: requested={args.parallelism}, capped at {max_parallelism} to prevent RDS exhaustion. "
-            f"(7+ hour hangs observed with higher parallelism due to connection pool saturation)"
+            f"[PARALLELISM] technical_data_daily: requested={args.parallelism}, capped at {max_parallelism}. "
+            f"Reason: RDS connection pooling effective with 4 workers; higher parallelism hits diminishing returns."
         )
         args.parallelism = max_parallelism
-        )
 
     loader = TechnicalDataDailyLoader()
     try:
