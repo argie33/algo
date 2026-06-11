@@ -1317,7 +1317,9 @@ def fetch_market(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
         _log_data_quality("fetch_market", 0, str(e))
-        return {}
+        # H9 FIX: Return stale_alerts even on error so caller can see what went wrong
+        # stale_alerts has been computed throughout the function; losing them masks data issues
+        return {"_error": f"{type(e).__name__}: {e}", "stale_alerts": stale_alerts}
 
 def fetch_exposure_factors(c):
     try:
@@ -1646,9 +1648,9 @@ def fetch_positions(c):
 
         result = q(c, """
             WITH open_trades AS (
-                -- CRITICAL ISSUE 4 FIX: DISTINCT ON (symbol) requires symbol in ORDER BY (first expression)
-                -- Returns the first row per symbol, which is the latest trade due to ordering
-                -- Order BY symbol ensures grouping, trade_date DESC gets latest trade, entry_time DESC breaks ties
+                -- H6 FIX: DISTINCT ON ordering must prioritize ACTIVE status first (most current)
+                -- Returns the latest active trade per symbol (not just any open trade)
+                -- Order by status priority (active first) ensures we get the most current position
                 SELECT DISTINCT ON (symbol)
                     symbol, trade_id, entry_quantity, entry_price,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
@@ -1656,7 +1658,15 @@ def fetch_positions(c):
                 FROM algo_trades
                 WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'accepted')
                     AND exit_date IS NULL
-                ORDER BY symbol, trade_date DESC, entry_time DESC
+                ORDER BY symbol,
+                         CASE WHEN status = 'active' THEN 0
+                              WHEN status = 'filled' THEN 1
+                              WHEN status = 'partially_filled' THEN 2
+                              WHEN status = 'open' THEN 3
+                              WHEN status = 'accepted' THEN 4
+                              ELSE 5 END ASC,
+                         trade_date DESC,
+                         entry_time DESC
             ),
             latest_prices AS (
                 -- Get most recent close price for open positions (bid/ask not available in schema)
@@ -3045,18 +3055,25 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not risk.get("_error"):
         var95_v = get_numeric(risk, "var95")
-        if var95_v is not None and var95_v > 0:
+        # Issue 37 FIX: Add VaR calculation status indicator
+        has_data = risk.get("_has_data", False)
+        is_stale = risk.get("_is_stale", False)
+        if has_data and var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
             svar_v = get_numeric(risk, "svar") or 0
             svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
             cvar95_v = get_numeric(risk, "cvar95") or 0
             conc5_v = get_numeric(risk, "conc5") or 0
-            var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]"
+            status_ind = R if is_stale else G
+            status_txt = "stale" if is_stale else "current"
+            var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/] [{status_ind}]({status_txt})[/]"
                         f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
                         f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
                         f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
                         + svar_s)
+        elif not has_data:
+            var_line = f"\n[dim]VaR:[/] [{Y}]calculation incomplete[/]"
 
     if not run or run.get("_error"):
         body = Text.from_markup(
@@ -3140,7 +3157,7 @@ def panel_market_full(mkt, sentiment=None):
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
     trend = (mkt.get("trend") or "").upper()
     halts = get_list(mkt, "halts")
-    halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
+    halt_s = " | ".join(format_halt_reason(h) for h in halts[:2]) if halts else "none"
     hc    = Y if halts else DIM
 
     upvol = get_numeric(mkt, "upvol")
@@ -3288,7 +3305,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
         halts  = mkt.get("halts") or []
-        halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
+        halt_s = " | ".join(format_halt_reason(h) for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5  = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if sentiment and not sentiment.get("_error"):
@@ -3443,7 +3460,8 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     rows = [
         Text.from_markup(
             f"[bold white]{perf.get('n', 0)} Trades[/]  "
-            f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
+            f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]"
+            f"{'[dim]/[/][yellow]' + str(perf.get('b', 0)) + 'B[/]' if perf.get('b', 0) > 0 else ''}  "
             f"[dim]WR:[/][{wr_c}]{wr_s}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{dd_s}[/]"
@@ -3578,7 +3596,9 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         # CRITICAL ISSUE 7 FIX: Check if price data is stale/missing and flag for special display
         is_stale_price = p.get("_missing_price", False)
         price_quality_warning = f" ⚠ {p.get('_price_quality', '')}" if is_stale_price else ""
-        entry = float(p.get("avg_entry_price")) if p.get("avg_entry_price") is not None else None
+        # ISSUE 19 FIX: Validate entry price is positive to avoid division by zero
+        entry_val = p.get("avg_entry_price")
+        entry = float(entry_val) if entry_val is not None and float(entry_val) > 0 else None
         price = float(p.get("current_price"))   if p.get("current_price") is not None else None
         pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
@@ -3611,7 +3631,10 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
             days = f"{days_raw}d" if days_raw is not None else "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
-        sec   = (p.get("sector") or "--")[:12]
+        # ISSUE 15 FIX: Indicate when sector data is missing from lookup
+        sec_val = p.get("sector")
+        sec_warning = " ⚠" if p.get("_missing_sector", False) else ""
+        sec   = ((sec_val or "--")[:12] + sec_warning) if sec_val else ("--" + sec_warning)
         denom = (entry - stop) if (stop is not None and entry is not None and entry != stop) else None
         # Category 8: Position metrics — guard against None current_price (missing market data)
         rmul  = (price - entry) / denom if (denom is not None and entry is not None and price is not None) else None
