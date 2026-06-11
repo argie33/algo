@@ -663,21 +663,24 @@ sharpe_display = f"Sharpe: {sharpe:.2f} [dim](at 15:30 ET)[/]"
 
 ### Issue M11: Circuit Breaker Defaults Not Highlighted
 
-**Location:** panel_algo_health() → circuit breaker section  
+**Location:** panel_circuit() → circuit breaker display  
 **Severity:** 🟡 MEDIUM  
-**Problem:** Shows defaults used but doesn't suggest config update  
-**Impact:** Operator doesn't realize they're using unsafe defaults  
-**Current Code:**
+**Problem:** Shows defaults used but doesn't highlight the threshold  
+**Impact:** Operator doesn't realize when a breaker is approaching caution threshold  
+**Implementation:**
 ```python
-# Shows:
-"vix_threshold": 30  # default
-
-# Should show:
-"vix_threshold": 30 "[yellow](USING DEFAULT — update config)[/]"
+# Lines 3413-3419 (panel_circuit): Highlight caution threshold in UI
+caution_threshold = ui_cfg['circuit_breaker_ratio_caution']
+fc = R if fired else (Y if ratio >= caution_threshold else G)
+caution_hint = f" [dim]({caution_threshold:.0%} caution)[/]" if ratio >= caution_threshold and not fired else ""
+# Displays: "Label: current/threshold (75% caution)" when in caution zone
 ```
-**Fix Required:** Flag defaults, add warning suggestion
+**What Was Fixed:**
+- When a circuit breaker ratio reaches caution state (≥75%), shows the threshold percentage
+- Makes the color-coding logic transparent to operator
+- Helps users understand why a breaker turned yellow
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ FIXED (Commit 6aece95c3)
 
 ---
 
@@ -721,21 +724,27 @@ return {
 
 ### Issue M14: Market Health Missing Threshold Explanations
 
-**Location:** panel_market_full()  
+**Location:** panel_market_full() and panel_header_market()  
 **Severity:** 🟡 MEDIUM  
-**Problem:** Shows values but no context (e.g., "VIX 25" — is that good or bad?)  
+**Problem:** Shows values without context (e.g., "VIX 25" — user doesn't know thresholds)  
 **Impact:** Operator can't evaluate market health without external reference  
-**Current Code:**
+**Implementation:**
 ```python
-display = f"VIX: {vix:.1f}"
-# What does VIX 25 mean? Need to know it's >= 20 (caution) but < 30 (alert)
+# Lines 3335-3352 (panel_market_full): Show dynamic thresholds from config
+f"VIX:[{vc}]{vix}[/] [dim]({mkt_cfg['vix_caution']:.0f}+=caution, {mkt_cfg['vix_alert']:.0f}+=alert)[/]"
+f"Up Volume:[{uvc}]{upvol:.0f}%[/] [dim]({mkt_cfg['upvol_good']:.0f}%+=good)[/]"
+f"Put/Call:[{pcr_c}]{pcr:.2f}[/] [dim](<{mkt_cfg['put_call_bullish']:.1f}=bullish)[/]"
+f"Breadth Momentum:[{bmc}]{bmom:.1f}[/] [dim]({mkt_cfg['breadth_momentum_good']:.1f}+=bullish)[/]"
 ```
-**Fix Required:** Add inline explanations:
-```python
-vix_display = f"VIX: {vix:.1f} [dim](20+=caution, 30+=alert)[/]"
-```
+**What Was Fixed:**
+- Replaced hardcoded threshold explanations with actual config values
+- VIX now shows actual caution/alert thresholds from config (was 20/30)
+- Up Volume shows actual good threshold from config (was 50)
+- Put/Call shows actual bullish threshold from config (was 0.8)
+- Breadth Momentum shows actual good threshold from config (was 0.5)
+- Makes explanations transparent and configurable
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ FIXED (Commit 6aece95c3)
 
 ---
 
@@ -925,10 +934,10 @@ if not data or data.get("_error"): ...  # Mixed pattern
 | M8 | Swing score inconsistent | Multiple | ✅ FIXED (6ae9f1efa) |
 | M9 | Confidence not explained | ~3199-3250 | ✅ FIXED (6ae9f1efa) |
 | M10 | Calculation staleness | panel_perf | ✅ FIXED (Issue 43) |
-| M11 | Breaker defaults not flagged | panel_algo_health | ❌ NOT FIXED |
+| M11 | Breaker defaults not flagged | panel_algo_health | ✅ FIXED (6aece95c3) |
 | M12 | Risk source not indicated | panel_algo_health | ⚠️ PARTIAL |
 | M13 | Filtered signal count | panel_signals | ⚠️ PARTIAL |
-| M14 | Market health no explanations | panel_market_full | ❌ NOT FIXED |
+| M14 | Market health no explanations | panel_market_full | ✅ FIXED (6aece95c3) |
 | M15 | Stale alerts not returned | 6 fetch functions | 🔄 IN PROGRESS (6aec0ae20) |
 | M16 | Halt reasons cryptic | panel_market_full | ⚠️ PARTIAL |
 | M17 | No health panel | Multiple | ❌ NOT FIXED |
@@ -950,16 +959,17 @@ if not data or data.get("_error"): ...  # Mixed pattern
 - ❌ Not Fixed: 0
 
 **Medium Severity (All 20):** 20 issues
-- ✅ Fixed: 10 (M1-3, M5-10, M19)
+- ✅ Fixed: 12 (M1-3, M5-11, M14, M19)
 - ⚠️ Partially Fixed: 5 (M4, M12, M13, M16, M18)
 - 🔄 In Progress: 1 (M15)
-- ❌ Not Fixed: 4 (M11, M14, M17, M20)
+- ❌ Not Fixed: 2 (M17, M20)
 
 **Overall Progress:** 
 - ✅ HIGH TIER: 17/17 (100%)
 - ✅ M5-M9 (Goal): 5/5 (100%)
-- ✅ Medium Tier Progress: 10/20 (50%)
-- Total Issues Addressed: 27/37 (73%)
+- ✅ M11 & M14 (New Goal): 2/2 (100%)
+- ✅ Medium Tier Progress: 12/20 (60%)
+- Total Issues Addressed: 29/37 (78%)
 
 ---
 
