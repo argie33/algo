@@ -1531,6 +1531,7 @@ def fetch_perf(c):
     - Reproducibility for historical analysis
     - No multiple sources of truth for the same metric
     """
+    stale_alerts = []
     try:
         # Issue 38 FIX: Validate Alpaca reconciliation data is present before using algo_trades
         reconciliation_check = q1(c, """
@@ -1664,6 +1665,11 @@ def fetch_perf(c):
         # Return metrics from database + calculated streak + recent returns
         # Use adjusted win rate that includes open trades (not just closed)
         final_wr = round(win_rate_adjusted * 100, 1) if win_rate_adjusted is not None else (round(wr, 1) if wr is not None else None)
+        # M15 FIX: Include stale_alerts in return so dashboard can display data quality warnings
+        if not perf:
+            stale_alerts.append("Performance metrics not yet computed")
+        if sharpe is None and len(snaps) < 63:
+            stale_alerts.append(f"Insufficient data for Sharpe ({len(snaps)} snapshots, need 63+)")
         return {
             "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
             "wr": final_wr, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
@@ -1673,6 +1679,7 @@ def fetch_perf(c):
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
             "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
+            "stale_alerts": stale_alerts,
             "_source": "algo_performance_daily" if perf else "calculated",
             "_updated_at": updated_at_str  # Timestamp of last calculation for staleness indication
         }
@@ -2004,10 +2011,11 @@ def fetch_signals(c):
 
             if grades_date:
                 # Load grade thresholds from config (M1 FIX: no longer hardcoded)
+                # Safe to use f-string here: thresholds come from our config table, not user input
                 grade_cfg = load_grade_thresholds(cfg)
-                thr_a = grade_cfg.get('a', 80)
-                thr_b = grade_cfg.get('b', 60)
-                thr_c = grade_cfg.get('c', 40)
+                thr_a = int(grade_cfg.get('a', 80))
+                thr_b = int(grade_cfg.get('b', 60))
+                thr_c = int(grade_cfg.get('c', 40))
                 grades_r = q(c, f"""
                     SELECT COUNT(*) FILTER (WHERE score >= {thr_a}) AS a,
                            COUNT(*) FILTER (WHERE score >= {thr_b} AND score < {thr_a}) AS b,
@@ -2445,17 +2453,30 @@ def fetch_risk_metrics(c) -> dict:
             except (ValueError, TypeError):
                 is_fresh = row is not None
 
+        # M6 FIX: Add calculation status to indicate data quality
+        var95_val = row.get("var_pct_95")
+        cvar95_val = row.get("cvar_pct_95")
+        has_all_metrics = all([var95_val is not None, cvar95_val is not None])
+
+        if not is_fresh:
+            calc_status = "stale"
+        elif not has_all_metrics:
+            calc_status = "incomplete"
+        else:
+            calc_status = "complete"
+
         result = {
             "_has_data": True,
             "date":      row.get("report_date"),
-            "var95":     float(row.get("var_pct_95")) if row.get("var_pct_95") is not None else None,
-            "cvar95":    float(row.get("cvar_pct_95")) if row.get("cvar_pct_95") is not None else None,
+            "var95":     float(var95_val) if var95_val is not None else None,
+            "cvar95":    float(cvar95_val) if cvar95_val is not None else None,
             "svar":      float(row.get("stressed_var_pct")) if row.get("stressed_var_pct") is not None else None,
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
             "_source":   "table",
             "_is_stale": not is_fresh,
             "_age_minutes": age_minutes,
+            "_calculation_status": calc_status,
         }
         _log_data_quality("fetch_risk_metrics", 1)
         return result
@@ -3640,7 +3661,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_val = perf.get('sharpe')
     sharpe_s = f"{sharpe_val:.2f}" if sharpe_val is not None else "--"
     sharpe_conf = perf.get('sharpe_confidence')
-    sharpe_label = f"{sharpe_s}" if sharpe_conf is None else f"{sharpe_s} ({sharpe_conf})"
+    # M9 FIX: Explain confidence levels for Sharpe and other metrics
+    sharpe_conf_explain = {
+        'high': '252+ days',
+        'medium': '63-251 days',
+        'low': '<63 days'
+    }
+    sharpe_label = f"{sharpe_s}" if sharpe_conf is None else f"{sharpe_s} ({sharpe_conf}, {sharpe_conf_explain.get(sharpe_conf, '')})"
     # Issue 5 FIX: Show closed trades + open trades in calculation
     n_closed = perf.get('n', 0)
     n_open = perf.get('_open_trades_count', 0)
@@ -3682,7 +3709,15 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             rc = G if ret >= 0 else R
             d_s = dt.strftime("%a") if hasattr(dt, "strftime") else str(dt)[:3]
             parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
-        rows.append(Text.from_markup("  ".join(parts)))
+        # M9 FIX: Add confidence level explanation for recent returns
+        recent_rets_conf = perf.get("recent_rets_confidence")
+        conf_explain = {
+            'high': '(5+ snapshots)',
+            'medium': '(3-4 snapshots)',
+            'low': '(<3 snapshots)'
+        }
+        conf_note = f" [dim]{conf_explain.get(recent_rets_conf, '')}[/]" if recent_rets_conf else ""
+        rows.append(Text.from_markup("  ".join(parts) + conf_note))
 
     # Rolling analytics from algo_performance_daily (only show if populated)
     if perf_anl and not perf_anl.get("_error"):
@@ -3867,10 +3902,9 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         ]
         if not compact:
             swg_s = float(swg) if swg is not None else None
-            # Issue 14: Use config thresholds instead of hardcoded constants
-            swing_excellent = cfg.get("swing_excellent", 80.0) if cfg else 80.0
-            swing_good = cfg.get("swing_good", 60.0) if cfg else 60.0
-            swg_c = G if swg_s is not None and swg_s >= swing_excellent else (Y if swg_s is not None and swg_s >= swing_good else "white")
+            # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
+            swing_thresholds = get_swing_score_thresholds(cfg)
+            swg_c = G if swg_s is not None and swg_s >= swing_thresholds["excellent"] else (Y if swg_s is not None and swg_s >= swing_thresholds["good"] else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -4010,10 +4044,9 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
             sq_c   = G if sq is not None and sq >= 70 else (Y if sq is not None and sq >= 50 else "white")
-            # Issue 7 FIX: Use config values for swing score thresholds, not hardcoded constants
-            swing_excellent = cfg.get("swing_excellent", 80) if cfg else 80
-            swing_good = cfg.get("swing_good", 60) if cfg else 60
-            swg_c  = G if swg is not None and swg >= swing_excellent else (Y if swg is not None and swg >= swing_good else "white")
+            # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
+            swing_thresholds = get_swing_score_thresholds(cfg)
+            swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
             rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
             vs_c   = G if vsurge is not None and vsurge >= 50 else (Y if vsurge is not None and vsurge >= 20 else "white")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
