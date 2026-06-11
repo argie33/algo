@@ -3923,6 +3923,9 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
 
 def panel_recent_trades(trades):
     """Closed/recent trade history — sits alongside positions panel."""
+    # TIER 1B FIX: Check for error dict
+    if isinstance(trades, dict) and trades.get("_error"):
+        return error_panel("RECENT TRADES", trades.get("_error"))
     if not trades:
         return Panel(Text("no recent trades", style="dim"),
                      title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 1))
@@ -3960,6 +3963,11 @@ def panel_recent_trades(trades):
 
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
+    # TIER 1B FIX: Check for error dicts in main data
+    if isinstance(srank, dict) and srank.get("_error"):
+        return error_panel("SECTORS", srank.get("_error"))
+    if isinstance(pos, dict) and pos.get("_error"):
+        return error_panel("SECTORS (positions)", pos.get("_error"))
     rows = []
 
     # Issue 35 FIX: Display sector position warnings
@@ -5294,6 +5302,11 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
 
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Full-screen sectors — all sector and industry rankings, full portfolio breakdown."""
+    # TIER 1B FIX: Check for error dicts
+    if isinstance(srank, dict) and srank.get("_error"):
+        return error_panel("SECTORS (expanded)", srank.get("_error"))
+    if isinstance(pos, dict) and pos.get("_error"):
+        return error_panel("SECTORS (positions)", pos.get("_error"))
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
     def rdelta(r, wk="rank_1w_ago", wk4=None):
