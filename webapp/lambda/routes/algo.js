@@ -17,6 +17,7 @@ const { sendSuccess, sendError, sendDatabaseError } = require('../utils/apiRespo
 const paginationConfig = require('../config/pagination');
 const logger = require('../utils/logger');
 const { validateQueryResult, validateAndCoerceRow, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
+const { getActiveTiers, getActiveTier } = require('../utils/tiers');
 
 const router = express.Router();
 
@@ -183,8 +184,44 @@ router.get('/evaluate', async (req, res) => {
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
-    // Transform into evaluation objects
-    // Thresholds match algo_filter_pipeline.py: tier1=45 (session 31), tier4=40 (session 30)
+    // PHASE 2: Load signal filter configuration from database (migration 003_signal_filter_tiers.sql)
+    const filterConfigResult = await pool.query(`
+      SELECT
+        completeness_pct_min, trend_score_min, sqs_min,
+        require_all_tiers, max_qualified_signals,
+        sort_by, sort_order
+      FROM signal_filter_tiers
+      WHERE is_active = TRUE
+      ORDER BY version DESC
+      LIMIT 1
+    `);
+
+    validateQueryResult(filterConfigResult, { requireRows: false });
+
+    let filterConfig = {
+      completeness_pct_min: 45,      // Fallback defaults (same as hardcoded values)
+      trend_score_min: 8,
+      sqs_min: 40,
+      require_all_tiers: true,
+      max_qualified_signals: 12,
+      sort_by: 'sqs',
+      sort_order: 'DESC'
+    };
+
+    if (filterConfigResult.rows && filterConfigResult.rows.length > 0) {
+      const cfg = filterConfigResult.rows[0];
+      filterConfig = {
+        completeness_pct_min: parseFloat(cfg.completeness_pct_min) || 45,
+        trend_score_min: parseInt(cfg.trend_score_min) || 8,
+        sqs_min: parseInt(cfg.sqs_min) || 40,
+        require_all_tiers: cfg.require_all_tiers !== false,
+        max_qualified_signals: parseInt(cfg.max_qualified_signals) || 12,
+        sort_by: cfg.sort_by || 'sqs',
+        sort_order: (cfg.sort_order || 'DESC').toUpperCase()
+      };
+    }
+
+    // Transform into evaluation objects with database-driven thresholds
     const evaluated = validateAndCoerceRows(result, {
       symbol: { type: 'string', required: true },
       date: { type: 'date', required: true },
@@ -193,9 +230,13 @@ router.get('/evaluate', async (req, res) => {
       completeness_pct: { type: 'float', required: false, defaultValue: 0 },
       sqs: { type: 'int', required: false, defaultValue: 0 }
     }).map(row => {
-      const tier1 = row.completeness_pct >= 45;
-      const tier3 = row.trend_score >= 8;
-      const tier4 = row.sqs >= 40;
+      const tier1 = row.completeness_pct >= filterConfig.completeness_pct_min;
+      const tier3 = row.trend_score >= filterConfig.trend_score_min;
+      const tier4 = row.sqs >= filterConfig.sqs_min;
+
+      const all_tiers_pass = filterConfig.require_all_tiers
+        ? (tier1 && tier3 && tier4)
+        : (tier1 || tier3 || tier4);
 
       return {
         symbol: row.symbol,
@@ -207,12 +248,22 @@ router.get('/evaluate', async (req, res) => {
         tier1_pass: tier1,
         tier3_pass: tier3,
         tier4_pass: tier4,
-        all_tiers_pass: tier1 && tier3 && tier4
+        all_tiers_pass: all_tiers_pass
       };
     });
 
-    // Filter to qualified (pass all tiers) and sort by SQS, take top 12
-    const qualified = evaluated.filter(e => e.all_tiers_pass).sort((a, b) => b.sqs - a.sqs).slice(0, 12);
+    // Filter to qualified and sort by configured field/direction
+    const sortComparator = (a, b) => {
+      const aVal = a[filterConfig.sort_by] || 0;
+      const bVal = b[filterConfig.sort_by] || 0;
+      const diff = parseFloat(bVal) - parseFloat(aVal);
+      return filterConfig.sort_order === 'ASC' ? -diff : diff;
+    };
+
+    const qualified = evaluated
+      .filter(e => e.all_tiers_pass)
+      .sort(sortComparator)
+      .slice(0, filterConfig.max_qualified_signals);
 
     return sendSuccess(res, {
       total_buy_signals: evaluated.length,
@@ -298,36 +349,19 @@ router.get('/positions', authenticateToken, async (req, res) => {
     const pool = getPool();
 
     const result = await pool.query(`
-      WITH latest_trade AS (
-        SELECT DISTINCT ON (symbol)
-          symbol, stop_loss_price, target_1_price, target_2_price, target_3_price,
-          target_1_r_multiple, target_2_r_multiple, target_3_r_multiple, signal_date
-        FROM algo_trades
-        WHERE status = 'open'
-        ORDER BY symbol, trade_date DESC
-      ),
-      latest_trend AS (
-        SELECT DISTINCT ON (symbol)
-          symbol, weinstein_stage, minervini_trend_score,
-          percent_from_52w_low, percent_from_52w_high
-        FROM trend_template_data
-        ORDER BY symbol, date DESC
-      )
       SELECT
-        p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
-        p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct,
-        p.status, p.stage_in_exit_plan, p.days_since_entry,
-        lt.stop_loss_price, lt.target_1_price, lt.target_2_price, lt.target_3_price,
-        lt.target_1_r_multiple, lt.target_2_r_multiple, lt.target_3_r_multiple,
-        cp.sector, cp.industry,
-        ltt.weinstein_stage, ltt.minervini_trend_score,
-        ltt.percent_from_52w_low, ltt.percent_from_52w_high
-      FROM algo_positions p
-      LEFT JOIN latest_trade lt ON lt.symbol = p.symbol
-      LEFT JOIN company_profile cp ON cp.ticker = p.symbol
-      LEFT JOIN latest_trend ltt ON ltt.symbol = p.symbol
-      WHERE p.status = 'open'
-      ORDER BY p.position_value DESC
+        position_id, symbol, quantity, avg_entry_price, current_price,
+        position_value, unrealized_pnl, unrealized_pnl_pct,
+        status, stage_in_exit_plan, days_since_entry,
+        stop_loss_price, target_1_price, target_2_price, target_3_price,
+        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+        sector, industry,
+        weinstein_stage, minervini_trend_score,
+        percent_from_52w_low, percent_from_52w_high,
+        r_multiple, initial_risk_per_share, open_risk_dollars,
+        distance_to_stop_pct, distance_to_t1_pct, distance_to_t2_pct, distance_to_t3_pct
+      FROM algo_positions_with_risk
+      ORDER BY position_value DESC
     `);
 
     // Validate result structure
@@ -360,40 +394,21 @@ router.get('/positions', authenticateToken, async (req, res) => {
         weinstein_stage: { type: 'int', required: false },
         minervini_trend_score: { type: 'int', required: false },
         percent_from_52w_low: { type: 'float', required: false },
-        percent_from_52w_high: { type: 'float', required: false }
+        percent_from_52w_high: { type: 'float', required: false },
+        r_multiple: { type: 'float', required: false },
+        initial_risk_per_share: { type: 'float', required: false },
+        open_risk_dollars: { type: 'float', required: false },
+        distance_to_stop_pct: { type: 'float', required: false },
+        distance_to_t1_pct: { type: 'float', required: false },
+        distance_to_t2_pct: { type: 'float', required: false },
+        distance_to_t3_pct: { type: 'float', required: false }
       }).map(row => {
-        const entry = sf(row.avg_entry_price);
-        const current = sf(row.current_price);
-        const stop = sf(row.stop_loss_price);
-        const t1 = sf(row.target_1_price);
-        const t2 = sf(row.target_2_price);
-        const t3 = sf(row.target_3_price);
-
-        // R-multiple = (current - entry) / (entry - stop)
-        let r_multiple = null;
-        let initial_risk_per_share = null;
-        if (entry && stop && entry > stop) {
-          initial_risk_per_share = entry - stop;
-          if (initial_risk_per_share > 0 && current != null) {
-            r_multiple = (current - entry) / initial_risk_per_share;
-          }
-        }
-
-        // Open risk: distance to stop * quantity (the dollars at risk if stop hits NOW)
-        const open_risk_dollars = (current && stop && row.quantity)
-          ? Math.max(0, (current - stop)) * Number(row.quantity) : null;
-
-        const distance_to_stop_pct = (current && stop) ? ((current - stop) / current) * 100 : null;
-        const distance_to_t1_pct = (current && t1) ? ((t1 - current) / current) * 100 : null;
-        const distance_to_t2_pct = (current && t2) ? ((t2 - current) / current) * 100 : null;
-        const distance_to_t3_pct = (current && t3) ? ((t3 - current) / current) * 100 : null;
-
         return {
           position_id: row.position_id,
           symbol: row.symbol,
           quantity: row.quantity,
-          avg_entry_price: entry,
-          current_price: current,
+          avg_entry_price: sf(row.avg_entry_price),
+          current_price: sf(row.current_price),
           position_value: sf(row.position_value),
           unrealized_pnl: sf(row.unrealized_pnl),
           unrealized_pnl_pct: sf(row.unrealized_pnl_pct),
@@ -402,22 +417,22 @@ router.get('/positions', authenticateToken, async (req, res) => {
           days_since_entry: row.days_since_entry,
 
           // Stops & targets
-          stop_loss_price: stop,
-          target_1_price: t1,
-          target_2_price: t2,
-          target_3_price: t3,
+          stop_loss_price: sf(row.stop_loss_price),
+          target_1_price: sf(row.target_1_price),
+          target_2_price: sf(row.target_2_price),
+          target_3_price: sf(row.target_3_price),
           target_1_r: sf(row.target_1_r_multiple),
           target_2_r: sf(row.target_2_r_multiple),
           target_3_r: sf(row.target_3_r_multiple),
 
-          // Derived
-          r_multiple: r_multiple == null ? null : Math.round(r_multiple * 100) / 100,
-          initial_risk_per_share,
-          open_risk_dollars: open_risk_dollars == null ? null : Math.round(open_risk_dollars * 100) / 100,
-          distance_to_stop_pct: distance_to_stop_pct == null ? null : Math.round(distance_to_stop_pct * 100) / 100,
-          distance_to_t1_pct: distance_to_t1_pct == null ? null : Math.round(distance_to_t1_pct * 100) / 100,
-          distance_to_t2_pct: distance_to_t2_pct == null ? null : Math.round(distance_to_t2_pct * 100) / 100,
-          distance_to_t3_pct: distance_to_t3_pct == null ? null : Math.round(distance_to_t3_pct * 100) / 100,
+          // Risk metrics (pre-computed in database)
+          r_multiple: sf(row.r_multiple),
+          initial_risk_per_share: sf(row.initial_risk_per_share),
+          open_risk_dollars: sf(row.open_risk_dollars),
+          distance_to_stop_pct: sf(row.distance_to_stop_pct),
+          distance_to_t1_pct: sf(row.distance_to_t1_pct),
+          distance_to_t2_pct: sf(row.distance_to_t2_pct),
+          distance_to_t3_pct: sf(row.distance_to_t3_pct),
 
           // Context
           sector: row.sector,
@@ -827,28 +842,12 @@ router.get('/markets', async (req, res) => {
         })
       : null;
 
-    // Determine active tier policy
+    // Determine active tier policy from database
     let policy = null;
     if (latest) {
       const exposurePct = latest.exposure_pct || 0;
-      const tiers = [
-        { name: 'confirmed_uptrend', min: 80, max: 100, risk_mult: 1.0, max_new: 5,
-          min_grade: 'B', halt: false, color: 'green',
-          description: 'Healthy bull market â€” full deployment' },
-        { name: 'healthy_uptrend', min: 60, max: 80, risk_mult: 0.85, max_new: 4,
-          min_grade: 'B', halt: false, color: 'lightgreen',
-          description: 'Bull market with caution â€” slightly reduced risk' },
-        { name: 'pressure', min: 40, max: 60, risk_mult: 0.5, max_new: 2,
-          min_grade: 'A', halt: false, color: 'yellow',
-          description: 'Uptrend under pressure â€” defensive posture' },
-        { name: 'caution', min: 20, max: 40, risk_mult: 0.25, max_new: 1,
-          min_grade: 'A', halt: true, color: 'orange',
-          description: 'Major caution â€” entries halted unless exceptional' },
-        { name: 'correction', min: 0, max: 20, risk_mult: 0.0, max_new: 0,
-          min_grade: 'A+', halt: true, color: 'red',
-          description: 'Market correction â€” preserve capital' },
-      ];
-      policy = tiers.find(t => exposurePct >= t.min && exposurePct <= t.max) || tiers[0];
+      const tiers = await getActiveTiers();
+      policy = getActiveTier(exposurePct, tiers);
     }
 
     // Validate and coerce all rows
@@ -1160,43 +1159,13 @@ router.get('/exposure-policy', async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const tiers = [
-      { name: 'confirmed_uptrend', min_pct: 80, max_pct: 100,
-        description: 'Healthy bull market â€” full deployment',
-        risk_multiplier: 1.0, max_new_positions_today: 5,
-        min_swing_score: 60, min_swing_grade: 'B',
-        halt_new_entries: false, color: 'green' },
-      { name: 'healthy_uptrend', min_pct: 60, max_pct: 80,
-        description: 'Bull market with caution',
-        risk_multiplier: 0.85, max_new_positions_today: 4,
-        min_swing_score: 65, min_swing_grade: 'B',
-        tighten_winners_at_r: 3.0,
-        halt_new_entries: false, color: 'lightgreen' },
-      { name: 'pressure', min_pct: 40, max_pct: 60,
-        description: 'Uptrend under pressure',
-        risk_multiplier: 0.5, max_new_positions_today: 2,
-        min_swing_score: 70, min_swing_grade: 'A',
-        tighten_winners_at_r: 2.0, force_partial_at_r: 3.0,
-        halt_new_entries: false, color: 'yellow' },
-      { name: 'caution', min_pct: 20, max_pct: 40,
-        description: 'Major caution',
-        risk_multiplier: 0.25, max_new_positions_today: 1,
-        min_swing_score: 75, min_swing_grade: 'A',
-        tighten_winners_at_r: 1.5, force_partial_at_r: 2.0,
-        halt_new_entries: true, color: 'orange' },
-      { name: 'correction', min_pct: 0, max_pct: 20,
-        description: 'Market correction',
-        risk_multiplier: 0.0, max_new_positions_today: 0,
-        min_swing_score: 100, min_swing_grade: 'A+',
-        tighten_winners_at_r: 1.0, force_partial_at_r: 1.5,
-        halt_new_entries: true, force_exit_negative_r: true, color: 'red' },
-    ];
+    const tiers = await getActiveTiers();
 
     // Find active tier from latest exposure
     const latest = await pool.query(`SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1`);
     const exp = latest.rows[0] ? parseFloat(latest.rows[0].exposure_pct) : null;
     const active = exp !== null
-      ? tiers.find(t => exp >= t.min_pct && exp <= t.max_pct)
+      ? getActiveTier(exp, tiers)
       : null;
 
     return sendSuccess(res, {
@@ -1948,6 +1917,102 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
+    // Fetch all circuit breaker metrics from database in parallel
+    const [metricsResult, closedTradesResult, marketResult] = await Promise.all([
+      // Core metrics: drawdown, daily/weekly loss, open risk
+      pool.query(`
+        WITH latest_snap AS (
+          SELECT total_portfolio_value, daily_return_pct
+          FROM algo_portfolio_snapshots
+          ORDER BY snapshot_date DESC LIMIT 1
+        ),
+        peak_value AS (
+          SELECT MAX(total_portfolio_value) AS peak
+          FROM algo_portfolio_snapshots
+          WHERE snapshot_date >= (NOW() - INTERVAL '30 days')
+        ),
+        weekly_losses AS (
+          SELECT COALESCE(SUM(daily_return_pct), 0) AS sum_daily
+          FROM algo_portfolio_snapshots
+          WHERE snapshot_date >= (NOW() - INTERVAL '5 days')
+        ),
+        open_positions_risk AS (
+          SELECT
+            SUM(GREATEST(p.current_price - COALESCE(lt.stop_loss_price, p.current_price), 0) * p.quantity) AS open_risk,
+            (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS port_val
+          FROM algo_positions p
+          LEFT JOIN (
+            SELECT DISTINCT ON (symbol) symbol, stop_loss_price
+            FROM algo_trades WHERE status = 'open'
+            ORDER BY symbol, trade_date DESC
+          ) lt ON lt.symbol = p.symbol
+          WHERE p.status = 'open'
+        )
+        SELECT
+          ROUND(((pv.peak - ls.total_portfolio_value) / NULLIF(pv.peak, 0)) * 100, 2) AS current_drawdown_pct,
+          ROUND(ABS(LEAST(0, ls.daily_return_pct)) * 100, 2) AS daily_loss_pct,
+          ROUND(ABS(LEAST(0, wl.sum_daily)) * 100, 2) AS weekly_loss_pct,
+          ROUND((COALESCE(opr.open_risk, 0) / NULLIF(opr.port_val, 0)) * 100, 2) AS total_risk_pct
+        FROM latest_snap ls
+        CROSS JOIN peak_value pv
+        CROSS JOIN weekly_losses wl
+        CROSS JOIN open_positions_risk opr
+      `),
+      // Consecutive losses (needs JavaScript loop)
+      pool.query(`
+        SELECT profit_loss_dollars FROM algo_trades
+        WHERE status = 'closed' AND exit_date IS NOT NULL
+        ORDER BY exit_date DESC LIMIT 50
+      `),
+      // Market data
+      pool.query(`
+        SELECT vix_level, market_stage, market_trend FROM market_health_daily
+        ORDER BY date DESC LIMIT 1
+      `)
+    ]);
+
+    // Validate results
+    validateQueryResult(metricsResult, { minRows: 1, maxRows: 1 });
+    validateQueryResult(closedTradesResult, { requireRows: false });
+    validateQueryResult(marketResult, { requireRows: false });
+
+    const metricsRow = validateAndCoerceRow(metricsResult.rows[0], {
+      current_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
+      daily_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      weekly_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      total_risk_pct: { type: 'float', required: false, defaultValue: 0 }
+    });
+
+    // Calculate consecutive losses (requires JavaScript loop for proper logic)
+    const closedTradesRows = validateAndCoerceRows(closedTradesResult, {
+      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 }
+    });
+    let consec_losses = 0;
+    for (const r of closedTradesRows) {
+      if ((r.profit_loss_dollars || 0) < 0) consec_losses += 1;
+      else break;
+    }
+
+    // Get market data
+    const marketData = marketResult.rows.length > 0
+      ? validateAndCoerceRow(marketResult.rows[0], {
+          vix_level: { type: 'float', required: false, defaultValue: 0 },
+          market_stage: { type: 'int', required: false, defaultValue: 1 },
+          market_trend: { type: 'string', required: false, defaultValue: 'unknown' }
+        })
+      : { vix_level: 0, market_stage: 1, market_trend: 'unknown' };
+
+    const metrics = {
+      current_drawdown_pct: metricsRow.current_drawdown_pct,
+      daily_loss_pct: metricsRow.daily_loss_pct,
+      weekly_loss_pct: metricsRow.weekly_loss_pct,
+      consec_losses,
+      total_risk_pct: metricsRow.total_risk_pct,
+      vix_level: marketData.vix_level,
+      market_stage: marketData.market_stage,
+      market_trend: marketData.market_trend
+    };
+
     // Pull config (with sensible defaults if rows missing)
     const cfgResult = await pool.query(
       `SELECT key, value FROM algo_config WHERE key = ANY($1)`,
@@ -1974,150 +2039,34 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       weekly_loss:        cfg.max_weekly_loss_pct ?? 5,
     };
 
-    // Latest snapshot (drawdown, daily return)
-    const snapResult = await pool.query(`
-      SELECT snapshot_date, total_portfolio_value, daily_return_pct, max_drawdown_pct
-      FROM algo_portfolio_snapshots
-      ORDER BY snapshot_date DESC LIMIT 30
-    `);
-
-    // Validate snapshot result
-    validateQueryResult(snapResult, { requireRows: false });
-
-    const snaps = validateAndCoerceRows(snapResult, {
-      snapshot_date: { type: 'date', required: true },
-      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
-      daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
-      max_drawdown_pct: { type: 'float', required: false, defaultValue: 0 }
-    });
-    const latest = snaps[0] || {};
-
-    // Compute current portfolio drawdown from peak (use last 30 snapshots)
-    let curDD = 0;
-    if (snaps.length > 1) {
-      const peak = Math.max(...snaps.map(s => parseFloat(s.total_portfolio_value || 0)));
-      const cur = parseFloat(latest.total_portfolio_value || 0);
-      curDD = peak > 0 ? ((peak - cur) / peak) * 100 : 0;
-    }
-
-    // Daily loss % (today)
-    const dailyLossPct = -1 * Math.min(0, parseFloat(latest.daily_return_pct || 0));
-
-    // Weekly loss = sum of daily returns over last 5 sessions, only the negative side
-    let weeklyLossPct = 0;
-    if (snaps.length >= 5) {
-      const last5 = snaps.slice(0, 5);
-      const sumDaily = last5.reduce((s, r) => s + parseFloat(r.daily_return_pct || 0), 0);
-      weeklyLossPct = -1 * Math.min(0, sumDaily);
-    }
-
-    // Consecutive losses (closed trades, walking back from most recent)
-    const closedTrades = await pool.query(`
-      SELECT profit_loss_dollars FROM algo_trades
-      WHERE status = 'closed' AND exit_date IS NOT NULL
-      ORDER BY exit_date DESC LIMIT 50
-    `);
-
-    // Validate closed trades result
-    validateQueryResult(closedTrades, { requireRows: false });
-
-    const closedTradesRows = validateAndCoerceRows(closedTrades, {
-      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 }
-    });
-    let consec = 0;
-    for (const r of closedTradesRows) {
-      if ((r.profit_loss_dollars || 0) < 0) consec += 1;
-      else break;
-    }
-
-    // Total open risk = sum of (current - stop) * qty across open positions
-    const openRiskResult = await pool.query(`
-      WITH latest_trade AS (
-        SELECT DISTINCT ON (symbol) symbol, stop_loss_price
-        FROM algo_trades WHERE status = 'open'
-        ORDER BY symbol, trade_date DESC
-      )
-      SELECT SUM(GREATEST(p.current_price - lt.stop_loss_price, 0) * p.quantity) AS open_risk,
-             MAX(snap.total_portfolio_value) AS port_value
-      FROM algo_positions p
-      LEFT JOIN latest_trade lt ON lt.symbol = p.symbol
-      CROSS JOIN (
-        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-        ORDER BY snapshot_date DESC LIMIT 1
-      ) snap
-      WHERE p.status = 'open'
-    `);
-
-    // Validate open risk result
-    validateQueryResult(openRiskResult, { minRows: 1, maxRows: 1 });
-
-    const openRiskRow = validateAndCoerceRow(openRiskResult.rows[0], {
-      open_risk: { type: 'float', required: false, defaultValue: 0 },
-      port_value: { type: 'float', required: false, defaultValue: 0 }
-    });
-    const openRiskDollars = openRiskRow.open_risk || 0;
-    const portValue = openRiskRow.port_value || 0;
-    const totalRiskPct = portValue > 0 ? (openRiskDollars / portValue) * 100 : 0;
-
-    // VIX
-    const vixResult = await pool.query(`
-      SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1
-    `);
-
-    // Validate vix result
-    validateQueryResult(vixResult, { requireRows: false });
-
-    const vix = vixResult.rows.length > 0
-      ? validateAndCoerceRow(vixResult.rows[0], {
-          vix_level: { type: 'float', required: false, defaultValue: 0 }
-        }).vix_level
-      : 0;
-
-    // Market stage
-    const stageResult = await pool.query(`
-      SELECT market_stage, market_trend FROM market_health_daily ORDER BY date DESC LIMIT 1
-    `);
-
-    // Validate stage result
-    validateQueryResult(stageResult, { requireRows: false });
-
-    const stageData = stageResult.rows.length > 0
-      ? validateAndCoerceRow(stageResult.rows[0], {
-          market_stage: { type: 'int', required: false, defaultValue: 1 },
-          market_trend: { type: 'string', required: false, defaultValue: 'unknown' }
-        })
-      : { market_stage: 1, market_trend: 'unknown' };
-    const stage = stageData.market_stage;
-    const trend = stageData.market_trend;
-
     const breakers = [
       { id: 'drawdown', label: 'Portfolio Drawdown',
-        current: Math.round(curDD * 100) / 100, threshold: thresh.drawdown,
-        unit: '%', triggered: curDD >= thresh.drawdown,
+        current: metrics.current_drawdown_pct, threshold: thresh.drawdown,
+        unit: '%', triggered: metrics.current_drawdown_pct >= thresh.drawdown,
         description: 'Halts entries when total drawdown from peak exceeds threshold' },
       { id: 'daily_loss', label: 'Daily Loss',
-        current: Math.round(dailyLossPct * 100) / 100, threshold: thresh.daily_loss,
-        unit: '%', triggered: dailyLossPct >= thresh.daily_loss,
+        current: metrics.daily_loss_pct, threshold: thresh.daily_loss,
+        unit: '%', triggered: metrics.daily_loss_pct >= thresh.daily_loss,
         description: 'Today\'s portfolio drop below threshold halts new entries' },
       { id: 'consecutive_losses', label: 'Consecutive Losses',
-        current: consec, threshold: thresh.consecutive_losses,
-        unit: '', triggered: consec >= thresh.consecutive_losses,
+        current: metrics.consec_losses, threshold: thresh.consecutive_losses,
+        unit: '', triggered: metrics.consec_losses >= thresh.consecutive_losses,
         description: 'Cool-off after streak of losing trades' },
       { id: 'total_risk', label: 'Total Open Risk',
-        current: Math.round(totalRiskPct * 100) / 100, threshold: thresh.total_risk,
-        unit: '%', triggered: totalRiskPct >= thresh.total_risk,
+        current: metrics.total_risk_pct, threshold: thresh.total_risk,
+        unit: '%', triggered: metrics.total_risk_pct >= thresh.total_risk,
         description: 'Sum of distance-to-stop across all open positions' },
       { id: 'vix_spike', label: 'VIX Spike',
-        current: Math.round(vix * 10) / 10, threshold: thresh.vix_spike,
-        unit: '', triggered: vix > thresh.vix_spike,
+        current: metrics.vix_level, threshold: thresh.vix_spike,
+        unit: '', triggered: metrics.vix_level > thresh.vix_spike,
         description: 'Volatility expansion above threshold pauses new entries' },
       { id: 'market_stage', label: 'Market Stage',
-        current: stage, threshold: 4,
-        unit: '', triggered: stage === 4,
-        description: `Market in stage ${stage} (${trend}) â€” stage 4 = downtrend halts entries` },
+        current: metrics.market_stage, threshold: 4,
+        unit: '', triggered: metrics.market_stage === 4,
+        description: `Market in stage ${metrics.market_stage} (${metrics.market_trend}) â€” stage 4 = downtrend halts entries` },
       { id: 'weekly_loss', label: 'Weekly Loss',
-        current: Math.round(weeklyLossPct * 100) / 100, threshold: thresh.weekly_loss,
-        unit: '%', triggered: weeklyLossPct >= thresh.weekly_loss,
+        current: metrics.weekly_loss_pct, threshold: thresh.weekly_loss,
+        unit: '%', triggered: metrics.weekly_loss_pct >= thresh.weekly_loss,
         description: 'Trailing 5-session loss above threshold halts new entries' },
     ];
 
@@ -2493,9 +2442,10 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
         SUM(CASE WHEN order_status = 'filled' THEN 1 ELSE 0 END) as filled,
         SUM(CASE WHEN order_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
         SUM(CASE WHEN order_status = 'partial' THEN 1 ELSE 0 END) as partial,
-        AVG(fill_rate_pct) as avg_fill_rate,
-        AVG(ABS(slippage_bps)) as avg_slippage_bps,
-        MAX(ABS(slippage_bps)) as max_slippage_bps
+        ROUND(AVG(fill_rate_pct)::numeric, 2) as avg_fill_rate,
+        ROUND(AVG(ABS(slippage_bps))::numeric, 2) as avg_slippage_bps,
+        ROUND(MAX(ABS(slippage_bps))::numeric, 2) as max_slippage_bps,
+        ROUND(AVG(ABS(slippage_bps))::numeric, 2) > 100 as slippage_alert
       FROM order_execution_log
       WHERE order_timestamp >= NOW() - MAKE_INTERVAL(days => $1)
     `, [days]);
@@ -2510,7 +2460,8 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
       partial: { type: 'int', required: false, defaultValue: 0 },
       avg_fill_rate: { type: 'float', required: false, defaultValue: 0 },
       avg_slippage_bps: { type: 'float', required: false, defaultValue: 0 },
-      max_slippage_bps: { type: 'float', required: false, defaultValue: 0 }
+      max_slippage_bps: { type: 'float', required: false, defaultValue: 0 },
+      slippage_alert: { type: 'bool', required: false, defaultValue: false }
     });
 
     const metrics = {
@@ -2519,10 +2470,10 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
       filled: row.filled || 0,
       rejected: row.rejected || 0,
       partial: row.partial || 0,
-      fill_rate_pct: (row.avg_fill_rate || 0).toFixed(2),
-      avg_slippage_bps: (row.avg_slippage_bps || 0).toFixed(2),
-      max_slippage_bps: (row.max_slippage_bps || 0).toFixed(2),
-      slippage_alert: (row.avg_slippage_bps || 0) > 100,
+      fill_rate_pct: row.avg_fill_rate || 0,
+      avg_slippage_bps: row.avg_slippage_bps || 0,
+      max_slippage_bps: row.max_slippage_bps || 0,
+      slippage_alert: row.slippage_alert || false,
     };
 
     return sendSuccess(res, { metrics });
