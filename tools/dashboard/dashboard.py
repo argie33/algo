@@ -1794,7 +1794,7 @@ def fetch_positions(c):
                     p["_price_quality"] = "stale"
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
-        return result
+        return {"positions": result, "stale_alerts": stale_alerts}
     except psycopg2.Error as e:
         err_msg = str(e)
         error_detail = None
@@ -1814,11 +1814,11 @@ def fetch_positions(c):
             error_detail = f"{type(e).__name__} — check DB connection, RDS availability, statement timeout"
         logger.error(f"fetch_positions: {error_detail}")
         _log_data_quality("fetch_positions", 0, error_detail)
-        return []
+        return {"_error": error_detail, "positions": [], "stale_alerts": stale_alerts}
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
-        return []
+        return {"_error": str(e), "positions": [], "stale_alerts": stale_alerts}
 
 def fetch_recent_trades(c):
     try:
@@ -3665,6 +3665,11 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
     # TIER 1B FIX: Check for error dict before processing
     if isinstance(pos, dict) and pos.get("_error"):
         return error_panel("POSITIONS", pos.get("_error"))
+    # Extract positions and stale_alerts from new dict format
+    stale_alerts = []
+    if isinstance(pos, dict) and "positions" in pos:
+        stale_alerts = pos.get("stale_alerts", [])
+        pos = pos.get("positions", [])
     if not pos:
         return Panel(Text("  No open positions — algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
@@ -4655,11 +4660,17 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         for m in valid_metrics[:5]:
             d   = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            ta  = int(m.get("total_actions") or 0)
-            en  = int(m.get("entries") or 0)
-            ex  = int(m.get("exits") or 0)
+            ta_val = m.get("total_actions")
+            en_val = m.get("entries")
+            ex_val = m.get("exits")
+            ta  = int(ta_val) if ta_val is not None else None
+            en  = int(en_val) if en_val is not None else None
+            ex  = int(ex_val) if ex_val is not None else None
+            ta_display = str(ta) if ta is not None else "--"
+            en_display = str(en) if en is not None else "--"
+            ex_display = str(ex) if ex is not None else "--"
             rows.append(Text.from_markup(
-                f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
+                f"  [dim]{d_s}:[/] [white]{ta_display}[/][dim] total actions,  [/][{G}]{en_display}[/][dim] entries  [/][{R}]{ex_display}[/][dim] exits[/]"
             ))
 
     # Data loader status (errors/stale from data_loader_status table)
@@ -4806,8 +4817,12 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     # Fallback: use algo_metrics for today's entry/exit counts
     valid_metrics = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
     today_m = valid_metrics[0] if valid_metrics else {}
-    if not entries_exec: entries_exec = int(today_m.get("entries") or 0)
-    if not exits_exec:   exits_exec   = int(today_m.get("exits")   or 0)
+    if not entries_exec:
+        entries_val = today_m.get("entries")
+        entries_exec = int(entries_val) if entries_val is not None else None
+    if not exits_exec:
+        exits_val = today_m.get("exits")
+        exits_exec = int(exits_val) if exits_val is not None else None
 
     # "What did the algo do today?" summary — the core insight
     action_parts = []
@@ -4830,10 +4845,14 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         for m in valid_metrics[:5]:
             d   = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            en  = int(m.get("entries") or 0)
-            ex  = int(m.get("exits")   or 0)
-            e_c = G if en > 0 else DIM
-            x_c = Y if ex > 0 else DIM
+            en_val = m.get("entries")
+            ex_val = m.get("exits")
+            en  = int(en_val) if en_val is not None else None
+            ex  = int(ex_val) if ex_val is not None else None
+            e_c = G if en is not None and en > 0 else DIM
+            x_c = Y if ex is not None and ex > 0 else DIM
+            en_display = str(en) if en is not None else "--"
+            ex_display = str(ex) if ex is not None else "--"
             day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}▲[/][{x_c}]{ex}▼[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
