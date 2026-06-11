@@ -129,6 +129,7 @@ async function getDbConfig() {
 
       const host = process.env.DB_HOST || process.env.DB_ENDPOINT;
       const user = process.env.DB_USER || process.env.DB_USERNAME || "postgres";
+      const password = process.env.DB_PASSWORD;
       const database =
         process.env.DB_NAME || process.env.DB_DATABASE || "postgres";
 
@@ -136,11 +137,18 @@ async function getDbConfig() {
         throw new Error("DB_HOST is required when using environment variables");
       }
 
+      // SECURITY FIX S-13: Require explicit password (no empty default)
+      if (!password) {
+        throw new Error(
+          "Database password (DB_PASSWORD) is required. Set via environment variable or provide DB_SECRET_ARN for AWS Secrets Manager."
+        );
+      }
+
       dbConfig = {
         host,
         port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
         user,
-        password: process.env.DB_PASSWORD || "",
+        password,
         database,
         // AWS Lambda optimized connection pool settings
         max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased for reserved concurrency

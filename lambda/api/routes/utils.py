@@ -186,18 +186,24 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
         logger.error(f"Query execution failed after {max_attempts} attempts: {last_error}")
         raise last_error
 
-def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = 1) -> dict:
+def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = None) -> dict:
     """Check how fresh data is in a table.
 
     Args:
         cur: Database cursor
         table_name: Table to check
         date_column: Column containing date/timestamp
-        warning_days: Days beyond which data is considered stale
+        warning_days: Days beyond which data is considered stale.
+                     If None, uses DATA_FRESHNESS_MAX_HOURS from config (converted to days).
 
     Returns:
         Dict with data_age_days, is_stale, max_date, warning
     """
+    if warning_days is None:
+        from ..utils.config import get_config
+        config = get_config()
+        warning_days = max(1, int(config.data_freshness_max_hours / 24))
+
     try:
         import psycopg2.sql
         cur.execute(
@@ -270,6 +276,37 @@ def json_response(code, data, data_freshness=None):
         # For non-200 codes, data should have 'errorType' and 'message'
         return {"statusCode": code, **data}
 
+def safe_json_serialize(obj):
+    """Convert database objects to JSON-serializable format.
+
+    Converts non-JSON types: Decimal→float, datetime/date→ISO string, UUID→string.
+    Handles nested dicts and lists recursively.
+
+    Args:
+        obj: Dict, list, or scalar to convert
+
+    Returns:
+        Object with all non-JSON-serializable values converted
+    """
+    from decimal import Decimal
+    from datetime import datetime, date
+    from uuid import UUID
+
+    if isinstance(obj, dict):
+        return {k: safe_json_serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [safe_json_serialize(item) for item in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, date):
+        return obj.isoformat()
+    elif isinstance(obj, UUID):
+        return str(obj)
+    else:
+        return obj
+
 def decimal_to_float_recursive(obj):
     """Convert Decimal values to float recursively in dicts and lists.
 
@@ -281,6 +318,8 @@ def decimal_to_float_recursive(obj):
 
     Returns:
         Object with all Decimal values converted to float
+
+    DEPRECATED: Use safe_json_serialize instead, which handles all non-JSON types.
     """
     from decimal import Decimal
     if isinstance(obj, dict):

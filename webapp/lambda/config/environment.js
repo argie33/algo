@@ -67,7 +67,7 @@ const config = {
     host: process.env.DB_HOST || "localhost",
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
     user: process.env.DB_USER || "stocks",
-    password: process.env.DB_PASSWORD || "",
+    password: process.env.DB_PASSWORD,  // SECURITY FIX S-13: Require explicit password (no empty default)
     database: process.env.DB_NAME || "stocks",
     secretArn: process.env.DB_SECRET_ARN,
     queryTimeout: parseInt(process.env.DB_QUERY_TIMEOUT || 30000),
