@@ -3777,13 +3777,25 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     if top_a:
         parts = []
         for s in top_a[:8]:
-            sc   = float(s.get("score") or 0)
-            sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-            parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+            # TIER 1A FIX: Show "--" for missing scores, not "0"
+            sc = s.get("score")
+            if sc is not None:
+                sc = float(sc)
+                sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
+                parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+            else:
+                parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
         extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:
-        parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
+        # TIER 1A FIX: Show "--" for missing scores, not "0"
+        parts = []
+        for a in near[:8]:
+            sc = a.get('score')
+            if sc is not None:
+                parts.append(f"[{CY}]{a['symbol']}[/][dim]{float(sc):.0f}[/]")
+            else:
+                parts.append(f"[{CY}]{a['symbol']}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
