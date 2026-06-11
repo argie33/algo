@@ -131,6 +131,7 @@ def run(
     check_halt_flag: Callable = None,
     phase1_degraded: bool = False,
 ) -> PhaseResult:
+    import os
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
