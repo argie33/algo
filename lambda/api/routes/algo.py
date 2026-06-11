@@ -494,8 +494,13 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 if d.get('sector') is None:
                     join_mismatches.append({'symbol': d.get('symbol'), 'missing_field': 'sector (company_profile)'})
                 # Add computed fields for API compatibility
-                unrealized_pnl = (d.get('position_value', 0) or 0) * (d.get('unrealized_pnl_pct', 0) or 0) / 100
-                d['unrealized_pnl'] = round(unrealized_pnl, 2)
+                position_value = d.get('position_value')
+                unrealized_pnl_pct = d.get('unrealized_pnl_pct')
+                if position_value is not None and unrealized_pnl_pct is not None:
+                    unrealized_pnl = float(position_value) * float(unrealized_pnl_pct) / 100
+                    d['unrealized_pnl'] = round(unrealized_pnl, 2)
+                else:
+                    d['unrealized_pnl'] = None
                 d['r_multiple'] = None
                 if (d.get('avg_entry_price') and d.get('stop_loss_price') and
                     float(d['avg_entry_price']) > float(d.get('stop_loss_price', 0))):
@@ -1192,7 +1197,8 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             """)
             portfolio_row = dict(cur.fetchone() or {})
             current_positions = portfolio_row.get('position_count', 0)
-            invested = float(portfolio_row.get('invested') or 0)
+            invested_val = portfolio_row.get('invested')
+            invested = float(invested_val) if invested_val is not None else None
 
             cur.execute("""
                 SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -1250,8 +1256,9 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 JOIN company_profile cp ON pd.symbol = cp.ticker
             """, (sector,))
             sector_row = dict(cur.fetchone() or {})
-            current_sector_pct = float(sector_row.get('sector_pct') or 0)
-            new_sector_pct = current_sector_pct + position_pct_calc
+            sector_pct_val = sector_row.get('sector_pct')
+            current_sector_pct = float(sector_pct_val) if sector_pct_val is not None else None
+            new_sector_pct = current_sector_pct + position_pct_calc if current_sector_pct is not None else None
             sector_limit_ok = new_sector_pct <= max_sector_pct
 
             # Worst-case drawdown impact (simplified)
@@ -1884,10 +1891,10 @@ def _get_algo_evaluate(cur) -> Dict:
                     'excellent_sqs_70': sig_dict.get('candidates_excellent', 0),
                     'exceptional_sqs_80': sig_dict.get('candidates_exceptional', 0),
                     'score_range': {
-                        'min': float(sig_dict.get('min_score', 0) or 0),
-                        'median': float(sig_dict.get('median_score', 0) or 0),
-                        'average': float(sig_dict.get('avg_score', 0) or 0),
-                        'max': float(sig_dict.get('top_score', 0) or 0),
+                        'min': float(sig_dict.get('min_score')) if sig_dict.get('min_score') is not None else None,
+                        'median': float(sig_dict.get('median_score')) if sig_dict.get('median_score') is not None else None,
+                        'average': float(sig_dict.get('avg_score')) if sig_dict.get('avg_score') is not None else None,
+                        'max': float(sig_dict.get('top_score')) if sig_dict.get('top_score') is not None else None,
                     }
                 },
                 'constraints': {
@@ -2058,8 +2065,9 @@ def _get_exposure_policy(cur) -> Dict:
             except psycopg2.Error as e:
                 logger.warning(f"Failed to fetch market health: {e}")
 
+            exposure_pct_val = row.get('exposure_pct')
             return json_response(200, {
-                'current_exposure_pct': float(row.get('exposure_pct') or 0),
+                'current_exposure_pct': float(exposure_pct_val) if exposure_pct_val is not None else None,
                 'exposure_tier': tier_key,
                 'is_entry_allowed': not active_tier['halt'],
                 'active_tier': active_tier,

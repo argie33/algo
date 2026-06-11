@@ -145,8 +145,9 @@ class DailyReconciliation:
                     logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
                 # 3. Calculate metrics
-                cash = float(alpaca_data.get('cash') or 0)
-                if cash == 0:
+                cash_val = alpaca_data.get('cash')
+                cash = float(cash_val) if cash_val is not None else None
+                if cash is None or cash == 0:
                     cur.execute("SELECT total_cash FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
                     prev_cash_row = cur.fetchone()
                     if prev_cash_row and prev_cash_row[0]:
@@ -873,11 +874,15 @@ class DailyReconciliation:
             )
             if resp.status_code == 200:
                 data = resp.json()
+                cash_val = data.get('cash')
+                equity_val = data.get('equity')
+                portfolio_value_val = data.get('portfolio_value') or data.get('equity')
+                buying_power_val = data.get('buying_power')
                 return {
-                    'cash': float(data.get('cash') or 0),
-                    'equity': float(data.get('equity') or 0),
-                    'portfolio_value': float(data.get('portfolio_value') or data.get('equity') or 0),
-                    'buying_power': float(data.get('buying_power') or 0),
+                    'cash': float(cash_val) if cash_val is not None else None,
+                    'equity': float(equity_val) if equity_val is not None else None,
+                    'portfolio_value': float(portfolio_value_val) if portfolio_value_val is not None else None,
+                    'buying_power': float(buying_power_val) if buying_power_val is not None else None,
                 }
             logger.warning(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
             return None

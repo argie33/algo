@@ -1488,8 +1488,9 @@ def fetch_perf(c):
             SELECT COUNT(*) as closed_count, MAX(exit_date) as latest_exit
             FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
         """)
-        closed_count = int(reconciliation_check.get("closed_count") or 0) if reconciliation_check else 0
-        if closed_count == 0:
+        closed_count_val = reconciliation_check.get("closed_count") if reconciliation_check else None
+        closed_count = int(closed_count_val) if closed_count_val is not None else None
+        if closed_count is None or closed_count == 0:
             logger.warning("VALIDATION: No closed trades with reconciliation data in algo_trades (Alpaca reconciliation may not have run)")
             return {"_reason": "no-reconciliation-data"}
 
@@ -1645,6 +1646,7 @@ def fetch_positions(c):
 
     Validation: Logs if algo_trades table is empty (no historical trades at all).
     """
+    stale_alerts = []
     try:
         # Validation: check if algo_trades table has any data at all
         trade_check = q1(c, "SELECT COUNT(*) as n FROM algo_trades")
@@ -1652,7 +1654,8 @@ def fetch_positions(c):
         if total_trades == 0:
             logger.warning("VALIDATION: algo_trades table is EMPTY - no historical trades found")
             _log_data_quality("fetch_positions", 0, "algo_trades table is empty")
-            return []
+            stale_alerts.append("No trade history")
+            return {"positions": [], "stale_alerts": stale_alerts}
 
         # Issue 39 FIX: Validate supporting table freshness before fetch (trend, swing scores, sectors)
         supporting_tables = [
@@ -1666,10 +1669,12 @@ def fetch_positions(c):
                 date_col = "updated_at" if table == "company_profile" else "date"
                 table_check = q1(c, f"SELECT COUNT(*) as cnt, MAX({date_col}) as latest_date FROM {table}")
                 if table_check:
-                    row_count = int(table_check.get("cnt") or 0)
+                    cnt_val = table_check.get("cnt")
+                    row_count = int(cnt_val) if cnt_val is not None else None
                     table_date = table_check.get("latest_date")
-                    if row_count == 0:
+                    if row_count is None or row_count == 0:
                         logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is EMPTY — positions will have incomplete {description.lower()}")
+                        stale_alerts.append(f"{description} missing")
                     elif table_date:
                         try:
                             if isinstance(table_date, datetime):
@@ -1681,6 +1686,7 @@ def fetch_positions(c):
                             age_days = (datetime.now(timezone.utc) - td).days
                             if age_days > max_age_days:
                                 logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is {age_days} days old (threshold {max_age_days}d) — positions may have stale {description.lower()}")
+                                stale_alerts.append(f"{description} {age_days}d old")
                         except (ValueError, TypeError):
                             pass
             except psycopg2.Error as e:
@@ -1769,6 +1775,7 @@ def fetch_positions(c):
                 missing_symbols = [p.get("symbol") for p in missing_sectors]
                 logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data: {missing_symbols} "
                              f"(may indicate ticker/symbol mismatch in company_profile table)")
+                stale_alerts.append(f"Sector missing ({len(missing_sectors)} positions)")
                 # Issue 18 FIX: Flag positions with missing sector data so dashboard can highlight them
                 for p in missing_sectors:
                     p["_missing_sector"] = True
@@ -2050,10 +2057,11 @@ def fetch_sector_position_warnings(c, cfg=None):
 
         for row in result:
             sector = row.get('sector') or 'Unknown'
-            count = int(row.get('position_count') or 0)
-            pct = (count / max_positions_per_sector * 100) if max_positions_per_sector > 0 else 0
+            position_count_val = row.get('position_count')
+            count = int(position_count_val) if position_count_val is not None else None
+            pct = (count / max_positions_per_sector * 100) if count is not None and max_positions_per_sector > 0 else None
 
-            if sector != 'Unknown' and count >= max_positions_per_sector:
+            if sector != 'Unknown' and count is not None and count >= max_positions_per_sector:
                 at_cap.append(sector)
                 warnings.append({
                     'sector': sector,
@@ -3027,7 +3035,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
     _FIELDS = ("halt_reason", "reason", "message", "error", "halt_message",
                "circuit_breaker", "triggered_by", "details")
     found: list[tuple[str, str]] = []
-    for p in (phase_results or []):
+    for p in phase_results if isinstance(phase_results, list) else []:
         ps = (p.get("status") or "").lower()
         if ps not in ("halt", "halted"):
             continue
@@ -3771,8 +3779,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
 
-    raw   = sig.get("n", 0)
-    total = sig.get("total", 0)
+    raw   = get_int(sig, "n")
+    total = get_int(sig, "total")
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
     g     = sig.get("grades") or {}
