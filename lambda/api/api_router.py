@@ -102,9 +102,14 @@ if _SKIPPED_ROUTES:
     logger.error(f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}")
 
 def _add_cors_headers(response):
-    """Ensure response is a valid dict (CORS headers added by lambda_function.py)."""
+    """Add CORS headers to response."""
     if not isinstance(response, dict):
         response = {"statusCode": 500, "errorType": "internal_error", "message": "Invalid response format"}
+    if 'headers' not in response:
+        response['headers'] = {}
+    response['headers']['Access-Control-Allow-Origin'] = '*'
+    response['headers']['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response['headers']['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):

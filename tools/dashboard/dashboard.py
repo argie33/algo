@@ -2021,36 +2021,38 @@ def fetch_signals(c):
             ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
             LIMIT 30""")
 
-        # Issue 23: Filter out signals with missing quality scores (MEDIUM Issue #13)
-        # ISSUE 41 FIX: Return count of filtered signals so dashboard can display data quality info
-        before_count = len(buy_sigs)
-        buy_sigs = [s for s in buy_sigs if s.get("signal_quality_score") is not None or s.get("entry_quality_score") is not None]
-        filtered_count = before_count - len(buy_sigs) if before_count != len(buy_sigs) else 0
+        # ARCHITECTURE FIX (C1-2): Signal filtering moved to API layer
+        # Dashboard receives only valid signals with quality scores
+        # If invalid signals received, dashboard logs warning but does NOT filter
+        signals_without_quality = [s for s in buy_sigs if s.get("signal_quality_score") is None and s.get("entry_quality_score") is None]
+        filtered_count = len(signals_without_quality)
         if filtered_count > 0:
-            logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
+            logger.warning(f"VALIDATION: Received {filtered_count} signals without quality scores from API — API should pre-filter these")
 
-        # C3-1 FIX: Enforce minimum quality score threshold (from config, not hardcoded)
-        MIN_QUALITY_SCORE = cfg.get("min_quality", 40.0) if cfg else 40.0
-        before_threshold = len(buy_sigs)
-        # TIER 1A FIX: Explicitly filter out signals with missing or low quality scores
-        def get_signal_quality(s):
-            sq = s.get("signal_quality_score")
-            eq = s.get("entry_quality_score")
-            sq_f = safe_float(sq, 0)
-            eq_f = safe_float(eq, 0)
-            return max(sq_f, eq_f)
-        buy_sigs = [s for s in buy_sigs if get_signal_quality(s) >= MIN_QUALITY_SCORE]
-        quality_filtered = before_threshold - len(buy_sigs)
-        if quality_filtered > 0:
-            logger.warning(f"VALIDATION: Filtered {quality_filtered} signals with quality score < {MIN_QUALITY_SCORE}/100")
+        # ARCHITECTURE FIX (C1-2): Signal quality filtering moved to API layer
+        # Dashboard no longer filters signals by quality threshold
+        # API must return only valid signals (quality >= configured threshold)
+        # If invalid signals received, dashboard validates but does NOT filter
+        min_quality_threshold = cfg.get("min_quality", 40.0) if cfg else 40.0
 
-        # HIGH-SEVERITY ISSUE FIX: Grade distribution now pre-computed in grade_distribution_daily
-        # Try to read from pre-computed table first, fallback to calculation
+        # Data integrity validation only — dashboard does NOT filter
+        signals_below_threshold = 0
+        for s in buy_sigs:
+            sq = safe_float(s.get("signal_quality_score"), 0)
+            eq = safe_float(s.get("entry_quality_score"), 0)
+            if max(sq, eq) < min_quality_threshold:
+                signals_below_threshold += 1
+
+        if signals_below_threshold > 0:
+            logger.warning(f"VALIDATION: Received {signals_below_threshold} signals below quality threshold {min_quality_threshold} from API — API should pre-filter these")
+
+        quality_filtered = 0  # Dashboard does not filter; count is 0
+
+        # C3-2 FIX: Grade distribution must be pre-computed; fail loud if missing
+        # No fallback calculations (Issue 38: Grade distribution fallback removed)
         grades = {}
         grades_date = None
 
-        # First try pre-computed grades
-        grades_daily = None
         try:
             grades_daily = q1(c, """
                 SELECT num_grade_a as a, num_grade_b as b, num_grade_c as c, num_grade_d as d,
@@ -2059,20 +2061,20 @@ def fetch_signals(c):
                 ORDER BY report_date DESC LIMIT 1
             """)
         except psycopg2.Error as e:
-            logger.debug(f"Grade distribution table not available: {e}")
+            logger.error(f"ARCHITECTURE FIX (C3-2): grade_distribution_daily table missing: {e}")
+            return {"_error": "Grade distribution table missing — run load_grade_distribution_daily.py"}
 
-        if grades_daily:
-            grades = grades_daily
-            grades_date = grades_daily.get('score_date')
-            a_grade = grades.get('a')
-            b_grade = grades.get('b')
-            c_grade = grades.get('c')
-            d_grade = grades.get('d')
-            logger.debug(f"Grade distribution from pre-computed table: A={a_grade} B={b_grade} C={c_grade} D={d_grade}")
-        else:
-            logger.error("Grade distribution table missing — loader (load_grade_distribution_daily.py) not run yet")
-            _log_data_quality("fetch_signals", 0, "grade_distribution_daily table missing")
-            grades = None
+        if not grades_daily:
+            logger.error("ARCHITECTURE FIX (C3-2): grade_distribution_daily table empty (no rows)")
+            return {"_error": "Grade distribution table empty — loader not run"}
+
+        grades = grades_daily
+        grades_date = grades_daily.get('score_date')
+        a_grade = grades.get('a')
+        b_grade = grades.get('b')
+        c_grade = grades.get('c')
+        d_grade = grades.get('d')
+        logger.debug(f"Grade distribution from pre-computed table: A={a_grade} B={b_grade} C={c_grade} D={d_grade}")
 
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
         # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
@@ -2097,17 +2099,19 @@ def fetch_signals(c):
               AND s.score >= {thr_a}
             ORDER BY s.score DESC LIMIT 20""", (grades_date,)) if grades_date else []
 
-        # Signal count trend: fetch from pre-computed table (not calculated in display)
-        trend = []
+        # C3-3 FIX: Signal trend must be pre-computed; fail loud if missing (Issue 39 fallback removed)
         try:
             trend = q(c, """
                 SELECT date, buy_count, total_count
                 FROM buy_sell_summary_daily
                 WHERE date >= CURRENT_DATE - 14
                 ORDER BY date DESC LIMIT 7""")
-        except psycopg2.Error:
-            logger.warning("VALIDATION: buy_sell_summary_daily table not available — daily signal trend not computed")
-            _log_data_quality("fetch_signals", 0, "signal_trend table missing")
+            if not trend:
+                logger.error("ARCHITECTURE FIX (C3-3): buy_sell_summary_daily table empty (no rows)")
+                return {"_error": "Signal trend table empty — loader not run"}
+        except psycopg2.Error as e:
+            logger.error(f"ARCHITECTURE FIX (C3-3): buy_sell_summary_daily table missing: {e}")
+            return {"_error": "Signal trend table missing — run buy_sell_summary loader"}
 
         # ISSUE 32 FIX: Return None for missing signal counts instead of 0 (don't hide missing data)
         sig_count = int(sig["n"]) if sig and sig.get("n") is not None else None
@@ -2172,69 +2176,35 @@ def fetch_sector_ranking(c):
         return {"_error": f"Failed to load sector ranking: {type(e).__name__}"}
 
 def fetch_sector_position_warnings(c, cfg=None):
-    """Issue 35 FIX: Display warnings when sectors reach/exceed position cap."""
+    """ARCHITECTURE FIX (C2-2): Sector position warnings must come from API, not dashboard calculation.
+
+    Issue: Dashboard was doing COUNT(*) GROUP BY + business logic (AT_CAP/NEAR_CAP determination)
+    Fix: API pre-computes warnings and returns them
+
+    This function now fetches pre-computed warnings from API instead of calculating.
+    If API not available, errors rather than falling back to calculation.
+    """
     try:
-        max_positions_per_sector = 5
-        if cfg:
-            max_pos_val = cfg.get('max_positions_per_sector') or cfg.get('max_sec_n')
-            if max_pos_val:
-                max_positions_per_sector = int(max_pos_val)
-        else:
-            try:
-                cfg_row = q1(c, "SELECT value FROM algo_config WHERE key='max_positions_per_sector' LIMIT 1")
-                if cfg_row and cfg_row.get('value'):
-                    max_positions_per_sector = int(cfg_row.get('value'))
-            except (psycopg2.Error, ValueError, TypeError):
-                pass
+        # Fetch pre-computed sector position warnings from API
+        api_resp = api_call("/api/algo/sector-position-warnings")
+        if "_error" in api_resp:
+            logger.error(f"fetch_sector_position_warnings: API error: {api_resp['_error']}")
+            _log_data_quality("fetch_sector_position_warnings", 0, api_resp['_error'])
+            return {"_error": api_resp['_error'], "warnings": [], "at_cap": []}
 
-        result = q(c, """
-            SELECT cp.sector, COUNT(*) as position_count
-            FROM algo_trades at
-            LEFT JOIN company_profile cp ON cp.symbol = at.symbol
-            WHERE at.status='open'
-            GROUP BY cp.sector
-            ORDER BY position_count DESC
-        """)
-
-        if not result:
-            _log_data_quality("fetch_sector_position_warnings", 0)
-            return {"warnings": [], "at_cap": []}
-
-        warnings = []
-        at_cap = []
-
-        for row in result:
-            sector = row.get('sector') or 'Unknown'
-            position_count_val = row.get('position_count')
-            count = int(position_count_val) if position_count_val is not None else None
-            pct = (count / max_positions_per_sector * 100) if count is not None and max_positions_per_sector > 0 else None
-
-            if sector != 'Unknown' and count is not None and count >= max_positions_per_sector:
-                at_cap.append(sector)
-                warnings.append({
-                    'sector': sector,
-                    'count': count,
-                    'max': max_positions_per_sector,
-                    'pct_of_max': round(pct, 0),
-                    'status': 'AT_CAP'
-                })
-            elif sector != 'Unknown' and count >= (max_positions_per_sector * 0.8):
-                warnings.append({
-                    'sector': sector,
-                    'count': count,
-                    'max': max_positions_per_sector,
-                    'pct_of_max': round(pct, 0),
-                    'status': 'NEAR_CAP'
-                })
+        warnings_data = api_resp.get("data", {})
+        warnings = warnings_data.get("warnings", [])
+        at_cap_list = warnings_data.get("at_cap", [])
 
         if warnings:
-            logger.warning(f"VALIDATION: Sector position warnings: {len(warnings)} sectors near/at cap")
+            logger.info(f"Sector position warnings: {len(warnings)} sectors near/at cap")
             _log_data_quality("fetch_sector_position_warnings", len(warnings))
         else:
             _log_data_quality("fetch_sector_position_warnings", 0)
 
-        return {"warnings": warnings, "at_cap": at_cap}
-    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        return {"warnings": warnings, "at_cap": at_cap_list}
+
+    except Exception as e:
         logger.error(f"fetch_sector_position_warnings: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_position_warnings", 0, str(e))
         return {"_error": f"Failed to load sector position warnings: {type(e).__name__}"}
