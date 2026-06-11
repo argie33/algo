@@ -1680,17 +1680,15 @@ def fetch_perf(c):
             logger.warning("VALIDATION: No pre-computed metrics in algo_performance_daily — data may not be loaded yet")
             _log_data_quality("fetch_perf", 0, "No metrics in algo_performance_daily")
 
-        # Use pre-computed avg_r from database, fallback to calculating from trades
-        # ISSUE 37 FIX: Avoid recalculating avg_r on every refresh if database doesn't have it yet
-        # Log a warning if we fall back to calculation (indicates loader hasn't populated the column)
+        # Use pre-computed avg_r from database ONLY — NO FALLBACK
+        # CRITICAL FIX: Removed fallback calculation that was hiding loader issues
+        # If loader hasn't populated avg_r, return None (show as "—" in UI)
+        # Operator will see missing data and know loader calculation is incomplete
+        avg_r = None
         if perf and perf.get("avg_r") is not None:
             avg_r = float(perf.get("avg_r"))
-        else:
-            if perf:
-                logger.warning("VALIDATION: avg_r not populated in algo_performance_daily — loader may be incomplete")
-            # Fallback: calculate avg_r from trades if not in database (expensive operation)
-            avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
-            avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
+        elif perf:
+            logger.error("CRITICAL: avg_r not populated in algo_performance_daily — loader may not have completed")
 
         # ISSUE 43 FIX: Include updated_at timestamp so dashboard shows calculation staleness
         updated_at_str = None
@@ -2418,8 +2416,8 @@ def fetch_sentiment(c):
     try:
         row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
         if not row:
-            _log_data_quality("fetch_sentiment", 0)
-            return {}
+            _log_data_quality("fetch_sentiment", 0, "No sentiment data")
+            return {"_error": "No market sentiment data found"}
         fg = get_numeric(row, "fear_greed_index")
         if fg is None:
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
@@ -2432,7 +2430,7 @@ def fetch_sentiment(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sentiment", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load sentiment: {type(e).__name__}"}
 
 def fetch_economic_calendar(c):
     try:
@@ -2467,12 +2465,12 @@ def fetch_economic_calendar(c):
             _log_data_quality("fetch_economic_calendar", len(filtered) if filtered else 0)
             return filtered
         else:
-            _log_data_quality("fetch_economic_calendar", 0)
-            return []
+            _log_data_quality("fetch_economic_calendar", 0, "No calendar events")
+            return {"_error": "No economic calendar data"}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_calendar", 0, str(e))
-        return []
+        return {"_error": f"Failed to load economic calendar: {type(e).__name__}"}
 
 def fetch_risk_metrics(c) -> dict:
     """Fetch pre-calculated risk metrics (updated hourly by load_algo_risk_daily.py).
@@ -2695,7 +2693,7 @@ def fetch_industry_ranking(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_industry_ranking", 0, str(e))
-        return []
+        return {"_error": f"Failed to load industry ranking: {type(e).__name__}"}
 
 def fetch_loader_status(c):
     try:
@@ -2746,7 +2744,7 @@ def fetch_loader_status(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
         _log_data_quality("fetch_loader_status", 0, str(e))
-        return []
+        return {"_error": f"Failed to load loader status: {type(e).__name__}"}
 
 def fetch_exec_history(c):
     try:
@@ -2767,7 +2765,7 @@ def fetch_exec_history(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
         _log_data_quality("fetch_exec_history", 0, str(e))
-        return []
+        return {"_error": f"Failed to load execution history: {type(e).__name__}"}
 
 def fetch_audit_log(c):
     try:
@@ -2794,7 +2792,7 @@ def fetch_audit_log(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
         _log_data_quality("fetch_audit_log", 0, str(e))
-        return []
+        return {"_error": f"Failed to load audit log: {type(e).__name__}"}
 
 def fetch_circuit(c):
     try:
@@ -2937,7 +2935,7 @@ def fetch_circuit(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
         _log_data_quality("fetch_circuit", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load circuit breaker: {type(e).__name__}"}
 
 
 def check_loader_health() -> dict:

@@ -606,8 +606,9 @@ def _get_algo_performance(cur) -> Dict:
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 logger.warning(f'Portfolio snapshots unavailable: {e}')
-            if max_dd == 0.0 and pnls_pcts:
-                max_dd = _cumprod_max_dd([p / 100.0 for p in pnls_pcts])
+            # CRITICAL: Removed fallback max_dd calculation (lines 609-610 from old version)
+            # If no snapshots, max_dd stays 0.0 (no fallback to trade-based drawdown)
+            # Trade-based drawdown misses cash held between trades; snapshot-based is accurate
             # Win rate excludes breakeven trades from denominator (only wins/losses count)
             win_loss_total = winning + losing
             win_rate_pct = round((winning / win_loss_total * 100) if win_loss_total > 0 else 0.0, 2)
@@ -618,9 +619,10 @@ def _get_algo_performance(cur) -> Dict:
             # total_return_pct: true compounded portfolio return from snapshots when available
             if total_return_pct is None:
                 total_return_pct = sum_of_trade_pnls_pct
-            # Calmar fallback when no snapshots: use sum_of_trade_pnls_pct as numerator (imprecise)
-            if calmar_ratio == 0.0 and max_dd < 0:
-                calmar_ratio = round(sum_of_trade_pnls_pct / 100 / abs(max_dd), 2)
+            # CRITICAL: Removed Calmar fallback (lines 621-623 from old version)
+            # If no snapshots, calmar_ratio stays 0.0 (no fallback calculation)
+            # Trade P&L fallback is imprecise (uses uncompounded sum instead of CAGR)
+            # If calmar_ratio is 0, frontend knows snapshots weren't available
             # Compute streak metrics from ordered trade P&Ls
             best_win_streak = worst_loss_streak = current_streak = 0
             if pnls_dollars:
@@ -700,9 +702,10 @@ def _get_algo_performance(cur) -> Dict:
                 'expectancy_r': round(_mean(r_multiples), 2) if r_multiples else 0.0,
                 'avg_hold_days': round(_mean(holding_days), 1),
                 'avg_holding_days': round(_mean(holding_days), 1),
-                'avg_r_multiple': round(_mean(r_multiples), 2),
-                'avg_win_r': round(_mean([r for r in r_multiples if r > 0]), 2),
-                'avg_loss_r': round(_mean([r for r in r_multiples if r < 0]), 2),
+                # CRITICAL: Removed avg_r recalculations (lines 703-705 from old version)
+                # These are pre-computed by loaders and should come from algo_performance_daily
+                # Don't recalculate expensive metrics on every API call
+                # Frontend should call /api/algo/performance for pre-computed metrics instead
                 'portfolio_snapshots': snapshot_count,
                 'best_win_streak': best_win_streak,
                 'worst_loss_streak': worst_loss_streak,
