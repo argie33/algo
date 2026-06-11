@@ -1002,7 +1002,7 @@ def fetch_run(c):
             FROM orchestrator_execution_log
             ORDER BY started_at DESC LIMIT 1""")
         if row:
-            pr = row.get("phase_results") or []
+            pr = row.get("phase_results")
             if isinstance(pr, str):
                 try:
                     pr = json.loads(pr)
@@ -1019,9 +1019,9 @@ def fetch_run(c):
                 "errored":   overall in ("error", "failed"),
                 "summary":   row.get("summary"),
                 "halt_reason": row.get("halt_reason"),
-                "phases_completed": row.get("phases_completed") or [],
-                "phases_halted":    row.get("phases_halted") or [],
-                "phases_errored":   row.get("phases_errored") or [],
+                "phases_completed": row.get("phases_completed"),
+                "phases_halted":    row.get("phases_halted"),
+                "phases_errored":   row.get("phases_errored"),
                 "phase_results":    pr,
                 "_source": "exec_log",
             }
@@ -1195,7 +1195,7 @@ def fetch_market(c):
                                fed_rate_environment, date
                         FROM market_health_daily ORDER BY date DESC LIMIT 1""")
         pct   = safe_float(exp.get("exposure_pct")) if exp else None
-        halts = exp.get("halt_reasons") or [] if exp else []
+        halts = exp.get("halt_reasons") if exp else []
         if isinstance(halts, str):
             try:
                 halts = json.loads(halts)
@@ -1962,6 +1962,7 @@ def fetch_positions(c):
         return {"_error": str(e), "positions": [], "stale_alerts": stale_alerts}
 
 def fetch_recent_trades(c):
+    stale_alerts = []
     try:
         result = q(c, """
             SELECT symbol, trade_date, exit_date, status,
@@ -1986,13 +1987,14 @@ def fetch_recent_trades(c):
                 result = [t for t in result if t.get("status") in VALID_STATUSES]
 
         _log_data_quality("fetch_recent_trades", len(result) if result else 0)
-        return result
+        return {"trades": result, "stale_alerts": stale_alerts}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         _log_data_quality("fetch_recent_trades", 0, str(e))
-        return {"_error": f"Failed to load recent trades: {type(e).__name__}"}
+        return {"_error": f"Failed to load recent trades: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_signals(c):
+    stale_alerts = []
     try:
         # Issue 21 FIX: Use default min_swing_score instead of separate query (already fetched by fetch_algo_config)
         # This avoids redundant database round-trips; cfg will fetch the actual value from algo_config
@@ -2155,7 +2157,7 @@ def fetch_signals(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         _log_data_quality("fetch_signals", 0, str(e))
-        return {"_error": f"Failed to load signals: {type(e).__name__}"}
+        return {"_error": f"Failed to load signals: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_sector_ranking(c):
     try:
@@ -2377,12 +2379,11 @@ def fetch_economic_pulse(c):
                 try:
                     cur = safe_float(cpi_cur['value'])
                     prev = safe_float(cpi_yoy_row['value'])
-                    if cur is None or prev is None:
-                        continue
-                    if prev > 0:
-                        cpi_yoy = round((cur - prev) / prev * 100, 2)
-                    else:
-                        cpi_error = "prev_cpi_zero"
+                    if cur is not None and prev is not None:
+                        if prev > 0:
+                            cpi_yoy = round((cur - prev) / prev * 100, 2)
+                        else:
+                            cpi_error = "prev_cpi_zero"
                 except (ValueError, TypeError) as e:
                     cpi_error = f"parse_error:{type(e).__name__}"
             else:
@@ -2435,17 +2436,19 @@ def fetch_economic_pulse(c):
         return {"_error": f"Failed to load economic pulse: {type(e).__name__}"}
 
 def fetch_algo_metrics(c):
+    stale_alerts = []
     try:
         rows = q(c, """SELECT date, total_actions, entries, exits
                        FROM algo_metrics_daily ORDER BY date DESC LIMIT 5""")
         _log_data_quality("fetch_algo_metrics", len(rows) if rows else 0)
-        return rows
+        return {"metrics": rows, "stale_alerts": stale_alerts}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_algo_metrics", 0, str(e))
-        return {"_error": f"Failed to load algo metrics: {type(e).__name__}"}
+        return {"_error": f"Failed to load algo metrics: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_notifications(c):
+    stale_alerts = []
     try:
         # Issue 16 FIX: Filter to recent notifications (last 7 days) to avoid stale alerts
         result = q(c, """
@@ -2454,33 +2457,35 @@ def fetch_notifications(c):
             WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
             ORDER BY created_at DESC LIMIT 8""")
         _log_data_quality("fetch_notifications", len(result) if result else 0)
-        return result
+        return {"notifications": result, "stale_alerts": stale_alerts}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_notifications: {type(e).__name__}: {e}")
         _log_data_quality("fetch_notifications", 0, str(e))
-        return {"_error": f"Failed to load notifications: {type(e).__name__}"}
+        return {"_error": f"Failed to load notifications: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_sentiment(c):
+    stale_alerts = []
     try:
         row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
         if not row:
             _log_data_quality("fetch_sentiment", 0, "No sentiment data")
-            return {"_error": "No market sentiment data found"}
+            return {"_error": "No market sentiment data found", "stale_alerts": stale_alerts}
         fg = get_numeric(row, "fear_greed_index")
         if fg is None:
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
-            return {"_error": "fear_greed_index missing", "date": row.get("date")}
+            return {"_error": "fear_greed_index missing", "date": row.get("date"), "stale_alerts": stale_alerts}
         label = get_string(row, "label")
         c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
-        return result
+        return {**result, "stale_alerts": stale_alerts}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sentiment", 0, str(e))
-        return {"_error": f"Failed to load sentiment: {type(e).__name__}"}
+        return {"_error": f"Failed to load sentiment: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_economic_calendar(c):
+    stale_alerts = []
     try:
         rows = q(c, """SELECT event_name, event_date, event_time, importance,
                               forecast_value, actual_value, previous_value
@@ -2511,14 +2516,14 @@ def fetch_economic_calendar(c):
                 filtered.append(row)
 
             _log_data_quality("fetch_economic_calendar", len(filtered) if filtered else 0)
-            return filtered
+            return {"events": filtered, "stale_alerts": stale_alerts}
         else:
             _log_data_quality("fetch_economic_calendar", 0, "No calendar events")
-            return {"_error": "No economic calendar data"}
+            return {"_error": "No economic calendar data", "stale_alerts": stale_alerts}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_calendar", 0, str(e))
-        return {"_error": f"Failed to load economic calendar: {type(e).__name__}"}
+        return {"_error": f"Failed to load economic calendar: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_risk_metrics(c) -> dict:
     """Fetch pre-calculated risk metrics (updated hourly by load_algo_risk_daily.py).
@@ -3594,7 +3599,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             parts4.append(f"[dim]Fed:[/][white]{fed[:20]}[/]")
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
-        halts  = mkt.get("halts") or []
+        halts  = mkt.get("halts")
         halt_s = " | ".join(format_halt_reason(h) for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5  = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
@@ -3792,13 +3797,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     ]
 
     # Equity curve sparkline
-    equity_vals = perf.get("equity_vals") or []
+    equity_vals = perf.get("equity_vals")
     if len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity:[/] {sp}"))
 
     # Recent daily returns (last 5 snapshots)
-    recent_rets = perf.get("recent_rets") or []
+    recent_rets = perf.get("recent_rets")
     if recent_rets:
         parts = []
         for dt, ret in recent_rets[-5:]:
@@ -4001,7 +4006,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         row = [
             symbol_display,
             fmt_money_short(pval) if pval is not None else "--",
-            f"${entry:.2f}" if entry is not None else "--", f"${price:.2f}" if price is not None else "--",
+            f"${entry:.2f}" if entry is not None else "--", (f"${price:.2f} [yellow]⚠ stale[/]" if is_stale_price else f"${price:.2f}") if price is not None else "--",
             Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
             # TIER 1A FIX: sign() handles None safely
             Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
@@ -4044,8 +4049,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     gb = int(g.get("b", 0)) if g.get("b") is not None else 0
     gc = int(g.get("c", 0)) if g.get("c") is not None else 0
     gd = int(g.get("d", 0)) if g.get("d") is not None else 0
-    top_a = sig.get("top_a") or []
-    near  = sig.get("near")  or []
+    top_a = sig.get("top_a")
+    near  = sig.get("near")
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
@@ -4065,7 +4070,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
 
     # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
-    trend = sig.get("trend") or []
+    trend = sig.get("trend")
     spark_s = ""
     if len(trend) >= 2:
         counts  = [int(t.get("buy_n", 0)) if t.get("buy_n") is not None else 0 for t in reversed(trend)]
@@ -4114,7 +4119,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         ev_t5  = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)
         ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected   = sig_eval.get("rejected") or []
+        rejected   = sig_eval.get("rejected")
         block_parts = ["  ".join(
             f"[dim]{_shorten_reason(rj['evaluation_reason'])}:{rj['n']}[/]"
             for rj in rejected[:3]
@@ -4128,7 +4133,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     rows.append(Rule(style="dim"))
 
     # ── Signal table (Rich Table for proper column alignment) ─────────────────
-    buy_sigs = sig.get("buy_sigs") or []
+    buy_sigs = sig.get("buy_sigs")
     if buy_sigs:
         t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
                   padding=(0, 1), expand=True, row_styles=["", "dim"])
@@ -4791,7 +4796,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
-        phase_results = run.get("phase_results") or []
+        phase_results = run.get("phase_results")
         for p in phase_results:
             raw   = (p.get("name") or p.get("phase", "")).lower()
             parts = raw.split("_")
@@ -5040,7 +5045,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         return 0
 
     if run_valid and run.get("_source") == "exec_log":
-        for p in (run.get("phase_results") or []):
+        for p in (run.get("phase_results")):
             raw   = (p.get("name") or p.get("phase", "")).lower()
             parts_p = raw.split("_")
             base  = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
@@ -5429,7 +5434,7 @@ def panel_signals_expanded(sig, sig_eval=None):
         f"[dim]press [/][bold magenta]s[/][dim] to return[/]"
     )]
 
-    top_a = sig.get("top_a") or []
+    top_a = sig.get("top_a")
     if top_a:
         parts = []
         for s in top_a:
@@ -5445,14 +5450,14 @@ def panel_signals_expanded(sig, sig_eval=None):
         funnel = (f"[dim]Funnel  T1:[/]{sig_eval.get('t1',0)} [dim]T2:[/]{sig_eval.get('t2',0)} "
                   f"[dim]T3:[/]{sig_eval.get('t3',0)} [dim]T4:[/]{sig_eval.get('t4',0)} "
                   f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}")
-        rejected = sig_eval.get("rejected") or []
+        rejected = sig_eval.get("rejected")
         if rejected:
             blocks = "  ".join(f"[dim]{rj['evaluation_reason'][:32]}:{rj['n']}[/]" for rj in rejected)
             funnel += f"  [dim]blocked:[/] {blocks}"
         rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
-    buy_sigs = sig.get("buy_sigs") or []
+    buy_sigs = sig.get("buy_sigs")
     if buy_sigs:
         rows.append(Text.from_markup(
             "[dim]sym    stg  type           Q    R:R  vol%    entry    stop   RS  bk-qual   base[/]"
@@ -5484,7 +5489,7 @@ def panel_signals_expanded(sig, sig_eval=None):
     else:
         rows.append(Text.from_markup(f"[dim]No BUY signals from {total} screened[/]"))
 
-    near = sig.get("near") or []
+    near = sig.get("near")
     if near:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55–69):[/]"))
@@ -5532,7 +5537,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
 
     phase_badges: list = []
     if run_valid and run.get("_source") == "exec_log":
-        for p in (run.get("phase_results") or []):
+        for p in (run.get("phase_results")):
             raw   = (p.get("name") or p.get("phase", "")).lower()
             parts_p = raw.split("_")
             base  = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
