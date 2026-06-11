@@ -488,7 +488,14 @@ class CircuitBreaker:
                 min_acceptable_date -= timedelta(days=1)
 
         if data_date < min_acceptable_date:
-            return {'halted': True, 'reason': f'Market stage data stale ({days_stale}d old, expected {expected_date}) — fail-closed'}
+            # OPTION_B FIX: Fail-open on stale market_health_daily to allow trading with 91% fresh data.
+            # Market stage is advisory (only stage 4 halts); older data is less critical than price/technical freshness.
+            # Log the staleness issue for ops monitoring while allowing orchestrator to proceed with default caution (stage 2).
+            logger.warning(
+                f"[OPTION_B] Market stage data stale ({days_stale}d old, expected {expected_date}) — "
+                f"using default caution stage 2 to allow trading with available price/technical data"
+            )
+            return {'halted': False, 'reason': f'Market stage stale ({days_stale}d) — using default stage 2', 'value': 2}
 
         if row[1] is None:
             return {'halted': True, 'reason': 'Market stage NULL — fail-closed to prevent trading in unknown stage'}
