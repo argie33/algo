@@ -68,8 +68,18 @@ class AlgoConfig:
         'max_distribution_days': ('4', 'int', 'Max market distribution days'),
         'require_stage_2_market': ('false', 'bool', 'Require market Stage 2 at Tier 2 (disabled: CB6 blocks Stage 4; per-stock weinstein_stage=2 check and exposure policy manage regime risk)'),
         'vix_max_threshold': ('35.0', 'float', 'VIX level to halt trading'),
+        'vix_alert_threshold': ('30.0', 'float', 'VIX level to trigger RED alert (dashboard display)'),
         'vix_caution_threshold': ('25.0', 'float', 'VIX level to reduce positions'),
         'vix_caution_risk_reduction': ('0.75', 'float', 'Risk multiplier when VIX > caution threshold'),
+        'put_call_bullish_threshold': ('0.8', 'float', 'Put/Call ratio bullish threshold (<= for bullish)'),
+        'put_call_fearful_threshold': ('1.0', 'float', 'Put/Call ratio fearful threshold (>= for fearful)'),
+        'upvol_good_threshold': ('60.0', 'float', 'Up volume % threshold for good market (>= for GREEN)'),
+        'upvol_caution_threshold': ('50.0', 'float', 'Up volume % threshold for caution (>= for YELLOW)'),
+        'breadth_good_threshold': ('50', 'int', 'NH-NL difference threshold for good breadth (>= for GREEN)'),
+        'breadth_caution_threshold': ('0', 'int', 'NH-NL difference threshold for caution (>= for YELLOW)'),
+        'yield_curve_good_threshold': ('0.5', 'float', 'Yield curve slope for bullish signal (>= for GREEN)'),
+        'beta_warning_threshold': ('1.2', 'float', 'Portfolio beta threshold for caution (>= for WARNING)'),
+        'beta_caution_threshold': ('0.8', 'float', 'Portfolio beta threshold for bullish (>= for YELLOW)'),
 
         # Entry Rules (Minervini)
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
@@ -176,6 +186,14 @@ class AlgoConfig:
         'advanced_filters_grade_threshold_b': ('70', 'int', 'Advanced filters: B grade threshold (score >= this value)'),
         'advanced_filters_grade_threshold_c': ('60', 'int', 'Advanced filters: C grade threshold (score >= this value)'),
         'advanced_filters_grade_threshold_d': ('50', 'int', 'Advanced filters: D grade threshold (score >= this value)'),
+
+        # Risk Metrics Calculation (M3 - Risk Thresholds)
+        'var_percentile': ('5', 'int', 'Percentile for VaR calculation (5 = 95% confidence, measures 5th percentile loss)'),
+        'cvar_percentile': ('5', 'int', 'Percentile for CVaR calculation (5 = worst 5% of days)'),
+        'stressed_var_percentile': ('10', 'int', 'Percentile for stressed VaR (10 = worst 10% of days)'),
+        'dashboard_grade_threshold_a': ('80', 'int', 'Dashboard signals: A grade threshold (score >= this value)'),
+        'dashboard_grade_threshold_b': ('60', 'int', 'Dashboard signals: B grade threshold (score >= this value)'),
+        'dashboard_grade_threshold_c': ('40', 'int', 'Dashboard signals: C grade threshold (score >= this value)'),
 
         # Execution Mode
         'execution_mode': ('auto', 'string', 'paper|dry|review|auto'),

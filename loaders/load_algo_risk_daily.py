@@ -113,33 +113,41 @@ class AlgoRiskDailyLoader(OptimalLoader):
 
     def _calculate_metrics(self, report_date: date, snapshots: list,
                           positions: list, portfolio_rets: list, spy_closes: list) -> dict:
-        """Calculate all risk metrics."""
+        """Calculate all risk metrics.
+
+        M3 FIX: Risk percentiles now loaded from config instead of hardcoded.
+        """
+        from algo.algo_config import AlgoConfig
+        cfg = AlgoConfig()
 
         # Extract daily returns
         returns = [float(s['daily_return_pct']) / 100 for s in snapshots
                   if s.get('daily_return_pct') is not None]
 
-        # VaR at 95% confidence (5th percentile of losses)
+        # VaR at configured percentile (default 5% = 95% confidence)
         var_pct_95 = None
         if len(returns) >= 20:
+            var_pct = float(cfg.get('var_percentile', 5)) / 100  # M3 FIX: Read from config
             sorted_rets = sorted(returns)
-            idx = int(len(sorted_rets) * 0.05)
+            idx = int(len(sorted_rets) * var_pct)
             var_pct_95 = round(min(0, sorted_rets[idx]) * 100, 2)
 
         # CVaR (conditional VaR): expected loss beyond VaR threshold
         cvar_pct_95 = None
         if var_pct_95 is not None and len(returns) >= 20:
-            worst_5_pct = [r for r in returns if r <= (var_pct_95 / 100)]
-            if worst_5_pct:
-                cvar_pct_95 = round(statistics.mean(worst_5_pct) * 100, 2)
+            cvar_pct = float(cfg.get('cvar_percentile', 5)) / 100  # M3 FIX: Read from config
+            worst_pct = [r for r in returns if r <= (var_pct_95 / 100)]
+            if worst_pct:
+                cvar_pct_95 = round(statistics.mean(worst_pct) * 100, 2)
 
-        # Stressed VaR: worst 10% of days
+        # Stressed VaR: worst N% of days (default 10%)
         stressed_var_pct = None
         if len(returns) >= 20:
-            worst_10_idx = max(1, int(len(returns) * 0.10))
-            worst_10_days = sorted(returns)[:worst_10_idx]
-            if worst_10_days:
-                stressed_var_pct = round(statistics.mean(worst_10_days) * 100, 2)
+            stressed_pct = float(cfg.get('stressed_var_percentile', 10)) / 100  # M3 FIX: Read from config
+            worst_idx = max(1, int(len(returns) * stressed_pct))
+            worst_days = sorted(returns)[:worst_idx]
+            if worst_days:
+                stressed_var_pct = round(statistics.mean(worst_days) * 100, 2)
 
         # Portfolio Beta: correlation * (σ_portfolio / σ_spy)
         portfolio_beta = None

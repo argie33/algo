@@ -126,6 +126,52 @@ TIER_SHORT = {
     "correction":        "CORRECT",
 }
 
+def load_grade_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load grade thresholds from config, used for dashboard signal grades.
+
+    Separate from swing_grade_threshold_* (used in algo_swing_score.py).
+    Dashboard uses slightly different thresholds for historical reasons.
+    """
+    if cfg:
+        return {
+            'a': int(cfg.get('dashboard_grade_threshold_a', 80)),
+            'b': int(cfg.get('dashboard_grade_threshold_b', 60)),
+            'c': int(cfg.get('dashboard_grade_threshold_c', 40)),
+        }
+    # Fallback hardcoded defaults
+    return {'a': 80, 'b': 60, 'c': 40}
+
+def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load market indicator thresholds from config (M2 FIX - no longer hardcoded).
+
+    Provides thresholds for: VIX, Put/Call, up-volume, breadth, etc.
+    Used for coloring market health indicators (RED/YELLOW/GREEN).
+    """
+    if cfg:
+        return {
+            'vix_alert': float(cfg.get('vix_alert_threshold', 30.0)),
+            'vix_caution': float(cfg.get('vix_caution_threshold', 25.0)),
+            'put_call_bullish': float(cfg.get('put_call_bullish_threshold', 0.8)),
+            'put_call_fearful': float(cfg.get('put_call_fearful_threshold', 1.0)),
+            'upvol_good': float(cfg.get('upvol_good_threshold', 60.0)),
+            'upvol_caution': float(cfg.get('upvol_caution_threshold', 50.0)),
+            'breadth_good': int(cfg.get('breadth_good_threshold', 50)),
+            'breadth_caution': int(cfg.get('breadth_caution_threshold', 0)),
+            'yield_curve_good': float(cfg.get('yield_curve_good_threshold', 0.5)),
+            'beta_warning': float(cfg.get('beta_warning_threshold', 1.2)),
+            'beta_caution': float(cfg.get('beta_caution_threshold', 0.8)),
+        }
+    # Fallback hardcoded defaults (M2 issue: these were previously hardcoded everywhere)
+    return {
+        'vix_alert': 30.0, 'vix_caution': 25.0,
+        'put_call_bullish': 0.8, 'put_call_fearful': 1.0,
+        'upvol_good': 60.0, 'upvol_caution': 50.0,
+        'breadth_good': 50, 'breadth_caution': 0,
+        'yield_curve_good': 0.5,
+        'beta_warning': 1.2, 'beta_caution': 0.8,
+    }
+
+# Deprecated: These are kept for reference but should be replaced with load_grade_thresholds()
 GRADE_A_PLUS = 90
 GRADE_A = 80
 GRADE_B = 70
@@ -1957,11 +2003,16 @@ def fetch_signals(c):
                 grades_date = grades_date_r.get("max") if grades_date_r else None
 
             if grades_date:
-                grades_r = q(c, """
-                    SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
-                           COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
-                           COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
-                           COUNT(*) FILTER (WHERE score < 40) AS d,
+                # Load grade thresholds from config (M1 FIX: no longer hardcoded)
+                grade_cfg = load_grade_thresholds(cfg)
+                thr_a = grade_cfg.get('a', 80)
+                thr_b = grade_cfg.get('b', 60)
+                thr_c = grade_cfg.get('c', 40)
+                grades_r = q(c, f"""
+                    SELECT COUNT(*) FILTER (WHERE score >= {thr_a}) AS a,
+                           COUNT(*) FILTER (WHERE score >= {thr_b} AND score < {thr_a}) AS b,
+                           COUNT(*) FILTER (WHERE score >= {thr_c} AND score < {thr_b}) AS c,
+                           COUNT(*) FILTER (WHERE score < {thr_c}) AS d,
                            COUNT(*) AS total
                     FROM swing_trader_scores
                     WHERE date=%s""", (grades_date,))
@@ -1979,12 +2030,15 @@ def fetch_signals(c):
               AND s.score BETWEEN %s AND %s
             ORDER BY s.score DESC LIMIT 15""", (grades_date, near_lower, near_upper)) if grades_date else []
 
-        # Top A-grade stocks by name (radar display — score ≥ 80)
-        top_a = q(c, """
+        # Top A-grade stocks by name (radar display — score ≥ threshold_a)
+        # M1 FIX: Use config threshold instead of hardcoded 80
+        grade_cfg = load_grade_thresholds(cfg)
+        thr_a = grade_cfg.get('a', 80)
+        top_a = q(c, f"""
             SELECT s.symbol, s.score
             FROM swing_trader_scores s
             WHERE s.date=%s
-              AND s.score >= 80
+              AND s.score >= {thr_a}
             ORDER BY s.score DESC LIMIT 20""", (grades_date,)) if grades_date else []
 
         # Signal count trend: last 7 trading days
@@ -3246,7 +3300,7 @@ def panel_orch(run, cfg, risk=None):
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
-def panel_market_full(mkt, sentiment=None):
+def panel_market_full(mkt, sentiment=None, cfg=None):
     """Market regime + internals combined."""
     if not mkt or mkt.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]MARKET[/]", border_style="blue", padding=(0, 1))
@@ -3259,7 +3313,9 @@ def panel_market_full(mkt, sentiment=None):
     bar   = exp_bar(exp, w=10)
     vix_val = get_numeric(mkt, "vix")
     vix   = f"{vix_val:.1f}" if vix_val is not None else "--"
-    vc    = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
+    # M2 FIX: Load market thresholds from config instead of hardcoded 30, 20
+    mkt_cfg = load_market_thresholds(cfg)
+    vc    = R if vix_val is not None and vix_val >= mkt_cfg['vix_alert'] else (Y if vix_val is not None and vix_val >= mkt_cfg['vix_caution'] else DIM)
     dist  = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
@@ -3276,11 +3332,12 @@ def panel_market_full(mkt, sentiment=None):
     bmom  = get_numeric(mkt, "bmom")
     fed   = mkt.get("fed")
 
-    uvc   = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else DIM)
-    pcr_c = G if pcr is not None and pcr <= 0.8 else (Y if pcr is not None and pcr <= 1.0 else DIM)
+    # M2 FIX: Load thresholds from config instead of hardcoded values
+    uvc   = G if upvol is not None and upvol >= mkt_cfg['upvol_good'] else (Y if upvol is not None and upvol >= mkt_cfg['upvol_caution'] else DIM)
+    pcr_c = G if pcr is not None and pcr <= mkt_cfg['put_call_bullish'] else (Y if pcr is not None and pcr <= mkt_cfg['put_call_fearful'] else DIM)
     # TIER 1A FIX: Calculate NH-NL only when both values exist, don't use "or 0" fallback
     nhnl  = nh - nl if nh is not None and nl is not None else None
-    nhnl_c = G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else DIM)
+    nhnl_c = G if nhnl is not None and nhnl >= mkt_cfg['breadth_good'] else (Y if nhnl is not None and nhnl >= mkt_cfg['breadth_caution'] else DIM)
 
     spy_raw = mkt.get("spy")
     spy_chg = get_numeric(mkt, "spy_chg")
@@ -3377,9 +3434,11 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         exp_s   = f"{float(exp):.0f}%" if exp is not None else "--"
         # TIER 1A FIX: exp_bar now handles None safely
         bar     = exp_bar(exp, w=8)
+        # M2 FIX: Load market thresholds from config
+        mkt_cfg = load_market_thresholds(cfg)
         vix_val = get_numeric(mkt, "vix")
         vix     = f"{vix_val:.1f}" if vix_val is not None else "--"
-        vc      = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
+        vc      = R if vix_val is not None and vix_val >= mkt_cfg['vix_alert'] else (Y if vix_val is not None and vix_val >= mkt_cfg['vix_caution'] else DIM)
         dist    = str(mkt.get("dist") or "--")
         stage   = str(mkt.get("stage") or "--")
         spy_raw = mkt.get("spy"); spy_chg = get_numeric(mkt, "spy_chg")
@@ -3393,9 +3452,10 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         ))
         upvol = get_numeric(mkt, "upvol"); nh = get_numeric(mkt, "nh"); nl = get_numeric(mkt, "nl"); adr = get_numeric(mkt, "adr")
         if upvol is not None:
-            uvc    = G if upvol >= 60 else (Y if upvol >= 50 else DIM)
+            # M2 FIX: Use config thresholds instead of hardcoded values
+            uvc    = G if upvol >= mkt_cfg['upvol_good'] else (Y if upvol >= mkt_cfg['upvol_caution'] else DIM)
             nhnl   = (nh - nl) if nh is not None and nl is not None else None
-            nhnl_c = G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else DIM)
+            nhnl_c = G if nhnl is not None and nhnl >= mkt_cfg['breadth_good'] else (Y if nhnl is not None and nhnl >= mkt_cfg['breadth_caution'] else DIM)
             adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
             rows.append(Text.from_markup(
                 f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
@@ -4982,6 +5042,17 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     var95_v = get_numeric(risk, "var95") if risk else None
     if risk and not risk.get("_error") and var95_v is not None and var95_v > 0:
         rows.append(Rule(style="dim"))
+        # M6 FIX: Show risk calculation status (successful/incomplete/stale)
+        has_data = risk.get("_has_data", False)
+        is_stale = risk.get("_is_stale", False)
+        age_min = risk.get("_age_minutes")
+        if not has_data:
+            rows.append(Text.from_markup(f"[{R}]⚠ Risk calculation incomplete - awaiting data[/]"))
+        elif is_stale and age_min:
+            rows.append(Text.from_markup(f"[{Y}]⚠ Risk data stale ({age_min:.0f}min old)[/]"))
+        else:
+            rows.append(Text.from_markup(f"[{G}]✓ Risk metrics current[/]"))
+
         beta_v = get_numeric(risk, "beta")
         conc5_v = get_numeric(risk, "conc5")
         beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
