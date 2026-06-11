@@ -3675,9 +3675,16 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     if isinstance(pos, dict) and "positions" in pos:
         positions_list = pos.get("positions", [])
     if positions_list:
-        losing_positions = [p for p in positions_list if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct")) < 0]
+        losing_positions = []
+        for p in positions_list:
+            upnl = p.get("unrealized_pnl_pct")
+            if upnl is not None and float(upnl) < 0:
+                losing_positions.append(p)
         if losing_positions:
-            loss_pct = sum(float(p.get("unrealized_pnl_pct")) for p in losing_positions if p.get("unrealized_pnl_pct") is not None)
+            def _get_loss_pct(p):
+                upnl = p.get("unrealized_pnl_pct")
+                return float(upnl) if upnl is not None else 0
+            loss_pct = sum(_get_loss_pct(p) for p in losing_positions)
             if loss_pct != 0:  # Only show if there's actual loss
                 rows.append(Text.from_markup(
                     f"[orange1][!] {len(losing_positions)} open position(s) at risk:[/] {loss_pct:.1f}% unrealized loss"
