@@ -4066,7 +4066,8 @@ def panel_exposure_compact(exp_f):
     items = []
     for key, label, max_pts in FACTOR_MAP:
         f    = factors.get(key) or {}
-        pts  = float(f.get("pts") or 0)
+        pts_val = f.get("pts")
+        pts  = float(pts_val) if pts_val is not None else 0
         bar  = mini_bar(pts, max_pts, w=3)
         fc   = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         det  = factor_detail(key)
@@ -4075,8 +4076,10 @@ def panel_exposure_compact(exp_f):
 
     sr  = factors.get("sector_rotation") or {}
     eco = factors.get("economic_overlay") or {}
-    sr_pen  = float(sr.get("pts") or 0)
-    eco_pen = float(eco.get("pts") or 0)
+    sr_pts = sr.get("pts")
+    eco_pts = eco.get("pts")
+    sr_pen  = float(sr_pts) if sr_pts is not None else 0
+    eco_pen = float(eco_pts) if eco_pts is not None else 0
     if sr_pen < 0:
         sig = (sr.get("signal") or "").replace("_", " ")[:20]
         items.append(f"[{R}]Sector Rotation[/] [dim]{sr_pen:+.0f} {sig}[/]")
