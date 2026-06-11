@@ -4763,22 +4763,27 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]✓ {ok_count} healthy[/]"))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and get_numeric(risk, "var95") or 0 > 0:
+    var95_v = get_numeric(risk, "var95") if risk else None
+    if risk and not risk.get("_error") and var95_v is not None and var95_v > 0:
         rows.append(Rule(style="dim"))
-        beta_v = get_numeric(risk, "beta") or 0
-        conc5_v = get_numeric(risk, "conc5") or 0
-        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
-        conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var95_v = get_numeric(risk, "var95") or 0
-        cvar95_v = get_numeric(risk, "cvar95") or 0
-        svar_v = get_numeric(risk, "svar") or 0
+        beta_v = get_numeric(risk, "beta")
+        conc5_v = get_numeric(risk, "conc5")
+        beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+        conc_c = R if conc5_v is not None and conc5_v >= 35 else (Y if conc5_v is not None and conc5_v >= 25 else "white")
+        cvar95_v = get_numeric(risk, "cvar95")
+        svar_v = get_numeric(risk, "svar")
+        var95_str = f"{var95_v:.2f}%" if var95_v is not None else "--"
+        beta_str = f"{beta_v:.2f}" if beta_v is not None else "--"
+        conc5_str = f"{conc5_v:.0f}%" if conc5_v is not None else "--"
+        cvar95_str = f"{cvar95_v:.2f}%" if cvar95_v is not None else "--"
+        svar_str = f"{svar_v:.2f}%" if svar_v is not None else "--"
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{beta_v:.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_v:.0f}%[/]",
+            f"[dim]VaR 95%:[/][white]{var95_str}[/]",
+            f"[dim]CVaR 95%:[/][white]{cvar95_str}[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_str}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_str}[/]",
         ]
-        if svar_v > 0:
+        if svar_v is not None and svar_v > 0:
             risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
@@ -5348,6 +5353,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer.split_column(
         Layout(name="top",  size=10),   # market header | exposure factors | monkey
         Layout(name="r1",   ratio=2),   # circuit breakers (left) | algo health (right)
+        Layout(name="r1b",  ratio=1),   # data quality status (Issue 46)
         Layout(name="r2",   ratio=2),   # portfolio | perf | eco
         Layout(name="r3",   ratio=2),   # signals | sectors
         Layout(name="pos",  ratio=3),   # positions + recent trades
@@ -5368,6 +5374,9 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_circuit(cb),                                                                         ratio=1, name="cb"),
         Layout(panel_algo_health(run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist, risk=risk), ratio=2, name="health"),
     )
+
+    # Row 1b: Data Quality Status (Issue 46 — unified panel for operator visibility)
+    outer["r1b"].update(panel_data_quality_status())
 
     # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
