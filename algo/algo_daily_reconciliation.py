@@ -833,8 +833,22 @@ class DailyReconciliation:
                         cur.execute("RELEASE SAVEPOINT mae_mfe_update")
                         continue
 
-                    highs = [float(p[0]) if p[0] is not None else entry_price for p in prices]
-                    lows = [float(p[1]) if p[1] is not None else entry_price for p in prices]
+                    # CRITICAL: Never use entry_price as fallback for high/low.
+                    # Entry price is worst-case fill price, using it masks actual market excursion.
+                    # Example: stop-loss hit at -5%, entry used as high/low → MAE shows -0.01% (entry price ≈ high/low).
+                    # This corrupts strategy evaluation and makes losing trades appear safer.
+                    # Instead: skip MAE/MFE if price data incomplete (leave NULL in DB).
+                    highs = [float(p[0]) for p in prices if p[0] is not None]
+                    lows = [float(p[1]) for p in prices if p[1] is not None]
+
+                    # Only compute MAE/MFE if we have complete high/low data for the period
+                    if not highs or not lows:
+                        logger.warning(
+                            f"Incomplete OHLCV data for trade {trade_id} ({symbol}) {entry_date} to {exit_date}: "
+                            f"skipping MAE/MFE computation to avoid fallback-induced corruption"
+                        )
+                        cur.execute("RELEASE SAVEPOINT mae_mfe_update")
+                        continue
 
                     # MAE: worst (lowest) price from entry
                     min_price = min(lows)

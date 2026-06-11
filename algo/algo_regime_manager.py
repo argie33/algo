@@ -232,9 +232,15 @@ class RegimeManager:
             if row and row[0]:
                 score = float(row[0])
                 return min(1.0, max(0.0, score / 100.0))
-            return 0.5  # Default to neutral confidence
+            # CRITICAL: Market exposure data unavailable. Default to neutral (0.5) masks infrastructure failure.
+            # Log as error to alert ops that market exposure loader may have failed.
+            logger.error(
+                f"Market exposure score unavailable as of {as_of_date}. "
+                f"Defaulting to neutral 0.5 confidence. Check if market_exposure_daily loader succeeded."
+            )
+            return 0.5  # Conservative: default to neutral only after alerting
         except Exception as e:
-            logger.warning(f"Exception: {e}")
+            logger.error(f"Failed to fetch market exposure confidence: {e} — defaulting to neutral 0.5")
             return 0.5
 
 if __name__ == "__main__":

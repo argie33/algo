@@ -99,15 +99,20 @@ class RealtimePricingEngine:
                 logger.warning(f"Using delayed YFinance prices: {len(prices)} symbols")
                 return prices
 
-            # No prices available
-            logger.error("Unable to fetch real-time prices from any source")
-            return self._get_fallback_prices(symbols)
+            # CRITICAL: All real-time price sources failed. Empty dict masks infrastructure failure
+            # and allows orchestrator to silently fall back to 4 AM prices during 9:30 AM run
+            # (causing gap-up/gap-down mis-sizing).
+            # Fail-closed: raise exception to halt trading and alert ops.
+            error_msg = "Unable to fetch real-time prices from any source (Alpaca/IEX/YFinance all failed)"
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
+        except RuntimeError:
+            raise  # Re-raise our critical errors
         except Exception as e:
             logger.error(f"Real-time pricing error: {e}", exc_info=True)
-            # Fail-closed: return empty dict (orchestrator falls back to daily prices)
-            # or could raise to halt trading
-            return {}
+            # Fail-closed: raise to halt trading rather than silently using stale prices
+            raise RuntimeError(f"Real-time pricing failed: {e}") from e
 
     def _fetch_alpaca_prices(self, symbols: List[str]) -> Dict[str, float]:
         """Fetch latest quotes from Alpaca Data API (direct REST, not trading API).

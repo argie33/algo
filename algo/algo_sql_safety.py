@@ -11,42 +11,84 @@ import re
 from typing import List, Tuple, Optional
 
 # Known safe tables (whitelist for dynamic table names)
+# Security: M-001 SQL injection prevention — table names validated against whitelist
 SAFE_TABLES = {
-    'price_daily', 'price_intraday', 'price_weekly', 'price_monthly',
-    'market_health_daily', 'market_events', 'market_exposure_daily',
+    # Algo core
+    'algo_metrics_daily', 'algo_performance_daily', 'algo_risk_daily',
     'algo_trades', 'algo_positions', 'algo_signals', 'algo_portfolio_snapshots',
-    'algo_audit_log', 'algo_notifications', 'algo_data_patrol', 'algo_risk_daily',
-    'algo_performance_daily', 'algo_signals_evaluated', 'algo_trade_adds',
-    'algo_tca', 'algo_information_coefficient', 'algo_model_registry', 'algo_champion_challenger',
-    'algo_config', 'algo_config_audit',
-    'stock_fundamentals', 'stock_ownership', 'stock_ratings', 'stock_scores', 'stock_symbols',
-    'company_profile', 'sector_performance', 'market_calendar', 'sector_ranking', 'industry_ranking', 'industry_performance',
-    'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
-    'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly', 'technical_indicators_daily',
-    'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly', 'buy_sell_daily_etf', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
-    'trend_template_data', 'signal_quality_scores', 'swing_trader_scores',
-    'insider_transactions', 'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades', 'analyst_sentiment_analysis',
-    'aaii_sentiment', 'economic_data', 'naaim', 'growth_metrics', 'earnings_history', 'earnings_calendar',
-    'earnings_estimates', 'earnings_revisions', 'fear_greed', 'fear_greed_index', 'seasonality',
-    'quality_metrics', 'value_metrics', 'momentum_metrics', 'stability_metrics',
-    'backtest_results', 'backtest_runs', 'backtest_trades',
-    'trades', 'portfolio_holdings', 'portfolio_history', 'portfolio_performance',
-    'etf_symbols', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
+    'algo_audit_log', 'algo_notifications', 'algo_data_patrol', 'algo_signals_evaluated',
+    'algo_trade_adds', 'algo_tca', 'algo_information_coefficient', 'algo_model_registry',
+    'algo_champion_challenger', 'algo_config', 'algo_config_audit',
+    # Pricing
+    'price_daily', 'price_intraday', 'price_weekly', 'price_monthly',
+    'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'etf_symbols',
+    # Market
+    'market_health_daily', 'market_events', 'market_exposure_daily',
+    'market_calendar', 'sector_performance', 'industry_performance',
+    # Stock data
+    'stock_scores', 'stock_symbols', 'stock_fundamentals', 'stock_ownership',
+    'stock_ratings', 'company_profile', 'sector_ranking', 'industry_ranking',
+    # Technical indicators
+    'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
+    'technical_indicators_daily',
+    # Buy/sell signals
+    'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
+    'buy_sell_daily_etf', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
+    # Trading signals
+    'trend_template_data', 'signal_quality_scores', 'signal_themes', 'swing_trader_scores',
+    # Analyst data
+    'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades', 'analyst_sentiment_analysis',
+    # Market sentiment
+    'aaii_sentiment', 'naaim', 'fear_greed', 'fear_greed_index', 'seasonality',
+    # Economic data
+    'economic_data', 'economic_metrics_daily', 'earnings_history', 'earnings_calendar',
+    'earnings_estimates', 'earnings_revisions',
+    # Fundamental metrics
+    'growth_metrics', 'quality_metrics', 'value_metrics', 'stability_metrics',
+    'positioning_metrics', 'momentum_metrics',
+    # Financial statements
+    'balance_sheet', 'cash_flow', 'income_statement',
     'annual_balance_sheet', 'annual_cash_flow', 'annual_income_statement',
     'quarterly_balance_sheet', 'quarterly_cash_flow', 'quarterly_income_statement',
     'ttm_cash_flow', 'ttm_income_statement',
+    # Other traders
+    'insider_transactions',
+    # Backtest
+    'backtest_results', 'backtest_runs', 'backtest_trades',
+    # Portfolio
+    'trades', 'portfolio_holdings', 'portfolio_history', 'portfolio_performance',
+    # Data management
+    'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
+    # Distribution data (for dashboards)
+    'grade_distribution_daily',
+    # Russell/S&P constituents
+    'russell2000_constituents', 'sp500_constituents',
 }
 
 # Known safe columns (whitelist for dynamic column names)
+# Security: M-001 SQL injection prevention — column names validated against whitelist
 SAFE_COLUMNS = {
-    'date', 'symbol', 'close', 'open', 'high', 'low', 'volume',
-    'count', 'max_date', 'created_at', 'updated_at',
-    'status', 'trade_id', 'position_id', 'signal_id',
+    # Time columns
+    'date', 'created_at', 'updated_at', 'executed_at', 'timestamp',
+    'signal_date', 'trade_date', 'exit_date', 'earnings_date', 'quarter',
+    'date_recorded', 'transaction_date', 'action_date', 'score_date',
+    # Common columns
+    'symbol', 'count', 'max_date', 'status', 'active',
+    'correlation_id',
+    # OHLCV data
+    'open', 'high', 'low', 'close', 'volume', 'adj_close',
+    # Trading data
+    'trade_id', 'position_id', 'signal_id', 'order_id',
     'entry_price', 'exit_price', 'quantity', 'value',
-    'unrealized_pnl', 'profit_loss', 'profit_loss_pct',
-    'signal_date', 'trade_date', 'exit_date', 'earnings_date',
-    'target_levels_hit', 'current_price', 'current_stop_price',
-    'date_recorded', 'transaction_date', 'action_date', 'score_date', 'quarter',
+    'unrealized_pnl', 'profit_loss', 'profit_loss_pct', 'return_pct',
+    'current_price', 'current_stop_price', 'target_levels_hit',
+    # Application/audit
+    'application_name', 'correlation_id', 'execution_started', 'execution_completed',
+    'last_updated',
+    # Watermark/incremental
+    'watermark', 'high_water_mark', 'checkpoint',
+    # Generic
+    'id', 'value', 'result',
 }
 
 def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 'table') -> str:

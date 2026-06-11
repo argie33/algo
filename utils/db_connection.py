@@ -19,12 +19,14 @@ logger = logging.getLogger(__name__)
 # Import connection monitor - integrates pool health tracking
 try:
     from algo.algo_connection_monitor import on_connect, on_disconnect
-except ImportError:
-    # Fallback if monitor unavailable
+except ImportError as e:
+    # CRITICAL: Connection monitor unavailable — pool health tracking disabled.
+    # Log as error, not silent fallback. This masks connection pool exhaustion issues.
+    logger.error(f"Connection monitor import failed: {e} — pool health tracking unavailable")
     def on_connect():
-        pass
+        logger.debug("[FALLBACK] on_connect called but monitor not loaded")
     def on_disconnect():
-        pass
+        logger.debug("[FALLBACK] on_disconnect called but monitor not loaded")
 
 class TrackedConnection:
     """Wraps psycopg2 connection to track pool utilization."""

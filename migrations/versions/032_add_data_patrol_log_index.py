@@ -1,25 +1,79 @@
-"""Migration: Add index on data_patrol_log(created_at DESC) to fix COUNT(*) timeouts.
-
-ISSUE D-002 FIX: data_patrol_log lacks index on (created_at DESC), causing COUNT(*) queries to timeout.
-
-This migration adds a descending index on the created_at column to optimize queries that:
-  - Filter or sort by created_at in descending order (most recent first)
-  - Perform COUNT(*) operations across the table
-  - Use LIMIT/OFFSET patterns with created_at ordering
+#!/usr/bin/env python3
 """
-from alembic import op
-import sqlalchemy as sa
+Migration 032: Add index on data_patrol_log(created_at DESC) to fix COUNT(*) timeouts.
 
+ISSUE D-002 FIX: data_patrol_log lacks index on (created_at DESC), causing COUNT(*) queries
+to timeout during pagination and log retrieval operations.
 
-def upgrade():
-    """Add descending index on data_patrol_log.created_at."""
-    op.execute("""
-        CREATE INDEX idx_data_patrol_log_created_at_desc ON data_patrol_log(created_at DESC)
-    """)
+The /api/algo/data-patrol endpoint executes:
+  1. SELECT COUNT(*) FROM data_patrol_log (full table scan - SLOW)
+  2. SELECT ... FROM data_patrol_log ORDER BY created_at DESC LIMIT/OFFSET (no index - SLOW)
 
+This migration adds a descending index on created_at to optimize both operations. The DESC
+order matches the query pattern (ORDER BY created_at DESC).
 
-def downgrade():
-    """Remove the descending index on data_patrol_log.created_at."""
-    op.execute("""
-        DROP INDEX IF EXISTS idx_data_patrol_log_created_at_desc
-    """)
+Related:
+  - Existing idx_data_patrol_log_severity compound index is (severity, created_at DESC)
+    but only filters rows where severity IN ('error', 'critical'), so generic COUNT(*)
+    queries still scan the entire table
+  - This index unblocks patrol log queries regardless of severity
+"""
+
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+DESCRIPTION = "Add index on data_patrol_log(created_at DESC) to fix COUNT(*) query timeouts"
+
+_INDEXES = [
+    # Primary index: created_at DESC for COUNT(*) and ORDER BY queries
+    # This unblocks /api/algo/data-patrol pagination and log retrieval
+    "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_data_patrol_log_created_at ON data_patrol_log(created_at DESC)",
+]
+
+def _connect_autocommit():
+    """Open an autocommit connection for CREATE INDEX CONCURRENTLY."""
+    import psycopg2
+    ssl_map = {'true': 'require', 'false': 'disable', 'disable': 'disable',
+               'prefer': 'prefer', 'require': 'require'}
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=int(os.getenv('DB_PORT', 5432)),
+        user=os.getenv('DB_USER', 'postgres'),
+        password=os.getenv('DB_PASSWORD', ''),
+        database=os.getenv('DB_NAME', 'algo'),
+        sslmode=ssl_map.get(os.getenv('DB_SSL', 'require').lower(), 'require'),
+    )
+    conn.autocommit = True
+    return conn
+
+def up():
+    """Add index on data_patrol_log.created_at (DESC)."""
+    conn = _connect_autocommit()
+    cur = conn.cursor()
+
+    for sql in _INDEXES:
+        try:
+            print(f"  {sql[:80]}...")
+            cur.execute(sql)
+        except Exception as e:
+            print(f"  Warning: Index creation failed (may already exist): {e}")
+
+    cur.close()
+    conn.close()
+
+def down():
+    """Remove index on data_patrol_log.created_at."""
+    conn = _connect_autocommit()
+    cur = conn.cursor()
+
+    drops = [
+        "DROP INDEX IF EXISTS idx_data_patrol_log_created_at",
+    ]
+
+    for sql in drops:
+        cur.execute(sql)
+
+    cur.close()
+    conn.close()

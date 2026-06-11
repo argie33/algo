@@ -364,10 +364,22 @@ class CircuitBreaker:
         )
         row = cur.fetchone()
         if not row or not row[0]:
-            return {'halted': False, 'reason': 'No portfolio value'}
-        portfolio = _safe_float(row[0], 0.0, context="portfolio_value")
-        if portfolio <= 0:
-            return {'halted': False, 'reason': 'Portfolio value <= 0'}
+            # First run (no portfolio snapshots yet) — skip risk check but log
+            logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
+            return {'halted': False, 'reason': 'No portfolio snapshot (first run?)'}
+
+        portfolio = _safe_float(row[0], None, context="portfolio_value")
+        # CRITICAL: Portfolio value missing/invalid → risk calculation impossible.
+        # Fail-closed: cannot assess total risk without portfolio value.
+        if portfolio is None or portfolio <= 0:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] Portfolio value invalid ({portfolio}) — cannot calculate risk. "
+                f"Halting trading to prevent blind risk-taking."
+            )
+            return {
+                'halted': True,
+                'reason': f'Portfolio value invalid ({portfolio}) — risk calculation impossible. Fail-closed halt.'
+            }
 
         risk_pct = (total_open_risk / portfolio * 100.0) if portfolio > 0 else 0.0
         threshold = _safe_float(self.config.get('max_total_risk_pct', 4.0), 4.0, context="max_total_risk_pct")
@@ -390,10 +402,17 @@ class CircuitBreaker:
             vix = self._compute_vix_fallback(current_date, cur)
             logger.info(f'VIX missing, using fallback estimate: {vix:.1f}')
 
-        # Ensure vix is always a valid float to prevent TypeError in comparison
+        # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
+        # Fail-closed: assume worst case (high volatility) and halt trading.
+        # Never use neutral default (20) as fallback — that masks market uncertainty.
         if vix is None:
-            vix = 20.0  # Neutral fallback if all sources fail
-            logger.warning("VIX unavailable after fallback, using neutral 20")
+            logger.critical("VIX unavailable from all sources (live data, fallback computation failed) — halting trading")
+            return {
+                'halted': True,
+                'reason': 'VIX data unavailable — cannot assess volatility risk. Trading halted.',
+                'value': None,
+                'threshold': _safe_float(self.config.get('vix_max_threshold', 35.0), 35.0),
+            }
 
         threshold = _safe_float(self.config.get('vix_max_threshold', 35.0), 35.0, context="vix_max_threshold")
         return {

@@ -1291,10 +1291,16 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             cash_ok = cash_available >= position_size_dollars
 
             cur.execute("""
-                SELECT SUM(CASE WHEN cp.sector = %s THEN pd.position_value ELSE 0 END) /
+                WITH distinct_profiles AS (
+                    SELECT DISTINCT ON (cp.ticker)
+                        cp.ticker, cp.sector
+                    FROM company_profile cp
+                    ORDER BY cp.ticker
+                )
+                SELECT SUM(CASE WHEN dp.sector = %s THEN pd.position_value ELSE 0 END) /
                        NULLIF((SELECT SUM(position_value) FROM algo_positions), 0) * 100 AS sector_pct
                 FROM algo_positions pd
-                JOIN company_profile cp ON pd.symbol = cp.ticker
+                JOIN distinct_profiles dp ON pd.symbol = dp.ticker
             """, (sector,))
             sector_row = safe_json_serialize(dict(cur.fetchone()) or {})
             sector_pct_val = sector_row.get('sector_pct')
@@ -1903,11 +1909,17 @@ def _get_algo_evaluate(cur) -> Dict:
 
             # Sector exposure
             cur.execute("""
-                SELECT cp.sector, COUNT(DISTINCT at.symbol) as count
-                FROM algo_trades at
-                JOIN company_profile cp ON at.symbol = cp.ticker
-                WHERE at.status = 'open'
-                GROUP BY cp.sector
+                WITH distinct_trades AS (
+                    SELECT DISTINCT ON (at.symbol)
+                        at.symbol, cp.sector
+                    FROM algo_trades at
+                    JOIN company_profile cp ON at.symbol = cp.ticker
+                    WHERE at.status = 'open'
+                    ORDER BY at.symbol
+                )
+                SELECT sector, COUNT(symbol) as count
+                FROM distinct_trades
+                GROUP BY sector
                 ORDER BY count DESC
             """)
             sector_exposure = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
@@ -2143,16 +2155,22 @@ def _get_sector_stage2(cur) -> Dict:
                 WITH latest_date AS (
                     SELECT date FROM trend_template_data ORDER BY date DESC LIMIT 1
                 ),
-                stage2_counts AS (
-                    SELECT
-                        cp.sector,
-                        COUNT(CASE WHEN t.weinstein_stage = 2 THEN 1 END) AS stage_2,
-                        COUNT(t.symbol) AS total
+                distinct_trends AS (
+                    SELECT DISTINCT ON (t.symbol)
+                        t.symbol, t.weinstein_stage, cp.sector
                     FROM trend_template_data t
                     JOIN company_profile cp ON t.symbol = cp.ticker
                     WHERE t.date = (SELECT date FROM latest_date)
                       AND cp.sector IS NOT NULL
-                    GROUP BY cp.sector
+                    ORDER BY t.symbol
+                ),
+                stage2_counts AS (
+                    SELECT
+                        sector,
+                        COUNT(CASE WHEN weinstein_stage = 2 THEN 1 END) AS stage_2,
+                        COUNT(symbol) AS total
+                    FROM distinct_trends
+                    GROUP BY sector
                 )
                 SELECT
                     sector,
