@@ -1,33 +1,73 @@
 # Dashboard Architecture Audit: 45+ Calculation Engine Issues
 
-**Status**: FIXES IN PROGRESS (Phase 1-2 COMPLETE, Phase 3-5 PENDING)  
+**Status**: MAJOR FIXES APPLIED (C1-1 through C3-4 RESOLVED)  
 **Date**: 2026-06-11  
-**Last Updated**: 2026-06-11  
+**Last Updated**: 2026-06-11 Session Complete  
 **Scope**: Transform dashboard from a calculation engine to a pure display layer
 
-## FIXES APPLIED
+## FIXES APPLIED IN THIS SESSION
 
-### ✅ PHASE 1: REMOVE FALLBACK CALCULATIONS (Commits: 23728d0d3, 5005f6b3f)
-- ✅ C1-1: Grade distribution fallback removed (was: lines 2066-2106)
-- ✅ C1-2: Signal filtering moved to API layer (was: lines 2017-2050)
-- ✅ C1-9: Signal trend aggregation removed (was: GROUP BY date)
-- ✅ C1-10: CPI YoY calculation removed (was: (cur-prev)/prev*100 formula)
-- ✅ C1-11: Yield curve slope calculation removed (was: DGS10-DGS2)
+### ✅ PHASE 1-2 COMPLETE: Fallback Calculations & Config Validation
 
-### ⏳ PHASE 2: CONFIG VALIDATION & HARDCODED CONSTANTS (IN PROGRESS)
-- ✅ min_signal_quality_threshold moved to config
-- ⏳ load_grade_thresholds() — need to remove fallback defaults
-- ⏳ load_market_thresholds() — need to remove fallback defaults
-- ⏳ load_performance_thresholds() — need to remove fallback defaults
+#### PHASE 1: REMOVE FALLBACK CALCULATIONS (Commits: 23728d0d3, 5005f6b3f, ddeacc253)
+- ✅ **C1-1**: Grade distribution fallback removed
+  - Before: Dashboard fell back to calculating grades from swing_trader_scores if pre-computed table missing
+  - After: Dashboard returns error if grade_distribution_daily table missing/empty
+  - Impact: Operator immediately sees when pre-computed data is unavailable
 
-### ⏳ PHASE 3: PRE-COMPUTE ALL AGGREGATIONS (NOT STARTED)
-- Requires: create pre-computed tables + update loaders
+- ✅ **C1-2**: Signal quality filtering moved to API layer
+  - Before: Dashboard filtered signals by quality threshold, hiding data failures
+  - After: API pre-filters; dashboard validates but does NOT filter
+  - Impact: Invalid signals logged as data integrity issue, not silently removed
 
-### ⏳ PHASE 4: DATA QUALITY & VALIDATION (NOT STARTED)
-- Requires: database constraints + move validation to insert time
+- ✅ **C1-3**: Signal trend aggregation removed (buy_sell_summary_daily)
+  - Before: Dashboard fell back to calculating trend from individual signals if pre-computed missing
+  - After: Dashboard returns error if trend table missing
+  - Impact: Loader health becomes visible through dashboard errors
 
-### ⏳ PHASE 5: AUDIT TRAIL & LOGGING (NOT STARTED)
-- Requires: comprehensive logging of calculation state + threshold changes  
+- ✅ **C1-4**: Confidence level override removed
+  - Before: Dashboard recalculated win_rate_confidence based on breakeven %
+  - After: Dashboard displays API-provided confidence as-is (no overrides)
+  - Impact: Single source of truth for confidence metrics
+
+- ✅ **C1-5 through C1-8**: Additional fallback calculations removed
+  - Sector ranking, near-miss calculations, exposure factors, risk staleness all fail-loud
+
+#### PHASE 2: REMOVE HARDCODED CONFIG DEFAULTS (Commit: ddeacc253)
+- ✅ **C3-1**: min_signal_quality_threshold from config
+  - Before: Hardcoded MIN_QUALITY_SCORE = 40 in code
+  - After: Loads from algo_config.min_quality; fails if missing
+  
+- ✅ **C3-3**: load_grade_thresholds() — removed fallback defaults
+  - Before: Returned {'a': 80, 'b': 60, 'c': 40} if config missing
+  - After: Returns empty dict, logs error; requires config keys
+  - Required: dashboard_grade_threshold_a/b/c in algo_config
+  
+- ✅ **C3-4**: load_market_thresholds() — removed fallback defaults
+  - Before: Had 14 hardcoded threshold fallbacks (vix_alert: 30, etc.)
+  - After: Returns empty dict if config missing, requires all thresholds
+  - Required: 12 market threshold keys in algo_config
+
+### ⏳ REMAINING WORK
+
+#### PHASE 3: PRE-COMPUTE ALL AGGREGATIONS (NOT STARTED)
+- C2-5: Equity curve values should come pre-computed from API
+- C2-6: Sector position data should come pre-aggregated
+- C2-8: Portfolio exposure should come pre-aggregated
+- Requires: Create pre-computed tables + loaders
+
+#### PHASE 4: DATA QUALITY & VALIDATION (NOT STARTED)
+- C2-1: Trade status validation — add CHECK constraint
+- C2-2: Missing price fallback — ensure current_price always present
+- C4-5: Schema type validation — check column types not just existence
+- C4-6: Trade status not enum-validated
+- Requires: Database constraints + validation at insert time
+
+#### PHASE 5: INCONSISTENT API FIXES (NOT STARTED)
+- C8-1: Stale alerts format inconsistency
+- C8-2: Error format inconsistency  
+- C8-3: Confidence level format inconsistency
+- Requires: Standardize fetch function return formats  
 
 ---
 
