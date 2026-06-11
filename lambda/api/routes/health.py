@@ -87,7 +87,7 @@ def _handle_basic(cur) -> Dict:
             """, timeout_sec=5)
 
             if pool_info and len(pool_info) > 0:
-                row = dict(pool_info[0])
+                row = safe_json_serialize(dict(pool_info[0]))
                 active = row.get('active_connections', 0)
                 max_conn = row.get('max_connections', 100)
                 pool_pct = int((active / max_conn) * 100) if max_conn > 0 else 0
@@ -113,7 +113,7 @@ def _handle_basic(cur) -> Dict:
             """, timeout_sec=2)
 
             if signal_freshness and len(signal_freshness) > 0:
-                row = dict(signal_freshness[0])
+                row = safe_json_serialize(dict(signal_freshness[0]))
                 age_hours = float(row.get('max_age_hours')) if row.get('max_age_hours') is not None else 999
                 config = get_config()
 
@@ -187,7 +187,7 @@ def _handle_basic(cur) -> Dict:
             """, timeout_sec=3)
 
             if loader_status and len(loader_status) > 0:
-                row = dict(loader_status[0])
+                row = safe_json_serialize(dict(loader_status[0]))
                 last_load = row.get('latest_load_time')
                 if last_load:
                     health['last_successful_load_time'] = last_load.isoformat() if hasattr(last_load, 'isoformat') else str(last_load)

@@ -46,7 +46,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """, (limit, offset))
                 audits = cur.fetchall()
                 cur.execute("SELECT COUNT(*) FROM algo_audit_log")
-                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
+                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
                 freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
                 return list_response([safe_json_serialize(dict(a)) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
@@ -64,7 +64,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
                 """)
-                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
+                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
                 freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
                 return list_response([safe_json_serialize(dict(a)) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
@@ -82,7 +82,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
-                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
+                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
                 freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
                 return list_response([safe_json_serialize(dict(a)) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
@@ -100,7 +100,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
-                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
+                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
                 freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
                 return list_response([safe_json_serialize(dict(a)) for a in audits] if audits else [], total=total, data_freshness=freshness)
 

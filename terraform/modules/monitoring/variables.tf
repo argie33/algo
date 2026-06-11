@@ -101,6 +101,16 @@ variable "alert_email_address" {
   default     = ""
 }
 
+variable "cloudwatch_log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 7
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.cloudwatch_log_retention_days)
+    error_message = "cloudwatch_log_retention_days must be an AWS-valid value (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653)"
+  }
+}
+
 # ============================================================
 # Data Freshness Monitoring Configuration
 # ============================================================

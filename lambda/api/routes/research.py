@@ -70,7 +70,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("""
                     SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
                 """, (run_id_int,))
-                total_trades_count = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
+                total_trades_count = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
 
                 # Build response
                 run_dict = safe_json_serialize(dict(backtest))

@@ -207,7 +207,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 sectors_data = cur.fetchall()
                 cur.execute("""SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL""")
-                total = dict(cur.fetchone()).get('cnt', 0)
+                total = safe_json_serialize(dict(cur.fetchone())).get('cnt', 0)
 
                 sectors = []
                 for row in sectors_data:

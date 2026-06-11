@@ -5,7 +5,11 @@ import logging, re, json, os
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset, handle_db_error, check_data_freshness, safe_json_serialize
+from .utils import (
+    error_response, success_response, list_response, json_response,
+    safe_limit, safe_days, safe_offset, handle_db_error,
+    check_data_freshness, safe_json_serialize
+)
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
 logger = logging.getLogger(__name__)
@@ -1225,7 +1229,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 FROM algo_positions pd
                 WHERE LOWER(pd.status) = 'open'
             """)
-            portfolio_row = dict(cur.fetchone() or {})
+            portfolio_row = safe_json_serialize(dict(cur.fetchone()) or {})
             current_positions = portfolio_row.get('position_count', 0)
             invested_val = portfolio_row.get('invested')
             invested = float(invested_val) if invested_val is not None else None
@@ -1285,7 +1289,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 FROM algo_positions pd
                 JOIN company_profile cp ON pd.symbol = cp.ticker
             """, (sector,))
-            sector_row = dict(cur.fetchone() or {})
+            sector_row = safe_json_serialize(dict(cur.fetchone()) or {})
             sector_pct_val = sector_row.get('sector_pct')
             current_sector_pct = float(sector_pct_val) if sector_pct_val is not None else None
             new_sector_pct = current_sector_pct + position_pct_calc if current_sector_pct is not None else None

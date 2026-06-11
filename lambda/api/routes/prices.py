@@ -61,7 +61,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 found_symbols = set()
                 for row in cur.fetchall():
                     sym = row['symbol']
-                    result[sym].append(dict(row))
+                    result[sym].append(safe_json_serialize(dict(row)))
                     found_symbols.add(sym)
 
                 missing = [s for s in symbols if s not in found_symbols]
@@ -81,7 +81,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     cur.execute(etf_query, [missing, limit])
                     for row in cur.fetchall():
                         sym = row['symbol']
-                        result[sym].append(dict(row))
+                        result[sym].append(safe_json_serialize(dict(row)))
 
                 return {
                     'statusCode': 200,
@@ -184,7 +184,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             found_symbols = set()
             for row in cur.fetchall():
                 sym = row['symbol']
-                result[sym].append(dict(row))
+                result[sym].append(safe_json_serialize(dict(row)))
                 found_symbols.add(sym)
 
             missing = [s for s in symbols if s not in found_symbols]
@@ -204,7 +204,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute(etf_query, [missing, limit])
                 for row in cur.fetchall():
                     sym = row['symbol']
-                    result[sym].append(dict(row))
+                    result[sym].append(safe_json_serialize(dict(row)))
 
             return {
                 'statusCode': 200,
