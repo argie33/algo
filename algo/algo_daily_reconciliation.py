@@ -170,7 +170,7 @@ class DailyReconciliation:
                 if total_equity > 0:
                     unrealized_pnl_pct = (unrealized_pnl / total_equity) * 100
 
-                largest_position = float(max([p[5] for p in positions], default=0) or 0)
+                largest_position = float(max([p[4] for p in positions], default=0) or 0)
                 max_concentration = (largest_position / total_equity * 100.0) if total_equity > 0 else 0.0
 
                 avg_position_size = (total_position_value / len(positions)) if positions else 0.0
