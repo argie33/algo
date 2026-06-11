@@ -19,8 +19,20 @@ import psycopg2.extras
 os.environ['DEV_BYPASS_AUTH'] = 'true'
 os.environ['ENVIRONMENT'] = 'development'
 
-# Add lambda/api to path so we can import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Configure database connection for local development
+os.environ['DB_HOST'] = os.getenv('DB_HOST', 'localhost')
+os.environ['DB_PORT'] = os.getenv('DB_PORT', '5432')
+os.environ['DB_NAME'] = os.getenv('DB_NAME', 'stocks')
+os.environ['DB_USER'] = os.getenv('DB_USER', 'stocks')
+os.environ['DB_PASSWORD'] = os.getenv('DB_PASSWORD', 'stocks')
+
+# Add lambda/api and parent directories to path so we can import all modules
+api_dir = os.path.dirname(os.path.abspath(__file__))
+lambda_dir = os.path.dirname(api_dir)
+root_dir = os.path.dirname(lambda_dir)
+sys.path.insert(0, api_dir)
+sys.path.insert(0, lambda_dir)
+sys.path.insert(0, root_dir)
 
 print(f"[DEV_SERVER_INIT] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}", flush=True)
 

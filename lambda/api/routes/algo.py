@@ -438,14 +438,13 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             cur.execute("SET LOCAL statement_timeout = '30000ms'")
             cur.execute("""
                 WITH open_trades AS (
-                    -- All trades with active positions (source of truth)
+                    -- All trades with active positions (source of truth) - identified by NULL exit_price
                     SELECT DISTINCT ON (symbol)
                         symbol, trade_id, entry_quantity, entry_price,
                         stop_loss_price, target_1_price, target_2_price, target_3_price,
                         trade_date, entry_time
                     FROM algo_trades
-                    WHERE status IN ('open', 'filled', 'partially_filled', 'active')
-                        AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                    WHERE exit_price IS NULL
                     ORDER BY symbol, trade_date DESC
                 ),
                 latest_prices AS (

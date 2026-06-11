@@ -2,8 +2,14 @@
 import logging, sys, os, json
 from pathlib import Path
 
-# Ensure routes module can be imported
-sys.path.insert(0, str(Path(__file__).parent))
+# Ensure routes module and utils can be imported (needed for dev_server.py)
+api_dir = str(Path(__file__).parent)
+lambda_dir = str(Path(__file__).parent.parent)
+root_dir = str(Path(__file__).parent.parent.parent)
+
+sys.path.insert(0, api_dir)
+sys.path.insert(0, lambda_dir)
+sys.path.insert(0, root_dir)
 
 logger = logging.getLogger(__name__)
 
