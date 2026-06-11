@@ -176,6 +176,18 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
         'beta_warning': 1.2, 'beta_caution': 0.8,
     }
 
+# Grade thresholds for signal scoring (separate from market tier thresholds)
+GRADE_A_PLUS = 90
+GRADE_A = 80
+GRADE_B = 70
+GRADE_C = 60
+
+# Health bar and visual indicator thresholds
+HBAR_CRITICAL = 1.0
+HBAR_WARNING = 0.75
+
+MINIBAR_HIGH = 0.75
+MINIBAR_MED = 0.35
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
@@ -1562,8 +1574,8 @@ def fetch_portfolio(c):
         _log_data_quality("fetch_portfolio", 0, str(e))
         return {"_error": f"Failed to load portfolio: {type(e).__name__}"}
 
-def fetch_perf(c):
-    """Fetch performance metrics from algo_performance_daily table (pre-computed).
+def fetch_perf(c=None):
+    """Fetch performance metrics from API (pre-computed by loaders).
 
     CRITICAL ISSUES 1-5 FIX: Read from database instead of recalculating.
     This ensures:
