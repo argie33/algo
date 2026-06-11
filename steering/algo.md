@@ -138,7 +138,7 @@ If you need to rebuild the schema:
 
 3. **Per-loader constraints** (automatic, no config needed):
    - **stock_prices_daily**: min=1, max=3 (fixed at 1 to prevent yfinance 429 rate limiting, can scale to 3 if RDS allows)
-   - **technical_data_daily**: min=1, max=8 (scales based on RDS availability)
+   - **technical_data_daily**: min=1, max=2 (FIXED: reduced from 8 to prevent 7+ hour RDS exhaustion hangs)
    - **buy_sell_daily**: min=1, max=6 (critical path, conservative scaling)
    - **signal_quality_scores**: min=1, max=6
    - **swing_trader_scores**: min=1, max=6

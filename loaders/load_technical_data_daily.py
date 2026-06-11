@@ -292,11 +292,16 @@ def main():
     logger.info(f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
     # VALIDATION: technical_data_daily is critical path; parallelism should be 2 per steering doc line 44-48
-    # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
-    if args.parallelism > 4:
+    # ISSUE #X FIX: Cap parallelism at 2 to prevent 7+ hour hangs due to RDS connection pool saturation
+    # Root cause: parallelism=8 causes connection cascade, slow queries on price_daily, and entire pipeline stall
+    # Solution: enforce max parallelism=2 for technical_data_daily to keep RDS connections <30 during concurrent loaders
+    max_parallelism = 2
+    if args.parallelism > max_parallelism:
         logger.warning(
-            f"[PARALLELISM] technical_data_daily: parallelism={args.parallelism} exceeds recommended max (2-3). "
-            f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
+            f"[PARALLELISM] technical_data_daily: requested={args.parallelism}, capped at {max_parallelism} to prevent RDS exhaustion. "
+            f"(7+ hour hangs observed with higher parallelism due to connection pool saturation)"
+        )
+        args.parallelism = max_parallelism
         )
 
     loader = TechnicalDataDailyLoader()
