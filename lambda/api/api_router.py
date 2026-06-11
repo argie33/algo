@@ -1,5 +1,5 @@
 """API Router - dispatcher."""
-import logging, sys
+import logging, sys, os, json
 from pathlib import Path
 
 # Ensure routes module can be imported
@@ -8,8 +8,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 logger = logging.getLogger(__name__)
 
 # Import routes gracefully - if a single module fails, others still work
-_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import
+_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
+_CRITICAL_ROUTES = {'health', 'algo'}  # Routes that must load for API to function
 
 _ROUTE_MODULES = [
     'algo', 'financials', 'earnings', 'signals', 'prices', 'stocks',
@@ -18,13 +19,39 @@ _ROUTE_MODULES = [
     'data_coverage'
 ]
 
+# Track startup state for diagnostics
+_STARTUP_TIME = None
+_IMPORT_DURATION = None
+
 for module_name in _ROUTE_MODULES:
     try:
         module = __import__(f'routes.{module_name}', fromlist=[module_name])
         _AVAILABLE_ROUTES[module_name] = module
     except Exception as e:
-        _ROUTE_IMPORT_ERRORS[module_name] = f"{type(e).__name__}: {str(e)[:100]}"
-        logger.error(f"Failed to import routes.{module_name}: {type(e).__name__}: {str(e)}", exc_info=True)
+        error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        _ROUTE_IMPORT_ERRORS[module_name] = error_msg
+        severity = "CRITICAL" if module_name in _CRITICAL_ROUTES else "WARNING"
+        logger.error(f"[{severity}] Failed to import routes.{module_name}: {error_msg}", exc_info=True)
+
+# Report startup status: log all failures with clear visibility
+if _ROUTE_IMPORT_ERRORS:
+    failed_modules = list(_ROUTE_IMPORT_ERRORS.keys())
+    critical_failures = [m for m in failed_modules if m in _CRITICAL_ROUTES]
+
+    # Log structured status for monitoring
+    logger.error(f"ROUTE_IMPORT_STATUS: failed_count={len(failed_modules)}, critical_count={len(critical_failures)}, modules={failed_modules}")
+
+    # If critical routes failed, the API cannot function
+    if critical_failures:
+        error_detail = {
+            "error": "CRITICAL_ROUTE_IMPORT_FAILURE",
+            "critical_failures": critical_failures,
+            "all_failures": failed_modules,
+            "details": {m: _ROUTE_IMPORT_ERRORS[m] for m in critical_failures}
+        }
+        logger.error(f"CRITICAL_ROUTE_IMPORT_FAILURE: {json.dumps(error_detail)}")
+        # Set environment variable that monitoring can detect
+        os.environ['API_CRITICAL_ROUTES_FAILED'] = json.dumps(critical_failures)
 
 # Build handler mappings from available routes (some may be missing if they failed to import)
 PUBLIC_HANDLERS = {}
@@ -61,25 +88,23 @@ _HANDLER_CONFIG = [
     ('/api/data-coverage', 'data_coverage'),
 ]
 
+_SKIPPED_ROUTES = []  # Track which routes were skipped due to import failures
+
 for path, module_name in _HANDLER_CONFIG:
     if module_name in _AVAILABLE_ROUTES:
         HANDLERS[path] = _AVAILABLE_ROUTES[module_name]
     else:
-        logger.warning(f"Route {path} skipped - module routes.{module_name} failed to import")
+        _SKIPPED_ROUTES.append({"path": path, "module": module_name, "error": _ROUTE_IMPORT_ERRORS.get(module_name, "unknown")})
+        logger.warning(f"Route {path} SKIPPED - module routes.{module_name} failed to import: {_ROUTE_IMPORT_ERRORS.get(module_name, 'unknown')}")
+
+# Log final status
+if _SKIPPED_ROUTES:
+    logger.error(f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}")
 
 def _add_cors_headers(response):
-    """Add CORS headers to response (applies to both success and error responses)."""
+    """Ensure response is a valid dict (CORS headers added by lambda_function.py)."""
     if not isinstance(response, dict):
         response = {"statusCode": 500, "errorType": "internal_error", "message": "Invalid response format"}
-
-    # CORS headers must be present on all responses, including errors
-    response['headers'] = response.get('headers', {})
-    response['headers'].update({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-        'Content-Type': 'application/json'
-    })
     return response
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
@@ -109,17 +134,100 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for route_path, module_name in _HANDLER_CONFIG:
         if module_name in _ROUTE_IMPORT_ERRORS and path.startswith(route_path):
             error = _ROUTE_IMPORT_ERRORS[module_name]
+            import_status = get_import_status()
             logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
-            return _add_cors_headers({
+            # Include diagnostic information for dashboard/clients
+            response = {
                 "statusCode": 503,
                 "errorType": "route_load_error",
-                "message": f"Route handler unavailable: {module_name} module failed to load"
-            })
+                "message": f"Route handler unavailable: {module_name} module failed to load",
+                "_diagnostic": {
+                    "failed_module": module_name,
+                    "module_error": error,
+                    "failed_route_count": import_status['failed_routes'],
+                    "critical_failures": import_status['critical_failures'],
+                    "all_failed_modules": import_status['failed_modules'],
+                }
+            }
+            return _add_cors_headers(response)
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
     return _add_cors_headers({"statusCode": 404, "errorType": "not_found", "message": "Endpoint not found"})
 
+
+def get_import_status():
+    """Return structured import status for monitoring/diagnostics.
+
+    Used by:
+    - CloudWatch metrics: publish import_errors count
+    - Health endpoint: report route failures
+    - Dashboard alerts: show which routes are unavailable
+
+    Returns:
+        dict: {
+            "total_routes": int,
+            "successful_routes": int,
+            "failed_routes": int,
+            "failed_modules": list[str],
+            "critical_failures": list[str],
+            "failed_details": {module: error_msg},
+            "skipped_routes": list[{"path": str, "module": str, "error": str}]
+        }
+    """
+    critical_failures = [m for m in _ROUTE_IMPORT_ERRORS if m in _CRITICAL_ROUTES]
+    return {
+        "total_routes": len(_ROUTE_MODULES),
+        "successful_routes": len(_AVAILABLE_ROUTES),
+        "failed_routes": len(_ROUTE_IMPORT_ERRORS),
+        "critical_failures": critical_failures,
+        "failed_modules": list(_ROUTE_IMPORT_ERRORS.keys()),
+        "failed_details": _ROUTE_IMPORT_ERRORS,
+        "skipped_routes": _SKIPPED_ROUTES,
+        "has_critical_failures": len(critical_failures) > 0,
+    }
+
+def _publish_import_metrics():
+    """Publish API route import status to CloudWatch metrics.
+
+    Creates custom metrics:
+    - APIRouteImportErrors: count of failed route imports
+    - APICriticalRouteFailures: count of critical route failures (health/algo)
+
+    These metrics trigger CloudWatch alarms for alerting.
+    """
+    try:
+        import boto3
+        cloudwatch = boto3.client('cloudwatch', region_name='us-east-1')
+
+        status = get_import_status()
+
+        # Publish count of failed imports
+        if status['failed_routes'] > 0:
+            cloudwatch.put_metric_data(
+                Namespace='AlgoTrading/API',
+                MetricData=[
+                    {
+                        'MetricName': 'APIRouteImportErrors',
+                        'Value': status['failed_routes'],
+                        'Unit': 'Count',
+                    },
+                    {
+                        'MetricName': 'APICriticalRouteFailures',
+                        'Value': len(status['critical_failures']),
+                        'Unit': 'Count',
+                    }
+                ]
+            )
+            logger.info(f"Published CloudWatch metrics: APIRouteImportErrors={status['failed_routes']}, APICriticalRouteFailures={len(status['critical_failures'])}")
+    except Exception as e:
+        logger.warning(f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}")
+
+# Publish metrics at startup
+try:
+    _publish_import_metrics()
+except Exception as e:
+    logger.warning(f"Metrics publishing failed at startup: {e}")
 
 def _format_handler_error(e):
     """Format exception as error response with diagnostic error types.
