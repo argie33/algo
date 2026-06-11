@@ -3336,10 +3336,20 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<0.8=bullish)[/]")
     if bmom is not None:
-        bmc = G if bmom is not None and bmom >= mkt_cfg['breadth_momentum_good'] else (Y if bmom is not None and bmom >= 0 else R)
+        if bmom >= mkt_cfg['breadth_momentum_good']:
+            bmc = G
+        elif bmom >= 0:
+            bmc = Y
+        else:
+            bmc = R
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim](0.5+=bullish)[/]")
     if ycs is not None:
-        yc_c = G if ycs is not None and ycs >= mkt_cfg['yield_curve_good'] else (Y if ycs is not None and ycs >= 0 else R)
+        if ycs >= mkt_cfg['yield_curve_good']:
+            yc_c = G
+        elif ycs >= 0:
+            yc_c = Y
+        else:
+            yc_c = R
         bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/] [dim](0+=flat)[/]")
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
@@ -3418,7 +3428,12 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         mkt_cfg = load_market_thresholds(cfg)
         vix_val = get_numeric(mkt, "vix")
         vix     = f"{vix_val:.1f}" if vix_val is not None else "--"
-        vc      = R if vix_val is not None and vix_val >= mkt_cfg['vix_alert'] else (Y if vix_val is not None and vix_val >= mkt_cfg['vix_caution'] else DIM)
+        if vix_val is not None and vix_val >= mkt_cfg['vix_alert']:
+            vc = R
+        elif vix_val is not None and vix_val >= mkt_cfg['vix_caution']:
+            vc = Y
+        else:
+            vc = DIM
         dist    = str(mkt.get("dist") or "--")
         stage   = str(mkt.get("stage") or "--")
         spy_raw = mkt.get("spy"); spy_chg = get_numeric(mkt, "spy_chg")
@@ -3433,9 +3448,19 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         upvol = get_numeric(mkt, "upvol"); nh = get_numeric(mkt, "nh"); nl = get_numeric(mkt, "nl"); adr = get_numeric(mkt, "adr")
         if upvol is not None:
             # M2 FIX: Use config thresholds instead of hardcoded values
-            uvc    = G if upvol >= mkt_cfg['upvol_good'] else (Y if upvol >= mkt_cfg['upvol_caution'] else DIM)
+            if upvol >= mkt_cfg['upvol_good']:
+                uvc = G
+            elif upvol >= mkt_cfg['upvol_caution']:
+                uvc = Y
+            else:
+                uvc = DIM
             nhnl   = (nh - nl) if nh is not None and nl is not None else None
-            nhnl_c = G if nhnl is not None and nhnl >= mkt_cfg['breadth_good'] else (Y if nhnl is not None and nhnl >= mkt_cfg['breadth_caution'] else DIM)
+            if nhnl is not None and nhnl >= mkt_cfg['breadth_good']:
+                nhnl_c = G
+            elif nhnl is not None and nhnl >= mkt_cfg['breadth_caution']:
+                nhnl_c = Y
+            else:
+                nhnl_c = DIM
             adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
             rows.append(Text.from_markup(
                 f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
@@ -5119,15 +5144,18 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     if risk and not risk.get("_error") and var95_v is not None and var95_v > 0:
         rows.append(Rule(style="dim"))
         # M6 FIX: Show risk calculation status (successful/incomplete/stale)
+        # M12 FIX: Display data source indicator (pre-computed vs calculated)
         has_data = risk.get("_has_data", False)
         is_stale = risk.get("_is_stale", False)
         age_min = risk.get("_age_minutes")
+        risk_source = risk.get("_source", "unknown")
+        source_label = "pre-computed" if risk_source == "table" else ("calculated" if risk_source == "calculated" else risk_source)
         if not has_data:
             rows.append(Text.from_markup(f"[{R}]⚠ Risk calculation incomplete - awaiting data[/]"))
         elif is_stale and age_min:
-            rows.append(Text.from_markup(f"[{Y}]⚠ Risk data stale ({age_min:.0f}min old)[/]"))
+            rows.append(Text.from_markup(f"[{Y}]⚠ Risk data stale ({age_min:.0f}min old) [{source_label}][/]"))
         else:
-            rows.append(Text.from_markup(f"[{G}]✓ Risk metrics current[/]"))
+            rows.append(Text.from_markup(f"[{G}]✓ Risk metrics current[/] [dim]({source_label})[/]"))
 
         beta_v = get_numeric(risk, "beta")
         conc5_v = get_numeric(risk, "conc5")
