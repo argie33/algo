@@ -205,6 +205,9 @@ HALT_REASON_NAMES = {
     "data_freshness":           "Required data stale",
 }
 
+# H14 FIX: Define failure threshold for load_all degradation logic
+FETCHER_FAILURE_THRESHOLD = 0.5  # If >50% of fetchers fail, enter degraded mode
+
 # ── mascot (dancing monkey) ──────────────────────────────────────────────────
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
 # MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
@@ -3044,11 +3047,12 @@ def load_all() -> dict:
         logger.error(f"CRITICAL: {msg}")
         return {"_error": msg, "_critical_failures": critical_failures, "_partial_data": out}
 
-    # If more than half of fetchers failed: degraded state (but show what we have)
-    if len(failures) > len(FETCHERS) // 2:
-        msg = f"Data degraded: {len(failures)}/{len(out)} fetchers failed"
+    # If failure rate exceeds threshold: degraded state (but show what we have)
+    failure_rate = len(failures) / len(FETCHERS) if len(FETCHERS) > 0 else 0
+    if failure_rate > FETCHER_FAILURE_THRESHOLD:
+        msg = f"Data degraded: {len(failures)}/{len(FETCHERS)} fetchers failed ({failure_rate*100:.1f}% > {FETCHER_FAILURE_THRESHOLD*100:.0f}% threshold)"
         logger.warning(f"DEGRADED: {msg}")
-        return {**out, "_degraded": True, "_failure_count": len(failures), "_failed_fetchers": failures}
+        return {**out, "_degraded": True, "_failure_count": len(failures), "_failed_fetchers": failures, "_failure_rate": round(failure_rate, 2)}
 
     # Partial failures are acceptable: show available data
     if failures:

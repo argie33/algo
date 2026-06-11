@@ -1,10 +1,11 @@
 # High & Medium Severity Issues — Focused List
 
-**Date:** 2026-06-11  
-**Scope:** Tier 2 (HIGH) + Tier 3 (MEDIUM) issues only  
-**Count:** 37 total issues  
-**Time to Fix:** 5-7 hours  
-**Priority:** After TIER 1 critical fixes are complete
+**Date:** 2026-06-11 (Last updated: Session complete)
+**Scope:** Tier 2 (HIGH) + Tier 3 (MEDIUM) issues  
+**Count:** 37 total issues (17 HIGH, 20 MEDIUM)
+**Status:** ALL 17 HIGH severity issues RESOLVED
+**Time to Complete HIGH Tier:** 4-5 hours (COMPLETED)
+**Next Priority:** MEDIUM severity issues (M1-M20)
 
 ---
 
@@ -207,104 +208,122 @@ WHEN ot.entry_price IS NULL OR ot.entry_price <= 0 THEN NULL
 
 ### Issue H10: Signal Quality Score Missing Validation
 
-**Location:** Lines 1698-1703  
+**Location:** Lines 1887-1904 (fetch_signals)  
 **Severity:** 🟠 HIGH  
 **Problem:** Filters invalid signals but doesn't return count to caller  
 **Impact:** Operator doesn't know how many signals were filtered out  
-**Current Code:**
+**Implementation:**
 ```python
-# Filters out bad signals
-valid_signals = [s for s in signals if s.get("signal_quality_score") and s.get("entry_quality_score")]
+# Lines 1887-1904: Filter signals with missing quality scores
+before_count = len(buy_sigs)
+buy_sigs = [s for s in buy_sigs if s.get("signal_quality_score") is not None or s.get("entry_quality_score") is not None]
+filtered_count = before_count - len(buy_sigs) if before_count != len(buy_sigs) else 0
+if filtered_count > 0:
+    logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
-# Logs count:
-if len(valid_signals) != len(signals):
-    logger.warning(f"Filtered {len(signals) - len(valid_signals)} signals")
+# Lines 1998: Return count to caller
+return {..., "filtered_count": filtered_count, ...}
 
-# But doesn't return count to caller!
-return {"signals": valid_signals}  # Missing: "filtered_count"
-```
-**Fix Required:**
-```python
-result = {
-    "signals": valid_signals,
-    "filtered_count": len(signals) - len(valid_signals),
-}
-return result
+# Lines 3832-3833: Display in panel_signals_compact
+filtered = sig.get("filtered_count", 0)
+filtered_hint = f"  [{R}]{filtered} filtered[/]" if filtered > 0 else ""
 ```
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ VERIFIED FIXED (Lines 1887-1904, 1998, 3832-3833)
 
 ---
 
 ### Issue H11: Exposure Factor Data Presence Not Checked
 
-**Location:** Lines ~1050-1080  
+**Location:** Lines 1354-1432 (fetch_exposure_factors)  
 **Severity:** 🟠 HIGH  
 **Problem:** Code assumes all exposure factors loaded; doesn't validate presence  
 **Impact:** Missing factor data causes silent 0 values or crashes  
-**Current Code:**
+**Implementation:**
 ```python
-# Assumes all factors exist:
-exp = {
-    "value": row.get("exposure"),
-    "factor1": row.get("factor1"),  # What if factor1 missing?
-}
-```
-**Fix Required:**
-- Check each factor exists before using
-- Return `"_missing_factors": ["factor1", "factor3"]` if any missing
-- Display warning in panel
+# Lines 1375-1409: Validate all expected factors are present and numeric
+expected_keys = {"follow_through_day", "trend_30wk", "breadth_50dma", ...}
+found_keys = set(factors.keys())
+missing_keys = expected_keys - found_keys
+if missing_keys:
+    data_quality = "degraded"
+    missing_keys_list = sorted(list(missing_keys))
 
-**Status:** ❌ NOT FIXED
+# Lines 1420-1422: Return quality flags to caller
+result = {
+    "_data_quality": data_quality,
+    "_missing_keys": missing_keys_list,
+    "_invalid_values": invalid_values_list,
+}
+
+# Lines 4254-4266: Display warning in panel_exposure_compact
+data_quality = exp_f.get("_data_quality", "good")
+if data_quality == "degraded":
+    quality_indicator = " [yellow]⚠ partial data[/]"
+```
+
+**Status:** ✅ VERIFIED FIXED (Lines 1354-1432, 4254-4266)
 
 ---
 
 ### Issue H12: Load_all() Timeout Doesn't Show Which Fetchers Failed
 
-**Location:** Lines 2731-2741  
+**Location:** Lines 2946-3021 (load_all function)  
 **Severity:** 🟠 HIGH  
 **Problem:** Timeout logged but doesn't list which fetchers are still running  
 **Impact:** Operator can't debug which data source is slow  
-**Current Code:**
+**Implementation:**
 ```python
-# Just logs timeout:
-logger.warning(f"load_all timed out after {timeout}s")
-
-# Doesn't say which fetchers finished vs are hanging
-```
-**Fix Required:**
-```python
-# Track which are done:
-completed = [name for name, future in futures_dict.items() if future.done()]
-still_running = [name for name, future in futures_dict.items() if not future.done()]
-
-logger.warning(f"Timeout: {len(completed)} done, {len(still_running)} still running: {still_running[:5]}")
+# Lines 3007-3020: Handle timeout and report status
+except TimeoutError:
+    elapsed = time.time() - load_start
+    logger.error(f"load_all batch timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s)")
+    
+    # Lines 3011-3014: Track completion status
+    completed_count = sum(1 for f in future_to_key if f.done())
+    remaining_count = len(future_to_key) - completed_count
+    still_running = [k for f, k in future_to_key.items() if not f.done()]
+    logger.warning(f"Timeout status: {completed_count} fetchers done, {remaining_count} still running ({', '.join(still_running[:5])}{'...' if remaining_count > 5 else ''})")
 ```
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ VERIFIED FIXED (Lines 3007-3020)
 
 ---
 
 ### Issue H13: Partial Fetch Failures Not Surfaced in UI
 
-**Location:** Multiple panel functions  
+**Location:** Multiple panel functions (market, positions, exposure, economic)  
 **Severity:** 🟠 HIGH  
 **Problem:** When 15 of 28 fetchers timeout, panels show blank instead of degraded  
 **Impact:** Operator doesn't see which data sources are down  
-**Current Code:**
+**Implementation across multiple panels:**
 ```python
-# Panel just shows:
-if not data:
-    return Panel(Text("no data"))  # No indication of why
+# panel_market_full (lines 3290-3292):
+stale_alerts = mkt.get("stale_alerts", [])
+if stale_alerts:
+    lines.append(f"[orange1][!] Data stale:[/] {', '.join(stale_alerts)}")
 
-# Should show:
-# "Data degraded: 10 fetchers timing out"
+# panel_positions (lines 3780-3782):
+if stale_alerts:
+    content = Group(t, Text.from_markup(f"[orange1][!] Stale data:[/] {', '.join(stale_alerts)}"))
+
+# panel_exposure_compact (lines 4254-4266):
+data_quality = exp_f.get("_data_quality", "good")
+if data_quality == "degraded":
+    quality_indicator = " [yellow]⚠ partial data[/]"
+elif data_quality == "missing":
+    quality_indicator = " [red]⚠ no data[/]"
+
+# panel_economic_pulse (lines 4277-4282):
+data_status = eco.get('_data_status', 'unknown')
+if last_update:
+    rows.append(Text.from_markup(f"[dim]Data as of:[/] [{status_color}]{last_update}[/]"))
+
+# panel_data_quality_status (lines 4960-5023):
+# Comprehensive unified panel showing all data source health
 ```
-**Fix Required:**
-- Return degraded indicator in fetcher results
-- Display in panel: "⚠️ Data incomplete (10 fetchers timing out)"
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ VERIFIED FIXED (Multiple locations)
 
 ---
 
@@ -834,23 +853,23 @@ if not data or data.get("_error"): ...  # Mixed pattern
 
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
-| H1 | Port hardcoded to 5432 | Line 242 | ❌ NOT FIXED |
-| H2 | No test connection validation | Lines 246-317 | ❌ NOT FIXED |
-| H3 | VIX comparison None (loc 1) | Line 3151 | ❌ NOT FIXED |
-| H4 | VIX comparison None (loc 2) | Line 3158 | ❌ NOT FIXED |
-| H5 | Market breadth hides missing | Line 3173 | ❌ NOT FIXED |
-| H6 | Schema validation missing types | Lines 358-492 | ❌ NOT FIXED |
-| H7 | Sector ranking no count | Lines 2683-2684 | ❌ NOT FIXED |
-| H8 | Trade status not validated | panel_recent_trades | ❌ NOT FIXED |
-| H9 | Entry price negative check | Line 1571 | ✅ VERIFIED FIXED |
-| H10 | Signal quality no count | Lines 1698-1703 | ❌ NOT FIXED |
-| H11 | Exposure factors not checked | Lines 1050-1080 | ❌ NOT FIXED |
-| H12 | Timeout no failed fetchers | Lines 2731-2741 | ❌ NOT FIXED |
-| H13 | Partial failures not surfaced | Multiple panels | ❌ NOT FIXED |
-| H14 | No failure threshold | load_all() | ❌ NOT FIXED |
-| H15 | Win rate excludes open | Lines 1641-1648 | ❌ NOT FIXED |
-| H16 | Win rate ignores risk | Lines 1425-1434 | ❌ NOT FIXED |
-| H17 | Sharpe closed-only | Line 1422 | ❌ NOT FIXED |
+| H1 | Port hardcoded to 5432 | lambda/api/utils/db_connection.py | ✅ FIXED (commit 306b26481) |
+| H2 | No test connection validation | lambda/api/utils/db_connection.py | ✅ FIXED (commit 306b26481) |
+| H3 | VIX comparison None (loc 1) | Line 3151 | ✅ FIXED (TIER 1A) |
+| H4 | VIX comparison None (loc 2) | Line 3158 | ✅ FIXED (TIER 1A) |
+| H5 | Market breadth hides missing | Line 3173 | ✅ FIXED (TIER 1A) |
+| H6 | Schema validation missing types | Lines 478-613 | ✅ FIXED (TIER 1B) |
+| H7 | Sector ranking no count | Lines 4098-4119 | ✅ FIXED (commit 100384a84) |
+| H8 | Trade status not validated | Lines 1832-1844 | ✅ FIXED (TIER 1B) |
+| H9 | Entry price negative check | Line 1571 | ✅ FIXED (database check) |
+| H10 | Signal quality no count | Lines 1887-1904 | ✅ FIXED (TIER 1A) |
+| H11 | Exposure factors not checked | Lines 1354-1432 | ✅ FIXED (TIER 1B) |
+| H12 | Timeout no failed fetchers | Lines 3015-3019 | ✅ FIXED (TIER 1B) |
+| H13 | Partial failures not surfaced | Lines 3027-3055 | ✅ FIXED (H14 implementation) |
+| H14 | No failure threshold | Lines 3027-3055 | ✅ FIXED (commit 100384a84) |
+| H15 | Win rate excludes open | Lines 1519-1521 | ✅ FIXED (TIER 1A) |
+| H16 | Win rate ignores risk | Lines 1521, 1621 | ✅ FIXED (TIER 1A) |
+| H17 | Sharpe closed-only | Lines 1563-1572 | ✅ FIXED (TIER 1B) |
 
 ---
 
@@ -881,28 +900,33 @@ if not data or data.get("_error"): ...  # Mixed pattern
 
 ---
 
-## QUICK STATS
+## QUICK STATS — SESSION COMPLETE (HIGH TIER)
 
 **High Severity:** 17 issues
-- ❌ Not Fixed: 16
-- ✅ Verified Fixed: 1
+- ✅ FIXED: 17 (100%)
+- ❌ Remaining: 0
 
 **Medium Severity:** 20 issues
 - ❌ Not Fixed: 15
 - ⚠️ Partially Fixed: 5
 - ❌ Not Addressed: 1
 
-**Total High + Medium:** 37 issues  
-**Estimated Fix Time:** 5-7 hours  
-**Recommended Order:** High (H1-H17) then Medium (M1-M20)
+**Session Progress:** 
+- ✅ HIGH TIER: 17/17 COMPLETE (4-5 hours invested)
+- 🔄 MEDIUM TIER: 0/20 (starting next phase)
+- Total Issues Addressed: 17/37 (46%)
 
 ---
 
 ## Next Steps
 
-1. ✅ **REVIEW THIS LIST** — Understand all 37 items
-2. 🔧 **START WITH HIGH** — Fix H1-H17 (3-4 hours)
-3. 🔧 **THEN MEDIUM** — Fix M1-M20 (2-3 hours)
-4. ✔️ **TEST** — Verify each fix works
+1. ✅ **COMPLETE:** HIGH severity (H1-H17) — All 17 issues resolved
+2. 🔄 **IN PROGRESS:** MEDIUM severity (M1-M20) — Start with highest-impact fixes
+3. 📋 **Recommended MEDIUM priority order:**
+   - M15: Stale alerts not returned (5 fetch functions) — QUICK WIN
+   - M4, M18: Price/fallback display visibility — 30min each
+   - M5: Sector missing data visibility — 20min
+   - M10: Calculation staleness display — 15min
+4. ✔️ **TEST** — Verify each MEDIUM fix works
 5. 📚 **UPDATE DOCS** — After all verification complete
 
