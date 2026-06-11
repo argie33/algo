@@ -3707,7 +3707,10 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
     g     = sig.get("grades") or {}
-    ga, gb, gc, gd = (int(g.get(k) or 0) for k in ("a", "b", "c", "d"))
+    ga = int(g.get("a", 0)) if g.get("a") is not None else 0
+    gb = int(g.get("b", 0)) if g.get("b") is not None else 0
+    gc = int(g.get("c", 0)) if g.get("c") is not None else 0
+    gd = int(g.get("d", 0)) if g.get("d") is not None else 0
     top_a = sig.get("top_a") or []
     near  = sig.get("near")  or []
 
@@ -3732,7 +3735,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     trend = sig.get("trend") or []
     spark_s = ""
     if len(trend) >= 2:
-        counts  = [int(t.get("buy_n") or 0) for t in reversed(trend)]
+        counts  = [int(t.get("buy_n", 0)) if t.get("buy_n") is not None else 0 for t in reversed(trend)]
         max_b   = max(counts) if counts else 1
         spark   = "".join("▁▂▃▄▅▆▇█"[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
