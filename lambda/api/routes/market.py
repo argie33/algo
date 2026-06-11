@@ -334,12 +334,38 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     result[sym] = {'name': DIST_INDEX_NAMES.get(sym, sym), 'count': count, 'signal': signal, 'days': days}
                 cur.execute("RELEASE SAVEPOINT dist_days")
                 return json_response(200, result)
-            except Exception as e:
+            except psycopg2.errors.QueryCanceled as e:
+                logger.warning(f"[DIST_DAYS] Query timeout: {type(e).__name__}: {e}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT dist_days")
                     cur.execute("RELEASE SAVEPOINT dist_days")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
                 except Exception as sp_err:
-                    logger.debug(f"Failed to rollback dist_days savepoint: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                code, error_type, message = handle_db_error(e, 'distribution days query')
+                return error_response(code, error_type, message)
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.error(f"[DIST_DAYS] Database error: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT dist_days")
+                    cur.execute("RELEASE SAVEPOINT dist_days")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                code, error_type, message = handle_db_error(e, 'distribution days query')
+                return error_response(code, error_type, message)
+            except Exception as e:
+                logger.error(f"[DIST_DAYS] Unexpected error: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT dist_days")
+                    cur.execute("RELEASE SAVEPOINT dist_days")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
                 code, error_type, message = handle_db_error(e, 'distribution days query')
                 return error_response(code, error_type, message)
         elif path == '/api/market/seasonality':
@@ -949,14 +975,38 @@ def _get_correlation_matrix(cur) -> Dict:
                 }
             }
         }, data_freshness=freshness)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        logger.warning(f"Correlation matrix query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+    except psycopg2.errors.QueryCanceled as e:
+        logger.warning(f"[CORRELATION_MATRIX] Query timeout: {type(e).__name__}: {e}")
         try:
             cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
             cur.execute("RELEASE SAVEPOINT correlation_matrix")
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
         except Exception as sp_err:
-            logger.debug(f"Failed to rollback correlation_matrix savepoint: {sp_err}")
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+        code, error_type, message = handle_db_error(e, 'get correlation matrix')
+        return error_response(code, error_type, message)
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.warning(f"[CORRELATION_MATRIX] Database error: {type(e).__name__}: {e}")
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
+            cur.execute("RELEASE SAVEPOINT correlation_matrix")
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+        except Exception as sp_err:
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+        code, error_type, message = handle_db_error(e, 'get correlation matrix')
+        return error_response(code, error_type, message)
+    except Exception as e:
+        logger.warning(f"[CORRELATION_MATRIX] Unexpected error: {type(e).__name__}: {e}")
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
+            cur.execute("RELEASE SAVEPOINT correlation_matrix")
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+        except Exception as sp_err:
+            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
         code, error_type, message = handle_db_error(e, 'get correlation matrix')
         return error_response(code, error_type, message)
 

@@ -109,6 +109,7 @@ def validate_environment():
     errors = []
     required_vars = {
         'DB_HOST': 'RDS Proxy endpoint (e.g., my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com)',
+        'DB_PORT': 'Database port (e.g., 5432 for PostgreSQL; must be a valid integer)',
         'DB_PASSWORD': 'Database password (set via DB_PASSWORD env var or fetch from DB_SECRET_ARN)',
         'DB_NAME': 'Database name (defaults to "stocks" if not set)',
         'DB_USER': 'Database username (defaults to "stocks" if not set)',
@@ -157,6 +158,15 @@ def validate_environment():
         if var == 'DB_PASSWORD':
             if missing_secret_arn and missing_password:
                 errors.append(f"DB_PASSWORD missing: Provide either DB_PASSWORD directly or DB_SECRET_ARN pointing to Secrets Manager secret")
+        elif var == 'DB_PORT':
+            port_str = os.getenv(var, '').strip()
+            if not port_str:
+                errors.append(f"{var} missing: {description}")
+            else:
+                try:
+                    int(port_str)
+                except (ValueError, TypeError):
+                    errors.append(f"{var} invalid: Must be a valid integer (e.g., 5432)")
         elif var in ['DB_NAME', 'DB_USER']:
             if not os.getenv(var) and var == 'DB_NAME':
                 logger.info(f"{var}: using default 'stocks'")
