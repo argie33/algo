@@ -1207,3 +1207,178 @@ Priority 4 (Infrastructure Readiness):
 - [ ] SNS email alerts subscribed (requires: aws sns list-subscriptions-by-topic)
   - All procedures documented: steering/algo.md lines 1047-1095
   - Status: Awaiting AWS CLI authentication to execute verification commands
+
+---
+
+## DASHBOARD DATA QUALITY TROUBLESHOOTING GUIDE (Issue 47)
+
+**When you see data quality warnings in the dashboard, use this runbook to diagnose and fix.**
+
+### Alert: "Data stale: market_health_daily"
+
+**What it means:** Market context data (VIX, yield curve, market stage) is > 5 days old
+
+**Root cause:** Morning prep pipeline (market_health_daily loader) hasn't run successfully
+- EventBridge scheduled rule may be disabled
+- Loader may be failing silently
+- RDS credentials may be stale
+
+**Action to take:**
+1. Check EventBridge rule status:
+   ```bash
+   aws events describe-rule --name algo-market-health-loader --query 'State'
+   ```
+   - If State = "DISABLED", enable it: `aws events enable-rule --name algo-market-health-loader`
+
+2. Check recent loader executions:
+   ```bash
+   python scripts/orchestrator-history.py --filter market_health --recent 7
+   ```
+   - If no recent runs, EventBridge may not be triggering
+   - If runs exist but all failed, check error messages in that script output
+
+3. Refresh AWS credentials (if execution times out):
+   ```bash
+   scripts/refresh-aws-credentials.ps1
+   ```
+   - Credentials expire every 12 hours; refresh if error is "security token invalid"
+
+4. Manual trigger (if fix is urgent):
+   ```bash
+   python -m algo.algo_market_health_loader
+   ```
+   - This runs the loader directly without waiting for scheduled time
+
+### Alert: "Data stale: algo_portfolio_snapshots"
+
+**What it means:** Portfolio snapshot data is > 1 day old (used for circuit breakers)
+
+**Root cause:** EOD pipeline or morning prep didn't complete
+- Check if trading halted: see "Halt reasons" below
+- RDS connection may be down
+- Orchestrator may have exited early in Phase 1
+
+**Action to take:**
+1. Check latest portfolio snapshot timestamp:
+   ```sql
+   SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots 
+   ORDER BY snapshot_date DESC LIMIT 1;
+   ```
+
+2. Check if data is actually being recorded:
+   ```bash
+   python scripts/monitor-loader-slas.py --report 1
+   ```
+   - Look for "algo_portfolio_snapshots" freshness: should be 0-1 days old
+
+3. If no snapshots in past 24h, check orchestrator logs for Phase 1 (Data gathering) failures
+
+### Alert: Circuit Breaker shows "[!] Config incomplete: using defaults"
+
+**What it means:** Circuit breaker thresholds aren't in algo_config table—using hardcoded defaults
+
+**Why it's a problem:** Default thresholds may not match your risk tolerance
+- Default: 20% drawdown, 2% daily loss, 3 consecutive losses, 35 VIX, etc.
+- If you configured different values, they're being ignored
+
+**Action to take:**
+1. Check what's actually configured:
+   ```sql
+   SELECT key, value FROM algo_config 
+   WHERE key IN (
+     'halt_drawdown_pct', 'max_daily_loss_pct', 
+     'max_consecutive_losses', 'max_total_risk_pct', 'vix_max_threshold'
+   );
+   ```
+
+2. If keys are missing, add them to algo_config:
+   ```sql
+   INSERT INTO algo_config (key, value, updated_at) VALUES
+   ('halt_drawdown_pct', '20', NOW()),
+   ('max_daily_loss_pct', '2', NOW()),
+   ('max_consecutive_losses', '3', NOW()),
+   ('max_total_risk_pct', '4', NOW()),
+   ('vix_max_threshold', '35', NOW())
+   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+   ```
+
+3. Restart the dashboard or wait ~5 minutes for cache refresh
+
+### Alert: "VaR calculation incomplete" (yellow warning in panel)
+
+**What it means:** Risk metrics (Value at Risk) haven't been calculated yet
+
+**Root causes:**
+1. Risk loader hasn't run yet (first run of the day)
+2. Insufficient portfolio history (need 1 trading day minimum)
+3. Risk calculation failed in load_algo_risk_daily.py
+
+**Action to take:**
+1. Check if algo_risk_daily table has recent data:
+   ```sql
+   SELECT report_date, updated_at FROM algo_risk_daily 
+   ORDER BY report_date DESC LIMIT 3;
+   ```
+
+2. If table is empty or very old (>2 hours), trigger risk loader:
+   ```bash
+   python -m loaders.load_algo_risk_daily
+   ```
+
+3. If that fails, check logs for "calculate_var_metrics" errors
+
+### Alert: Performance metrics show "low confidence" on Sharpe ratio
+
+**What it means:** Sharpe ratio is based on <252 trading days of history (less reliable)
+
+**Why it matters:** With few days of data, volatility estimates are unstable
+- <90 days: confidence = RED (unreliable)
+- 90-180 days: confidence = YELLOW (fair)
+- >252 days (1 trading year): confidence = GREEN (reliable)
+
+**Action to take:**
+1. Check portfolio history length:
+   ```sql
+   SELECT COUNT(*) as trading_days, 
+          MIN(snapshot_date) as oldest, 
+          MAX(snapshot_date) as newest
+   FROM algo_portfolio_snapshots;
+   ```
+
+2. If < 30 days: This is normal for new accounts. Sharpe ratio will improve after 1-2 months.
+
+3. If > 252 days but still showing low confidence: Check if algo_performance_daily has matching data
+   ```sql
+   SELECT COUNT(*) FROM algo_performance_daily;
+   ```
+
+### General Debugging Workflow
+
+1. **Identify what's stale:**
+   ```bash
+   python scripts/monitor-loader-slas.py --report 1
+   ```
+   Shows age (in minutes) of each critical data table
+
+2. **Check if loaders are running:**
+   ```bash
+   python scripts/orchestrator-history.py --recent 3
+   ```
+   Shows last 3 orchestrator runs with phase status
+
+3. **Check for permissions/credentials errors:**
+   - If you see "security token invalid" or "connection timeout": run credential refresh
+   ```bash
+   scripts/refresh-aws-credentials.ps1
+   ```
+
+4. **Last resort: Manual loader trigger**
+   - If dashboard shows stale data and automatic loaders didn't run:
+   ```bash
+   python -m loaders.load_prices_daily
+   python -m algo.algo_market_health_loader
+   python -m loaders.load_algo_risk_daily
+   ```
+   - This forces data refresh without waiting for schedules
+
+---
