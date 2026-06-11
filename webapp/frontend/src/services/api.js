@@ -649,6 +649,40 @@ export const updateSettings = async (settings) => {
 };
 
 // ============================================
+// CONFIGURATION MANAGEMENT (TIER 3-4)
+// ============================================
+
+export const getAlgoConfig = async () => {
+  try {
+    const response = await api.get("/api/algo/config");
+    return extractData(response);
+  } catch (error) {
+    console.error("Error fetching algo config:", error);
+    throw error;
+  }
+};
+
+export const getAlgoConfigKey = async (key) => {
+  try {
+    const response = await api.get(`/api/algo/config/${key}`);
+    return extractData(response);
+  } catch (error) {
+    console.error(`Error fetching config key ${key}:`, error);
+    throw error;
+  }
+};
+
+export const updateAlgoConfigKey = async (key, value) => {
+  try {
+    const response = await api.put(`/api/algo/config/${key}`, { value });
+    return extractData(response);
+  } catch (error) {
+    console.error(`Error updating config key ${key}:`, error);
+    throw error;
+  }
+};
+
+// ============================================
 // DIAGNOSTICS & ADMIN FUNCTIONS
 // ============================================
 

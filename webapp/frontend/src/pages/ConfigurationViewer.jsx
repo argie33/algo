@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Filter, AlertCircle, CheckCircle, Edit2, Save, X } from 'lucide-react';
-import { api } from '../services/api';
+import { getAlgoConfig, updateAlgoConfigKey } from '../services/api';
 import { extractData } from '../utils/responseNormalizer';
 
 /**
@@ -44,8 +44,7 @@ export default function ConfigurationViewer() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/algo/config');
-      const data = extractData(res);
+      const data = await getAlgoConfig();
       setConfig(Array.isArray(data) ? data : data.items || []);
       // Auto-select first category
       if (Array.isArray(data) && data.length > 0) {
@@ -105,14 +104,6 @@ export default function ConfigurationViewer() {
   }, [groupedConfig, selectedCategory, searchTerm]);
 
   const categories = CATEGORY_ORDER.filter(cat => (groupedConfig[cat] || []).length > 0);
-
-  const handleConfigUpdate = (key, newValue) => {
-    // Update config item in state when saved
-    const updatedConfig = config.map(item =>
-      item.key === key ? { ...item, value: newValue, is_custom: true } : item
-    );
-    setConfig(updatedConfig);
-  };
 
   if (loading) {
     return (
@@ -256,8 +247,8 @@ function ConfigItem({ item, onUpdate }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await api.put(`/api/algo/config/${item.key}`, { value: editValue });
-      if (res?.statusCode === 200 || res?.status === 'success') {
+      const res = await updateAlgoConfigKey(item.key, editValue);
+      if (res?.status === 'success' || res?.statusCode === 200) {
         setIsEditing(false);
         if (onUpdate) {
           onUpdate(item.key, editValue);
