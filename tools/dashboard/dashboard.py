@@ -4239,6 +4239,8 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
     # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
         return error_panel("SECTORS", srank.get("_error"))
+    if not srank or not isinstance(srank, list):
+        return error_panel("SECTORS", "sector ranking data unavailable")
     if isinstance(pos, dict) and pos.get("_error"):
         return error_panel("SECTORS (positions)", pos.get("_error"))
     if isinstance(port, dict) and port.get("_error"):
@@ -5691,6 +5693,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
     # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
         return error_panel("SECTORS (expanded)", srank.get("_error"))
+    if not srank or not isinstance(srank, list):
+        return error_panel("SECTORS (expanded)", "sector ranking data unavailable")
     if isinstance(pos, dict) and pos.get("_error"):
         return error_panel("SECTORS (positions)", pos.get("_error"))
     if isinstance(port, dict) and port.get("_error"):
