@@ -494,7 +494,7 @@ After deployment is stable (24+ hours), consider:
 2. **Add real-time trigger** on trade close for intraday metrics
 3. **Extend to economic indicators** (yield curves, CPI using same pattern)
 4. **Add multi-day cache** (keep metrics for last 7 days for trend analysis)
-5. **Implement circuit breaker** metrics (currently recalculated in dashboard)
+5. **Implement circuit breaker** metrics (pre-computed by loaders, not recalculated in dashboard)
 
 See `DEPLOYMENT_CHECKLIST_METRICS.md` for next phase tasks.
 

@@ -153,7 +153,7 @@ Log messages added:
 
 All via environment variables (Terraform configurable):
 ```
-LOADER_PARALLELISM=1                # Currently set to 1 (serial)
+LOADER_PARALLELISM=1                # Serial loading (change to 2+ for parallel)
 LOADER_INTERVALS=1d,1wk,1mo        # Intervals to load
 LOADER_ASSET_CLASSES=stock,etf     # Asset classes
 ```
