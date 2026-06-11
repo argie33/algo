@@ -3330,7 +3330,8 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         lbl     = TIER_SHORT.get(tier, "LOADING")
         exp     = mkt.get("pct")
         exp_s   = f"{float(exp):.0f}%" if exp is not None else "--"
-        bar     = exp_bar(exp or 0, w=8)
+        # TIER 1A FIX: exp_bar now handles None safely
+        bar     = exp_bar(exp, w=8)
         vix_val = get_numeric(mkt, "vix")
         vix     = f"{vix_val:.1f}" if vix_val is not None else "--"
         vc      = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
@@ -3915,7 +3916,14 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     # ── Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) ──
     if near and top_a:
         rows.append(Rule(style="dim"))
-        parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
+        # TIER 1A FIX: Show "--" for missing scores
+        parts = []
+        for a in near[:8]:
+            sc = a.get('score')
+            if sc is not None:
+                parts.append(f"[{CY}]{a['symbol']}[/][dim]{float(sc):.0f}[/]")
+            else:
+                parts.append(f"[{CY}]{a['symbol']}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55–69):[/]  " + "  ".join(parts)))
 
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]  [dim][s] expand[/]", border_style="magenta", padding=(0, 1))
@@ -5327,11 +5335,19 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
 
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Full-screen sectors — all sector and industry rankings, full portfolio breakdown."""
-    # TIER 1B FIX: Check for error dicts
+    # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
         return error_panel("SECTORS (expanded)", srank.get("_error"))
     if isinstance(pos, dict) and pos.get("_error"):
         return error_panel("SECTORS (positions)", pos.get("_error"))
+    if isinstance(port, dict) and port.get("_error"):
+        return error_panel("SECTORS (portfolio)", port.get("_error"))
+    if isinstance(sec_rot, dict) and sec_rot.get("_error"):
+        return error_panel("SECTORS (rotation)", sec_rot.get("_error"))
+    if isinstance(irank, dict) and irank.get("_error"):
+        return error_panel("SECTORS (industries)", irank.get("_error"))
+    if isinstance(sec_warn, dict) and sec_warn.get("_error"):
+        return error_panel("SECTORS (warnings)", sec_warn.get("_error"))
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
     def rdelta(r, wk="rank_1w_ago", wk4=None):

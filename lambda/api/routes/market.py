@@ -347,13 +347,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     } if worst_month else None,
                     'best_day': {
                         'name': best_dow.get('day') if best_dow else None,
-                        'avg_return_pct': float(best_dow.get('avg_return', 0) or 0) if best_dow else None,
-                        'win_rate_pct': float(best_dow.get('win_rate', 0) or 0) if best_dow else None
+                        'avg_return_pct': float(best_dow.get('avg_return')) if best_dow and best_dow.get('avg_return') is not None else None,
+                        'win_rate_pct': float(best_dow.get('win_rate')) if best_dow and best_dow.get('win_rate') is not None else None
                     } if best_dow else None,
                     'worst_day': {
                         'name': worst_dow.get('day') if worst_dow else None,
-                        'avg_return_pct': float(worst_dow.get('avg_return', 0) or 0) if worst_dow else None,
-                        'win_rate_pct': float(worst_dow.get('win_rate', 0) or 0) if worst_dow else None
+                        'avg_return_pct': float(worst_dow.get('avg_return')) if worst_dow and worst_dow.get('avg_return') is not None else None,
+                        'win_rate_pct': float(worst_dow.get('win_rate')) if worst_dow and worst_dow.get('win_rate') is not None else None
                     } if worst_dow else None
                 },
                 'insights': {
@@ -379,16 +379,19 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Compute trend: is bullish rising or falling?
                 aaii_trend = 'neutral'
                 if len(aaii_rows) >= 2:
-                    prev = float(aaii_rows[-2].get('bullish', 0) or 0)
-                    curr = float(aaii_rows[-1].get('bullish', 0) or 0)
-                    aaii_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+                    prev_bull = aaii_rows[-2].get('bullish')
+                    curr_bull = aaii_rows[-1].get('bullish')
+                    if prev_bull is not None and curr_bull is not None:
+                        prev = float(prev_bull)
+                        curr = float(curr_bull)
+                        aaii_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
 
                 sentiment_data['aaii'] = {
                     'current': aaii_current,
                     'history': aaii_rows,
                     'trend': aaii_trend,
                     'data': aaii_rows,
-                    'bullish_pct': float(aaii_current['bullish'] or 0) if aaii_current else None
+                    'bullish_pct': float(aaii_current['bullish']) if aaii_current and aaii_current.get('bullish') is not None else None
                 }
             except Exception as e:
                 code, error_type, message = handle_db_error(e, 'AAII sentiment query')
@@ -409,16 +412,19 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Compute trend
                 naaim_trend = 'neutral'
                 if len(naaim_rows) >= 2:
-                    prev = float(naaim_rows[-2].get('naaim_number_mean', 0) or 0)
-                    curr = float(naaim_rows[-1].get('naaim_number_mean', 0) or 0)
-                    naaim_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+                    prev_mean = naaim_rows[-2].get('naaim_number_mean')
+                    curr_mean = naaim_rows[-1].get('naaim_number_mean')
+                    if prev_mean is not None and curr_mean is not None:
+                        prev = float(prev_mean)
+                        curr = float(curr_mean)
+                        naaim_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
 
                 sentiment_data['naaim'] = {
-                    'current': float(naaim_current['naaim_number_mean'] or 0) if naaim_current else None,
+                    'current': float(naaim_current['naaim_number_mean']) if naaim_current and naaim_current.get('naaim_number_mean') is not None else None,
                     'history': naaim_rows,
                     'trend': naaim_trend,
-                    'bullish_pct': float(naaim_current['bullish'] or 0) if naaim_current else None,
-                    'bearish_pct': float(naaim_current['bearish'] or 0) if naaim_current else None
+                    'bullish_pct': float(naaim_current['bullish']) if naaim_current and naaim_current.get('bullish') is not None else None,
+                    'bearish_pct': float(naaim_current['bearish']) if naaim_current and naaim_current.get('bearish') is not None else None
                 }
             except Exception as e:
                 code, error_type, message = handle_db_error(e, 'NAAIM sentiment query')
@@ -438,13 +444,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Compute trend
                 fg_trend = 'neutral'
                 if len(fg_rows) >= 2:
-                    prev = float(fg_rows[-2].get('value', 0) or 0)
-                    curr = float(fg_rows[-1].get('value', 0) or 0)
-                    fg_trend = 'rising_fear' if curr < prev * 0.98 else 'rising_greed' if curr > prev * 1.02 else 'neutral'
+                    prev_val = fg_rows[-2].get('value')
+                    curr_val = fg_rows[-1].get('value')
+                    if prev_val is not None and curr_val is not None:
+                        prev = float(prev_val)
+                        curr = float(curr_val)
+                        fg_trend = 'rising_fear' if curr < prev * 0.98 else 'rising_greed' if curr > prev * 1.02 else 'neutral'
 
                 sentiment_data['fearGreed'] = {
                     'current': {
-                        'value': float(fg_current['value'] or 0) if fg_current else None,
+                        'value': float(fg_current['value']) if fg_current and fg_current.get('value') is not None else None,
                         'label': fg_current.get('label') if fg_current else None
                     },
                     'history': fg_rows,
@@ -480,11 +489,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 history = []
                 for r in rows:
                     r_dict = dict(r)
+                    naaim_val = r_dict.get('naaim_number_mean')
+                    bullish_val = r_dict.get('bullish')
+                    bearish_val = r_dict.get('bearish')
                     history.append({
                         'date': str(r_dict.get('date') or ''),
-                        'value': float(r_dict.get('naaim_number_mean') or 0),
-                        'bullish_pct': float(r_dict.get('bullish') or 0),
-                        'bearish_pct': float(r_dict.get('bearish') or 0)
+                        'value': float(naaim_val) if naaim_val is not None else None,
+                        'bullish_pct': float(bullish_val) if bullish_val is not None else None,
+                        'bearish_pct': float(bearish_val) if bearish_val is not None else None
                     })
 
                 if history:
@@ -497,14 +509,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
 
                     # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
-                    curr_val = current['value'] or 0
+                    curr_val = current['value']
                     signals = {
-                        'extreme_bullish': curr_val > 80,
-                        'extreme_bearish': curr_val < 20,
-                        'overbought': curr_val > 70,
-                        'oversold': curr_val < 30,
-                        'above_50': curr_val > 50,
-                        'below_50': curr_val <= 50
+                        'extreme_bullish': curr_val > 80 if curr_val is not None else None,
+                        'extreme_bearish': curr_val < 20 if curr_val is not None else None,
+                        'overbought': curr_val > 70 if curr_val is not None else None,
+                        'oversold': curr_val < 30 if curr_val is not None else None,
+                        'above_50': curr_val > 50 if curr_val is not None else None,
+                        'below_50': curr_val <= 50 if curr_val is not None else None
                     }
 
                     return json_response(200, {
