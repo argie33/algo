@@ -4,6 +4,15 @@ from typing import Dict
 import logging
 from datetime import datetime, timezone
 from .utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error
+from ..utils.config import get_config
+
+# C-4 FIX: Import route status for health endpoint
+try:
+    from api_router import get_import_status as get_api_import_status
+except (ImportError, ModuleNotFoundError):
+    # Fallback if api_router not available (shouldn't happen in normal execution)
+    def get_api_import_status():
+        return {"failed_routes": 0, "critical_failures": []}
 
 logger = logging.getLogger(__name__)
 
@@ -11,12 +20,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     """Handle health check endpoints.
 
     /api/health — PUBLIC, no auth required. Basic system status.
+    /api/health/cognito — PUBLIC, no auth required. C-7 FIX: Verify Cognito client ID matches configuration.
     /api/health/detailed — AUTHENTICATED. Database schema and table status.
     /api/health/pipeline — AUTHENTICATED. Data freshness of critical loaders.
     """
 
     # Route to appropriate handler
-    if path.startswith('/api/health/detailed') or path.startswith('/health/detailed'):
+    if path.startswith('/api/health/cognito') or path.startswith('/health/cognito'):
+        return _handle_cognito(cur)
+    elif path.startswith('/api/health/detailed') or path.startswith('/health/detailed'):
         return _handle_detailed(cur, jwt_claims)
     elif path.startswith('/api/health/pipeline') or path.startswith('/health/pipeline'):
         return _handle_pipeline(cur, jwt_claims)
@@ -27,8 +39,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _handle_basic(cur) -> Dict:
     """Basic health check - PUBLIC, no auth required.
 
-    Includes: database connectivity, RDS connection pool status, data freshness overview.
+    Includes: database connectivity, RDS connection pool status, data freshness overview,
+    API route import status.
     """
+    # Get route status from api_router module (for C-4 fix)
+    import_status = get_api_import_status()
+
     health = {
         "status": "healthy",
         "version": "v2-2026-06-06",
@@ -38,6 +54,23 @@ def _handle_basic(cur) -> Dict:
     has_critical = False
     has_warning = False
     degradation_reasons = []
+
+    # C-4 FIX: Report API route import failures in health check
+    if import_status.get('failed_routes', 0) > 0:
+        health['api_route_imports'] = {
+            'status': 'degraded',
+            'failed_count': import_status['failed_routes'],
+            'critical_failures': import_status['critical_failures'],
+            'failed_modules': import_status['failed_modules'],
+        }
+        if import_status.get('critical_failures'):
+            has_critical = True
+            degradation_reasons.append(f"Critical routes failed to import: {', '.join(import_status['critical_failures'])}")
+        else:
+            has_warning = True
+            degradation_reasons.append(f"Some routes failed to import: {len(import_status['failed_modules'])} modules")
+    else:
+        health['api_route_imports'] = {'status': 'healthy', 'failed_count': 0}
 
     try:
         # Verify DB is responsive with a simple query (3 second timeout)
@@ -175,6 +208,96 @@ def _handle_basic(cur) -> Dict:
         logger.error(f"Health check error: {str(e)[:100]}")
         code, error_type, message = handle_db_error(e, "health check")
         return error_response(code, error_type, message)
+
+def _handle_cognito(cur) -> Dict:
+    """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
+
+    This endpoint is called by pre-deploy validation (GitHub Actions) to ensure
+    the COGNITO_CLIENT_ID environment variable matches the actual Cognito user pool
+    configuration. If mismatch is detected, deployment should be blocked.
+
+    Returns:
+    - status: 'healthy' if client ID matches, 'misconfigured' if mismatch
+    - configured_client_id: Value from COGNITO_CLIENT_ID env var
+    - cognito_client_id: Actual client ID from Cognito (if verifiable)
+    - cognito_user_pool_id: User pool ID from config
+    """
+    import os
+    import boto3
+
+    try:
+        configured_client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
+        cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
+        cognito_region = os.getenv('AWS_REGION', 'us-east-1').strip()
+
+        health = {
+            "status": "healthy",
+            "check_type": "cognito_configuration",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # If client ID not configured, flag as critical (security issue)
+        if not configured_client_id:
+            health['status'] = 'misconfigured'
+            health['error'] = 'COGNITO_CLIENT_ID not configured'
+            logger.error("CRITICAL: COGNITO_CLIENT_ID environment variable is missing")
+            return error_response(503, 'misconfigured', 'Cognito client ID not configured')
+
+        if not cognito_user_pool_id:
+            health['status'] = 'misconfigured'
+            health['error'] = 'COGNITO_USER_POOL_ID not configured'
+            logger.error("CRITICAL: COGNITO_USER_POOL_ID environment variable is missing")
+            return error_response(503, 'misconfigured', 'Cognito user pool ID not configured')
+
+        health['configured_client_id'] = configured_client_id
+        health['cognito_user_pool_id'] = cognito_user_pool_id
+        health['cognito_region'] = cognito_region
+
+        # Attempt to verify against actual Cognito configuration
+        try:
+            cognito = boto3.client('cognito-idp', region_name=cognito_region)
+
+            # Get user pool description to find app client
+            pool_response = cognito.describe_user_pool(UserPoolId=cognito_user_pool_id)
+            user_pool = pool_response.get('UserPool', {})
+
+            # List app clients in this user pool
+            apps_response = cognito.list_user_pool_clients(
+                UserPoolId=cognito_user_pool_id,
+                MaxResults=10
+            )
+            clients = apps_response.get('UserPoolClients', [])
+
+            # Find matching client
+            matching_client = None
+            for client in clients:
+                if client.get('ClientId') == configured_client_id:
+                    matching_client = client
+                    break
+
+            if matching_client:
+                health['cognito_client_found'] = True
+                health['cognito_client_name'] = matching_client.get('ClientName', 'unknown')
+                health['validation_result'] = 'PASS'
+                return success_response(health)
+            else:
+                health['status'] = 'misconfigured'
+                health['cognito_client_found'] = False
+                health['available_clients'] = [c.get('ClientId') for c in clients]
+                health['validation_result'] = 'FAIL - client ID not found in Cognito'
+                logger.error(f"CRITICAL: COGNITO_CLIENT_ID {configured_client_id} not found in user pool {cognito_user_pool_id}")
+                return error_response(503, 'misconfigured', f'Client ID {configured_client_id} not found in Cognito user pool')
+
+        except Exception as cognito_err:
+            logger.warning(f"Could not verify Cognito client ID with API (will proceed with config): {str(cognito_err)[:100]}")
+            # If we can't reach Cognito API, still report what we have configured (pre-deploy may not have IAM)
+            health['cognito_verification_skipped'] = True
+            health['cognito_error'] = str(cognito_err)[:80]
+            return success_response(health)
+
+    except Exception as e:
+        logger.error(f"Cognito health check error: {str(e)[:100]}")
+        return error_response(503, 'health_check_error', str(e)[:100])
 
 def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""

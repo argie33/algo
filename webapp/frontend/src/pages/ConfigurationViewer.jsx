@@ -44,11 +44,13 @@ export default function ConfigurationViewer() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const data = await getAlgoConfig();
-      setConfig(Array.isArray(data) ? data : data.items || []);
+      const response = await getAlgoConfig();
+      // Extract items from response (could be array directly or wrapped in items property)
+      const items = Array.isArray(response) ? response : response?.items || [];
+      setConfig(items);
       // Auto-select first category
-      if (Array.isArray(data) && data.length > 0) {
-        const categories = [...new Set((data || []).map(item => item.category || 'Other'))];
+      if (items.length > 0) {
+        const categories = [...new Set(items.map(item => item.category || 'Other'))];
         if (categories.length > 0) {
           setSelectedCategory(categories[0]);
         }

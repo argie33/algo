@@ -512,8 +512,122 @@ router.get('/trades', authenticateToken, async (req, res) => {
 });
 
 /**
+ * Configuration category mapping (for frontend grouping)
+ */
+const CONFIG_CATEGORIES = {
+  'base_risk_pct': 'Risk Management',
+  'max_position_size_pct': 'Risk Management',
+  'max_positions': 'Risk Management',
+  'max_concentration_pct': 'Risk Management',
+  'max_total_invested_pct': 'Risk Management',
+  'max_consecutive_losses': 'Risk Management',
+  'max_daily_loss_pct': 'Risk Management',
+  'max_weekly_loss_pct': 'Risk Management',
+  'min_win_rate_pct': 'Risk Management',
+  'halt_drawdown_pct': 'Drawdown Defense',
+  'risk_reduction_at_minus_5': 'Drawdown Defense',
+  'risk_reduction_at_minus_10': 'Drawdown Defense',
+  'risk_reduction_at_minus_15': 'Drawdown Defense',
+  'risk_reduction_at_minus_20': 'Drawdown Defense',
+  'sector_drawdown_halt_pct': 'Drawdown Defense',
+  'halt_entries_before_major_release_minutes': 'Circuit Breakers',
+  're_engage_min_days': 'Circuit Breakers',
+  're_engage_recovery_pct': 'Circuit Breakers',
+  'position_halt_flag_count': 'Circuit Breakers',
+  'max_distribution_days': 'Market Conditions',
+  'require_stage_2_market': 'Market Conditions',
+  'vix_max_threshold': 'Market Conditions',
+  'vix_caution_threshold': 'Market Conditions',
+  'vix_caution_risk_reduction': 'Market Conditions',
+  'min_completeness_score': 'Filter Thresholds',
+  'min_stock_price': 'Filter Thresholds',
+  'min_signal_quality_score': 'Filter Thresholds',
+  'min_volume_ma_50d': 'Filter Thresholds',
+  'min_avg_daily_dollar_volume': 'Filter Thresholds',
+  'min_market_cap_millions': 'Filter Thresholds',
+  'min_float_millions': 'Filter Thresholds',
+  'min_price_history_days': 'Filter Thresholds',
+  'min_daily_volume_shares': 'Filter Thresholds',
+  'max_spread_pct': 'Filter Thresholds',
+  'max_short_interest_pct': 'Filter Thresholds',
+  'max_data_staleness_days': 'Filter Thresholds',
+  'require_sma50_above_sma200': 'Entry Rules (Minervini)',
+  'min_percent_from_52w_low': 'Entry Rules (Minervini)',
+  'max_percent_from_52w_high': 'Entry Rules (Minervini)',
+  'eight_week_rule_threshold_pct': 'Entry Rules (Minervini)',
+  'eight_week_rule_window_days': 'Entry Rules (Minervini)',
+  'max_signal_age_days': 'Entry Quality Gates',
+  'min_close_quality_pct': 'Entry Quality Gates',
+  'min_breakout_volume_ratio': 'Entry Quality Gates',
+  'require_weekly_stage_2': 'Entry Quality Gates',
+  'min_rs_line_slope_days': 'Entry Quality Gates',
+  'max_rs_pct_from_60d_high': 'Entry Quality Gates',
+  'rs_slope_gate_enabled': 'Entry Quality Gates',
+  'volume_decay_gate_enabled': 'Entry Quality Gates',
+  'require_target_pullback': 'Entry Quality Gates',
+  'exit_on_distribution_day': 'Exit Rules',
+  'exit_on_rs_line_break_50dma': 'Exit Rules',
+  'exit_on_td_sequential': 'Exit Rules',
+  'max_hold_days': 'Exit Rules',
+  'min_hold_days': 'Exit Rules',
+  'chandelier_atr_mult': 'Exit Rules',
+  'use_chandelier_trail': 'Exit Rules',
+  'switch_to_21ema_after_days': 'Exit Rules',
+  'move_be_at_r': 'Exit Rules',
+  'pyramid_enabled': 'Pyramid & Re-engagement',
+  'pyramid_add_1_gain_pct': 'Pyramid & Re-engagement',
+  'pyramid_add_2_gain_pct': 'Pyramid & Re-engagement',
+  'pyramid_split_pct': 'Pyramid & Re-engagement',
+  'require_ftd_to_re_engage': 'Pyramid & Re-engagement',
+  'max_trades_per_day': 'Position Monitoring',
+  'max_reentries_per_name': 'Position Monitoring',
+  'min_days_before_reentry_same_symbol': 'Position Monitoring',
+  'max_positions_per_sector': 'Position Monitoring',
+  'max_positions_per_industry': 'Position Monitoring',
+  'min_swing_score': 'Swing Trader Scoring',
+  'min_swing_grade': 'Swing Trader Scoring',
+  'swing_min_trend_score': 'Swing Trader Scoring',
+  'swing_min_industry_rank': 'Swing Trader Scoring',
+  'swing_days_to_earnings_block': 'Swing Trader Scoring',
+  'swing_score_good_threshold': 'Swing Trader Scoring',
+  'swing_score_excellent_threshold': 'Swing Trader Scoring',
+  'swing_weight_setup': 'Swing Trader Scoring',
+  'swing_weight_trend': 'Swing Trader Scoring',
+  'swing_weight_momentum': 'Swing Trader Scoring',
+  'swing_weight_volume': 'Swing Trader Scoring',
+  'swing_weight_fundamentals': 'Swing Trader Scoring',
+  'swing_weight_sector': 'Swing Trader Scoring',
+  'swing_weight_multi_timeframe': 'Swing Trader Scoring',
+  'block_days_before_earnings': 'Economic & Earnings',
+  'earnings_blackout_days_before': 'Economic & Earnings',
+  'earnings_blackout_days_after': 'Economic & Earnings',
+  'require_stock_stage_2': 'Economic & Earnings',
+  'min_trend_template_score': 'Fundamental Filters',
+  'strong_sector_top_n': 'Fundamental Filters',
+  'enable_advanced_filters': 'Advanced Filters',
+  'max_total_risk_pct': 'Risk Metrics',
+  't1_target_r_multiple': 'Risk Metrics',
+  't2_target_r_multiple': 'Risk Metrics',
+  't3_target_r_multiple': 'Risk Metrics',
+  'execution_mode': 'Execution Mode',
+  'enable_algo': 'Execution Mode',
+  'enable_backtesting': 'Execution Mode',
+  'alpaca_paper_trading': 'Execution Mode',
+  'verbose_logging': 'Feature Flags',
+  'api_request_timeout_seconds': 'Network Configuration',
+  'db_connection_timeout_seconds': 'Network Configuration',
+  'default_portfolio_value': 'Failsafe Configuration',
+  'imported_position_default_stop_loss_pct': 'Failsafe Configuration',
+  'imported_position_default_target_1_pct': 'Failsafe Configuration',
+  'imported_position_default_target_2_pct': 'Failsafe Configuration',
+  'imported_position_default_target_3_pct': 'Failsafe Configuration',
+  'daily_profit_cap_pct': 'Failsafe Configuration',
+  'stale_loader_threshold_minutes': 'Failsafe Configuration',
+};
+
+/**
  * GET /api/algo/config (admin only)
- * Get current configuration
+ * Get current configuration as array with categories
  */
 router.get('/config', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -521,29 +635,32 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
     const pool = getPool();
 
     const result = await pool.query(`
-      SELECT key, value, value_type, description
+      SELECT key, value, value_type, description, updated_at
       FROM algo_config
       ORDER BY key
     `);
 
-    const config = {};
-    result.rows.forEach(row => {
+    const configArray = result.rows.map(row => {
       let parsedValue = row.value;
       if (row.value_type === 'int') {
-        parsedValue = parseInt(row.value);
+        parsedValue = parseInt(row.value, 10);
       } else if (row.value_type === 'float') {
         parsedValue = parseFloat(row.value);
       } else if (row.value_type === 'bool') {
-        parsedValue = ['true', '1', 'yes'].includes(row.value.toLowerCase());
+        parsedValue = ['true', '1', 'yes'].includes(String(row.value).toLowerCase());
       }
-      config[row.key] = {
+      return {
+        key: row.key,
         value: parsedValue,
-        type: row.value_type,
-        description: row.description
+        value_type: row.value_type,
+        description: row.description,
+        category: CONFIG_CATEGORIES[row.key] || 'Other',
+        updated_at: row.updated_at,
+        is_custom: false
       };
     });
 
-    return sendSuccess(res, config);
+    return sendSuccess(res, configArray);
   } catch (error) {
     logger.error('Error in /algo/config:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching configuration');
