@@ -1587,31 +1587,31 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
 
     return sendSuccess(res, {
       symbol: symbol.toUpperCase(),
-      entry_price: parseFloat(entry_price || stock.current_price || 0),
-      position_size_dollars: posSize,
-      position_size_percent: posPercent,
-      sector: stock.sector,
+      entry_price: parseFloat(entry_price || currentPrice || 0),
+      position_size_dollars: impact.position_size_dollars,
+      position_size_percent: impact.position_size_percent,
+      sector: impact.sector_name,
 
       portfolio_impact: {
-        new_total_positions: openCount + 1,
+        new_total_positions: impact.new_total_positions,
         position_limit: 6,
-        position_limit_ok: constraints.position_limit_ok,
+        position_limit_ok: impact.meets_position_limit,
 
-        new_position_percent: posPercent,
+        new_position_percent: impact.position_size_percent,
         max_position_percent: 15,
-        position_size_ok: constraints.size_limit_ok,
+        position_size_ok: impact.meets_size_limit,
 
-        new_sector_percent: newSectorTotal,
+        new_sector_percent: impact.new_sector_percent,
         max_sector_percent: 30,
-        sector_limit_ok: constraints.sector_limit_ok,
+        sector_limit_ok: impact.meets_sector_limit,
 
-        worst_case_drawdown_impact: drawdownImpact,
+        worst_case_drawdown_impact: impact.drawdown_impact_pct,
         max_acceptable_impact: 0.05,
-        drawdown_risk_ok: constraints.risk_ok,
+        drawdown_risk_ok: impact.meets_risk_limit,
 
-        cash_required: posSize,
-        cash_available: cashAvail,
-        cash_ok: constraints.cash_ok
+        cash_required: impact.position_size_dollars,
+        cash_available: 0,
+        cash_ok: impact.meets_cash_requirement
       },
 
       all_constraints_met: allOk,
