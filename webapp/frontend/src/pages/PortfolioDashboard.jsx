@@ -594,40 +594,60 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Market context */}
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card-head">
-          <div>
-            <div className="card-title">Market Context</div>
-            <div className="card-sub">Regime, exposure target, and risk inputs feeding position sizing</div>
+      {marketsDataError ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Market Context</div>
+              <div className="card-sub">Regime, exposure target, and risk inputs feeding position sizing</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Market Data Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{marketsDataError}</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="card-body">
-          <div className="grid grid-4">
-            <Stile
-              label="Exposure Target"
-              value={<span className="mono tnum">{markets?.current?.exposure_pct ?? '—'}%</span>}
-              sub={(markets?.current?.regime || '').toString().toUpperCase()}
-            />
-            <Stile
-              label="Market Score"
-              value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
-              sub="12-factor composite"
-            />
-            <Stile
-              label="VIX"
-              value={<span className="mono tnum">{num(market.vix, 1)}</span>}
-              sub={market.vix > 25 ? 'elevated' : market.vix > 15 ? 'normal' : 'low'}
-            />
-            <Stile
-              label="Distribution Days"
-              value={<span className={`mono tnum ${market.distribution_days >= 5 ? 'down' : ''}`}>
-                {market.distribution_days ?? 0}
-              </span>}
-              sub="trailing 4 weeks"
-            />
+      ) : (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Market Context</div>
+              <div className="card-sub">Regime, exposure target, and risk inputs feeding position sizing</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="grid grid-4">
+              <Stile
+                label="Exposure Target"
+                value={<span className="mono tnum">{markets?.current?.exposure_pct ?? '—'}%</span>}
+                sub={(markets?.current?.regime || '').toString().toUpperCase()}
+              />
+              <Stile
+                label="Market Score"
+                value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
+                sub="12-factor composite"
+              />
+              <Stile
+                label="VIX"
+                value={<span className="mono tnum">{num(market.vix, 1)}</span>}
+                sub={market.vix > 25 ? 'elevated' : market.vix > 15 ? 'normal' : 'low'}
+              />
+              <Stile
+                label="Distribution Days"
+                value={<span className={`mono tnum ${market.distribution_days >= 5 ? 'down' : ''}`}>
+                  {market.distribution_days ?? 0}
+                </span>}
+                sub="trailing 4 weeks"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
