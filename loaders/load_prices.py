@@ -23,10 +23,12 @@ import os
 import threading
 import time
 import uuid
+import psycopg2.sql
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
+from algo.algo_sql_safety import assert_safe_table
 from utils.database_context import DatabaseContext
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
@@ -1398,8 +1400,11 @@ class PriceLoader(OptimalLoader):
         try:
 
             with DatabaseContext('read') as cur:
+                table_safe = assert_safe_table(self.table_name)
                 cur.execute(
-                    f"SELECT COUNT(*), MAX(date) FROM {self.table_name}"
+                    psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {}").format(
+                        psycopg2.sql.Identifier(table_safe)
+                    )
                 )
                 result = cur.fetchone()
                 total_rows = result[0] if result else 0
