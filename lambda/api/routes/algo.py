@@ -838,11 +838,12 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                vix = round(float(row[0] or 0), 1) if row else 0.0
+                vix_val = row[0] if row and row[0] is not None else None
+                vix = round(float(vix_val), 1) if vix_val is not None else None
                 threshold_vix = 35.0
                 breakers.append({
                     'id': 'vix_spike', 'label': 'VIX Spike',
-                    'triggered': vix >= threshold_vix,
+                    'triggered': vix is not None and vix >= threshold_vix,
                     'current': vix, 'threshold': threshold_vix, 'unit': '',
                     'description': f'Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)',
                 })
@@ -2074,9 +2075,9 @@ def _get_exposure_policy(cur) -> Dict:
                 'all_tiers': [{'name': k, **v} for k, v in _TIER_CONFIG.items()],
                 'regime_factors': {
                     'sp500_stage': factors.get('stage_number'),
-                    'advance_decline_ratio': factors.get('ad_ratio') or market_health.get('advance_decline_ratio'),
-                    'vix_level': factors.get('vix') or market_health.get('vix_level'),
-                    'breadth_momentum': factors.get('breadth_momentum') or market_health.get('breadth_momentum_10d'),
+                    'advance_decline_ratio': factors.get('ad_ratio') if factors.get('ad_ratio') is not None else market_health.get('advance_decline_ratio'),
+                    'vix_level': factors.get('vix') if factors.get('vix') is not None else market_health.get('vix_level'),
+                    'breadth_momentum': factors.get('breadth_momentum') if factors.get('breadth_momentum') is not None else market_health.get('breadth_momentum_10d'),
                     'distribution_days': row.get('distribution_days') or market_health.get('distribution_days_4w'),
                     'market_stage': market_health.get('market_stage'),
                     'market_trend': market_health.get('market_trend'),

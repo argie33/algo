@@ -3777,6 +3777,9 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         t.add_row(*row)
 
     content = t
+    # Display stale data alerts if any
+    if stale_alerts:
+        content = Group(t, Text.from_markup(f"[orange1][!] Stale data:[/] {', '.join(stale_alerts)}"))
 
     return Panel(content, title=f"[bold cyan]POSITIONS ({len(pos)})[/]  [dim][p] expand[/]", border_style="cyan", padding=(0, 0))
 
@@ -3960,6 +3963,7 @@ def panel_recent_trades(trades):
     t.add_column("P&L%", justify="right",    no_wrap=True, min_width=5)
     t.add_column("R",    justify="right",    no_wrap=True, min_width=4)
     t.add_column("St",   style="dim",        no_wrap=True, min_width=4)
+    VALID_STATUSES = {'open', 'closed', 'partially_filled', 'filled', 'pending', 'cancelled', 'rejected'}
     for tr in trades[:10]:
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
@@ -3968,6 +3972,9 @@ def panel_recent_trades(trades):
         pnl_p  = get_numeric(tr, "profit_loss_pct")
         rmul   = tr.get("exit_r_multiple")
         status = (tr.get("status") or "")
+        if status and status not in VALID_STATUSES:
+            logger.warning(f"VALIDATION: panel_recent_trades invalid status '{status}' for {sym}")
+            status = "INVALID"
         is_closed = status == "closed"
         # Issue 10: Show breakeven separately from losses
         is_breakeven = is_closed and pnl_d is not None and pnl_d == 0
@@ -4853,7 +4860,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             x_c = Y if ex is not None and ex > 0 else DIM
             en_display = str(en) if en is not None else "--"
             ex_display = str(ex) if ex is not None else "--"
-            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}▲[/][{x_c}]{ex}▼[/]")
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_display}▲[/][{x_c}]{ex_display}▼[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
     rows.append(Rule(style="dim"))
@@ -5215,7 +5222,13 @@ def panel_signals_expanded(sig, sig_eval=None):
     if near:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55–69):[/]"))
-        parts = [f"[{CY}]{a['symbol']}[/][dim] {float(a.get('score') or 0):.0f}[/]" for a in near]
+        def _score_display(a):
+            score_val = a.get('score')
+            if score_val is not None:
+                return f"{float(score_val):.0f}"
+            else:
+                return "--"
+        parts = [f"[{CY}]{a['symbol']}[/][dim] {_score_display(a)}[/]" for a in near]
         for i in range(0, len(parts), 4):
             rows.append(Text.from_markup("  " + "    ".join(parts[i:i+4])))
 

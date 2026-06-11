@@ -37,7 +37,7 @@ except ImportError as import_err:
         def get_db_config():
             return {
                 'host': os.getenv('DB_HOST'),
-                'port': int(os.getenv('DB_PORT', '5432')),
+                'port': os.getenv('DB_PORT'),
                 'user': os.getenv('DB_USER', 'stocks'),
                 'password': os.getenv('DB_PASSWORD'),
                 'database': os.getenv('DB_NAME', 'stocks'),
@@ -95,6 +95,16 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
     if not all([db_config.get('host'), db_config.get('user'), db_config.get('password')]):
         raise psycopg2.OperationalError("Missing required database configuration")
 
+    port = db_config.get('port')
+    if port is None:
+        raise psycopg2.OperationalError("DB_PORT environment variable is required")
+    try:
+        port = int(port)
+        if not (1 <= port <= 65535):
+            raise ValueError("Port must be between 1 and 65535")
+    except (ValueError, TypeError) as e:
+        raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}")
+
     last_error = None
     # max_retries=0 means 1 attempt (no retries); use +2 so range(1,2) runs once
     for attempt in range(1, max_retries + 2):
@@ -104,12 +114,24 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
 
             conn = psycopg2.connect(
                 host=db_config['host'],
-                port=int(db_config['port']),
+                port=port,
                 database=db_config['database'],
                 user=db_config['user'],
                 password=db_config['password'],
                 connect_timeout=timeout
             )
+
+            # Test connection by executing a simple query
+            try:
+                cursor = conn.cursor()
+                cursor.execute('SELECT 1')
+                cursor.fetchone()
+                cursor.close()
+                if debug:
+                    logger.debug(f"[DB_CONNECT] Connection test successful on attempt {attempt}")
+            except psycopg2.Error as test_err:
+                conn.close()
+                raise psycopg2.OperationalError(f"Connection test failed: {test_err}")
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Connected successfully on attempt {attempt}")
