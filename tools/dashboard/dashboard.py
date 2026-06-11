@@ -3450,6 +3450,9 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     wr_v = get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
     wr_c = G if wr_v is not None and wr_v >= 50 else (R if wr_v is not None else DIM)
+    # Issue 45 FIX: Show breakeven percentage in performance display
+    be_pct = get_numeric(perf, "wr_breakeven_pct")
+    be_s = f" [dim](+{be_pct:.0f}% breakeven)[/]" if be_pct is not None and be_pct > 0 else ""
     dd_v = get_numeric(perf, "maxdd")
     dd_s = f"{('-' if dd_v > 0 else '')}{dd_v:.1f}%" if dd_v is not None else "--"
     dd_c = R if dd_v is not None and dd_v >= 10 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
@@ -3462,7 +3465,7 @@ def panel_performance_spark(perf, rec, perf_anl=None):
             f"[bold white]{perf.get('n', 0)} Trades[/]  "
             f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]"
             f"{'[dim]/[/][yellow]' + str(perf.get('b', 0)) + 'B[/]' if perf.get('b', 0) > 0 else ''}  "
-            f"[dim]WR:[/][{wr_c}]{wr_s}[/]  "
+            f"[dim]WR:[/][{wr_c}]{wr_s}{be_s}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{dd_s}[/]"
         ),
