@@ -1967,32 +1967,71 @@ def fetch_perf(c=None):
 
 
 def fetch_positions(c):
-    """Fetch open positions from API instead of database.
+    """Fetch open positions from database directly (avoid API dependency).
 
-    Uses /api/algo/positions endpoint which returns current positions
-    with latest prices, risk metrics, and technical data.
+    Queries algo_trades for open positions, joins with latest prices and metadata.
     """
     stale_alerts = []
     try:
-        api_resp = api_call("/api/algo/positions")
-        if "_error" in api_resp:
-            logger.warning(f"fetch_positions: API error: {api_resp['_error']}")
-            _log_data_quality("fetch_positions", 0, api_resp['_error'])
-            return {"_error": api_resp['_error'], "positions": [], "stale_alerts": stale_alerts}
+        # Query directly from database
+        cur = c.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cur.execute("""
+            SELECT
+                at.symbol,
+                at.entry_price as avg_entry_price,
+                COALESCE(pd.close, at.entry_price) as current_price,
+                CASE
+                    WHEN at.entry_price > 0
+                    THEN (((COALESCE(pd.close, at.entry_price) - at.entry_price) / at.entry_price) * 100)
+                    ELSE 0
+                END as unrealized_pnl_pct,
+                (at.entry_quantity * COALESCE(pd.close, at.entry_price))::DECIMAL(14,2) as position_value,
+                at.entry_quantity as quantity,
+                at.stop_loss_price,
+                at.target_1_price,
+                at.target_2_price,
+                at.target_3_price,
+                cp.sector,
+                at.trade_id,
+                at.trade_date as created_at,
+                'open' as status
+            FROM algo_trades at
+            LEFT JOIN (
+                SELECT DISTINCT ON (symbol) symbol, close
+                FROM price_daily
+                ORDER BY symbol, date DESC
+            ) pd ON at.symbol = pd.symbol
+            LEFT JOIN company_profile cp ON cp.ticker = at.symbol
+            WHERE at.exit_price IS NULL
+            ORDER BY position_value DESC NULLS LAST
+        """)
+        rows = cur.fetchall()
 
-        positions_data = api_resp.get("data", {})
-        result = positions_data.get("items", [])
-        validation = positions_data.get("join_validation", {})
-        if validation and validation.get("status") == "degraded":
-            mismatches = validation.get("mismatches", [])
-            for mismatch in mismatches:
-                symbol = mismatch.get("symbol")
-                field = mismatch.get("missing_field")
-                stale_alerts.append(f"Missing {field} for {symbol}")
+        result = []
+        for row in rows:
+            d = dict(row)
+            # Compute unrealized P&L
+            position_value = d.get('position_value')
+            unrealized_pnl_pct = d.get('unrealized_pnl_pct')
+            if position_value is not None and unrealized_pnl_pct is not None:
+                d['unrealized_pnl'] = round(float(position_value) * float(unrealized_pnl_pct) / 100, 2)
+            else:
+                d['unrealized_pnl'] = None
+
+            # Compute R multiple
+            if (d.get('avg_entry_price') and d.get('stop_loss_price') and
+                float(d['avg_entry_price']) > float(d.get('stop_loss_price', 0))):
+                d['r_multiple'] = round(
+                    (float(d.get('current_price', d['avg_entry_price'])) - float(d['avg_entry_price'])) /
+                    (float(d['avg_entry_price']) - float(d['stop_loss_price'])), 2)
+            else:
+                d['r_multiple'] = None
+
+            result.append(d)
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return {"positions": result, "stale_alerts": stale_alerts}
-    except (KeyError, TypeError, ValueError) as e:
+    except (KeyError, TypeError, ValueError, Exception) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
         return {"_error": str(e), "positions": [], "stale_alerts": stale_alerts}
