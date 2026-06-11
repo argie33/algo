@@ -316,6 +316,24 @@ def error_msg(data) -> str:
     return ""
 
 
+def is_valid_data(data) -> bool:
+    """Check if data is valid (not empty, not an error dict).
+
+    TIER 1B FIX: Validate data before rendering to catch missing/failed fetches.
+    Returns True only if data exists and is not an error dict.
+    """
+    return isinstance(data, (dict, list)) and not (isinstance(data, dict) and data.get("_error"))
+
+
+def error_panel(title: str, err_msg: str) -> Panel:
+    """Return a standardized error panel with red border and error message.
+
+    TIER 1B FIX: Consistent error display across all panels.
+    """
+    msg = f"error: {err_msg}" if err_msg else "no data available"
+    return Panel(Text(msg, style="red"), title=f"[bold red]{title}[/]", border_style="red", padding=(0, 1))
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_db_credentials() -> dict:
@@ -3617,6 +3635,9 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
 
 def panel_positions(pos, compact=False, trades=None, cfg=None):
+    # TIER 1B FIX: Check for error dict before processing
+    if isinstance(pos, dict) and pos.get("_error"):
+        return error_panel("POSITIONS", pos.get("_error"))
     if not pos:
         return Panel(Text("  No open positions — algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
