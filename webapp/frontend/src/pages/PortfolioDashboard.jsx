@@ -26,19 +26,8 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
+import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
 
-const fmtMoney = (v) =>
-  v == null || isNaN(Number(v)) ? '—'
-  : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtMoneyShort = (v) => {
-  if (v == null || isNaN(Number(v))) return '—';
-  const n = Number(v);
-  if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  if (Math.abs(n) >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
-};
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const pct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
 const Pnl = ({ value, suffix = '' }) => {
   if (value == null || isNaN(Number(value))) return <span className="muted">—</span>;
   const v = Number(value);
