@@ -161,32 +161,36 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
 
     Provides thresholds for: VIX, Put/Call, up-volume, breadth, etc.
     Used for coloring market health indicators (RED/YELLOW/GREEN).
-    ARCHITECTURE FIX (Issue #3-9, C3-4): All thresholds required in config; no hardcoded defaults.
+    Handles both raw DB keys (_threshold suffix) and processed keys from fetch_algo_config.
     """
     if not cfg:
-        logger.error("ARCHITECTURE (C3-4): load_market_thresholds requires config; failing instead of hardcoded defaults")
+        logger.error("load_market_thresholds: no config provided")
         return {}
-    required = ['vix_alert_threshold', 'vix_caution_threshold', 'put_call_bullish_threshold',
-                'put_call_fearful_threshold', 'upvol_good_threshold', 'upvol_caution_threshold',
-                'breadth_good_threshold', 'breadth_caution_threshold', 'yield_curve_good_threshold',
-                'breadth_momentum_good_threshold', 'beta_warning_threshold', 'beta_caution_threshold']
-    missing = [k for k in required if k not in cfg]
-    if missing:
-        logger.error(f"ARCHITECTURE (C3-4): Missing market thresholds in config: {missing}")
-        return {}
+
+    def get_threshold(key_raw, key_processed=None, default=None):
+        """Try raw key first, then processed key, then default."""
+        val = cfg.get(key_raw)
+        if val is not None:
+            return safe_float(val, default)
+        if key_processed:
+            val = cfg.get(key_processed)
+            if val is not None:
+                return safe_float(val, default)
+        return default
+
     return {
-        'vix_alert': safe_float(cfg['vix_alert_threshold'], None),
-        'vix_caution': safe_float(cfg['vix_caution_threshold'], None),
-        'put_call_bullish': safe_float(cfg['put_call_bullish_threshold'], None),
-        'put_call_fearful': safe_float(cfg['put_call_fearful_threshold'], None),
-        'upvol_good': safe_float(cfg['upvol_good_threshold'], None),
-        'upvol_caution': safe_float(cfg['upvol_caution_threshold'], None),
-        'breadth_good': int(cfg['breadth_good_threshold']),
-        'breadth_caution': int(cfg['breadth_caution_threshold']),
-        'yield_curve_good': safe_float(cfg['yield_curve_good_threshold'], None),
-        'breadth_momentum_good': safe_float(cfg['breadth_momentum_good_threshold'], None),
-        'beta_warning': safe_float(cfg['beta_warning_threshold'], None),
-        'beta_caution': safe_float(cfg['beta_caution_threshold'], None),
+        'vix_alert': get_threshold('vix_alert_threshold', 'vix_alert', 30.0),
+        'vix_caution': get_threshold('vix_caution_threshold', 'vix_caution', 20.0),
+        'put_call_bullish': get_threshold('put_call_bullish_threshold', 'put_call_bull', 0.8),
+        'put_call_fearful': get_threshold('put_call_fearful_threshold', 'put_call_caution', 1.0),
+        'upvol_good': get_threshold('upvol_good_threshold', 'up_vol_good', 60.0),
+        'upvol_caution': get_threshold('upvol_caution_threshold', 'up_vol_caution', 50.0),
+        'breadth_good': int(get_threshold('breadth_good_threshold', None, 50.0)),
+        'breadth_caution': int(get_threshold('breadth_caution_threshold', None, 40.0)),
+        'yield_curve_good': get_threshold('yield_curve_good_threshold', None, 0.5),
+        'breadth_momentum_good': get_threshold('breadth_momentum_good_threshold', None, 0.5),
+        'beta_warning': get_threshold('beta_warning_threshold', None, 1.2),
+        'beta_caution': get_threshold('beta_caution_threshold', None, 1.1),
     }
 
 
