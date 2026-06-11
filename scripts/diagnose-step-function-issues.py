@@ -239,8 +239,7 @@ if recommendations:
     for rec in recommendations:
         try:
             print(rec)
-        except:
-            # Handle encoding issues
+        except (UnicodeEncodeError, UnicodeDecodeError):
             print(rec.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore'))
 else:
     print("[OK] No issues detected - system is running normally")

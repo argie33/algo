@@ -233,15 +233,15 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
 
 
 def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
-    """Pretty-print recent orchestrator runs."""
+    """Log recent orchestrator runs."""
     runs = get_recent_runs(days, limit)
     if not runs:
-        print(f"No orchestrator runs found in the past {days} days")
+        logger.info(f"No orchestrator runs found in the past {days} days")
         return
 
-    print(f"\nRecent Orchestrator Runs (past {days} days):\n")
-    print(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}")
-    print("-" * 110)
+    logger.info(f"Recent Orchestrator Runs (past {days} days):")
+    logger.info(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}")
+    logger.info("-" * 110)
 
     for run in runs:
         ok = run['phases_completed'] or 0
@@ -249,64 +249,66 @@ def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
         err = run['phases_errored'] or 0
         summary = (run['summary'] or '')[:45]
 
-        print(
+        logger.info(
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} "
             f"{ok}/{halt}/{err:<10} {summary:<50}"
         )
 
 
 def print_failed_runs(days: int = 30) -> None:
-    """Pretty-print failed/halted runs."""
+    """Log failed/halted runs."""
     runs = get_failed_runs(days)
     if not runs:
-        print(f"No failed/halted runs found in the past {days} days")
+        logger.info(f"No failed/halted runs found in the past {days} days")
         return
 
-    print(f"\nFailed/Halted Runs (past {days} days):\n")
-    print(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'Reason':<60}")
-    print("-" * 110)
+    logger.info(f"Failed/Halted Runs (past {days} days):")
+    logger.info(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'Reason':<60}")
+    logger.info("-" * 110)
 
     for run in runs:
         reason = (run['halt_reason'] or run['summary'] or '')[:55]
-        print(
+        logger.info(
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {reason:<60}"
         )
 
 
 def print_halt_patterns(days: int = 30) -> None:
-    """Pretty-print phase halt patterns."""
+    """Log phase halt patterns."""
     patterns = get_halt_patterns(days)
     if not patterns:
-        print(f"No halt patterns found in the past {days} days")
+        logger.info(f"No halt patterns found in the past {days} days")
         return
 
-    print(f"\nHalt Patterns (past {days} days):\n")
+    logger.info(f"Halt Patterns (past {days} days):")
     for pattern in patterns:
-        print(f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times")
+        logger.info(f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times")
         for reason, count in pattern['common_reasons'].items():
-            print(f"  • {reason[:60]}")
-        print()
+            logger.info(f"  • {reason[:60]}")
+        logger.info("")
 
 
 def print_success_rate(days: int = 7) -> None:
-    """Pretty-print success rate stats."""
+    """Log success rate stats."""
     stats = get_success_rate(days)
     if not stats:
-        print("No execution data available")
+        logger.info("No execution data available")
         return
 
-    print(f"\nExecution Statistics (past {stats['period_days']} days):\n")
-    print(f"  Total runs:    {stats['total_runs']}")
-    print(f"  Success rate:  {stats['success_rate']}")
-    print(f"  Halt rate:     {stats['halt_rate']}")
-    print(f"  Error rate:    {stats['error_rate']}")
-    print(f"\n  By status:")
+    logger.info(f"Execution Statistics (past {stats['period_days']} days):")
+    logger.info(f"  Total runs:    {stats['total_runs']}")
+    logger.info(f"  Success rate:  {stats['success_rate']}")
+    logger.info(f"  Halt rate:     {stats['halt_rate']}")
+    logger.info(f"  Error rate:    {stats['error_rate']}")
+    logger.info("  By status:")
     for status, count in stats['by_status'].items():
-        print(f"    {status:10s}: {count}")
+        logger.info(f"    {status:10s}: {count}")
 
 
 if __name__ == "__main__":
     import sys
+
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     if len(sys.argv) > 1:
         if sys.argv[1] == "recent":
@@ -325,18 +327,18 @@ if __name__ == "__main__":
             if len(sys.argv) > 2:
                 details = get_run_details(sys.argv[2])
                 if details:
-                    print(json.dumps(details, indent=2))
+                    logger.info(json.dumps(details, indent=2))
                 else:
-                    print(f"Run {sys.argv[2]} not found")
+                    logger.info(f"Run {sys.argv[2]} not found")
             else:
-                print("Usage: python orchestrator_query.py details <RUN_ID>")
+                logger.info("Usage: python orchestrator_query.py details <RUN_ID>")
         else:
-            print("Usage:")
-            print("  python orchestrator_query.py recent [days]")
-            print("  python orchestrator_query.py failed [days]")
-            print("  python orchestrator_query.py patterns [days]")
-            print("  python orchestrator_query.py stats [days]")
-            print("  python orchestrator_query.py details <RUN_ID>")
+            logger.info("Usage:")
+            logger.info("  python orchestrator_query.py recent [days]")
+            logger.info("  python orchestrator_query.py failed [days]")
+            logger.info("  python orchestrator_query.py patterns [days]")
+            logger.info("  python orchestrator_query.py stats [days]")
+            logger.info("  python orchestrator_query.py details <RUN_ID>")
     else:
         print_recent_runs()
         print_success_rate()

@@ -44,7 +44,7 @@ try:
     with open(log_file, 'a') as f:
         f.write("[DEV_SERVER_INIT] Script started\n")
         f.flush()
-except:
+except (IOError, OSError):
     pass
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -58,7 +58,7 @@ class APIHandler(BaseHTTPRequestHandler):
             with open(log_file, 'a') as f:
                 f.write(f"{msg}\n")
                 f.flush()
-        except:
+        except (IOError, OSError):
             pass
         self._handle_request('GET')
 
