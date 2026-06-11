@@ -71,10 +71,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             try:
                 breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=1)
             except psycopg2.errors.QueryCanceled as e:
-                logger.error(f'Breadth query timeout: {e}')
+                logger.error(f'[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}')
                 return error_response(504, 'timeout', 'Market breadth data query exceeded timeout')
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.error(f'[MARKET_BREADTH] Database error: {type(e).__name__}: {e}')
+                return error_response(503, 'service_unavailable', 'Failed to fetch market breadth data')
             except Exception as e:
-                logger.error(f'Breadth query failed: {e}')
+                logger.error(f'[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}')
                 return error_response(503, 'service_unavailable', 'Failed to fetch market breadth data')
 
             if breadth:
@@ -96,10 +100,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     LIMIT 1
                 """, timeout_sec=5)
             except psycopg2.errors.QueryCanceled as e:
-                logger.error(f'Technicals query timeout: {e}')
+                logger.error(f'[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}')
                 return error_response(504, 'timeout', 'Market technicals data query exceeded timeout')
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.error(f'[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}')
+                return error_response(503, 'service_unavailable', 'Failed to fetch market technicals data')
             except Exception as e:
-                logger.error(f'Technicals query failed: {e}')
+                logger.error(f'[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}')
                 return error_response(503, 'service_unavailable', 'Failed to fetch market technicals data')
 
             base = safe_json_serialize(dict(rows[0])) if rows else {}
@@ -143,13 +151,36 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=5)
                 cur.execute("RELEASE SAVEPOINT technicals_breadth")
                 base['breadth'] = dict(breadth_rows[0]) if breadth_rows else {}
-            except Exception as e:
-                logger.warning(f"Technicals breadth query failed ({type(e).__name__}) — skipping. DB may be under write load.")
+            except psycopg2.errors.QueryCanceled as e:
+                logger.warning(f"[TECHNICALS_BREADTH] Query timeout — skipping. DB may be under write load: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
                 except Exception as sp_err:
-                    logger.debug(f"Failed to rollback technicals_breadth savepoint: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                base['breadth'] = {}
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[TECHNICALS_BREADTH] Database error — skipping: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
+                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                base['breadth'] = {}
+            except Exception as e:
+                logger.warning(f"[TECHNICALS_BREADTH] Unexpected error — skipping: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
+                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
                 base['breadth'] = {}
             # Build 30-day McClellan Oscillator history from market_exposure_daily.
             # The factors JSONB column stores the true McClellan value (19-EMA minus
@@ -169,8 +200,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """)
                 adrows = cur.fetchall()
                 base['mcclellan_oscillator'] = [safe_json_serialize(dict(r)) for r in adrows]
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}: {e}")
+                base['mcclellan_oscillator'] = []
             except Exception as e:
-                logger.warning(f"Exception: {e}")
+                logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}: {e}")
                 base['mcclellan_oscillator'] = []
             freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
             return json_response(200, base, data_freshness=freshness)
@@ -211,13 +246,34 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """)
                 movers = cur.fetchall()
                 cur.execute("RELEASE SAVEPOINT top_movers")
-            except Exception as e:
-                logger.warning(f"Top movers query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+            except psycopg2.errors.QueryCanceled as e:
+                logger.warning(f"[TOP_MOVERS] Query timeout — returning empty. DB may be under write load: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                     cur.execute("RELEASE SAVEPOINT top_movers")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
                 except Exception as sp_err:
-                    logger.debug(f"Failed to rollback top_movers savepoint: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[TOP_MOVERS] Database error — returning empty: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT top_movers")
+                    cur.execute("RELEASE SAVEPOINT top_movers")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+            except Exception as e:
+                logger.warning(f"[TOP_MOVERS] Unexpected error — returning empty: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT top_movers")
+                    cur.execute("RELEASE SAVEPOINT top_movers")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                except Exception as sp_err:
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
             items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
             gainers = sorted([m for m in items if (m.get('pct_change')) >= 0],
                                  key=lambda x: -(x.get('pct_change')))[:10]
