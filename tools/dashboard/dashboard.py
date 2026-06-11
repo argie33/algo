@@ -23,6 +23,8 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+import requests
+
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
 
 logger = logging.getLogger(__name__)
@@ -4349,7 +4351,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
 
     # Top sector rankings with 1-week and 4-week rank changes
     # Issue 18 FIX: Validate individual rank entries have required fields before display
-    valid_srank_raw = [r for r in (srank or [])
+    valid_srank_raw = [r for r in srank
                        if not (isinstance(srank, dict) and srank.get("_error"))]
     valid_srank = []
     filtered_count = 0
@@ -5745,7 +5747,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
         rows.append(Rule(style="dim"))
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
-    valid_srank = [r for r in (srank or []) if not (isinstance(srank, dict) and srank.get("_error"))]
+    valid_srank = [r for r in srank if not (isinstance(srank, dict) and srank.get("_error"))]
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  momentum  ▲▼1wk/4wk):[/]"))
         for r in valid_srank:
@@ -5877,7 +5879,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
         return _expanded_layout(*_exp_top, Panel(
             Group(hint, Rule(style="dim"), panel_positions(pos, compact=False, trades=rec, cfg=cfg)),
-            title=f"[bold cyan]ALL POSITIONS ({len(pos or [])})[/]",
+            title=f"[bold cyan]ALL POSITIONS ({len(pos)})[/]",
             border_style="cyan", padding=(0, 1),
         ))
 
