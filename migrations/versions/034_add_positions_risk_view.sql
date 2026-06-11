@@ -65,9 +65,7 @@ SELECT
   ltt.percent_from_52w_low,
   ltt.percent_from_52w_high,
 
-  -- ═══════════════════════════════════════════════════════════════════════
-  -- COMPUTED RISK METRICS (previously calculated in Node.js)
-  -- ═══════════════════════════════════════════════════════════════════════
+  -- Computed Risk Metrics (previously calculated in Node.js)
 
   -- Initial Risk per Share: entry - stop (raw dollar risk per share)
   CASE

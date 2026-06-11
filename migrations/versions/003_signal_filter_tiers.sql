@@ -1,8 +1,6 @@
--- ════════════════════════════════════════════════════════════════════════════
--- MIGRATION 035: Create Signal Filter Tiers Configuration Table
+-- Migration 003: Create Signal Filter Tiers Configuration Table
 -- Purpose: Move hardcoded signal filtering thresholds from API to database
 -- References: ARCHITECTURAL_AUDIT_CALCULATIONS.md violation #1
--- ════════════════════════════════════════════════════════════════════════════
 
 -- Signal Filter Tiers: Configuration for signal evaluation and filtering rules
 -- This table replaces hardcoded thresholds in algo.js /evaluate endpoint

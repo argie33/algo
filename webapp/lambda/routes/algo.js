@@ -1043,7 +1043,7 @@ router.get('/swing-scores-history', async (req, res) => {
         high_scores: r.score_high || 0,
         medium_scores: r.score_medium || 0,
         avg_score: r.avg_score || 0,
-      })
+      }))
     });
   } catch (error) {
     logger.error('Error in /algo/swing-scores-history:', { error: error.message, stack: error.stack });
@@ -2318,15 +2318,30 @@ router.get('/rejection-funnel', async (req, res) => {
     const eval_date = req.query.date || new Date().toISOString().split('T')[0];
 
     const result = await pool.query(`
+      WITH tier_counts AS (
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN tier_1_pass THEN 1 ELSE 0 END) as t1_pass,
+          SUM(CASE WHEN tier_2_pass THEN 1 ELSE 0 END) as t2_pass,
+          SUM(CASE WHEN tier_3_pass THEN 1 ELSE 0 END) as t3_pass,
+          SUM(CASE WHEN tier_4_pass THEN 1 ELSE 0 END) as t4_pass,
+          SUM(CASE WHEN tier_5_pass THEN 1 ELSE 0 END) as t5_pass
+        FROM filter_rejection_log
+        WHERE eval_date = $1::DATE
+      )
       SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN tier_1_pass THEN 1 ELSE 0 END) as t1_pass,
-        SUM(CASE WHEN tier_2_pass THEN 1 ELSE 0 END) as t2_pass,
-        SUM(CASE WHEN tier_3_pass THEN 1 ELSE 0 END) as t3_pass,
-        SUM(CASE WHEN tier_4_pass THEN 1 ELSE 0 END) as t4_pass,
-        SUM(CASE WHEN tier_5_pass THEN 1 ELSE 0 END) as t5_pass
-      FROM filter_rejection_log
-      WHERE eval_date = $1::DATE
+        total,
+        t1_pass,
+        t2_pass,
+        t3_pass,
+        t4_pass,
+        t5_pass,
+        (total - t1_pass) as t1_reject,
+        (t1_pass - t2_pass) as t2_reject,
+        (t2_pass - t3_pass) as t3_reject,
+        (t3_pass - t4_pass) as t4_reject,
+        (t4_pass - t5_pass) as t5_reject
+      FROM tier_counts
     `, [eval_date]);
 
     // Validate result structure
@@ -2339,26 +2354,25 @@ router.get('/rejection-funnel', async (req, res) => {
           t2_pass: { type: 'int', required: false, defaultValue: 0 },
           t3_pass: { type: 'int', required: false, defaultValue: 0 },
           t4_pass: { type: 'int', required: false, defaultValue: 0 },
-          t5_pass: { type: 'int', required: false, defaultValue: 0 }
+          t5_pass: { type: 'int', required: false, defaultValue: 0 },
+          t1_reject: { type: 'int', required: false, defaultValue: 0 },
+          t2_reject: { type: 'int', required: false, defaultValue: 0 },
+          t3_reject: { type: 'int', required: false, defaultValue: 0 },
+          t4_reject: { type: 'int', required: false, defaultValue: 0 },
+          t5_reject: { type: 'int', required: false, defaultValue: 0 }
         })
-      : { total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0 };
-
-    const { total, t1_pass, t2_pass, t3_pass, t4_pass, t5_pass } = row;
-    const t1 = t1_pass || 0;
-    const t2 = t2_pass || 0;
-    const t3 = t3_pass || 0;
-    const t4 = t4_pass || 0;
-    const t5 = t5_pass || 0;
+      : { total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0,
+          t1_reject: 0, t2_reject: 0, t3_reject: 0, t4_reject: 0, t5_reject: 0 };
 
     return sendSuccess(res, {
       date: eval_date,
-      total_signals: total || 0,
+      total_signals: row.total || 0,
       tiers: [
-        { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
-        { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
-        { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
-        { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
-        { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
+        { tier: 1, name: 'Data Quality', pass: row.t1_pass || 0, reject: row.t1_reject || 0 },
+        { tier: 2, name: 'Market Health', pass: row.t2_pass || 0, reject: row.t2_reject || 0 },
+        { tier: 3, name: 'Trend Confirmation', pass: row.t3_pass || 0, reject: row.t3_reject || 0 },
+        { tier: 4, name: 'Signal Quality', pass: row.t4_pass || 0, reject: row.t4_reject || 0 },
+        { tier: 5, name: 'Portfolio Health', pass: row.t5_pass || 0, reject: row.t5_reject || 0 },
       ],
     });
   } catch (error) {

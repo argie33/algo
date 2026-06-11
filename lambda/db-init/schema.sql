@@ -3314,3 +3314,92 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_halt_stale_days_threshold', '2', 'int', 'Days stale for HALT if failsafe fails (default 2 trading days)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('failsafe_grace_period_minutes', '150', 'int', 'Grace period for async failsafe loader (default 150 min)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_coverage_min_pct', '75', 'int', 'Min symbol coverage % for data tables (Issue #9)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CONFIGURATION TABLES FOR API DISPLAY LAYER (No Hardcoded Business Rules)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Signal Filter Tiers: Configuration for signal evaluation and filtering rules
+-- Moves hardcoded thresholds from webapp/lambda/routes/algo.js /evaluate endpoint
+CREATE TABLE IF NOT EXISTS signal_filter_tiers (
+    tier_id SERIAL PRIMARY KEY,
+    tier_name VARCHAR(100) NOT NULL UNIQUE,
+    tier_description TEXT,
+    completeness_pct_min NUMERIC(8, 2) NOT NULL,
+    trend_score_min INT NOT NULL,
+    sqs_min INT NOT NULL,
+    require_all_tiers BOOLEAN DEFAULT TRUE,
+    max_qualified_signals INT DEFAULT 12,
+    sort_by VARCHAR(50) DEFAULT 'sqs',
+    sort_order VARCHAR(10) DEFAULT 'DESC',
+    version INT DEFAULT 1,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_signal_filter_tiers_active ON signal_filter_tiers(is_active, tier_name);
+INSERT INTO signal_filter_tiers (
+    tier_name, tier_description, completeness_pct_min, trend_score_min, sqs_min,
+    require_all_tiers, max_qualified_signals, sort_by, sort_order,
+    is_active, updated_by, notes
+) VALUES (
+    'default_signal_filter_v1',
+    'Default signal filter configuration from algo.js /evaluate endpoint',
+    45, 8, 40, TRUE, 12, 'sqs', 'DESC', TRUE, 'schema-seed',
+    'Initial seed from hardcoded values in algo.js:196-215'
+) ON CONFLICT (tier_name) DO NOTHING;
+
+-- Market Exposure Tiers: Configuration for market exposure tier assignment
+-- Consolidates duplicate tier definitions from /markets and /exposure-policy endpoints
+CREATE TABLE IF NOT EXISTS market_exposure_tiers (
+    tier_id SERIAL PRIMARY KEY,
+    tier_name VARCHAR(100) NOT NULL UNIQUE,
+    tier_description TEXT,
+    min_exposure_pct NUMERIC(8, 2) NOT NULL,
+    max_exposure_pct NUMERIC(8, 2) NOT NULL,
+    risk_multiplier NUMERIC(8, 4) NOT NULL,
+    max_new_positions INT NOT NULL,
+    min_swing_score INT NOT NULL,
+    min_swing_grade VARCHAR(10) DEFAULT 'B',
+    halt_new_entries BOOLEAN DEFAULT FALSE,
+    force_exit_negative_r BOOLEAN DEFAULT FALSE,
+    tighten_winners_at_r NUMERIC(8, 2),
+    force_partial_at_r NUMERIC(8, 2),
+    display_color VARCHAR(50),
+    display_order INT DEFAULT 0,
+    version INT DEFAULT 1,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100),
+    notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_market_exposure_tiers_range ON market_exposure_tiers(min_exposure_pct, max_exposure_pct) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_market_exposure_tiers_name ON market_exposure_tiers(tier_name) WHERE is_active;
+
+-- Seed default market exposure tiers from hardcoded values
+INSERT INTO market_exposure_tiers (
+    tier_name, tier_description, min_exposure_pct, max_exposure_pct, risk_multiplier,
+    max_new_positions, min_swing_score, min_swing_grade, halt_new_entries, force_exit_negative_r,
+    tighten_winners_at_r, force_partial_at_r, display_color, display_order,
+    is_active, updated_by, notes
+) VALUES
+    ('confirmed_uptrend', 'Healthy bull market — full deployment', 80, 100, 1.0, 5, 60, 'B', FALSE, FALSE, NULL, NULL, 'green', 5, TRUE, 'schema-seed', 'Initial seed from algo.js /markets endpoint'),
+    ('healthy_uptrend', 'Bull market with caution — slightly reduced risk', 60, 80, 0.85, 4, 65, 'B', FALSE, FALSE, 3.0, NULL, 'lightgreen', 4, TRUE, 'schema-seed', 'Initial seed from algo.js /markets endpoint'),
+    ('pressure', 'Uptrend under pressure — defensive posture', 40, 60, 0.5, 2, 70, 'A', FALSE, FALSE, 2.0, 3.0, 'yellow', 3, TRUE, 'schema-seed', 'Initial seed from algo.js /markets endpoint'),
+    ('caution', 'Major caution — entries halted unless exceptional', 20, 40, 0.25, 1, 75, 'A', TRUE, FALSE, 1.5, 2.0, 'orange', 2, TRUE, 'schema-seed', 'Initial seed from algo.js /markets endpoint'),
+    ('correction', 'Market correction — preserve capital', 0, 20, 0.0, 0, 100, 'A+', TRUE, TRUE, 1.0, 1.5, 'red', 1, TRUE, 'schema-seed', 'Initial seed from algo.js /markets endpoint')
+ON CONFLICT (tier_name) DO NOTHING;
+
+-- Add active_tier_id reference to market_exposure_daily
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS active_tier_id INT REFERENCES market_exposure_tiers(tier_id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_market_exposure_daily_tier_id ON market_exposure_daily(active_tier_id);
+
+-- Backfill active_tier_id for historical records
+UPDATE market_exposure_daily med SET active_tier_id = (
+    SELECT tier_id FROM market_exposure_tiers
+    WHERE is_active = TRUE AND med.exposure_pct >= min_exposure_pct AND med.exposure_pct <= max_exposure_pct
+    LIMIT 1
+) WHERE active_tier_id IS NULL AND exposure_pct IS NOT NULL;
