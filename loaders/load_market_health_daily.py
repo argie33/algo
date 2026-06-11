@@ -416,10 +416,15 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
 
 def main():
+    from utils.loader_history_tracker import LoaderHistoryTracker
+
     parser = argparse.ArgumentParser(description="Load market health daily metrics")
     parser.add_argument("--symbols", type=str, help="(Ignored - always uses SPY)")
     parser.add_argument("--parallelism", type=int, default=1, help="Parallel workers")
     args = parser.parse_args()
+
+    tracker = LoaderHistoryTracker('market_health_daily')
+    tracker.start()
 
     try:
         loader = MarketHealthDailyLoader()
@@ -435,9 +440,11 @@ def main():
             logger.info(f"VIX family: {written} rows written to price_daily")
 
         logger.info("Market health daily load completed")
+        tracker.complete(symbols_processed=1)
         return 0
     except Exception as e:
         logger.error(f"Market health daily load failed: {e}")
+        tracker.failed(error_message=str(e))
         return 1
 
 if __name__ == "__main__":

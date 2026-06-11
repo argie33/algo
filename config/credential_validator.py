@@ -21,6 +21,11 @@ class CredentialValidationError(Exception):
     pass
 
 def validate_credentials() -> Tuple[bool, List[str]]:
+    """Validate that all required credentials are present and complete.
+
+    CRITICAL ISSUE 4 FIX: Ensures credentials are complete (not partial),
+    validates timeout settings, and detects missing required values early.
+    """
     errors = []
     warnings = []
 
@@ -35,17 +40,18 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     db_password = os.getenv("DB_PASSWORD")
     database_secret_arn = os.getenv("DB_SECRET_ARN")
 
-    if not db_password and not database_secret_arn and not is_aws:
+    if not db_password and not database_secret_arn:
         errors.append(
-            "[ERROR] DB_PASSWORD not set. Set DB_PASSWORD environment variable "
-            "for local development or DB_SECRET_ARN for AWS production."
+            "[ERROR] CRITICAL: DB_PASSWORD not set and DB_SECRET_ARN not set. "
+            "Set DB_PASSWORD for local dev or DB_SECRET_ARN for AWS production."
         )
-    elif not db_password and not database_secret_arn and is_aws:
-        # Production: must come from DB_SECRET_ARN or DB_PASSWORD
-        errors.append(
-            "[ERROR] DB_PASSWORD not set and DB_SECRET_ARN not set. "
-            "In AWS, use DB_SECRET_ARN (RDS secret) or set DB_PASSWORD environment variable."
-        )
+    elif db_password:
+        # Validate password is not empty string or too short
+        if len(db_password.strip()) < 8:
+            errors.append(
+                "[ERROR] DB_PASSWORD is too short (min 8 characters). "
+                "Check that password is properly loaded from environment."
+            )
 
     # === CRITICAL: Database hostname ===
     # DB_HOST MUST be explicitly set - no defaults to localhost
@@ -55,6 +61,10 @@ def validate_credentials() -> Tuple[bool, List[str]]:
             "[ERROR] DB_HOST not set. Set DB_HOST environment variable "
             "to your database hostname (e.g., localhost for local dev, RDS endpoint for prod)."
         )
+    elif len(db_host.strip()) == 0:
+        errors.append(
+            "[ERROR] DB_HOST is empty string. Set to valid hostname."
+        )
 
     db_user = os.getenv("DB_USER", "stocks")
     db_name = os.getenv("DB_NAME", "stocks")
@@ -63,6 +73,27 @@ def validate_credentials() -> Tuple[bool, List[str]]:
         warnings.append(
             "[WARN] DB_USER not set, using default 'stocks'. "
             "For security, consider explicit DB_USER."
+        )
+
+    # === IMPORTANT: Database Timeout Settings ===
+    # CRITICAL ISSUE 4 FIX: Validate timeout is configured
+    db_timeout = os.getenv("DB_CONNECT_TIMEOUT", "10")
+    try:
+        timeout_val = int(db_timeout)
+        if timeout_val <= 0:
+            errors.append(
+                "[ERROR] DB_CONNECT_TIMEOUT must be positive. "
+                f"Got: {db_timeout}"
+            )
+        elif timeout_val > 30:
+            warnings.append(
+                "[WARN] DB_CONNECT_TIMEOUT is very long ("
+                f"{timeout_val}s). Consider shorter timeout (10-15s recommended)."
+            )
+    except ValueError:
+        errors.append(
+            "[ERROR] DB_CONNECT_TIMEOUT must be integer (seconds). "
+            f"Got: {db_timeout}"
         )
 
     # === IMPORTANT: Alpaca Trading Credentials ===
@@ -75,6 +106,13 @@ def validate_credentials() -> Tuple[bool, List[str]]:
             "[WARN] Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set. "
             "Paper trading mode will work, but live trading disabled."
         )
+    else:
+        # Validate credentials are not empty strings
+        if len(alpaca_key.strip()) == 0 or len(alpaca_secret.strip()) == 0:
+            errors.append(
+                "[ERROR] Alpaca credentials are empty strings. "
+                "Check that credentials are properly loaded from environment."
+            )
 
     # === OPTIONAL: Email/SMS Alerts ===
     if os.getenv("ALERT_ENABLED") == "true":
@@ -85,12 +123,22 @@ def validate_credentials() -> Tuple[bool, List[str]]:
                 "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
                 "Set these credentials or set ALERT_ENABLED=false."
             )
+        elif not smtp_password or not smtp_user or len(smtp_password.strip()) == 0 or len(smtp_user.strip()) == 0:
+            errors.append(
+                "[ERROR] ALERT_SMTP_PASSWORD or ALERT_SMTP_USER is empty string. "
+                "Check environment variable loading."
+            )
 
     twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
     if os.getenv("ALERT_SMS_ENABLED") == "true" and not twilio_token:
         errors.append(
             "[ERROR] ALERT_SMS_ENABLED=true but TWILIO_AUTH_TOKEN missing. "
             "Set it or disable SMS alerts."
+        )
+    elif twilio_token and len(twilio_token.strip()) == 0:
+        errors.append(
+            "[ERROR] TWILIO_AUTH_TOKEN is empty string. "
+            "Check environment variable loading."
         )
 
     return len(errors) == 0, errors + warnings
