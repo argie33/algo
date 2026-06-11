@@ -509,6 +509,25 @@ def is_valid_data(data) -> bool:
     return isinstance(data, (dict, list)) and not (isinstance(data, dict) and data.get("_error"))
 
 
+def extract_list_from_data(data, key=None):
+    """Extract list from data, handling both direct lists and dict-wrapped lists.
+
+    If data is already a list, return it.
+    If data is a dict with 'key' field containing a list, return that.
+    If data is a dict without key, return empty list.
+    Otherwise return empty list.
+    """
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and not data.get("_error"):
+        if key:
+            result = data.get(key, [])
+            return result if isinstance(result, list) else []
+        # If no key specified, assume it's already wrapped correctly and return empty
+        return []
+    return []
+
+
 def error_panel(title: str, err_msg: str) -> Panel:
     """Return a standardized error panel with red border and error message.
 
@@ -4263,10 +4282,13 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
 
 def panel_recent_trades(trades):
     """Closed/recent trade history — sits alongside positions panel."""
-    # TIER 1B FIX: Check for error dict
+    # TIER 1B FIX: Check for error dict and extract trades list from dict
     if isinstance(trades, dict) and trades.get("_error"):
         return error_panel("RECENT TRADES", trades.get("_error"))
-    if not trades:
+
+    # Extract trades list from dict if needed
+    trades_list = extract_list_from_data(trades, "trades")
+    if not trades_list:
         return Panel(Text("no recent trades", style="dim"),
                      title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 1))
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
@@ -4278,7 +4300,7 @@ def panel_recent_trades(trades):
     t.add_column("R",    justify="right",    no_wrap=True, min_width=4)
     t.add_column("St",   style="dim",        no_wrap=True, min_width=4)
     VALID_STATUSES = {'open', 'closed', 'partially_filled', 'filled', 'pending', 'cancelled', 'rejected'}
-    for tr in trades[:10]:
+    for tr in trades_list[:10]:
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
         date_s = date.strftime("%b %d") if hasattr(date, "strftime") else str(date or "--")
@@ -4698,7 +4720,7 @@ def panel_economic_pulse(eco, econ_cal=None):
         extra.append(f"[dim]UMich Consumer Sentiment:[/][{uc}]{umcsent:.0f}[/]")
     if extra: rows.append(Text.from_markup("  ".join(extra)))
 
-    valid_cal = econ_cal if (econ_cal and not (isinstance(econ_cal, dict) and econ_cal.get("_error"))) else []
+    valid_cal = extract_list_from_data(econ_cal, "calendar")
     if valid_cal:
         rows.append(Rule(style="dim"))
         IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
