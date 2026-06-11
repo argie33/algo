@@ -2268,6 +2268,7 @@ def fetch_health(c):
         return {"_error": f"Failed to load health: {type(e).__name__}"}
 
 def fetch_economic_pulse(c):
+    stale_alerts = []
     try:
         KEY = ['DGS10', 'DGS2', 'DGS3MO', 'DGS6MO',
                'BAMLH0A0HYM2', 'BAMLC0A0CM',
