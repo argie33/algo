@@ -40,7 +40,7 @@ import {
   RefreshCw, ShieldCheck, TrendingUp, TrendingDown, AlertTriangle, Inbox,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
+import { num, fmtMoney, fmtPct, fmtDate } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -77,15 +77,6 @@ const REGIME_COLOR = {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // HELPERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const num = (v, dp = 2) => formatNumber(v, dp);
-const fmtMoney = (v) => formatCurrency(v);
-const fmtPct = (v, dp = 2) => formatPercentageChange(v, dp);
-const fmtDate = (d) => {
-  if (!d) return '—';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return String(d).slice(0, 10);
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
@@ -94,14 +85,6 @@ const TOOLTIP_STYLE = {
   padding: 'var(--space-2) var(--space-3)',
   color: 'var(--text)',
   boxShadow: 'var(--shadow-md)',
-};
-const fmtAgo = (ts) => {
-  if (!ts) return '—';
-  const s = (Date.now() - new Date(ts).getTime()) / 1000;
-  if (s < 60) return `${Math.floor(s)}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
 };
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
