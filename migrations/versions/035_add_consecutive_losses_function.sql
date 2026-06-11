@@ -1,48 +1,8 @@
 -- Migration 035: Move consecutive losses counting from JavaScript to SQL
--- Creates a function to calculate current consecutive losses from closed trades
--- Also creates a materialized view for circuit breaker metrics
+-- Creates a materialized view for circuit breaker metrics with pre-computed fields
 
-DROP FUNCTION IF EXISTS calculate_consecutive_losses() CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS circuit_breaker_metrics CASCADE;
 
-CREATE FUNCTION calculate_consecutive_losses()
-RETURNS TABLE(consecutive_losses INT) AS
-$$
-  WITH recent_trades AS (
-    SELECT profit_loss_dollars
-    FROM algo_trades
-    WHERE status = 'closed' AND exit_date IS NOT NULL
-    ORDER BY exit_date DESC
-    LIMIT 50
-  ),
-  losing_streak AS (
-    SELECT COUNT(*) as consecutive_loss_count
-    FROM (
-      SELECT 1
-      FROM recent_trades
-      WHERE profit_loss_dollars < 0
-      ORDER BY rowid
-      LIMIT CASE
-        WHEN (
-          SELECT COUNT(*) FROM recent_trades
-          WHERE profit_loss_dollars < 0
-          UNION ALL
-          SELECT 0
-        ) = 0 THEN 50
-        ELSE (
-          SELECT COUNT(*) FROM (
-            SELECT 1 FROM recent_trades
-            WHERE profit_loss_dollars < 0
-          ) t1
-        )
-      END
-    ) t
-  )
-  SELECT consecutive_loss_count::INT FROM losing_streak
-$$
-LANGUAGE SQL STABLE;
-
--- Create materialized view for circuit breaker metrics
 CREATE MATERIALIZED VIEW circuit_breaker_metrics AS
 WITH latest_snap AS (
   SELECT total_portfolio_value, daily_return_pct
@@ -71,19 +31,22 @@ open_positions_risk AS (
   ) lt ON lt.symbol = p.symbol
   WHERE p.status = 'open'
 ),
+recent_trades_ordered AS (
+  SELECT
+    profit_loss_dollars,
+    ROW_NUMBER() OVER (ORDER BY exit_date DESC) as rn
+  FROM algo_trades
+  WHERE status = 'closed' AND exit_date IS NOT NULL
+  LIMIT 50
+),
+first_win AS (
+  SELECT COALESCE(MIN(rn), 51) as first_win_position
+  FROM recent_trades_ordered
+  WHERE profit_loss_dollars >= 0
+),
 consecutive_losses_calc AS (
-  SELECT COALESCE((
-    SELECT COUNT(*) FROM (
-      SELECT 1 FROM (
-        SELECT profit_loss_dollars
-        FROM algo_trades
-        WHERE status = 'closed' AND exit_date IS NOT NULL
-        ORDER BY exit_date DESC
-        LIMIT 50
-      ) recent
-      WHERE profit_loss_dollars < 0
-    ) losing
-  ), 0) AS consecutive_losses
+  SELECT COALESCE(first_win_position - 1, 0) as consecutive_losses
+  FROM first_win
 )
 SELECT
   COALESCE(ROUND(((pv.peak - ls.total_portfolio_value) / NULLIF(pv.peak, 0)) * 100, 2), 0) AS current_drawdown_pct,
