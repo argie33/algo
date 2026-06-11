@@ -504,22 +504,22 @@ price_display = f"${price:.2f}"  # No warning shown
 **Severity:** 🟡 MEDIUM  
 **Problem:** Uses `p.get("sector") or "--"` but doesn't log when sector lookup failed  
 **Impact:** User sees "--" but doesn't know if sector data is actually missing  
-**Current Code:**
+**Implementation:**
 ```python
-sector = p.get("sector") or "--"
-# No indication that sector was missing
-```
-**Fix Required:**
-```python
-sector = p.get("sector")
-if sector is None:
-    logger.warning(f"Sector missing for {symbol}")
-    sector_display = "[yellow]--[/]"  # Yellow for missing
-else:
-    sector_display = sector
+# Lines 1829-1837 (fetch_positions): Detect missing sectors and log
+missing_sectors = [p for p in result if p.get("sector") is None]
+if missing_sectors:
+    logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data...")
+    for p in missing_sectors:
+        p["_missing_sector"] = True
+
+# Lines 3885-3887 (panel_positions): Display warning indicator
+sec_val = p.get("sector")
+sec_warning = " ⚠" if p.get("_missing_sector", False) else ""
+sec = ((sec_val or "--")[:12] + sec_warning) if sec_val else ("--" + sec_warning)
 ```
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ FIXED (Commit 100384a84)
 
 ---
 
@@ -529,15 +529,28 @@ else:
 **Severity:** 🟡 MEDIUM  
 **Problem:** Returns VaR/CVaR values but doesn't indicate if calculation was successful  
 **Impact:** Operator trusts metric even if calculation failed or data insufficient  
-**Current Code:**
+**Implementation:**
 ```python
-return {
-    "var95": var95,      # Could be failed calculation
-    "cvar95": cvar95,    # Could be missing data
-    # No _has_data or _is_stale flags
+# Lines 2448-2459 (fetch_risk_metrics): Return status flags
+result = {
+    "_has_data": True,
+    "_source": "table",
+    "_is_stale": not is_fresh,
+    "_age_minutes": age_minutes,
 }
+
+# Lines 5058-5067 (panel_algo_health): Display status indicator
+has_data = risk.get("_has_data", False)
+is_stale = risk.get("_is_stale", False)
+if not has_data:
+    rows.append(Text.from_markup(f"[{R}]⚠ Risk calculation incomplete[/]"))
+elif is_stale and age_min:
+    rows.append(Text.from_markup(f"[{Y}]⚠ Risk data stale ({age_min:.0f}min old)[/]"))
+else:
+    rows.append(Text.from_markup(f"[{G}]✓ Risk metrics current[/]"))
 ```
-**Status:** ⚠️ PARTIALLY FIXED (flags exist per code review, but not in display)
+
+**Status:** ✅ FIXED (Commit 6ae9f1efa)
 
 ---
 
@@ -547,16 +560,26 @@ return {
 **Severity:** 🟡 MEDIUM  
 **Problem:** Displays economic indicators but doesn't warn when data is missing/stale  
 **Impact:** User sees empty panel and assumes no data available vs fetch failure  
-**Current Code:**
+**Implementation:**
 ```python
-# Returns data but no state indicator:
-return {
-    "cpi": cpi_value,
-    "yield_curve": yc_value,
-    # Missing: _data_status: "current" or "stale" or "missing"
+# Lines 2308-2329 (fetch_economic_pulse): Return data freshness status
+max_date_row = q1(c, "SELECT MAX(date) as max_date FROM economic_data...")
+days_stale = (datetime.now(ET).date() - last_update).days if last_update else None
+data_status = 'current' if days_stale == 0 else ('1day_old' if days_stale == 1 else ...)
+result = {
+    '_last_update': last_update,
+    '_data_status': data_status,
 }
+
+# Lines 4418-4423 (panel_economic_pulse): Display freshness status
+data_status = eco.get('_data_status', 'unknown')
+last_update = eco.get('_last_update')
+status_color = G if data_status == 'current' else (Y if '1day_old' in data_status else R)
+if last_update:
+    rows.append(Text.from_markup(f"[dim]Data as of:[/] [{status_color}]{last_update}[/]"))
 ```
-**Status:** ⚠️ PARTIALLY FIXED (`_data_status` exists per code, not displayed)
+
+**Status:** ✅ FIXED (Issue 38 FIX)
 
 ---
 
@@ -566,20 +589,24 @@ return {
 **Severity:** 🟡 MEDIUM  
 **Problem:** `get_swing_score_thresholds()` exists but hardcoded values still used in some places  
 **Impact:** Swing scores colored differently in different panels  
-**Current Code:**
+**Implementation:**
 ```python
-# Central function exists (line 874-882):
-def get_swing_score_thresholds():
-    return {"excellent": 80, "good": 60}
+# Lines 1068-1110 (get_swing_score_thresholds): Central config-based function
+def get_swing_score_thresholds(cfg: dict) -> dict:
+    swing_excellent = _parse_config_float(d, "swing_score_excellent_threshold", 80.0)
+    swing_good = _parse_config_float(d, "swing_score_good_threshold", 60.0)
+    return {"excellent": swing_excellent, "good": swing_good}
 
-# But some code still uses hardcoded:
-color = G if score >= 75 else Y  # Different threshold!
+# Lines 3920-3921 (panel_positions): Use function for consistency
+swing_thresholds = get_swing_score_thresholds(cfg)
+swg_c = G if swg_s is not None and swg_s >= swing_thresholds["excellent"] else (...)
+
+# Lines 4062-4063 (panel_signals_expanded): Same consistent approach
+swing_thresholds = get_swing_score_thresholds(cfg)
+swg_c = G if swg is not None and swg >= swing_thresholds["excellent"] else (...)
 ```
-**Fix Required:**
-- Find all hardcoded swing score thresholds
-- Replace with calls to `get_swing_score_thresholds()`
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ FIXED (Commit 6ae9f1efa, Issue 42)
 
 ---
 
@@ -589,16 +616,27 @@ color = G if score >= 75 else Y  # Different threshold!
 **Severity:** 🟡 MEDIUM  
 **Problem:** Shows "low confidence" label but doesn't explain why (what's needed vs what's available)  
 **Impact:** User sees "low confidence" but doesn't know required vs actual data points  
-**Current Code:**
+**Implementation:**
 ```python
-confidence = "low"  # Why? Need 252 days, have 100?
+# Lines 3645-3651 (panel_perf_analytics): Explain Sharpe confidence
+sharpe_conf_explain = {
+    'high': '252+ days',
+    'medium': '63-251 days',
+    'low': '<63 days'
+}
+sharpe_label = f"{sharpe_s} ({sharpe_conf}, {sharpe_conf_explain.get(sharpe_conf, '')})"
 
-# Should show:
-confidence_display = "[yellow]Low (need 252+ days, have 100)[/]"
+# Lines 3693-3701 (panel_perf_analytics): Explain recent returns confidence
+recent_rets_conf = perf.get("recent_rets_confidence")
+conf_explain = {
+    'high': '(5+ snapshots)',
+    'medium': '(3-4 snapshots)',
+    'low': '(<3 snapshots)'
+}
+conf_note = f" [dim]{conf_explain.get(recent_rets_conf, '')}[/]" if recent_rets_conf else ""
 ```
-**Fix Required:** Add explanation in tooltip or text
 
-**Status:** ❌ NOT FIXED
+**Status:** ✅ FIXED (Commit 6ae9f1efa)
 
 ---
 
@@ -877,44 +915,51 @@ if not data or data.get("_error"): ...  # Mixed pattern
 
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
-| M1 | Hardcoded grades | Lines 129-151 | ❌ NOT FIXED |
-| M2 | Hardcoded market thresholds | Lines ~2900-3000 | ❌ NOT FIXED |
-| M3 | Hardcoded risk thresholds | Lines ~2500-2600 | ❌ NOT FIXED |
+| M1 | Hardcoded grades | Lines 129-151 | ✅ FIXED (823984fef) |
+| M2 | Hardcoded market thresholds | Lines ~2900-3000 | ✅ FIXED (823984fef) |
+| M3 | Hardcoded risk thresholds | Lines ~2500-2600 | ✅ FIXED (823984fef) |
 | M4 | Fallback prices not flagged | Lines 1603-1612 | ⚠️ PARTIAL |
-| M5 | Sector visibility missing | ~3345 | ❌ NOT FIXED |
-| M6 | Risk calculation status | fetch_risk_metrics | ⚠️ PARTIAL |
-| M7 | Economic data state | ~3835-3900 | ⚠️ PARTIAL |
-| M8 | Swing score inconsistent | Multiple | ❌ NOT FIXED |
-| M9 | Confidence not explained | ~3199-3250 | ❌ NOT FIXED |
-| M10 | Calculation staleness | panel_perf | ❌ NOT FIXED |
+| M5 | Sector visibility missing | ~3345 | ✅ FIXED (100384a84) |
+| M6 | Risk calculation status | fetch_risk_metrics | ✅ FIXED (6ae9f1efa) |
+| M7 | Economic data state | ~3835-3900 | ✅ FIXED (Issue 38) |
+| M8 | Swing score inconsistent | Multiple | ✅ FIXED (6ae9f1efa) |
+| M9 | Confidence not explained | ~3199-3250 | ✅ FIXED (6ae9f1efa) |
+| M10 | Calculation staleness | panel_perf | ✅ FIXED (Issue 43) |
 | M11 | Breaker defaults not flagged | panel_algo_health | ❌ NOT FIXED |
 | M12 | Risk source not indicated | panel_algo_health | ⚠️ PARTIAL |
 | M13 | Filtered signal count | panel_signals | ⚠️ PARTIAL |
 | M14 | Market health no explanations | panel_market_full | ❌ NOT FIXED |
-| M15 | Stale alerts not returned | 6 fetch functions | ❌ NOT FIXED |
+| M15 | Stale alerts not returned | 6 fetch functions | 🔄 IN PROGRESS (6aec0ae20) |
 | M16 | Halt reasons cryptic | panel_market_full | ⚠️ PARTIAL |
 | M17 | No health panel | Multiple | ❌ NOT FIXED |
 | M18 | Price source not indicated | panel_positions | ❌ NOT FIXED |
-| M19 | No operator runbook | steering/algo.md | ❌ NOT ADDRESSED |
+| M19 | No operator runbook | steering/algo.md | ✅ FIXED (067324d3c) |
 | M20 | NULL handling inconsistent | Multiple | ❌ NOT FIXED |
 
 ---
 
-## QUICK STATS — SESSION COMPLETE (HIGH TIER)
+## QUICK STATS — M5-M9 COMPLETE
 
 **High Severity:** 17 issues
 - ✅ FIXED: 17 (100%)
 - ❌ Remaining: 0
 
-**Medium Severity:** 20 issues
-- ❌ Not Fixed: 15
-- ⚠️ Partially Fixed: 5
-- ❌ Not Addressed: 1
+**Medium Severity (M5-M9):** 5 issues
+- ✅ FIXED: 5/5 (100%)
+- ⚠️ Partially Fixed: 0
+- ❌ Not Fixed: 0
 
-**Session Progress:** 
-- ✅ HIGH TIER: 17/17 COMPLETE (4-5 hours invested)
-- 🔄 MEDIUM TIER: 0/20 (starting next phase)
-- Total Issues Addressed: 17/37 (46%)
+**Medium Severity (All 20):** 20 issues
+- ✅ Fixed: 10 (M1-3, M5-10, M19)
+- ⚠️ Partially Fixed: 5 (M4, M12, M13, M16, M18)
+- 🔄 In Progress: 1 (M15)
+- ❌ Not Fixed: 4 (M11, M14, M17, M20)
+
+**Overall Progress:** 
+- ✅ HIGH TIER: 17/17 (100%)
+- ✅ M5-M9 (Goal): 5/5 (100%)
+- ✅ Medium Tier Progress: 10/20 (50%)
+- Total Issues Addressed: 27/37 (73%)
 
 ---
 
