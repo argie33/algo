@@ -3522,6 +3522,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     perf_thr = load_performance_thresholds(cfg)
+    risk_thr = load_risk_thresholds(cfg)
     if not perf or perf.get("_error") or perf.get("_reason"):
         err = perf.get("_error") if perf else None
         error_msg = err
@@ -3567,7 +3568,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     be_s = f" [dim](+{be_pct:.0f}% breakeven)[/]" if be_pct is not None and be_pct > 0 else ""
     dd_v = get_numeric(perf, "maxdd")
     dd_s = f"{('-' if dd_v > 0 else '')}{dd_v:.1f}%" if dd_v is not None else "--"
-    dd_c = R if dd_v is not None and dd_v >= 10 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
+    dd_c = R if dd_v is not None and dd_v >= risk_thr['drawdown_alert'] else (Y if dd_v is not None and dd_v >= risk_thr['drawdown_caution'] else (G if dd_v is not None else DIM))
     sharpe_val = perf.get('sharpe')
     sharpe_s = f"{sharpe_val:.2f}" if sharpe_val is not None else "--"
     sharpe_conf = perf.get('sharpe_confidence')

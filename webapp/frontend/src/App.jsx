@@ -21,6 +21,7 @@ const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
+const ConfigurationViewer = React.lazy(() => import("./pages/ConfigurationViewer"));
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -124,6 +125,7 @@ function App() {
             <Route path="/app/backtests" element={<ErrorBoundary><ProtectedRoute requireAuth><BacktestResults /></ProtectedRoute></ErrorBoundary>} />
 
             {/* Admin & Settings */}
+            <Route path="/app/configuration" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><ConfigurationViewer /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/health" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/notifications" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/audit" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute></ErrorBoundary>} />

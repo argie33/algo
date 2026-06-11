@@ -65,6 +65,7 @@ const NAV_SECTIONS = [
   {
     title: 'System',
     items: [
+      { text: 'Configuration',     icon: Settings,    path: '/app/configuration' },
       { text: 'Service Health',    icon: HeartPulse, path: '/app/health' },
       { text: 'Notifications',     icon: Bell,        path: '/app/notifications' },
       { text: 'Audit Log',         icon: FileText,    path: '/app/audit' },

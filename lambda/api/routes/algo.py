@@ -2136,12 +2136,77 @@ def _get_sector_stage2(cur) -> Dict:
         except Exception as e:
             logger.error(f'Sector stage2 unexpected error: {e}')
             return error_response(500, 'internal_error', 'Failed to fetch sector stage2')
+def _categorize_config_key(key: str) -> str:
+        """Categorize configuration key for TIER 3 visibility grouping."""
+        if 'drawdown' in key or 'halt' in key or 'risk_reduction' in key:
+            return 'Drawdown Defense'
+        elif 'circuit' in key or 'max_daily_loss' in key or 'max_consecutive' in key or 'min_win_rate' in key or 'max_total_risk' in key or 'max_weekly' in key or 'daily_profit_cap' in key or 'sector_drawdown' in key:
+            return 'Circuit Breakers'
+        elif 'swing' in key or 'swing_weight' in key or 'swing_grade' in key or 'swing_min' in key or 'swing_days' in key:
+            return 'Swing Trader Scoring'
+        elif 'vix' in key or 'put_call' in key or 'upvol' in key or 'breadth' in key or 'yield_curve' in key or 'beta' in key or 'max_distribution' in key or 'require_stage' in key:
+            return 'Market Conditions'
+        elif 'min_completeness' in key or 'min_stock_price' in key or 'min_signal' in key or 'min_volume' in key or 'min_avg_daily' in key or 'require_stock_stage' in key or 'max_stop_distance' in key or 'max_positions_per' in key or 'min_swing_score' in key or 'max_total_invested' in key or 'advanced_filters_grade' in key:
+            return 'Filter Thresholds'
+        elif 'require_sma50' in key or 'min_percent_from' in key or 'max_percent_from' in key or 'min_trend_template' in key:
+            return 'Entry Rules (Minervini)'
+        elif 'max_signal_age' in key or 'min_close_quality' in key or 'min_breakout_volume' in key or 'require_weekly_stage' in key or 'min_rs_line' in key or 'max_rs_pct' in key or 'rs_slope_gate' in key or 'volume_decay_gate' in key:
+            return 'Entry Quality Gates'
+        elif 'require_target_pullback' in key or 't1_target' in key or 't2_target' in key or 't3_target' in key or 'imported_position' in key or 'min_hold' in key or 'max_hold' in key or 'exit_on' in key or 'use_chandelier' in key or 'switch_to_21ema' in key or 'eight_week_rule' in key or 'chandelier_atr' in key or 'move_be' in key:
+            return 'Exit Rules'
+        elif 'pyramid' in key or 're_engage' in key:
+            return 'Pyramid & Re-engagement'
+        elif 'position_halt_flag' in key or 'max_reentries' in key or 'min_days_before_reentry' in key:
+            return 'Position Monitoring'
+        elif 'earnings' in key or 'halt_entries_before' in key or 'block_days_before' in key:
+            return 'Economic & Earnings'
+        elif 'min_price_history' in key or 'min_daily_volume' in key or 'max_spread' in key or 'min_market_cap' in key or 'min_float' in key or 'max_short_interest' in key:
+            return 'Fundamental Filters'
+        elif 'max_extension' in key or 'strong_sector' in key:
+            return 'Advanced Filters'
+        elif 'var_percentile' in key or 'cvar_percentile' in key or 'stressed_var' in key or 'dashboard_grade' in key:
+            return 'Risk Metrics'
+        elif 'execution_mode' in key or 'alpaca_paper' in key or 'max_trades_per_day' in key or 'default_portfolio' in key:
+            return 'Execution Mode'
+        elif 'enable_' in key or 'verbose_' in key:
+            return 'Feature Flags'
+        elif 'api_request' in key or 'db_connection' in key:
+            return 'Network Configuration'
+        elif 'failsafe' in key:
+            return 'Failsafe Configuration'
+        elif 'base_risk' in key or 'max_position_size' in key or 'max_concentration' in key:
+            return 'Risk Management'
+        else:
+            return 'Other'
+
 def _get_algo_config(cur) -> Dict:
-        """Return all algo configuration rows."""
+        """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
         try:
+            from algo.algo_config import AlgoConfig
+
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
             rows = cur.fetchall()
-            return list_response([dict(r) for r in rows])
+
+            # Build config with defaults and categorization
+            config_items = []
+            for row in rows:
+                config_dict = dict(row)
+                key = config_dict['key']
+
+                # Get default value and metadata from AlgoConfig.DEFAULTS
+                if key in AlgoConfig.DEFAULTS:
+                    default_val, _, _ = AlgoConfig.DEFAULTS[key]
+                    config_dict['default_value'] = default_val
+                    config_dict['is_custom'] = str(config_dict['value']).strip() != str(default_val).strip()
+                else:
+                    config_dict['default_value'] = None
+                    config_dict['is_custom'] = True
+
+                # Categorize by key name patterns
+                config_dict['category'] = _categorize_config_key(key)
+                config_items.append(config_dict)
+
+            return list_response(config_items)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config'})
             return error_response(503, 'service_unavailable', 'Data unavailable')
