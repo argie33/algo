@@ -1484,7 +1484,15 @@ def fetch_market(c):
                 logger.warning(f"VALIDATION: Breadth momentum 10d is MISSING (null in market_health_daily)")
                 stale_alerts.append("Breadth momentum missing")
             else:
-                mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
+                h_date = h.get("date")
+                if h_date:
+                    try:
+                        dt = h_date.replace(tzinfo=timezone.utc) if isinstance(h_date, datetime) else datetime.fromisoformat(str(h_date)).replace(tzinfo=timezone.utc)
+                        mkt_age = (datetime.now(timezone.utc) - dt).days
+                    except (ValueError, TypeError):
+                        mkt_age = None
+                else:
+                    mkt_age = None
                 if mkt_age is not None and mkt_age > 3:
                     logger.warning(f"Breadth momentum 10d indicator data {mkt_age}d old (>3d threshold); unreliable")
                     stale_alerts.append(f"Breadth momentum {mkt_age}d old")
@@ -3847,7 +3855,10 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     trend = sig.get("trend")
     spark_s = ""
     if len(trend) >= 2:
-        counts  = [int(t.get("buy_n", 0)) if t.get("buy_n") is not None else 0 for t in reversed(trend)]
+        def _get_buy_n(t):
+            bn = t.get("buy_n")
+            return int(bn) if bn is not None else 0
+        counts = [_get_buy_n(t) for t in reversed(trend)]
         max_b   = max(counts) if counts else 1
         spark   = "".join("▁▂▃▄▅▆▇█"[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
@@ -3937,7 +3948,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             swing_thresholds = get_swing_score_thresholds(cfg)
             swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
             rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
-            vs_c   = G if vsurge is not None and vsurge >= 50 else (Y if vsurge is not None and vsurge >= 20 else "white")
+            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else \"white\")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
             t.add_row(
                 sym,
@@ -4078,7 +4089,8 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
     if isinstance(pos, dict) and "positions" in pos:
         positions_list = pos.get("positions", [])
     if positions_list:
-        pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
+        pv_val = port.get("total_portfolio_value") if port else None
+        pv = float(pv_val) if pv_val is not None else 0
         sd: dict = {}
         for p in positions_list:
             sec = p.get("sector") or "[No Sector]"
@@ -5216,10 +5228,11 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
     return exp
 
 
-def panel_signals_expanded(sig, sig_eval=None):
+def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     """Full-screen buy signals — all signals, full text, breakout quality, base type."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
+    grade_thresholds = get_grade_thresholds(cfg)
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
     d     = sig.get("date")
@@ -5248,7 +5261,7 @@ def panel_signals_expanded(sig, sig_eval=None):
 
     if sig_eval and not sig_eval.get("_error"):
         ev_tot = sig_eval.get("total", 0); ev_t5 = sig_eval.get("t5", 0); ev_avg = sig_eval.get("avg_score", 0)
-        ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
+        ev_c = G if ev_t5 >= sig_thr['event_value_good'] else (Y if ev_t5 >= sig_thr['event_value_caution'] else R)
         funnel = (f"[dim]Funnel  T1:[/]{sig_eval.get('t1',0)} [dim]T2:[/]{sig_eval.get('t2',0)} "
                   f"[dim]T3:[/]{sig_eval.get('t3',0)} [dim]T4:[/]{sig_eval.get('t4',0)} "
                   f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}")
@@ -5276,9 +5289,9 @@ def panel_signals_expanded(sig, sig_eval=None):
             stop   = bs.get("stoplevel")
             bqual  = (bs.get("breakout_quality") or "")[:9]
             btype  = (bs.get("base_type") or "")[:9]
-            sq_c   = G if sq is not None and sq >= 70 else (Y if sq is not None and sq >= 50 else "white")
+            sq_c   = G if sq is not None and sq >= grade_thresholds.get('a', 80) else (Y if sq is not None and sq >= grade_thresholds.get('b', 60) else \"white\")
             rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
-            vs_c   = G if vsurge is not None and vsurge >= 50 else (Y if vsurge is not None and vsurge >= 20 else "white")
+            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else \"white\")
             rows.append(Text.from_markup(
                 f"[{sq_c}]{sym:<6}[/][dim]{('S'+str(stg) if stg else '  ')} {sig_t:<14}[/]"
                 f"[{sq_c}]{(f'{sq:.0f}' if sq is not None else '--'):>4}[/]"
@@ -5511,7 +5524,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
     if isinstance(pos, dict) and "positions" in pos:
         positions_list = pos.get("positions", [])
     if positions_list:
-        pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
+        pv_val = port.get("total_portfolio_value") if port else None
+        pv = float(pv_val) if pv_val is not None else 0
         sd: dict = {}
         for p in positions_list:
             sec = p.get("sector") or "[No Sector]"
