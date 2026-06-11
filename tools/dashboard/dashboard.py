@@ -3963,11 +3963,19 @@ def panel_recent_trades(trades):
 
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
-    # TIER 1B FIX: Check for error dicts in main data
+    # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
         return error_panel("SECTORS", srank.get("_error"))
     if isinstance(pos, dict) and pos.get("_error"):
         return error_panel("SECTORS (positions)", pos.get("_error"))
+    if isinstance(port, dict) and port.get("_error"):
+        return error_panel("SECTORS (portfolio)", port.get("_error"))
+    if isinstance(sec_rot, dict) and sec_rot.get("_error"):
+        return error_panel("SECTORS (rotation)", sec_rot.get("_error"))
+    if isinstance(irank, dict) and irank.get("_error"):
+        return error_panel("SECTORS (industries)", irank.get("_error"))
+    if isinstance(sec_warn, dict) and sec_warn.get("_error"):
+        return error_panel("SECTORS (warnings)", sec_warn.get("_error"))
     rows = []
 
     # Issue 35 FIX: Display sector position warnings
