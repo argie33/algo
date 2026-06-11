@@ -307,30 +307,6 @@ def safe_json_serialize(obj):
     else:
         return obj
 
-def decimal_to_float_recursive(obj):
-    """Convert Decimal values to float recursively in dicts and lists.
-
-    Handles PostgreSQL NUMERIC types which come back as Decimal from psycopg2.
-    This ensures JSON serialization works correctly without relying on json.default handlers.
-
-    Args:
-        obj: Dict, list, or scalar to convert
-
-    Returns:
-        Object with all Decimal values converted to float
-
-    DEPRECATED: Use safe_json_serialize instead, which handles all non-JSON types.
-    """
-    from decimal import Decimal
-    if isinstance(obj, dict):
-        return {k: decimal_to_float_recursive(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [decimal_to_float_recursive(item) for item in obj]
-    elif isinstance(obj, Decimal):
-        return float(obj)
-    else:
-        return obj
-
 def handle_db_error(error, context="database operation"):
     """Unified database error handler for all route handlers.
 
