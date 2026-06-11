@@ -65,7 +65,7 @@ const config = {
 
   database: {
     host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT || 5432),
+    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
     user: process.env.DB_USER || "stocks",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "stocks",

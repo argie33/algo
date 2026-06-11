@@ -188,6 +188,23 @@ MARKET_STAGE = {
     4: "Stage 4 — Decline (downtrend)",
 }
 
+# Issue 34/35 FIX: Map halt reason codes to human-readable explanations
+HALT_REASON_NAMES = {
+    "drawdown":                 "Portfolio drawdown >=20%",
+    "drawdown_re_engagement":   "Drawdown recovery in progress",
+    "daily_loss":               "Daily loss >=2%",
+    "consecutive_losses":       "≥3 consecutive losing trades",
+    "total_risk":               "Total open risk >=4%",
+    "vix_spike":                "VIX spike >35",
+    "market_stage":             "Market in downtrend (Stage 4)",
+    "weekly_loss":              "Weekly loss >=5%",
+    "sector_concentration":     "Sector concentration risk",
+    "intraday_market_health":   "Market health deterioration",
+    "win_rate_floor":           "Win rate below threshold",
+    "daily_profit_cap":         "Daily profit cap reached",
+    "data_freshness":           "Required data stale",
+}
+
 # ── mascot (dancing monkey) ──────────────────────────────────────────────────
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
 # MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
