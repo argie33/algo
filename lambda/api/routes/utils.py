@@ -112,7 +112,7 @@ def list_response(items, total=None, data_freshness=None, limit=None, offset=Non
     response = {
         "statusCode": 200,
         "items": items if items else [],
-        "total": total if total is not None else len(items if items else [])
+        "total": total if total is not None else len(items or [])
     }
     if limit is not None:
         response["limit"] = limit
