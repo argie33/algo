@@ -67,7 +67,10 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 logger.warning(f"Could not read technical_data_daily watermark for {symbol}: {e}")
 
         if since is None:
-            start = end - timedelta(days=5 * 365)
+            # On ECS restart, load last 60 days only (not 5 years)
+            # SMA-200 needs ~230 days; we keep buffer for safety
+            # This prevents massive data fetch when watermark is empty
+            start = end - timedelta(days=60)
         else:
             # Keep 300-day lookback so long moving averages (SMA 200) stay warm.
             start = since - timedelta(days=300)

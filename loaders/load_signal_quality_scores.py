@@ -94,7 +94,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                     break
 
         if since is None:
-            start = end - timedelta(days=5 * 365)
+            # On ECS restart, load last 60 days only (not 5 years)
+            # This prevents massive data fetch when watermark is empty
+            start = end - timedelta(days=60)
         else:
             start = since - timedelta(days=100)
 
