@@ -1888,7 +1888,12 @@ def fetch_signals(c):
         # Issue 3 FIX: Enforce minimum quality score threshold (40/100)
         MIN_QUALITY_SCORE = 40
         before_threshold = len(buy_sigs)
-        buy_sigs = [s for s in buy_sigs if (s.get("signal_quality_score") or s.get("entry_quality_score") or 0) >= MIN_QUALITY_SCORE]
+        # TIER 1A FIX: Explicitly filter out signals with missing or low quality scores
+        def get_signal_quality(s):
+            sq = s.get("signal_quality_score")
+            eq = s.get("entry_quality_score")
+            return max(float(sq) if sq is not None else 0, float(eq) if eq is not None else 0)
+        buy_sigs = [s for s in buy_sigs if get_signal_quality(s) >= MIN_QUALITY_SCORE]
         quality_filtered = before_threshold - len(buy_sigs)
         if quality_filtered > 0:
             logger.warning(f"VALIDATION: Filtered {quality_filtered} signals with quality score < {MIN_QUALITY_SCORE}/100")
@@ -3332,7 +3337,8 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         dist    = str(mkt.get("dist") or "--")
         stage   = str(mkt.get("stage") or "--")
         spy_raw = mkt.get("spy"); spy_chg = get_numeric(mkt, "spy_chg")
-        spy_chg_s = (f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
+        # TIER 1A FIX: sign() now handles None safely
+        spy_chg_s = (f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
                      if spy_chg is not None else "")
         spy_s   = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(Text.from_markup(
@@ -3734,7 +3740,8 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--", f"${price:.2f}" if price is not None else "--",
             Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
-            Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
+            # TIER 1A FIX: sign() handles None safely
+            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
             f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
