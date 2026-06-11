@@ -1305,7 +1305,9 @@ def fetch_algo_config(c):
                 "up_volume_caution_threshold", "put_call_bullish_threshold", "put_call_caution_threshold",
                 "nh_nl_good_threshold",
                 # M3: Risk thresholds
-                "var_percentile", "cvar_percentile"]
+                "var_percentile", "cvar_percentile",
+                # C3: Min signal quality threshold (ARCHITECTURE FIX: moved from hardcoded to config)
+                "min_signal_quality_threshold"]
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (keys,))
         d = {r["key"]: r["value"] for r in rows}
         # Issue 3.1: Validate that expected config keys exist (don't silently use defaults)
@@ -1340,6 +1342,9 @@ def fetch_algo_config(c):
         var_pct = _parse_config_float(d, "var_percentile", 95.0)
         cvar_pct = _parse_config_float(d, "cvar_percentile", 99.0)
 
+        # C3: Min signal quality threshold (ARCHITECTURE FIX)
+        min_quality = _parse_config_float(d, "min_signal_quality_threshold", 40.0)
+
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -1369,6 +1374,8 @@ def fetch_algo_config(c):
             # M3: Risk thresholds
             "var_pct": var_pct,
             "cvar_pct": cvar_pct,
+            # C3: Min signal quality threshold
+            "min_quality": min_quality,
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
@@ -2022,8 +2029,8 @@ def fetch_signals(c):
         if filtered_count > 0:
             logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
-        # Issue 3 FIX: Enforce minimum quality score threshold (40/100)
-        MIN_QUALITY_SCORE = 40
+        # C3-1 FIX: Enforce minimum quality score threshold (from config, not hardcoded)
+        MIN_QUALITY_SCORE = cfg.get("min_quality", 40.0) if cfg else 40.0
         before_threshold = len(buy_sigs)
         # TIER 1A FIX: Explicitly filter out signals with missing or low quality scores
         def get_signal_quality(s):
