@@ -42,6 +42,10 @@ def run(
     """
     phase_start = time.time()
 
+    # Get configurable thresholds (with defaults matching prior behavior)
+    min_coverage_pct = config.get('phase1_min_coverage_pct', 90) if config else 90  # 90% vs prior day
+    min_symbol_count = config.get('phase1_min_symbol_count', 1000) if config else 1000
+
     logger.info("[PHASE 1] Starting price data freshness check")
 
     try:
@@ -119,10 +123,10 @@ def run(
                 coverage_vs_prior = (symbols_loaded / max(prior_prior_count, 1)) * 100
                 max_date = last_trading_day
 
-            if symbols_loaded < 1000 or coverage_vs_prior < 95:
+            if symbols_loaded < min_symbol_count or coverage_vs_prior < min_coverage_pct:
                 logger.critical(
                     f"[PHASE 1] INSUFFICIENT COVERAGE: {symbols_loaded} symbols for {max_date} "
-                    f"vs {prior_count} prior day ({coverage_vs_prior:.1f}%) — need ≥95%"
+                    f"vs {prior_count} prior day ({coverage_vs_prior:.1f}%) — need >={min_coverage_pct}%"
                 )
                 log_phase_result_fn(1, 'price_coverage', 'halt',
                                    f'Price coverage {coverage_vs_prior:.1f}% vs prior day')
@@ -132,9 +136,10 @@ def run(
             elapsed = time.time() - phase_start
 
             # SUCCESS
-            logger.info(f"[PHASE 1] ✓ PASS")
+            logger.info(f"[PHASE 1] PASS")
             logger.info(f"  - Most recent prices: {max_date} ({symbols_loaded} symbols, {coverage_vs_prior:.1f}% vs prior day)")
             logger.info(f"  - Last trading day: {last_trading_day}")
+            logger.info(f"  - Thresholds: >={min_symbol_count} symbols, >={min_coverage_pct}% coverage")
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
             log_phase_result_fn(1, 'price_freshness', 'success',
