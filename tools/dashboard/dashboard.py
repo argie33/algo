@@ -1530,9 +1530,11 @@ def fetch_exposure_factors(c):
         if not row:
             _log_data_quality("fetch_exposure_factors", 0, severity="error")
             return {"_error": "No exposure factors data found"}
-        factors = row.get("factors") or {}
+        factors = row.get("factors")
         factors_error = None
-        if isinstance(factors, str):
+        if factors is None:
+            factors = {}
+        elif isinstance(factors, str):
             try:
                 factors = json.loads(factors)
             except (json.JSONDecodeError, ValueError) as e:
@@ -1645,427 +1647,120 @@ def fetch_portfolio(c):
         return {"_error": f"Failed to load portfolio: {type(e).__name__}"}
 
 def fetch_perf(c=None):
-    """Fetch performance metrics from API (pre-computed by loaders).
+    """Fetch performance metrics from API instead of database.
 
-    CRITICAL ISSUES 1-5 FIX: Read from database instead of recalculating.
-    This ensures:
-    - Single source of truth (metrics computed once in loader, read by dashboard)
-    - Consistency across all views
-    - Reproducibility for historical analysis
-    - No multiple sources of truth for the same metric
+    Uses /api/algo/performance endpoint which returns comprehensive metrics.
+    Maintains backward compatibility with existing dashboard display format.
     """
     stale_alerts = []
     try:
-        # Issue 38 FIX: Validate Alpaca reconciliation data is present before using algo_trades
-        reconciliation_check = q1(c, """
-            SELECT COUNT(*) as closed_count, MAX(exit_date) as latest_exit
-            FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
-        """)
-        closed_count_val = reconciliation_check.get("closed_count") if reconciliation_check else None
-        closed_count = int(closed_count_val) if closed_count_val is not None else None
-        if closed_count is None or closed_count == 0:
-            logger.warning("VALIDATION: No closed trades with reconciliation data in algo_trades (Alpaca reconciliation may not have run)")
+        api_resp = api_call("/api/algo/performance")
+        if "_error" in api_resp:
+            logger.error(f"fetch_perf: API error: {api_resp['_error']}")
+            _log_data_quality("fetch_perf", 0, api_resp['_error'])
+            return {"_error": api_resp['_error']}
+
+        perf = api_resp.get("data", api_resp)
+        total_trades = perf.get("total_trades", 0)
+        if total_trades == 0:
+            logger.warning("VALIDATION: No trade history available")
             return {"_reason": "no-reconciliation-data"}
 
-        # Fetch pre-computed metrics from algo_performance_daily (CRITICAL ISSUE FIX)
-        perf = q1(c, """
-            SELECT report_date, win_rate_all, profit_factor, expectancy,
-                   rolling_sharpe_252d, max_drawdown_pct,
-                   total_trades, num_wins, num_losses,
-                   avg_win, avg_loss, avg_r, updated_at
-            FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1
-        """)
+        winning_trades = perf.get("winning_trades", 0)
+        losing_trades = perf.get("losing_trades", 0)
+        breakeven_trades = perf.get("breakeven_trades", 0)
+        wr_pct = perf.get("win_rate_pct")
+        wr_confidence = perf.get("win_rate_confidence", "medium")
+        be_pct = (breakeven_trades / total_trades * 100) if total_trades > 0 else 0
+        if be_pct > 15:
+            wr_confidence = "low"
+        elif be_pct > 5:
+            wr_confidence = "medium"
 
-        # Fetch ALL trade data including open positions for accurate win rate accounting
-        all_trades = q(c, """SELECT profit_loss_dollars, exit_r_multiple, profit_loss_pct, status
-                             FROM algo_trades
-                             ORDER BY exit_date ASC, trade_date ASC""")
-        # Filter closed trades for streak calculation (sequence-dependent, not aggregable)
-        trades = [t for t in all_trades if t.get("status") == "closed" and t.get("exit_date") is not None]
+        sharpe = perf.get("sharpe_ratio")
+        sharpe_confidence = perf.get("sharpe_confidence", "medium")
+        maxdd = perf.get("max_drawdown_pct")
+        pf = perf.get("profit_factor")
+        exp = perf.get("expectancy_r")
+        avg_win = perf.get("avg_win_pct")
+        avg_loss = perf.get("avg_loss_pct")
+        avg_r = perf.get("expectancy_r")
+        current_streak = perf.get("current_streak", 0)
+        pnl = perf.get("total_pnl_dollars", 0)
+        portfolio_snapshots = perf.get("portfolio_snapshots", 0)
 
-        # Always show metrics even if no trades yet (issue: dashboard was hiding performance data after market close)
-        # Calculate streak (sequence-dependent, must be calculated fresh) only if trades exist
-        wins = []
-        losses = []
-        breakeven = []
-        for t in trades:
-            pld = t.get("profit_loss_dollars")
-            if pld is not None:
-                pld_f = safe_float(pld)
-                if pld_f is not None:
-                    if pld_f > 0:
-                        wins.append(t)
-                    elif pld_f < 0:
-                        losses.append(t)
-                    else:
-                        breakeven.append(t)
-        # H19/H20 FIX: Win rate accounts for OPEN trades' unrealized P&L status
-        open_trades = [t for t in all_trades if t.get("status") != "closed"]
-        open_wins = [t for t in open_trades if t.get("profit_loss_dollars") and safe_float(t.get("profit_loss_dollars")) > 0]
-        open_losses = [t for t in open_trades if t.get("profit_loss_dollars") and safe_float(t.get("profit_loss_dollars")) < 0]
-        all_wins = len(wins) + len(open_wins)
-        all_losses = len(losses) + len(open_losses)
-        total_trades_with_open = all_wins + all_losses
-        win_rate_adjusted = all_wins / total_trades_with_open if total_trades_with_open > 0 else None
-        pnl = 0
-        for t in trades:
-            pld = t.get("profit_loss_dollars")
-            if pld is not None:
-                pld_f = safe_float(pld)
-                if pld_f is not None:
-                    pnl += pld_f
-
-        streak = 0
-        for t in reversed(trades):
-            trade_pnl = t.get("profit_loss_dollars")
-            if trade_pnl is None:
-                break
-            trade_pnl_f = safe_float(trade_pnl)
-            if trade_pnl_f is None:
-                break
-            w = trade_pnl_f > 0
-            if streak >= 0 and w:       streak += 1
-            elif streak <= 0 and not w: streak -= 1
-            else: break
-
-        # Fetch snapshots for equity curve and recent returns
-        snaps = q(c, """SELECT snapshot_date, daily_return_pct, total_portfolio_value
-                        FROM algo_portfolio_snapshots ORDER BY snapshot_date ASC""")
         equity_vals = []
-        for s in snaps:
-            pv = s.get("total_portfolio_value")
-            if pv is not None:
-                pv_f = safe_float(pv)
-                if pv_f is not None:
-                    equity_vals.append(pv_f)
-
-        # Recent returns (last 7 calendar days)
         recent_rets = []
-        for s in snaps[-7:]:
-            if s.get("snapshot_date"):
-                drp = s.get("daily_return_pct")
-                if drp is not None:
-                    drp_f = safe_float(drp)
-                    if drp_f is not None:
-                        recent_rets.append((s.get("snapshot_date"), drp_f))
-        recent_rets_confidence = "high" if len(recent_rets) >= 5 else ("low" if len(recent_rets) < 3 else "medium")
+        recent_rets_confidence = "medium"
+        if portfolio_snapshots < 5:
+            stale_alerts.append(f"Insufficient data for Sharpe ({portfolio_snapshots} snapshots, need 63+)")
 
-        # Read pre-computed metrics from database (CRITICAL ISSUE FIX)
-        wr = None
-        wr_confidence = "high"
-        be_pct = 0
-        sharpe = None
-        sharpe_confidence = None
-        maxdd = None
-        pf = None
-        exp = None
-        avg_win = None
-        avg_loss = None
-        avg_r = None
-
-        if perf:
-            # Use pre-computed values from database
-            wr = safe_float(perf.get("win_rate_all"))
-            pf = safe_float(perf.get("profit_factor"))
-            exp = safe_float(perf.get("expectancy"))
-            sharpe = safe_float(perf.get("rolling_sharpe_252d"))
-            maxdd = safe_float(perf.get("max_drawdown_pct"))
-            avg_win = safe_float(perf.get("avg_win"))
-            avg_loss = safe_float(perf.get("avg_loss"))
-
-            # Infer confidence from number of trades
-            total_trades = int(perf.get("total_trades")) if perf.get("total_trades") is not None else 0
-            if sharpe is not None:
-                # ISSUE 35 FIX: Sharpe confidence based on 252+ trading days (1 year), not snapshot count
-                sharpe_confidence = "high" if len(snaps) >= 252 else ("low" if len(snaps) < 63 else "medium")
-
-            # Calculate breakeven pct from trade counts
-            if total_trades > 0 and perf.get("num_wins") is not None:
-                num_wins = get_int(perf, "num_wins")
-                num_losses = get_int(perf, "num_losses")
-                if num_wins is not None and num_losses is not None:
-                    num_breakeven = total_trades - num_wins - num_losses
-                    be_pct = (num_breakeven / total_trades * 100) if num_breakeven > 0 else 0
-                    if be_pct > 5:
-                        wr_confidence = "medium"
-                    if be_pct > 15:
-                        wr_confidence = "low"
-
-            _log_data_quality("fetch_perf", len(trades))
-        else:
-            logger.warning("VALIDATION: No pre-computed metrics in algo_performance_daily — data may not be loaded yet")
-            _log_data_quality("fetch_perf", 0, "No metrics in algo_performance_daily")
-
-        # Use pre-computed avg_r from database ONLY — NO FALLBACK
-        # CRITICAL FIX: Removed fallback calculation that was hiding loader issues
-        # If loader hasn't populated avg_r, return None (show as "—" in UI)
-        # Operator will see missing data and know loader calculation is incomplete
-        avg_r = None
-        if perf:
-            avg_r = safe_float(perf.get("avg_r"))
-        elif perf:
-            logger.error("CRITICAL: avg_r not populated in algo_performance_daily — loader may not have completed")
-
-        # ISSUE 43 FIX: Include updated_at timestamp so dashboard shows calculation staleness
-        updated_at_str = None
-        if perf and perf.get("updated_at"):
-            try:
-                ua = perf.get("updated_at")
-                if isinstance(ua, str):
-                    updated_at_str = ua
-                elif isinstance(ua, datetime):
-                    updated_at_str = ua.isoformat()
-            except (ValueError, TypeError, AttributeError):
-                pass
-
-        # Return metrics from database + calculated streak + recent returns
-        # Use adjusted win rate that includes open trades (not just closed)
-        final_wr = round(win_rate_adjusted * 100, 1) if win_rate_adjusted is not None else (round(wr, 1) if wr is not None else None)
-        # M15 FIX: Include stale_alerts in return so dashboard can display data quality warnings
-        if not perf:
-            stale_alerts.append("Performance metrics not yet computed")
-        if sharpe is None and len(snaps) < 63:
-            stale_alerts.append(f"Insufficient data for Sharpe ({len(snaps)} snapshots, need 63+)")
+        _log_data_quality("fetch_perf", total_trades)
         return {
-            "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
-            "wr": final_wr, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
-            "_open_trades_count": len(open_trades),
-            "pnl": round(pnl, 2), "streak": streak,
+            "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
+            "wr": wr_pct, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "_open_trades_count": 0, "pnl": round(pnl, 2), "streak": current_streak,
             "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
-            "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
-            "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
-            "stale_alerts": stale_alerts,
-            "_source": "algo_performance_daily" if perf else "calculated",
-            "_updated_at": updated_at_str  # Timestamp of last calculation for staleness indication
+            "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
+            "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence, "stale_alerts": stale_alerts,
+            "_source": "api_algo_performance", "_updated_at": perf.get("data_freshness", {}).get("last_updated_at") if isinstance(perf.get("data_freshness"), dict) else None
         }
-    except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
+    except (KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
         return {"_error": str(e)}
 
+
 def fetch_positions(c):
-    """Fetch open positions from algo_trades (single source of truth).
+    """Fetch open positions from API instead of database.
 
-    Data derivation:
-    - algo_trades WHERE status IN ('open','filled','partially_filled','active','accepted')
-    - Latest price from price_daily for ONLY the open positions (not all symbols)
-    - Trade metadata (stop, targets) from the trade record
-    - Technical/fundamental data from supporting tables
-
-    This eliminates sync issues that occur when algo_positions table
-    drifts from algo_trades. Positions are now computed, not stored separately.
-
-    Validation: Logs if algo_trades table is empty (no historical trades at all).
+    Uses /api/algo/positions endpoint which returns current positions
+    with latest prices, risk metrics, and technical data.
     """
     stale_alerts = []
     try:
-        # Validation: check if algo_trades table has any data at all
-        trade_check = q1(c, "SELECT COUNT(*) as n FROM algo_trades")
-        total_trades = int(trade_check.get("n")) if trade_check and trade_check.get("n") is not None else 0
-        if total_trades == 0:
-            logger.warning("VALIDATION: algo_trades table is EMPTY - no historical trades found")
-            _log_data_quality("fetch_positions", 0, "algo_trades table is empty")
-            stale_alerts.append("No trade history")
-            return {"positions": [], "stale_alerts": stale_alerts}
+        api_resp = api_call("/api/algo/positions")
+        if "_error" in api_resp:
+            logger.warning(f"fetch_positions: API error: {api_resp['_error']}")
+            _log_data_quality("fetch_positions", 0, api_resp['_error'])
+            return {"_error": api_resp['_error'], "positions": [], "stale_alerts": stale_alerts}
 
-        # Issue 39 FIX: Validate supporting table freshness before fetch (trend, swing scores, sectors)
-        supporting_tables = [
-            ("trend_template_data", "Weinstein stage", 3),
-            ("swing_trader_scores", "Swing score", 1),
-            ("company_profile", "Sector data", 30),
-        ]
-        for table, description, max_age_days in supporting_tables:
-            try:
-                # Issue 39: company_profile uses updated_at, others use date column
-                date_col = "updated_at" if table == "company_profile" else "date"
-                table_check = q1(c, f"SELECT COUNT(*) as cnt, MAX({date_col}) as latest_date FROM {table}")
-                if table_check:
-                    cnt_val = table_check.get("cnt")
-                    row_count = int(cnt_val) if cnt_val is not None else None
-                    table_date = table_check.get("latest_date")
-                    if row_count is None or row_count == 0:
-                        logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is EMPTY — positions will have incomplete {description.lower()}")
-                        stale_alerts.append(f"{description} missing")
-                    elif table_date:
-                        try:
-                            if isinstance(table_date, datetime):
-                                td = table_date
-                            else:
-                                td = datetime.fromisoformat(str(table_date))
-                            if td.tzinfo is None:
-                                td = td.replace(tzinfo=timezone.utc)
-                            age_days = (datetime.now(timezone.utc) - td).days
-                            if age_days > max_age_days:
-                                logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is {age_days} days old (threshold {max_age_days}d) — positions may have stale {description.lower()}")
-                                stale_alerts.append(f"{description} {age_days}d old")
-                        except (ValueError, TypeError):
-                            pass
-            except psycopg2.Error as e:
-                logger.warning(f"VALIDATION: Could not check {table} freshness: {e}")
-
-        result = q(c, """
-            WITH open_trades AS (
-                -- H6 FIX: DISTINCT ON ordering must prioritize ACTIVE status first (most current)
-                -- Returns the latest active trade per symbol (not just any open trade)
-                -- Order by status priority (active first) ensures we get the most current position
-                SELECT DISTINCT ON (symbol)
-                    symbol, trade_id, entry_quantity, entry_price,
-                    stop_loss_price, target_1_price, target_2_price, target_3_price,
-                    trade_date, entry_time
-                FROM algo_trades
-                WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'accepted')
-                    AND exit_date IS NULL
-                ORDER BY symbol,
-                         CASE WHEN status = 'active' THEN 0
-                              WHEN status = 'filled' THEN 1
-                              WHEN status = 'partially_filled' THEN 2
-                              WHEN status = 'open' THEN 3
-                              WHEN status = 'accepted' THEN 4
-                              ELSE 5 END ASC,
-                         trade_date DESC,
-                         entry_time DESC
-            ),
-            latest_prices AS (
-                -- Get most recent close price for open positions (bid/ask not available in schema)
-                -- Only get prices for open position symbols (not all 10k+ symbols)
-                SELECT DISTINCT ON (symbol) symbol, close as current_price
-                FROM price_daily
-                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
-                ORDER BY symbol, date DESC
-            ),
-            trend AS (
-                SELECT DISTINCT ON (symbol) symbol, weinstein_stage
-                FROM trend_template_data
-                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
-                ORDER BY symbol, date DESC
-            ),
-            swings AS (
-                SELECT DISTINCT ON (symbol) symbol, score AS swing_score
-                FROM swing_trader_scores
-                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
-                ORDER BY symbol, date DESC
-            ),
-            days_held AS (
-                SELECT symbol,
-                    -- Issue 22 FIX: Handle NULL entry_time to prevent NULL propagation
-                    CASE WHEN entry_time IS NOT NULL
-                        THEN (CURRENT_DATE - entry_time::date)::INT
-                        ELSE NULL
-                    END as days_since_entry
-                FROM open_trades
-            )
-            SELECT
-                ot.symbol,
-                ot.entry_price as avg_entry_price,
-                lp.current_price,
-                CASE
-                    WHEN ot.entry_price IS NULL OR ot.entry_price <= 0 OR lp.current_price IS NULL
-                    THEN NULL
-                    ELSE (((lp.current_price - ot.entry_price) / ot.entry_price) * 100)
-                END as unrealized_pnl_pct,
-                CASE
-                    WHEN lp.current_price IS NULL THEN NULL
-                    ELSE ROUND((ot.entry_quantity * lp.current_price)::NUMERIC, 2)
-                END as position_value,
-                dh.days_since_entry,
-                ot.stop_loss_price,
-                ot.target_1_price,
-                t.weinstein_stage,
-                cp.sector,
-                s.swing_score
-            FROM open_trades ot
-            LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
-            LEFT JOIN trend t ON ot.symbol = t.symbol
-            LEFT JOIN company_profile cp ON cp.symbol = ot.symbol
-            LEFT JOIN swings s ON ot.symbol = s.symbol
-            LEFT JOIN days_held dh ON ot.symbol = dh.symbol
-            ORDER BY position_value DESC""")
-
-        # HIGH ISSUE #10: Validate sector data was retrieved (detect join failures)
-        # Issue 15: Validate price data exists for all symbols
-        if result:
-            missing_sectors = [p for p in result if p.get("sector") is None]
-            if missing_sectors:
-                missing_symbols = [p.get("symbol") for p in missing_sectors]
-                logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data: {missing_symbols} "
-                             f"(may indicate ticker/symbol mismatch in company_profile table)")
-                stale_alerts.append(f"Sector missing ({len(missing_sectors)} positions)")
-                # Issue 18 FIX: Flag positions with missing sector data so dashboard can highlight them
-                for p in missing_sectors:
-                    p["_missing_sector"] = True
-            # Check if any positions have missing/stale current price data (indicates price_daily loader failure or incomplete data)
-            # Issue 27 FIX: Detect when current_price equals entry_price (fallback was used) to flag stale valuation
-            missing_prices = [p for p in result if p.get("current_price") is None or
-                             (p.get("current_price") == p.get("avg_entry_price"))]
-            if missing_prices:
-                missing_price_symbols = [p.get("symbol") for p in missing_prices]
-                logger.warning(f"VALIDATION: {len(missing_prices)} open positions using entry_price as current_price (stale valuation): {missing_price_symbols} "
-                             f"(may indicate price_daily loader failure or incomplete data)")
-                stale_alerts.append(f"Price stale ({len(missing_prices)} positions)")
-                # Flag positions with stale prices; mark for dashboard to display with special warning
-                for p in missing_prices:
-                    p["_missing_price"] = True
-                    p["_price_quality"] = "stale"
+        positions_data = api_resp.get("data", {})
+        result = positions_data.get("items", [])
+        validation = positions_data.get("join_validation", {})
+        if validation and validation.get("status") == "degraded":
+            mismatches = validation.get("mismatches", [])
+            for mismatch in mismatches:
+                symbol = mismatch.get("symbol")
+                field = mismatch.get("missing_field")
+                stale_alerts.append(f"Missing {field} for {symbol}")
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return {"positions": result, "stale_alerts": stale_alerts}
-    except psycopg2.Error as e:
-        err_msg = str(e)
-        error_detail = None
-        # Category 7 fix: Structured error context instead of fragile string parsing
-        if "does not exist" in err_msg:
-            if "trend_template_data" in err_msg:
-                error_detail = "Table missing: trend_template_data — check: (1) exists in schema, (2) has column weinstein_stage"
-            elif "company_profile" in err_msg:
-                error_detail = "Table missing: company_profile — check: (1) exists in schema, (2) has columns sector, ticker"
-            elif "swing_trader_scores" in err_msg:
-                error_detail = "Table missing: swing_trader_scores — check: (1) exists in schema, (2) has column score, date"
-            else:
-                error_detail = f"Schema error: table missing in query (check RDS schema)"
-        elif "column" in err_msg and "does not exist" in err_msg:
-            error_detail = f"Schema error: column mismatch — expected: (weinstein_stage|sector|score)"
-        else:
-            error_detail = f"{type(e).__name__} — check DB connection, RDS availability, statement timeout"
-        logger.error(f"fetch_positions: {error_detail}")
-        _log_data_quality("fetch_positions", 0, error_detail)
-        return {"_error": error_detail, "positions": [], "stale_alerts": stale_alerts}
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
         return {"_error": str(e), "positions": [], "stale_alerts": stale_alerts}
 
+
 def fetch_recent_trades(c):
+    """Fetch recent trades from API instead of database."""
     stale_alerts = []
     try:
-        result = q(c, """
-            SELECT symbol, trade_date, exit_date, status,
-                   profit_loss_dollars, profit_loss_pct, exit_r_multiple
-            FROM algo_trades
-            WHERE trade_date IS NOT NULL
-            ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
+        api_resp = api_call("/api/algo/trades", params={"limit": "50"})
+        if "_error" in api_resp:
+            logger.warning(f"fetch_recent_trades: API error: {api_resp['_error']}")
+            return {"trades": [], "stale_alerts": stale_alerts}
 
-        # Issue 14 FIX: Validate that trades have valid dates
-        # ISSUE 39 FIX: Validate trade status values against enum
-        VALID_STATUSES = {'open', 'closed', 'partially_filled', 'filled', 'pending', 'cancelled', 'rejected'}
-        if result:
-            invalid_dates = [t for t in result if t.get("trade_date") is None]
-            if invalid_dates:
-                logger.warning(f"VALIDATION: Filtered {len(invalid_dates)} trades with NULL trade_date")
-                result = [t for t in result if t.get("trade_date") is not None]
-
-            invalid_status = [t for t in result if t.get("status") not in VALID_STATUSES]
-            if invalid_status:
-                invalid_symbols = [t.get("symbol") for t in invalid_status]
-                logger.warning(f"VALIDATION: Filtered {len(invalid_status)} trades with invalid status: {invalid_symbols}")
-                result = [t for t in result if t.get("status") in VALID_STATUSES]
-
-        _log_data_quality("fetch_recent_trades", len(result) if result else 0)
-        return {"trades": result, "stale_alerts": stale_alerts}
-    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        trades_data = api_resp.get("data", {})
+        trades = trades_data.get("items", [])
+        _log_data_quality("fetch_recent_trades", len(trades) if trades else 0)
+        return {"trades": trades, "stale_alerts": stale_alerts}
+    except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
-        _log_data_quality("fetch_recent_trades", 0, str(e))
-        return {"_error": f"Failed to load recent trades: {type(e).__name__}", "stale_alerts": stale_alerts}
+        return {"trades": [], "stale_alerts": stale_alerts}
+
 
 def fetch_signals(c):
     stale_alerts = []
@@ -2944,159 +2639,28 @@ def fetch_audit_log(c):
         return {"_error": f"Failed to load audit log: {type(e).__name__}"}
 
 def fetch_circuit(c):
+    """Fetch circuit breaker status from API instead of database.
+
+    Uses /api/algo/circuit-breakers endpoint which returns real-time
+    circuit breaker state and trigger status.
+    """
     try:
-        # Load circuit breaker thresholds from config
-        config_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
-                       "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"]
-        rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (config_keys,))
-        cfg = {r["key"]: safe_float(r["value"]) for r in rows if r.get("value") is not None}
+        api_resp = api_call("/api/algo/circuit-breakers")
+        if "_error" in api_resp:
+            logger.error(f"fetch_circuit: API error: {api_resp['_error']}")
+            _log_data_quality("fetch_circuit", 0, api_resp['_error'])
+            return {"_error": api_resp['_error'], "breakers": [], "any_triggered": False, "triggered_count": 0}
 
-        # Issue 3.2: Validate critical keys exist; safeguard against incomplete config causing wrong halt decisions
-        critical_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses"]
-        missing_critical = [k for k in critical_keys if k not in cfg]
-        if missing_critical:
-            logger.error(f"ALERT: Circuit breaker CRITICAL config keys missing: {missing_critical}. "
-                        f"Cannot proceed safely — circuit breaker DISABLED until config is corrected.")
-            _log_data_quality("fetch_circuit", 0, f"Critical config missing: {', '.join(missing_critical)}")
-            return {"bs": [], "any": False, "n": 0, "_error": f"Critical config keys missing: {missing_critical}"}
-
-        # Log non-critical missing keys (will use safe defaults)
-        missing_optional = [k for k in config_keys if k not in critical_keys and k not in cfg]
-        if missing_optional:
-            logger.warning(f"VALIDATION: Circuit breaker optional keys missing: {missing_optional} "
-                         f"(will use hardcoded defaults)")
-
-        snaps = q(c, "SELECT total_portfolio_value, daily_return_pct, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
-
-        # CRITICAL ISSUE 4 FIX: Validate snapshot data exists and is fresh (not stale > 1 day)
-        if not snaps:
-            logger.error("CRITICAL: algo_portfolio_snapshots table is EMPTY — cannot calculate circuit breaker metrics safely")
-            _log_data_quality("fetch_circuit", 0, "No portfolio snapshots available")
-            return {"bs": [], "any": False, "n": 0, "_error": "Portfolio snapshot data missing — circuit breaker unavailable"}
-
-        lat = snaps[0]
-        snap_date = lat.get("snapshot_date")
-        if snap_date:
-            try:
-                if isinstance(snap_date, datetime):
-                    snap_dt = snap_date
-                else:
-                    snap_dt = datetime.fromisoformat(str(snap_date))
-                snap_age_days = (datetime.now(timezone.utc) - snap_dt.replace(tzinfo=timezone.utc)).days if snap_dt.tzinfo else (datetime.now() - snap_dt).days
-                if snap_age_days > 1:
-                    logger.error(f"CRITICAL: Latest portfolio snapshot is {snap_age_days} days old (threshold 1 day) — circuit breaker data is stale")
-                    _log_data_quality("fetch_circuit", 0, f"Snapshot data stale: {snap_age_days} days old")
-                    return {"bs": [], "any": False, "n": 0, "_error": f"Portfolio data stale ({snap_age_days}d old) — circuit breaker unavailable"}
-            except (ValueError, TypeError, AttributeError) as e:
-                logger.warning(f"Could not validate snapshot freshness: {e}")
-
-        # Safely calculate peak value
-        snap_vals = []
-        for s in snaps:
-            pv = s.get("total_portfolio_value")
-            if pv is not None:
-                pv_f = safe_float(pv)
-                if pv_f is not None:
-                    snap_vals.append(pv_f)
-        pk    = max(snap_vals, default=0) if snap_vals else 0
-        cur_v = safe_float(lat.get("total_portfolio_value"), 0) if lat else 0
-        dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
-        daily_ret = safe_float(lat.get("daily_return_pct"), 0) if lat else 0
-        dl    = max(0.0, -daily_ret)
-        # Issue 1.5: Weekly loss — skip weekend gaps by looking back up to 2 weeks for 5+ trading days
-        trading_rets = []
-        for s in snaps[:14]:  # Look back up to 2 weeks to find 5 trading days
-            ret = safe_float(s.get("daily_return_pct"))
-            if ret is not None:
-                trading_rets.append(ret)
-            if len(trading_rets) >= 5:
-                break
-        if len(trading_rets) < 5:
-            logger.warning(f"VALIDATION: Weekly loss calculation found only {len(trading_rets)} trading days (need 5+) — insufficient data for reliable calculation")
-        wl    = max(0.0, -sum(trading_rets)) if len(trading_rets) >= 5 else 0
-        # Consecutive loss count: check all closed trades, not just last 20 (Issue 21)
-        trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC")
-        consec = 0
-        for t in trades:
-            pnl = t.get("profit_loss_dollars")
-            if pnl is not None:
-                pnl_f = safe_float(pnl)
-                if pnl_f is not None and pnl_f < 0:
-                    consec += 1
-                else:
-                    break
-            else:
-                break
-        h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
-        vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
-        vix_v = vix_r.get("vix_level") if vix_r else None
-        # Issue 1.6: Don't convert None to 0.0; keep None so dashboard displays "--" instead of "VIX 0.0"
-        vix   = safe_float(vix_v)
-        vix_available = vix is not None  # Track whether VIX data is actually available
-        stage = int(h.get("market_stage") or 1) if h else 1
-        # Issue 26: Validate market_stage is in enum 1-4
-        if stage not in MARKET_STAGE:
-            logger.warning(f"VALIDATION: market_stage value {stage} is not in valid range (1-4); using default stage 1")
-            stage = 1
-        rr    = q1(c, """
-            WITH open_trades AS (
-                SELECT DISTINCT ON (symbol) symbol, entry_quantity, stop_loss_price
-                FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'accepted')
-                  AND exit_date IS NULL
-                ORDER BY symbol, trade_date DESC
-            ),
-            latest_prices AS (
-                SELECT DISTINCT ON (symbol) symbol, close as current_price
-                FROM price_daily ORDER BY symbol, date DESC
-            )
-            SELECT SUM(GREATEST(lp.current_price - ot.stop_loss_price, 0) * ot.entry_quantity) AS risk,
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS pv
-            FROM open_trades ot LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol""")
-        # Properly handle None risk and pv values
-        risk_val = safe_float(rr.get("risk"), 0.0) if rr else 0.0
-        pv_val = safe_float(rr.get("pv"), 0.0) if rr else 0.0
-        rp = risk_val / max(pv_val, 1) * 100 if pv_val > 0 else 0
-
-        # Threshold helper: tracks which values came from config vs defaults
-        # ISSUE 33 FIX: Track when critical thresholds default silently so operator knows config is stale
-        defaults_used = {}
-        critical_keys = {'halt_drawdown_pct', 'max_daily_loss_pct', 'max_weekly_loss_pct',
-                        'max_consecutive_losses', 'max_total_risk_pct', 'vix_max_threshold'}
-        def th(k, d):
-            if k not in cfg:
-                defaults_used[k] = d
-                if k in critical_keys:
-                    logger.critical(f"CIRCUIT_BREAKER CONFIG: Using default {k}={d} — config key missing. Check config.json")
-            return cfg.get(k, d)
-
-        # Issue 1.6: Handle VIX None case (don't compare None >= threshold)
-        vix_cur = round(vix, 1) if vix is not None else None
-        bs = [
-            {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
-            {"lbl": "Daily Loss",   "cur": round(dl, 1),      "thr": th("max_daily_loss_pct", 2),     "u": "%"},
-            {"lbl": "Weekly Loss",  "cur": round(wl, 1),      "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
-            {"lbl": "Consec Loss",  "cur": safe_float(consec, 0), "thr": th("max_consecutive_losses", 3), "u": ""},
-            {"lbl": "Total Risk",   "cur": round(rp, 1),      "thr": th("max_total_risk_pct", 4),     "u": "%"},
-            {"lbl": "VIX",          "cur": vix_cur,           "thr": th("vix_max_threshold", 35),     "u": "", "available": vix_available},
-            {"lbl": "Mkt Stage",    "cur": safe_float(stage, 1), "thr": 4,                                "u": ""},
-        ]
-
-        # Log which thresholds used defaults (indicates stale/incomplete config)
-        if defaults_used:
-            logger.warning(f"VALIDATION: Circuit breaker using DEFAULT thresholds (config incomplete): "
-                         f"{', '.join(f'{k}={v}' for k, v in defaults_used.items())}")
-        # CRITICAL ISSUE 6: Only fire breakers where cur is not None and >= threshold (handles VIX None case)
-        for b in bs: b["fired"] = b["cur"] is not None and b["cur"] >= b["thr"]
-        n_fired = sum(1 for b in bs if b["fired"])
-        if n_fired > 0:
-            logger.warning(f"Circuit breaker triggered: {n_fired} breaker(s) fired")
-        result = {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
-        _log_data_quality("fetch_circuit", 1)
-        return result
-    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        breakers_data = api_resp.get("data", api_resp)
+        breakers = breakers_data.get("breakers", [])
+        any_triggered = breakers_data.get("any_triggered", False)
+        triggered_count = breakers_data.get("triggered_count", 0)
+        _log_data_quality("fetch_circuit", len(breakers))
+        return {"breakers": breakers, "any_triggered": any_triggered, "triggered_count": triggered_count}
+    except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
         _log_data_quality("fetch_circuit", 0, str(e))
-        return {"_error": f"Failed to load circuit breaker: {type(e).__name__}"}
+        return {"_error": str(e), "breakers": [], "any_triggered": False, "triggered_count": 0}
 
 
 def check_loader_health() -> dict:
@@ -3815,7 +3379,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     if not perf or perf.get("_error") or perf.get("_reason"):
-        error_msg = perf.get("_error") if perf and perf.get("_error") else None
+        err = perf.get("_error") if perf else None
+        error_msg = err
         reason = perf.get("_reason") if perf else None
         if error_msg:
             msg = f"error: {error_msg}"
@@ -3828,7 +3393,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         else:
             msg = "no data"
         return Panel(Text(msg, style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
-    streak = perf.get("streak") if perf and not perf.get("_error") else None
+    streak = perf.get("streak")
     if streak is not None:
         str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
         str_c   = G if streak >= 0 else R
