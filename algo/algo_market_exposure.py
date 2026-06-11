@@ -285,9 +285,9 @@ class MarketExposure:
             if (t30.get('price_below_ma') and b50.get('value', 100) < 30):
                 halt_reasons.append('SPY < 30wk MA AND <30% above 50-DMA')
                 cap = min(cap, 25.0)
-            # Veto 2: VIX > 40 rising
-            vix_value = vix.get('value') or 0
-            if vix_value > 40 and vix.get('rising'):
+            # Veto 2: VIX > 40 rising (H11 FIX: only if VIX data available, not converting None to 0)
+            vix_value = vix.get('value')
+            if vix_value is not None and vix_value > 40 and vix.get('rising'):
                 halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
                 cap = min(cap, 30.0)
             # Veto 3: 6+ distribution days (reinforces DD factor)
