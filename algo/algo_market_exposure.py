@@ -676,6 +676,23 @@ class MarketExposure:
         rows = cur.fetchall()
         if len(rows) < 5:
             return {'score_factor': 0.5, 'value': None}
+
+        # Check if SPY data is fresh (no older than 1 trading day)
+        # H8 FIX: Enforce market data freshness before using it
+        if rows and rows[-1]:
+            latest_date = rows[-1].get('date')
+            if latest_date:
+                from algo.algo_market_calendar import MarketCalendar
+                from datetime import timedelta
+                expected_date = eval_date - timedelta(days=1)
+                while expected_date > eval_date - timedelta(days=10):
+                    if MarketCalendar.is_trading_day(expected_date):
+                        break
+                    expected_date -= timedelta(days=1)
+                if latest_date < expected_date:
+                    logger.warning(f"SPY data stale: latest {latest_date} vs expected {expected_date}, returning neutral A/D score")
+                    return {'score_factor': 0.5, 'value': None, 'stale': True}
+
         # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
         nets = [(float(r.get('ratio') or 1) - 1) / (float(r.get('ratio') or 1) + 1) for r in rows]
         first_net = nets[0]

@@ -3156,12 +3156,12 @@ def panel_market_full(mkt, sentiment=None):
     spy_s   = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
+        f"VIX:[{vc}]{vix}[/] [dim](20+=caution, 30+=alert)[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
     ]
     if upvol is not None:
         adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
         nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
-        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
+        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/] [dim](50%+=good)[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
@@ -3535,13 +3535,15 @@ def panel_performance_spark(perf, rec, perf_anl=None):
             pass
 
     # ISSUE 5 FIX: Alert if open positions have unrealized losses (risk not in win rate)
+    # ISSUE 13 FIX: Only sum P&L values that exist, don't default missing P&L to 0
     if pos:
-        losing_positions = [p for p in pos if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct", 0)) < 0]
+        losing_positions = [p for p in pos if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct")) < 0]
         if losing_positions:
-            loss_pct = sum(float(p.get("unrealized_pnl_pct", 0)) for p in losing_positions)
-            rows.append(Text.from_markup(
-                f"[orange1][!] {len(losing_positions)} open position(s) at risk:[/] {loss_pct:.1f}% unrealized loss"
-            ))
+            loss_pct = sum(float(p.get("unrealized_pnl_pct")) for p in losing_positions if p.get("unrealized_pnl_pct") is not None)
+            if loss_pct != 0:  # Only show if there's actual loss
+                rows.append(Text.from_markup(
+                    f"[orange1][!] {len(losing_positions)} open position(s) at risk:[/] {loss_pct:.1f}% unrealized loss"
+                ))
 
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
 

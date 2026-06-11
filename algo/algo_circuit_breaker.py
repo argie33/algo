@@ -292,28 +292,35 @@ class CircuitBreaker:
         }
 
     def _check_win_rate_floor(self, current_date: Any, cur) -> Dict[str, Any]:
-        """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades).
+        """Halt if recent win rate drops below floor (includes both closed and open positions at risk).
 
-        Win rate = wins / (wins + losses), excluding break-even trades to avoid dilution.
+        Win rate = wins / (wins + losses), where losses include both closed losses and open positions
+        with negative unrealized P&L. Excluding break-even trades to avoid dilution.
         """
-        # Exclude trades closed today without a confirmed fill price (exit_r_multiple IS NULL).
-        # Phase 4 marks trades 'closed' immediately when placing market orders, before Alpaca
-        # confirms the fill. These pre-fill closings have NULL exit_r_multiple and inflated
-        # loss counts. Requiring exit_r_multiple IS NOT NULL ensures we only count confirmed exits.
+        # Include both closed trades (confirmed exits) and open positions (unrealized losses).
+        # This prevents masked deterioration where closed trades look good but open positions bleed.
         cur.execute(
             """
-            SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
-                   COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
-                   COUNT(*) FILTER (WHERE profit_loss_pct = 0) as breakeven,
+            SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
+                   COUNT(*) FILTER (WHERE pnl_pct < 0) as losses,
+                   COUNT(*) FILTER (WHERE pnl_pct = 0) as breakeven,
                    COUNT(*) as total
             FROM (
-                SELECT profit_loss_pct
+                -- Closed trades with confirmed exits
+                SELECT profit_loss_pct as pnl_pct
                 FROM algo_trades
                 WHERE status = %s AND exit_date IS NOT NULL
                   AND exit_r_multiple IS NOT NULL
                   AND trade_id NOT LIKE 'EXT-%%'
-                ORDER BY exit_date DESC LIMIT 30
-            ) recent_trades
+                UNION ALL
+                -- Open positions with unrealized P&L (show current risk)
+                SELECT unrealized_pnl_pct as pnl_pct
+                FROM algo_positions
+                WHERE status = 'open'
+                  AND quantity > 0
+                ORDER BY CASE WHEN status = 'closed' THEN exit_date ELSE entry_date END DESC
+                LIMIT 30
+            ) all_trades
             """,
             (TradeStatus.CLOSED.value,)
         )

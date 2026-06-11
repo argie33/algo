@@ -92,18 +92,27 @@ class SectorRankingLoader(OptimalLoader):
                     logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
                     return None
 
-                return [
-                    {
+                valid_rows = []
+                for r in rows:
+                    current_rank = r['current_rank']
+                    if current_rank is None:
+                        logger.warning(f"Sector ranking for {r['sector_name']}: missing current_rank - skipping")
+                        continue
+                    valid_rows.append({
                         'sector_name':    r['sector_name'],
                         'date':           latest_date,
-                        'current_rank':   r['current_rank'],
-                        'momentum_score': float(r['momentum_score']) if r['momentum_score'] is not None else None,
-                        'rank_1w_ago':    r['rank_1w_ago'],
-                        'rank_4w_ago':    r['rank_4w_ago'],
-                        'rank_12w_ago':   r['rank_12w_ago'],
-                    }
-                    for r in rows
-                ]
+                        'current_rank':   current_rank,
+                        'momentum_score': float(r['momentum_score']) if r['momentum_score'] is not None else 0.0,
+                        'rank_1w_ago':    r['rank_1w_ago'] if r['rank_1w_ago'] is not None else -1,
+                        'rank_4w_ago':    r['rank_4w_ago'] if r['rank_4w_ago'] is not None else -1,
+                        'rank_12w_ago':   r['rank_12w_ago'] if r['rank_12w_ago'] is not None else -1,
+                    })
+
+                if not valid_rows:
+                    logger.warning("No valid sector ranking entries after validation")
+                    return None
+
+                return valid_rows
 
         except Exception as e:
             logger.error(f"Failed to compute sector rankings: {e}")

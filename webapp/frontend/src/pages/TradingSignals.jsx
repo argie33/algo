@@ -868,7 +868,7 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                     <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
                     <td className="num">
                       {r._sqs == null ? <span className="muted t-2xs">no score</span> : (
-                        <span className={Number(r._sqs) >= 80 ? 'up' : Number(r._sqs) >= 60 ? '' : 'muted'}>
+                        <span className={Number(r._sqs) >= 80 ? 'up' : Number(r._sqs) >= 60 ? 'brand' : Number(r._sqs) >= 40 ? 'amber' : 'down'}>
                           {Number(r._sqs).toFixed(0)}
                         </span>
                       )}

@@ -194,6 +194,69 @@ async function getDbConfig() {
 }
 
 /**
+ * Validate database configuration
+ * Ensures port is explicitly configured (not defaulted)
+ */
+function validateDbConfig(config) {
+  if (!config) {
+    throw new Error("Database configuration is required");
+  }
+
+  if (!config.host) {
+    throw new Error("Database host (DB_HOST or DB_ENDPOINT) is required");
+  }
+
+  if (!config.port) {
+    throw new Error(
+      "Database port (DB_PORT) must be explicitly configured. " +
+      "No default port is applied. Set DB_PORT in environment variables or Secrets Manager."
+    );
+  }
+
+  if (!config.user) {
+    throw new Error("Database user is required");
+  }
+
+  if (!config.database) {
+    throw new Error("Database name is required");
+  }
+}
+
+/**
+ * Test database connection
+ * Validates connectivity and port configuration
+ */
+async function testConnection() {
+  try {
+    const config = await getDbConfig();
+    validateDbConfig(config);
+
+    const testPool = new Pool({
+      ...config,
+      max: 1,
+      connectionTimeoutMillis: 5000,
+    });
+
+    const client = await testPool.connect();
+    const result = await client.query("SELECT NOW() as timestamp");
+    client.release();
+    await testPool.end();
+
+    return {
+      status: "ok",
+      message: `Connected to ${config.host}:${config.port}/${config.database}`,
+      timestamp: result.rows[0].timestamp,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error.message,
+      error: error.code || "CONNECTION_FAILED",
+    };
+  }
+}
+
+/**
  * Initialize database connection pool
  */
 async function initializeDatabase() {
@@ -218,6 +281,8 @@ async function initializeDatabase() {
         pool = null;
         throw error;
       }
+
+      validateDbConfig(config);
 
       pool = new Pool(config);
       const client = await pool.connect();
@@ -731,6 +796,8 @@ module.exports = {
   getPool,
   ensureConnection,
   getDbConfig,
+  validateDbConfig,
+  testConnection,
   query,
   transaction,
   closeDatabase,

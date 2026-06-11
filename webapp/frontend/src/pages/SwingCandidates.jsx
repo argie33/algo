@@ -812,7 +812,9 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
         <span className={`badge ${GRADE_CLASS[c.grade] || 'badge'}`}>{c.grade || '—'}</span>
       </td>
       <td className="num mono tnum" style={{ fontWeight: 'var(--w-semibold)' }}>
-        {num(c.swing_score, 1)}
+        <span className={Number(c.swing_score) >= 80 ? 'up' : Number(c.swing_score) >= 60 ? 'brand' : Number(c.swing_score) >= 40 ? 'amber' : 'down'}>
+          {num(c.swing_score, 1)}
+        </span>
       </td>
       <td className="num mono tnum t-xs">{num(cmp.setup, 1)}</td>
       <td className="num mono tnum t-xs">{num(cmp.trend, 1)}</td>
