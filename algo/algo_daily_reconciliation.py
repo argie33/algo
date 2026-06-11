@@ -155,7 +155,8 @@ class DailyReconciliation:
                         logger.info(f"   Cash (from prior snapshot): ${cash:,.2f}")
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
                 # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
-                alpaca_portfolio_value = float(alpaca_data.get('portfolio_value', 0) or 0)
+                pv = alpaca_data.get('portfolio_value')
+                alpaca_portfolio_value = float(pv) if pv is not None else 0.0
                 # DB-computed total (kept for drift reporting)
                 total_equity_db = cash + total_position_value
                 # Prefer Alpaca's live value; fall back to DB sum only if Alpaca value is missing/zero

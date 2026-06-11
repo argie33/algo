@@ -257,21 +257,43 @@ class DailyFinanceReport:
         risk = report.get('risk', {})
         strategy = report.get('strategy', {})
 
+        pv = portfolio.get('current_value')
+        if pv is None:
+            pv = 0
+        dpnl = portfolio.get('daily_pnl_pct')
+        if dpnl is None:
+            dpnl = 0
+        ytd = portfolio.get('ytd_pnl_pct')
+        if ytd is None:
+            ytd = 0
+        var95 = risk.get('var_95_pct')
+        if var95 is None:
+            var95 = 0
+        beta = risk.get('beta')
+        if beta is None:
+            beta = 0
+        sharpe = risk.get('sharpe_ytd')
+        if sharpe is None:
+            sharpe = 0
+        exp_r = strategy.get('expectancy_r')
+        if exp_r is None:
+            exp_r = 0
+
         lines = [
             f"{'='*70}",
             f"DAILY FINANCE REPORT — {report['date']} | Regime: {regime.get('current', 'unknown')}",
             f"{'='*70}",
-            f"Portfolio: ${portfolio.get('current_value') or 0:,.0f} | "
-            f"Daily P&L: {portfolio.get('daily_pnl_pct') or 0:+.2f}% | "
-            f"YTD: {portfolio.get('ytd_pnl_pct') or 0:+.2f}%",
-            f"Risk: VaR {risk.get('var_95_pct') or 0:.1f}% | "
-            f"Beta {risk.get('beta') or 0:.2f} | "
-            f"Sharpe {risk.get('sharpe_ytd') or 0:.1f}",
+            f"Portfolio: ${pv:,.0f} | "
+            f"Daily P&L: {dpnl:+.2f}% | "
+            f"YTD: {ytd:+.2f}%",
+            f"Risk: VaR {var95:.1f}% | "
+            f"Beta {beta:.2f} | "
+            f"Sharpe {sharpe:.1f}",
             f"",
             f"Strategy (last 50 trades):",
             f"  Win rate: {strategy.get('win_rate_pct', 0):.0f}% | "
             f"Profit factor: {strategy.get('profit_factor', 0):.1f}x | "
-            f"Expectancy: {strategy.get('expectancy_r') or 0:+.2f}R",
+            f"Expectancy: {exp_r:+.2f}R",
             f"",
             f"Component IC (alpha contribution):",
         ]
@@ -300,7 +322,9 @@ class DailyFinanceReport:
         warnings = []
 
         risk = report.get('risk', {})
-        var_95 = risk.get('var_95_pct') or 0
+        var_95 = risk.get('var_95_pct')
+        if var_95 is None:
+            var_95 = 0
         if var_95 > 2.0:
             warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
@@ -309,7 +333,9 @@ class DailyFinanceReport:
             warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get('portfolio', {})
-        daily_pnl = portfolio.get('daily_pnl_pct') or 0
+        daily_pnl = portfolio.get('daily_pnl_pct')
+        if daily_pnl is None:
+            daily_pnl = 0
         if daily_pnl < -2.0:
             warnings.append(f"⚠️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
 
