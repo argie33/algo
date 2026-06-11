@@ -188,23 +188,6 @@ MARKET_STAGE = {
     4: "Stage 4 — Decline (downtrend)",
 }
 
-# Issue 40 FIX: Map halt reason codes to human-readable explanations
-HALT_REASON_NAMES = {
-    "drawdown":                 "Portfolio drawdown >=20%",
-    "drawdown_re_engagement":   "Drawdown recovery in progress",
-    "daily_loss":               "Daily loss >=2%",
-    "consecutive_losses":       "≥3 consecutive losing trades",
-    "total_risk":               "Total open risk >=4%",
-    "vix_spike":                "VIX spike >35",
-    "market_stage":             "Market in downtrend (Stage 4)",
-    "weekly_loss":              "Weekly loss >=5%",
-    "sector_concentration":     "Sector concentration risk",
-    "intraday_market_health":   "Market health deterioration",
-    "win_rate_floor":           "Win rate below threshold",
-    "daily_profit_cap":         "Daily profit cap reached",
-    "data_freshness":           "Required data stale",
-}
-
 # ── mascot (dancing monkey) ──────────────────────────────────────────────────
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
 # MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
@@ -890,19 +873,6 @@ def _fmt_event_when(ed_date: Optional[date], et: any) -> str:
         delta = (ed_date - today).days
         return f"+{delta}d" if delta > 0 else "YST"
     return "--"
-
-
-def format_halt_reason(halt_code: str) -> str:
-    """Issue 40 FIX: Convert halt code to human-readable explanation.
-
-    Input: "drawdown" or "drawdown: Drawdown 23.45% >= 20%"
-    Output: "Portfolio drawdown >=20%"
-    """
-    if not halt_code or not isinstance(halt_code, str):
-        return halt_code
-    # Extract the prefix before the colon (if present)
-    code = halt_code.split(":")[0].strip().lower()
-    return HALT_REASON_NAMES.get(code, halt_code[:20])
 
 
 # ── fetchers ──────────────────────────────────────────────────────────────────
@@ -3039,25 +3009,18 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not risk.get("_error"):
         var95_v = get_numeric(risk, "var95")
-        # Issue 37 FIX: Add VaR calculation status indicator
-        has_data = risk.get("_has_data", False)
-        is_stale = risk.get("_is_stale", False)
-        if has_data and var95_v is not None and var95_v > 0:
+        if var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
             svar_v = get_numeric(risk, "svar") or 0
             svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
             cvar95_v = get_numeric(risk, "cvar95") or 0
             conc5_v = get_numeric(risk, "conc5") or 0
-            status_ind = R if is_stale else G
-            status_txt = "stale" if is_stale else "current"
-            var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/] [{status_ind}]({status_txt})[/]"
+            var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]"
                         f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
                         f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
                         f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
                         + svar_s)
-        elif not has_data:
-            var_line = f"\n[dim]VaR:[/] [{Y}]calculation incomplete[/]"
 
     if not run or run.get("_error"):
         body = Text.from_markup(
@@ -3141,8 +3104,7 @@ def panel_market_full(mkt, sentiment=None):
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
     trend = (mkt.get("trend") or "").upper()
     halts = get_list(mkt, "halts")
-    # Issue 40 FIX: Format halt codes as human-readable explanations
-    halt_s = " | ".join(format_halt_reason(h) for h in halts[:2]) if halts else "none"
+    halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc    = Y if halts else DIM
 
     upvol = get_numeric(mkt, "upvol")
@@ -3164,22 +3126,22 @@ def panel_market_full(mkt, sentiment=None):
     spy_s   = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix}[/] [dim](20+=caution, 30+=alert)[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
+        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
     ]
     if upvol is not None:
         adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
         nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
-        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/] [dim](50%+=good)[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
+        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
-        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<0.8=bullish)[/]")
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/]")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim](0.5+=bullish)[/]")
+        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/]")
     if ycs is not None:
         yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
-        bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/] [dim](0+=flat)[/]")
+        bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
     halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"
@@ -3290,8 +3252,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
         halts  = mkt.get("halts") or []
-        # Issue 40 FIX: Format halt codes as human-readable explanations
-        halt_s = " | ".join(format_halt_reason(h) for h in halts[:2]) if halts else "none"
+        halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5  = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if sentiment and not sentiment.get("_error"):
