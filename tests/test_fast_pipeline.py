@@ -42,13 +42,13 @@ class TestFastPipeline(unittest.TestCase):
 
             # Phase 1 calls fetchone() three times inside one DatabaseContext block:
             #   1. MAX(date) FROM price_daily  → most recent trading date
-            #   2. COUNT symbols for that date → 5000
-            #   3. COUNT symbols for prior date → 5000
+            #   2. COUNT symbols for that date → 8000+ (Phase 1 requires min 8000)
+            #   3. COUNT symbols for prior date → 8000
             yesterday = date.today() - timedelta(days=1)
             mock_cur.fetchone.side_effect = [
-                (yesterday,),  # MAX(date): yesterday's prices are loaded
-                (5000,),       # symbol count for yesterday
-                (5000,),       # prior day's symbol count (coverage baseline)
+                (yesterday,),   # MAX(date): yesterday's prices are loaded
+                (8000,),        # symbol count for yesterday (meets min requirement)
+                (8000,),        # prior day's symbol count (coverage baseline)
             ]
 
             result = run_phase1(
