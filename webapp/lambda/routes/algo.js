@@ -1879,52 +1879,56 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    // Fetch all circuit breaker metrics from database in parallel
-    const [metricsResult, marketResult] = await Promise.all([
-      // Core metrics: drawdown, daily/weekly loss, open risk, consecutive losses (all pre-computed in view)
+    // Fetch pre-computed circuit breaker metrics (computed daily at 4:30 PM ET by loaders/compute_circuit_breakers.py)
+    const [cbResult, marketResult] = await Promise.all([
       pool.query(`
         SELECT
-          current_drawdown_pct, daily_loss_pct, weekly_loss_pct,
-          total_risk_pct, consecutive_losses
-        FROM circuit_breaker_metrics
+          portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct,
+          open_risk_pct, consecutive_losses, vix_level, market_stage,
+          spy_prior_day_change_pct, win_rate_last_30_pct
+        FROM circuit_breaker_status
+        WHERE check_date = CURRENT_DATE
+        ORDER BY check_date DESC LIMIT 1
       `),
-      // Market data
       pool.query(`
-        SELECT vix_level, market_stage, market_trend FROM market_health_daily
+        SELECT market_trend FROM market_health_daily
         ORDER BY date DESC LIMIT 1
       `)
     ]);
 
     // Validate results
-    validateQueryResult(metricsResult, { minRows: 1, maxRows: 1 });
+    validateQueryResult(cbResult, { requireRows: false });
     validateQueryResult(marketResult, { requireRows: false });
 
-    const metricsRow = validateAndCoerceRow(metricsResult.rows[0], {
-      current_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
-      daily_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      weekly_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      total_risk_pct: { type: 'float', required: false, defaultValue: 0 },
-      consecutive_losses: { type: 'int', required: false, defaultValue: 0 }
-    });
-
-    // Get market data
-    const marketData = marketResult.rows.length > 0
-      ? validateAndCoerceRow(marketResult.rows[0], {
+    // Get circuit breaker metrics (or defaults if not yet computed for today)
+    const cbRow = cbResult.rows.length > 0
+      ? validateAndCoerceRow(cbResult.rows[0], {
+          portfolio_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
+          daily_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+          weekly_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+          open_risk_pct: { type: 'float', required: false, defaultValue: 0 },
+          consecutive_losses: { type: 'int', required: false, defaultValue: 0 },
           vix_level: { type: 'float', required: false, defaultValue: 0 },
           market_stage: { type: 'int', required: false, defaultValue: 1 },
-          market_trend: { type: 'string', required: false, defaultValue: 'unknown' }
+          spy_prior_day_change_pct: { type: 'float', required: false, defaultValue: 0 },
+          win_rate_last_30_pct: { type: 'float', required: false, defaultValue: 0 }
         })
-      : { vix_level: 0, market_stage: 1, market_trend: 'unknown' };
+      : { portfolio_drawdown_pct: 0, daily_loss_pct: 0, weekly_loss_pct: 0, open_risk_pct: 0,
+          consecutive_losses: 0, vix_level: 0, market_stage: 1, spy_prior_day_change_pct: 0, win_rate_last_30_pct: 0 };
+
+    const marketTrend = marketResult.rows.length > 0
+      ? validateAndCoerceRow(marketResult.rows[0], { market_trend: { type: 'string', required: false } }).market_trend || 'unknown'
+      : 'unknown';
 
     const metrics = {
-      current_drawdown_pct: metricsRow.current_drawdown_pct,
-      daily_loss_pct: metricsRow.daily_loss_pct,
-      weekly_loss_pct: metricsRow.weekly_loss_pct,
-      consec_losses: metricsRow.consecutive_losses,
-      total_risk_pct: metricsRow.total_risk_pct,
-      vix_level: marketData.vix_level,
-      market_stage: marketData.market_stage,
-      market_trend: marketData.market_trend
+      current_drawdown_pct: cbRow.portfolio_drawdown_pct,
+      daily_loss_pct: cbRow.daily_loss_pct,
+      weekly_loss_pct: cbRow.weekly_loss_pct,
+      consec_losses: cbRow.consecutive_losses,
+      total_risk_pct: cbRow.open_risk_pct,
+      vix_level: cbRow.vix_level,
+      market_stage: cbRow.market_stage,
+      market_trend: marketTrend
     };
 
     // Pull config (with sensible defaults if rows missing)
