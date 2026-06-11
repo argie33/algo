@@ -5429,7 +5429,14 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
         g = {}
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     ui_cfg = load_ui_display_thresholds()
-    buy_c = G if raw >= ui_cfg['buy_signal_count_good'] else (Y if raw >= ui_cfg['buy_signal_count_caution'] else (DIM if total == 0 else R))
+    if raw >= ui_cfg['buy_signal_count_good']:
+        buy_c = G
+    elif raw >= ui_cfg['buy_signal_count_caution']:
+        buy_c = Y
+    elif total == 0:
+        buy_c = DIM
+    else:
+        buy_c = R
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
         f"[{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]  "
