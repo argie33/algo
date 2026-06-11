@@ -2311,6 +2311,16 @@ def fetch_economic_pulse(c):
         days_stale = (datetime.now(ET).date() - last_update).days if last_update else None
         data_status = 'current' if days_stale == 0 else ('1day_old' if days_stale == 1 else f'{days_stale}days_old' if days_stale else 'unknown')
 
+        # M15 FIX: Track staleness for display
+        if days_stale is None:
+            stale_alerts.append("Economic data missing")
+        elif days_stale > 1:
+            stale_alerts.append(f"Economic data {days_stale}d old")
+        if missing_required:
+            stale_alerts.append(f"Missing: {', '.join(missing_required)}")
+        if cpi_error:
+            stale_alerts.append(f"CPI error: {cpi_error}")
+
         result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
             'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
@@ -2324,6 +2334,7 @@ def fetch_economic_pulse(c):
             'dxy':       d.get('DTWEXBGS'),
             'mortgage':  d.get('MORTGAGE30US'),
             'umcsent':   d.get('UMCSENT'),
+            'stale_alerts': stale_alerts,
             '_last_update': last_update,
             '_data_status': data_status,
         }
@@ -2332,7 +2343,8 @@ def fetch_economic_pulse(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_pulse: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_pulse", 0, str(e))
-        return {}
+        stale_alerts.append(f"Economic pulse fetch failed: {type(e).__name__}")
+        return {"stale_alerts": stale_alerts}
 
 def fetch_algo_metrics(c):
     try:
@@ -2425,6 +2437,7 @@ def fetch_risk_metrics(c) -> dict:
 
     Returns freshness-checked metrics. If stale (>2h), returns data with warning flag.
     """
+    stale_alerts = []
     try:
         row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
                               portfolio_beta, top_5_concentration, updated_at
@@ -2433,7 +2446,8 @@ def fetch_risk_metrics(c) -> dict:
         if not row:
             logger.warning("VALIDATION: No risk metrics data available; risk loader may not have run yet")
             _log_data_quality("fetch_risk_metrics", 0, "table has no data")
-            return {"_has_data": False}
+            stale_alerts.append("Risk metrics not yet computed")
+            return {"_has_data": False, "stale_alerts": stale_alerts}
 
         # Issue 18 FIX: Check freshness but still return stale data with warning
         age_minutes = None

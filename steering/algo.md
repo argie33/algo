@@ -1352,6 +1352,120 @@ Priority 4 (Infrastructure Readiness):
    SELECT COUNT(*) FROM algo_performance_daily;
    ```
 
+## Operator Runbook
+
+This section provides step-by-step guidance for operators monitoring the system in production. Use this when you encounter alerts or need to verify system health.
+
+### Dashboard Data Quality Alerts
+
+**When you see:** Dashboard shows "⚠ DEGRADED (Some data stale or missing)" or "✗ CRITICAL (Data unavailable)"
+
+**What it means:** One or more critical data sources haven't been updated recently, or data quality checks failed.
+
+**Action to take:**
+
+1. **Check which fetchers are failing:**
+   - Look at the dashboard "DATA FRESHNESS" panel
+   - It lists: Critical Data Sources (✓ ok or ✗ failed) and any Data Quality Issues
+   - Failing fetchers might be: fetch_run, fetch_algo_config, fetch_market, fetch_positions
+
+2. **If connection timeout errors:**
+   ```powershell
+   scripts/refresh-aws-credentials.ps1
+   ```
+   This refreshes AWS credentials if they've expired. RDS restarts during deploys are transient.
+
+3. **If data is stale (more than 1 trading day old):**
+   - Check if loaders are running: `python scripts/orchestrator-history.py recent 3`
+   - Check CloudWatch logs for errors in the morning prep pipeline (2:00 AM ET)
+   - If morning prep completed but data is still stale, check if the specific loaders updated successfully
+
+4. **If specific tables are stale:**
+   - stock_prices_daily stale: yfinance may not have EOD data yet (waits until market closes + 20 min)
+   - technical_data_daily stale: Depends on stock_prices_daily, triggers after prices load
+   - buy_sell_daily stale: Depends on technical_data_daily
+   - swing_trader_scores stale: Depends on buy_sell_daily; blocks orchestrator Phase 5 if missing
+
+### Stale Price Warnings on Positions
+
+**When you see:** Position symbol shows " ⚠" in the POSITIONS table, or price says "using entry price"
+
+**What it means:** Current market price is unavailable, so the system is displaying the entry price as a fallback. P&L calculations may be inaccurate until the market data feed recovers.
+
+**Why it matters:** 
+- Position P&L displays entry price instead of current market price
+- R-multiple (Risk/Reward ratio) may be stale
+- The position might actually be more/less profitable than shown
+
+**Action to take:**
+1. Check if market data is current: Look at "MARKET" panel — if VIX or market indicators are stale, market data feed is down
+2. Refresh credentials: `scripts/refresh-aws-credentials.ps1`
+3. Manual data refresh (if market is open):
+   ```bash
+   python -m loaders.load_prices_daily
+   ```
+4. Wait for next scheduled run: Morning prep (2:00 AM ET) and EOD pipeline (4:05 PM ET) both refresh prices
+
+### Low Confidence Metrics ("< 252 trading days")
+
+**When you see:** "Low confidence" indicator on performance metrics (Sharpe ratio, win rate confidence)
+
+**What it means:** The system needs 252 trading days (~1 year) of history to compute reliable statistics. With less history, all metrics are provisional.
+
+**Why it matters:** 
+- New trading accounts will always show low confidence initially
+- Win rate swings more with small sample sizes
+- Sharpe ratio volatility estimates are unreliable
+
+**Action to take:**
+1. This is normal for new accounts; no action required
+2. Metrics will improve automatically as more historical data accumulates
+3. Check portfolio history length to understand current coverage:
+   ```sql
+   SELECT COUNT(*) as trading_days, 
+          MIN(snapshot_date) as oldest, 
+          MAX(snapshot_date) as newest
+   FROM algo_portfolio_snapshots;
+   ```
+
+### Circuit Breaker Halts ("Halted: CB")
+
+**When you see:** Notification shows "Halted: CB" and trading stops, or "Halt reason: Portfolio drawdown >=20%"
+
+**What it means:** A circuit breaker rule triggered and stopped trading to prevent catastrophic losses.
+
+**Common halt reasons:**
+- "Portfolio drawdown >=20%" — Cumulative portfolio loss reached 20% limit
+- "Daily loss >=2%" — Loss in current trading day reached 2% limit
+- "VIX spike >35" — Market volatility jumped, risk too high
+- "≥3 consecutive losing trades" — Streak of losses signals regime change
+- "Market in downtrend (Stage 4)" — Minervini stage analysis shows bear market
+
+**Action to take:**
+1. **Check halt reason:** Clearly stated in dashboard "Halt reason" field
+2. **Determine if halt is justified:**
+   - Review recent trades and market conditions in the PERFORMANCE section
+   - Check if market recovery is underway (look at MARKET panel for VIX, breadth trends)
+3. **To resume trading after halt:**
+   - Drawdown halt: Requires portfolio to recover to within acceptable levels (auto-resumes when P&L recovers to -18%)
+   - Daily loss halt: Automatically resets at market open next day (3:55 AM ET)
+   - VIX spike / market stage: Resets when VIX drops below threshold / market recovers to earlier stage
+   - Manual override (emergency only): Requires restart of orchestrator (handled by ops team)
+
+### Missing Sector Data Warnings
+
+**When you see:** Position sector column shows "--  ⚠" or "N/A ⚠"
+
+**What it means:** Sector data couldn't be looked up for this symbol. The position is still being tracked, but sector risk analysis may be incomplete.
+
+**Action to take:**
+1. This is usually transient during data loading (sector data fetches concurrently with prices)
+2. Wait 5 minutes and refresh the dashboard
+3. If still missing, the symbol may be new/delisted, or the master sector lookup table needs refresh:
+   ```bash
+   python -m loaders.load_stock_symbols
+   ```
+
 ### General Debugging Workflow
 
 1. **Identify what's stale:**
