@@ -1188,130 +1188,60 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
         try:
             symbol = body.get('symbol', '').upper()
-            entry_price = float(body.get('entry_price', 0)) if body.get('entry_price') else None
+            entry_price = body.get('entry_price')
             position_dollars = body.get('position_dollars')
             position_pct = body.get('position_pct')
 
             if not symbol:
                 return error_response(400, 'bad_request', 'symbol is required')
 
+            # Call stored procedure to compute all impact metrics in database
             cur.execute("""
-                SELECT COUNT(*) AS position_count,
-                       SUM(CASE WHEN pd.quantity > 0 THEN pd.position_value ELSE 0 END) AS invested
-                FROM algo_positions pd
-                WHERE LOWER(pd.status) = 'open'
-            """)
-            portfolio_row = safe_json_serialize(dict(cur.fetchone()) or {})
-            current_positions = portfolio_row.get('position_count', 0)
-            invested_val = portfolio_row.get('invested')
-            invested = float(invested_val) if invested_val is not None else None
+                SELECT position_size_dollars, position_size_percent, new_total_positions,
+                       new_sector_percent, new_sector_invested, drawdown_impact_pct,
+                       sector_name, sector_count,
+                       meets_position_limit, meets_size_limit, meets_sector_limit,
+                       meets_cash_requirement, meets_risk_limit
+                FROM calculate_pretrade_impact(%s, %s, %s, %s)
+            """, (symbol, entry_price, position_dollars, position_pct))
+            impact_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC LIMIT 1
-            """)
-            snap = cur.fetchone()
-            if not snap or not snap['total_portfolio_value']:
-                return error_response(503, 'service_unavailable', 'Portfolio value unavailable - cannot analyze pre-trade impact')
-            portfolio_value = float(snap['total_portfolio_value'])
+            if not impact_row:
+                return error_response(500, 'internal_error', f'Unable to calculate impact for {symbol}')
 
-            cur.execute("""
-                SELECT sector, industry FROM company_profile WHERE ticker = %s
-            """, (symbol,))
-            profile = cur.fetchone()
-            sector = profile['sector'] if (profile and hasattr(profile, '__getitem__')) else 'Unknown'
-            industry = profile['industry'] if (profile and hasattr(profile, '__getitem__')) else 'Unknown'
+            impact = safe_json_serialize(dict(impact_row))
 
-            # Determine position size
-            if position_dollars:
-                position_size_dollars = float(position_dollars)
-            elif position_pct:
-                position_size_dollars = portfolio_value * (float(position_pct) / 100)
-            else:
-                position_size_dollars = portfolio_value * 0.01  # default 1%
-
-            if not entry_price:
-                entry_price = position_size_dollars / 100  # assume 100 shares
-
-            shares = int(position_size_dollars / entry_price) if entry_price > 0 else 0
-            position_pct_calc = (position_size_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
-
-            # Read live limits from algo_config (fall back to conservative defaults)
-            try:
-                cur.execute("""
-                    SELECT key, value FROM algo_config
-                    WHERE key IN ('max_positions', 'max_position_pct', 'max_sector_pct')
-                """)
-                cfg = {row['key']: row['value'] for row in cur.fetchall()}
-            except Exception as e:
-                logger.warning(f"API exception: {e}")
-                cfg = {}
-            max_positions = int(cfg.get('max_positions', 12))
-            max_position_pct = float(cfg.get('max_position_pct', 8.0))
-            max_sector_pct = float(cfg.get('max_sector_pct', 30.0))
-
-            position_limit_ok = current_positions < max_positions
-            position_size_ok = position_pct_calc <= max_position_pct
-            cash_available = portfolio_value - invested
-            cash_ok = cash_available >= position_size_dollars
-
-            cur.execute("""
-                WITH distinct_profiles AS (
-                    SELECT DISTINCT ON (cp.ticker)
-                        cp.ticker, cp.sector
-                    FROM company_profile cp
-                    ORDER BY cp.ticker
-                )
-                SELECT SUM(CASE WHEN dp.sector = %s THEN pd.position_value ELSE 0 END) /
-                       NULLIF((SELECT SUM(position_value) FROM algo_positions), 0) * 100 AS sector_pct
-                FROM algo_positions pd
-                JOIN distinct_profiles dp ON pd.symbol = dp.ticker
-            """, (sector,))
-            sector_row = safe_json_serialize(dict(cur.fetchone()) or {})
-            sector_pct_val = sector_row.get('sector_pct')
-            current_sector_pct = float(sector_pct_val) if sector_pct_val is not None else None
-            new_sector_pct = current_sector_pct + position_pct_calc if current_sector_pct is not None else None
-            sector_limit_ok = new_sector_pct <= max_sector_pct
-
-            # Worst-case drawdown impact (simplified)
-            max_acceptable_impact = 2.0
-            worst_case_impact = (position_pct_calc / 100) * 0.20  # assume 20% loss on new position
-            drawdown_risk_ok = (worst_case_impact * 100) <= max_acceptable_impact
-
-            all_ok = (position_limit_ok and position_size_ok and cash_ok and
-                     sector_limit_ok and drawdown_risk_ok)
+            allOk = (impact.get('meets_position_limit', False) and
+                    impact.get('meets_size_limit', False) and
+                    impact.get('meets_sector_limit', False) and
+                    impact.get('meets_cash_requirement', False) and
+                    impact.get('meets_risk_limit', False))
 
             return json_response(200, {
                 'symbol': symbol,
-                'entry_price': entry_price,
-                'position_size_dollars': position_size_dollars,
-                'position_size_percent': position_pct_calc,
-                'sector': sector,
-                'risk_score': min(100, sum([
-                    0 if position_limit_ok else 25,
-                    0 if position_size_ok else 25,
-                    0 if cash_ok else 25,
-                    0 if sector_limit_ok else 15,
-                    0 if drawdown_risk_ok else 10
-                ])) / 100,
-                'all_constraints_met': all_ok,
-                'recommendation': 'APPROVED' if all_ok else 'REJECTED',
+                'entry_price': float(entry_price) if entry_price else 0,
+                'position_size_dollars': float(impact.get('position_size_dollars', 0)),
+                'position_size_percent': float(impact.get('position_size_percent', 0)),
+                'sector': impact.get('sector_name'),
+                'risk_score': 0.0 if allOk else 0.5,
+                'all_constraints_met': allOk,
+                'recommendation': 'APPROVED' if allOk else 'REJECTED',
                 'portfolio_impact': {
-                    'new_total_positions': current_positions + 1,
-                    'position_limit': max_positions,
-                    'position_limit_ok': position_limit_ok,
-                    'new_position_percent': position_pct_calc,
-                    'max_position_percent': max_position_pct,
-                    'position_size_ok': position_size_ok,
-                    'new_sector_percent': new_sector_pct,
-                    'max_sector_percent': max_sector_pct,
-                    'sector_limit_ok': sector_limit_ok,
-                    'worst_case_drawdown_impact': worst_case_impact,
-                    'max_acceptable_impact': max_acceptable_impact,
-                    'drawdown_risk_ok': drawdown_risk_ok,
-                    'cash_available': cash_available,
-                    'cash_required': position_size_dollars,
-                    'cash_ok': cash_ok
+                    'new_total_positions': impact.get('new_total_positions', 0),
+                    'position_limit': 6,
+                    'position_limit_ok': impact.get('meets_position_limit', False),
+                    'new_position_percent': float(impact.get('position_size_percent', 0)),
+                    'max_position_percent': 15,
+                    'position_size_ok': impact.get('meets_size_limit', False),
+                    'new_sector_percent': float(impact.get('new_sector_percent', 0)),
+                    'max_sector_percent': 30,
+                    'sector_limit_ok': impact.get('meets_sector_limit', False),
+                    'worst_case_drawdown_impact': float(impact.get('drawdown_impact_pct', 0)),
+                    'max_acceptable_impact': 0.05,
+                    'drawdown_risk_ok': impact.get('meets_risk_limit', False),
+                    'cash_available': 0,
+                    'cash_required': float(impact.get('position_size_dollars', 0)),
+                    'cash_ok': impact.get('meets_cash_requirement', False)
                 }
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
