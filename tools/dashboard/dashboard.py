@@ -2599,6 +2599,7 @@ def fetch_perf_analytics(c):
                 "_is_stale": not is_fresh,
                 "_loader_running": loader_running,
                 "_age_minutes": age_minutes,
+                "_updated_at": row.get("updated_at"),  # M10 FIX: Include timestamp for staleness display
             }
             _log_data_quality("fetch_perf_analytics", 1)
             return result
@@ -3799,6 +3800,18 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
         if anl_parts:
             rows.append(Text.from_markup("  ".join(anl_parts)))
+        # M10 FIX: Show when rolling analytics were last calculated (Issue 43)
+        anl_updated_at = perf_anl.get("_updated_at")
+        if anl_updated_at:
+            try:
+                if isinstance(anl_updated_at, str):
+                    calc_dt = datetime.fromisoformat(anl_updated_at)
+                else:
+                    calc_dt = anl_updated_at
+                age_str = fmt_age(calc_dt)
+                rows.append(Text.from_markup(f"[dim]Rolling analytics calculated: {age_str}[/]"))
+            except (ValueError, TypeError, AttributeError):
+                pass
         avg_w_r = perf_anl.get("avg_w_r")
         avg_l_r = perf_anl.get("avg_l_r")
         if avg_w_r is not None or avg_l_r is not None:
