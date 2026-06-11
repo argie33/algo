@@ -1011,7 +1011,8 @@ router.get('/swing-scores-history', async (req, res) => {
               COUNT(*) FILTER (WHERE score >= 80) AS score_high,
               COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS score_medium,
               COUNT(*) FILTER (WHERE score < 60) AS score_low,
-              ROUND(AVG(score)::numeric, 2) AS avg_score
+              ROUND(AVG(score)::numeric, 2) AS avg_score,
+              (COUNT(*) FILTER (WHERE score >= 80) + COUNT(*) FILTER (WHERE score >= 60 AND score < 80)) AS pass_count
        FROM swing_trader_scores
        WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
        GROUP BY DATE(date)
@@ -1029,22 +1030,19 @@ router.get('/swing-scores-history', async (req, res) => {
         score_high: { type: 'int', required: false, defaultValue: 0 },
         score_medium: { type: 'int', required: false, defaultValue: 0 },
         score_low: { type: 'int', required: false, defaultValue: 0 },
-        avg_score: { type: 'float', required: false, defaultValue: 0 }
-      }).map(r => {
-        const scoreHigh = r.score_high || 0;
-        const scoreMedium = r.score_medium || 0;
-        return {
-          eval_date: r.eval_date,
-          date: r.eval_date,
-          total: r.total || 0,
-          grade_aplus: scoreHigh, // scores >= 80
-          grade_a: scoreMedium, // scores 60-79
-          pass_count: scoreHigh + scoreMedium, // A+ and A grades
-          low_scores: r.score_low || 0,
-          high_scores: scoreHigh,
-          medium_scores: scoreMedium,
-          avg_score: r.avg_score || 0,
-        };
+        avg_score: { type: 'float', required: false, defaultValue: 0 },
+        pass_count: { type: 'int', required: false, defaultValue: 0 }
+      }).map(r => ({
+        eval_date: r.eval_date,
+        date: r.eval_date,
+        total: r.total || 0,
+        grade_aplus: r.score_high || 0, // scores >= 80
+        grade_a: r.score_medium || 0, // scores 60-79
+        pass_count: r.pass_count || 0,
+        low_scores: r.score_low || 0,
+        high_scores: r.score_high || 0,
+        medium_scores: r.score_medium || 0,
+        avg_score: r.avg_score || 0,
       })
     });
   } catch (error) {
@@ -2266,7 +2264,7 @@ router.get('/data-quality', async (req, res) => {
         loader_name,
         table_name,
         latest_data_date,
-        EXTRACT(EPOCH FROM (NOW() - TO_TIMESTAMP(latest_data_date, 'YYYY-MM-DD'))) / 3600 as age_hours,
+        ROUND((EXTRACT(EPOCH FROM (NOW() - TO_TIMESTAMP(latest_data_date, 'YYYY-MM-DD'))) / 3600)::numeric, 1) as age_hours,
         max_age_hours,
         row_count_today,
         status,
@@ -2291,7 +2289,7 @@ router.get('/data-quality', async (req, res) => {
       loader: r.loader_name,
       table: r.table_name,
       latest_date: r.latest_data_date,
-      age_hours: Math.round((r.age_hours || 0) * 10) / 10,
+      age_hours: r.age_hours || 0,
       max_age_hours: r.max_age_hours,
       row_count: r.row_count_today,
       status: r.status,
@@ -2378,20 +2376,30 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const result = await pool.query(`
-      SELECT
-        id, trade_id, symbol, order_type, side, requested_shares, requested_price,
-        order_timestamp
-      FROM order_execution_log
-      WHERE order_status IN ('pending', 'submitted')
-      ORDER BY order_timestamp DESC
-      LIMIT 20
-    `);
+    const [ordersResult, totalsResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          id, trade_id, symbol, order_type, side, requested_shares, requested_price,
+          order_timestamp
+        FROM order_execution_log
+        WHERE order_status IN ('pending', 'submitted')
+        ORDER BY order_timestamp DESC
+        LIMIT 20
+      `),
+      pool.query(`
+        SELECT
+          COUNT(*) as order_count,
+          ROUND(SUM(CASE WHEN side = 'BUY' THEN requested_shares * requested_price ELSE 0 END), 2) as total_buy_value
+        FROM order_execution_log
+        WHERE order_status IN ('pending', 'submitted')
+      `)
+    ]);
 
-    // Validate result structure
-    validateQueryResult(result, { requireRows: false });
+    // Validate result structures
+    validateQueryResult(ordersResult, { requireRows: false });
+    validateQueryResult(totalsResult, { minRows: 1, maxRows: 1 });
 
-    const pending_orders = validateAndCoerceRows(result, {
+    const pending_orders = validateAndCoerceRows(ordersResult, {
       id: { type: 'int', required: true },
       trade_id: { type: 'int', required: false },
       symbol: { type: 'string', required: true },
@@ -2411,14 +2419,15 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
       order_timestamp: r.order_timestamp,
     }));
 
-    const total_pending_value = pending_orders
-      .filter(o => o.side === 'BUY')
-      .reduce((s, o) => s + (o.requested_shares * o.requested_price), 0);
+    const totals = validateAndCoerceRow(totalsResult.rows[0], {
+      order_count: { type: 'int', required: false, defaultValue: 0 },
+      total_buy_value: { type: 'float', required: false, defaultValue: 0 }
+    });
 
     return sendSuccess(res, {
       pending_orders,
-      total_pending_value: Math.round(total_pending_value * 100) / 100,
-      approval_required: pending_orders.length > 0
+      total_pending_value: totals.total_buy_value || 0,
+      approval_required: totals.order_count > 0
     });
   } catch (error) {
     logger.error('Error in /algo/orders/pending:', { error: error.message, stack: error.stack });
