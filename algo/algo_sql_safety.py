@@ -40,6 +40,7 @@ SAFE_TABLES = {
     'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades', 'analyst_sentiment_analysis',
     # Market sentiment
     'aaii_sentiment', 'naaim', 'fear_greed', 'fear_greed_index', 'seasonality',
+    'sentiment', 'sentiment_aggregate', 'sentiment_social',
     # Economic data
     'economic_data', 'economic_metrics_daily', 'earnings_history', 'earnings_calendar',
     'earnings_estimates', 'earnings_revisions',

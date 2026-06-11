@@ -26,11 +26,13 @@ import logging
 import argparse
 logger = logging.getLogger(__name__)
 import os
+import psycopg2.sql
 from utils.loader_helpers import get_active_symbols
 from datetime import date, timedelta
 from typing import List, Optional, Dict
 import json
 
+from algo.algo_sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
 from utils.loader_config import get_parallelism, get_default_parallelism
@@ -325,8 +327,11 @@ class SwingTraderScoresLoader(OptimalLoader):
         try:
             with DatabaseContext('read') as cur:
                 for table_name, required_col in source_tables:
+                    table_safe = assert_safe_table(table_name)
                     cur.execute(
-                        f"SELECT COUNT(*) FROM {table_name} WHERE symbol = %s AND date = %s",
+                        psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s AND date = %s").format(
+                            psycopg2.sql.Identifier(table_safe)
+                        ),
                         (symbol, end_date)
                     )
                     if cur.fetchone()[0] == 0:

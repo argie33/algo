@@ -13,12 +13,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 import os
+import psycopg2.sql
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from algo.algo_sql_safety import assert_safe_table
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
@@ -141,8 +143,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
         """
         try:
             with DatabaseContext('read') as cur:
+                table_safe = assert_safe_table(source_table)
                 cur.execute(
-                    f"SELECT MAX(date) FROM {source_table} WHERE symbol = %s",
+                    psycopg2.sql.SQL("SELECT MAX(date) FROM {} WHERE symbol = %s").format(
+                        psycopg2.sql.Identifier(table_safe)
+                    ),
                     (symbol,),
                 )
                 row = cur.fetchone()
