@@ -3062,16 +3062,19 @@ def panel_orch(run, cfg, risk=None):
         if has_data and var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
-            svar_v = get_numeric(risk, "svar") or 0
-            svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
-            cvar95_v = get_numeric(risk, "cvar95") or 0
-            conc5_v = get_numeric(risk, "conc5") or 0
+            svar_v = get_numeric(risk, "svar")
+            svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v is not None and svar_v > 0 else ""
+            cvar95_v = get_numeric(risk, "cvar95")
+            conc5_v = get_numeric(risk, "conc5")
+            cvar95_str = f"{cvar95_v:.2f}%" if cvar95_v is not None else "--"
+            conc5_str = f"{conc5_v:.0f}%" if conc5_v is not None else "--"
+            beta_str = f"{beta_v:.2f}" if beta_v is not None else "--"
             status_ind = R if is_stale else G
             status_txt = "stale" if is_stale else "current"
             var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/] [{status_ind}]({status_txt})[/]"
-                        f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
-                        f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
-                        f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
+                        f"  [dim]CVaR 95%:[/][white]{cvar95_str}[/]"
+                        f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_str}[/]"
+                        f"  [dim]Top-5 Conc:[/][white]{conc5_str}[/]"
                         + svar_s)
         elif not has_data:
             var_line = f"\n[dim]VaR:[/] [{Y}]calculation incomplete[/]"
