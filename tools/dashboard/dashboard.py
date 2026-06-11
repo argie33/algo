@@ -25,6 +25,9 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+# Add parent directory to path so we can import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
 
 logger = logging.getLogger(__name__)
@@ -1809,14 +1812,19 @@ def fetch_perf(c=None):
         if portfolio_snapshots < 5:
             stale_alerts.append(f"Insufficient data for Sharpe ({portfolio_snapshots} snapshots, need 63+)")
 
+        # H15/H16 FIX: Calculate adjusted win rate including open trades with unrealized risk
+        total_trades_incl_open = total_trades + total_open_trades
+        winning_trades_incl_open = winning_trades + open_winning_trades
+        wr_incl_open = (winning_trades_incl_open / total_trades_incl_open * 100) if total_trades_incl_open > 0 else 0
+
         _log_data_quality("fetch_perf", total_trades)
         data_freshness = perf.get("data_freshness", {})
         updated_at = data_freshness.get("last_updated_at") if isinstance(data_freshness, dict) else None
         return {
             "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
             "_open_w": open_winning_trades, "_open_l": open_losing_trades,
-            "wr": wr_pct, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
-            "_open_trades_count": total_open_trades, "pnl": round(pnl, 2), "streak": current_streak,
+            "wr": wr_pct, "wr_incl_open": round(wr_incl_open, 1), "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "_open_trades_count": total_open_trades, "_total_trades_incl_open": total_trades_incl_open, "pnl": round(pnl, 2), "streak": current_streak,
             "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
@@ -3548,7 +3556,10 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     avg_r   = get_numeric(perf, "avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
-    wr_v = get_numeric(perf, "wr")
+    # H15/H16 FIX: Use adjusted win rate that includes open trades with unrealized risk
+    wr_incl_open = get_numeric(perf, "wr_incl_open")
+    open_trades = get_numeric(perf, "_open_trades_count") or 0
+    wr_v = wr_incl_open if wr_incl_open is not None and open_trades > 0 else get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
     wr_c = G if wr_v is not None and wr_v >= perf_thr['win_rate_good'] else (R if wr_v is not None else DIM)
     # Issue 45 FIX: Show breakeven percentage in performance display
@@ -3959,6 +3970,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
 
     # ── Signal table (Rich Table for proper column alignment) ─────────────────
     buy_sigs = sig.get("buy_sigs")
+    sig_thr = load_signal_thresholds(cfg)
     if buy_sigs:
         t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
                   padding=(0, 1), expand=True, row_styles=["", "dim"])
@@ -3986,7 +3998,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
             swing_thresholds = get_swing_score_thresholds(cfg)
             swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
-            rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
+            rr_c   = G if rr is not None and rr >= sig_thr['reward_risk_good'] else (Y if rr is not None and rr >= sig_thr['reward_risk_caution'] else "white")
             vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else "white")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
             t.add_row(
@@ -5315,6 +5327,7 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
 
     rows.append(Rule(style="dim"))
     buy_sigs = sig.get("buy_sigs")
+    sig_thr = load_signal_thresholds(cfg)
     if buy_sigs:
         rows.append(Text.from_markup(
             "[dim]sym    stg  type           Q    R:R  vol%    entry    stop   RS  bk-qual   base[/]"
@@ -5332,7 +5345,7 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
             bqual  = (bs.get("breakout_quality") or "")[:9]
             btype  = (bs.get("base_type") or "")[:9]
             sq_c   = G if sq is not None and sq >= grade_thresholds.get('a', 80) else (Y if sq is not None and sq >= grade_thresholds.get('b', 60) else "white")
-            rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
+            rr_c   = G if rr is not None and rr >= sig_thr['reward_risk_good'] else (Y if rr is not None and rr >= sig_thr['reward_risk_caution'] else "white")
             vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else "white")
             rows.append(Text.from_markup(
                 f"[{sq_c}]{sym:<6}[/][dim]{('S'+str(stg) if stg else '  ')} {sig_t:<14}[/]"
