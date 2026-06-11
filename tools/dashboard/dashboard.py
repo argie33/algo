@@ -254,11 +254,14 @@ def load_signal_thresholds(cfg: Optional[dict] = None) -> dict:
             'signal_caution': safe_float(cfg.get('signal_caution_threshold', 40.0), 40.0),
             'volume_surge_good': safe_float(cfg.get('volume_surge_good_threshold', 50.0), 50.0),
             'volume_surge_caution': safe_float(cfg.get('volume_surge_caution_threshold', 20.0), 20.0),
+            'reward_risk_good': safe_float(cfg.get('reward_risk_good_threshold', 2.5), 2.5),
+            'reward_risk_caution': safe_float(cfg.get('reward_risk_caution_threshold', 1.5), 1.5),
         }
     return {
         'event_value_good': 20.0, 'event_value_caution': 5.0,
         'signal_alert': 60.0, 'signal_caution': 40.0,
         'volume_surge_good': 50.0, 'volume_surge_caution': 20.0,
+        'reward_risk_good': 2.5, 'reward_risk_caution': 1.5,
     }
 
 def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
