@@ -4064,6 +4064,13 @@ def panel_economic_pulse(eco, econ_cal=None):
                      border_style="bright_magenta", padding=(0, 1))
     rows: list = []
 
+    # Issue 38 FIX: Display economic data freshness status
+    data_status = eco.get('_data_status', 'unknown')
+    last_update = eco.get('_last_update')
+    status_color = G if data_status == 'current' else (Y if '1day_old' in data_status else R)
+    if last_update:
+        rows.append(Text.from_markup(f"[dim]Data as of:[/] [{status_color}]{last_update}[/]"))
+
     t10 = eco.get("t10"); t2 = eco.get("t2"); t3m = eco.get("t3m"); t6m = eco.get("t6m")
     yc10_2 = eco.get("yc_10_2"); yc10_3m = eco.get("yc_10_3m")
     hy  = eco.get("hy"); ig = eco.get("ig")
