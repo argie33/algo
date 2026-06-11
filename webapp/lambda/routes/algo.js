@@ -18,6 +18,7 @@ const paginationConfig = require('../config/pagination');
 const logger = require('../utils/logger');
 const { validateQueryResult, validateAndCoerceRow, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const { getActiveTiers, getActiveTier } = require('../utils/tiers');
+const { getSwingGrades, getGradeForScore } = require('../utils/grades');
 
 const router = express.Router();
 
@@ -946,6 +947,21 @@ router.get('/swing-scores', async (req, res) => {
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
+    // Fetch grade configuration from database
+    const grades = await getSwingGrades();
+
+    const parseComponentsJSON = (components) => {
+      if (!components) return {};
+      if (typeof components === 'object') return components;
+      if (typeof components !== 'string') return {};
+      try {
+        return JSON.parse(components);
+      } catch (e) {
+        logger.warn(`Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`, { error: e.message });
+        return {};
+      }
+    };
+
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         symbol: { type: 'string', required: true },
@@ -957,32 +973,16 @@ router.get('/swing-scores', async (req, res) => {
         industry: { type: 'string', required: false }
       }).map(r => {
         const score = r.score;
-        let grade = 'C';
-        if (score >= 80) grade = 'A';
-        else if (score >= 70) grade = 'B';
-        else if (score >= 60) grade = 'C';
-        else grade = 'D';
-
-        const parseComponentsJSON = (components) => {
-          if (!components) return {};
-          if (typeof components === 'object') return components;
-          if (typeof components !== 'string') return {};
-          try {
-            return JSON.parse(components);
-          } catch (e) {
-            logger.warn(`Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`, { error: e.message });
-            return {};
-          }
-        };
+        const gradeInfo = getGradeForScore(score, grades);
 
         return {
           symbol: r.symbol,
           date: r.date,
           swing_score: score,
           score: score, // alias for compatibility
-          grade: grade,
-          pass_gates: score >= 60,
-          fail_reason: score < 60 ? 'Score below threshold' : null,
+          grade: gradeInfo.letter,
+          pass_gates: gradeInfo.pass_gates,
+          fail_reason: gradeInfo.fail_reason,
           components: parseComponentsJSON(r.components),
           company_name: r.short_name,
           sector: r.sector,
