@@ -183,6 +183,28 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
     }
 
 
+def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load grade thresholds from config or hardcoded defaults.
+
+    Used for coloring signal quality scores (RED/YELLOW/GREEN based on A/B/C grades).
+    Allows runtime configuration without code changes.
+    """
+    if cfg:
+        return {
+            'a_plus': safe_float(cfg.get('grade_a_plus_threshold', 90.0), 90.0),
+            'a': safe_float(cfg.get('grade_a_threshold', 80.0), 80.0),
+            'b': safe_float(cfg.get('grade_b_threshold', 70.0), 70.0),
+            'c': safe_float(cfg.get('grade_c_threshold', 60.0), 60.0),
+        }
+    # Fallback hardcoded defaults (M1 FIX: these are now configurable)
+    return {
+        'a_plus': 90.0,
+        'a': 80.0,
+        'b': 70.0,
+        'c': 60.0,
+    }
+
+
 def load_performance_thresholds(cfg: Optional[dict] = None) -> dict:
     """Load performance metric thresholds for coloring (win rate, Sharpe, profit factor, etc.)."""
     if cfg:
@@ -3368,17 +3390,24 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
-    pv    = float(port.get("total_portfolio_value")) if port.get("total_portfolio_value") is not None else 0
-    dr    = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else 0
-    urp   = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else None  # CRITICAL ISSUE 9 FIX: Keep None to display "--" instead of hiding missing data
-    cash  = float(port.get("total_cash")) if port.get("total_cash") is not None else 0
-    npos  = int(port.get("position_count")) if port.get("position_count") is not None else 0
+    pv_val = port.get("total_portfolio_value")
+    pv = float(pv_val) if pv_val is not None else 0
+    dr_val = port.get("daily_return_pct")
+    dr = float(dr_val) if dr_val is not None else 0
+    urp_val = port.get("unrealized_pnl_pct")
+    urp = float(urp_val) if urp_val is not None else None  # CRITICAL ISSUE 9 FIX: Keep None to display "--" instead of hiding missing data
+    cash_val = port.get("total_cash")
+    cash = float(cash_val) if cash_val is not None else 0
+    npos_val = port.get("position_count")
+    npos = int(npos_val) if npos_val is not None else 0
     cum   = port.get("cumulative_return_pct")
     mxdd  = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap  = port.get("snapshot_date")
-    max_n = int(cfg.get("max_pos_n")) if cfg and cfg.get("max_pos_n") is not None else 0
-    pct_c = float(cfg.get("max_pos_pct")) if cfg and cfg.get("max_pos_pct") is not None else 0
+    max_n_val = cfg.get("max_pos_n") if cfg else None
+    max_n = int(max_n_val) if max_n_val is not None else 0
+    pct_c_val = cfg.get("max_pos_pct") if cfg else None
+    pct_c = float(pct_c_val) if pct_c_val is not None else 0
     bp    = pv * pct_c / 100 if (pv > 0 and pct_c > 0) else cash
     if max_n:
         _sb   = mini_bar(npos, max_n, w=5)
@@ -3444,8 +3473,9 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
-def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
+def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     """Performance metrics + equity sparkline + rolling analytics."""
+    perf_thr = load_performance_thresholds(cfg)
     if not perf or perf.get("_error") or perf.get("_reason"):
         err = perf.get("_error") if perf else None
         error_msg = err
@@ -3472,7 +3502,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     pnl_c   = G if pnl is not None and pnl >= 0 else (R if pnl is not None else DIM)
     pf      = get_numeric(perf, "profit_factor")
     pf_s    = f"{pf:.2f}" if pf is not None else "--"
-    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
+    pf_c = G if pf is not None and pf >= perf_thr['profit_factor_good'] else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
     exp     = get_numeric(perf, "expectancy")
     exp_s   = f"{fmt_money(exp)}" if exp is not None else "--"
     exp_c   = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
@@ -3481,7 +3511,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
     wr_v = get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
-    wr_c = G if wr_v is not None and wr_v >= 50 else (R if wr_v is not None else DIM)  # TODO: config
+    wr_c = G if wr_v is not None and wr_v >= perf_thr['win_rate_good'] else (R if wr_v is not None else DIM)
     # Issue 45 FIX: Show breakeven percentage in performance display
     be_pct = get_numeric(perf, "wr_breakeven_pct")
     be_s = f" [dim](+{be_pct:.0f}% breakeven)[/]" if be_pct is not None and be_pct > 0 else ""
@@ -3559,17 +3589,17 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         calmar    = perf_anl.get("calmar")
         wr50      = perf_anl.get("wr50")
         if sharpe252 is not None:
-            sc = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)  # TODO: config
+            sc = G if sharpe252 >= perf_thr['sharpe_good'] else (Y if sharpe252 >= 0 else R)
             anl_parts.append(f"[dim]Sharpe (1Y):[/][{sc}]{sharpe252:.2f}[/]")
         if sortino is not None:
             sc = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
             anl_parts.append(f"[dim]Sortino:[/][{sc}]{sortino:.2f}[/]")
         if calmar is not None:
-            sc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)  # TODO: config
+            sc = G if calmar >= perf_thr['calmar_good'] else (Y if calmar >= 0 else R)
             anl_parts.append(f"[dim]Calmar:[/][{sc}]{calmar:.2f}[/]")
         total_trades = perf.get("n", 0) if perf else 0
         if wr50 is not None and (total_trades >= 10 or wr50 > 0):
-            wrc = G if wr50 >= 55 else (Y if wr50 >= 45 else R)  # TODO: config
+            wrc = G if wr50 >= perf_thr['win_rate_excellent'] else (Y if wr50 >= perf_thr['win_rate_good'] else R)
             anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
         if anl_parts:
             rows.append(Text.from_markup("  ".join(anl_parts)))
@@ -3679,11 +3709,16 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         # ISSUE 19 FIX: Validate entry price is positive to avoid division by zero
         entry_val = p.get("avg_entry_price")
         entry = float(entry_val) if entry_val is not None and float(entry_val) > 0 else None
-        price = float(p.get("current_price"))   if p.get("current_price") is not None else None
-        pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
-        stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
-        t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
-        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None
+        price_val = p.get("current_price")
+        price = float(price_val) if price_val is not None else None
+        pval_val = p.get("position_value")
+        pval = float(pval_val) if pval_val is not None else None
+        stop_val = p.get("stop_loss_price")
+        stop = float(stop_val) if stop_val is not None else None
+        t1_val = p.get("target_1_price")
+        t1 = float(t1_val) if t1_val is not None else None
+        pnl_val = p.get("unrealized_pnl_pct")
+        pnl = float(pnl_val) if pnl_val is not None else None
         # Issue 22 FIX: For same-day entries, show hours/minutes instead of just "0" days
         days_raw = p.get("days_since_entry")
         if days_raw is not None and days_raw == 0:
@@ -3778,10 +3813,14 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     g     = sig.get("grades")
     if g is None:
         g = {}
-    ga = int(g.get("a", 0)) if g.get("a") is not None else 0
-    gb = int(g.get("b", 0)) if g.get("b") is not None else 0
-    gc = int(g.get("c", 0)) if g.get("c") is not None else 0
-    gd = int(g.get("d", 0)) if g.get("d") is not None else 0
+    ga_val = g.get("a")
+    ga = int(ga_val) if ga_val is not None else 0
+    gb_val = g.get("b")
+    gb = int(gb_val) if gb_val is not None else 0
+    gc_val = g.get("c")
+    gc = int(gc_val) if gc_val is not None else 0
+    gd_val = g.get("d")
+    gd = int(gd_val) if gd_val is not None else 0
     top_a = sig.get("top_a")
     near  = sig.get("near")
     # M1 FIX: Load grade thresholds from config for dynamic score color coding
@@ -4823,7 +4862,10 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             if xe: exits_exec   = max(exits_exec,   int(xe))
     elif run_valid or act_valid:
         src = run if run_valid else act
-        for p in (src.get("phases") or []):
+        phases = src.get("phases")
+        if phases is None:
+            phases = []
+        for p in phases:
             at = p.get("action_type", "")
             if not at.startswith("phase_"): continue
             parts_p = at.split("_")
@@ -5606,7 +5648,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos),        name="perf"),
+        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos, cfg=cfg),        name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
