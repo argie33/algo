@@ -1788,6 +1788,8 @@ def fetch_perf(c=None):
             stale_alerts.append(f"Insufficient data for Sharpe ({portfolio_snapshots} snapshots, need 63+)")
 
         _log_data_quality("fetch_perf", total_trades)
+        data_freshness = perf.get("data_freshness", {})
+        updated_at = data_freshness.get("last_updated_at") if isinstance(data_freshness, dict) else None
         return {
             "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
             "_open_w": open_winning_trades, "_open_l": open_losing_trades,
@@ -1797,7 +1799,7 @@ def fetch_perf(c=None):
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
             "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence, "stale_alerts": stale_alerts,
-            "_source": "api_algo_performance", "_updated_at": perf.get("data_freshness", {}).get("last_updated_at") if isinstance(perf.get("data_freshness"), dict) else None
+            "_source": "api_algo_performance", "_updated_at": updated_at
         }
     except (KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
@@ -2570,7 +2572,9 @@ def fetch_signal_eval(c):
                              AND filter_tier_5_pass = false
                            GROUP BY evaluation_reason
                            ORDER BY n DESC LIMIT 3""")
-        def _i(k): return int(stats.get(k)) if stats and stats.get(k) is not None else 0
+        def _i(k):
+            val = stats.get(k) if stats else None
+            return int(val) if val is not None else 0
         avg_score_val = safe_float(stats.get("avg_score"), 0) if stats else 0
         total_val = _i("total")
         result = {
@@ -3450,13 +3454,13 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
     cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
+    dd_c = R if dd_v is not None and dd_v >= risk_thr.get('drawdown_alert', 15) else (Y if dd_v is not None and dd_v >= risk_thr.get('drawdown_caution', 5) else (G if dd_v is not None else DIM))
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
     rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
 
     # Line 5: largest position concentration (when available)
     if lgpos is not None:
-        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")
+        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else \"white\")  # TODO: config
         rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
 
     # VaR metrics (compact one-liner)
