@@ -2227,7 +2227,7 @@ def fetch_activity(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_activity: {type(e).__name__}: {e}")
         _log_data_quality("fetch_activity", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load activity: {type(e).__name__}"}
 
 def fetch_health(c):
     try:
@@ -2610,7 +2610,7 @@ def fetch_perf_analytics(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf_analytics", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load performance analytics: {type(e).__name__}"}
 
 def fetch_signal_eval(c):
     try:
@@ -2627,8 +2627,8 @@ def fetch_signal_eval(c):
             WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
         if not stats or stats.get("total") is None:
             logger.warning("No signal evaluation data available")
-            _log_data_quality("fetch_signal_eval", 0)
-            return {}
+            _log_data_quality("fetch_signal_eval", 0, "No evaluation data")
+            return {"_error": "No signal evaluation data found"}
         rejected = q(c, """SELECT evaluation_reason, COUNT(*) n
                            FROM algo_signals_evaluated
                            WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
@@ -2651,7 +2651,7 @@ def fetch_signal_eval(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
         _log_data_quality("fetch_signal_eval", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load signal evaluation: {type(e).__name__}"}
 
 def fetch_sector_rotation(c):
     try:
@@ -2659,8 +2659,8 @@ def fetch_sector_rotation(c):
                        FROM sector_rotation_signal
                        ORDER BY date DESC LIMIT 1""")
         if not row:
-            _log_data_quality("fetch_sector_rotation", 0)
-            return {}
+            _log_data_quality("fetch_sector_rotation", 0, "No sector rotation data")
+            return {"_error": "No sector rotation data available"}
         d = row.get("details") or {}
         if isinstance(d, str):
             try:
@@ -2682,7 +2682,7 @@ def fetch_sector_rotation(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_rotation: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_rotation", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load sector rotation: {type(e).__name__}"}
 
 def fetch_industry_ranking(c):
     try:
