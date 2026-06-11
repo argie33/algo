@@ -1,8 +1,6 @@
--- ════════════════════════════════════════════════════════════════════════════
--- MIGRATION 036: Create Market Exposure Tiers Configuration Table
+-- Migration 036: Create Market Exposure Tiers Configuration Table
 -- Purpose: Consolidate duplicated hardcoded tier definitions from two API endpoints
 -- References: ARCHITECTURAL_AUDIT_CALCULATIONS.md violation #2
--- ════════════════════════════════════════════════════════════════════════════
 
 -- Market Exposure Tiers: Configuration for market tier assignment and risk rules
 -- This table consolidates duplicate definitions in:
@@ -118,11 +116,3 @@ SET active_tier_id = (
 )
 WHERE active_tier_id IS NULL AND exposure_pct IS NOT NULL;
 
--- Track this migration in data_loader_status
-INSERT INTO data_loader_status (
-    table_name, status, row_count, latest_date, age_days, checked_at
-) VALUES (
-    'market_exposure_tiers', 'MANUAL_CONFIG', 5, CURRENT_DATE, 0, CURRENT_TIMESTAMP
-) ON CONFLICT (table_name) DO UPDATE SET
-    row_count = (SELECT COUNT(*) FROM market_exposure_tiers WHERE is_active),
-    checked_at = CURRENT_TIMESTAMP;

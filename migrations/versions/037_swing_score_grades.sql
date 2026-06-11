@@ -1,8 +1,8 @@
--- ════════════════════════════════════════════════════════════════════════════
+-- 
 -- MIGRATION 037: Create Swing Score Grade Thresholds Configuration
 -- Purpose: Move hardcoded grade assignment logic from API to database
 -- References: ARCHITECTURAL_AUDIT_CALCULATIONS.md violation #6
--- ════════════════════════════════════════════════════════════════════════════
+-- 
 
 -- Swing Score Grade Configuration: Define grade thresholds and logic
 -- Consolidates hardcoded grade assignment from:
@@ -51,11 +51,3 @@ ADD COLUMN IF NOT EXISTS grade_id INT REFERENCES swing_score_grades(grade_id);
 CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_grade_id
 ON swing_trader_scores(grade_id);
 
--- Update data_loader_status to track this configuration table
-INSERT INTO data_loader_status (
-    table_name, status, row_count, latest_date, age_days, checked_at
-) VALUES (
-    'swing_score_grades', 'MANUAL_CONFIG', 4, CURRENT_DATE, 0, CURRENT_TIMESTAMP
-) ON CONFLICT (table_name) DO UPDATE SET
-    row_count = (SELECT COUNT(*) FROM swing_score_grades WHERE is_active),
-    checked_at = CURRENT_TIMESTAMP;
