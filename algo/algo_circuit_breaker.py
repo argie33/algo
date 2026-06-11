@@ -318,8 +318,6 @@ class CircuitBreaker:
                 FROM algo_positions
                 WHERE status = 'open'
                   AND quantity > 0
-                ORDER BY CASE WHEN status = 'closed' THEN exit_date ELSE entry_date END DESC
-                LIMIT 30
             ) all_trades
             """,
             (TradeStatus.CLOSED.value,)
