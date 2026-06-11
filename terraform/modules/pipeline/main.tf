@@ -924,7 +924,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock" },
-                { Name = "LOADER_PARALLELISM", Value = "8" }
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }
