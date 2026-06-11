@@ -1925,6 +1925,66 @@ def fetch_sector_ranking(c):
         _log_data_quality("fetch_sector_ranking", 0, str(e))
         return []
 
+def fetch_sector_position_warnings(c, cfg=None):
+    """Issue 35 FIX: Display warnings when sectors reach/exceed position cap."""
+    try:
+        if cfg is None:
+            cfg_row = q1(c, "SELECT config FROM algo_config LIMIT 1")
+            cfg = cfg_row.get("config", {}) if cfg_row else {}
+        max_positions_per_sector = int(cfg.get('max_positions_per_sector', 5))
+
+        result = q(c, """
+            SELECT cp.sector, COUNT(*) as position_count
+            FROM algo_trades at
+            LEFT JOIN company_profile cp ON cp.symbol = at.symbol
+            WHERE at.status='open'
+            GROUP BY cp.sector
+            ORDER BY position_count DESC
+        """)
+
+        if not result:
+            _log_data_quality("fetch_sector_position_warnings", 0)
+            return {"warnings": [], "at_cap": []}
+
+        warnings = []
+        at_cap = []
+
+        for row in result:
+            sector = row.get('sector') or 'Unknown'
+            count = int(row.get('position_count') or 0)
+            pct = (count / max_positions_per_sector * 100) if max_positions_per_sector > 0 else 0
+
+            if sector != 'Unknown' and count >= max_positions_per_sector:
+                at_cap.append(sector)
+                warnings.append({
+                    'sector': sector,
+                    'count': count,
+                    'max': max_positions_per_sector,
+                    'pct_of_max': round(pct, 0),
+                    'status': 'AT_CAP'
+                })
+            elif sector != 'Unknown' and count >= (max_positions_per_sector * 0.8):
+                warnings.append({
+                    'sector': sector,
+                    'count': count,
+                    'max': max_positions_per_sector,
+                    'pct_of_max': round(pct, 0),
+                    'status': 'NEAR_CAP'
+                })
+
+        if warnings:
+            logger.warning(f"VALIDATION: Sector position warnings: {len(warnings)} sectors near/at cap")
+            _log_data_quality("fetch_sector_position_warnings", len(warnings))
+        else:
+            _log_data_quality("fetch_sector_position_warnings", 0)
+
+        return {"warnings": warnings, "at_cap": at_cap}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_sector_position_warnings: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_sector_position_warnings", 0, str(e))
+        return {"warnings": [], "at_cap": []}
+
+
 def fetch_activity(c):
     try:
         latest = q1(c, """
@@ -2745,6 +2805,7 @@ FETCHERS = {
     "loader":       fetch_loader_status,
     "audit":        fetch_audit_log,
     "exec_hist":    fetch_exec_history,
+    "sec_warn":       fetch_sector_position_warnings,
 }
 
 def generate_test_data(conn, symbol_count: int = 10) -> dict:
