@@ -3800,9 +3800,17 @@ def panel_recent_trades(trades):
     return Panel(t, title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 0))
 
 
-def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
+def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
     rows = []
+
+    # Issue 35 FIX: Display sector position warnings
+    if sec_warn and sec_warn.get("warnings"):
+        for w in sec_warn.get("warnings", []):
+            status_color = R if w.get("status") == "AT_CAP" else Y
+            rows.append(Text.from_markup(
+                f"[{status_color}]⚠ {w.get('sector')}: {w.get('count')}/{w.get('max')} positions[/]"
+            ))
 
     def rdelta(r, wk="rank_1w_ago", wk4=None):
         cur, old = r.get("current_rank", 0), r.get(wk)
@@ -5076,7 +5084,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH — EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
 
 
-def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
+def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
     """Full-screen sectors — all sector and industry rankings, full portfolio breakdown."""
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
@@ -5092,6 +5100,17 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
                 s4 = f"[{G}]▲{d4}[/]" if d4 > 0 else (f"[{R}]▼{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]")
                 return f"{s1}[dim]/[/]{s4}"
         return s1
+
+    # Issue 35 FIX: Display sector position warnings in expanded view
+    if sec_warn and sec_warn.get("warnings"):
+        rows.append(Text.from_markup("[bold]Position Capacity Warnings[/]"))
+        for w in sec_warn.get("warnings", []):
+            status_color = R if w.get("status") == "AT_CAP" else Y
+            status_label = "AT CAP" if w.get("status") == "AT_CAP" else "NEAR CAP"
+            rows.append(Text.from_markup(
+                f"  [{status_color}]{status_label}[/] [white]{w.get('sector')}[/] [{status_color}]{w.get('count')}/{w.get('max')}[/] positions ([dim]{int(w.get('pct_of_max', 0))}%[/])"
+            ))
+        rows.append(Rule(style="dim"))
 
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
@@ -5200,6 +5219,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     loader       = data.get("loader")        or []
     audit        = data.get("audit")         or []
     exec_hist    = data.get("exec_hist")     or []
+    sec_warn     = data.get("sec_warn")      or {}
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
@@ -5250,7 +5270,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 3: Signals (wider) | Sectors
     outer["r3"].split_row(
         Layout(panel_signals_compact(sig, sig_eval, cfg), ratio=3, name="signals"),
-        Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
+        Layout(panel_sector_compact(srank, pos, port, sec_rot, irank, sec_warn), ratio=2, name="sectors"),
     )
 
     # Row 4: Positions | Recent Trades
@@ -5279,7 +5299,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
             run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist, risk=risk))
 
     if view_mode == "sectors":
-        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
+        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank, sec_warn))
 
     return outer
 
