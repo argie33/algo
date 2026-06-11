@@ -667,6 +667,97 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/algo/config/:key (admin only)
+ * Update a single configuration value
+ */
+router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const { key } = req.params;
+    const { value } = req.body;
+
+    if (!key || !key.match(/^[a-z0-9_]+$/i)) {
+      return sendError(res, 'Invalid configuration key', 400);
+    }
+
+    if (value === undefined || value === null) {
+      return sendError(res, 'Value is required', 400);
+    }
+
+    // Get the current config to know the value_type for proper conversion
+    const configResult = await pool.query(
+      'SELECT key, value, value_type, description FROM algo_config WHERE key = $1',
+      [key]
+    );
+
+    if (configResult.rows.length === 0) {
+      return sendError(res, `Configuration key not found: ${key}`, 404);
+    }
+
+    const config = configResult.rows[0];
+    let storedValue = String(value);
+
+    // Validate and convert value based on type
+    if (config.value_type === 'int') {
+      const intVal = parseInt(value, 10);
+      if (isNaN(intVal)) {
+        return sendError(res, `Invalid integer value for ${key}: ${value}`, 400);
+      }
+      storedValue = String(intVal);
+    } else if (config.value_type === 'float') {
+      const floatVal = parseFloat(value);
+      if (isNaN(floatVal)) {
+        return sendError(res, `Invalid float value for ${key}: ${value}`, 400);
+      }
+      storedValue = String(floatVal);
+    } else if (config.value_type === 'bool') {
+      const boolVal = ['true', '1', 'yes'].includes(String(value).toLowerCase());
+      storedValue = boolVal ? 'true' : 'false';
+    }
+
+    // Update the configuration
+    const updateResult = await pool.query(
+      `UPDATE algo_config
+       SET value = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE key = $2
+       RETURNING key, value, value_type, description, updated_at`,
+      [storedValue, key]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return sendError(res, 'Failed to update configuration', 500);
+    }
+
+    const updatedRow = updateResult.rows[0];
+
+    // Parse the updated value to match frontend expectations
+    let parsedValue = updatedRow.value;
+    if (updatedRow.value_type === 'int') {
+      parsedValue = parseInt(updatedRow.value, 10);
+    } else if (updatedRow.value_type === 'float') {
+      parsedValue = parseFloat(updatedRow.value);
+    } else if (updatedRow.value_type === 'bool') {
+      parsedValue = ['true', '1', 'yes'].includes(updatedRow.value.toLowerCase());
+    }
+
+    return sendSuccess(res, {
+      key: updatedRow.key,
+      value: parsedValue,
+      value_type: updatedRow.value_type,
+      description: updatedRow.description,
+      category: CONFIG_CATEGORIES[updatedRow.key] || 'Other',
+      updated_at: updatedRow.updated_at,
+      is_custom: true
+    });
+
+  } catch (error) {
+    logger.error('Error in PUT /algo/config/:key:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while updating configuration');
+  }
+});
+
 // ============================================================
 // MARKET EXPOSURE â€” for the Markets page
 // ============================================================
