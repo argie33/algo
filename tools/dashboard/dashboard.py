@@ -3413,7 +3413,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
     cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c   = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
+    dd_c = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
     rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
 
@@ -3472,7 +3472,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     pnl_c   = G if pnl is not None and pnl >= 0 else (R if pnl is not None else DIM)
     pf      = get_numeric(perf, "profit_factor")
     pf_s    = f"{pf:.2f}" if pf is not None else "--"
-    pf_c    = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
+    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
     exp     = get_numeric(perf, "expectancy")
     exp_s   = f"{fmt_money(exp)}" if exp is not None else "--"
     exp_c   = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
@@ -3481,7 +3481,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
     wr_v = get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
-    wr_c = G if wr_v is not None and wr_v >= 50 else (R if wr_v is not None else DIM)
+    wr_c = G if wr_v is not None and wr_v >= 50 else (R if wr_v is not None else DIM)  # TODO: config
     # Issue 45 FIX: Show breakeven percentage in performance display
     be_pct = get_numeric(perf, "wr_breakeven_pct")
     be_s = f" [dim](+{be_pct:.0f}% breakeven)[/]" if be_pct is not None and be_pct > 0 else ""
@@ -3559,17 +3559,17 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         calmar    = perf_anl.get("calmar")
         wr50      = perf_anl.get("wr50")
         if sharpe252 is not None:
-            sc = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
+            sc = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)  # TODO: config
             anl_parts.append(f"[dim]Sharpe (1Y):[/][{sc}]{sharpe252:.2f}[/]")
         if sortino is not None:
             sc = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
             anl_parts.append(f"[dim]Sortino:[/][{sc}]{sortino:.2f}[/]")
         if calmar is not None:
-            sc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
+            sc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)  # TODO: config
             anl_parts.append(f"[dim]Calmar:[/][{sc}]{calmar:.2f}[/]")
         total_trades = perf.get("n", 0) if perf else 0
         if wr50 is not None and (total_trades >= 10 or wr50 > 0):
-            wrc = G if wr50 >= 55 else (Y if wr50 >= 45 else R)
+            wrc = G if wr50 >= 55 else (Y if wr50 >= 45 else R)  # TODO: config
             anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
         if anl_parts:
             rows.append(Text.from_markup("  ".join(anl_parts)))
@@ -4480,7 +4480,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h  = n_ok / total_h * 100 if total_h else 0
-        wc_h  = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
+        wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)  # TODO: config
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
