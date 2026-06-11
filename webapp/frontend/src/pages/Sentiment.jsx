@@ -11,7 +11,7 @@ import {
   BarChart, Bar, FunnelChart, Funnel, LabelList,
 } from 'recharts';
 import { api } from '../services/api';
-import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
+import { num, pct, money } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT_STYLE = {
@@ -29,9 +29,6 @@ const fmtDate = (d) => {
     return String(d);
   }
 };
-const num = (v, dp = 2) => formatNumber(v, dp);
-const pct = (v, dp = 2) => formatPercentageChange(v, dp);
-const money = (v) => formatCurrency(v);
 
 const sentimentLabel = (score) => {
   if (score == null) return { label: 'Unknown', cls: '' };

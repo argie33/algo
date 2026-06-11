@@ -14,12 +14,8 @@ import {
 } from 'recharts';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
-import { formatNumber, formatPercentageChange } from '../utils/formatters';
+import { num, pct, fmtDate } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
-
-const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
-const num = (v, dp = 2) => formatNumber(v, dp);
-const pct = (v, dp = 1) => formatPercentageChange(v, dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
