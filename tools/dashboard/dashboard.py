@@ -178,6 +178,27 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
         'beta_warning': 1.2, 'beta_caution': 0.8,
     }
 
+def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load grade thresholds from config or hardcoded defaults.
+
+    Used for coloring signal quality scores (RED/YELLOW/GREEN based on A/B/C grades).
+    Allows runtime configuration without code changes.
+    """
+    if cfg:
+        return {
+            'a_plus': safe_float(cfg.get('grade_a_plus_threshold', 90.0), 90.0),
+            'a': safe_float(cfg.get('grade_a_threshold', 80.0), 80.0),
+            'b': safe_float(cfg.get('grade_b_threshold', 70.0), 70.0),
+            'c': safe_float(cfg.get('grade_c_threshold', 60.0), 60.0),
+        }
+    # Fallback hardcoded defaults (M1 FIX: these are now configurable)
+    return {
+        'a_plus': 90.0,
+        'a': 80.0,
+        'b': 70.0,
+        'c': 60.0,
+    }
+
 # Grade thresholds for signal scoring (separate from market tier thresholds)
 GRADE_A_PLUS = 90
 GRADE_A = 80
@@ -187,6 +208,24 @@ GRADE_C = 60
 # Health bar and visual indicator thresholds
 HBAR_CRITICAL = 1.0
 HBAR_WARNING = 0.75
+
+# Market tier exposure thresholds (percentage)
+TIER_THRESHOLD_CONFIRMED = 75.0
+TIER_THRESHOLD_HEALTHY = 50.0
+TIER_THRESHOLD_PRESSURE = 25.0
+TIER_THRESHOLD_CAUTION = 10.0
+
+# Economic indicator thresholds
+DXY_WARNING = 105.0  # USD Index warning threshold
+DXY_CRITICAL = 108.0  # USD Index critical threshold
+BE_WARNING = 2.5  # Inflation Breakeven warning (%)
+BE_CRITICAL = 3.0  # Inflation Breakeven critical (%)
+MORTGAGE_WARNING = 7.0  # 30Y Mortgage rate warning (%)
+MORTGAGE_CRITICAL = 8.0  # 30Y Mortgage rate critical (%)
+NFCI_NEGATIVE = -0.5  # Chicago Fed NFCI accommodative threshold
+NFCI_POSITIVE = 0.5  # Chicago Fed NFCI tight threshold
+UMCSENT_WARNING = 60  # University of Michigan Consumer Sentiment warning
+UMCSENT_GOOD = 70  # University of Michigan Consumer Sentiment good threshold
 
 MINIBAR_HIGH = 0.75
 MINIBAR_MED = 0.35
@@ -503,6 +542,35 @@ def q(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) ->
 def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> Optional[Dict]:
     rows = q(c, sql, p)
     return rows[0] if rows else None
+
+# ── API Client ─────────────────────────────────────────────────────────────────
+API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3000")
+API_TIMEOUT = 10
+
+def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+    """Call API endpoint. Returns dict with 'data' key on success, '_error' on failure."""
+    try:
+        url = f"{API_BASE_URL}{endpoint}"
+        headers = {"Content-Type": "application/json"}
+        if method == "GET":
+            resp = requests.get(url, params=params, headers=headers, timeout=API_TIMEOUT)
+        else:
+            resp = requests.post(url, json=params, headers=headers, timeout=API_TIMEOUT)
+
+        if resp.status_code >= 400:
+            logger.warning(f"API call to {endpoint} returned {resp.status_code}: {resp.text[:200]}")
+            return {"_error": f"API error {resp.status_code}"}
+
+        return resp.json()
+    except requests.exceptions.Timeout:
+        logger.warning(f"API call to {endpoint} timed out after {API_TIMEOUT}s")
+        return {"_error": "API timeout"}
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"API call to {endpoint} connection failed")
+        return {"_error": "API unavailable"}
+    except Exception as e:
+        logger.warning(f"API call to {endpoint} failed: {type(e).__name__}: {e}")
+        return {"_error": str(e)}
 
 def validate_schema() -> None:
     """CRITICAL ISSUE 2 FIX: Validate table schema (columns, types, and data presence).
@@ -2174,19 +2242,39 @@ def fetch_sector_ranking(c):
             _log_data_quality("fetch_sector_ranking", 0, "table has no data")
             return {"_error": "Sector ranking table has no data"}
 
-        result = q(c, """
+        raw_result = q(c, """
             SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
             FROM sector_ranking
             WHERE date=%s
             ORDER BY current_rank ASC""", (max_date.get("max_date"),))
 
-        if not result:
+        if not raw_result:
             logger.warning(f"VALIDATION: sector_ranking has max_date {max_date.get('max_date')} but no rows for that date")
             _log_data_quality("fetch_sector_ranking", 0, "no rows for max_date")
             return {"_error": "No sector ranking rows for latest date"}
 
+        # H7 FIX: Validate completeness of each sector entry and track filtered count
+        required_fields = ["sector_name", "current_rank", "momentum_score", "rank_1w_ago", "rank_4w_ago"]
+        result = []
+        filtered_out_count = 0
+        for row in raw_result:
+            if all(row.get(field) is not None for field in required_fields):
+                result.append(row)
+            else:
+                filtered_out_count += 1
+                incomplete_fields = [f for f in required_fields if row.get(f) is None]
+                logger.warning(f"VALIDATION: Filtered incomplete sector entry {row.get('sector_name', 'UNKNOWN')}: missing {incomplete_fields}")
+
+        if filtered_out_count > 0:
+            logger.warning(f"VALIDATION: fetch_sector_ranking filtered out {filtered_out_count}/{len(raw_result)} incomplete sector entries")
+
         _log_data_quality("fetch_sector_ranking", len(result))
-        return result
+        return {
+            "sectors": result,
+            "total_returned": len(result),
+            "filtered_out_count": filtered_out_count,
+            "total_fetched": len(raw_result)
+        }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_ranking", 0, str(e))
@@ -3261,17 +3349,19 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         parts = raw.split("_")
         base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
-        pdata = p.get("data") or {}
+        pdata = p.get("data")
         if isinstance(pdata, str):
             try:
                 pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
+        elif pdata is None:
+            pdata = {}
         detail = ""
         found_field = None
         for field in _FIELDS:
-            val = pdata.get(field)
+            val = pdata.get(field) if pdata else None
             if val and len(str(val)) > 3:
                 detail = str(val)
                 found_field = field
@@ -4818,18 +4908,20 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
             # Show error or key data for failed/halted phases
-            err = p.get("error") or ""
-            pdata = p.get("data") or {}
+            err = p.get("error")
+            pdata = p.get("data")
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except (json.JSONDecodeError, ValueError, TypeError): pdata = {}
+                except (json.JSONDecodeError, ValueError, TypeError): pdata = None
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]↳ {err[:62]}[/]"))
-            elif ps in ("halt", "halted") and pdata:
-                reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
+            elif ps in ("halt", "halted") and pdata is not None:
+                reason = ""
+                if isinstance(pdata, dict):
+                    reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
                 if reason:
                     rows.append(Text.from_markup(f"  [{Y}]↳ {reason}[/]"))
-            elif ps in ("success", "completed", "ok") and pdata:
+            elif ps in ("success", "completed", "ok") and pdata is not None:
                 # Surface a key metric per phase if available
                 for key in ("signals_generated", "entries_executed", "exits_executed",
                              "positions_checked", "orders_placed", "symbols_checked",
@@ -5783,33 +5875,33 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      last_load_time: Optional[float] = None,
                      refreshing: bool = False,
                      view_mode: str = "normal") -> Layout:
-    run      = data.get("run")         or {}
-    cfg      = data.get("cfg")         or {}
-    mkt      = data.get("mkt")         or {}
-    port     = data.get("port")        or {}
-    perf     = data.get("perf")        or {}
-    pos      = data.get("pos")         or []
-    sig      = data.get("sig")         or {}
-    hlth     = data.get("health")      or []
-    cb       = data.get("cb")          or {}
-    rec      = data.get("trades")      or []
-    srank    = data.get("srank")       or []
-    act      = data.get("activity")    or {}
-    exp_f    = data.get("exp_factors") or {}
-    eco      = data.get("eco")         or {}
-    notifs   = data.get("notifs")      or []
-    sentiment = data.get("sentiment")  or {}
-    econ_cal  = data.get("econ_cal")   or []
-    risk      = data.get("risk")       or {}
-    perf_anl  = data.get("perf_anl")   or {}
-    sig_eval  = data.get("sig_eval")   or {}
-    sec_rot      = data.get("sec_rot")       or {}
-    algo_metrics = data.get("algo_metrics")  or []
-    irank        = data.get("irank")         or []
-    loader       = data.get("loader")        or []
-    audit        = data.get("audit")         or []
-    exec_hist    = data.get("exec_hist")     or []
-    sec_warn     = data.get("sec_warn")      or {}
+    run      = data.get("run")
+    cfg      = data.get("cfg")
+    mkt      = data.get("mkt")
+    port     = data.get("port")
+    perf     = data.get("perf")
+    pos      = data.get("pos")
+    sig      = data.get("sig")
+    hlth     = data.get("health")
+    cb       = data.get("cb")
+    rec      = data.get("trades")
+    srank    = data.get("srank")
+    act      = data.get("activity")
+    exp_f    = data.get("exp_factors")
+    eco      = data.get("eco")
+    notifs   = data.get("notifs")
+    sentiment = data.get("sentiment")
+    econ_cal  = data.get("econ_cal")
+    risk      = data.get("risk")
+    perf_anl  = data.get("perf_anl")
+    sig_eval  = data.get("sig_eval")
+    sec_rot      = data.get("sec_rot")
+    algo_metrics = data.get("algo_metrics")
+    irank        = data.get("irank")
+    loader       = data.get("loader")
+    audit        = data.get("audit")
+    exec_hist    = data.get("exec_hist")
+    sec_warn     = data.get("sec_warn")
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
