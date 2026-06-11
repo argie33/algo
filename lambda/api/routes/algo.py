@@ -782,7 +782,13 @@ def _get_circuit_breakers(cur) -> Dict:
             missing_tables = []
             for table in required_tables:
                 try:
-                    cur.execute(f"SELECT 1 FROM {table} LIMIT 1")
+                    from algo.algo_sql_safety import assert_safe_table
+                    table_safe = assert_safe_table(table)
+                    cur.execute(
+                        psycopg2.sql.SQL("SELECT 1 FROM {} LIMIT 1").format(
+                            psycopg2.sql.Identifier(table_safe)
+                        )
+                    )
                 except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
                     missing_tables.append(table)
                 except Exception:
@@ -1573,18 +1579,24 @@ def _get_sector_breadth(cur) -> Dict:
                       AND pd.symbol NOT LIKE '^%%'
                     ORDER BY pd.symbol, pd.date DESC
                 ),
-                sector_breadth AS (
-                    SELECT
-                        cp.sector,
-                        COUNT(lt.symbol) FILTER (WHERE lp.close IS NOT NULL AND lt.sma_50 IS NOT NULL AND lp.close > lt.sma_50) * 100.0 /
-                            NULLIF(COUNT(lt.symbol) FILTER (WHERE lt.sma_50 IS NOT NULL AND lp.close IS NOT NULL), 0) AS pct_above_50d,
-                        COUNT(lt.symbol) FILTER (WHERE lp.close IS NOT NULL AND lt.sma_200 IS NOT NULL AND lp.close > lt.sma_200) * 100.0 /
-                            NULLIF(COUNT(lt.symbol) FILTER (WHERE lt.sma_200 IS NOT NULL AND lp.close IS NOT NULL), 0) AS pct_above_200d
+                distinct_symbols AS (
+                    SELECT DISTINCT ON (lt.symbol)
+                        lt.symbol, lp.close, lt.sma_50, lt.sma_200, cp.sector
                     FROM latest_tech lt
                     JOIN latest_price lp ON lt.symbol = lp.symbol
                     JOIN company_profile cp ON lt.symbol = cp.ticker
                     WHERE cp.sector IS NOT NULL
-                    GROUP BY cp.sector
+                    ORDER BY lt.symbol
+                ),
+                sector_breadth AS (
+                    SELECT
+                        sector,
+                        COUNT(symbol) FILTER (WHERE close IS NOT NULL AND sma_50 IS NOT NULL AND close > sma_50) * 100.0 /
+                            NULLIF(COUNT(symbol) FILTER (WHERE sma_50 IS NOT NULL AND close IS NOT NULL), 0) AS pct_above_50d,
+                        COUNT(symbol) FILTER (WHERE close IS NOT NULL AND sma_200 IS NOT NULL AND close > sma_200) * 100.0 /
+                            NULLIF(COUNT(symbol) FILTER (WHERE sma_200 IS NOT NULL AND close IS NOT NULL), 0) AS pct_above_200d
+                    FROM distinct_symbols
+                    GROUP BY sector
                 )
                 SELECT
                     sector,
