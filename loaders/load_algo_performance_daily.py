@@ -36,14 +36,18 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
     allow_multiple_updates_per_day = True
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Compute performance metrics from all closed trades and equity curve.
+        """Compute performance metrics from all closed + open trades and equity curve.
+
+        H15 FIX: Win rate now includes open trades (based on unrealized P&L)
+        H16 FIX: Win rate accounts for unrealized risk on open positions
 
         Metrics:
-        - rolling_sharpe_252d: (252-day annualized sharpe from daily returns)
+        - rolling_sharpe_252d: (252-day annualized sharpe from daily returns, includes unrealized gains/losses via snapshots)
         - rolling_sortino_252d: (downside risk only)
         - calmar_ratio: (cumulative return / max drawdown)
-        - win_rate_50t: (last 50 closed trades)
-        - avg_win_r_50t, avg_loss_r_50t: (average R-multiple)
+        - win_rate_all: (all closed trades + open trades by unrealized P&L status)
+        - win_rate_50t: (last 50 closed trades only, for consistency with historical records)
+        - avg_win_r_50t, avg_loss_r_50t: (average R-multiple from last 50)
         - expectancy: (expected value per trade)
         - max_drawdown_pct: (peak-to-trough from snapshots)
         """
@@ -52,7 +56,8 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             report_date = now_et.date()
 
             with DatabaseContext('read') as cur:
-                # 1. Fetch all closed trades for win rate / expectancy
+                # 1. Fetch all closed trades + open trades for comprehensive win rate (H15, H16 FIX)
+                # Open trades count as potential wins if unrealized P&L > 0, losses if < 0
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
@@ -62,7 +67,8 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                         AVG(exit_r_multiple) FILTER (WHERE profit_loss_dollars > 0) as avg_win_r,
                         AVG(exit_r_multiple) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_r
                     FROM algo_trades
-                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                    WHERE (status = 'closed' AND exit_date IS NOT NULL)
+                       OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
                 """)
                 trade_stats = cur.fetchone() or {}
 
@@ -108,6 +114,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         win_rate_all = round(wins / total_trades * 100, 2) if total_trades is not None and total_trades > 0 else None
 
         # Fetch dollar amounts for profit factor and average win/loss (CRITICAL ISSUE 2 FIX)
+        # H15/H16 FIX: Include open trades' unrealized P&L in profit factor calculation
         # ISSUE 36 FIX: Count breakeven trades explicitly to detect overstatement of profit factor
         avg_win_dollars = None
         avg_loss_dollars = None
@@ -122,7 +129,8 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                         SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses,
                         COUNT(*) FILTER (WHERE profit_loss_dollars = 0) as breakeven_count
                     FROM algo_trades
-                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                    WHERE (status = 'closed' AND exit_date IS NOT NULL)
+                       OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
                 """)
                 row = cur.fetchone() or {}
                 avg_win_dollars = float(row.get('avg_win_dollars')) if row.get('avg_win_dollars') is not None else None

@@ -6,8 +6,8 @@ Institutional traders measure performance in real-time against backtested metric
 This module validates live performance against backtest baselines and detects drift.
 
 Metrics computed:
-- Rolling Sharpe ratio (252-day annualized)
-- Win rate and average R-multiple (last 50 closed trades)
+- Rolling Sharpe ratio (252-day annualized from portfolio snapshots, includes unrealized gains/losses)
+- Win rate and average R-multiple (closed trades only for historical consistency; see load_algo_performance_daily.py for all-inclusive win rate with open trades)
 - Expectancy (E = (WR × Avg Win R) - (LR × Avg Loss R))
 - Maximum drawdown from peak portfolio value
 - Live vs. backtest comparison
@@ -32,6 +32,9 @@ class LivePerformance:
 
     def rolling_sharpe(self, lookback_days: int = 252) -> Optional[float]:
         """Compute rolling Sharpe ratio from daily portfolio returns.
+
+        H17 FIX: Includes unrealized gains/losses from open trades since
+        total_portfolio_value in snapshots reflects current market value of all positions.
 
         Args:
             lookback_days: Days to look back (default 252 = 1 year)
