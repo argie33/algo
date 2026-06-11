@@ -2169,6 +2169,47 @@ def fetch_signals(c):
         _log_data_quality("fetch_signals", 0, str(e))
         return {"_error": f"Failed to load signals: {type(e).__name__}", "stale_alerts": stale_alerts}
 
+def fetch_computed_signals(c):
+    """Compute technical signals (Minervini, Weinstein, VCP) for top BUY symbols."""
+    try:
+        sc = SignalComputer()
+        eval_date = date.today()
+        buy_sigs = q(c, """
+            SELECT DISTINCT b.symbol
+            FROM buy_sell_daily b
+            WHERE b.signal='BUY' AND b.timeframe IN ('1d', 'daily', 'Daily')
+              AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
+            ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
+            LIMIT 10""")
+        if not buy_sigs:
+            logger.debug("No BUY signals found for signal computation")
+            return {"symbols": [], "signals": {}, "eval_date": eval_date}
+        symbols = [s.get("symbol") for s in buy_sigs if s.get("symbol")]
+        computed = {}
+        for symbol in symbols:
+            try:
+                signals_dict = {
+                    "minervini": sc.minervini_trend_template(symbol, eval_date),
+                    "weinstein": sc.weinstein_stage(symbol, eval_date),
+                    "base": sc.base_detection(symbol, eval_date),
+                    "td_seq": sc.td_sequential(symbol, eval_date),
+                    "vcp": sc.vcp_detection(symbol, eval_date),
+                    "power_trend": sc.power_trend(symbol, eval_date),
+                    "mansfield_rs": sc.mansfield_rs(symbol, eval_date),
+                    "pivot": sc.pivot_breakout(symbol, eval_date),
+                    "distribution_days": sc.distribution_days(symbol, eval_date),
+                }
+                computed[symbol] = signals_dict
+            except Exception as e:
+                logger.warning(f"Failed to compute signals for {symbol}: {e}")
+                computed[symbol] = {"_error": str(e)}
+        _log_data_quality("fetch_computed_signals", len(computed))
+        return {"symbols": symbols, "signals": computed, "eval_date": eval_date, "count": len(computed)}
+    except Exception as e:
+        logger.error(f"fetch_computed_signals: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_computed_signals", 0, str(e))
+        return {"_error": f"Failed to compute signals: {type(e).__name__}"}
+
 def fetch_sector_ranking(c):
     try:
         # Issue 15 FIX: Validate that sector_ranking table has data
@@ -2983,6 +3024,7 @@ FETCHERS = {
     "pos":          fetch_positions,
     "trades":       fetch_recent_trades,
     "sig":          fetch_signals,
+    "comp_sig":     fetch_computed_signals,
     "health":       fetch_health,
     "cb":           fetch_circuit,
     "srank":        fetch_sector_ranking,
@@ -5618,6 +5660,54 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS — EXPANDED[/]  [dim][s] return[/]", border_style="magenta", padding=(0, 1))
 
 
+def panel_computed_signals(comp_sig=None):
+    """Display computed technical signals (Minervini, Weinstein, VCP) for top BUY symbols."""
+    if not comp_sig or comp_sig.get("_error"):
+        msg = comp_sig.get("_error") if comp_sig else "no data"
+        return Panel(Text(msg, style="dim"), title="[bold]SIGNAL ANALYSIS[/]", border_style="cyan", padding=(0, 1))
+
+    symbols = comp_sig.get("symbols", [])
+    signals = comp_sig.get("signals", {})
+    if not symbols or not signals:
+        return Panel(Text("no signals computed", style="dim"), title="[bold]SIGNAL ANALYSIS[/]", border_style="cyan", padding=(0, 1))
+
+    rows = []
+    for sym in symbols[:5]:  # Show top 5 symbols
+        sig_data = signals.get(sym, {})
+        if sig_data.get("_error"):
+            rows.append(Text.from_markup(f"[cyan]{sym}[/]  [red]error[/]"))
+            continue
+
+        # Extract key signal metrics
+        minervini = sig_data.get("minervini", {})
+        weinstein = sig_data.get("weinstein", {})
+        vcp = sig_data.get("vcp", {})
+        base = sig_data.get("base", {})
+
+        mt_score = minervini.get("score", "?")
+        mt_pass = minervini.get("pass", False)
+        mt_c = G if mt_pass else (Y if mt_score and mt_score >= 6 else R)
+
+        ws_stage = weinstein.get("stage", "?")
+        ws_c = G if ws_stage in (2, 3) else (Y if ws_stage == 1 else R)
+
+        vcp_is = vcp.get("is_vcp", False)
+        vcp_c = G if vcp_is else DIM
+
+        base_in = base.get("in_base", False)
+        base_c = G if base_in else (Y if base.get("breakout_imminent") else DIM)
+
+        rows.append(Text.from_markup(
+            f"[cyan]{sym}[/]  "
+            f"[{mt_c}]M{mt_score}[/]  "
+            f"[{ws_c}]W{ws_stage}[/]  "
+            f"[{vcp_c}]VCP[/] "
+            f"[{base_c}]Base[/]"
+        ))
+
+    return Panel(Group(*rows), title="[bold cyan]SIGNAL ANALYSIS[/]", border_style="cyan", padding=(0, 1))
+
+
 def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
     """Full-screen algo health — complete run history, all data tables, all notifications."""
     # Issue 2 FIX: Validate error dicts — return early if any critical param has _error
@@ -5900,6 +5990,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     perf     = data.get("perf")
     pos      = data.get("pos")
     sig      = data.get("sig")
+    comp_sig = data.get("comp_sig")
     hlth     = data.get("health")
     cb       = data.get("cb")
     rec      = data.get("trades")
@@ -5971,9 +6062,10 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
-    # Row 3: Signals (wider) | Sectors
+    # Row 3: Signals (wider) | Signal Analysis | Sectors
     outer["r3"].split_row(
         Layout(panel_signals_compact(sig, sig_eval, cfg), ratio=3, name="signals"),
+        Layout(panel_computed_signals(comp_sig), ratio=1, name="computed_signals"),
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank, sec_warn, cfg), ratio=2, name="sectors"),
     )
 
@@ -6283,7 +6375,7 @@ def print_legend():
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def _configure_database(use_local: bool | None = None):
-    """Configure database environment. Default is AWS (production). Use --local to override."""
+    """Configure database environment. Intent is AWS (production), graceful fallback to local if offline."""
     # If explicitly requested via --local flag, use local
     if use_local is True:
         os.environ['DB_HOST'] = 'localhost'
@@ -6293,13 +6385,33 @@ def _configure_database(use_local: bool | None = None):
         os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
         return 'local'
 
-    # Default: use AWS (production). --local is the only way to override.
-    # Note: If AWS is unreachable, you'll get a connection error. Use --local if offline.
-    os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    os.environ['DB_PORT'] = '5432'
-    os.environ['DB_NAME'] = 'stocks'
-    os.environ['DB_USER'] = 'stocks'
-    return 'aws'
+    # If explicitly requested to use AWS, use it
+    if use_local is False:
+        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        return 'aws'
+
+    # Auto-detect (default): try AWS first (production intent), gracefully fall back to local if unreachable
+    import socket
+    aws_host = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+    try:
+        socket.getaddrinfo(aws_host, 5432, socket.AF_INET, socket.SOCK_STREAM)
+        # AWS is reachable - use it (production intent)
+        os.environ['DB_HOST'] = aws_host
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        return 'aws'
+    except (socket.gaierror, OSError):
+        # AWS is unreachable - fall back to local for offline work
+        os.environ['DB_HOST'] = 'localhost'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
+        return 'local'
 
 def main():
     pa = argparse.ArgumentParser(
@@ -6328,7 +6440,10 @@ def main():
     db_mode = _configure_database(use_local)
 
     if use_local is None:
-        print(f"[INFO] Using default database: {db_mode} mode (use --local to override)", file=sys.stderr)
+        if db_mode == 'aws':
+            print(f"[INFO] Using AWS database (production intent)", file=sys.stderr)
+        else:
+            print(f"[INFO] AWS unreachable, falling back to local database", file=sys.stderr)
 
     validate_schema()
 
