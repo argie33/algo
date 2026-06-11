@@ -402,9 +402,10 @@ locals {
     "swing_trader_scores"  = "load_swing_trader_scores.py"
 
     # Market health & economic data
-    "market_health_daily" = "load_market_health_daily.py"
-    "fred_economic_data"  = "load_fred_economic_data.py"
-    "trend_template_data" = "load_trend_criteria_data.py"
+    "market_health_daily"   = "load_market_health_daily.py"
+    "fred_economic_data"    = "load_fred_economic_data.py"
+    "economic_metrics_daily" = "load_economic_metrics_daily.py"
+    "trend_template_data"   = "load_trend_criteria_data.py"
   }
 
   scheduled_loaders = {
