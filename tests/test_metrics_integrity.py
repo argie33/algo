@@ -118,16 +118,17 @@ class TestFreshnessConfig(unittest.TestCase):
 
     def test_is_table_fresh(self):
         """Test freshness checking function."""
+        from datetime import timedelta
+
         # Fresh data (today)
         today = date.today()
         is_fresh, age, msg = is_table_fresh("price_daily", today)
         self.assertTrue(is_fresh)
 
         # Stale data (30 days old) - should be stale for price_daily (1 day threshold)
-        old_date = date.today() - timezone.utc.localize(datetime.now()).replace(day=1).timedelta(days=30)
-        # Simpler: just verify function works with old dates
-        is_fresh, age, msg = is_table_fresh("price_daily", date(2020, 1, 1))
-        self.assertFalse(is_fresh)  # Data from 6 years ago should be stale
+        old_date = date.today() - timedelta(days=30)
+        is_fresh, age, msg = is_table_fresh("price_daily", old_date)
+        self.assertFalse(is_fresh)  # Data 30 days old should be stale
 
 
 class TestNoFallbackCalculations(unittest.TestCase):
