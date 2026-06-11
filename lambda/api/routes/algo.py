@@ -11,6 +11,7 @@ from .utils import (
     check_data_freshness, safe_json_serialize
 )
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
+from utils.safe_data_conversion import safe_float, safe_int
 
 logger = logging.getLogger(__name__)
 

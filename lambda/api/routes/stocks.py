@@ -38,7 +38,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 results = execute_with_timeout(cur, "SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1", timeout_sec=3, max_attempts=1)
                 if not results:
                     return list_response([])
-            except Exception:
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
+                return list_response([])
+            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
+                return list_response([])
+            except Exception as e:
+                logger.warning(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
                 return list_response([])
             try:
                 deep_value_query = """

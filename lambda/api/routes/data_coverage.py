@@ -14,7 +14,7 @@ For use in dashboard and automated monitoring.
 
 import json
 import logging
-import psycopg2.errors
+import psycopg2, psycopg2.errors, psycopg2.extras
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
 from .utils import error_response, execute_with_timeout, success_response, json_response
@@ -58,7 +58,12 @@ def get_price_coverage(cur) -> Dict[str, Any]:
                 'invalid_price_pct': round(invalid_pct, 2)
             }
         })
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"[PRICE_COVERAGE] Database error: {type(e).__name__}: {e}")
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
     except Exception as e:
+        logger.error(f"[PRICE_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_technical_coverage(cur) -> Dict[str, Any]:
@@ -98,7 +103,12 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
             'incomplete_rows': incomplete,
             'status': 'complete' if min_coverage >= 0.95 else 'incomplete'
         })
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"[TECHNICAL_COVERAGE] Database error: {type(e).__name__}: {e}")
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
     except Exception as e:
+        logger.error(f"[TECHNICAL_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:
@@ -138,7 +148,12 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
                 'status': 'available' if econ_count > 0 else 'missing'
             }
         })
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"[MARKET_DATA_COVERAGE] Database error: {type(e).__name__}: {e}")
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
     except Exception as e:
+        logger.error(f"[MARKET_DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_loader_health(cur) -> Dict[str, Any]:
@@ -194,9 +209,12 @@ def get_loader_health(cur) -> Dict[str, Any]:
                     days_old = (datetime.utcnow() - last_update).days if last_update else 999
                     status = 'stale' if days_old > 7 else 'fresh'
                     table_health.append((table, status, last_update, count))
-            except Exception:
-                # If table doesn't exist or query fails, skip it
-                pass
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                logger.debug(f"[LOADER_HEALTH] Table {table} not found - skipping")
+            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")
+            except Exception as e:
+                logger.warning(f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}")
 
         stale_loaders = [t[0] for t in table_health if t[1] == 'stale']
         return success_response({
@@ -217,27 +235,38 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
     """
     try:
         cur.execute("SAVEPOINT coverage_check")
-    except Exception:
-        pass
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.debug(f"[SAVEPOINT_CREATE] Database error: {type(e).__name__}: {e}")
+    except Exception as e:
+        logger.debug(f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}")
 
     try:
         result = fn(cur)
         # fn succeeded - release the savepoint
         try:
             cur.execute("RELEASE SAVEPOINT coverage_check")
-        except Exception:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.debug(f"[SAVEPOINT_RELEASE] Database error: {type(e).__name__}: {e}")
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
-            except Exception:
-                pass
+            except Exception as sp_err:
+                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+        except Exception as e:
+            logger.debug(f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}")
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
+            except Exception as sp_err:
+                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
         return result
     except Exception as e:
         # fn failed - rollback the savepoint and return error dict
         try:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
-        except Exception:
-            pass
-        logger.warning(f"Coverage check function failed: {e}")
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
+            logger.warning(f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}")
+        except Exception as rollback_err:
+            logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
+        logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
         return error_response(500, 'data_processing_error', str(e))
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
@@ -288,8 +317,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         # Return data wrapped in standard response format
         return json_response(200, summary)
     except psycopg2.errors.QueryCanceled as e:
-        logger.error(f'Data coverage query timeout: {e}')
+        logger.error(f'[DATA_COVERAGE] Query timeout: {type(e).__name__}: {e}')
         return error_response(504, 'timeout', 'Data coverage query exceeded timeout')
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"[DATA_COVERAGE] Database error: {type(e).__name__}: {e}", exc_info=True)
+        return error_response(500, 'data_coverage_error', 'Data coverage check failed')
     except Exception as e:
-        logger.error(f"Data coverage check error: {e}", exc_info=True)
+        logger.error(f"[DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}", exc_info=True)
         return error_response(500, 'data_coverage_error', 'Data coverage check failed')

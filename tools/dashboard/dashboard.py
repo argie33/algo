@@ -1345,6 +1345,7 @@ def fetch_algo_config(c):
         return {"_error": f"Failed to load algo config: {type(e).__name__}"}
 
 def fetch_market(c):
+    stale_alerts = []
     try:
         # Read market tier thresholds from config (HIGH-SEVERITY ISSUE FIX)
         tier_thresholds = None
@@ -2122,10 +2123,18 @@ def fetch_sector_ranking(c):
 def fetch_sector_position_warnings(c, cfg=None):
     """Issue 35 FIX: Display warnings when sectors reach/exceed position cap."""
     try:
-        if cfg is None:
-            cfg_row = q1(c, "SELECT config FROM algo_config LIMIT 1")
-            cfg = cfg_row.get("config", {}) if cfg_row else {}
-        max_positions_per_sector = int(cfg.get('max_positions_per_sector', 5))
+        max_positions_per_sector = 5
+        if cfg:
+            max_pos_val = cfg.get('max_positions_per_sector') or cfg.get('max_sec_n')
+            if max_pos_val:
+                max_positions_per_sector = int(max_pos_val)
+        else:
+            try:
+                cfg_row = q1(c, "SELECT value FROM algo_config WHERE key='max_positions_per_sector' LIMIT 1")
+                if cfg_row and cfg_row.get('value'):
+                    max_positions_per_sector = int(cfg_row.get('value'))
+            except (psycopg2.Error, ValueError, TypeError):
+                pass
 
         result = q(c, """
             SELECT cp.sector, COUNT(*) as position_count

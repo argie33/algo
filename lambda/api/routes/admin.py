@@ -35,8 +35,11 @@ def _audit_log_admin_action(cur, user_id: str, endpoint: str, status: str = 'suc
             INSERT INTO algo_audit_log (action_type, actor, status, details, action_date, created_at)
             VALUES (%s, %s, %s, %s, NOW(), NOW())
         """, ('admin_access', user_id, status, _json.dumps({'endpoint': endpoint, 'details': details})))
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.warning(f"[AUDIT_LOG] Database error: {type(e).__name__}: {e}")
     except Exception as e:
-        logger.warning(f"Failed to audit admin access: {e}")
+        logger.warning(f"[AUDIT_LOG] Unexpected error: {type(e).__name__}: {e}")
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
@@ -144,7 +147,12 @@ def _get_loader_status(cur) -> Dict:
 
             try:
                 freshness = check_data_freshness(cur, 'data_loader_status', 'last_updated', warning_days=1)
-            except Exception:
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.warning(f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}")
+                freshness = None
+            except Exception as e:
+                logger.warning(f"[LOADER_STATUS] Unexpected error in freshness check: {type(e).__name__}: {e}")
                 freshness = None
             return json_response(200, {
                 'status': 'ok',
@@ -190,8 +198,11 @@ def _get_system_health(cur) -> Dict:
                             break
                         expected -= timedelta(days=1)
                     is_fresh = last_price_date >= expected
+                except ImportError as e:
+                    logger.warning(f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check")
+                    is_fresh = age_days <= 3
                 except Exception as e:
-                    logger.warning(f"Exception: {e}")
+                    logger.warning(f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}")
                     is_fresh = age_days <= 3
                 health_data['components']['data_freshness'] = 'ok' if is_fresh else 'stale'
                 health_data['last_data_update'] = last_price_date.isoformat()
