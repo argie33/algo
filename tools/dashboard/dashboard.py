@@ -2132,6 +2132,12 @@ def fetch_economic_pulse(c):
         if cpi_error:
             logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
 
+        # Issue 38 FIX: Include data freshness status
+        max_date_row = q1(c, "SELECT MAX(date) as max_date FROM economic_data WHERE series_id = ANY(%s)", (KEY,))
+        last_update = max_date_row.get('max_date') if max_date_row else None
+        days_stale = (datetime.now(ET).date() - last_update).days if last_update else None
+        data_status = 'current' if days_stale == 0 else ('1day_old' if days_stale == 1 else f'{days_stale}days_old' if days_stale else 'unknown')
+
         result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
             'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
@@ -2145,6 +2151,8 @@ def fetch_economic_pulse(c):
             'dxy':       d.get('DTWEXBGS'),
             'mortgage':  d.get('MORTGAGE30US'),
             'umcsent':   d.get('UMCSENT'),
+            '_last_update': last_update,
+            '_data_status': data_status,
         }
         _log_data_quality("fetch_economic_pulse", len(d))
         return result
