@@ -3403,3 +3403,26 @@ UPDATE market_exposure_daily med SET active_tier_id = (
     WHERE is_active = TRUE AND med.exposure_pct >= min_exposure_pct AND med.exposure_pct <= max_exposure_pct
     LIMIT 1
 ) WHERE active_tier_id IS NULL AND exposure_pct IS NOT NULL;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PHASE 2: Pre-computed Stock Correlations (Architectural Fix)
+-- Moves correlation matrix calculation from API layer to database
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS stock_correlations (
+    symbol1 VARCHAR(20) NOT NULL,
+    symbol2 VARCHAR(20) NOT NULL,
+    correlation_1m NUMERIC(8, 4),          -- 1-month correlation
+    correlation_3m NUMERIC(8, 4),          -- 3-month correlation
+    correlation_6m NUMERIC(8, 4),          -- 6-month correlation
+    correlation_1y NUMERIC(8, 4),          -- 1-year correlation
+    days_overlapped INTEGER,                -- Number of overlapping trading days
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol1, symbol2),
+    CHECK (symbol1 < symbol2)              -- Enforce symmetric pairs (symbol1 < symbol2)
+);
+
+-- Indices for efficient lookups by symbol
+CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol1 ON stock_correlations(symbol1);
+CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol2 ON stock_correlations(symbol2);
+CREATE INDEX IF NOT EXISTS idx_stock_correlations_updated ON stock_correlations(updated_at);
