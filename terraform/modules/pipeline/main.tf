@@ -908,7 +908,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # CRITICAL LOADER (FAIL-CLOSED): Must complete before technicals and signals can be computed.
       # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
       # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
-      # parallelism=1 (serial execution to prevent rate limiting, with 7.5h buffer before 9:30 AM deadline)
+      # parallelism=2 (improved from 1 to speed up morning prep while RDS Proxy prevents rate limiting)
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -924,7 +924,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock" },
-                { Name = "LOADER_PARALLELISM", Value = "1" }
+                { Name = "LOADER_PARALLELISM", Value = "2" }
               ]
             }]
           }
