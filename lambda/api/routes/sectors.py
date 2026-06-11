@@ -212,35 +212,50 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 sectors = []
                 for row in sectors_data:
                     s = dict(row)
-                    composite = float(s.get('composite_score') or 0)
-                    perf1d = float(s.get('perf_1d') or 0) if s.get('perf_1d') is not None else None
-                    perf5d = float(s.get('perf_5d') or 0) if s.get('perf_5d') is not None else None
-                    perf20d = float(s.get('perf_20d') or 0)
-                    momentum_label = 'Strong' if composite >= 60 else 'Moderate' if composite >= 45 else 'Weak'
-                    trend_label = 'Uptrend' if perf20d > 2 else 'Downtrend' if perf20d < -2 else 'Sideways'
+                    composite_val = s.get('composite_score')
+                    composite = float(composite_val) if composite_val is not None else None
+                    perf1d_val = s.get('perf_1d')
+                    perf1d = float(perf1d_val) if perf1d_val is not None else None
+                    perf5d_val = s.get('perf_5d')
+                    perf5d = float(perf5d_val) if perf5d_val is not None else None
+                    perf20d_val = s.get('perf_20d')
+                    perf20d = float(perf20d_val) if perf20d_val is not None else None
+                    momentum_label = 'Strong' if composite is not None and composite >= 60 else 'Moderate' if composite is not None and composite >= 45 else 'Weak' if composite is not None else None
+                    trend_label = 'Uptrend' if perf20d is not None and perf20d > 2 else 'Downtrend' if perf20d is not None and perf20d < -2 else 'Sideways' if perf20d is not None else None
+
+                    rank_val = s.get('current_rank')
+                    stock_count_val = s.get('stock_count')
+                    momentum_score_val = s.get('momentum_score')
+                    value_score_val = s.get('value_score')
+                    quality_score_val = s.get('quality_score')
+                    growth_score_val = s.get('growth_score')
+                    stability_score_val = s.get('stability_score')
+                    trailing_pe_val = s.get('avg_trailing_pe')
+                    pb_ratio_val = s.get('avg_pb_ratio')
+                    pe_percentile_val = s.get('pe_percentile')
 
                     sectors.append({
                         'sector_name': s.get('sector_name'),
-                        'current_rank': int(s.get('current_rank') or 0),
+                        'current_rank': int(rank_val) if rank_val is not None else None,
                         'rank_1w_ago': int(s['rank_1w_ago']) if s.get('rank_1w_ago') is not None else None,
                         'rank_4w_ago': int(s['rank_4w_ago']) if s.get('rank_4w_ago') is not None else None,
                         'rank_12w_ago': int(s['rank_12w_ago']) if s.get('rank_12w_ago') is not None else None,
-                        'stock_count': int(s.get('stock_count') or 0),
-                        'composite_score': float(s.get('composite_score') or 0),
-                        'momentum_score': float(s.get('momentum_score') or 0),
-                        'value_score': float(s.get('value_score') or 0),
-                        'quality_score': float(s.get('quality_score') or 0),
-                        'growth_score': float(s.get('growth_score') or 0),
-                        'stability_score': float(s.get('stability_score') or 0),
+                        'stock_count': int(stock_count_val) if stock_count_val is not None else None,
+                        'composite_score': composite,
+                        'momentum_score': float(momentum_score_val) if momentum_score_val is not None else None,
+                        'value_score': float(value_score_val) if value_score_val is not None else None,
+                        'quality_score': float(quality_score_val) if quality_score_val is not None else None,
+                        'growth_score': float(growth_score_val) if growth_score_val is not None else None,
+                        'stability_score': float(stability_score_val) if stability_score_val is not None else None,
                         'current_momentum': momentum_label,
                         'current_trend': trend_label,
                         'performance_1d': perf1d,
                         'performance_5d': perf5d,
                         'performance_20d': perf20d,
                         'pe': {
-                            'trailing': float(s.get('avg_trailing_pe') or 0),
-                            'pb_ratio': float(s.get('avg_pb_ratio') or 0),
-                            'percentile': float(s.get('pe_percentile') or 0)
+                            'trailing': float(trailing_pe_val) if trailing_pe_val is not None else None,
+                            'pb_ratio': float(pb_ratio_val) if pb_ratio_val is not None else None,
+                            'percentile': float(pe_percentile_val) if pe_percentile_val is not None else None
                         }
                     })
 

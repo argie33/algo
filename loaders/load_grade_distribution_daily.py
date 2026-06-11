@@ -83,11 +83,11 @@ class GradeDistributionDailyLoader(OptimalLoader):
                 result = {
                     'report_date': report_date,
                     'score_date': latest_date,  # Date of swing_trader_scores used
-                    'num_grade_a': int(stats.get('num_grade_a') or 0),
-                    'num_grade_b': int(stats.get('num_grade_b') or 0),
-                    'num_grade_c': int(stats.get('num_grade_c') or 0),
-                    'num_grade_d': int(stats.get('num_grade_d') or 0),
-                    'total_graded': int(stats.get('total_graded') or 0),
+                    'num_grade_a': int(stats.get('num_grade_a')) if stats.get('num_grade_a') is not None else None,
+                    'num_grade_b': int(stats.get('num_grade_b')) if stats.get('num_grade_b') is not None else None,
+                    'num_grade_c': int(stats.get('num_grade_c')) if stats.get('num_grade_c') is not None else None,
+                    'num_grade_d': int(stats.get('num_grade_d')) if stats.get('num_grade_d') is not None else None,
+                    'total_graded': int(stats.get('total_graded')) if stats.get('total_graded') is not None else None,
                     'updated_at': datetime.now(ET),
                 }
 

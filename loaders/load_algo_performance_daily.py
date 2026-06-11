@@ -99,10 +99,13 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         """Calculate all performance metrics."""
 
         # Win rate from all trades
-        total_trades = int(trade_stats.get('total_trades') or 0)
-        wins = int(trade_stats.get('wins') or 0)
-        losses = int(trade_stats.get('losses') or 0)
-        win_rate_all = round(wins / total_trades * 100, 2) if total_trades > 0 else None
+        total_trades_val = trade_stats.get('total_trades')
+        wins_val = trade_stats.get('wins')
+        losses_val = trade_stats.get('losses')
+        total_trades = int(total_trades_val) if total_trades_val is not None else None
+        wins = int(wins_val) if wins_val is not None else None
+        losses = int(losses_val) if losses_val is not None else None
+        win_rate_all = round(wins / total_trades * 100, 2) if total_trades is not None and total_trades > 0 else None
 
         # Fetch dollar amounts for profit factor and average win/loss (CRITICAL ISSUE 2 FIX)
         # ISSUE 36 FIX: Count breakeven trades explicitly to detect overstatement of profit factor
@@ -130,7 +133,8 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                 # If breakeven_count > 5% of total, profit_factor can overstate actual profitability
                 total_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
                 total_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
-                breakeven_count = int(row.get('breakeven_count') or 0)
+                breakeven_val = row.get('breakeven_count')
+                breakeven_count = int(breakeven_val) if breakeven_val is not None else None
                 if total_losses > 1e-6:  # Avoid division by zero
                     profit_factor = round(total_wins / total_losses, 3)
                     if total_trades > 0 and breakeven_count > total_trades * 0.05:

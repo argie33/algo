@@ -127,10 +127,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     return json_response(200, {'metrics': None, 'priceTargets': [], 'momentum': None, 'coverage': None, 'recentUpgrades': []})
                 # Use latest row for metrics summary
                 latest = dict(rows[0])
-                total = int(latest.get('analyst_count') or 0)
-                bull = int(latest.get('bullish_count') or 0)
-                bear = int(latest.get('bearish_count') or 0)
-                neut = int(latest.get('neutral_count') or 0)
+                total_val = latest.get('analyst_count')
+                bull_val = latest.get('bullish_count')
+                bear_val = latest.get('bearish_count')
+                neut_val = latest.get('neutral_count')
+                total = int(total_val) if total_val is not None else None
+                bull = int(bull_val) if bull_val is not None else None
+                bear = int(bear_val) if bear_val is not None else None
+                neut = int(neut_val) if neut_val is not None else None
                 bp = round(bull / total * 100, 1) if total > 0 else None
                 bep = round(bear / total * 100, 1) if total > 0 else None
                 np_ = round(neut / total * 100, 1) if total > 0 else None

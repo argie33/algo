@@ -174,7 +174,7 @@ def _industry_list(cur, params):
             'rank_1w_ago':        int(ind.get('rank_1w_ago')) if ind.get('rank_1w_ago') is not None else None,
             'rank_4w_ago':        int(ind.get('rank_4w_ago')) if ind.get('rank_4w_ago') is not None else None,
             'rank_12w_ago':       int(ind.get('rank_12w_ago')) if ind.get('rank_12w_ago') is not None else None,
-            'stock_count':        int(ind.get('stock_count') or 0),
+            'stock_count':        int(ind.get('stock_count')) if ind.get('stock_count') is not None else None,
             'composite_score':    composite,
             'momentum_score':     _sf(ind.get('momentum_score')),
             'value_score':        _sf(ind.get('value_score')),
@@ -226,7 +226,7 @@ def _industry_detail(cur, industry_name):
     r = dict(row)
     return json_response(200, {
         'industry_name':   r.get('industry_name'),
-        'stock_count':     int(r.get('stock_count') or 0),
+        'stock_count':     int(r.get('stock_count')) if r.get('stock_count') is not None else None,
         'composite_score': _sf(r.get('composite_score')),
         'momentum_score':  _sf(r.get('momentum_score')),
         'value_score':     _sf(r.get('value_score')),
