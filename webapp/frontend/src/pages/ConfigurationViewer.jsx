@@ -239,21 +239,72 @@ function ConfigItem({ item, onUpdate }) {
   const [editValue, setEditValue] = useState(String(currentVal || ''));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const valueHasChanged = editValue.trim() !== String(currentVal || '').trim();
+  const valueEqualsDefault = String(currentVal || '').trim() === String(defaultVal || '').trim();
+
+  const getInputType = () => {
+    const type = item.value_type?.toLowerCase() || 'string';
+    if (type === 'float' || type === 'number' || type === 'int') return 'number';
+    if (type === 'boolean') return 'checkbox';
+    return 'text';
+  };
+
+  const validateInput = () => {
+    const trimmed = editValue.trim();
+
+    if (trimmed === '') {
+      return { valid: false, message: 'Value cannot be empty' };
+    }
+
+    const type = item.value_type?.toLowerCase() || 'string';
+
+    if (type === 'float' || type === 'number' || type === 'int') {
+      const num = parseFloat(trimmed);
+      if (isNaN(num)) {
+        return { valid: false, message: `Value must be a valid number` };
+      }
+      if (type === 'int' && !Number.isInteger(num)) {
+        return { valid: false, message: `Value must be an integer` };
+      }
+    }
+
+    if (type === 'boolean') {
+      if (!['true', 'false', '0', '1', 'yes', 'no'].includes(trimmed.toLowerCase())) {
+        return { valid: false, message: `Value must be true or false` };
+      }
+    }
+
+    return { valid: true };
+  };
 
   const handleSave = async () => {
-    if (editValue === String(currentVal)) {
+    const trimmed = editValue.trim();
+
+    if (trimmed === String(currentVal || '').trim()) {
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
       setIsEditing(false);
+      return;
+    }
+
+    const validation = validateInput();
+    if (!validation.valid) {
+      setError(validation.message);
       return;
     }
 
     setSaving(true);
     setError(null);
     try {
-      const res = await updateAlgoConfigKey(item.key, editValue);
+      const res = await updateAlgoConfigKey(item.key, trimmed);
       if (res?.status === 'success' || res?.statusCode === 200) {
         setIsEditing(false);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
         if (onUpdate) {
-          onUpdate(item.key, editValue);
+          onUpdate(item.key, trimmed);
         }
       } else {
         setError(res?.message || 'Failed to update config');
@@ -275,6 +326,8 @@ function ConfigItem({ item, onUpdate }) {
     try {
       const res = await resetAlgoConfigKey(item.key);
       if (res?.status === 'success' || res?.statusCode === 200) {
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
         if (onUpdate) {
           onUpdate(item.key, defaultVal);
         }
@@ -432,6 +485,25 @@ function ConfigItem({ item, onUpdate }) {
         </div>
       )}
 
+      {/* Success Message */}
+      {success && (
+        <div style={{
+          fontSize: '12px',
+          color: 'var(--success)',
+          background: 'var(--success-soft)',
+          padding: '8px',
+          borderRadius: '3px',
+          marginBottom: '12px',
+          marginTop: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}>
+          <CheckCircle size={14} />
+          Config updated successfully
+        </div>
+      )}
+
       {/* Error Message (if editing) */}
       {error && (
         <div style={{
@@ -442,7 +514,11 @@ function ConfigItem({ item, onUpdate }) {
           borderRadius: '3px',
           marginBottom: '12px',
           marginTop: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
         }}>
+          <AlertCircle size={14} />
           {error}
         </div>
       )}
@@ -455,35 +531,45 @@ function ConfigItem({ item, onUpdate }) {
         marginTop: '12px',
       }}>
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {isEditing ? 'New Value' : 'Current Value'}
           </div>
           {isEditing ? (
-            <input
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              disabled={saving}
-              style={{
-                width: '100%',
-                padding: '6px 8px',
-                fontSize: '13px',
-                fontFamily: 'monospace',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--brand)',
-                borderRadius: '3px',
-                color: 'var(--text)',
-              }}
-            />
+            <div>
+              <input
+                type={getInputType()}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                disabled={saving}
+                placeholder="Enter new value..."
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: '13px',
+                  fontFamily: 'monospace',
+                  background: 'var(--surface-2)',
+                  border: error ? '1px solid var(--danger)' : '1px solid var(--brand)',
+                  borderRadius: '3px',
+                  color: 'var(--text)',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {valueHasChanged && (
+                <div style={{ fontSize: '11px', color: 'var(--brand)', marginTop: '4px', fontWeight: '500' }}>
+                  ✓ Changes pending
+                </div>
+              )}
+            </div>
           ) : (
             <div style={{
               fontSize: '13px',
               fontFamily: 'monospace',
               padding: '6px 8px',
-              background: 'var(--surface-2)',
+              background: isCustom && !valueEqualsDefault ? 'var(--amber-soft)' : 'var(--surface-2)',
               borderRadius: '3px',
-              color: 'var(--text)',
+              color: isCustom && !valueEqualsDefault ? 'var(--amber)' : 'var(--text)',
               wordBreak: 'break-all',
+              border: isCustom && !valueEqualsDefault ? '1px solid var(--amber)' : 'none',
             }}>
               {currentVal !== null && currentVal !== undefined ? String(currentVal) : '(null)'}
             </div>
@@ -497,72 +583,84 @@ function ConfigItem({ item, onUpdate }) {
 
         {defaultVal !== undefined && defaultVal !== null && (
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Default Value
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Default Value {!valueEqualsDefault && <span style={{ color: 'var(--amber)' }}>• Different</span>}
             </div>
             <div style={{
               fontSize: '13px',
               fontFamily: 'monospace',
               padding: '6px 8px',
-              background: 'var(--surface-2)',
+              background: !valueEqualsDefault ? 'var(--surface-3)' : 'var(--surface-2)',
               borderRadius: '3px',
-              color: isCustom ? 'var(--amber)' : 'var(--text-muted)',
+              color: !valueEqualsDefault ? 'var(--amber)' : 'var(--text-muted)',
               wordBreak: 'break-all',
+              border: !valueEqualsDefault ? '1px solid var(--border)' : 'none',
+              fontWeight: !valueEqualsDefault ? '500' : 'normal',
             }}>
               {String(defaultVal)}
             </div>
+            {!valueEqualsDefault && (
+              <div style={{ fontSize: '11px', color: 'var(--amber)', marginTop: '4px', fontWeight: '500' }}>
+                💡 Current differs from default
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Edit Actions */}
       {isEditing && (
-        <div style={{
-          display: 'flex',
-          gap: '8px',
-          marginTop: '12px',
-        }}>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: '6px 12px',
-              background: 'var(--brand)',
-              color: 'var(--text-on-brand)',
-              border: 'none',
-              borderRadius: '3px',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            <Save size={12} />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            style={{
-              padding: '6px 12px',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border)',
-              borderRadius: '3px',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: '12px',
-              opacity: saving ? 0.6 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <X size={12} />
-            Cancel
-          </button>
+        <div>
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            marginTop: '12px',
+          }}>
+            <button
+              onClick={handleSave}
+              disabled={saving || !valueHasChanged}
+              title={!valueHasChanged ? 'No changes to save' : 'Save changes'}
+              style={{
+                padding: '6px 12px',
+                background: !valueHasChanged ? 'var(--border)' : 'var(--brand)',
+                color: 'var(--text-on-brand)',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: (!valueHasChanged || saving) ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: (saving || !valueHasChanged) ? 0.6 : 1,
+                transition: 'all 0.2s',
+              }}
+            >
+              <Save size={12} />
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              style={{
+                padding: '6px 12px',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                opacity: saving ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+              }}
+            >
+              <X size={12} />
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
