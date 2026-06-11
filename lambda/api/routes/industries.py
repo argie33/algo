@@ -265,9 +265,9 @@ def _industry_trend(cur, industry_name, params):
     trend_data = [
         {
             'date':               str(r['date']),
-            'avgPrice':           float(r['avg_price'] or 0),
-            'stockCount':         int(r['stock_count'] or 0),
-            'dailyStrengthScore': float(r['daily_strength_score'] or 0),
+            'avgPrice':           float(r['avg_price']) if r['avg_price'] is not None else None,
+            'stockCount':         int(r['stock_count']) if r['stock_count'] is not None else None,
+            'dailyStrengthScore': float(r['daily_strength_score']) if r['daily_strength_score'] is not None else None,
         }
         for r in rows
     ]

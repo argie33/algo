@@ -337,13 +337,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 'summary': {
                     'best_month': {
                         'name': best_month.get('month_name') if best_month else None,
-                        'avg_return_pct': float(best_month.get('avg_return', 0) or 0) if best_month else None,
-                        'win_rate_pct': round((float(best_month.get('winning_years', 0) or 0) / float(best_month.get('years_counted', 1) or 1) * 100), 1) if best_month else None
+                        'avg_return_pct': float(best_month.get('avg_return')) if best_month and best_month.get('avg_return') is not None else None,
+                        'win_rate_pct': round((float(best_month.get('winning_years')) / float(best_month.get('years_counted')) * 100), 1) if best_month and best_month.get('winning_years') is not None and best_month.get('years_counted') is not None else None
                     } if best_month else None,
                     'worst_month': {
                         'name': worst_month.get('month_name') if worst_month else None,
-                        'avg_return_pct': float(worst_month.get('avg_return', 0) or 0) if worst_month else None,
-                        'win_rate_pct': round((float(worst_month.get('winning_years', 0) or 0) / float(worst_month.get('years_counted', 1) or 1) * 100), 1) if worst_month else None
+                        'avg_return_pct': float(worst_month.get('avg_return')) if worst_month and worst_month.get('avg_return') is not None else None,
+                        'win_rate_pct': round((float(worst_month.get('winning_years')) / float(worst_month.get('years_counted')) * 100), 1) if worst_month and worst_month.get('winning_years') is not None and worst_month.get('years_counted') is not None else None
                     } if worst_month else None,
                     'best_day': {
                         'name': best_dow.get('day') if best_dow else None,

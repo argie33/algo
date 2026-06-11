@@ -4380,6 +4380,13 @@ def panel_economic_pulse(eco, econ_cal=None):
 
 def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None, exec_hist=None, cfg=None):
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
+    # Issue 2 FIX: Validate error dicts — return early if any critical param has _error
+    if isinstance(act, dict) and act.get("_error"):
+        return error_panel("ALGO ACTIVITY", act.get("_error"))
+    if isinstance(hlth, dict) and hlth.get("_error"):
+        return error_panel("DATA HEALTH", hlth.get("_error"))
+    if isinstance(notifs, dict) and notifs.get("_error"):
+        return error_panel("NOTIFICATIONS", notifs.get("_error"))
     rows: list = []
 
     # ── Run status + schedule + mode + trading config ────────────────────────────
@@ -4685,6 +4692,11 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
     """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
+    # Issue 2 FIX: Validate error dicts — return early if any critical param has _error
+    if isinstance(hlth, dict) and hlth.get("_error"):
+        return error_panel("DATA HEALTH", hlth.get("_error"))
+    if isinstance(notifs, dict) and notifs.get("_error"):
+        return error_panel("NOTIFICATIONS", notifs.get("_error"))
     rows: list = []
 
     # ── A: Run outcome ────────────────────────────────────────────────────────
@@ -5167,6 +5179,11 @@ def panel_signals_expanded(sig, sig_eval=None):
 
 def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
     """Full-screen algo health — complete run history, all data tables, all notifications."""
+    # Issue 2 FIX: Validate error dicts — return early if any critical param has _error
+    if isinstance(hlth, dict) and hlth.get("_error"):
+        return error_panel("DATA HEALTH", hlth.get("_error"))
+    if isinstance(notifs, dict) and notifs.get("_error"):
+        return error_panel("NOTIFICATIONS", notifs.get("_error"))
     rows: list = [Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
     run_valid = run and not run.get("_error")
