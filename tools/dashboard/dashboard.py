@@ -140,49 +140,53 @@ def load_grade_thresholds(cfg: Optional[dict] = None) -> dict:
     """Load grade thresholds from config, used for dashboard signal grades.
 
     Separate from swing_grade_threshold_* (used in algo_swing_score.py).
-    Dashboard uses slightly different thresholds for historical reasons.
+    ARCHITECTURE FIX (Issue #2, C3-3): All thresholds required in config; no hardcoded defaults.
     """
-    if cfg:
-        return {
-            'a': int(cfg.get('dashboard_grade_threshold_a', 80)),
-            'b': int(cfg.get('dashboard_grade_threshold_b', 60)),
-            'c': int(cfg.get('dashboard_grade_threshold_c', 40)),
-        }
-    # Fallback hardcoded defaults
-    return {'a': 80, 'b': 60, 'c': 40}
+    if not cfg:
+        logger.error("ARCHITECTURE (C3-3): load_grade_thresholds requires config; failing instead of hardcoded 80/60/40")
+        return {}
+    required = ['dashboard_grade_threshold_a', 'dashboard_grade_threshold_b', 'dashboard_grade_threshold_c']
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        logger.error(f"ARCHITECTURE (C3-3): Missing grade thresholds in config: {missing}")
+        return {}
+    return {
+        'a': int(cfg['dashboard_grade_threshold_a']),
+        'b': int(cfg['dashboard_grade_threshold_b']),
+        'c': int(cfg['dashboard_grade_threshold_c']),
+    }
 
 def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load market indicator thresholds from config (M2 FIX - no longer hardcoded).
+    """Load market indicator thresholds from config.
 
     Provides thresholds for: VIX, Put/Call, up-volume, breadth, etc.
     Used for coloring market health indicators (RED/YELLOW/GREEN).
+    ARCHITECTURE FIX (Issue #3-9, C3-4): All thresholds required in config; no hardcoded defaults.
     """
-    if cfg:
-        return {
-            'vix_alert': safe_float(cfg.get('vix_alert_threshold', 30.0), 30.0),
-            'vix_caution': safe_float(cfg.get('vix_caution_threshold', 25.0), 25.0),
-            'put_call_bullish': safe_float(cfg.get('put_call_bullish_threshold', 0.8), 0.8),
-            'put_call_fearful': safe_float(cfg.get('put_call_fearful_threshold', 1.0), 1.0),
-            'upvol_good': safe_float(cfg.get('upvol_good_threshold', 60.0), 60.0),
-            'upvol_caution': safe_float(cfg.get('upvol_caution_threshold', 50.0), 50.0),
-            'breadth_good': int(cfg.get('breadth_good_threshold', 50)),
-            'breadth_caution': int(cfg.get('breadth_caution_threshold', 0)),
-            'yield_curve_good': safe_float(cfg.get('yield_curve_good_threshold', 0.5), 0.5),
-            'breadth_momentum_good': safe_float(cfg.get('breadth_momentum_good_threshold', 0.5), 0.5),
-            'beta_warning': safe_float(cfg.get('beta_warning_threshold', 1.2), 1.2),
-            'beta_caution': safe_float(cfg.get('beta_caution_threshold', 0.8), 0.8),
-        }
-    # Fallback hardcoded defaults (M2 issue: these were previously hardcoded everywhere)
+    if not cfg:
+        logger.error("ARCHITECTURE (C3-4): load_market_thresholds requires config; failing instead of hardcoded defaults")
+        return {}
+    required = ['vix_alert_threshold', 'vix_caution_threshold', 'put_call_bullish_threshold',
+                'put_call_fearful_threshold', 'upvol_good_threshold', 'upvol_caution_threshold',
+                'breadth_good_threshold', 'breadth_caution_threshold', 'yield_curve_good_threshold',
+                'breadth_momentum_good_threshold', 'beta_warning_threshold', 'beta_caution_threshold']
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        logger.error(f"ARCHITECTURE (C3-4): Missing market thresholds in config: {missing}")
+        return {}
     return {
-        'vix_alert': 30.0, 'vix_caution': 25.0,
-        'put_call_bullish': 0.8, 'put_call_fearful': 1.0,
-        'upvol_good': 60.0, 'upvol_caution': 50.0,
-        'breadth_good': 50, 'breadth_caution': 0,
-        'yield_curve_good': 0.5,
-        'breadth_momentum_good': 0.5,
-        'beta_warning': 1.2, 'beta_caution': 0.8,
-        'circuit_breaker_ratio': 0.75,
-        'fear_greed_alert': 25.0, 'fear_greed_caution': 45.0, 'fear_greed_bullish': 75.0,
+        'vix_alert': safe_float(cfg['vix_alert_threshold'], None),
+        'vix_caution': safe_float(cfg['vix_caution_threshold'], None),
+        'put_call_bullish': safe_float(cfg['put_call_bullish_threshold'], None),
+        'put_call_fearful': safe_float(cfg['put_call_fearful_threshold'], None),
+        'upvol_good': safe_float(cfg['upvol_good_threshold'], None),
+        'upvol_caution': safe_float(cfg['upvol_caution_threshold'], None),
+        'breadth_good': int(cfg['breadth_good_threshold']),
+        'breadth_caution': int(cfg['breadth_caution_threshold']),
+        'yield_curve_good': safe_float(cfg['yield_curve_good_threshold'], None),
+        'breadth_momentum_good': safe_float(cfg['breadth_momentum_good_threshold'], None),
+        'beta_warning': safe_float(cfg['beta_warning_threshold'], None),
+        'beta_caution': safe_float(cfg['beta_caution_threshold'], None),
     }
 
 
