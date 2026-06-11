@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
@@ -165,6 +165,7 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
             'breadth_good': int(cfg.get('breadth_good_threshold', 50)),
             'breadth_caution': int(cfg.get('breadth_caution_threshold', 0)),
             'yield_curve_good': safe_float(cfg.get('yield_curve_good_threshold', 0.5), 0.5),
+            'breadth_momentum_good': safe_float(cfg.get('breadth_momentum_good_threshold', 0.5), 0.5),
             'beta_warning': safe_float(cfg.get('beta_warning_threshold', 1.2), 1.2),
             'beta_caution': safe_float(cfg.get('beta_caution_threshold', 0.8), 0.8),
         }
@@ -175,7 +176,64 @@ def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
         'upvol_good': 60.0, 'upvol_caution': 50.0,
         'breadth_good': 50, 'breadth_caution': 0,
         'yield_curve_good': 0.5,
+        'breadth_momentum_good': 0.5,
         'beta_warning': 1.2, 'beta_caution': 0.8,
+        'circuit_breaker_ratio': 0.75,
+        'fear_greed_alert': 25.0, 'fear_greed_caution': 45.0, 'fear_greed_bullish': 75.0,
+    }
+
+
+def load_performance_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load performance metric thresholds for coloring (win rate, Sharpe, profit factor, etc.)."""
+    if cfg:
+        return {
+            'win_rate_good': safe_float(cfg.get('win_rate_good_threshold', 50.0), 50.0),
+            'win_rate_excellent': safe_float(cfg.get('win_rate_excellent_threshold', 55.0), 55.0),
+            'sharpe_good': safe_float(cfg.get('sharpe_good_threshold', 1.0), 1.0),
+            'sharpe_excellent': safe_float(cfg.get('sharpe_excellent_threshold', 2.0), 2.0),
+            'profit_factor_good': safe_float(cfg.get('profit_factor_good_threshold', 1.5), 1.5),
+            'profit_factor_excellent': safe_float(cfg.get('profit_factor_excellent_threshold', 2.0), 2.0),
+            'calmar_good': safe_float(cfg.get('calmar_good_threshold', 0.5), 0.5),
+            'beta_warning': safe_float(cfg.get('beta_warning_threshold', 1.2), 1.2),
+            'beta_caution': safe_float(cfg.get('beta_caution_threshold', 0.8), 0.8),
+        }
+    return {
+        'win_rate_good': 50.0, 'win_rate_excellent': 55.0,
+        'sharpe_good': 1.0, 'sharpe_excellent': 2.0,
+        'profit_factor_good': 1.5, 'profit_factor_excellent': 2.0,
+        'calmar_good': 0.5,
+        'beta_warning': 1.2, 'beta_caution': 0.8,
+    }
+
+def load_risk_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load risk metric thresholds (drawdown, position size, etc.)."""
+    if cfg:
+        return {
+            'drawdown_alert': safe_float(cfg.get('drawdown_alert_threshold', 15.0), 15.0),
+            'drawdown_caution': safe_float(cfg.get('drawdown_caution_threshold', 5.0), 5.0),
+            'large_position_alert': safe_float(cfg.get('large_position_alert_threshold', 20.0), 20.0),
+            'large_position_caution': safe_float(cfg.get('large_position_caution_threshold', 15.0), 15.0),
+        }
+    return {
+        'drawdown_alert': 15.0, 'drawdown_caution': 5.0,
+        'large_position_alert': 20.0, 'large_position_caution': 15.0,
+    }
+
+def load_signal_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load signal evaluation thresholds for quality scoring."""
+    if cfg:
+        return {
+            'event_value_good': safe_float(cfg.get('event_value_good_threshold', 20.0), 20.0),
+            'event_value_caution': safe_float(cfg.get('event_value_caution_threshold', 5.0), 5.0),
+            'signal_alert': safe_float(cfg.get('signal_alert_threshold', 60.0), 60.0),
+            'signal_caution': safe_float(cfg.get('signal_caution_threshold', 40.0), 40.0),
+            'volume_surge_good': safe_float(cfg.get('volume_surge_good_threshold', 50.0), 50.0),
+            'volume_surge_caution': safe_float(cfg.get('volume_surge_caution_threshold', 20.0), 20.0),
+        }
+    return {
+        'event_value_good': 20.0, 'event_value_caution': 5.0,
+        'signal_alert': 60.0, 'signal_caution': 40.0,
+        'volume_surge_good': 50.0, 'volume_surge_caution': 20.0,
     }
 
 def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
@@ -1702,8 +1760,9 @@ def fetch_perf(c=None):
         _log_data_quality("fetch_perf", total_trades)
         return {
             "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
+            "_open_w": open_winning_trades, "_open_l": open_losing_trades,
             "wr": wr_pct, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
-            "_open_trades_count": 0, "pnl": round(pnl, 2), "streak": current_streak,
+            "_open_trades_count": total_open_trades, "pnl": round(pnl, 2), "streak": current_streak,
             "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
@@ -2268,7 +2327,7 @@ def fetch_sentiment(c):
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
             return {"_error": "fear_greed_index missing", "date": row.get("date"), "stale_alerts": stale_alerts}
         label = get_string(row, "label")
-        c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
+        c_fg = (R if fg is not None and fg <= 25 else (Y if fg is not None and fg <= 45 else (G if fg is not None and fg >= 75 else CY)))
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
         return {**result, "stale_alerts": stale_alerts}
@@ -3009,7 +3068,7 @@ def panel_orch(run, cfg, risk=None):
         is_stale = risk.get("_is_stale", False)
         if has_data and var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
-            beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+            beta_c = R if beta_v is not None and beta_v >= mkt_cfg['beta_warning'] else (Y if beta_v is not None and beta_v >= mkt_cfg['beta_caution'] else G)
             svar_v = get_numeric(risk, "svar")
             svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v is not None and svar_v > 0 else ""
             cvar95_v = get_numeric(risk, "cvar95")
@@ -3148,10 +3207,10 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<0.8=bullish)[/]")
     if bmom is not None:
-        bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
+        bmc = G if bmom is not None and bmom >= mkt_cfg['breadth_momentum_good'] else (Y if bmom is not None and bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim](0.5+=bullish)[/]")
     if ycs is not None:
-        yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+        yc_c = G if ycs is not None and ycs >= mkt_cfg['yield_curve_good'] else (Y if ycs is not None and ycs >= 0 else R)
         bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/] [dim](0+=flat)[/]")
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
@@ -3204,7 +3263,7 @@ def panel_circuit(cb, risk=None):
             else:
                 cur_str = f"{cur}{u}" if u else str(cur)
                 ratio = cur / thr if thr > 0 else 0
-            fc = R if fired else (Y if ratio >= 0.75 else G)
+            fc = R if fired else (Y if ratio >= 0.75 else G)  # TODO: convert to config
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
             # TIER 1A FIX: Pass None instead of "or 0" to hbar for proper missing data display
@@ -3256,7 +3315,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         pcr = mkt.get("pcr"); bmom = mkt.get("bmom"); ycs = mkt.get("ycs"); fed = mkt.get("fed")
         parts4 = []
         if pcr  is not None:
-            pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
+            pcr_c = G if pcr is not None and pcr <= mkt_cfg['put_call_bullish'] else (Y if pcr is not None and pcr <= mkt_cfg['put_call_fearful'] else R)
             parts4.append(f"[dim]P/C:[/][{pcr_c}]{pcr:.2f}[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
@@ -3368,7 +3427,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         var95_v = get_numeric(risk, "var95")
         if var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
-            beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+            beta_c = R if beta_v is not None and beta_v >= mkt_cfg['beta_warning'] else (Y if beta_v is not None and beta_v >= mkt_cfg['beta_caution'] else G)
             cvar95_v = get_numeric(risk, "cvar95")
             conc5_v = get_numeric(risk, "conc5")
             cvar95_str = f"{cvar95_v:.2f}%" if cvar95_v is not None else "--"
@@ -4899,7 +4958,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
 
         beta_v = get_numeric(risk, "beta")
         conc5_v = get_numeric(risk, "conc5")
-        beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+        beta_c = R if beta_v is not None and beta_v >= mkt_cfg['beta_warning'] else (Y if beta_v is not None and beta_v >= mkt_cfg['beta_caution'] else G)
         conc_c = R if conc5_v is not None and conc5_v >= 35 else (Y if conc5_v is not None and conc5_v >= 25 else "white")
         cvar95_v = get_numeric(risk, "cvar95")
         svar_v = get_numeric(risk, "svar")
