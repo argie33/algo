@@ -526,11 +526,17 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 logger.error(f'CRITICAL: Position JOIN validation failed - {len(join_mismatches)} symbols have missing data: {join_mismatches}')
 
             freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
+            join_validation = None
+            if join_mismatches:
+                join_validation = {
+                    'status': 'ok' if not join_mismatches else 'degraded',
+                    'mismatches': join_mismatches
+                }
             return json_response(200, {
                 'items': items,
                 'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
                 'data_freshness': freshness,
-                'join_validation': {'status': 'ok' if not join_mismatches else 'degraded', 'mismatches': join_mismatches} if join_mismatches else None
+                'join_validation': join_validation
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo positions')
@@ -2257,7 +2263,7 @@ def _get_algo_config_key(cur, key: str) -> Dict:
         try:
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
             row = cur.fetchone()
-            return json_response(200, dict(row) if row else {})
+            return json_response(200, safe_json_serialize(dict(row)) if row else {})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config key'})
             return error_response(503, 'service_unavailable', 'Data unavailable')
