@@ -1663,165 +1663,126 @@ router.get('/performance', authenticateToken, async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    // Get all closed trades for trade-based metrics
-    const tradesResult = await pool.query(`
-      SELECT trade_id, exit_date, profit_loss_dollars, profit_loss_pct,
-             exit_r_multiple, trade_duration_days, entry_price, exit_price
-      FROM algo_trades WHERE status = 'closed' AND exit_date IS NOT NULL
-      ORDER BY exit_date ASC
+    // PHASE 1 FIX: Fetch pre-computed metrics from algo_performance_daily (O(1) instead of O(N))
+    // Instead of fetching all trades and snapshots and recalculating on every request,
+    // use the pre-computed daily metrics from the loader.
+    const perfResult = await pool.query(`
+      SELECT
+        total_trades, num_wins as winning_trades, num_losses as losing_trades,
+        win_rate_all as win_rate_pct,
+        avg_win_pct, avg_loss_pct, avg_r as avg_win_r, avg_loss_r,
+        expectancy as expectancy_r, profit_factor,
+        total_pnl_dollars, gross_win_dollars, gross_loss_dollars, total_return_pct,
+        rolling_sharpe_252d as sharpe_annualized,
+        rolling_sortino_252d as sortino_annualized,
+        calmar_ratio, max_drawdown_pct,
+        current_win_streak, best_win_streak, worst_loss_streak,
+        avg_hold_days, portfolio_snapshots_count
+      FROM algo_performance_daily
+      WHERE report_date = CURRENT_DATE
+      ORDER BY report_date DESC LIMIT 1
     `);
 
-    // Validate result structures
-    validateQueryResult(tradesResult, { requireRows: false });
+    // Validate result
+    validateQueryResult(perfResult, { requireRows: false });
 
-    // Get portfolio snapshots for return-series-based metrics
-    const snapsResult = await pool.query(`
-      SELECT snapshot_date, total_portfolio_value, daily_return_pct
-      FROM algo_portfolio_snapshots
-      ORDER BY snapshot_date ASC
-    `);
-
-    validateQueryResult(snapsResult, { requireRows: false });
-
-    const trades = validateAndCoerceRows(tradesResult, {
-      trade_id: { type: 'int', required: true },
-      exit_date: { type: 'date', required: true },
-      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
-      profit_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      exit_r_multiple: { type: 'float', required: false, defaultValue: 0 },
-      trade_duration_days: { type: 'int', required: false, defaultValue: 0 },
-      entry_price: { type: 'float', required: false },
-      exit_price: { type: 'float', required: false }
-    });
-
-    const snaps = validateAndCoerceRows(snapsResult, {
-      snapshot_date: { type: 'date', required: true },
-      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
-      daily_return_pct: { type: 'float', required: false, defaultValue: 0 }
-    });
-
-    // ---- Trade-based metrics ----
-    const wins = trades.filter(t => parseFloat(t.profit_loss_dollars) > 0);
-    const losses = trades.filter(t => parseFloat(t.profit_loss_dollars) <= 0);
-
-    const totalPnl = trades.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0);
-    const grossWin = wins.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0);
-    const grossLoss = Math.abs(losses.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0));
-
-    const winRate = trades.length > 0 ? wins.length / trades.length : 0;
-    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
-
-    const avgWinR = wins.length > 0
-      ? wins.reduce((s, t) => s + parseFloat(t.exit_r_multiple || 0), 0) / wins.length : 0;
-    const avgLossR = losses.length > 0
-      ? losses.reduce((s, t) => s + parseFloat(t.exit_r_multiple || 0), 0) / losses.length : 0;
-    const expectancyR = (winRate * avgWinR) + ((1 - winRate) * avgLossR);
-
-    const avgWinPct = wins.length > 0
-      ? wins.reduce((s, t) => s + parseFloat(t.profit_loss_pct || 0), 0) / wins.length : 0;
-    const avgLossPct = losses.length > 0
-      ? losses.reduce((s, t) => s + parseFloat(t.profit_loss_pct || 0), 0) / losses.length : 0;
-
-    const avgHoldDays = trades.length > 0
-      ? trades.reduce((s, t) => s + (parseInt(t.trade_duration_days) || 0), 0) / trades.length : 0;
-
-    // ---- Snapshot-based metrics (annualized Sharpe/Sortino + max DD) ----
-    let sharpe = 0, sortino = 0, calmar = 0, maxDD = 0, totalReturn = 0;
-    if (snaps.length >= 2) {
-      const dailyReturns = snaps.map(s => parseFloat(s.daily_return_pct || 0) / 100);
-      const validReturns = dailyReturns.filter(r => !isNaN(r) && Number.isFinite(r));
-
-      if (validReturns.length > 1) {
-        const meanReturn = validReturns.reduce((a, b) => a + b, 0) / validReturns.length;
-        const stdDev = Math.sqrt(
-          validReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / validReturns.length
-        );
-        // Sortino downside deviation: MAR = 0, denominator is ALL periods (not just losing days)
-        const downStdDev = validReturns.length > 0
-          ? Math.sqrt(validReturns.reduce((s, r) => s + Math.pow(Math.min(r, 0), 2), 0) / validReturns.length) : 0;
-
-        // Annualize: 252 trading days
-        sharpe = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;
-        sortino = downStdDev > 0 ? (meanReturn / downStdDev) * Math.sqrt(252) : 0;
-      }
-
-      // Max drawdown
-      let peak = parseFloat(snaps[0].total_portfolio_value || 0);
-      for (const s of snaps) {
-        const v = parseFloat(s.total_portfolio_value || 0);
-        peak = Math.max(peak, v);
-        if (peak > 0) {
-          const dd = (peak - v) / peak * 100;
-          maxDD = Math.max(maxDD, dd);
-        }
-      }
-
-      const startValue = parseFloat(snaps[0].total_portfolio_value || 0);
-      const endValue = parseFloat(snaps[snaps.length - 1].total_portfolio_value || 0);
-      totalReturn = startValue > 0 ? (endValue - startValue) / startValue * 100 : 0;
-
-      // Calmar = total return / max DD
-      calmar = maxDD > 0 ? totalReturn / maxDD : 0;
+    if (perfResult.rows.length === 0) {
+      // Fallback: data not yet computed for today, return empty metrics
+      logger.warn('No performance data computed for today; returning default metrics');
+      return sendSuccess(res, {
+        total_trades: 0,
+        winning_trades: 0,
+        losing_trades: 0,
+        win_rate_pct: 0,
+        avg_win_pct: 0,
+        avg_loss_pct: 0,
+        avg_win_r: 0,
+        avg_loss_r: 0,
+        expectancy_r: 0,
+        profit_factor: null,
+        total_pnl_dollars: 0,
+        gross_win_dollars: 0,
+        gross_loss_dollars: 0,
+        total_return_pct: 0,
+        sharpe_annualized: 0,
+        sortino_annualized: 0,
+        calmar_ratio: 0,
+        max_drawdown_pct: 0,
+        current_streak: 0,
+        best_win_streak: 0,
+        worst_loss_streak: 0,
+        avg_hold_days: 0,
+        portfolio_snapshots: 0,
+      });
     }
 
-    // ---- Streak analysis ----
-    let currentStreak = 0;
-    let bestWinStreak = 0;
-    let worstLossStreak = 0;
-    let tempWin = 0, tempLoss = 0;
-    for (const t of trades) {
-      if (parseFloat(t.profit_loss_dollars) > 0) {
-        tempWin++; tempLoss = 0;
-        bestWinStreak = Math.max(bestWinStreak, tempWin);
-        currentStreak = tempWin;
-      } else {
-        tempLoss++; tempWin = 0;
-        worstLossStreak = Math.max(worstLossStreak, tempLoss);
-        currentStreak = -tempLoss;
-      }
-    }
+    const perf = validateAndCoerceRow(perfResult.rows[0], {
+      total_trades: { type: 'int', required: false, defaultValue: 0 },
+      winning_trades: { type: 'int', required: false, defaultValue: 0 },
+      losing_trades: { type: 'int', required: false, defaultValue: 0 },
+      win_rate_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_win_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_win_r: { type: 'float', required: false, defaultValue: 0 },
+      avg_loss_r: { type: 'float', required: false, defaultValue: 0 },
+      expectancy_r: { type: 'float', required: false, defaultValue: 0 },
+      profit_factor: { type: 'float', required: false, defaultValue: null },
+      total_pnl_dollars: { type: 'float', required: false, defaultValue: 0 },
+      gross_win_dollars: { type: 'float', required: false, defaultValue: 0 },
+      gross_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
+      total_return_pct: { type: 'float', required: false, defaultValue: 0 },
+      sharpe_annualized: { type: 'float', required: false, defaultValue: 0 },
+      sortino_annualized: { type: 'float', required: false, defaultValue: 0 },
+      calmar_ratio: { type: 'float', required: false, defaultValue: 0 },
+      max_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
+      current_win_streak: { type: 'int', required: false, defaultValue: 0 },
+      best_win_streak: { type: 'int', required: false, defaultValue: 0 },
+      worst_loss_streak: { type: 'int', required: false, defaultValue: 0 },
+      avg_hold_days: { type: 'float', required: false, defaultValue: 0 },
+      portfolio_snapshots_count: { type: 'int', required: false, defaultValue: 0 }
+    });
 
     return sendSuccess(res, {
       // Trade counts
-      total_trades: trades.length,
-      winning_trades: wins.length,
-      losing_trades: losses.length,
+      total_trades: perf.total_trades || 0,
+      winning_trades: perf.winning_trades || 0,
+      losing_trades: perf.losing_trades || 0,
 
       // Win/loss profile
-      win_rate_pct: Math.round(winRate * 1000) / 10,
-      avg_win_pct: Math.round(avgWinPct * 100) / 100,
-      avg_loss_pct: Math.round(avgLossPct * 100) / 100,
-      avg_win_r: Math.round(avgWinR * 100) / 100,
-      avg_loss_r: Math.round(avgLossR * 100) / 100,
+      win_rate_pct: parseFloat(perf.win_rate_pct) || 0,
+      avg_win_pct: parseFloat(perf.avg_win_pct) || 0,
+      avg_loss_pct: parseFloat(perf.avg_loss_pct) || 0,
+      avg_win_r: parseFloat(perf.avg_win_r) || 0,
+      avg_loss_r: parseFloat(perf.avg_loss_r) || 0,
 
       // Expectancy
-      expectancy_r: Math.round(expectancyR * 1000) / 1000,
-      profit_factor: profitFactor === Infinity ? null : Math.round(profitFactor * 100) / 100,
+      expectancy_r: parseFloat(perf.expectancy_r) || 0,
+      profit_factor: perf.profit_factor ? parseFloat(perf.profit_factor) : null,
 
       // Total
-      total_pnl_dollars: Math.round(totalPnl * 100) / 100,
-      gross_win_dollars: Math.round(grossWin * 100) / 100,
-      gross_loss_dollars: Math.round(grossLoss * 100) / 100,
-      total_return_pct: Math.round(totalReturn * 100) / 100,
+      total_pnl_dollars: parseFloat(perf.total_pnl_dollars) || 0,
+      gross_win_dollars: parseFloat(perf.gross_win_dollars) || 0,
+      gross_loss_dollars: parseFloat(perf.gross_loss_dollars) || 0,
+      total_return_pct: parseFloat(perf.total_return_pct) || 0,
 
       // Risk-adjusted
-      sharpe_annualized: Math.round(sharpe * 100) / 100,
-      sortino_annualized: Math.round(sortino * 100) / 100,
-      calmar_ratio: Math.round(calmar * 100) / 100,
-      max_drawdown_pct: Math.round(maxDD * 100) / 100,
+      sharpe_annualized: parseFloat(perf.sharpe_annualized) || 0,
+      sortino_annualized: parseFloat(perf.sortino_annualized) || 0,
+      calmar_ratio: parseFloat(perf.calmar_ratio) || 0,
+      max_drawdown_pct: parseFloat(perf.max_drawdown_pct) || 0,
 
       // Streaks + duration
-      current_streak: currentStreak,
-      best_win_streak: bestWinStreak,
-      worst_loss_streak: worstLossStreak,
-      avg_hold_days: Math.round(avgHoldDays * 10) / 10,
+      current_streak: perf.current_win_streak || 0,
+      best_win_streak: perf.best_win_streak || 0,
+      worst_loss_streak: perf.worst_loss_streak || 0,
+      avg_hold_days: parseFloat(perf.avg_hold_days) || 0,
 
       // Sample sizes
-      portfolio_snapshots: snaps.length,
+      portfolio_snapshots: perf.portfolio_snapshots_count || 0,
     });
   } catch (error) {
-    logger.error('Error in /algo/performance:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while calculating performance metrics');
+    logger.error('Error in /api/algo/performance:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while fetching performance metrics');
   }
 });
 

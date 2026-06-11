@@ -107,6 +107,12 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
 
         Uses MetricsCalculator for all calculations to ensure consistency
         across loaders, API, and dashboard. No local recalculations.
+
+        Computes all metrics pre-computed for API layer (Phase 1 fix):
+        - Streaks (current, best_win, worst_loss)
+        - Total P&L and gross amounts
+        - Win/loss percentages
+        - Average hold days
         """
 
         # Extract trade counts
@@ -127,6 +133,16 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         avg_loss_dollars = None
         profit_factor = None
         breakeven_count = None
+        total_pnl = None
+        gross_wins = None
+        gross_losses = None
+        avg_win_pct = None
+        avg_loss_pct = None
+        avg_hold_days = None
+        biggest_win = None
+        biggest_loss = None
+        best_trade_r = None
+        worst_trade_r = None
         try:
             with DatabaseContext('read') as cur:
                 cur.execute("""
@@ -135,7 +151,15 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                         AVG(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_dollars,
                         SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as total_wins,
                         SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses,
-                        COUNT(*) FILTER (WHERE profit_loss_dollars = 0) as breakeven_count
+                        SUM(profit_loss_dollars) as total_pnl,
+                        COUNT(*) FILTER (WHERE profit_loss_dollars = 0) as breakeven_count,
+                        AVG(profit_loss_pct) FILTER (WHERE profit_loss_dollars > 0) as avg_win_pct,
+                        AVG(profit_loss_pct) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_pct,
+                        AVG(trade_duration_days) as avg_hold_days,
+                        MAX(profit_loss_dollars) as biggest_win,
+                        MIN(profit_loss_dollars) as biggest_loss,
+                        MAX(exit_r_multiple) as best_trade_r,
+                        MIN(exit_r_multiple) as worst_trade_r
                     FROM algo_trades
                     WHERE (status = 'closed' AND exit_date IS NOT NULL)
                        OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
@@ -146,8 +170,20 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
 
                 total_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
                 total_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
+                total_pnl = float(row.get('total_pnl')) if row.get('total_pnl') is not None else None
+                gross_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
+                gross_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
+
                 breakeven_val = row.get('breakeven_count')
                 breakeven_count = int(breakeven_val) if breakeven_val is not None else None
+
+                avg_win_pct = float(row.get('avg_win_pct')) if row.get('avg_win_pct') is not None else None
+                avg_loss_pct = float(row.get('avg_loss_pct')) if row.get('avg_loss_pct') is not None else None
+                avg_hold_days = float(row.get('avg_hold_days')) if row.get('avg_hold_days') is not None else None
+                biggest_win = float(row.get('biggest_win')) if row.get('biggest_win') is not None else None
+                biggest_loss = float(row.get('biggest_loss')) if row.get('biggest_loss') is not None else None
+                best_trade_r = float(row.get('best_trade_r')) if row.get('best_trade_r') is not None else None
+                worst_trade_r = float(row.get('worst_trade_r')) if row.get('worst_trade_r') is not None else None
 
                 # Use central calculator for profit factor
                 profit_factor = MetricsCalculator.calculate_profit_factor(
@@ -164,6 +200,40 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         expectancy = MetricsCalculator.calculate_expectancy(
             win_rate_all, avg_win_r, avg_loss_r
         )
+
+        # PHASE 1 FIX: Compute streaks (current, best_win, worst_loss)
+        current_streak = 0
+        best_win_streak = 0
+        worst_loss_streak = 0
+        try:
+            with DatabaseContext('read') as cur:
+                # Fetch all trades ordered by date for streak analysis
+                cur.execute("""
+                    SELECT profit_loss_dollars FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                    ORDER BY exit_date ASC
+                """)
+                all_trades = cur.fetchall() or []
+
+                # Calculate streaks
+                if all_trades:
+                    temp_win = 0
+                    temp_loss = 0
+                    for trade in all_trades:
+                        pnl = float(trade.get('profit_loss_dollars') or 0)
+                        if pnl > 0:
+                            temp_win += 1
+                            temp_loss = 0
+                            best_win_streak = max(best_win_streak, temp_win)
+                            current_streak = temp_win
+                        elif pnl < 0:
+                            temp_loss += 1
+                            temp_win = 0
+                            worst_loss_streak = max(worst_loss_streak, temp_loss)
+                            current_streak = -temp_loss
+                        # Break-even trades don't change streak state (temp stays 0)
+        except Exception as e:
+            logger.warning(f"Failed to compute streaks: {e}")
 
         # 50-trade metrics
         win_rate_50t = None
@@ -203,6 +273,14 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         # Calmar (using central calculator)
         calmar_ratio = MetricsCalculator.calculate_calmar_ratio(equity_vals, min_observations=2)
 
+        # Total return % from equity curve (from snapshots)
+        total_return_pct = None
+        if equity_vals and len(equity_vals) >= 2:
+            start_val = equity_vals[0]
+            end_val = equity_vals[-1]
+            if start_val > 0:
+                total_return_pct = ((end_val - start_val) / start_val) * 100
+
         # Extract avg_r_all from trade_stats (already computed in fetch_global)
         avg_r_all = None
         if trade_stats.get('avg_r_all') is not None:
@@ -226,6 +304,23 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             'avg_win': avg_win_dollars,
             'avg_loss': avg_loss_dollars,
             'avg_r': avg_r_all,
+            # PHASE 1 FIX: New fields to support API performance endpoint
+            'current_win_streak': current_streak,
+            'best_win_streak': best_win_streak,
+            'worst_loss_streak': worst_loss_streak,
+            'avg_win_pct': avg_win_pct,
+            'avg_loss_pct': avg_loss_pct,
+            'avg_loss_r': avg_loss_r,
+            'total_pnl_dollars': total_pnl,
+            'gross_win_dollars': gross_wins,
+            'gross_loss_dollars': gross_losses,
+            'total_return_pct': total_return_pct,
+            'avg_hold_days': avg_hold_days,
+            'portfolio_snapshots_count': len(snapshots),
+            'biggest_win': biggest_win,
+            'biggest_loss': biggest_loss,
+            'best_trade_r': best_trade_r,
+            'worst_trade_r': worst_trade_r,
             'updated_at': datetime.now(ET),
         }
 

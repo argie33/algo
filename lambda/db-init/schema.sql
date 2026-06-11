@@ -1862,6 +1862,23 @@ ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win NUMERIC(10, 
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss NUMERIC(10, 2);
 -- HIGH-SEVERITY ISSUE FIX: Average R-Multiple only in dashboard — now pre-computed
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_r NUMERIC(6, 3);
+-- ARCHITECTURAL FIX: Streaks and additional metrics pre-computed (Phase 1)
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS current_win_streak INT DEFAULT 0;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS best_win_streak INT DEFAULT 0;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS worst_loss_streak INT DEFAULT 0;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win_pct NUMERIC(8, 3);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss_pct NUMERIC(8, 3);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss_r NUMERIC(6, 3);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_pnl_dollars NUMERIC(12, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS gross_win_dollars NUMERIC(12, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS gross_loss_dollars NUMERIC(12, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_return_pct NUMERIC(8, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_hold_days NUMERIC(8, 1);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS portfolio_snapshots_count INT;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS biggest_win NUMERIC(12, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS biggest_loss NUMERIC(12, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS best_trade_r NUMERIC(6, 3);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS worst_trade_r NUMERIC(6, 3);
 
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (

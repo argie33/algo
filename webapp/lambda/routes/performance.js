@@ -20,120 +20,117 @@ async function getPerformanceMetrics(req, res) {
   try {
     const { period = 'week' } = req.query;
 
-    let dateFilter = '';
-    switch (period) {
-      case 'day':
-        dateFilter = "AND exit_date >= CURRENT_DATE";
-        break;
-      case 'week':
-        dateFilter = "AND exit_date >= CURRENT_DATE - INTERVAL '7 days'";
-        break;
-      case 'month':
-        dateFilter = "AND exit_date >= CURRENT_DATE - INTERVAL '30 days'";
-        break;
-      default:
-        dateFilter = '';
-    }
-
-    const metricsQuery = `
+    // PHASE 1 FIX: Fetch pre-computed metrics from algo_performance_daily
+    // Period-specific queries will be added as new pre-computed tables if needed
+    // For now, fetch all-time metrics from algo_performance_daily (O(1) lookup)
+    const result = await query(`
       SELECT
-        COUNT(*) as total_trades,
-        SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END) as win_count,
-        SUM(CASE WHEN profit_loss_dollars < 0 THEN 1 ELSE 0 END) as loss_count,
-        SUM(CASE WHEN profit_loss_dollars = 0 THEN 1 ELSE 0 END) as breakeven_count,
-        ROUND(100.0 * SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END) / COUNT(*), 2) as win_rate_pct,
-        ROUND(SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END), 2) as gross_profit,
-        ROUND(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 2) as gross_loss,
-        ROUND(SUM(profit_loss_dollars), 2) as total_pnl,
-        ROUND(AVG(profit_loss_dollars), 2) as avg_pnl_per_trade,
-        ROUND(AVG(profit_loss_pct), 4) as avg_return_pct,
-        ROUND(AVG(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE NULL END), 2) as avg_win,
-        ROUND(AVG(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE NULL END), 2) as avg_loss,
-        ROUND(AVG(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_pct ELSE NULL END), 4) as avg_win_pct,
-        ROUND(AVG(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_pct ELSE NULL END), 4) as avg_loss_pct,
-        ROUND(AVG(trade_duration_days), 1) as avg_hold_days,
-        ROUND(AVG(exit_r_multiple), 2) as avg_r_multiple,
-        MAX(exit_r_multiple) as best_trade_r,
-        MIN(exit_r_multiple) as worst_trade_r,
-        MIN(profit_loss_dollars) as biggest_loss,
-        MAX(profit_loss_dollars) as biggest_win
-      FROM algo_trades
-      WHERE status = 'closed' AND exit_date IS NOT NULL
-      ${dateFilter}
-    `;
+        total_trades, num_wins as win_count, num_losses as loss_count,
+        CASE WHEN total_trades > 0 THEN ROUND(100.0 * num_wins / total_trades, 2) ELSE 0 END as win_rate_pct,
+        gross_win_dollars as gross_profit,
+        gross_loss_dollars as gross_loss,
+        profit_factor,
+        total_pnl_dollars as total_pnl,
+        CASE WHEN total_trades > 0 THEN ROUND(total_pnl_dollars / total_trades, 2) ELSE 0 END as avg_pnl_per_trade,
+        ROUND(COALESCE(avg_win_pct, 0) / 100, 4) as avg_return_pct,
+        avg_win,
+        avg_loss,
+        avg_win_pct,
+        avg_loss_pct,
+        avg_hold_days,
+        avg_r as avg_r_multiple,
+        rolling_sharpe_252d as sharpe_ratio,
+        max_drawdown_pct as max_drawdown,
+        calmar_ratio,
+        biggest_win,
+        biggest_loss,
+        best_trade_r,
+        worst_trade_r
+      FROM algo_performance_daily
+      WHERE report_date = CURRENT_DATE
+      ORDER BY report_date DESC LIMIT 1
+    `);
 
-    const sharpeQuery = `
-      SELECT
-        COALESCE(
-          ROUND(
-            CAST(AVG(profit_loss_pct) / NULLIF(STDDEV(profit_loss_pct), 0) * SQRT(252) AS NUMERIC),
-            2
-          ),
-          0
-        ) as sharpe_ratio
-      FROM algo_trades
-      WHERE status = 'closed' AND exit_date IS NOT NULL AND profit_loss_pct IS NOT NULL
-      ${dateFilter}
-    `;
-
-    // Use window function to get running cumulative PnL for each trade (needed for correct drawdown)
-    const ddQuery = `
-      SELECT
-        SUM(profit_loss_dollars) OVER (
-          ORDER BY exit_date ASC
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) as cumulative_pnl
-      FROM algo_trades
-      WHERE status = 'closed' AND exit_date IS NOT NULL
-      ${dateFilter}
-      ORDER BY exit_date ASC
-    `;
-
-    // Parallelize 3 unrelated queries on same table for 2-3x speedup
-    const [result, sharpeResult, ddResult] = await Promise.all([
-      query(metricsQuery),
-      query(sharpeQuery),
-      query(ddQuery)
-    ]);
     validateQueryResult(result, { requireRows: false });
-    validateQueryResult(sharpeResult, { requireRows: false });
-    validateQueryResult(ddResult, { requireRows: false });
 
-    const metrics = result.rows[0] || {};
-
-    const gross_profit = parseFloat(metrics.gross_profit) || 0;
-    const gross_loss = parseFloat(metrics.gross_loss) || 0;
-    const profit_factor = gross_loss > 0 ? (gross_profit / gross_loss).toFixed(2) : '0.00';
-
-    const sharpe_ratio = sharpeResult.rows[0]?.sharpe_ratio || 0;
-    let max_drawdown = 0;
-    let peak = 0;
-
-    if (ddResult.rows.length > 0) {
-      ddResult.rows.forEach(row => {
-        const cumulative = row.cumulative_pnl || 0;
-        if (cumulative > peak) peak = cumulative;
-        const dd = peak - cumulative;
-        if (dd > max_drawdown) max_drawdown = dd;
+    if (result.rows.length === 0) {
+      logger.warn('No performance data available for today');
+      return sendSuccess(res, {
+        period,
+        summary: {
+          total_trades: 0,
+          win_count: 0,
+          loss_count: 0,
+          breakeven_count: 0,
+          win_rate_pct: 0,
+        },
+        profitability: {
+          gross_profit: 0,
+          gross_loss: 0,
+          profit_factor: 0,
+          total_pnl: 0,
+          avg_pnl_per_trade: 0,
+          avg_return_pct: 0,
+          biggest_win: 0,
+          biggest_loss: 0,
+        },
+        trade_quality: {
+          avg_win: 0,
+          avg_loss: 0,
+          avg_win_pct: 0,
+          avg_loss_pct: 0,
+          avg_hold_days: 0,
+          avg_r_multiple: 0,
+          best_trade_r: 0,
+          worst_trade_r: 0,
+        },
+        risk_metrics: {
+          sharpe_ratio: 0,
+          max_drawdown: 0,
+          calmar_ratio: 0,
+        },
       });
     }
 
-    const total_pnl = parseFloat(metrics.total_pnl) || 0;
-    const calmar_ratio = max_drawdown > 0 ? (total_pnl / max_drawdown).toFixed(2) : '0.00';
+    const metrics = validateAndCoerceRow(result.rows[0], {
+      total_trades: { type: 'int', required: false, defaultValue: 0 },
+      win_count: { type: 'int', required: false, defaultValue: 0 },
+      loss_count: { type: 'int', required: false, defaultValue: 0 },
+      win_rate_pct: { type: 'float', required: false, defaultValue: 0 },
+      gross_profit: { type: 'float', required: false, defaultValue: 0 },
+      gross_loss: { type: 'float', required: false, defaultValue: 0 },
+      profit_factor: { type: 'float', required: false, defaultValue: 0 },
+      total_pnl: { type: 'float', required: false, defaultValue: 0 },
+      avg_pnl_per_trade: { type: 'float', required: false, defaultValue: 0 },
+      avg_return_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_win: { type: 'float', required: false, defaultValue: 0 },
+      avg_loss: { type: 'float', required: false, defaultValue: 0 },
+      avg_win_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      avg_hold_days: { type: 'float', required: false, defaultValue: 0 },
+      avg_r_multiple: { type: 'float', required: false, defaultValue: 0 },
+      sharpe_ratio: { type: 'float', required: false, defaultValue: 0 },
+      max_drawdown: { type: 'float', required: false, defaultValue: 0 },
+      calmar_ratio: { type: 'float', required: false, defaultValue: 0 },
+      biggest_win: { type: 'float', required: false, defaultValue: 0 },
+      biggest_loss: { type: 'float', required: false, defaultValue: 0 },
+      best_trade_r: { type: 'float', required: false, defaultValue: 0 },
+      worst_trade_r: { type: 'float', required: false, defaultValue: 0 },
+    });
 
     const response = {
       period,
       summary: {
-        total_trades: parseInt(metrics.total_trades) || 0,
-        win_count: parseInt(metrics.win_count) || 0,
-        loss_count: parseInt(metrics.loss_count) || 0,
-        breakeven_count: parseInt(metrics.breakeven_count) || 0,
+        total_trades: metrics.total_trades || 0,
+        win_count: metrics.win_count || 0,
+        loss_count: metrics.loss_count || 0,
+        breakeven_count: (metrics.total_trades || 0) - (metrics.win_count || 0) - (metrics.loss_count || 0),
         win_rate_pct: parseFloat(metrics.win_rate_pct) || 0,
       },
       profitability: {
         gross_profit: parseFloat(metrics.gross_profit) || 0,
         gross_loss: parseFloat(metrics.gross_loss) || 0,
-        profit_factor: parseFloat(profit_factor),
+        profit_factor: parseFloat(metrics.profit_factor) || 0,
         total_pnl: parseFloat(metrics.total_pnl) || 0,
         avg_pnl_per_trade: parseFloat(metrics.avg_pnl_per_trade) || 0,
         avg_return_pct: parseFloat(metrics.avg_return_pct) || 0,
@@ -151,9 +148,9 @@ async function getPerformanceMetrics(req, res) {
         worst_trade_r: parseFloat(metrics.worst_trade_r) || 0,
       },
       risk_metrics: {
-        sharpe_ratio: parseFloat(sharpe_ratio),
-        max_drawdown: parseFloat(max_drawdown).toFixed(2),
-        calmar_ratio: parseFloat(calmar_ratio),
+        sharpe_ratio: parseFloat(metrics.sharpe_ratio) || 0,
+        max_drawdown: parseFloat(metrics.max_drawdown) || 0,
+        calmar_ratio: parseFloat(metrics.calmar_ratio) || 0,
       },
     };
 
