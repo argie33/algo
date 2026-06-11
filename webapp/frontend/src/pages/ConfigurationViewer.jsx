@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Filter, AlertCircle, CheckCircle } from 'lucide-react';
+import { Settings, Filter, AlertCircle, CheckCircle, Edit2, Save, X } from 'lucide-react';
 import { api } from '../services/api';
 import { extractData } from '../utils/responseNormalizer';
 
@@ -41,30 +41,39 @@ export default function ConfigurationViewer() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get('/api/algo/config');
-        const data = extractData(res);
-        setConfig(Array.isArray(data) ? data : data.items || []);
-        // Auto-select first category
-        if (Array.isArray(data) && data.length > 0) {
-          const categories = [...new Set((data || []).map(item => item.category || 'Other'))];
-          if (categories.length > 0) {
-            setSelectedCategory(categories[0]);
-          }
+  const loadConfig = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/api/algo/config');
+      const data = extractData(res);
+      setConfig(Array.isArray(data) ? data : data.items || []);
+      // Auto-select first category
+      if (Array.isArray(data) && data.length > 0) {
+        const categories = [...new Set((data || []).map(item => item.category || 'Other'))];
+        if (categories.length > 0) {
+          setSelectedCategory(categories[0]);
         }
-      } catch (err) {
-        console.error('Failed to load config:', err);
-        setError('Failed to load configuration');
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error('Failed to load config:', err);
+      setError('Failed to load configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadConfig();
   }, []);
+
+  const handleConfigUpdate = (key, newValue) => {
+    // Update the local state to reflect the change immediately
+    setConfig(config.map(item =>
+      item.key === key
+        ? { ...item, value: newValue, is_custom: true }
+        : item
+    ));
+  };
 
   const groupedConfig = React.useMemo(() => {
     const groups = {};
@@ -211,7 +220,7 @@ export default function ConfigurationViewer() {
               </div>
             ) : (
               filteredByCategory.map(item => (
-                <ConfigItem key={item.key} item={item} />
+                <ConfigItem key={item.key} item={item} onUpdate={handleConfigUpdate} />
               ))
             )}
           </div>
@@ -221,10 +230,45 @@ export default function ConfigurationViewer() {
   );
 }
 
-function ConfigItem({ item }) {
+function ConfigItem({ item, onUpdate }) {
   const isCustom = item.is_custom;
   const defaultVal = item.default_value;
   const currentVal = item.value;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(String(currentVal || ''));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSave = async () => {
+    if (editValue === String(currentVal)) {
+      setIsEditing(false);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await api.put(`/api/algo/config/${item.key}`, { value: editValue });
+      if (res?.statusCode === 200 || res?.status === 'success') {
+        setIsEditing(false);
+        if (onUpdate) {
+          onUpdate(item.key, editValue);
+        }
+      } else {
+        setError(res?.message || 'Failed to update config');
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to update config');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(String(currentVal || ''));
+    setIsEditing(false);
+    setError(null);
+  };
 
   return (
     <div style={{
@@ -243,44 +287,75 @@ function ConfigItem({ item }) {
         e.currentTarget.style.boxShadow = 'none';
       }}
     >
-      {/* Header: Key + Custom Badge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-        <code style={{
-          fontSize: '13px',
-          fontWeight: 'bold',
-          color: 'var(--text)',
-          fontFamily: 'monospace',
-          letterSpacing: '0.5px',
-        }}>
-          {item.key}
-        </code>
-        {isCustom && (
-          <span style={{
-            fontSize: '10px',
-            padding: '2px 6px',
-            borderRadius: '3px',
-            background: 'var(--amber-soft)',
-            color: 'var(--amber)',
+      {/* Header: Key + Custom Badge + Edit Button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <code style={{
+            fontSize: '13px',
             fontWeight: 'bold',
-            textTransform: 'uppercase',
+            color: 'var(--text)',
+            fontFamily: 'monospace',
             letterSpacing: '0.5px',
           }}>
-            CUSTOM
-          </span>
-        )}
-        {!isCustom && (
-          <span style={{
-            fontSize: '10px',
-            padding: '2px 6px',
-            borderRadius: '3px',
-            background: 'var(--success-soft)',
-            color: 'var(--success)',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
-            DEFAULT
-          </span>
+            {item.key}
+          </code>
+          {isCustom && (
+            <span style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '3px',
+              background: 'var(--amber-soft)',
+              color: 'var(--amber)',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              CUSTOM
+            </span>
+          )}
+          {!isCustom && (
+            <span style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '3px',
+              background: 'var(--success-soft)',
+              color: 'var(--success)',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              DEFAULT
+            </span>
+          )}
+        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            style={{
+              padding: '4px 8px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.borderColor = 'var(--brand)';
+              e.target.style.color = 'var(--brand)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.borderColor = 'var(--border)';
+              e.target.style.color = 'var(--text-muted)';
+            }}
+          >
+            <Edit2 size={12} />
+            Edit
+          </button>
         )}
       </div>
 
@@ -296,7 +371,22 @@ function ConfigItem({ item }) {
         </div>
       )}
 
-      {/* Values Grid */}
+      {/* Error Message (if editing) */}
+      {error && (
+        <div style={{
+          fontSize: '12px',
+          color: 'var(--danger)',
+          background: 'var(--danger-soft)',
+          padding: '8px',
+          borderRadius: '3px',
+          marginBottom: '12px',
+          marginTop: '8px',
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Values Grid / Edit Input */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
@@ -305,19 +395,38 @@ function ConfigItem({ item }) {
       }}>
         <div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
-            Current Value
+            {isEditing ? 'New Value' : 'Current Value'}
           </div>
-          <div style={{
-            fontSize: '13px',
-            fontFamily: 'monospace',
-            padding: '6px 8px',
-            background: 'var(--surface-2)',
-            borderRadius: '3px',
-            color: 'var(--text)',
-            wordBreak: 'break-all',
-          }}>
-            {currentVal !== null && currentVal !== undefined ? String(currentVal) : '(null)'}
-          </div>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              disabled={saving}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                fontSize: '13px',
+                fontFamily: 'monospace',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--brand)',
+                borderRadius: '3px',
+                color: 'var(--text)',
+              }}
+            />
+          ) : (
+            <div style={{
+              fontSize: '13px',
+              fontFamily: 'monospace',
+              padding: '6px 8px',
+              background: 'var(--surface-2)',
+              borderRadius: '3px',
+              color: 'var(--text)',
+              wordBreak: 'break-all',
+            }}>
+              {currentVal !== null && currentVal !== undefined ? String(currentVal) : '(null)'}
+            </div>
+          )}
           {item.value_type && (
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
               Type: <code style={{ fontFamily: 'monospace' }}>{item.value_type}</code>
@@ -344,6 +453,57 @@ function ConfigItem({ item }) {
           </div>
         )}
       </div>
+
+      {/* Edit Actions */}
+      {isEditing && (
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          marginTop: '12px',
+        }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '6px 12px',
+              background: 'var(--brand)',
+              color: 'var(--text-on-brand)',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <Save size={12} />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={saving}
+            style={{
+              padding: '6px 12px',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: '12px',
+              opacity: saving ? 0.6 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <X size={12} />
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Updated Info */}
       {item.updated_at && (

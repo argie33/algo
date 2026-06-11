@@ -189,7 +189,11 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             key = path[len('/api/algo/config/'):]
-            return _get_algo_config_key(cur, key)
+            if method == 'GET':
+                return _get_algo_config_key(cur, key)
+            elif method == 'PUT':
+                actor = (jwt_claims or {}).get('sub', 'unknown')
+                return _update_algo_config_key(cur, key, body, actor)
         elif path == '/api/algo/last-run':
             # Last run accessible to authenticated users
             return _get_last_run(cur)
@@ -2237,6 +2241,78 @@ def _get_algo_config_key(cur, key: str) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch config key')
+
+def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
+        """Update a configuration key (TIER 4: Configuration Editing)."""
+        try:
+            from algo.algo_config import AlgoConfig
+
+            if not body or 'value' not in body:
+                return error_response(400, 'bad_request', 'value required in request body')
+
+            # Validate the key exists and get its type
+            cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
+            row = cur.fetchone()
+            if not row:
+                return error_response(404, 'not_found', f'Config key not found: {key}')
+
+            value_type = row['value_type']
+            new_value = body.get('value')
+
+            # Validate the new value against AlgoConfig constraints
+            try:
+                if not AlgoConfig.DEFAULTS.get(key):
+                    return error_response(400, 'bad_request', f'Unknown config key: {key}')
+
+                _, expected_type, _ = AlgoConfig.DEFAULTS[key]
+                # Validate bounds and type
+                config = AlgoConfig()
+                config._validate_value(key, str(new_value), expected_type)
+            except ValueError as e:
+                logger.warning(f'Config validation failed for {key}={new_value}: {e}')
+                return error_response(400, 'bad_request', f'Invalid value for {key}: {str(e)}')
+
+            # Get old value for audit
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+            old_row = cur.fetchone()
+            old_value = old_row['value'] if old_row else None
+
+            # Update the config
+            cur.execute("""
+                UPDATE algo_config
+                SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+                WHERE key = %s
+            """, (str(new_value), actor, key))
+
+            # Log to audit trail
+            cur.execute("""
+                INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            """, (key, old_value, str(new_value), actor))
+
+            logger.info(f'[TIER4] Config updated by {actor}: {key} = {new_value} (was {old_value})')
+
+            return json_response(200, {
+                'status': 'success',
+                'key': key,
+                'old_value': old_value,
+                'new_value': str(new_value),
+                'updated_at': datetime.now(timezone.utc).isoformat(),
+                'updated_by': actor,
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'update algo config key'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'update algo config key'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'update algo config key', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
+        except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'update algo config key', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to update config key')
+
 def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
         try:

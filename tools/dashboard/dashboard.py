@@ -3955,7 +3955,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         ev_t1  = sig_eval.get("t1", 0)
         ev_t5  = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)
-        ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
+        sig_cfg = load_signal_thresholds(cfg)
+        ev_c   = G if ev_t5 >= sig_cfg['event_value_good'] else (Y if ev_t5 >= sig_cfg['event_value_caution'] else R)
         rejected   = sig_eval.get("rejected")
         block_parts = ["  ".join(
             f"[dim]{_shorten_reason(rj['evaluation_reason'])}:{rj['n']}[/]"
@@ -5567,7 +5568,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength > 1:
             strength = strength / 100.0
-        sig_c    = R if def_s >= 60 else (Y if def_s >= 40 else G)
+        sig_cfg = load_signal_thresholds()
+        sig_c    = R if def_s >= sig_cfg['signal_alert'] else (Y if def_s >= sig_cfg['signal_caution'] else G)
         rows.append(Text.from_markup(
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
             f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  strength:{strength:.0%}[/]"
