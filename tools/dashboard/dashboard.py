@@ -2351,9 +2351,10 @@ def fetch_notifications(c):
         _log_data_quality("fetch_notifications", 0, str(e))
         return {"_error": f"Failed to load notifications: {type(e).__name__}", "stale_alerts": stale_alerts}
 
-def fetch_sentiment(c):
+def fetch_sentiment(c, cfg=None):
     stale_alerts = []
     try:
+        mkt_cfg = load_market_thresholds(cfg)
         row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
         if not row:
             _log_data_quality("fetch_sentiment", 0, "No sentiment data")
@@ -2363,7 +2364,7 @@ def fetch_sentiment(c):
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
             return {"_error": "fear_greed_index missing", "date": row.get("date"), "stale_alerts": stale_alerts}
         label = get_string(row, "label")
-        c_fg = (R if fg is not None and fg <= 25 else (Y if fg is not None and fg <= 45 else (G if fg is not None and fg >= 75 else CY)))
+        c_fg = (R if fg is not None and fg <= mkt_cfg['fear_greed_alert'] else (Y if fg is not None and fg <= mkt_cfg['fear_greed_caution'] else (G if fg is not None and fg >= mkt_cfg['fear_greed_bullish'] else CY)))
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
         return {**result, "stale_alerts": stale_alerts}
@@ -3465,7 +3466,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Line 5: largest position concentration (when available)
     if lgpos is not None:
-        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else \"white\")  # TODO: config
+        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")  # TODO: config
         rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
 
     # VaR metrics (compact one-liner)
@@ -3867,7 +3868,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         return t[:12]
 
     # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
-    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
+    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))  # TODO: convert to config
     trend = sig.get("trend")
     spark_s = ""
     if len(trend) >= 2:
@@ -4092,7 +4093,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength is not None and strength > 1:
             strength = strength / 100.0
-        sig_c    = R if def_s is not None and def_s >= 60 else (Y if def_s is not None and def_s >= 40 else G)
+        sig_c = R if def_s is not None and def_s >= 60 else (Y if def_s is not None and def_s >= 40 else G)  # TODO: convert to config
         scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if (def_s is not None or cyc_s is not None) else ""
         str_s    = f" [dim]strength:{strength:.0%}[/]" if strength is not None else ""
         rows.append(Text.from_markup(
@@ -5257,7 +5258,7 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     if g is None:
         g = {}
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
-    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
+    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))  # TODO: convert to config
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
         f"[{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]  "
