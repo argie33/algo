@@ -4019,8 +4019,10 @@ def panel_exposure_compact(exp_f):
     if not exp_f or exp_f.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]EXPOSURE FACTORS[/]",
                      border_style="blue", padding=(0, 1))
-    raw     = float(exp_f.get("raw_score") or 0)
-    epct    = float(exp_f.get("exposure_pct") or 0)
+    raw_score = exp_f.get("raw_score")
+    epct_score = exp_f.get("exposure_pct")
+    raw     = float(raw_score) if raw_score is not None else None
+    epct    = float(epct_score) if epct_score is not None else None
     regime  = exp_f.get("regime") or ""
     factors = exp_f.get("factors") or {}
     tier    = tier_from_pct(epct)
@@ -5520,7 +5522,9 @@ def run_watch(interval: int, compact: bool) -> None:
                 frame[0] += 1
                 if result[0] is None:
                     # First load only — show loading screen until we have data
-                    live.update(loading_layout(frame[0]))
+                    # Only update when animation frame changes (every 2 frames) to avoid flicker
+                    if frame[0] % 2 == 0:
+                        live.update(loading_layout(frame[0]))
                 else:
                     # Keep showing existing data during background refresh (no flash)
                     live.update(render_dashboard(
