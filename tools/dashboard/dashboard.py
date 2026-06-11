@@ -1571,7 +1571,7 @@ def fetch_portfolio(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
         _log_data_quality("fetch_portfolio", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load portfolio: {type(e).__name__}"}
 
 def fetch_perf(c):
     """Fetch performance metrics from algo_performance_daily table (pre-computed).
@@ -2118,7 +2118,7 @@ def fetch_signals(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         _log_data_quality("fetch_signals", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load signals: {type(e).__name__}"}
 
 def fetch_sector_ranking(c):
     try:
@@ -2127,7 +2127,7 @@ def fetch_sector_ranking(c):
         if not max_date or max_date.get("max_date") is None:
             logger.warning("VALIDATION: sector_ranking table empty (max_date is NULL) — sector loader may not have run")
             _log_data_quality("fetch_sector_ranking", 0, "table has no data")
-            return []
+            return {"_error": "Sector ranking table has no data"}
 
         result = q(c, """
             SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
@@ -2138,14 +2138,14 @@ def fetch_sector_ranking(c):
         if not result:
             logger.warning(f"VALIDATION: sector_ranking has max_date {max_date.get('max_date')} but no rows for that date")
             _log_data_quality("fetch_sector_ranking", 0, "no rows for max_date")
-            return []
+            return {"_error": "No sector ranking rows for latest date"}
 
         _log_data_quality("fetch_sector_ranking", len(result))
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_ranking", 0, str(e))
-        return []
+        return {"_error": f"Failed to load sector ranking: {type(e).__name__}"}
 
 def fetch_sector_position_warnings(c, cfg=None):
     """Issue 35 FIX: Display warnings when sectors reach/exceed position cap."""
@@ -2205,7 +2205,7 @@ def fetch_sector_position_warnings(c, cfg=None):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_position_warnings: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_position_warnings", 0, str(e))
-        return {"warnings": [], "at_cap": []}
+        return {"_error": f"Failed to load sector position warnings: {type(e).__name__}"}
 
 
 def fetch_activity(c):
@@ -2217,7 +2217,7 @@ def fetch_activity(c):
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
         if not latest or not latest.get("run_id"):
             _log_data_quality("fetch_activity", 0)
-            return {}
+            return {"_error": "No recent activity data available"}
         rid    = latest["run_id"]
         run_at = latest.get("run_at")
         phases = q(c, """
@@ -2270,7 +2270,7 @@ def fetch_health(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         _log_data_quality("fetch_health", 0, str(e))
-        return []
+        return {"_error": f"Failed to load health: {type(e).__name__}"}
 
 def fetch_economic_pulse(c):
     try:
@@ -2393,8 +2393,7 @@ def fetch_economic_pulse(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_pulse: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_pulse", 0, str(e))
-        stale_alerts.append(f"Economic pulse fetch failed: {type(e).__name__}")
-        return {"stale_alerts": stale_alerts}
+        return {"_error": f"Failed to load economic pulse: {type(e).__name__}"}
 
 def fetch_algo_metrics(c):
     try:
@@ -2405,7 +2404,7 @@ def fetch_algo_metrics(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_algo_metrics", 0, str(e))
-        return []
+        return {"_error": f"Failed to load algo metrics: {type(e).__name__}"}
 
 def fetch_notifications(c):
     try:
@@ -2420,7 +2419,7 @@ def fetch_notifications(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_notifications: {type(e).__name__}: {e}")
         _log_data_quality("fetch_notifications", 0, str(e))
-        return []
+        return {"_error": f"Failed to load notifications: {type(e).__name__}"}
 
 def fetch_sentiment(c):
     try:
