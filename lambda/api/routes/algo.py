@@ -805,18 +805,25 @@ def _get_circuit_breakers(cur) -> Dict:
                     'error_type': 'missing_critical_tables'
                 })
 
-            # CB1: Portfolio drawdown
+            # Fetch pre-computed circuit breaker metrics from database
+            cbm_data = None
             try:
-                cur.execute("""
-                    SELECT MAX(total_portfolio_value) AS peak,
-                           (SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                            ORDER BY snapshot_date DESC LIMIT 1) AS current
-                    FROM algo_portfolio_snapshots
-                """)
-                row = cur.fetchone()
-                peak = safe_float(row[0]) if row else 0
-                current_val = safe_float(row[1]) if row else 0
-                dd = round(((peak - current_val) / peak * 100) if peak > 0 else 0, 2)
+                cur.execute("SELECT current_drawdown_pct, daily_loss_pct, weekly_loss_pct, total_risk_pct, consecutive_losses FROM circuit_breaker_metrics LIMIT 1")
+                cbm_row = cur.fetchone()
+                if cbm_row:
+                    cbm_data = {
+                        'drawdown': safe_float(cbm_row[0]) if cbm_row[0] is not None else 0,
+                        'daily_loss': safe_float(cbm_row[1]) if cbm_row[1] is not None else 0,
+                        'weekly_loss': safe_float(cbm_row[2]) if cbm_row[2] is not None else 0,
+                        'total_risk': safe_float(cbm_row[3]) if cbm_row[3] is not None else 0,
+                        'consecutive_losses': safe_int(cbm_row[4]) if cbm_row[4] is not None else 0,
+                    }
+            except Exception as e:
+                logger.warning(f"Circuit breaker metrics view unavailable: {e}")
+
+            # CB1: Portfolio drawdown (from pre-computed metrics)
+            try:
+                dd = cbm_data['drawdown'] if cbm_data else 0
                 threshold_dd = 20.0
                 breakers.append({
                     'id': 'drawdown', 'label': 'Portfolio Drawdown',
@@ -830,19 +837,13 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 20, 'unit': '%',
                     'description': 'No portfolio data yet'})
 
-            # CB2: Daily loss
+            # CB2: Daily loss (from pre-computed metrics)
             try:
-                cur.execute("""
-                    SELECT daily_return_pct FROM algo_portfolio_snapshots
-                    WHERE snapshot_date = %s
-                """, (today,))
-                row = cur.fetchone()
-                daily = round(safe_float(row[0]), 2) if row else 0.0
-                daily_loss = abs(min(0, daily))
+                daily_loss = cbm_data['daily_loss'] if cbm_data else 0
                 threshold_dl = 2.0
                 breakers.append({
                     'id': 'daily_loss', 'label': 'Daily Loss',
-                    'triggered': daily <= -threshold_dl,
+                    'triggered': daily_loss >= threshold_dl,
                     'current': daily_loss, 'threshold': threshold_dl, 'unit': '%',
                     'description': f'Halt when today\'s loss ≥ {threshold_dl:.0f}%',
                 })
@@ -852,21 +853,9 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 2, 'unit': '%',
                     'description': 'No today snapshot yet'})
 
-            # CB3: Consecutive losses
+            # CB3: Consecutive losses (from pre-computed metrics)
             try:
-                cur.execute("""
-                    SELECT profit_loss_pct FROM algo_trades
-                    WHERE status = 'closed' AND exit_date IS NOT NULL
-                    ORDER BY exit_date DESC, trade_id DESC
-                    LIMIT 10
-                """)
-                rows = cur.fetchall()
-                streak = 0
-                for r in rows:
-                    if safe_float(r[0]) < 0:
-                        streak += 1
-                    else:
-                        break
+                streak = cbm_data['consecutive_losses'] if cbm_data else 0
                 threshold_cl = 3
                 breakers.append({
                     'id': 'consecutive_losses', 'label': 'Consecutive Losses',
@@ -899,31 +888,13 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 35, 'unit': '',
                     'description': 'No market data yet'})
 
-            # CB5: Weekly portfolio loss
+            # CB5: Weekly portfolio loss (from pre-computed metrics)
             try:
-                cur.execute("""
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= %s
-                    ORDER BY snapshot_date ASC
-                    LIMIT 1
-                """, (today - timedelta(days=7),))
-                week_start = cur.fetchone()
-                cur.execute("""
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1
-                """)
-                week_end = cur.fetchone()
-                if week_start and week_end:
-                    sv = safe_float(week_start[0])
-                    ev = safe_float(week_end[0])
-                    weekly_ret = round(((ev - sv) / sv * 100) if sv > 0 else 0, 2)
-                else:
-                    weekly_ret = 0.0
-                weekly_loss = abs(min(0, weekly_ret))
+                weekly_loss = cbm_data['weekly_loss'] if cbm_data else 0
                 threshold_wl = 5.0
                 breakers.append({
                     'id': 'weekly_loss', 'label': 'Weekly Loss',
-                    'triggered': weekly_ret <= -threshold_wl,
+                    'triggered': weekly_loss >= threshold_wl,
                     'current': weekly_loss, 'threshold': threshold_wl, 'unit': '%',
                     'description': f'Halt when 7-day loss ≥ {threshold_wl:.0f}%',
                 })
@@ -950,26 +921,14 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
                     'description': 'No market data yet'})
 
-            # CB7: Total open risk
+            # CB7: Total open risk (from pre-computed metrics)
             try:
-                cur.execute("""
-                    SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
-                    FROM algo_positions p
-                    JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
-                    WHERE LOWER(p.status) = 'open'
-                """)
-                risk_result = cur.fetchone()
-                total_risk = safe_float(risk_result[0]) if risk_result else 0
-
-                cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
-                port_result = cur.fetchone()
-                port_val = float(port_result[0] or 1) if port_result else 1
-                risk_pct = (total_risk / port_val * 100) if port_val > 0 else 0
+                risk_pct = cbm_data['total_risk'] if cbm_data else 0
                 threshold_risk = 4.0
                 breakers.append({
                     'id': 'total_risk', 'label': 'Total Open Risk',
                     'triggered': risk_pct >= threshold_risk,
-                    'current': round(risk_pct, 2), 'threshold': threshold_risk, 'unit': '%',
+                    'current': risk_pct, 'threshold': threshold_risk, 'unit': '%',
                     'description': f'Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio',
                 })
             except Exception as e:

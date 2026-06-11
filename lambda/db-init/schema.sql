@@ -3426,3 +3426,60 @@ CREATE TABLE IF NOT EXISTS stock_correlations (
 CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol1 ON stock_correlations(symbol1);
 CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol2 ON stock_correlations(symbol2);
 CREATE INDEX IF NOT EXISTS idx_stock_correlations_updated ON stock_correlations(updated_at);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PHASE 3: Pre-computed Circuit Breaker Metrics (Architectural Fix)
+-- Moves circuit breaker calculations from API layer to nightly batch job
+-- Updated by: loaders/compute_circuit_breakers.py (4:30 PM ET)
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS circuit_breaker_status (
+    check_date DATE PRIMARY KEY,
+    portfolio_drawdown_pct NUMERIC(8, 2),       -- peak-to-current loss %
+    daily_loss_pct NUMERIC(8, 2),               -- today's loss from snapshot
+    weekly_loss_pct NUMERIC(8, 2),              -- 7-day loss %
+    consecutive_losses INT DEFAULT 0,           -- count from last 10 closed trades
+    open_risk_pct NUMERIC(8, 2),                -- total position risk / portfolio value %
+    vix_level NUMERIC(8, 2),                    -- latest VIX from market_health_daily
+    market_stage INT DEFAULT 1,                 -- current market stage (1-4)
+    spy_prior_day_change_pct NUMERIC(8, 2),    -- SPY price change vs prior day
+    win_rate_last_30_pct NUMERIC(8, 2),        -- win % from last 30 closed trades
+    triggered_count INT DEFAULT 0,              -- how many breakers are tripped
+    any_triggered BOOLEAN DEFAULT FALSE,        -- halt trading?
+    computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_circuit_breaker_status_date ON circuit_breaker_status(check_date DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PHASE 3: Pre-computed Performance Metrics (Architectural Fix)
+-- Moves performance statistics from API layer to nightly batch job
+-- Updated by: loaders/compute_performance_metrics.py (4:45 PM ET)
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS algo_performance_metrics (
+    metric_date DATE PRIMARY KEY,
+    total_trades INT DEFAULT 0,
+    winning_trades INT DEFAULT 0,
+    losing_trades INT DEFAULT 0,
+    breakeven_trades INT DEFAULT 0,
+    win_rate_pct NUMERIC(8, 2),                 -- winning / (winning + losing) × 100
+    profit_factor NUMERIC(8, 2),                -- sum of wins / sum of losses
+    total_pnl_dollars NUMERIC(12, 2),           -- cumulative P&L
+    total_pnl_pct NUMERIC(8, 2),                -- cumulative P&L %
+    avg_trade_pct NUMERIC(8, 2),                -- average trade P&L %
+    best_trade_pct NUMERIC(8, 2),               -- best single trade %
+    worst_trade_pct NUMERIC(8, 2),              -- worst single trade %
+    avg_holding_days NUMERIC(8, 1),             -- average days held per position
+    sharpe_ratio NUMERIC(8, 4),                 -- annualized (sqrt(252) × mean / std_dev)
+    sortino_ratio NUMERIC(8, 4),                -- annualized downside deviation variant
+    max_drawdown_pct NUMERIC(8, 2),             -- peak-to-trough % from portfolio snapshots
+    calmar_ratio NUMERIC(8, 4),                 -- CAGR / abs(max_drawdown)
+    cagr_pct NUMERIC(8, 4),                     -- compounded annual growth rate
+    best_win_streak INT DEFAULT 0,              -- consecutive wins
+    worst_loss_streak INT DEFAULT 0,            -- consecutive losses
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_algo_performance_metrics_date ON algo_performance_metrics(metric_date DESC);
