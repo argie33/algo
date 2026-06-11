@@ -866,6 +866,15 @@ def safe_float(v: any, default: float = None) -> Optional[float]:
     except (ValueError, TypeError):
         return default
 
+def safe_int(v: any, default: int = None) -> Optional[int]:
+    """Safely convert value to int, returning default if conversion fails."""
+    if v is None:
+        return default
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return default
+
 def sparkline(values: list, width: int = 24) -> str:
     vals = []
     for v in (values or []):
@@ -2546,11 +2555,11 @@ def fetch_risk_metrics(c) -> dict:
         result = {
             "_has_data": True,
             "date":      row.get("report_date"),
-            "var95":     float(var95_val) if var95_val is not None else None,
-            "cvar95":    float(cvar95_val) if cvar95_val is not None else None,
-            "svar":      float(row.get("stressed_var_pct")) if row.get("stressed_var_pct") is not None else None,
-            "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
-            "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
+            "var95":     safe_float(var95_val),
+            "cvar95":    safe_float(cvar95_val),
+            "svar":      safe_float(row.get("stressed_var_pct")),
+            "beta":      safe_float(row.get("portfolio_beta")),
+            "conc5":     safe_float(row.get("top_5_concentration")),
             "stale_alerts": stale_alerts,
             "_source":   "table",
             "_is_stale": not is_fresh,
@@ -2607,7 +2616,9 @@ def fetch_perf_analytics(c):
                 loader_running = is_fresh
 
         if row:
-            def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
+            def _f(k):
+                val = safe_float(row[k]) if row.get(k) is not None else None
+                return round(val, 3) if val is not None else None
             result = {
                 "sharpe252": _f("rolling_sharpe_252d"),
                 "sortino":   _f("rolling_sortino_252d"),
@@ -2658,7 +2669,7 @@ def fetch_signal_eval(c):
                            GROUP BY evaluation_reason
                            ORDER BY n DESC LIMIT 3""")
         def _i(k): return int(stats.get(k)) if stats and stats.get(k) is not None else 0
-        avg_score_val = float(stats.get("avg_score")) if stats and stats.get("avg_score") is not None else 0
+        avg_score_val = safe_float(stats.get("avg_score"), 0) if stats else 0
         total_val = _i("total")
         result = {
             "total":    total_val,
@@ -2690,7 +2701,7 @@ def fetch_sector_rotation(c):
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"sector_rotation details corrupt; sector rotation signal unavailable: {e}")
                 return {"_error": "Sector rotation data corrupted"}
-        strength = float(row.get("strength")) if row.get("strength") is not None else None
+        strength = safe_float(row.get("strength"))
         result = {
             "date":     row.get("date"),
             "signal":   row.get("signal") or "",
@@ -2824,7 +2835,7 @@ def fetch_circuit(c):
         config_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
                        "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"]
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (config_keys,))
-        cfg = {r["key"]: float(r["value"]) for r in rows if r.get("value") is not None}
+        cfg = {r["key"]: safe_float(r["value"]) for r in rows if r.get("value") is not None}
 
         # Issue 3.2: Validate critical keys exist; safeguard against incomplete config causing wrong halt decisions
         critical_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses"]
@@ -2866,16 +2877,22 @@ def fetch_circuit(c):
                 logger.warning(f"Could not validate snapshot freshness: {e}")
 
         # Safely calculate peak value
-        snap_vals = [float(s.get("total_portfolio_value")) for s in snaps if s.get("total_portfolio_value") is not None]
+        snap_vals = []
+        for s in snaps:
+            pv = s.get("total_portfolio_value")
+            if pv is not None:
+                pv_f = safe_float(pv)
+                if pv_f is not None:
+                    snap_vals.append(pv_f)
         pk    = max(snap_vals, default=0) if snap_vals else 0
-        cur_v = float(lat.get("total_portfolio_value")) if lat and lat.get("total_portfolio_value") is not None else 0
+        cur_v = safe_float(lat.get("total_portfolio_value"), 0) if lat else 0
         dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
-        daily_ret = lat.get("daily_return_pct") if lat and lat.get("daily_return_pct") is not None else 0
-        dl    = max(0.0, -float(daily_ret))
+        daily_ret = safe_float(lat.get("daily_return_pct"), 0) if lat else 0
+        dl    = max(0.0, -daily_ret)
         # Issue 1.5: Weekly loss — skip weekend gaps by looking back up to 2 weeks for 5+ trading days
         trading_rets = []
         for s in snaps[:14]:  # Look back up to 2 weeks to find 5 trading days
-            ret = float(s.get("daily_return_pct")) if s.get("daily_return_pct") is not None else None
+            ret = safe_float(s.get("daily_return_pct"))
             if ret is not None:
                 trading_rets.append(ret)
             if len(trading_rets) >= 5:
@@ -2888,13 +2905,19 @@ def fetch_circuit(c):
         consec = 0
         for t in trades:
             pnl = t.get("profit_loss_dollars")
-            if pnl is not None and float(pnl) < 0: consec += 1
-            else: break
+            if pnl is not None:
+                pnl_f = safe_float(pnl)
+                if pnl_f is not None and pnl_f < 0:
+                    consec += 1
+                else:
+                    break
+            else:
+                break
         h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
         vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v = vix_r.get("vix_level") if vix_r else None
         # Issue 1.6: Don't convert None to 0.0; keep None so dashboard displays "--" instead of "VIX 0.0"
-        vix   = float(vix_v) if vix_v is not None else None
+        vix   = safe_float(vix_v)
         vix_available = vix is not None  # Track whether VIX data is actually available
         stage = int(h.get("market_stage") or 1) if h else 1
         # Issue 26: Validate market_stage is in enum 1-4
@@ -2916,8 +2939,8 @@ def fetch_circuit(c):
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS pv
             FROM open_trades ot LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol""")
         # Properly handle None risk and pv values
-        risk_val = float(rr.get("risk")) if rr and rr.get("risk") is not None else 0.0
-        pv_val = float(rr.get("pv")) if rr and rr.get("pv") is not None else 0.0
+        risk_val = safe_float(rr.get("risk"), 0.0) if rr else 0.0
+        pv_val = safe_float(rr.get("pv"), 0.0) if rr else 0.0
         rp = risk_val / max(pv_val, 1) * 100 if pv_val > 0 else 0
 
         # Threshold helper: tracks which values came from config vs defaults
@@ -2938,10 +2961,10 @@ def fetch_circuit(c):
             {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
             {"lbl": "Daily Loss",   "cur": round(dl, 1),      "thr": th("max_daily_loss_pct", 2),     "u": "%"},
             {"lbl": "Weekly Loss",  "cur": round(wl, 1),      "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
-            {"lbl": "Consec Loss",  "cur": float(consec),     "thr": th("max_consecutive_losses", 3), "u": ""},
+            {"lbl": "Consec Loss",  "cur": safe_float(consec, 0), "thr": th("max_consecutive_losses", 3), "u": ""},
             {"lbl": "Total Risk",   "cur": round(rp, 1),      "thr": th("max_total_risk_pct", 4),     "u": "%"},
             {"lbl": "VIX",          "cur": vix_cur,           "thr": th("vix_max_threshold", 35),     "u": "", "available": vix_available},
-            {"lbl": "Mkt Stage",    "cur": float(stage),      "thr": 4,                                "u": ""},
+            {"lbl": "Mkt Stage",    "cur": safe_float(stage, 1), "thr": 4,                                "u": ""},
         ]
 
         # Log which thresholds used defaults (indicates stale/incomplete config)
@@ -3303,7 +3326,8 @@ def panel_orch(run, cfg, risk=None):
     t1r       = cfg.get("t1_r")
     pyr       = cfg.get("pyramid", False)
 
-    score_s   = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
+    min_score_f = safe_float(min_score) if min_score else None
+    score_s   = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score_f is not None and min_score_f > 0 else ""
     slots_s   = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s     = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s    = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""

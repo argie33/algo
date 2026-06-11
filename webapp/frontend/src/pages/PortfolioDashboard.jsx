@@ -522,28 +522,42 @@ function PortfolioDashboardPage() {
             </div>
           </div>
 
-        <ErrorBoundary>
-          <HoldingPeriodHistogram trades={safeTradesList} />
-        </ErrorBoundary>
-      </div>
+          <ErrorBoundary>
+            <HoldingPeriodHistogram trades={safeTradesList} />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {/* Recent trades */}
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card-head">
-          <div>
-            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              Recent Trades
-              {hasCachedTrades && <CachedDataBadge />}
+      {tradesDataError && !hasCachedTrades ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Recent Trades Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{tradesDataError}</div>
+              </div>
             </div>
-            <div className="card-sub">Last closed positions</div>
           </div>
         </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          {isPrimaryLoading ? (
-            <SkeletonTable />
-          ) : (safeTradesList.length === 0) ? (
-            <Empty title="No closed trades yet" />
-          ) : (
+      ) : (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                Recent Trades
+                {hasCachedTrades && <CachedDataBadge />}
+              </div>
+              <div className="card-sub">Last closed positions</div>
+            </div>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            {isPrimaryLoading ? (
+              <SkeletonTable />
+            ) : (safeTradesList.length === 0) ? (
+              <Empty title="No closed trades yet" />
+            ) : (
             <div style={{ maxHeight: '360px', overflow: 'auto' }}>
               <table className="data-table">
                 <thead>
@@ -574,9 +588,10 @@ function PortfolioDashboardPage() {
                 </tbody>
               </table>
             </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Market context */}
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
