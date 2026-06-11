@@ -336,8 +336,12 @@ IG_OAS_WARNING = 150.0  # Investment Grade OAS warning threshold (bps)
 OIL_WARNING = 100.0  # Oil price warning threshold ($/barrel)
 AAII_BULLISH_GOOD = 50.0  # AAII bullish pct good threshold
 AAII_BEARISH_WARNING = 40.0  # AAII bearish pct warning threshold
-UMCSENT_WARNING = 60  # University of Michigan Consumer Sentiment warning
-UMCSENT_GOOD = 70  # University of Michigan Consumer Sentiment good threshold
+CPI_GOOD = 2.5  # CPI YoY good threshold (%)
+CPI_WARNING = 3.5  # CPI YoY warning threshold (%)
+UNRATE_GOOD = 4.0  # Unemployment rate good threshold (%)
+UNRATE_WARNING = 5.0  # Unemployment rate warning threshold (%)
+UMCSENT_GOOD = 70.0  # University of Michigan sentiment good threshold
+UMCSENT_WARNING = 60.0  # University of Michigan sentiment warning threshold
 
 MINIBAR_HIGH = 0.75
 MINIBAR_MED = 0.35
