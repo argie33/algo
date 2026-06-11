@@ -26,6 +26,7 @@ When a circuit breaker fires:
 import json
 import math
 from utils.database_context import DatabaseContext
+from utils.data_freshness_config import get_freshness_rule
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
 from utils.trade_status import TradeStatus, PositionStatus
@@ -550,6 +551,9 @@ class CircuitBreaker:
         Compares against the previous trading day (not a fixed calendar threshold)
         so 3-day holiday weekends don't cause false halts.
         Allows up to 2 trading days of staleness to handle RDS Proxy replication lag.
+
+        NOTE: Uses trading-day logic (more sophisticated) vs centralized config's calendar-day logic.
+        Coordinated via get_freshness_rule("price_daily") for consistency with other components.
         """
         cur.execute(
             "SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
