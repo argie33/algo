@@ -106,6 +106,14 @@ export default function ConfigurationViewer() {
 
   const categories = CATEGORY_ORDER.filter(cat => (groupedConfig[cat] || []).length > 0);
 
+  const handleConfigUpdate = (key, newValue) => {
+    // Update config item in state when saved
+    const updatedConfig = config.map(item =>
+      item.key === key ? { ...item, value: newValue, is_custom: true } : item
+    );
+    setConfig(updatedConfig);
+  };
+
   if (loading) {
     return (
       <div className="main-content">
