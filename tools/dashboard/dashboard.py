@@ -3220,8 +3220,15 @@ def panel_orch(run, cfg, risk=None):
                 base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
                 ps    = (p.get("status") or "").lower()
-                pc    = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
-                pi    = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
+                if ps in ("success", "completed"):
+                    pc = G
+                    pi = "✓"
+                elif ps in ("halt", "halted", "warn"):
+                    pc = Y
+                    pi = "~"
+                else:
+                    pc = R
+                    pi = "✗"
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason") or ""
@@ -3469,14 +3476,29 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             ))
         pcr = mkt.get("pcr"); bmom = mkt.get("bmom"); ycs = mkt.get("ycs"); fed = mkt.get("fed")
         parts4 = []
-        if pcr  is not None:
-            pcr_c = G if pcr is not None and pcr <= mkt_cfg['put_call_bullish'] else (Y if pcr is not None and pcr <= mkt_cfg['put_call_fearful'] else R)
+        if pcr is not None:
+            if pcr <= mkt_cfg['put_call_bullish']:
+                pcr_c = G
+            elif pcr <= mkt_cfg['put_call_fearful']:
+                pcr_c = Y
+            else:
+                pcr_c = R
             parts4.append(f"[dim]P/C:[/][{pcr_c}]{pcr:.2f}[/]")
         if bmom is not None:
-            bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
+            if bmom >= 0.5:
+                bmc = G
+            elif bmom >= 0:
+                bmc = Y
+            else:
+                bmc = R
             parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.1f}[/]")
-        if ycs  is not None:
-            yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+        if ycs is not None:
+            if ycs >= 0.5:
+                yc_c = G
+            elif ycs >= 0:
+                yc_c = Y
+            else:
+                yc_c = R
             parts4.append(f"[dim]Yld Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         if fed:
             parts4.append(f"[dim]Fed:[/][white]{fed[:20]}[/]")
@@ -3583,8 +3605,14 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     # Line 5: largest position concentration (when available)
     if lgpos is not None:
         risk_cfg = load_risk_thresholds()
-        lp_c = R if float(lgpos) >= risk_cfg['large_position_alert'] else (Y if float(lgpos) >= risk_cfg['large_position_caution'] else "white")
-        rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
+        lgpos_val = float(lgpos)
+        if lgpos_val >= risk_cfg['large_position_alert']:
+            lp_c = R
+        elif lgpos_val >= risk_cfg['large_position_caution']:
+            lp_c = Y
+        else:
+            lp_c = "white"
+        rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{lgpos_val:.1f}%[/]"))
 
     # VaR metrics (compact one-liner)
     if risk and not risk.get("_error"):
