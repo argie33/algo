@@ -1514,111 +1514,75 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       return sendError(res, 'symbol and (position_dollars or position_pct) required', 400);
     }
 
-    // Parallelize initial portfolio and position count queries (independent of stock data)
-    const [portfolioResult, initialPosResult] = await Promise.all([
-      pool.query(`
-        SELECT total_portfolio_value, total_cash, position_count
-        FROM algo_portfolio_snapshots
-        ORDER BY snapshot_date DESC LIMIT 1
-      `),
-      pool.query(`
-        SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'
-      `)
-    ]);
+    // Call stored procedure to compute all impact metrics in database
+    const result = await pool.query(`
+      SELECT
+        position_size_dollars, position_size_percent, new_total_positions,
+        new_sector_percent, new_sector_invested, drawdown_impact_pct,
+        sector_name, sector_count,
+        meets_position_limit, meets_size_limit, meets_sector_limit,
+        meets_cash_requirement, meets_risk_limit
+      FROM calculate_pretrade_impact($1, $2, $3, $4)
+    `, [symbol.toUpperCase(), entry_price || null, position_dollars || null, position_pct || null]);
 
-    if (!portfolioResult.rows.length) {
-      return sendError(res, 'Portfolio snapshot not available', 404);
+    if (!result.rows.length) {
+      return sendError(res, `Unable to calculate impact for ${symbol}`, 500);
     }
 
-    const portfolio = portfolioResult.rows[0];
-    const totalValue = parseFloat(portfolio.total_portfolio_value || 0);
-    const cashAvail = parseFloat(portfolio.total_cash || 0);
-    const numPos = parseInt(portfolio.position_count || 0);
-    const openCount = parseInt(initialPosResult.rows[0]?.open_count || 0);
+    const impact = validateAndCoerceRow(result.rows[0], {
+      position_size_dollars: { type: 'float', required: false },
+      position_size_percent: { type: 'float', required: false },
+      new_total_positions: { type: 'int', required: false },
+      new_sector_percent: { type: 'float', required: false },
+      new_sector_invested: { type: 'float', required: false },
+      drawdown_impact_pct: { type: 'float', required: false },
+      sector_name: { type: 'string', required: false },
+      sector_count: { type: 'int', required: false },
+      meets_position_limit: { type: 'bool', required: false },
+      meets_size_limit: { type: 'bool', required: false },
+      meets_sector_limit: { type: 'bool', required: false },
+      meets_cash_requirement: { type: 'bool', required: false },
+      meets_risk_limit: { type: 'bool', required: false }
+    });
 
-    // Calculate position size
-    let posSize = position_dollars ? parseFloat(position_dollars) : (totalValue * parseFloat(position_pct || 0) / 100);
-    const posPercent = (posSize / totalValue) * 100;
-
-    // Get stock sector/industry; current price from price_daily (not company_profile,
-    // which has no current_price column).
-    const stockResult = await pool.query(`
-      SELECT cp.ticker AS symbol, cp.sector, cp.industry,
-             pd.close AS current_price
-      FROM company_profile cp
-      LEFT JOIN LATERAL (
-        SELECT close FROM price_daily
-        WHERE symbol = cp.ticker
-        ORDER BY date DESC LIMIT 1
-      ) pd ON true
-      WHERE cp.ticker = $1
-    `, [symbol.toUpperCase()]);
-
-    const stock = stockResult.rows[0];
-    if (!stock) {
-      return sendError(res, `Stock ${symbol} not found`, 404);
-    }
-
-    // Get current positions in same sector â€” join company_profile since algo_positions
-    // has no sector column.
-    const sectorResult = await pool.query(`
-      SELECT SUM(p.position_value) as sector_invested, COUNT(*) as sector_count
-      FROM algo_positions p
-      JOIN company_profile cp ON cp.ticker = p.symbol
-      WHERE p.status = 'open' AND cp.sector = $1
-    `, [stock.sector]);
-
-    const sectorData = sectorResult.rows[0];
-    const newSectorTotal = (parseFloat(sectorData.sector_invested || 0) + posSize) / totalValue * 100;
-
-    // Worst-case drawdown impact: 15% adverse move on the full position size
-    const drawdownImpact = posPercent * 0.15 / 100;
-
-    // Check constraints
-    const constraints = {
-      position_limit_ok: openCount < 6, // max 6 positions
-      size_limit_ok: posPercent <= 15,   // max 15% per position
-      sector_limit_ok: newSectorTotal <= 30, // max 30% in one sector
-      cash_ok: cashAvail >= posSize,     // have cash
-      risk_ok: drawdownImpact <= 0.05    // max 5% portfolio impact
-    };
-
-    const allOk = Object.values(constraints).every(v => v);
+    const allOk = impact.meets_position_limit && impact.meets_size_limit &&
+                  impact.meets_sector_limit && impact.meets_cash_requirement &&
+                  impact.meets_risk_limit;
 
     return sendSuccess(res, {
       symbol: symbol.toUpperCase(),
       entry_price: parseFloat(entry_price || 0),
-      position_size_dollars: posSize,
-      position_size_percent: posPercent,
-      sector: stock.sector,
+      position_size_dollars: parseFloat(impact.position_size_dollars || 0),
+      position_size_percent: parseFloat(impact.position_size_percent || 0),
+      sector: impact.sector_name,
 
       portfolio_impact: {
-        new_total_positions: openCount + 1,
+        new_total_positions: impact.new_total_positions,
         position_limit: 6,
-        position_limit_ok: constraints.position_limit_ok,
+        position_limit_ok: impact.meets_position_limit,
 
-        new_position_percent: posPercent,
+        new_position_percent: parseFloat(impact.position_size_percent || 0),
         max_position_percent: 15,
-        position_size_ok: constraints.size_limit_ok,
+        position_size_ok: impact.meets_size_limit,
 
-        new_sector_percent: newSectorTotal,
+        new_sector_percent: parseFloat(impact.new_sector_percent || 0),
         max_sector_percent: 30,
-        sector_limit_ok: constraints.sector_limit_ok,
+        sector_limit_ok: impact.meets_sector_limit,
 
-        worst_case_drawdown_impact: drawdownImpact,
+        worst_case_drawdown_impact: parseFloat(impact.drawdown_impact_pct || 0),
         max_acceptable_impact: 0.05,
-        drawdown_risk_ok: constraints.risk_ok,
+        drawdown_risk_ok: impact.meets_risk_limit,
 
-        cash_required: posSize,
-        cash_available: cashAvail,
-        cash_ok: constraints.cash_ok
+        cash_required: parseFloat(impact.position_size_dollars || 0),
+        cash_available: 0,
+        cash_ok: impact.meets_cash_requirement
       },
 
       all_constraints_met: allOk,
       recommendation: allOk ? 'READY TO TRADE' : 'CONSTRAINTS VIOLATED'
     });
   } catch (error) {
-    logger.error('Pre-trade simulation error:', { error: error.message, stack: error.stack });
+    logger.error('Pre-trade impact error:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing trade impact');
   }
 });
