@@ -365,7 +365,7 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
             FROM signal_quality_scores
         """
         rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
-        rows = [dict(row) for row in rows]
+        rows = [safe_json_serialize(dict(row)) for row in rows]
 
         config = get_config()
         tables = []
@@ -396,3 +396,4 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         logger.error(f'[HEALTH_PIPELINE_ERROR] {e}', exc_info=True)
         code, error_type, message = handle_db_error(e, "pipeline health check")
         return error_response(code, error_type, message)
+
