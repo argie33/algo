@@ -1787,6 +1787,7 @@ def fetch_positions(c):
                 missing_price_symbols = [p.get("symbol") for p in missing_prices]
                 logger.warning(f"VALIDATION: {len(missing_prices)} open positions using entry_price as current_price (stale valuation): {missing_price_symbols} "
                              f"(may indicate price_daily loader failure or incomplete data)")
+                stale_alerts.append(f"Price stale ({len(missing_prices)} positions)")
                 # Flag positions with stale prices; mark for dashboard to display with special warning
                 for p in missing_prices:
                     p["_missing_price"] = True
@@ -2844,11 +2845,12 @@ def check_loader_health() -> dict:
             try:
                 check = q1(conn, f"SELECT COUNT(*) as cnt, MAX(date) as latest_date FROM {table_name}")
                 if check:
-                    row_count = int(check.get("cnt") or 0)
+                    cnt_val = check.get("cnt")
+                    row_count = int(cnt_val) if cnt_val is not None else None
                     latest_date = check.get("latest_date")
 
                     # Check row count
-                    if row_count < config["min_rows"]:
+                    if row_count is None or row_count < config["min_rows"]:
                         issue = f"{config['label']} ({table_name}): only {row_count} rows (expected >={config['min_rows']})"
                         data_quality_issues.append(issue)
                         logger.warning(f"VALIDATION: {issue}")
