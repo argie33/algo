@@ -1536,14 +1536,15 @@ def fetch_perf(c):
 
             # Calculate breakeven pct from trade counts
             if total_trades > 0 and perf.get("num_wins") is not None:
-                num_wins = get_int(perf, "num_wins") or 0
-                num_losses = get_int(perf, "num_losses") or 0
-                num_breakeven = total_trades - num_wins - num_losses
-                be_pct = (num_breakeven / total_trades * 100) if num_breakeven > 0 else 0
-                if be_pct > 5:
-                    wr_confidence = "medium"
-                if be_pct > 15:
-                    wr_confidence = "low"
+                num_wins = get_int(perf, "num_wins")
+                num_losses = get_int(perf, "num_losses")
+                if num_wins is not None and num_losses is not None:
+                    num_breakeven = total_trades - num_wins - num_losses
+                    be_pct = (num_breakeven / total_trades * 100) if num_breakeven > 0 else 0
+                    if be_pct > 5:
+                        wr_confidence = "medium"
+                    if be_pct > 15:
+                        wr_confidence = "low"
 
             _log_data_quality("fetch_perf", len(trades))
         else:
@@ -4901,16 +4902,13 @@ def mascot_compact(data: dict, frame: int) -> Panel:
 # ── loading layout — same structure as render_dashboard to prevent flicker ──
 
 def loading_layout(frame: int) -> Layout:
-    """Loading screen with identical structure to render_dashboard.
-
-    Matches the 5-row dashboard layout exactly so there's no layout restructuring
-    when transitioning from loading to live data—just content replacement.
-    """
-    fi   = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+    """Show compact mascot in top-right corner with loading message below."""
+    fi   = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]   # 4fps loading animation
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
-    dots = "." * ((frame // 2 % 4) + 1)
+    dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
 
+    # Same pre-padded approach as mascot_compact (11-char strings)
     mascot_panel = Panel(
         Group(
             Text(" " * 11),
@@ -4924,66 +4922,39 @@ def loading_layout(frame: int) -> Layout:
         padding=(0, 0),
     )
 
-    ts = datetime.now(ET).strftime("%a %b %d  %I:%M %p ET")
-    hdr_text = Text.from_markup(f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]  [dim]{ts}[/]")
+    hdr_text = Text.from_markup(
+        f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]"
+    )
     hdr_panel = Panel(
         Align(hdr_text, vertical="middle"),
         border_style="blue",
         padding=(0, 1),
     )
 
-    exp_panel = Panel(
-        Text(f"[dim]Fetching data{dots}[/]", style="dim"),
-        title="[bold cyan]EXPOSURE FACTORS[/]",
-        border_style="cyan",
-        padding=(0, 1),
+    loading_body = Text.from_markup(
+        f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
+        f"  [dim]Connecting to database...[/]\n\n"
+        f"  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
+        f"[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]q[/][dim] quit[/]"
     )
-
-    loading_panel = Panel(
-        Text(f"[dim]Loading{dots}[/]", style="dim"),
-        border_style="dim",
+    main_panel = Panel(
+        Align(loading_body, align="left", vertical="middle"),
+        border_style="blue",
         padding=(0, 1),
     )
 
     layout = Layout()
     layout.split_column(
-        Layout(name="top",  size=10),
-        Layout(name="r1",   ratio=2),
-        Layout(name="r2",   ratio=2),
-        Layout(name="r3",   ratio=2),
-        Layout(name="pos",  ratio=3),
+        Layout(name="top", size=MASCOT_H),
+        Layout(name="main", ratio=1),
     )
-
     layout["top"].split_row(
-        Layout(name="hdr",      ratio=1),
-        Layout(name="exposure", ratio=2),
-        Layout(name="mascot",   size=MASCOT_W),
+        Layout(name="hdr",    ratio=1),
+        Layout(name="mascot", size=MASCOT_W),
     )
     layout["top"]["hdr"].update(hdr_panel)
-    layout["top"]["exposure"].update(exp_panel)
     layout["top"]["mascot"].update(mascot_panel)
-
-    layout["r1"].split_row(
-        Layout(loading_panel, ratio=1, name="cb"),
-        Layout(loading_panel, ratio=2, name="health"),
-    )
-
-    layout["r2"].split_row(
-        Layout(loading_panel, name="portfolio"),
-        Layout(loading_panel, name="perf"),
-        Layout(loading_panel, name="eco"),
-    )
-
-    layout["r3"].split_row(
-        Layout(loading_panel, ratio=3, name="signals"),
-        Layout(loading_panel, ratio=2, name="sectors"),
-    )
-
-    layout["pos"].split_row(
-        Layout(loading_panel, ratio=3, name="positions"),
-        Layout(loading_panel, ratio=2, name="recent_trades"),
-    )
-
+    layout["main"].update(main_panel)
     return layout
 
 
@@ -5519,7 +5490,7 @@ def run_watch(interval: int, compact: bool) -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP  = {"p": "positions", "s": "signals", "h": "health", "r": "sectors"}
+    _KEY_MAP  = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "d": "data_quality"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
