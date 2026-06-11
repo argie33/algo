@@ -3407,12 +3407,14 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
             cvar95_v = get_numeric(risk, "cvar95") or 0
             conc5_v = get_numeric(risk, "conc5") or 0
-            rows.append(Text.from_markup(
+            row_text = (
                 f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
                 f"[dim]CVaR:[/][white]{cvar95_v:.2f}%[/]  "
-                f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
-                f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
-            ))
+            )
+            if beta_v is not None:
+                row_text += f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
+            row_text += f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
+            rows.append(Text.from_markup(row_text))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
@@ -4804,6 +4806,72 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]", border_style="yellow", padding=(0, 1))
 
 
+def panel_data_quality_status() -> Panel:
+    """Issue 46: Unified data quality status panel for operator visibility.
+
+    Shows comprehensive health of all critical data sources:
+    - Critical fetchers status (ok/degraded/failed)
+    - Last update times for each data source
+    - Staleness warnings for any data exceeding thresholds
+    - Data quality issues (row counts, freshness)
+    - Summary status indicator (green/yellow/red)
+    """
+    rows: list = []
+
+    # Get comprehensive health status
+    hlth = check_loader_health()
+
+    # Status summary line
+    status = hlth.get("status", "unknown")
+    failures = hlth.get("failures", [])
+    passed = hlth.get("passed", 0)
+    critical = hlth.get("critical", 0)
+    issues = hlth.get("data_quality_issues", [])
+
+    if status == "ok":
+        status_c = G
+        status_t = "✓ ALL SYSTEMS HEALTHY"
+    elif status == "degraded":
+        status_c = Y
+        status_t = "⚠ DEGRADED (Some data stale or missing)"
+    else:
+        status_c = R
+        status_t = "✗ CRITICAL (Data unavailable)"
+
+    ts = hlth.get("timestamp")
+    ts_s = ts.strftime("%H:%M:%S ET") if ts and hasattr(ts, "strftime") else "?"
+    rows.append(Text.from_markup(f"[{status_c}]{status_t}[/]  [dim]{ts_s}[/]"))
+    rows.append(Rule(style="dim"))
+
+    # Critical fetchers health
+    rows.append(Text.from_markup("[dim]Critical Data Sources:[/]"))
+    critical_fetchers = ["fetch_run", "fetch_algo_config", "fetch_market", "fetch_positions"]
+    for fname in critical_fetchers:
+        if fname in failures:
+            rows.append(Text.from_markup(f"  [{R}]✗[/] {fname:<25} [dim]failed[/]"))
+        else:
+            rows.append(Text.from_markup(f"  [{G}]✓[/] {fname:<25} [dim]ok[/]"))
+
+    rows.append(Rule(style="dim"))
+
+    # Data quality issues
+    if issues:
+        rows.append(Text.from_markup(f"[{Y}]Data Quality Issues ({len(issues)}):[/]"))
+        for issue in issues[:10]:
+            rows.append(Text.from_markup(f"  [{Y}]⚠[/] {issue}"))
+        if len(issues) > 10:
+            rows.append(Text.from_markup(f"  [dim]... and {len(issues) - 10} more issues[/]"))
+    else:
+        rows.append(Text.from_markup(f"[{G}]✓ No data quality issues[/]"))
+
+    rows.append(Rule(style="dim"))
+
+    # Status summary
+    rows.append(Text.from_markup(f"[dim]Fetchers healthy:[/] [{G if passed == critical else Y}]{passed}/{critical}[/]"))
+
+    return Panel(Group(*rows), title="[bold cyan]DATA QUALITY STATUS[/]  [dim][d] detailed view[/]", border_style="cyan", padding=(0, 1))
+
+
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
@@ -5365,6 +5433,14 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         return _expanded_layout(*_exp_top, panel_algo_health_expanded(
             run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist, risk=risk))
 
+    if view_mode == "data_quality":
+        hint = Text.from_markup("[dim]press [/][bold cyan]q[/][dim] to return to dashboard[/]")
+        return _expanded_layout(*_exp_top, Panel(
+            Group(hint, Rule(style="dim"), panel_data_quality_status()),
+            title="[bold cyan]DATA QUALITY STATUS (Issue 46)[/]",
+            border_style="cyan", padding=(0, 1),
+        ))
+
     if view_mode == "sectors":
         return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank, sec_warn))
 
@@ -5389,7 +5465,7 @@ def run_once(compact: bool) -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "d": "data_quality"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
