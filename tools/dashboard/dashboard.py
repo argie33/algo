@@ -213,59 +213,82 @@ def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
 
 
 def load_performance_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load performance metric thresholds for coloring (win rate, Sharpe, profit factor, etc.)."""
-    if cfg:
-        return {
-            'win_rate_good': safe_float(cfg.get('win_rate_good_threshold', 50.0), 50.0),
-            'win_rate_excellent': safe_float(cfg.get('win_rate_excellent_threshold', 55.0), 55.0),
-            'sharpe_good': safe_float(cfg.get('sharpe_good_threshold', 1.0), 1.0),
-            'sharpe_excellent': safe_float(cfg.get('sharpe_excellent_threshold', 2.0), 2.0),
-            'profit_factor_good': safe_float(cfg.get('profit_factor_good_threshold', 1.5), 1.5),
-            'profit_factor_excellent': safe_float(cfg.get('profit_factor_excellent_threshold', 2.0), 2.0),
-            'calmar_good': safe_float(cfg.get('calmar_good_threshold', 0.5), 0.5),
-            'beta_warning': safe_float(cfg.get('beta_warning_threshold', 1.2), 1.2),
-            'beta_caution': safe_float(cfg.get('beta_caution_threshold', 0.8), 0.8),
-        }
+    """Load performance metric thresholds for coloring (win rate, Sharpe, profit factor, etc.).
+
+    ARCHITECTURE FIX (C3-7): No hardcoded fallback defaults.
+    Requires performance thresholds in algo_config; fails if missing.
+    """
+    if not cfg:
+        logger.error("ARCHITECTURE (C3-7): load_performance_thresholds requires config; failing instead of hardcoded defaults")
+        return {}
+    required = ['win_rate_good_threshold', 'win_rate_excellent_threshold',
+                'sharpe_good_threshold', 'sharpe_excellent_threshold',
+                'profit_factor_good_threshold', 'profit_factor_excellent_threshold',
+                'calmar_good_threshold', 'beta_warning_threshold', 'beta_caution_threshold']
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        logger.error(f"ARCHITECTURE (C3-7): Missing performance thresholds in config: {missing}")
+        return {}
     return {
-        'win_rate_good': 50.0, 'win_rate_excellent': 55.0,
-        'sharpe_good': 1.0, 'sharpe_excellent': 2.0,
-        'profit_factor_good': 1.5, 'profit_factor_excellent': 2.0,
-        'calmar_good': 0.5,
-        'beta_warning': 1.2, 'beta_caution': 0.8,
+        'win_rate_good': safe_float(cfg['win_rate_good_threshold'], None),
+        'win_rate_excellent': safe_float(cfg['win_rate_excellent_threshold'], None),
+        'sharpe_good': safe_float(cfg['sharpe_good_threshold'], None),
+        'sharpe_excellent': safe_float(cfg['sharpe_excellent_threshold'], None),
+        'profit_factor_good': safe_float(cfg['profit_factor_good_threshold'], None),
+        'profit_factor_excellent': safe_float(cfg['profit_factor_excellent_threshold'], None),
+        'calmar_good': safe_float(cfg['calmar_good_threshold'], None),
+        'beta_warning': safe_float(cfg['beta_warning_threshold'], None),
+        'beta_caution': safe_float(cfg['beta_caution_threshold'], None),
     }
 
 def load_risk_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load risk metric thresholds (drawdown, position size, etc.)."""
-    if cfg:
-        return {
-            'drawdown_alert': safe_float(cfg.get('drawdown_alert_threshold', 15.0), 15.0),
-            'drawdown_caution': safe_float(cfg.get('drawdown_caution_threshold', 5.0), 5.0),
-            'large_position_alert': safe_float(cfg.get('large_position_alert_threshold', 20.0), 20.0),
-            'large_position_caution': safe_float(cfg.get('large_position_caution_threshold', 15.0), 15.0),
-        }
+    """Load risk metric thresholds (drawdown, position size, etc.).
+
+    ARCHITECTURE FIX (C3-5): No hardcoded fallback defaults.
+    Requires risk thresholds in algo_config; fails if missing.
+    """
+    if not cfg:
+        logger.error("ARCHITECTURE (C3-5): load_risk_thresholds requires config; failing instead of hardcoded defaults")
+        return {}
+    required = ['drawdown_alert_threshold', 'drawdown_caution_threshold',
+                'large_position_alert_threshold', 'large_position_caution_threshold']
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        logger.error(f"ARCHITECTURE (C3-5): Missing risk thresholds in config: {missing}")
+        return {}
     return {
-        'drawdown_alert': 15.0, 'drawdown_caution': 5.0,
-        'large_position_alert': 20.0, 'large_position_caution': 15.0,
+        'drawdown_alert': safe_float(cfg['drawdown_alert_threshold'], None),
+        'drawdown_caution': safe_float(cfg['drawdown_caution_threshold'], None),
+        'large_position_alert': safe_float(cfg['large_position_alert_threshold'], None),
+        'large_position_caution': safe_float(cfg['large_position_caution_threshold'], None),
     }
 
 def load_signal_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load signal evaluation thresholds for quality scoring."""
-    if cfg:
-        return {
-            'event_value_good': safe_float(cfg.get('event_value_good_threshold', 20.0), 20.0),
-            'event_value_caution': safe_float(cfg.get('event_value_caution_threshold', 5.0), 5.0),
-            'signal_alert': safe_float(cfg.get('signal_alert_threshold', 60.0), 60.0),
-            'signal_caution': safe_float(cfg.get('signal_caution_threshold', 40.0), 40.0),
-            'volume_surge_good': safe_float(cfg.get('volume_surge_good_threshold', 50.0), 50.0),
-            'volume_surge_caution': safe_float(cfg.get('volume_surge_caution_threshold', 20.0), 20.0),
-            'reward_risk_good': safe_float(cfg.get('reward_risk_good_threshold', 2.5), 2.5),
-            'reward_risk_caution': safe_float(cfg.get('reward_risk_caution_threshold', 1.5), 1.5),
-        }
+    """Load signal evaluation thresholds for quality scoring.
+
+    ARCHITECTURE FIX (C3-6): No hardcoded fallback defaults.
+    Requires signal thresholds in algo_config; fails if missing.
+    """
+    if not cfg:
+        logger.error("ARCHITECTURE (C3-6): load_signal_thresholds requires config; failing instead of hardcoded defaults")
+        return {}
+    required = ['event_value_good_threshold', 'event_value_caution_threshold',
+                'signal_alert_threshold', 'signal_caution_threshold',
+                'volume_surge_good_threshold', 'volume_surge_caution_threshold',
+                'reward_risk_good_threshold', 'reward_risk_caution_threshold']
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        logger.error(f"ARCHITECTURE (C3-6): Missing signal thresholds in config: {missing}")
+        return {}
     return {
-        'event_value_good': 20.0, 'event_value_caution': 5.0,
-        'signal_alert': 60.0, 'signal_caution': 40.0,
-        'volume_surge_good': 50.0, 'volume_surge_caution': 20.0,
-        'reward_risk_good': 2.5, 'reward_risk_caution': 1.5,
+        'event_value_good': safe_float(cfg['event_value_good_threshold'], None),
+        'event_value_caution': safe_float(cfg['event_value_caution_threshold'], None),
+        'signal_alert': safe_float(cfg['signal_alert_threshold'], None),
+        'signal_caution': safe_float(cfg['signal_caution_threshold'], None),
+        'volume_surge_good': safe_float(cfg['volume_surge_good_threshold'], None),
+        'volume_surge_caution': safe_float(cfg['volume_surge_caution_threshold'], None),
+        'reward_risk_good': safe_float(cfg['reward_risk_good_threshold'], None),
+        'reward_risk_caution': safe_float(cfg['reward_risk_caution_threshold'], None),
     }
 
 def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
