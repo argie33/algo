@@ -1382,6 +1382,68 @@ terraform state show aws_db_proxy_target.main
 
 ---
 
+## Dashboard (Ops Terminal)
+
+**Purpose:** Real-time monitoring of algo system state (positions, signals, health, performance) for ops and debugging.
+
+**Quick Start:**
+```bash
+# Default: auto-detects AWS RDS availability, falls back to local database
+python tools/dashboard/dashboard.py
+
+# Force local database (development, no VPN required)
+python tools/dashboard/dashboard.py --local
+
+# Force AWS RDS database (requires VPN/bastion access)
+python tools/dashboard/dashboard.py --aws
+
+# Watch mode: auto-refresh every 30 seconds
+python tools/dashboard/dashboard.py -w
+
+# Show legend / documentation
+python tools/dashboard/dashboard.py --legend
+```
+
+**How It Works:**
+
+1. **Default Behavior (auto-detect):** Dashboard attempts to connect to AWS RDS proxy. If unreachable (no VPN), automatically falls back to local PostgreSQL database at localhost:5432.
+2. **Local Database:** For development/testing. Requires local PostgreSQL running (included in docker-compose.yml).
+3. **AWS RDS:** For production monitoring. Requires VPN access to AWS VPC or use of bastion host for SSH tunnel.
+
+**Accessing AWS RDS from Local Dev:**
+
+Option A - **Use Bastion SSH Tunnel** (recommended):
+```bash
+# Create SSH tunnel through bastion (requires AWS credentials and bastion instance)
+# Contact ops team for bastion connection details
+aws ssm start-session --target i-xxxxx --document-name AWS-StartPortForwardingSession \
+  --parameters localPortNumber=5433,portNumber=5432,host=algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com
+# Then run dashboard pointing to tunnel:
+DB_HOST=localhost DB_PORT=5433 python tools/dashboard/dashboard.py --aws
+```
+
+Option B - **Request VPN Access:** Contact infrastructure team for VPN credentials.
+
+**Panels:**
+
+- **Positions:** Current open trades, symbols, entry/exit prices, P&L
+- **Signals:** Active buy/sell signals from Minervini trend-following logic
+- **Health:** Data freshness (prices, technicals, signals), circuit breaker status
+- **Sectors:** Position exposure by sector, concentration analysis
+
+**Data Freshness Indicators:**
+
+- `✓` Green: Data is current (within 24 hours for weekday data, +1-2 days on weekends)
+- `⚠` Yellow: Data is stale (>24 hours old)
+- `✗` Red: Data is missing or critical error
+
+**GitHub Actions Health Check:**
+
+Automated health checks run on schedule (morning and EOD) in `.github/workflows/run-dashboard-health.yml`. These verify:
+- RDS connectivity
+- Core table freshness
+- No manual action required; alerts go to team Slack channel
+
 ## Troubleshooting
 
 **RDS Connection Issues:**

@@ -3,10 +3,16 @@
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
 Usage:
-  python tools/dashboard/dashboard.py            # live view (q or Ctrl+C to exit)
-  python tools/dashboard/dashboard.py -w         # watch mode, auto-refresh every 30s
-  python tools/dashboard/dashboard.py -w 60      # watch mode, refresh every 60s
-  python tools/dashboard/dashboard.py --compact  # narrow positions table
+  python tools/dashboard/dashboard.py                        # AWS mode (production, default)
+  python tools/dashboard/dashboard.py --local                # LOCAL mode (development)
+  python tools/dashboard/dashboard.py -w                     # AWS mode, watch mode (auto-refresh 30s)
+  python tools/dashboard/dashboard.py --local -w 60          # LOCAL mode, watch mode (refresh 60s)
+  python tools/dashboard/dashboard.py --compact              # AWS mode, narrow positions table
+  python tools/dashboard/dashboard.py --local --compact      # LOCAL mode, narrow positions table
+
+Data Modes (default: AWS):
+  (no flag)  Use AWS RDS database (production, full data, team access)
+  --local    Use LOCAL database at localhost:5432 (development only)
 """
 
 import argparse
@@ -6276,6 +6282,50 @@ def print_legend():
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+def _detect_aws_reachable():
+    """Check if AWS RDS proxy is reachable. Used for intelligent fallback."""
+    import socket
+    aws_host = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+    try:
+        socket.getaddrinfo(aws_host, 5432, socket.AF_INET, socket.SOCK_STREAM)
+        return True
+    except (socket.gaierror, OSError):
+        return False
+
+def _configure_database(use_local: bool | None = None):
+    """Configure database environment. If use_local=None, auto-detect based on availability."""
+    # If explicitly requested via --local flag, use local
+    if use_local is True:
+        os.environ['DB_HOST'] = 'localhost'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
+        return 'local'
+
+    # If explicitly requested to use AWS, use it
+    if use_local is False:
+        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        return 'aws'
+
+    # Auto-detect: try AWS first, fall back to local if unreachable
+    if _detect_aws_reachable():
+        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        return 'aws'
+    else:
+        os.environ['DB_HOST'] = 'localhost'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
+        return 'local'
+
 def main():
     pa = argparse.ArgumentParser(
         description="Algo ops terminal dashboard",
@@ -6288,7 +6338,23 @@ def main():
                     help="Omit T1 and Sector columns from positions table")
     pa.add_argument("--legend", "-l", action="store_true",
                     help="Print a guide explaining every term and panel, then exit")
+    pa.add_argument("--local", action="store_true",
+                    help="Force LOCAL database (localhost:5432)")
+    pa.add_argument("--aws", action="store_true",
+                    help="Force AWS database (requires VPN/bastion access)")
     args = pa.parse_args()
+
+    # Configure database with intelligent fallback
+    if args.local and args.aws:
+        print("ERROR: Cannot specify both --local and --aws", file=sys.stderr)
+        sys.exit(1)
+
+    use_local = True if args.local else (False if args.aws else None)
+    db_mode = _configure_database(use_local)
+
+    if use_local is None:
+        print(f"[INFO] Auto-detected database: {db_mode} mode", file=sys.stderr)
+
     validate_schema()
 
     if args.legend:
