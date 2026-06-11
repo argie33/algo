@@ -19,7 +19,7 @@
  *                     → algo_orchestrator dry-run (20 min expected, 20 min timeout = 1200s)
  *
  * MORNING PIPELINE (2:15 AM ET, 5.5h max execution):
- *   stock_prices_daily (daily only, 15 min expected, 75 min timeout = 4500s)
+ *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
  *     → [parallel] technical_data_daily (90 min expected, 90 min timeout = 5400s)
  *                + market_health_daily (20 min expected, 20 min timeout = 1200s)
  *       → buy_sell_daily (30 min expected, 45 min timeout = 2700s)
