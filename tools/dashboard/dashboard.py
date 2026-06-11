@@ -3487,7 +3487,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
                 pcr_c = R
             parts4.append(f"[dim]P/C:[/][{pcr_c}]{pcr:.2f}[/]")
         if bmom is not None:
-            if bmom >= 0.5:
+            if bmom >= mkt_cfg['breadth_momentum_good']:
                 bmc = G
             elif bmom >= 0:
                 bmc = Y
@@ -3495,7 +3495,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
                 bmc = R
             parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.1f}[/]")
         if ycs is not None:
-            if ycs >= 0.5:
+            if ycs >= mkt_cfg['yield_curve_good']:
                 yc_c = G
             elif ycs >= 0:
                 yc_c = Y
@@ -5103,10 +5103,10 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
         entries_val = today_m.get("entries")
-        entries_exec = int(entries_val) if entries_val is not None else None
+        entries_exec = int(entries_val) if entries_val is not None else 0
     if not exits_exec:
         exits_val = today_m.get("exits")
-        exits_exec = int(exits_val) if exits_val is not None else None
+        exits_exec = int(exits_val) if exits_val is not None else 0
 
     # "What did the algo do today?" summary — the core insight
     action_parts = []
