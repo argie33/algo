@@ -599,6 +599,33 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         return (False, None, "Token validation failed")
 
 
+def categorize_error(e: Exception) -> str:
+    """Categorize exception to return specific error_type for better debugging.
+
+    Returns error_type string: 'database_error', 'auth_error', 'validation_error', 'import_error', or 'unknown_error'
+    """
+    error_class_name = type(e).__name__
+    error_module = type(e).__module__ if hasattr(type(e), '__module__') else ''
+
+    # Database errors
+    if 'psycopg2' in error_module or error_class_name in ('OperationalError', 'DatabaseError'):
+        return 'database_error'
+
+    # Auth/JWT errors
+    if 'jwt' in error_module or error_class_name in ('ExpiredSignatureError', 'InvalidTokenError'):
+        return 'auth_error'
+
+    # Validation errors
+    if error_class_name == 'ValueError':
+        return 'validation_error'
+
+    # Import/initialization errors
+    if error_class_name in ('ImportError', 'ModuleNotFoundError', 'AttributeError'):
+        return 'import_error'
+
+    return 'unknown_error'
+
+
 def get_client_ip(event: Dict) -> str:
     """Extract client IP for audit logging.
 
@@ -935,13 +962,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             # SECURITY FIX: Don't leak error details to client; log full details server-side only
             error_detail = f'{type(e).__name__}: {str(e)[:300]}'
-            logger.error(f'[HANDLER_ERROR] path={path} {error_detail}', exc_info=True)
+            error_type = categorize_error(e)
+            logger.error(f'[HANDLER_ERROR] path={path} error_type={error_type} {error_detail}', exc_info=True)
             # Never expose error details to client (prevents info disclosure)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'service_unavailable',
+                    'error_type': error_type,
                     'message': 'Service temporarily unavailable. Please try again later.'
                 })
             }
