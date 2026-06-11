@@ -2283,6 +2283,7 @@ CREATE TABLE IF NOT EXISTS commodity_events (
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_created_at ON data_patrol_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_data_remediation_log_date ON data_remediation_log(remediation_date);
 CREATE INDEX IF NOT EXISTS idx_market_exposure_daily_date ON market_exposure_daily(date);
 CREATE INDEX IF NOT EXISTS idx_notif_unseen ON algo_notifications(seen, created_at) WHERE seen = FALSE;
