@@ -1106,6 +1106,24 @@ def fetch_algo_config(c):
         # Issue 23 FIX: Validate numeric config values before returning
         base_risk = _parse_config_float(d, "base_risk_pct", 0.5)
         t1_r = _parse_config_float(d, "t1_target_r_multiple", 1.0)
+
+        # M1-M3 FIX: Load thresholds from config with defaults
+        grade_a_plus = _parse_config_float(d, "grade_a_plus_threshold", 90.0)
+        grade_a = _parse_config_float(d, "grade_a_threshold", 80.0)
+        grade_b = _parse_config_float(d, "grade_b_threshold", 70.0)
+        grade_c = _parse_config_float(d, "grade_c_threshold", 60.0)
+
+        vix_caution = _parse_config_float(d, "vix_caution_threshold", 20.0)
+        vix_alert = _parse_config_float(d, "vix_alert_threshold", 30.0)
+        up_vol_good = _parse_config_float(d, "up_volume_good_threshold", 60.0)
+        up_vol_caution = _parse_config_float(d, "up_volume_caution_threshold", 50.0)
+        put_call_bull = _parse_config_float(d, "put_call_bullish_threshold", 0.8)
+        put_call_caution = _parse_config_float(d, "put_call_caution_threshold", 1.0)
+        nh_nl_good = _parse_config_float(d, "nh_nl_good_threshold", 50.0)
+
+        var_pct = _parse_config_float(d, "var_percentile", 95.0)
+        cvar_pct = _parse_config_float(d, "cvar_percentile", 99.0)
+
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -1119,6 +1137,22 @@ def fetch_algo_config(c):
             "base_risk":    base_risk,
             "t1_r":         t1_r,
             "pyramid":      d.get("pyramid_enabled", "false").lower() == "true",
+            # M1: Grade thresholds
+            "grade_a_plus": grade_a_plus,
+            "grade_a": grade_a,
+            "grade_b": grade_b,
+            "grade_c": grade_c,
+            # M2: Market thresholds
+            "vix_caution": vix_caution,
+            "vix_alert": vix_alert,
+            "up_vol_good": up_vol_good,
+            "up_vol_caution": up_vol_caution,
+            "put_call_bull": put_call_bull,
+            "put_call_caution": put_call_caution,
+            "nh_nl_good": nh_nl_good,
+            # M3: Risk thresholds
+            "var_pct": var_pct,
+            "cvar_pct": cvar_pct,
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
