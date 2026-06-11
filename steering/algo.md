@@ -179,7 +179,7 @@ If you need to rebuild the schema:
 **Goal:** Make data freshness checks reliable and debuggable. Removed complex schedule-based logic that was fragile and hard to diagnose.
 
 **Changes:**
-1. **Simplified data freshness rule:** Data must be ≤1 trading day old. No more schedule-based expected dates (which broke on edge cases like Friday 4 PM closes, holidays, etc.)
+1. **Simplified data freshness rule:** Data must be ≤1 trading day old (configurable). No more schedule-based expected dates (which broke on edge cases like Friday 4 PM closes, holidays, etc.)
 2. **Simplified failsafe triggers:** If data is stale and loader not actively RUNNING, trigger immediately (no 2.5-hour grace period delays that cause false halts)
 3. **Removed grace periods:** If loader is RUNNING, proceed (grace period OK). Otherwise trigger NOW.
 4. **Explicit swing_trader_scores halt:** If missing or stale, Phase 1 halts with clear message "Phase 5 cannot rank trades"
@@ -189,8 +189,60 @@ If you need to rebuild the schema:
 **Files:**
 - `algo/orchestrator/phase1_data_freshness.py` (150 lines — checks latest price date, 95% symbol coverage, done in <1 minute)
 - `algo/algo_orchestrator.py` (imports v2 phase; _health_check_diagnostics method logs freshness at startup)
+- `lambda/api/utils/config.py` (configuration management for health check thresholds)
 
 **Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
+
+## M-1: Data Freshness Configuration (M-1 Fix)
+
+**Problem:** Data freshness thresholds were hardcoded (24-hour rule for Phase 1 and health checks). On weekends and holidays with market closures, the system would trigger false "stale data" alerts even when data was actually current. Users had no way to adjust thresholds without code changes.
+
+**Solution:** Configurable freshness thresholds via Lambda environment variables:
+
+**Configuration Parameters (Lambda Environment Variables):**
+
+| Variable | Default | Range | Description |
+|----------|---------|-------|-------------|
+| `DATA_FRESHNESS_MAX_HOURS` | 24 | 1–168 hours | Maximum data age before Phase 1 halts. Used by `/api/health` and `check_data_freshness()`. Converted to days internally (24h = 1 day). Weekends automatically add +1 day (Sat) or +2 days (Sun) to avoid false stale warnings. |
+| `SIGNAL_STALE_THRESHOLD_HOURS` | 24 | 1–168 hours | Signal quality score freshness threshold in `/api/health` basic endpoint. Data older than this is flagged as STALE (critical). Data at 50% of threshold triggers WARNING. |
+| `PIPELINE_HEALTHY_DAYS` | 2 | 1–30 days | Threshold for HEALTHY status in `/api/health/pipeline`. Data ≤ X days old = HEALTHY. Used for price_daily, buy_sell_daily, technical_data_daily, signal_quality_scores. |
+| `PIPELINE_CRITICAL_DAYS` | 7 | 1–30 days | Threshold for CRITICAL status in `/api/health/pipeline`. Data > X days old = CRITICAL. Data between HEALTHY and CRITICAL thresholds = STALE. |
+
+**How to adjust thresholds:**
+
+1. **For Lambda (API):** Set environment variables in Lambda configuration:
+   ```bash
+   # Example: Adjust for non-US markets with different trading hours
+   DATA_FRESHNESS_MAX_HOURS=30      # 30-hour window instead of 24
+   SIGNAL_STALE_THRESHOLD_HOURS=48  # Signals can be older
+   PIPELINE_HEALTHY_DAYS=3          # Slightly more lenient
+   ```
+
+2. **For Orchestrator (Phase 1):** Calls `check_data_freshness()` which reads `DATA_FRESHNESS_MAX_HOURS` config. No separate orchestrator env var needed.
+
+3. **Weekend/Holiday Override:** All freshness checks automatically extend by 1–2 days on weekends (Saturday adds +1, Sunday adds +2). For holidays with multiple non-trading days, manually increase `DATA_FRESHNESS_MAX_HOURS` during the closure period.
+
+**Example Scenarios:**
+
+- **US Market (default 24h):** Data from Monday 4 PM through Tuesday 3:59 PM = FRESH. Tuesday 4 PM+ = STALE.
+- **Friday 4 PM close:** On Saturday/Sunday, Friday's data stays FRESH automatically (weekend adjustment). On Monday, if no new data, becomes STALE.
+- **Market Holiday (e.g., 3-day weekend):** Friday 4 PM close, Monday holiday, trading resumes Tuesday. Set `DATA_FRESHNESS_MAX_HOURS=72` (3 days) during the closure, revert after Tuesday market opens.
+- **International markets:** Adjust to local trading hours (e.g., 30h for Hong Kong stock exchange; Tokyo opens ~15h after previous close).
+
+**Monitoring:**
+
+Health check logs configuration at Lambda cold start:
+```
+[HealthCheckConfig] Loaded: data_freshness_max_hours=24h, signal_stale=24h, pipeline_healthy=2d, pipeline_critical=7d
+```
+
+If thresholds are tuned for a specific scenario, watch `DEV_FRESHNESS_MAX_HOURS` in the logs to confirm the setting took effect.
+
+**Troubleshooting:**
+
+- **Phase 1 halts with "Phase 5 cannot rank trades":** Check if `DATA_FRESHNESS_MAX_HOURS` is too low for current conditions (market holiday?). Increase temporarily.
+- **`/api/health` shows STALE when data is actually fresh:** Check `signal_stale_threshold_hours` — may be too strict. Log message will show actual age.
+- **Pipeline health endpoint shows all tables CRITICAL on weekend:** This is normal if weekend adjustment isn't applied. Verify weekend handling is enabled in code (automatic, no config needed).
 
 ## Orchestrator Execution History — Issue #6 Fix
 
@@ -270,6 +322,69 @@ SELECT run_id, run_date, overall_status, phase_results, summary
 FROM orchestrator_execution_log
 WHERE run_id = 'RUN-2026-06-07-093045';
 ```
+
+## Distributed Lock Validation — H-1 Fix
+
+**Problem:** No validation that the DynamoDB-based distributed lock prevents concurrent orchestrator executions. Risk: Two orchestrator Lambda invocations running simultaneously could generate duplicate trades or race condition on position sizing.
+
+**Solution:** DynamoDB-based distributed lock with integration test validation.
+
+### Lock Manager Implementation (`utils/dynamodb_lock_manager.py`)
+- Uses DynamoDB conditional writes for atomic lock acquisition
+- Lock key: `orchestrator-run-lock` in table `algo-orchestrator-locks-{ENVIRONMENT}`
+- Expiration: 600 seconds (10 min) — prevents stale locks if instance crashes
+- Behavior:
+  - **Available:** Uses DynamoDB for proper distributed locking
+  - **Unavailable (dev mode):** Logs warning and allows execution (fail-open for development)
+  - **Permission denied:** Denies execution immediately (fail-closed for safety)
+
+### Orchestrator Integration (`algo/algo_orchestrator.py`)
+- Lines 56-57: Initializes DynamoDB lock manager on startup
+- Lines 631-643: `_acquire_run_lock()` method tries to acquire lock with 5-second timeout
+- Lines 866-879: Lock check in `run()` method
+  - Live mode: **requires** lock acquisition (fails if another instance running)
+  - Dry-run mode: **skips** lock check (safe, no actual trades)
+  - TestEnv: Can bypass via `SKIP_ORCHESTRATOR_LOCK=true` env var
+- Lines 869-872: Clean exit with error message if lock not acquired
+
+### Testing
+**Integration test:** `tests/test_distributed_lock_validation.py`
+- Validates concurrent lock acquisition using threading
+- Verifies only one instance can acquire lock at a time
+- Tests lock expiration and reacquisition
+- Validates orchestrator properly rejects execution when lock unavailable
+- Status: **IMPLEMENTED** and **PASSING**
+
+**Production testing (manual):**
+```bash
+# Terminal 1: Invoke orchestrator Lambda (will acquire lock)
+aws lambda invoke --function-name algo-algo-dev --invocation-type RequestResponse \
+  --payload '{"source":"test-concurrent-1"}' /tmp/result1.json
+
+# Terminal 2 (<1s later): Invoke orchestrator Lambda again (will fail lock)
+aws lambda invoke --function-name algo-algo-dev --invocation-type RequestResponse \
+  --payload '{"source":"test-concurrent-2"}' /tmp/result2.json
+
+# Verify results
+cat /tmp/result1.json  # Check success status
+cat /tmp/result2.json  # Should contain "Lock acquisition failed"
+```
+
+### Files Changed
+- **`utils/dynamodb_lock_manager.py`**: New lock manager class
+- **`algo/algo_orchestrator.py` (lines 56-57, 631-648, 866-879)**: Integration with lock check
+- **`tests/test_distributed_lock_validation.py`**: New integration test
+- **`terraform/modules/services/main.tf`**: DynamoDB table for locks
+
+### Verification Checklist
+- ✅ Lock manager initializes correctly with DynamoDB table
+- ✅ Lock acquisition succeeds when no lock held
+- ✅ Lock acquisition fails when another instance holds lock
+- ✅ Lock expires after 10 minutes of inactivity
+- ✅ Orchestrator exits cleanly when lock not acquired (error: "Lock acquisition failed")
+- ✅ Dry-run mode skips lock check (safe for testing)
+- ✅ Integration test validates concurrent scenarios
+- ✅ Production CloudWatch logs show lock status on every run
 
 ## Data Quality & Resilience Improvements
 
@@ -421,6 +536,93 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 **Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
 **Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
+
+## API Route Import Monitoring (C-4 Fix)
+
+**Status:** IMPLEMENTED. Detects when Lambda route modules fail to import at startup and alerts operator.
+
+**Problem Solved:** If a single route module (e.g., `routes/algo.py`) has a syntax error or import failure, the route silently disappears from the API with no CloudWatch alarm or deployment failure — operator doesn't notice until frontend requests fail with generic 503 errors.
+
+**Solution (C-4 Fix):**
+
+1. **Route Import Detection (at Lambda startup):**
+   - `api_router.py` tracks all import errors in `_ROUTE_IMPORT_ERRORS` dict
+   - Distinguishes between critical routes (`health`, `algo`) and optional routes
+   - Logs structured status: `ROUTE_IMPORT_STATUS: failed_count=X, critical_count=Y, modules=[list]`
+   - Sets environment variable `API_CRITICAL_ROUTES_FAILED` if critical routes fail
+
+2. **CloudWatch Metrics (api_router.py line 156-180):**
+   - Publishes custom metrics at Lambda startup:
+     - `APIRouteImportErrors`: count of all failed imports
+     - `APICriticalRouteFailures`: count of critical route failures (health, algo)
+   - Metrics trigger CloudWatch alarms (see `terraform/cloudwatch_alarms_routes.tf`)
+
+3. **CloudWatch Alarms:**
+   - **`algo-api-route-import-errors`**: Triggers when ANY route fails to import
+   - **`algo-api-critical-route-failures`**: Triggers when health or algo routes fail (API non-functional)
+   - Both alarms publish to SNS → email alert
+
+4. **Health Endpoint Integration (routes/health.py):**
+   - `/api/health` returns route import status in response: `api_route_imports: {status, failed_count, critical_failures, failed_modules}`
+   - Dashboard can display route failures inline with other health metrics
+
+5. **Dashboard Alert (tools/dashboard/route_health_check.py):**
+   - `check_api_route_health()` fetches `/api/health` and extracts route status
+   - `format_route_failure_alert()` generates user-friendly alert message
+   - Alert severity: CRITICAL if core routes failed, WARNING if optional routes failed
+
+6. **Deployment Verification (scripts/check-api-route-imports.ps1):**
+   - Runs during CI/CD pipeline (call via GitHub Actions)
+   - Validates all route modules can be parsed (Python syntax check)
+   - Fails deployment if critical routes have syntax errors
+   - Returns structured JSON status for deployment pipeline
+
+**Monitoring & Troubleshooting:**
+
+**Check health endpoint for route failures:**
+```bash
+curl -s http://localhost:8000/api/health | jq '.api_route_imports'
+```
+
+**If routes failed to import:**
+1. Check Lambda logs in CloudWatch for import error details:
+   ```
+   fields @timestamp, @message
+   | filter @message like /Failed to import routes|CRITICAL_ROUTE_IMPORT_FAILURE/
+   | sort @timestamp desc
+   ```
+
+2. Check which routes failed:
+   ```
+   fields @message
+   | filter @message like /ROUTE_IMPORT_STATUS/
+   ```
+
+3. Manual check (dev environment):
+   ```powershell
+   ./scripts/check-api-route-imports.ps1 -FailMode strict
+   ```
+
+**If critical routes failed (health/algo):**
+- API is non-functional; deployment has failed
+- Check route module for syntax errors: `python -m py_compile lambda/api/routes/algo.py`
+- Check import dependencies in route file (missing imports, circular dependencies)
+- Redeploy with fixes
+
+**If non-critical routes failed (e.g., financials, earnings):**
+- API still functional, but those endpoints unavailable (503 responses)
+- Check logs for specific error message
+- Re-deploy after fixing the module
+
+**CloudWatch Dashboard:**
+- CloudWatch console → Dashboards → `algo-api-health`
+- Shows `APIRouteImportErrors` and `APICriticalRouteFailures` metrics over time
+- Helps identify if specific routes repeatedly fail at startup
+
+**Integration Notes:**
+- Terraform (cloudwatch_alarms_routes.tf) creates alarms automatically at deploy time
+- No manual alarm setup needed; all infrastructure-as-code
+- SNS alerts route to argeropolos@gmail.com (configured in main Terraform)
 
 ## Morning Prep Pipeline Monitoring (4:30 AM ET)
 
@@ -739,6 +941,74 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 **Cognito User Pool:** `algo-pool-dev` (us-east-1). See `steering/EMAIL_DELIVERY_SETUP.md` for setup guide.
 
 **Architecture:** Cognito password reset → CustomMessage trigger → Lambda → SES → User inbox.
+
+## C-7 Fix: Pre-Deploy Validation of Cognito Client ID
+
+**Problem:** If Terraform is deployed with a wrong `cognito_client_id`, all JWT validations fail silently with "Token client mismatch" in logs, and users are locked out. No automated detection. Takes hours to diagnose.
+
+**Solution:** Three-layer validation that blocks deployment if Cognito is misconfigured:
+
+1. **Pre-deploy Validation Script** (`scripts/validate-cognito-deployment.ps1`):
+   - Called by GitHub Actions in `deploy-all-infrastructure.yml` after Terraform apply
+   - Verifies that `COGNITO_CLIENT_ID` from Terraform output exists in the actual Cognito user pool
+   - Checks if Lambda environment variables match the pool configuration
+   - Tests `/api/health/cognito` endpoint if Lambda already deployed
+   - **Blocks deployment if client ID mismatch detected** (prevents auth outage)
+
+2. **Health Check Endpoint** (`lambda/api/routes/health.py`, `_handle_cognito`):
+   - `GET /api/health/cognito` — PUBLIC, no auth required
+   - Verifies COGNITO_CLIENT_ID and COGNITO_USER_POOL_ID environment variables are configured
+   - Queries Cognito API to confirm client ID exists in the user pool
+   - Returns: status=healthy (PASS) or status=misconfigured (FAIL) with error details
+   - Called by: pre-deploy script (above) and health monitoring dashboards
+   - Note: If Lambda lacks IAM permissions to Cognito API, endpoint reports configured values (safe for CI/CD where IAM may be restricted)
+
+3. **CloudWatch Alarms** (`terraform/cloudwatch_alarms_cognito.tf`):
+   - Metric filters detect JWT client_id mismatches in Lambda logs
+   - Alarms: `jwt-client-mismatch`, `cognito-misconfigured`, `health-cognito-failure`
+   - Fire immediately (1 evaluation period) — indicates critical configuration error
+   - Action: SNS alert + webhook (alerts if a botched deployment somehow bypassed pre-deploy check)
+
+**Deployment Flow:**
+1. User: `git push main`
+2. GitHub Actions: Terraform plan + apply (Cognito client ID set)
+3. **NEW:** Terraform outputs extracted, `scripts/validate-cognito-deployment.ps1` runs
+4. Script: Verifies client ID exists in actual Cognito pool — **BLOCKS if mismatch**
+5. If passed: Proceed to build + deploy Lambda + frontend
+6. Post-deployment: CloudWatch alarms monitor for JWT mismatches (defense-in-depth)
+
+**How to Verify:**
+```bash
+# After deployment, test the health endpoint
+curl https://<api-domain>/health/cognito
+
+# Expected response (success):
+{
+  "status": "healthy",
+  "validation_result": "PASS",
+  "configured_client_id": "1a2b3c4d5e6f7g8h9i0j",
+  "cognito_client_found": true,
+  "cognito_client_name": "algo-app"
+}
+
+# If mismatch (would have been caught at deploy):
+{
+  "status": "misconfigured",
+  "validation_result": "FAIL - client ID not found in Cognito",
+  "configured_client_id": "wrong-id",
+  "available_clients": ["correct-id", ...]
+}
+```
+
+**Troubleshooting:**
+- **Deployment blocked:** "Client ID XXX not found in Cognito user pool YYY"
+  - Cause: Terraform cognito_client_id variable set to wrong value
+  - Fix: (1) Verify Cognito user pool exists in AWS console, (2) Copy correct client ID from pool → App clients, (3) Update `terraform.tfvars` or GitHub Secrets, (4) `git push` again
+
+- **Lambda returns misconfigured after deployment:**
+  - Cause: Environment variables not set correctly during Lambda deployment
+  - Fix: Verify Lambda environment variables in AWS console — COGNITO_CLIENT_ID and COGNITO_USER_POOL_ID should match Terraform outputs
+  - Check CloudWatch alarm: does `health-cognito-failure` show errors?
 
 ## Live Trading Readiness
 
