@@ -1336,11 +1336,17 @@ def fetch_exposure_factors(c):
                 factors_error = str(e)
                 factors = {}
         # Issue 12 fix: Enhanced schema validation — ensure factors are numeric and properly structured
+        # Issue 25 fix: Complete exposure factors schema with all 12+ factors from MarketExposure.compute()
         data_quality = "good"
         missing_keys_list = []
         invalid_values_list = []
         if factors and isinstance(factors, dict):
-            expected_keys = {"trend_30wk", "credit_spread", "vix", "momentum", "breadth"}
+            expected_keys = {
+                "follow_through_day", "trend_30wk", "breadth_50dma", "breadth_200dma",
+                "mcclellan", "distribution_days", "vix_regime", "new_highs_lows",
+                "ad_line", "credit_spread", "aaii_sentiment", "naaim",
+                "sector_rotation", "economic_overlay"
+            }
             found_keys = set(factors.keys())
             missing_keys = expected_keys - found_keys
             if missing_keys:
@@ -3165,13 +3171,13 @@ def panel_market_full(mkt, sentiment=None):
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
-        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/]")
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<0.8=bullish)[/]")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/]")
+        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim](0.5+=bullish)[/]")
     if ycs is not None:
         yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
-        bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
+        bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/] [dim](0+=flat)[/]")
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
     halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"

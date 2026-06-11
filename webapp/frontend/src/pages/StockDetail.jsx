@@ -646,7 +646,11 @@ function AlgoTab({ swing, scoreRow }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">Swing Score · {num(swing.swing_score, 1)} / 100</div>
+            <div className="card-title">
+              Swing Score · <span className={Number(swing.swing_score) >= 80 ? 'up' : Number(swing.swing_score) >= 60 ? 'brand' : Number(swing.swing_score) >= 40 ? 'amber' : 'down'}>
+                {num(swing.swing_score, 1)}
+              </span> / 100
+            </div>
             <div className="card-sub">Eval {String(swing.eval_date).slice(0,10)} · Grade {swing.grade}</div>
           </div>
           <div className="card-actions">

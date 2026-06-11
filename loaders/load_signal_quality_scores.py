@@ -22,6 +22,7 @@ from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.safe_data_conversion import safe_parse_date
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +59,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                 row = cur.fetchone()
                 last_bs_date = row[0] if row and row[0] else None
                 if last_bs_date:
-                    last_bs = last_bs_date if isinstance(last_bs_date, date) else date.fromisoformat(str(last_bs_date))
-                    if last_bs < end:
+                    last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
+                    if last_bs and last_bs < end:
                         logger.info(
                             f"buy_sell_daily has data up to {last_bs}, not yet {end}. "
                             f"Using {last_bs} as effective end date for signal quality computation."
@@ -81,7 +82,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                         )
                         row = cur.fetchone()
                         if row and row[0]:
-                            since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                            parsed = safe_parse_date(row[0], f"signal_quality_scores watermark for {symbol}")
+                            if parsed:
+                                since = parsed
                         break
                 except Exception as e:
                     if attempt < max_retries - 1:
