@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +67,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 return json_response(200, {
                     'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,
-                    'aaii': dict(aaii_row) if aaii_row else None,
-                    'naaim': dict(naaim_row) if naaim_row else None,
-                    'analyst': dict(analyst_row) if analyst_row and analyst_row.get('analyst_count') else None,
+                    'aaii': safe_json_serialize(dict(aaii_row)) if aaii_row else None,
+                    'naaim': safe_json_serialize(dict(naaim_row)) if naaim_row else None,
+                    'analyst': safe_json_serialize(dict(analyst_row)) if analyst_row and analyst_row.get('analyst_count') else None,
                     'put_call_ratio': float(row['put_call_ratio']) if row and row['put_call_ratio'] else None,
                     'vix_level': float(row['vix_level']) if row and row['vix_level'] else None,
                     'date': str(row['date']) if row else None,
@@ -90,7 +90,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """, (limit, offset))
                 sentiment = cur.fetchall()
                 freshness = check_data_freshness(cur, 'analyst_sentiment_analysis', 'date', warning_days=7)
-                return list_response([dict(s) for s in sentiment] if sentiment else [], data_freshness=freshness)
+                return list_response([safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [], data_freshness=freshness)
             elif path == '/api/sentiment/divergence':
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute("""
@@ -107,7 +107,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     LIMIT 2000
                 """)
                 rows = cur.fetchall()
-                return list_response([dict(r) for r in rows] if rows else [])
+                return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/analyst/insights/'):
                 symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
                 # Validate symbol format: max 5 chars, alphanumeric + dash only
@@ -215,13 +215,20 @@ def _get_vix_data(cur) -> Dict:
             if not rows:
                 return json_response(200, {'latest': None, 'history': []})
 
-            latest = dict(rows[0]) if rows else None
-            history = [dict(r) for r in rows]
+            latest = safe_json_serialize(dict(rows[0])) if rows else None
+            history = [safe_json_serialize(dict(r)) for r in rows]
+
+            if latest and latest.get('vix_level', 0) > 25:
+                signal = 'fear'
+            elif latest and latest.get('vix_level', 0) > 15:
+                signal = 'neutral'
+            else:
+                signal = 'greed'
 
             return json_response(200, {
                 'latest': latest,
                 'history': history,
-                'signal': 'fear' if latest and latest.get('vix_level', 0) > 25 else 'neutral' if latest and latest.get('vix_level', 0) > 15 else 'greed'
+                'signal': signal
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema not available for VIX data: {str(e)}")

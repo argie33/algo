@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             # Check data freshness
             freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
 
-            return list_response([dict(s) for s in signals], data_freshness=freshness)
+            return list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch stock signals')
@@ -122,7 +122,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
                 LIMIT %s
             """, (limit,))
             signals = cur.fetchall()
-            return list_response([dict(s) for s in signals])
+            return list_response([safe_json_serialize(dict(s)) for s in signals])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch ETF signals')

@@ -92,11 +92,18 @@ def _handle_basic(cur) -> Dict:
                 max_conn = row.get('max_connections', 100)
                 pool_pct = int((active / max_conn) * 100) if max_conn > 0 else 0
 
+                if pool_pct > 90:
+                    status = 'CRITICAL'
+                elif pool_pct > 75:
+                    status = 'WARNING'
+                else:
+                    status = 'HEALTHY'
+
                 health['rds_connection_pool'] = {
                     'active_connections': active,
                     'max_connections': max_conn,
                     'utilization_percent': pool_pct,
-                    'status': 'CRITICAL' if pool_pct > 90 else ('WARNING' if pool_pct > 75 else 'HEALTHY')
+                    'status': status
                 }
         except Exception as e:
             logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")

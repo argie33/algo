@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, uuid
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +64,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     count_args.append(status_filter)
                 cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute(count_query, count_args)
-                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
+                total = next(iter(safe_json_serialize(dict(cur.fetchone() or {})).values()), 0)
                 freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-                return list_response([dict(t) for t in trades], total=total, data_freshness=freshness)
+                return list_response([safe_json_serialize(dict(t)) for t in trades], total=total, data_freshness=freshness)
             elif path == '/api/trades/summary':
                 if not _check_admin_access(jwt_claims):
                     return error_response(403, 'forbidden', 'Admin access required')
@@ -81,7 +81,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """)
                 summary = cur.fetchone()
                 freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-                result = dict(summary) if summary else {}
+                result = safe_json_serialize(dict(summary)) if summary else {}
                 result['data_freshness'] = freshness
                 return json_response(200, result)
             return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')

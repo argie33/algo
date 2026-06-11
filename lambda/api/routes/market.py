@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT 1
             """)
             row = cur.fetchone()
-            result = dict(row) if row else {}
+            result = safe_json_serialize(dict(row)) if row else {}
 
             # Add freshness check
             freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
@@ -84,7 +84,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 except Exception:
                     freshness = {}
 
-            return list_response([dict(b) for b in breadth], data_freshness=freshness)
+            return list_response([safe_json_serialize(dict(b)) for b in breadth], data_freshness=freshness)
         elif path == '/api/market/technicals':
             try:
                 rows = execute_with_timeout(cur, """
@@ -102,7 +102,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 logger.error(f'Technicals query failed: {e}')
                 return error_response(503, 'service_unavailable', 'Failed to fetch market technicals data')
 
-            base = dict(rows[0]) if rows else {}
+            base = safe_json_serialize(dict(rows[0])) if rows else {}
             # Ensure breadth and mcclellan_oscillator are always present
             if 'breadth' not in base:
                 base['breadth'] = {}
@@ -168,7 +168,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     LIMIT 30
                 """)
                 adrows = cur.fetchall()
-                base['mcclellan_oscillator'] = [dict(r) for r in adrows]
+                base['mcclellan_oscillator'] = [safe_json_serialize(dict(r)) for r in adrows]
             except Exception as e:
                 logger.warning(f"Exception: {e}")
                 base['mcclellan_oscillator'] = []
@@ -218,7 +218,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     cur.execute("RELEASE SAVEPOINT top_movers")
                 except Exception as sp_err:
                     logger.debug(f"Failed to rollback top_movers savepoint: {sp_err}")
-            items = [dict(m) for m in movers] if movers else []
+            items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
             gainers = sorted([m for m in items if (m.get('pct_change')) >= 0],
                                  key=lambda x: -(x.get('pct_change')))[:10]
             losers = sorted([m for m in items if (m.get('pct_change')) < 0],
@@ -373,7 +373,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                     ORDER BY date ASC
                 """, (range_days,))
-                aaii_rows = [dict(r) for r in cur.fetchall()]
+                aaii_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 aaii_current = aaii_rows[-1] if aaii_rows else None
 
                 # Compute trend: is bullish rising or falling?
@@ -411,7 +411,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ORDER BY date ASC
                     LIMIT 52
                 """, (range_days,))
-                naaim_rows = [dict(r) for r in cur.fetchall()]
+                naaim_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 naaim_current = naaim_rows[-1] if naaim_rows else None
 
                 # Compute trend
@@ -448,7 +448,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                     ORDER BY date ASC
                 """, (range_days,))
-                fg_rows = [dict(r) for r in cur.fetchall()]
+                fg_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 fg_current = fg_rows[-1] if fg_rows else None
 
                 # Compute trend
@@ -548,7 +548,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         'interpretation': {
                             'meaning': 'Manager equity allocation %; 0=all cash, 100=fully invested',
                             'current_stance': 'bullish' if curr_val > 50 else 'bearish',
-                            'extremity': 'extreme_bullish' if curr_val > 80 else 'extreme_bearish' if curr_val < 20 else 'normal'
+                            'extremity': (
+                                'extreme_bullish' if curr_val > 80 else
+                                'extreme_bearish' if curr_val < 20 else
+                                'normal'
+                            )
                         }
                     })
                 else:
@@ -591,7 +595,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
                 'signals': {'extreme_fear': False, 'extreme_greed': False}
             })
 
-        history = [dict(h) for h in history_rows]
+        history = [safe_json_serialize(dict(h)) for h in history_rows]
 
         if history:
             current = history[-1]
@@ -637,7 +641,11 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
                 'interpretation': {
                     'meaning': 'Market sentiment gauge; 0=Fear, 50=Neutral, 100=Greed',
                     'current_stance': 'fear' if curr_val < 50 else 'greed',
-                    'extremity': 'extreme_fear' if curr_val < 25 else 'extreme_greed' if curr_val > 75 else 'normal'
+                    'extremity': (
+                        'extreme_fear' if curr_val < 25 else
+                        'extreme_greed' if curr_val > 75 else
+                        'normal'
+                    )
                 }
             })
         else:
@@ -687,7 +695,7 @@ def _get_market_latest(cur) -> Dict:
         if sentiment_row:
             result['sentiment'] = dict(sentiment_row)
         if recent_prices:
-            result['prices'] = [dict(p) for p in recent_prices]
+            result['prices'] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
         return json_response(200, result if result else {})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
@@ -930,7 +938,7 @@ def _get_cap_distribution(cur) -> Dict:
                 }
             })
 
-        stocks = [dict(r) for r in rows]
+        stocks = [safe_json_serialize(dict(r)) for r in rows]
         total_cap = sum(s['market_cap'] for s in stocks if s['market_cap'])
 
         by_category = {}
@@ -1107,7 +1115,7 @@ def _get_sector_overview(cur) -> Dict:
             return list_response(
                 [{'sector_name': r['sector'], 'stock_count': r['stock_count']} for r in rows]
             )
-        return list_response([dict(r) for r in rows])
+        return list_response([safe_json_serialize(dict(r)) for r in rows])
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
         logger.error(f'Sector overview query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'get sector overview'})
         return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')

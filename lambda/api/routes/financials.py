@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
-from .utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT %s
             """, params=(sym, limit), timeout_sec=5)
             freshness = check_data_freshness(cur, 'value_metrics', 'created_at', warning_days=7)
-            return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+            return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)
 
         if endpoint == 'income-statement':
             if period == 'quarterly':
@@ -62,7 +62,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
                 """
             rows = execute_with_timeout(cur, income_query, params=(sym, limit), timeout_sec=5)
-            return list_response([dict(r) for r in rows] if rows else [])
+            return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
             if period == 'quarterly':
@@ -76,7 +76,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
                 """
             rows = execute_with_timeout(cur, balance_query, params=(sym, limit), timeout_sec=5)
-            return list_response([dict(r) for r in rows] if rows else [])
+            return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
 
         if endpoint == 'cash-flow':
             if period == 'quarterly':
@@ -90,7 +90,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
                 """), (sym, limit))
             rows = cur.fetchall()
-            return list_response([dict(r) for r in rows] if rows else [])
+            return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
 
         return error_response(404, 'not_found', f'No financials handler for {path}')
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

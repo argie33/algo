@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
 import re
-from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             """, (symbol.upper(),))
             row = cur.fetchone()
             if row:
-                return json_response(200, dict(row))
+                return json_response(200, safe_json_serialize(dict(row)))
             return error_response(404, 'not_found', f'Stock {symbol} not found')
 
         if path == '/api/stocks/deep-value':
@@ -190,7 +190,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 rows = execute_with_timeout(cur, deep_value_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
                 if rows:
                     freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                    return list_response([dict(r) for r in rows], data_freshness=freshness)
+                    return list_response([safe_json_serialize(dict(r)) for r in rows], data_freshness=freshness)
                 return list_response([])
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
                 logger.error(f'Deep-value query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'deep-value'})
@@ -241,10 +241,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
             WHERE """ + where_sql, query_params)
-        total = dict(cur.fetchone()).get('count', 0)
+        total = safe_json_serialize(dict(cur.fetchone())).get('count', 0)
 
         return json_response(200, {
-            'items': [dict(r) for r in rows],
+            'items': [safe_json_serialize(dict(r)) for r in rows],
             'total': total,
         })
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

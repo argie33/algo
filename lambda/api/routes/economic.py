@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         LIMIT 100
                     """, timeout_sec=3)
                     freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
-                    return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+                    return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
                     logger.warning(f"VIX table not available: {str(e)}")
                     return error_response(503, 'schema_mismatch', 'VIX data not yet available')
@@ -60,7 +60,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     cur.execute(query, tuple(query_params))
                     events = cur.fetchall()
                     freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
-                    return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
+                    return list_response([safe_json_serialize(dict(e)) for e in events] if events else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable) as e:
                     logger.warning(f"Economic calendar table not available: {str(e)}")
                     return error_response(503, 'schema_mismatch', 'Economic calendar data not yet available')
