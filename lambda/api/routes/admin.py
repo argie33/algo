@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, os, boto3
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, safe_json_serialize
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
 logger = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ def _get_system_health(cur) -> Dict:
                 health_data['status'] = 'degraded'
 
             cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
-            last_price_date = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            last_price_date = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
             if last_price_date:
                 today = datetime.now(timezone.utc).date()
                 age_days = (today - last_price_date).days
@@ -205,7 +205,7 @@ def _get_system_health(cur) -> Dict:
                         psycopg2.sql.Identifier(table)
                     )
                     cur.execute(query)
-                    count = next(iter(dict(cur.fetchone() or {}).values()), 0)
+                    count = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
                     table_counts[table] = count
                 except (psycopg2.Error, TypeError, AttributeError) as e:
                     logger.warning(f"Failed to count rows in table {table}: {e}")
@@ -226,14 +226,14 @@ def _get_database_stats(cur) -> Dict:
 
             # Count active connections without exposing table structure
             cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
-            stats['active_connections'] = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            stats['active_connections'] = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
 
             # Get high-level DB size without exposing individual table names
             cur.execute("""
                 SELECT pg_size_pretty(pg_database_size(current_database())) as total_size
             """)
             size_row = cur.fetchone()
-            stats['total_database_size'] = dict(size_row).get('total_size', 'unknown') if size_row else 'unknown'
+            stats['total_database_size'] = safe_json_serialize(dict(size_row)).get('total_size', 'unknown') if size_row else 'unknown'
 
             # Check if any tables exist without revealing names
             cur.execute("""
@@ -241,7 +241,7 @@ def _get_database_stats(cur) -> Dict:
                 WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
             """)
             table_count_row = cur.fetchone()
-            stats['table_count'] = dict(table_count_row).get('table_count', 0) if table_count_row else 0
+            stats['table_count'] = safe_json_serialize(dict(table_count_row)).get('table_count', 0) if table_count_row else 0
 
             stats['timestamp'] = datetime.now(timezone.utc).isoformat()
             return json_response(200, stats)
@@ -259,7 +259,7 @@ def _get_data_quality(cur) -> Dict:
                 SELECT COUNT(*) FROM price_daily
                 WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
             """)
-            null_prices = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            null_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
             quality['checks']['null_prices'] = {'count': null_prices, 'status': 'ok' if null_prices == 0 else 'warning'}
 
             cur.execute("""
@@ -269,14 +269,14 @@ def _get_data_quality(cur) -> Dict:
                     GROUP BY symbol, date HAVING COUNT(*) > 1
                 ) t
             """)
-            duplicate_prices = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            duplicate_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
             quality['checks']['duplicate_prices'] = {'count': duplicate_prices, 'status': 'ok' if duplicate_prices == 0 else 'warning'}
 
             cur.execute("""
                 SELECT COUNT(*) FROM price_daily
                 WHERE high < low OR close > high OR close < low
             """)
-            invalid_prices = next(iter(dict(cur.fetchone() or {}).values()), 0)
+            invalid_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
             quality['checks']['invalid_price_ranges'] = {'count': invalid_prices, 'status': 'ok' if invalid_prices == 0 else 'error'}
 
             # Overall status

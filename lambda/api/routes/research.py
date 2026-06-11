@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """, (limit,))
                 backtests = cur.fetchall()
                 freshness = check_data_freshness(cur, 'backtest_runs', 'created_at', warning_days=7)
-                return list_response([dict(b) for b in backtests] if backtests else [], data_freshness=freshness)
+                return list_response([safe_json_serialize(dict(b)) for b in backtests] if backtests else [], data_freshness=freshness)
             elif path.startswith('/api/research/backtests/'):
                 run_id = path.split('/api/research/backtests/')[-1]
                 try:
@@ -70,14 +70,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("""
                     SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
                 """, (run_id_int,))
-                total_trades_count = next(iter(dict(cur.fetchone() or {}).values()), 0)
+                total_trades_count = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values()), 0)
 
                 # Build response
-                run_dict = dict(backtest)
+                run_dict = safe_json_serialize(dict(backtest))
                 freshness = check_data_freshness(cur, 'backtest_runs', 'created_at', warning_days=7)
                 return json_response(200, {
                     'run': run_dict,
-                    'trades': [dict(t) for t in trades] if trades else [],
+                    'trades': [safe_json_serialize(dict(t)) for t in trades] if trades else [],
                     'trade_pagination': {'total': total_trades_count},
                     'data_freshness': freshness
                 })

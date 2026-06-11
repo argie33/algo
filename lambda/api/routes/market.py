@@ -384,7 +384,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if prev_bull is not None and curr_bull is not None:
                         prev = float(prev_bull)
                         curr = float(curr_bull)
-                        aaii_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+                        if curr > prev * 1.02:
+                            aaii_trend = 'rising'
+                        elif curr < prev * 0.98:
+                            aaii_trend = 'falling'
+                        else:
+                            aaii_trend = 'neutral'
 
                 sentiment_data['aaii'] = {
                     'current': aaii_current,
@@ -417,7 +422,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if prev_mean is not None and curr_mean is not None:
                         prev = float(prev_mean)
                         curr = float(curr_mean)
-                        naaim_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+                        if curr > prev * 1.02:
+                            naaim_trend = 'rising'
+                        elif curr < prev * 0.98:
+                            naaim_trend = 'falling'
+                        else:
+                            naaim_trend = 'neutral'
 
                 sentiment_data['naaim'] = {
                     'current': float(naaim_current['naaim_number_mean']) if naaim_current and naaim_current.get('naaim_number_mean') is not None else None,
@@ -449,7 +459,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if prev_val is not None and curr_val is not None:
                         prev = float(prev_val)
                         curr = float(curr_val)
-                        fg_trend = 'rising_fear' if curr < prev * 0.98 else 'rising_greed' if curr > prev * 1.02 else 'neutral'
+                        if curr < prev * 0.98:
+                            fg_trend = 'rising_fear'
+                        elif curr > prev * 1.02:
+                            fg_trend = 'rising_greed'
+                        else:
+                            fg_trend = 'neutral'
 
                 sentiment_data['fearGreed'] = {
                     'current': {
@@ -824,12 +839,27 @@ def _get_correlation_matrix(cur) -> Dict:
 
         avg_corr_val = round(avg_corr, 2) if avg_corr else None
 
-        market_regime = 'high_correlation' if avg_corr_val and avg_corr_val > 0.5 else 'moderate_correlation' if avg_corr_val and avg_corr_val > 0.2 else 'low_correlation'
+        if avg_corr_val and avg_corr_val > 0.5:
+            market_regime = 'high_correlation'
+        elif avg_corr_val and avg_corr_val > 0.2:
+            market_regime = 'moderate_correlation'
+        else:
+            market_regime = 'low_correlation'
+
         diversification_score = round(max(0, 1.0 - (avg_corr_val)) * 100, 1) if avg_corr_val is not None else None
 
-        concentration_risk = 'high' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'low'
-        diversification_benefit = 'low' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'high'
-        portfolio_stability = 'volatile' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'stable'
+        if avg_corr_val and avg_corr_val > 0.6:
+            concentration_risk = 'high'
+            diversification_benefit = 'low'
+            portfolio_stability = 'volatile'
+        elif avg_corr_val and avg_corr_val > 0.3:
+            concentration_risk = 'moderate'
+            diversification_benefit = 'moderate'
+            portfolio_stability = 'moderate'
+        else:
+            concentration_risk = 'low'
+            diversification_benefit = 'high'
+            portfolio_stability = 'stable'
 
         freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
         return json_response(200, {

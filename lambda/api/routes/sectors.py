@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         ORDER BY cp.sector, pd.date ASC
                     """.format(placeholders), tuple(sectors) + (days,))
                     for row in cur.fetchall():
-                        r = dict(row)
+                        r = safe_json_serialize(dict(row))
                         sector_key = r['sector']
                         if sector_key in result:
                             result[sector_key].append({'date': r['date'], 'avgPrice': r['avgPrice']})
@@ -85,7 +85,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         ORDER BY date DESC
                     """, (sector_name, days))
                     rows = cur.fetchall()
-                    trend_data = [dict(r) for r in rows if r and r.get('avgPrice') is not None] if rows else []
+                    trend_data = [safe_json_serialize(dict(r)) for r in rows if r and r.get('avgPrice') is not None] if rows else []
                     return json_response(200, {'trendData': trend_data})
                 else:
                     days_str = params.get('days', [None])[0] if params else None
@@ -98,7 +98,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         ORDER BY date DESC
                     """, (sector_name, days))
                     rows = cur.fetchall()
-                    return list_response([dict(r) for r in rows])
+                    return list_response([safe_json_serialize(dict(r)) for r in rows])
             elif path in ('/api/sectors', '/api/sectors/performance'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
@@ -211,7 +211,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 sectors = []
                 for row in sectors_data:
-                    s = dict(row)
+                    s = safe_json_serialize(dict(row))
                     composite_val = s.get('composite_score')
                     composite = float(composite_val) if composite_val is not None else None
                     perf1d_val = s.get('perf_1d')
@@ -220,8 +220,25 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     perf5d = float(perf5d_val) if perf5d_val is not None else None
                     perf20d_val = s.get('perf_20d')
                     perf20d = float(perf20d_val) if perf20d_val is not None else None
-                    momentum_label = 'Strong' if composite is not None and composite >= 60 else 'Moderate' if composite is not None and composite >= 45 else 'Weak' if composite is not None else None
-                    trend_label = 'Uptrend' if perf20d is not None and perf20d > 2 else 'Downtrend' if perf20d is not None and perf20d < -2 else 'Sideways' if perf20d is not None else None
+                    if composite is not None:
+                        if composite >= 60:
+                            momentum_label = 'Strong'
+                        elif composite >= 45:
+                            momentum_label = 'Moderate'
+                        else:
+                            momentum_label = 'Weak'
+                    else:
+                        momentum_label = None
+
+                    if perf20d is not None:
+                        if perf20d > 2:
+                            trend_label = 'Uptrend'
+                        elif perf20d < -2:
+                            trend_label = 'Downtrend'
+                        else:
+                            trend_label = 'Sideways'
+                    else:
+                        trend_label = None
 
                     rank_val = s.get('current_rank')
                     stock_count_val = s.get('stock_count')
@@ -282,7 +299,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ORDER BY date DESC
                 """, (sector_name, days))
                 rows = cur.fetchall()
-                return list_response([dict(r) for r in rows])
+                return list_response([safe_json_serialize(dict(r)) for r in rows])
             return error_response(404, 'not_found', f'No sector handler for {path}')
         except Exception as e:
             logger.warning(f'Sectors unavailable: {e}')

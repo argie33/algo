@@ -152,7 +152,7 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
 
 resource "aws_cloudwatch_log_group" "circuit_breaker" {
   name              = "/aws/lambda/${var.project_name}-circuit-breaker-${var.environment}"
-  retention_in_days = 30
+  retention_in_days = var.cloudwatch_log_retention_days
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-circuit-breaker-logs"

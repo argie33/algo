@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def _industry_list(cur, params):
 
     industries = []
     for idx, row in enumerate(industries_data):
-        ind = dict(row)
+        ind = safe_json_serialize(dict(row))
         composite = _sf(ind.get('composite_score'))
         perf_20d = _sf(ind.get('perf_20d'))
 
@@ -223,7 +223,7 @@ def _industry_detail(cur, industry_name):
     if not row:
         return error_response(404, 'not_found', f'Industry not found: {industry_name}')
 
-    r = dict(row)
+    r = safe_json_serialize(dict(row))
     return json_response(200, {
         'industry_name':   r.get('industry_name'),
         'stock_count':     int(r.get('stock_count')) if r.get('stock_count') is not None else None,

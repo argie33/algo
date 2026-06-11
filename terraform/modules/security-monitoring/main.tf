@@ -264,7 +264,7 @@ resource "aws_flow_log" "main" {
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   count             = var.vpc_flow_logs_enabled ? 1 : 0
   name              = "/aws/vpc/flowlogs/${var.project_name}-${var.environment}"
-  retention_in_days = var.log_retention_days
+  retention_in_days = var.cloudwatch_log_retention_days
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-vpc-flow-logs"

@@ -3332,16 +3332,16 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     spy_s   = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix}[/] [dim](20+=caution, 30+=alert)[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
+        f"VIX:[{vc}]{vix}[/] [dim]({mkt_cfg['vix_caution']:.0f}+=caution, {mkt_cfg['vix_alert']:.0f}+=alert)[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
     ]
     if upvol is not None:
         adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
         nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
-        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/] [dim](50%+=good)[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
+        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/] [dim]({mkt_cfg['upvol_good']:.0f}%+=good)[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
-        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<0.8=bullish)[/]")
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/] [dim](<{mkt_cfg['put_call_bullish']:.1f}=bullish)[/]")
     if bmom is not None:
         if bmom >= mkt_cfg['breadth_momentum_good']:
             bmc = G
@@ -3349,7 +3349,7 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
             bmc = Y
         else:
             bmc = R
-        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim](0.5+=bullish)[/]")
+        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/] [dim]({mkt_cfg['breadth_momentum_good']:.1f}+=bullish)[/]")
     if ycs is not None:
         if ycs >= mkt_cfg['yield_curve_good']:
             yc_c = G
@@ -3410,11 +3410,13 @@ def panel_circuit(cb, risk=None):
                 cur_str = f"{cur}{u}" if u else str(cur)
                 ratio = cur / thr if thr > 0 else 0
             ui_cfg = load_ui_display_thresholds()
-            fc = R if fired else (Y if ratio >= ui_cfg['circuit_breaker_ratio_caution'] else G)
+            caution_threshold = ui_cfg['circuit_breaker_ratio_caution']
+            fc = R if fired else (Y if ratio >= caution_threshold else G)
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
+            caution_hint = f" [dim]({caution_threshold:.0%} caution)[/]" if ratio >= caution_threshold and not fired else ""
             # TIER 1A FIX: Pass None instead of "or 0" to hbar for proper missing data display
-            return f"[{fc}]{lbl}:[/]{cur_str}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}{unavail}"
+            return f"[{fc}]{lbl}:[/]{cur_str}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}{caution_hint}{unavail}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))

@@ -202,7 +202,12 @@ def _get_leading_indicators(cur) -> Dict:
                     recent_avg = sum([h['value'] for h in history[-3:] if h['value'] is not None] or [0]) / max(1, len([h for h in history[-3:] if h['value'] is not None]))
                     older_avg  = sum([h['value'] for h in history[:3]  if h['value'] is not None] or [0]) / max(1, len([h for h in history[:3]  if h['value'] is not None]))
                     if older_avg and recent_avg:
-                        trend = 'up' if recent_avg > older_avg * 1.01 else 'down' if recent_avg < older_avg * 0.99 else 'flat'
+                        if recent_avg > older_avg * 1.01:
+                            trend = 'up'
+                        elif recent_avg < older_avg * 0.99:
+                            trend = 'down'
+                        else:
+                            trend = 'flat'
                     else:
                         trend = 'flat'
                 else:

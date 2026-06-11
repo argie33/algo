@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
-from .utils import error_response, list_response, json_response, handle_db_error, safe_limit, check_data_freshness, execute_with_timeout
+from .utils import error_response, list_response, json_response, handle_db_error, safe_limit, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 rows = cur.fetchall()
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, 'date', warning_days=1)
-            return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+            return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)
 
         # /api/prices/batch-history?symbols=SPY,QQQ,IWM&limit=30&timeframe=daily
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
