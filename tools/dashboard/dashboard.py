@@ -1669,6 +1669,10 @@ def fetch_perf(c=None):
         winning_trades = perf.get("winning_trades", 0)
         losing_trades = perf.get("losing_trades", 0)
         breakeven_trades = perf.get("breakeven_trades", 0)
+        # H15/H16 FIX: Extract open trade breakdown from API for unrealized risk visibility
+        open_winning_trades = perf.get("open_winning_trades", 0)
+        open_losing_trades = perf.get("open_losing_trades", 0)
+        total_open_trades = open_winning_trades + open_losing_trades
         wr_pct = perf.get("win_rate_pct")
         wr_confidence = perf.get("win_rate_confidence", "medium")
         be_pct = (breakeven_trades / total_trades * 100) if total_trades > 0 else 0
@@ -4168,7 +4172,9 @@ def panel_exposure_compact(exp_f):
 
     items = []
     for key, label, max_pts in FACTOR_MAP:
-        f    = factors.get(key) or {}
+        f    = factors.get(key)
+        if f is None:
+            f = {}
         pts_val = f.get("pts")
         pts  = safe_float(pts_val, 0)
         bar  = mini_bar(pts, max_pts, w=3)
@@ -4177,8 +4183,12 @@ def panel_exposure_compact(exp_f):
         det_markup = f"[dim]{det}[/]" if det else ""
         items.append(f"[{fc}]{label:<6}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}")
 
-    sr  = factors.get("sector_rotation") or {}
-    eco = factors.get("economic_overlay") or {}
+    sr = factors.get("sector_rotation")
+    if sr is None:
+        sr = {}
+    eco = factors.get("economic_overlay")
+    if eco is None:
+        eco = {}
     sr_pts = sr.get("pts")
     eco_pts = eco.get("pts")
     sr_pen  = safe_float(sr_pts, 0)
@@ -4377,7 +4387,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
         rows.append(Text.from_markup(f"{sts}{age_s}"))
-    cfg_v = cfg or {}
+    cfg_v = cfg if cfg is not None else {}
     mode  = cfg_v.get("mode", "")
     en    = cfg_v.get("enabled", True)
     mc    = G if "LIVE" in str(mode) else Y
@@ -4521,7 +4531,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
     elif act and not act.get("_error"):
-        for p in (act.get("phases") or []):
+        phases = act.get("phases")
+        if phases is None:
+            phases = []
+        for p in phases:
             at = p.get("action_type", "")
             if not at.startswith("phase_"): continue
             parts = at.split("_")
@@ -4536,14 +4549,17 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Recent trade events (entry/exit/order) from audit_log
-    recent = (act.get("recent_actions") or []) if (act and not act.get("_error")) else []
+    recent_actions = act.get("recent_actions") if (act and not act.get("_error")) else None
+    recent = recent_actions if recent_actions is not None else []
     trade_evts = [a for a in recent if a.get("action_type") in
                   ("entry_executed","exit_executed","entry_rejected","position_exited",
                    "order_placed","order_rejected")]
     for a in trade_evts[:4]:
         at  = a.get("action_type", "")
-        det = a.get("details") or {}
-        if isinstance(det, str):
+        det = a.get("details")
+        if det is None:
+            det = {}
+        elif isinstance(det, str):
             try: det = json.loads(det)
             except (json.JSONDecodeError, ValueError):
                 logger.warning("action details JSON parse failed in panel_status")
@@ -4732,12 +4748,16 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
             si    = "✓" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
-            pdata = p.get("data") or {}
+            pdata = p.get("data")
+            if pdata is None:
+                pdata = {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
                 except (json.JSONDecodeError, ValueError, TypeError): pdata = {}
             sg = pdata.get("signals_generated")
-            ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+            ee = pdata.get("entries_executed")
+            if ee is None:
+                ee = pdata.get("trades_executed")
             xe = pdata.get("exits_executed")
             if sg: signals_gen  = max(signals_gen,  int(sg))
             if ee: entries_exec = max(entries_exec, int(ee))
@@ -5103,7 +5123,9 @@ def panel_signals_expanded(sig, sig_eval=None):
     total = sig.get("total", 0)
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-    g     = sig.get("grades") or {}
+    g = sig.get("grades")
+    if g is None:
+        g = {}
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     rows = [Text.from_markup(
@@ -5552,9 +5574,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         ))
 
     if view_mode == "signals":
-        swing_good = cfg.get("swing_good")
-        swing_excellent = cfg.get("swing_excellent")
-        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, swing_good=swing_good, swing_excellent=swing_excellent))
+        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, cfg))
 
     if view_mode == "health":
         return _expanded_layout(*_exp_top, panel_algo_health_expanded(
