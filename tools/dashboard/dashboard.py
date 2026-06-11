@@ -1039,7 +1039,9 @@ def safe_int(v: any, default: int = None) -> Optional[int]:
 
 def sparkline(values: list, width: int = 24) -> str:
     vals = []
-    for v in (values or []):
+    if values is None:
+        values = []
+    for v in values:
         if v is not None:
             v_f = safe_float(v)
             if v_f is not None and v_f > 0:
@@ -3400,6 +3402,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 
 
 def panel_portfolio(port, cfg, risk=None, perf=None):
+    risk_thr = load_risk_thresholds(cfg)
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv_val = port.get("total_portfolio_value")
