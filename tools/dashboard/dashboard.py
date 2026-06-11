@@ -1872,13 +1872,16 @@ def fetch_positions(c):
             SELECT
                 ot.symbol,
                 ot.entry_price as avg_entry_price,
-                COALESCE(lp.current_price, ot.entry_price) as current_price,
+                lp.current_price,
                 CASE
-                    WHEN ot.entry_price IS NULL OR ot.entry_price <= 0
+                    WHEN ot.entry_price IS NULL OR ot.entry_price <= 0 OR lp.current_price IS NULL
                     THEN NULL
-                    ELSE (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
+                    ELSE (((lp.current_price - ot.entry_price) / ot.entry_price) * 100)
                 END as unrealized_pnl_pct,
-                ROUND((ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::NUMERIC, 2) as position_value,
+                CASE
+                    WHEN lp.current_price IS NULL THEN NULL
+                    ELSE ROUND((ot.entry_quantity * lp.current_price)::NUMERIC, 2)
+                END as position_value,
                 dh.days_since_entry,
                 ot.stop_loss_price,
                 ot.target_1_price,
@@ -3107,30 +3110,6 @@ FETCHERS = {
     "sec_warn":       fetch_sector_position_warnings,
 }
 
-def generate_test_data(conn, symbol_count: int = 10) -> dict:
-    """Category 10 fix: Minimal test data generator for dashboard validation.
-
-    Generates synthetic data for testing dashboard panels without AWS data.
-    Returns a dict with _test_data status. Real implementation would populate DB tables,
-    but returns marker so dashboard can detect test mode and handle gracefully.
-
-    Dashboard must handle test mode:
-    - Skip AWS-dependent operations
-    - Validate panel rendering with synthetic data
-    - Log all test data usage for traceability
-    """
-    try:
-        logger.info("TEST MODE: Generating synthetic test data for dashboard validation")
-        return {
-            "_test_data": "enabled",
-            "_symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "ADBE", "CRM"][:symbol_count],
-            "_note": "Synthetic data mode — real prices/positions unavailable; for testing dashboard only",
-        }
-    except Exception as e:
-        logger.error(f"Test data generator failed: {e}")
-        return {"_test_data": "error", "_error": str(e)}
-
-
 def load_all() -> dict:
     out: dict = {}
     load_start = time.time()
@@ -4018,7 +3997,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
         if not compact:
-            swg_s = float(swg) if swg is not None else None
+            swg_s = safe_float(swg)
             # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
             swing_thresholds = get_swing_score_thresholds(cfg)
             swg_c = G if swg_s is not None and swg_s >= swing_thresholds["excellent"] else (Y if swg_s is not None and swg_s >= swing_thresholds["good"] else "white")
