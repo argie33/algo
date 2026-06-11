@@ -1041,7 +1041,7 @@ def fetch_run(c):
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
         if not latest or not latest.get("run_id"):
             _log_data_quality("fetch_run", 0)
-            return {}
+            return {"_error": "No recent execution data in audit log"}
         rid = latest["run_id"]
         phases = q(c, """SELECT action_type, status FROM algo_audit_log
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
@@ -1056,7 +1056,7 @@ def fetch_run(c):
     except (psycopg2.Error, KeyError, TypeError) as e:
         logger.error(f"fetch_run (audit): {type(e).__name__}: {e}")
         _log_data_quality("fetch_run", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load audit log fallback: {type(e).__name__}"}
 
 def _parse_config_float(config_dict: dict, key: str, default: float) -> float:
     """Parse a config value as float with validation. Issue 11 fix: consolidate threshold parsing."""
@@ -1541,7 +1541,7 @@ def fetch_portfolio(c):
             FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""")
         if not row:
             _log_data_quality("fetch_portfolio", 0)
-            return {}
+            return {"_error": "No portfolio snapshot data available"}
 
         # Issue 29 FIX: Return date mismatch warning to client so dashboard can display it
         snapshot_date = row.get("snapshot_date")

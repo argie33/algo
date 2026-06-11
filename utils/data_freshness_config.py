@@ -18,7 +18,7 @@ Usage:
 
 import logging
 from datetime import datetime, timedelta, date, timezone
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 ET_ZONE = "America/New_York"
