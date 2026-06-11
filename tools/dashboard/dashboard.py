@@ -3965,7 +3965,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             swing_thresholds = get_swing_score_thresholds(cfg)
             swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
             rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
-            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else \"white\")
+            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else "white")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
             t.add_row(
                 sym,
@@ -5306,9 +5306,9 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
             stop   = bs.get("stoplevel")
             bqual  = (bs.get("breakout_quality") or "")[:9]
             btype  = (bs.get("base_type") or "")[:9]
-            sq_c   = G if sq is not None and sq >= grade_thresholds.get('a', 80) else (Y if sq is not None and sq >= grade_thresholds.get('b', 60) else \"white\")
+            sq_c   = G if sq is not None and sq >= grade_thresholds.get('a', 80) else (Y if sq is not None and sq >= grade_thresholds.get('b', 60) else "white")
             rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
-            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else \"white\")
+            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else "white")
             rows.append(Text.from_markup(
                 f"[{sq_c}]{sym:<6}[/][dim]{('S'+str(stg) if stg else '  ')} {sig_t:<14}[/]"
                 f"[{sq_c}]{(f'{sq:.0f}' if sq is not None else '--'):>4}[/]"
