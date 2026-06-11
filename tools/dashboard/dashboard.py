@@ -30,6 +30,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
 
+# Configure logging to file instead of stderr to avoid interfering with Rich Live display
+_log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(_log_file, encoding="utf-8")]
+)
 logger = logging.getLogger(__name__)
 
 # Metric freshness thresholds (how recently were calculations run)
@@ -3655,11 +3662,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Line 5: largest position concentration (when available)
     if lgpos is not None:
-        risk_cfg = load_risk_thresholds()
         lgpos_val = float(lgpos)
-        if lgpos_val >= risk_cfg['large_position_alert']:
+        if lgpos_val >= risk_thr.get('large_position_alert', float('inf')):
             lp_c = R
-        elif lgpos_val >= risk_cfg['large_position_caution']:
+        elif lgpos_val >= risk_thr.get('large_position_caution', float('inf')):
             lp_c = Y
         else:
             lp_c = "white"
@@ -4277,7 +4283,7 @@ def panel_recent_trades(trades):
     return Panel(t, title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 0))
 
 
-def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
+def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=None, cfg=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
     # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
@@ -4327,8 +4333,8 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength is not None and strength > 1:
             strength = strength / 100.0
-        sig_cfg = load_signal_thresholds()
-        sig_c = R if def_s is not None and def_s >= sig_cfg['signal_alert'] else (Y if def_s is not None and def_s >= sig_cfg['signal_caution'] else G)
+        sig_cfg = load_signal_thresholds(cfg)
+        sig_c = R if def_s is not None and def_s >= sig_cfg.get('signal_alert') else (Y if def_s is not None and def_s >= sig_cfg.get('signal_caution') else G)
         scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if (def_s is not None or cyc_s is not None) else ""
         str_s    = f" [dim]strength:{strength:.0%}[/]" if strength is not None else ""
         rows.append(Text.from_markup(
@@ -5722,7 +5728,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         svar_v = svar_v if svar_v is not None else 0
         risk_parts = [
             f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f if cvar95_v is not None else '--'}%[/]",
+            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
             f"[dim]Beta:[/][{beta_c}]{beta_v:.2f}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_v:.0f}%[/]",
         ]
@@ -5751,7 +5757,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH — EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
 
 
-def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=None):
+def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=None, cfg=None):
     """Full-screen sectors — all sector and industry rankings, full portfolio breakdown."""
     # Issue 2 FIX: Check for error dicts in all data parameters
     if isinstance(srank, dict) and srank.get("_error"):
@@ -5803,8 +5809,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength > 1:
             strength = strength / 100.0
-        sig_cfg = load_signal_thresholds()
-        sig_c    = R if def_s >= sig_cfg['signal_alert'] else (Y if def_s >= sig_cfg['signal_caution'] else G)
+        sig_cfg = load_signal_thresholds(cfg)
+        sig_c    = R if def_s >= sig_cfg.get('signal_alert') else (Y if def_s >= sig_cfg.get('signal_caution') else G)
         rows.append(Text.from_markup(
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
             f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  strength:{strength:.0%}[/]"
@@ -5962,7 +5968,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 3: Signals (wider) | Sectors
     outer["r3"].split_row(
         Layout(panel_signals_compact(sig, sig_eval, cfg), ratio=3, name="signals"),
-        Layout(panel_sector_compact(srank, pos, port, sec_rot, irank, sec_warn), ratio=2, name="sectors"),
+        Layout(panel_sector_compact(srank, pos, port, sec_rot, irank, sec_warn, cfg), ratio=2, name="sectors"),
     )
 
     # Row 4: Positions | Recent Trades
@@ -5997,7 +6003,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         ))
 
     if view_mode == "sectors":
-        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank, sec_warn))
+        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank, sec_warn, cfg))
 
     return outer
 
