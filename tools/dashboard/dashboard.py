@@ -1472,16 +1472,22 @@ def fetch_perf(c):
             FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1
         """)
 
-        # Fetch trade data for streak calculation (sequence-dependent, not aggregable)
-        trades = q(c, """SELECT profit_loss_dollars, exit_r_multiple, profit_loss_pct
-                         FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
-                         ORDER BY exit_date ASC""")
+        # Fetch ALL trade data including open positions for accurate win rate accounting
+        all_trades = q(c, """SELECT profit_loss_dollars, exit_r_multiple, profit_loss_pct, status
+                             FROM algo_trades
+                             ORDER BY exit_date ASC, trade_date ASC""")
+        # Filter closed trades for streak calculation (sequence-dependent, not aggregable)
+        trades = [t for t in all_trades if t.get("status") == "closed" and t.get("exit_date") is not None]
 
         # Always show metrics even if no trades yet (issue: dashboard was hiding performance data after market close)
         # Calculate streak (sequence-dependent, must be calculated fresh) only if trades exist
         wins = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
         losses = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
+        # Win rate should account for OPEN trades too (not just closed)
+        open_trades = [t for t in all_trades if t.get("status") != "closed"]
+        total_trades_with_open = len(trades) + len(open_trades)
+        win_rate_adjusted = len(wins) / total_trades_with_open if total_trades_with_open > 0 else None
         pnl = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
 
         streak = 0
@@ -1845,6 +1851,14 @@ def fetch_signals(c):
         filtered_count = before_count - len(buy_sigs) if before_count != len(buy_sigs) else 0
         if filtered_count > 0:
             logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
+
+        # Issue 3 FIX: Enforce minimum quality score threshold (40/100)
+        MIN_QUALITY_SCORE = 40
+        before_threshold = len(buy_sigs)
+        buy_sigs = [s for s in buy_sigs if (s.get("signal_quality_score") or s.get("entry_quality_score") or 0) >= MIN_QUALITY_SCORE]
+        quality_filtered = before_threshold - len(buy_sigs)
+        if quality_filtered > 0:
+            logger.warning(f"VALIDATION: Filtered {quality_filtered} signals with quality score < {MIN_QUALITY_SCORE}/100")
 
         # HIGH-SEVERITY ISSUE FIX: Grade distribution now pre-computed in grade_distribution_daily
         # Try to read from pre-computed table first, fallback to calculation
@@ -3411,20 +3425,21 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
             cvar95_v = get_numeric(risk, "cvar95")
             conc5_v = get_numeric(risk, "conc5")
+            cvar95_str = f"{cvar95_v:.2f}%" if cvar95_v is not None else "--"
+            conc5_str = f"{conc5_v:.0f}%" if conc5_v is not None else "--"
             row_text = (
                 f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
-                f"[dim]CVaR:[/][white]{cvar95_v:.2f if cvar95_v is not None else '--'}%[/]  "
+                f"[dim]CVaR:[/][white]{cvar95_str}[/]  "
             )
             if beta_v is not None:
                 row_text += f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
-            conc5_str = f"{conc5_v:.0f}%" if conc5_v is not None else "--"
             row_text += f"[dim]Conc5:[/][white]{conc5_str}[/]"
             rows.append(Text.from_markup(row_text))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
-def panel_performance_spark(perf, rec, perf_anl=None):
+def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     if not perf or perf.get("_error") or perf.get("_reason"):
         error_msg = perf.get("_error") if perf and perf.get("_error") else None
@@ -3858,20 +3873,20 @@ def panel_recent_trades(trades):
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
         date_s = date.strftime("%b %d") if hasattr(date, "strftime") else str(date or "--")
-        pnl_d  = get_numeric(tr, "profit_loss_dollars") or 0
-        pnl_p  = get_numeric(tr, "profit_loss_pct") or 0
+        pnl_d  = get_numeric(tr, "profit_loss_dollars")
+        pnl_p  = get_numeric(tr, "profit_loss_pct")
         rmul   = tr.get("exit_r_multiple")
         status = (tr.get("status") or "")
         is_closed = status == "closed"
         # Issue 10: Show breakeven separately from losses
-        is_breakeven = is_closed and pnl_d == 0
-        pc  = G if pnl_d > 0 else (Y if is_breakeven else (R if is_closed else Y))
-        si  = f"[{G}]✓[/]" if pnl_d > 0 else (f"[{Y}]≈[/]" if is_breakeven else (f"[{R}]✗[/]" if is_closed else f"[{Y}]▷[/]"))
+        is_breakeven = is_closed and pnl_d is not None and pnl_d == 0
+        pc  = G if (pnl_d is not None and pnl_d > 0) else (Y if is_breakeven else (R if (is_closed and pnl_d is not None and pnl_d < 0) else (DIM if is_closed else Y)))
+        si  = f"[{G}]✓[/]" if (pnl_d is not None and pnl_d > 0) else (f"[{Y}]≈[/]" if is_breakeven else (f"[{R}]✗[/]" if (is_closed and pnl_d is not None and pnl_d < 0) else f"[{Y}]▷[/]"))
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
-            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if is_closed else "--", style=pc),
-            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if is_closed else "--",      style=pc),
+            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if (is_closed and pnl_d is not None) else "--", style=pc),
+            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if (is_closed and pnl_p is not None) else "--",      style=pc),
             Text(f"{float(rmul):.2f}R" if rmul is not None else "--",       style=pc),
             status[:4],
         )
@@ -5173,22 +5188,26 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             ))
 
     # Risk snapshot
-    if risk and not risk.get("_error") and risk.get("var95") and get_numeric(risk, "var95") or 0 > 0:
+    var95_v = get_numeric(risk, "var95") if risk and not risk.get("_error") else None
+    if var95_v is not None and var95_v > 0:
         rows.append(Rule(style="dim"))
-        beta_v = get_numeric(risk, "beta") or 0
-        conc5_v = get_numeric(risk, "conc5") or 0
+        beta_v = get_numeric(risk, "beta")
+        conc5_v = get_numeric(risk, "conc5")
+        beta_v = beta_v if beta_v is not None else 0
+        conc5_v = conc5_v if conc5_v is not None else 0
         beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
         conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var95_v = get_numeric(risk, "var95") or 0
-        cvar95_v = get_numeric(risk, "cvar95") or 0
-        svar_v = get_numeric(risk, "svar") or 0
+        cvar95_v = get_numeric(risk, "cvar95")
+        cvar95_v = cvar95_v if cvar95_v is not None else 0
+        svar_v = get_numeric(risk, "svar")
+        svar_v = svar_v if svar_v is not None else 0
         risk_parts = [
             f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f if cvar95_v is not None else '--'}%[/]",
             f"[dim]Beta:[/][{beta_c}]{beta_v:.2f}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_v:.0f}%[/]",
         ]
-        if svar_v > 0:
+        if svar_v is not None and svar_v > 0:
             risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
