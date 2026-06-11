@@ -1021,12 +1021,12 @@ def fetch_run(c):
             }
             _log_data_quality("fetch_run", 1)
             return result
-        _log_data_quality("fetch_run", 0)
-        return {}
+        _log_data_quality("fetch_run", 0, "No execution log data found")
+        return {"_error": "No recent execution log data"}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
         _log_data_quality("fetch_run", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load execution log: {type(e).__name__}"}
 
     # Fallback: reconstruct from algo_audit_log
     try:
