@@ -4055,6 +4055,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     gd = int(g.get("d", 0)) if g.get("d") is not None else 0
     top_a = sig.get("top_a")
     near  = sig.get("near")
+    # M1 FIX: Load grade thresholds from config for dynamic score color coding
+    grade_thresholds = get_grade_thresholds(cfg)
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
@@ -4099,7 +4101,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             sc = s.get("score")
             if sc is not None:
                 sc = float(sc)
-                sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
+                # M1 FIX: Use config-based grade thresholds for consistent coloring
+                sc_c = G if sc >= grade_thresholds["a_plus"] else ("bright_green" if sc >= grade_thresholds["a"] else "green")
                 parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
             else:
                 parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
@@ -4160,7 +4163,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             vsurge = bs.get("volume_surge_pct")
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
-            sq_c   = G if sq is not None and sq >= 70 else (Y if sq is not None and sq >= 50 else "white")
+            # M2 FIX: Use config-based signal quality thresholds
+            sq_c   = G if sq is not None and sq >= grade_thresholds["b"] else (Y if sq is not None and sq >= grade_thresholds["c"] else "white")
             # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
             swing_thresholds = get_swing_score_thresholds(cfg)
             swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
