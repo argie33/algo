@@ -12,8 +12,43 @@ const TOOLTIP_STYLE = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-function PerfCard({ label, value, color, hint }) {
+function Tooltip({ children, content }) {
+  const [show, setShow] = React.useState(false);
   return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <div
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{ cursor: 'help' }}
+      >
+        {children}
+      </div>
+      {show && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: 'var(--space-2)',
+          background: 'var(--surface-3)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-sm)',
+          padding: 'var(--space-2) var(--space-3)',
+          fontSize: 'var(--t-xs)',
+          maxWidth: '180px',
+          whiteSpace: 'normal',
+          zIndex: 1000,
+          boxShadow: 'var(--shadow-md)',
+        }}>
+          {content}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PerfCard({ label, value, color, hint, tooltip }) {
+  const card = (
     <div style={{
       padding: 'var(--space-3)',
       background: 'var(--surface-2)',
@@ -28,6 +63,12 @@ function PerfCard({ label, value, color, hint }) {
       {hint && <div className="t-2xs muted" style={{ marginTop: 4 }}>{hint}</div>}
     </div>
   );
+
+  return tooltip ? (
+    <Tooltip content={tooltip}>
+      {card}
+    </Tooltip>
+  ) : card;
 }
 
 export default function PerformanceTab({ performance, equityCurve = [] }) {
@@ -173,7 +214,13 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
 
         <div className="eyebrow" style={{ marginBottom: 'var(--space-3)' }}>Risk-Adjusted Returns (Annualized)</div>
         <div className="grid grid-4" style={{ gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
-          <PerfCard label="Sharpe Ratio" value={p.sharpe_annualized} color={numColor(p.sharpe_annualized - 1)} hint="(>1 good, >2 great)" />
+          <PerfCard
+            label="Sharpe Ratio"
+            value={p.sharpe_annualized}
+            color={numColor(p.sharpe_annualized - 1)}
+            hint="(>1 good, >2 great)"
+            tooltip="Excess return per unit of volatility. Higher is better. < 0.5 = poor risk-adjusted returns, 0.5-1 = fair, 1-2 = good, > 2 = excellent"
+          />
           <PerfCard label="Sortino Ratio" value={p.sortino_annualized} color={numColor(p.sortino_annualized - 1)} hint="downside-only volatility" />
           <PerfCard label="Max Drawdown" value={`${p.max_drawdown_pct}%`} color={p.max_drawdown_pct > 20 ? 'var(--danger)' : p.max_drawdown_pct > 10 ? 'var(--amber)' : 'var(--success)'} hint="peak-to-trough" />
           <PerfCard label="Calmar Ratio" value={p.calmar_ratio} color={numColor(p.calmar_ratio - 1)} hint="return / max DD" />
