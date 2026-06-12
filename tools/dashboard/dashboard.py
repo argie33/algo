@@ -697,7 +697,17 @@ def fetch_positions(c):
             SELECT p.symbol, p.avg_entry_price, p.current_price,
                    p.unrealized_pnl_pct, p.position_value, p.days_since_entry,
                    lt.stop_loss_price, lt.target_1_price,
-                   ltt.weinstein_stage, cp.sector, lss.swing_score
+                   ltt.weinstein_stage, cp.sector, lss.swing_score,
+                   CASE
+                     WHEN lt.stop_loss_price IS NOT NULL AND p.avg_entry_price > lt.stop_loss_price
+                     THEN (p.current_price - p.avg_entry_price) / (p.avg_entry_price - lt.stop_loss_price)
+                     ELSE NULL
+                   END AS r_multiple,
+                   CASE
+                     WHEN lt.stop_loss_price IS NOT NULL AND p.current_price > 0
+                     THEN (p.current_price - lt.stop_loss_price) / p.current_price * 100
+                     ELSE NULL
+                   END AS distance_to_stop_pct
             FROM algo_positions p
             LEFT JOIN lt  ON lt.symbol  = p.symbol
             LEFT JOIN ltt ON ltt.symbol = p.symbol
@@ -1764,8 +1774,8 @@ def panel_positions(pos, compact=False, trades=None):
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
-        rmul  = (price - entry) / (entry - stop)   if (stop and entry > stop) else None
-        dist  = (price - stop)  / price * 100        if (stop and price)        else None
+        rmul  = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
+        dist  = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
         t1pct = (t1 - price)    / price * 100         if (t1 and price)         else None
         pc    = G if pnl >= 0        else R
         rc    = G if (rmul or 0) >= 0 else R
