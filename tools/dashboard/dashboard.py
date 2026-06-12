@@ -678,12 +678,14 @@ def get_conn() -> psycopg2.extensions.connection:
         logger.error(f"Failed to get connection from pool (all {_db_pool.maxconn} connections in use): {e}")
         raise
 
-def q(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> List[Dict]:
+def q(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> List[Dict]:
     with c.cursor() as cur:
+        if hasattr(sql, 'as_string'):
+            sql = sql.as_string(cur)
         cur.execute(sql, p or ())
         return [r if isinstance(r, dict) else dict(r) for r in cur.fetchall()]
 
-def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> Optional[Dict]:
+def q1(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> Optional[Dict]:
     rows = q(c, sql, p)
     return rows[0] if rows else None
 
