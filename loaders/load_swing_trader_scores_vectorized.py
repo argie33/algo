@@ -20,11 +20,12 @@ import argparse
 import logging
 import time
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 import pandas as pd
 
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from algo.algo_market_calendar import MarketCalendar
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ class VectorizedSwingScoresLoader:
 
         # Determine date range
         now_utc = datetime.now(ZoneInfo("UTC"))
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
 
         # For intraday: only today; for full: last 30 days for context

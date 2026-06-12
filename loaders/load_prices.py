@@ -26,18 +26,25 @@ import uuid
 import psycopg2.sql
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 from algo.algo_sql_safety import assert_safe_table
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.data_provenance_tracker import DataProvenanceTracker
+from utils.timezone_utils import EASTERN_TZ
 from utils.data_tick_validator import validate_price_tick
+from utils.timezone_utils import EASTERN_TZ
 from utils.data_watermark_manager import WatermarkManager
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from utils.correlation_context import set_correlation_id, get_correlation_id
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_config import get_parallelism
+from utils.timezone_utils import EASTERN_TZ
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +166,7 @@ class PriceLoader(OptimalLoader):
         """
         from datetime import datetime, timezone, timedelta
 
-        now_et = datetime.now(ZoneInfo("America/New_York"))
+        now_et = datetime.now(EASTERN_TZ)
         eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
 
         # Check if we're within 2 hours of EOD start (accounts for possible scheduler delays)
@@ -367,7 +374,7 @@ class PriceLoader(OptimalLoader):
         from zoneinfo import ZoneInfo
         from algo.algo_market_calendar import MarketCalendar
         # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-        today = datetime.now(ZoneInfo("America/New_York")).date()
+        today = datetime.now(EASTERN_TZ).date()
 
         # Check if today is a trading day
         if not MarketCalendar.is_trading_day(today):
@@ -375,7 +382,7 @@ class PriceLoader(OptimalLoader):
             return True
 
         # Check if we're within 45 minutes after market close (4:00 PM ET ± 45 min = 3:15 PM - 4:45 PM)
-        now_et = datetime.now(ZoneInfo("America/New_York"))
+        now_et = datetime.now(EASTERN_TZ)
         market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
         minutes_after_close = (now_et - market_close_et).total_seconds() / 60
 
@@ -606,7 +613,7 @@ class PriceLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         # yfinance end date is EXCLUSIVE: pass today+1 so today's trading data is always fetchable
         end = now_et.date() + timedelta(days=1)
 
@@ -642,7 +649,7 @@ class PriceLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
 
         # ISSUE FIX: EOD pipeline must fetch yesterday's COMPLETE data, not today's INCOMPLETE data
         # At 4:05 PM ET (market close is 4:00 PM), today's market data is only partial/intraday.
@@ -1201,7 +1208,7 @@ class PriceLoader(OptimalLoader):
         if self.interval == "1d":
             try:
                 from algo.algo_market_calendar import MarketCalendar
-                today = datetime.now(ZoneInfo("America/New_York")).date()
+                today = datetime.now(EASTERN_TZ).date()
                 # Only check if today is a trading day
                 if not MarketCalendar.is_trading_day(today):
                     logger.info("[MARKET_CLOSE] Today is not a trading day, skipping market close check")
@@ -1458,7 +1465,7 @@ class PriceLoader(OptimalLoader):
                 import boto3
 
                 # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-                cache_date = datetime.now(ZoneInfo("America/New_York")).date()
+                cache_date = datetime.now(EASTERN_TZ).date()
                 cache_key = f"data_loader_status-{cache_date.isoformat()}"
                 cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
 
@@ -1482,8 +1489,8 @@ class PriceLoader(OptimalLoader):
                     logger.info(f"[FINAL_RETRY] Retrying {len(final_retry_symbols)} failed symbols with batch_size=20...")
                     final_results = self._fetch_with_fallback(
                         final_retry_symbols,
-                        start=datetime.now().date() - timedelta(days=30),
-                        end=datetime.now().date(),
+                        start=datetime.now(timezone.utc).date() - timedelta(days=30),
+                        end=datetime.now(timezone.utc).date(),
                         batch_size=20,
                         attempt=0,
                         max_attempts=2,
@@ -1504,7 +1511,7 @@ class PriceLoader(OptimalLoader):
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            previous_date = (datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=self._backfill_days))
+            previous_date = (datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days))
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
@@ -1583,12 +1590,11 @@ def _invalidate_phase1_cache():
     3. If both fail, raise RuntimeError to halt loader immediately
     """
     from datetime import datetime
-    from zoneinfo import ZoneInfo
     import boto3
 
     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
     try:
-        cache_date = datetime.now(ZoneInfo("America/New_York")).date()
+        cache_date = datetime.now(EASTERN_TZ).date()
         cache_key = f"data_loader_status-{cache_date.isoformat()}"
         cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
         dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -1633,7 +1639,7 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
     try:
         with DatabaseContext('write') as cur:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            run_date = datetime.now(ZoneInfo("America/New_York")).date()
+            run_date = datetime.now(EASTERN_TZ).date()
             cur.execute("""
                 INSERT INTO data_loader_runs (
                     loader_name, table_name, run_date, status, records_loaded, records_updated,

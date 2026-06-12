@@ -13,14 +13,17 @@ import logging
 import os
 import psycopg2.sql
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 from typing import List, Optional, Dict, Any
 
 from algo.algo_sql_safety import assert_safe_table
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +44,7 @@ class SignalsDailyLoader(OptimalLoader):
         # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
         # If today (ET) is not a trading day, use yesterday instead
@@ -189,7 +192,7 @@ class SignalsDailyLoader(OptimalLoader):
                 if row and row[0]:
                     max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
                     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-                    today_et = datetime.now(ZoneInfo("America/New_York")).date()
+                    today_et = datetime.now(EASTERN_TZ).date()
                     age_days = (today_et - max_date).days
                     return age_days
         except Exception as e:
@@ -546,7 +549,7 @@ def main():
             if not isinstance(tech_data_date, date):
                 tech_data_date = date.fromisoformat(str(tech_data_date))
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            today_et = datetime.now(ZoneInfo("America/New_York")).date()
+            today_et = datetime.now(EASTERN_TZ).date()
             tech_data_age = (today_et - tech_data_date).days
 
             # Compare against last trading day, not calendar days.

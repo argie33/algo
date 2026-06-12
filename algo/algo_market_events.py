@@ -14,12 +14,12 @@ from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
-from zoneinfo import ZoneInfo
 import logging
 
 logger = logging.getLogger(__name__)
@@ -219,7 +219,7 @@ class MarketEventHandler:
             True if in after-hours window, False otherwise
         """
         if not check_time:
-            check_time = datetime.now(ZoneInfo("America/New_York"))
+            check_time = datetime.now(EASTERN_TZ)
 
         check_date = check_time.date()
         check_hour = check_time.hour

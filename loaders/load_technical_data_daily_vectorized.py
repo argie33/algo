@@ -21,11 +21,12 @@ import logging
 import os
 import time
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 import pandas as pd
 
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -53,7 +54,7 @@ class VectorizedTechnicalLoader:
 
         # Determine date range
         now_utc = datetime.now(ZoneInfo("UTC"))
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
 
         # Load last 300 days for moving average warmup
@@ -220,7 +221,7 @@ class VectorizedTechnicalLoader:
                 symbol_df['price_data_age_days'] = 0  # Mark as current
 
                 # Keep only rows after warmup period (skip first 300 days used for MA computation)
-                symbol_df = symbol_df[symbol_df['date'].dt.date >= (datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=30))]
+                symbol_df = symbol_df[symbol_df['date'].dt.date >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))]
 
                 results.append(symbol_df)
 
@@ -306,7 +307,7 @@ def main():
     # Support INTRADAY_MODE environment variable (set by EventBridge/Step Functions)
     # When set, load only today's data for rapid intraday updates (3-8 min vs 15-25 min)
     if os.getenv('INTRADAY_MODE', '').lower() in ('true', '1', 'yes'):
-        now_et = datetime.now(ZoneInfo("America/New_York"))
+        now_et = datetime.now(EASTERN_TZ)
         args.since = now_et.date().isoformat()
         logger.info(f"[ENV] INTRADAY_MODE=true, loading data since {args.since}")
 

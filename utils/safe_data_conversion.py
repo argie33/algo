@@ -12,8 +12,8 @@ import json
 import logging
 import math
 from datetime import datetime, date
+from utils.timezone_utils import EASTERN_TZ
 from typing import Any, Optional, Union
-from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -163,14 +163,14 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
     if isinstance(value, datetime):
         # If naive, assume ET; if aware, return as-is
         if value.tzinfo is None:
-            return value.replace(tzinfo=ZoneInfo("America/New_York"))
+            return value.replace(tzinfo=EASTERN_TZ)
         return value
 
     if isinstance(value, str):
         try:
             dt = datetime.fromisoformat(value)
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=ZoneInfo("America/New_York"))
+                return dt.replace(tzinfo=EASTERN_TZ)
             return dt
         except (ValueError, TypeError):
             logger.warning(f"Failed to parse datetime {value!r} {context}")

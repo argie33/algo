@@ -19,10 +19,15 @@ import pandas as pd
 
 import logging
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.timezone_utils import EASTERN_TZ
 from utils.safe_data_conversion import safe_parse_date
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +45,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
         # If today is not a trading day, use yesterday instead

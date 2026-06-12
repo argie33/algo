@@ -9,6 +9,7 @@ from enum import Enum
 
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class PipelineHealth:
             health.latest_date = latest_date
             # Use ET date for age calculation (trading is ET-based)
             from zoneinfo import ZoneInfo
-            today_et = datetime.now(ZoneInfo("America/New_York")).date()
+            today_et = datetime.now(EASTERN_TZ).date()
             health.age_days = (today_et - latest_date).days
 
             # Determine status based on SLA

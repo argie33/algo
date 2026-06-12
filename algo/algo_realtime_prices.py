@@ -27,6 +27,7 @@ from datetime import datetime, time, timezone
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from utils.api_endpoints import get_alpaca_data_url, get_iex_cloud_url
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

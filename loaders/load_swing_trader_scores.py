@@ -28,15 +28,20 @@ logger = logging.getLogger(__name__)
 import os
 import psycopg2.sql
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from datetime import date, timedelta
 from typing import List, Optional, Dict
 import json
 
 from algo.algo_sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.timezone_utils import EASTERN_TZ
 from utils.grade_classifier import GradeClassifier
+from utils.timezone_utils import EASTERN_TZ
 
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
@@ -57,7 +62,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
             # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+            now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
 
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
@@ -383,7 +388,7 @@ def main():
             """, (
                 'swing_trader_scores',
                 'swing_trader_scores',
-                datetime.now().date(),
+                datetime.now(timezone.utc).date(),
                 'completed' if fail_rate <= 0.05 else 'failed',
                 stats.get("symbols_processed", 0),
                 str(stats.get("symbols_failed", 0)) if fail_rate > 0.05 else None,

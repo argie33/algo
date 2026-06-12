@@ -9,6 +9,7 @@ from utils.market_timing_constants import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
     ORCHESTRATOR_RUN_TIMES_TUPLE, ORCHESTRATOR_KILL_BUFFER_MINUTES
 )
+from utils.timezone_utils import EASTERN_TZ
 
 import os
 import time
@@ -17,7 +18,6 @@ import psycopg2
 import psycopg2.extensions
 import psycopg2.sql
 from datetime import datetime, date as _date, timedelta, timezone
-from zoneinfo import ZoneInfo
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
@@ -45,7 +45,7 @@ class Orchestrator:
             self.config.override('execution_mode', env_execution_mode)
 
         # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-        self.run_date = run_date or datetime.now(ZoneInfo("America/New_York")).date()
+        self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results = {}
@@ -130,8 +130,8 @@ class Orchestrator:
                         now_utc = datetime.now(timezone.utc)
 
                         # Convert to ET for trading hour comparison
-                        trigger_et = trigger_dt.astimezone(ZoneInfo("America/New_York"))
-                        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
+                        now_et = now_utc.astimezone(EASTERN_TZ)
 
                         trigger_date = trigger_et.date()
                         now_date_et = now_et.date()
@@ -142,7 +142,7 @@ class Orchestrator:
                             # market open (9:30 AM) of current trading day
                             now_trading_day = now_date_et
                             market_open_et = now_et.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0)
-                            market_open_et = market_open_et.replace(tzinfo=ZoneInfo("America/New_York"))
+                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
                             if now_et >= market_open_et:
                                 logger.info(
@@ -233,7 +233,7 @@ class Orchestrator:
             table = dynamodb.Table(table_name)
 
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+            now_et = now_utc.astimezone(EASTERN_TZ)
 
             # ISSUE #10 FIX: Check if halt flag was already set today (escalation tracking)
             halt_count = 1
@@ -245,7 +245,7 @@ class Orchestrator:
                 if first_trigger:
                     try:
                         first_dt = datetime.fromisoformat(first_trigger.replace('Z', '+00:00'))
-                        first_et = first_dt.astimezone(ZoneInfo("America/New_York"))
+                        first_et = first_dt.astimezone(EASTERN_TZ)
                         # Same trading day = escalate
                         if first_et.date() == now_et.date():
                             halt_count = response['Item'].get('halt_count', 1) + 1
@@ -477,7 +477,7 @@ class Orchestrator:
 
             # Calculate time until next orchestrator run (in ET)
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+            now_et = now_utc.astimezone(EASTERN_TZ)
 
             # Find next orchestrator run
             next_orch_et = None

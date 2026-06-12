@@ -64,7 +64,7 @@ class EndToEndIntegrationTest:
         self.dry_run = dry_run
         self.config = get_config()
         self.market_calendar = MarketCalendar()
-        self.test_date = datetime.now(ZoneInfo("America/New_York")).date()
+        self.test_date = datetime.now(EASTERN_TZ).date()
         self.results = {
             'pre_checks': {},
             'phase_results': {},
@@ -317,7 +317,7 @@ class EndToEndIntegrationTest:
                 logger.warning(f"  ⚠ Failsafe timeout config: {e}")
 
             # Check 4: Morning prep timing windows
-            now = datetime.now(ZoneInfo("America/New_York"))
+            now = datetime.now(EASTERN_TZ)
             morning_start = now.replace(hour=2, minute=0, second=0, microsecond=0)
             morning_deadline = now.replace(hour=9, minute=30, second=0, microsecond=0)
 

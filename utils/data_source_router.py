@@ -32,6 +32,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from utils.timezone_utils import EASTERN_TZ
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
@@ -641,7 +642,7 @@ class DataSourceRouter:
         from zoneinfo import ZoneInfo
 
         try:
-            today = datetime.now(ZoneInfo("America/New_York")).date()
+            today = datetime.now(EASTERN_TZ).date()
 
             if yf is None:
                 logger.error("[yfinance-fast-check] yfinance not installed")

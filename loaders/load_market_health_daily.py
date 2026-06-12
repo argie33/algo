@@ -13,14 +13,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 import logging
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
         # If today is not a trading day, use yesterday instead
@@ -105,7 +107,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _fetch_vix_data(self, start: date, end: date) -> dict:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
         from algo.algo_market_calendar import MarketCalendar
-        today = datetime.now(ZoneInfo("America/New_York")).date()
+        today = datetime.now(EASTERN_TZ).date()
         if not MarketCalendar.is_trading_day(today):
             logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
             return {}
@@ -343,7 +345,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
     # Skip the fetch — existing price_daily data is still current from the last trading day.
     from algo.algo_market_calendar import MarketCalendar
-    today = datetime.now(ZoneInfo("America/New_York")).date()
+    today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
         logger.info(f"Market closed today ({today}) — skipping VIX/index yfinance fetch")
         return 0
@@ -433,7 +435,7 @@ def main():
         # Also write VIX-family term structure prices to price_daily so the
         # VolTermStructureCard in MarketsHealth can render.
         # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-        end = datetime.now(ZoneInfo("America/New_York")).date()
+        end = datetime.now(EASTERN_TZ).date()
         start = end - timedelta(days=90)
         written = _write_vix_family_prices(start, end)
         if written > 0:

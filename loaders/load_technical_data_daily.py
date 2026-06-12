@@ -16,15 +16,18 @@ import os
 import psycopg2.sql
 from datetime import date, datetime, timedelta
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from algo.algo_sql_safety import assert_safe_table
 from utils.loader_helpers import get_active_symbols
+from utils.timezone_utils import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.timezone_utils import EASTERN_TZ
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -43,7 +46,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+        now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
         # If today is not a trading day, use yesterday instead
@@ -161,7 +164,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
                     # Count trading days from max_date to today
                     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
                     trading_days = 0
-                    check_date = datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=1)
+                    check_date = datetime.now(EASTERN_TZ).date() - timedelta(days=1)
                     while check_date > max_date and trading_days < 999:
                         if MarketCalendar.is_trading_day(check_date):
                             trading_days += 1
@@ -332,7 +335,7 @@ def main():
                 """, (
                     'technical_data_daily',
                     'technical_data_daily',
-                    datetime.now().date(),
+                    datetime.now(timezone.utc).date(),
                     'completed',
                     result.get('rows_inserted', 0) if result else 0,
                     round(duration_seconds, 2)
@@ -363,7 +366,7 @@ def main():
                 """, (
                     'technical_data_daily',
                     'technical_data_daily',
-                    datetime.now().date(),
+                    datetime.now(timezone.utc).date(),
                     'failed',
                     str(e),
                     round(duration_seconds, 2)

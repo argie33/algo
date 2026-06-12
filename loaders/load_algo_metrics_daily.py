@@ -9,7 +9,9 @@ from datetime import date
 from typing import Optional, List
 
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
             # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
             from zoneinfo import ZoneInfo
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+            now_et = now_utc.astimezone(EASTERN_TZ)
             run_date = now_et.date()
 
             with DatabaseContext('read') as cur:

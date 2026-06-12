@@ -6,7 +6,7 @@ import os
 import psycopg2
 import logging
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from pathlib import Path
 from psycopg2.extras import RealDictCursor
 
@@ -137,14 +137,14 @@ def get_alpaca_trades():
 def lambda_handler(event, context):
     """Monitor execution status."""
 
-    logger.info(f"Execution Monitor - {datetime.now().isoformat()}")
+    logger.info(f"Execution Monitor - {datetime.now(timezone.utc).isoformat()}")
 
     rds_creds = get_rds_credentials()
     signals_result = query_rds_signals(rds_creds)
     trades_result = get_alpaca_trades()
 
     result = {
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'date': str(date.today()),
         'signals': signals_result,
         'trades': trades_result,

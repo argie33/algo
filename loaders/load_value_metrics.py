@@ -67,7 +67,7 @@ class ValueMetricsLoader(OptimalLoader):
                     'fcf_yield': fcf_yield,
                     'held_percent_insiders': float(held_insiders) if held_insiders else None,
                     'held_percent_institutions': float(held_institutions) if held_institutions else None,
-                    'updated_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
                 }]
 
             except Exception as e:

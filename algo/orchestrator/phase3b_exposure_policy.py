@@ -5,6 +5,7 @@ import traceback
 from datetime import date as _date, datetime
 from typing import Any, Callable, Dict, List
 
+from utils.timezone_utils import EASTERN_TZ
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
@@ -20,8 +21,7 @@ def _is_live_evening_run(run_date):
     if run_date < _today_date.today():
         return False
     try:
-        import pytz
-        et_tz = pytz.timezone('US/Eastern')
+        et_tz = EASTERN_TZ
         now_et = datetime.now(et_tz)
         return now_et.hour >= 17
     except Exception as e:
