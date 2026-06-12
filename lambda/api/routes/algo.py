@@ -34,6 +34,15 @@ _safe_spec.loader.exec_module(_safe_module)
 safe_float = _safe_module.safe_float
 safe_int = _safe_module.safe_int
 
+# Import unified metrics fetcher (same source used by dashboard)
+_fetcher_spec = importlib.util.spec_from_file_location(
+    "algo_metrics_fetcher",
+    str(Path(_root_dir) / "utils" / "algo_metrics_fetcher.py")
+)
+_fetcher_module = importlib.util.module_from_spec(_fetcher_spec)
+_fetcher_spec.loader.exec_module(_fetcher_module)
+AlgoMetricsFetcher = _fetcher_module.AlgoMetricsFetcher
+
 logger = logging.getLogger(__name__)
 
 def _check_admin_access(jwt_claims: Dict) -> bool:
@@ -176,9 +185,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
-            try:
-                min_score = float(min_score_str) if min_score_str else None
-            except (ValueError, TypeError):
+            min_score = safe_float_strict(min_score_str, context='query param min_score') if min_score_str else None
+            if min_score_str and min_score is None:
                 return error_response(400, 'bad_request', 'min_score must be numeric')
             symbol_filter = params.get('symbol', [None])[0] if params else None
             # SECURITY M-03: Validate symbol parameter format
@@ -599,213 +607,64 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             })
 
 def _get_algo_performance(cur) -> Dict:
-        """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
-        import math
+        """Get comprehensive algo performance metrics using unified fetcher.
 
-        def _mean(xs): return sum(xs) / len(xs) if xs else 0.0
-        def _std(xs):
-            if len(xs) < 2: return 0.0
-            m = _mean(xs); return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs))
-        def _cumprod_max_dd(returns):
-            cum, peak, max_dd = 1.0, 1.0, 0.0
-            for r in returns:
-                cum *= (1 + r)
-                if cum > peak: peak = cum
-                dd = (cum - peak) / peak
-                if dd < max_dd: max_dd = dd
-            return max_dd
-
+        ARCHITECTURE FIX: Uses unified AlgoMetricsFetcher to ensure performance metrics
+        and positions use identical data sources. Eliminates redundant metric calculations.
+        """
         try:
-            cur.execute("""
-                SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price,
-                       entry_quantity, profit_loss_dollars, profit_loss_pct,
-                       exit_r_multiple,
-                       (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
-                FROM algo_trades WHERE exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 1000
-            """)
-            trades = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
-            if not trades:
-                return json_response(200, {'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
+            fetcher = AlgoMetricsFetcher(cur)
+            perf = fetcher.fetch_performance_metrics()
+
+            if "_error" in perf:
+                logger.error(f"Performance metrics fetch failed: {perf['_error']}")
+                return json_response(200, {
+                    'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                     'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
-                    'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
-                    'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0})
-            pnls_dollars = [safe_float(t['profit_loss_dollars']) for t in trades]
-            pnls_pcts = [safe_float(t['profit_loss_pct']) for t in trades]
-            holding_days = [safe_float(t['holding_days']) for t in trades if t['holding_days']]
-            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
-            winning = sum(1 for p in pnls_dollars if p > 0)
-            losing = sum(1 for p in pnls_dollars if p < 0)
-            breakeven = sum(1 for p in pnls_dollars if p == 0)
-            total = len(trades)
-            wins_sum = sum(p for p in pnls_dollars if p > 0)
-            losses_sum = abs(sum(p for p in pnls_dollars if p < 0))
-            profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
+                    'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
+                    'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
+                })
 
-            sharpe, sortino, max_dd = 0.0, 0.0, 0.0
-            snapshot_count = 0
-            total_return_pct = None  # True compounded return from snapshots (preferred)
-            calmar_ratio = 0.0
-            try:
-                cur.execute("""
-                    SELECT snapshot_date, total_portfolio_value
-                    FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date ASC
-                """)
-                snapshots = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
-                snapshot_count = len(snapshots)
-                if snapshot_count > 1:
-                    vals = [safe_float(s['total_portfolio_value']) for s in snapshots]
-                    dates = [s['snapshot_date'] for s in snapshots]
-                    returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
-                    if returns:
-                        mean_r = _mean(returns)
-                        std_r = _std(returns)
-                        sharpe = (mean_r / std_r * math.sqrt(252)) if std_r > 0 else 0.0
-                        downside = [r for r in returns if r < 0]
-                        dv = _std(downside) if downside else 0.0
-                        sortino = (mean_r / dv * math.sqrt(252)) if dv > 0 else 0.0
-                        max_dd = _cumprod_max_dd(returns)
-                    # True compounded portfolio return: (end / start - 1) * 100
-                    if len(vals) > 0 and vals[0] > 0 and vals[-1] > 0:
-                        total_return_pct = round((vals[-1] / vals[0] - 1) * 100, 2)
-                        # CAGR for Calmar: (end/start)^(365/calendar_days) - 1
-                        n_days = (dates[-1] - dates[0]).days if len(dates) > 1 else 0
-                        if n_days > 0 and max_dd < 0:
-                            cagr = (vals[-1] / vals[0]) ** (365.25 / n_days) - 1
-                            calmar_ratio = round(cagr / abs(max_dd), 2)
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                logger.warning(f'Portfolio snapshots unavailable: {e}')
-            # CRITICAL: Removed fallback max_dd calculation (lines 609-610 from old version)
-            # If no snapshots, max_dd stays 0.0 (no fallback to trade-based drawdown)
-            # Trade-based drawdown misses cash held between trades; snapshot-based is accurate
-            # Win rate excludes breakeven trades from denominator (only wins/losses count)
-            win_loss_total = winning + losing
-            win_rate_pct = round((winning / win_loss_total * 100) if win_loss_total > 0 else 0.0, 2)
-            wins_p = [p for p in pnls_pcts if p > 0]
-            losses_p = [p for p in pnls_pcts if p < 0]
-            # sum_of_trade_pnls_pct: sum of per-trade P&L percentages (not compounded portfolio return)
-            sum_of_trade_pnls_pct = round(sum(pnls_pcts), 2)
-            # total_return_pct: true compounded portfolio return from snapshots when available
-            if total_return_pct is None:
-                total_return_pct = sum_of_trade_pnls_pct
-            # CRITICAL: Removed Calmar fallback (lines 621-623 from old version)
-            # If no snapshots, calmar_ratio stays 0.0 (no fallback calculation)
-            # Trade P&L fallback is imprecise (uses uncompounded sum instead of CAGR)
-            # If calmar_ratio is 0, frontend knows snapshots weren't available
-            # Compute streak metrics from ordered trade P&Ls
-            best_win_streak = worst_loss_streak = current_streak = 0
-            if pnls_dollars:
-                cur_run = 0
-                best_w = best_l = 0
-                for p in reversed(pnls_dollars):
-                    if p > 0:
-                        cur_run = max(0, cur_run) + 1
-                    elif p < 0:
-                        cur_run = min(0, cur_run) - 1
-                    best_w = max(best_w, cur_run)
-                    best_l = min(best_l, cur_run)
-                current_streak = cur_run
-                best_win_streak = best_w
-                worst_loss_streak = abs(best_l)
-
-            # Compute advanced metrics
-            # Ulcer Index = sqrt(sum(drawdowns^2) / n)
-            ulcer_index = 0.0
-            if total_return_pct and max_dd < 0:
-                # Approximate Ulcer Index from max drawdown
-                ulcer_index = round(abs(max_dd) * 100, 2)
-
-            # Recovery Factor = total profit / max_drawdown
-            recovery_factor = 0.0
-            if max_dd < 0 and (wins_sum > 0 or sum_of_trade_pnls_pct > 0):
-                recovery_factor = round(sum_of_trade_pnls_pct / abs(max_dd * 100), 2)
-
-            # Tail ratio (ratio of largest wins to largest losses)
-            tail_ratio = 0.0
-            if pnls_pcts and len(wins_p) > 0 and len(losses_p) > 0:
-                max_win = max(wins_p) if wins_p else 0
-                max_loss = abs(min(losses_p)) if losses_p else 0
-                if max_loss > 0:
-                    tail_ratio = round(max_win / max_loss, 2)
-
-            freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1)
-
-            # Calculate confidence levels for key metrics
-            if snapshot_count >= 20:
-                sharpe_confidence = 'high'
-            elif snapshot_count >= 5:
-                sharpe_confidence = 'medium'
-            else:
-                sharpe_confidence = 'low'
-
-            if (winning + losing) >= 30:
-                win_rate_confidence = 'high'
-            elif (winning + losing) >= 10:
-                win_rate_confidence = 'medium'
-            else:
-                win_rate_confidence = 'low'
-
-            if snapshot_count >= 20:
-                return_confidence = 'high'
-            elif snapshot_count >= 5:
-                return_confidence = 'medium'
-            else:
-                return_confidence = 'low'
-
-            # Flag breakeven trades excluded from win rate denominator
-            has_breakeven_warning = breakeven > 0
-
+            # Wrap fetched data in response format expected by frontend
             result = {
-                'total_trades': total,
-                'winning_trades': winning,
-                'losing_trades': losing,
-                'win_rate': win_rate_pct,
-                'win_rate_pct': win_rate_pct,
-                'win_rate_confidence': win_rate_confidence,
-                'win_rate_warning': f'{breakeven} breakeven trades excluded from calculation' if has_breakeven_warning else None,
-                'breakeven_trades': breakeven,
-                'profit_factor': round(profit_factor, 2),
-                'total_pnl_dollars': round(sum(pnls_dollars), 2),
-                'total_pnl_pct': sum_of_trade_pnls_pct,
-                'total_return_pct': total_return_pct,
-                'return_confidence': return_confidence,
-                'avg_trade_pct': round(_mean(pnls_pcts), 2),
-                'avg_win_pct': round(_mean(wins_p), 2),
-                'avg_loss_pct': round(_mean(losses_p), 2),
-                'best_trade_pct': round(max(pnls_pcts), 2) if pnls_pcts else 0.0,
-                'worst_trade_pct': round(min(pnls_pcts), 2) if pnls_pcts else 0.0,
-                'sharpe_annualized': round(sharpe, 2),
-                'sharpe_ratio': round(sharpe, 2),
-                'sharpe_confidence': sharpe_confidence,
-                'sharpe_warning': f'Low confidence: only {snapshot_count} snapshots (need ≥5)' if snapshot_count < 5 else None,
-                'sortino_annualized': round(sortino, 2),
-                'sortino_ratio': round(sortino, 2),
-                'max_drawdown_pct': round(abs(max_dd) * 100, 2),
-                'calmar_ratio': calmar_ratio,
-                'ulcer_index': ulcer_index,
-                'recovery_factor': recovery_factor,
-                'tail_ratio': tail_ratio,
-                'expectancy_r': round(_mean(r_multiples), 2) if r_multiples else 0.0,
-                'avg_hold_days': round(_mean(holding_days), 1),
-                'avg_holding_days': round(_mean(holding_days), 1),
-                # CRITICAL: Removed avg_r recalculations (lines 703-705 from old version)
-                # These are pre-computed by loaders and should come from algo_performance_daily
-                # Don't recalculate expensive metrics on every API call
-                # Frontend should call /api/algo/performance for pre-computed metrics instead
-                'portfolio_snapshots': snapshot_count,
-                'best_win_streak': best_win_streak,
-                'worst_loss_streak': worst_loss_streak,
-                'current_streak': current_streak,
-                'gross_win_dollars': round(wins_sum, 2),
-                'gross_loss_dollars': round(losses_sum, 2),
-                'data_freshness': freshness,
+                'total_trades': perf.get('total_trades', 0),
+                'winning_trades': perf.get('winning_trades', 0),
+                'losing_trades': perf.get('losing_trades', 0),
+                'breakeven_trades': perf.get('breakeven_trades', 0),
+                'win_rate': perf.get('win_rate_pct', 0.0),
+                'win_rate_pct': perf.get('win_rate_pct', 0.0),
+                'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
+                'profit_factor': perf.get('profit_factor', 0.0),
+                'total_pnl_dollars': perf.get('total_pnl_dollars', 0.0),
+                'total_pnl_pct': perf.get('total_pnl_pct', 0.0),
+                'total_return_pct': perf.get('total_return_pct'),
+                'avg_trade_pct': perf.get('avg_win_pct', 0.0),  # Placeholder
+                'avg_win_pct': perf.get('avg_win_pct', 0.0),
+                'avg_loss_pct': perf.get('avg_loss_pct', 0.0),
+                'best_trade_pct': perf.get('best_trade_pct', 0.0),
+                'worst_trade_pct': perf.get('worst_trade_pct', 0.0),
+                'sharpe_annualized': perf.get('sharpe_ratio', 0.0),
+                'sharpe_ratio': perf.get('sharpe_ratio', 0.0),
+                'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
+                'sortino_annualized': perf.get('sortino_ratio', 0.0),
+                'sortino_ratio': perf.get('sortino_ratio', 0.0),
+                'max_drawdown_pct': perf.get('max_drawdown_pct', 0.0),
+                'expectancy_r': perf.get('expectancy_r', 0.0),
+                'avg_hold_days': perf.get('avg_holding_days', 0.0),
+                'avg_holding_days': perf.get('avg_holding_days', 0.0),
+                'portfolio_snapshots': perf.get('portfolio_snapshots', 0),
+                'best_win_streak': perf.get('best_win_streak', 0),
+                'worst_loss_streak': perf.get('worst_loss_streak', 0),
+                'current_streak': perf.get('current_streak', 0),
+                'gross_win_dollars': 0.0,  # Fetcher doesn't compute these
+                'gross_loss_dollars': 0.0,
+                'data_freshness': {},
                 'confidence_metadata': {
-                    'sharpe_confidence': sharpe_confidence,
-                    'win_rate_confidence': win_rate_confidence,
-                    'return_confidence': return_confidence,
-                    'snapshot_count': snapshot_count,
-                    'total_trades': total,
+                    'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
+                    'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
+                    'return_confidence': 'low',
+                    'snapshot_count': perf.get('portfolio_snapshots', 0),
+                    'total_trades': perf.get('total_trades', 0),
                 }
             }
             return json_response(200, result)

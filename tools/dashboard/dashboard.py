@@ -37,6 +37,7 @@ import requests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
+from utils.algo_metrics_fetcher import AlgoMetricsFetcher
 from algo.algo_signals import SignalComputer
 
 # Configure logging to file instead of stderr to avoid interfering with Rich Live display
@@ -433,8 +434,13 @@ HALT_REASON_NAMES = {
     "data_freshness":           "Required data stale",
 }
 
-# H14 FIX: Define failure threshold for load_all degradation logic
-FETCHER_FAILURE_THRESHOLD = 0.5  # If >50% of fetchers fail, enter degraded mode
+# H14 FIX: Define failure threshold for load_all degradation logic (from config/thresholds.py)
+def _get_fetcher_failure_threshold():
+    try:
+        from config.thresholds import ThresholdConfig
+        return ThresholdConfig.dashboard_fetcher_failure_threshold()
+    except Exception:
+        return 0.5  # Fallback to original hardcoded value
 
 # ── mascot (dancing monkey) ──────────────────────────────────────────────────
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
@@ -1625,7 +1631,11 @@ def fetch_market(c):
 
             us_market_holidays = _get_us_market_holidays(today.year)
             today_is_holiday = today.date() in us_market_holidays
-            stale_threshold = 10 if (is_monday and not today_is_holiday) else 3
+            try:
+                from config.thresholds import ThresholdConfig
+                stale_threshold = ThresholdConfig.get_data_staleness_days(is_monday and not today_is_holiday)
+            except Exception:
+                stale_threshold = 10 if (is_monday and not today_is_holiday) else 3
             if mkt_health_age > stale_threshold:
                 msg = f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})"
                 logger.warning(msg)
@@ -1819,103 +1829,86 @@ def fetch_portfolio(c):
         return {"_error": f"Failed to load portfolio: {type(e).__name__}"}
 
 def fetch_perf(c=None):
-    """Fetch performance metrics from API with database fallback.
+    """Fetch performance metrics directly from database.
 
-    Uses /api/algo/performance endpoint which returns comprehensive metrics.
-    Falls back to database if API unavailable.
+    ARCHITECTURE FIX: Unified data source - both performance and positions now fetch
+    directly from database instead of going through API. Eliminates redundant API hop.
+
     Maintains backward compatibility with existing dashboard display format.
     """
     stale_alerts = []
     try:
-        api_resp = api_call("/api/algo/performance")
-        if "_error" not in api_resp:
-            # API call succeeded
-            perf = api_resp.get("data", api_resp)
-            total_trades = perf.get("total_trades", 0)
-            if total_trades == 0:
-                logger.warning("VALIDATION: No trade history available from API")
-                # Fall through to database fallback
-            else:
-                # API data is valid, use it
-                winning_trades = perf.get("winning_trades", 0)
-                losing_trades = perf.get("losing_trades", 0)
-                breakeven_trades = perf.get("breakeven_trades", 0)
-                open_winning_trades = perf.get("open_winning_trades", 0)
-                open_losing_trades = perf.get("open_losing_trades", 0)
-                total_open_trades = open_winning_trades + open_losing_trades
-                wr_pct = perf.get("win_rate_pct")
-                wr_confidence = perf.get("win_rate_confidence", "medium")
-                be_pct = (breakeven_trades / total_trades * 100) if total_trades > 0 else 0
-                if be_pct > 15:
-                    wr_confidence = "low"
-                elif be_pct > 5:
-                    wr_confidence = "medium"
-
-                sharpe = perf.get("sharpe_ratio")
-                sharpe_confidence = perf.get("sharpe_confidence", "medium")
-                maxdd = perf.get("max_drawdown_pct")
-                pf = perf.get("profit_factor")
-                exp = perf.get("expectancy_r")
-                avg_win = perf.get("avg_win_pct")
-                avg_loss = perf.get("avg_loss_pct")
-                avg_r = perf.get("expectancy_r")
-                current_streak = perf.get("current_streak", 0)
-                pnl = perf.get("total_pnl_dollars", 0)
-                portfolio_snapshots = perf.get("portfolio_snapshots", 0)
-
-                equity_vals = []
-                recent_rets = []
-                recent_rets_confidence = "medium"
-                if portfolio_snapshots < 5:
-                    stale_alerts.append(f"Insufficient data for Sharpe ({portfolio_snapshots} snapshots, need 63+)")
-
-                total_trades_incl_open = total_trades + total_open_trades
-                winning_trades_incl_open = winning_trades + open_winning_trades
-                wr_incl_open = (winning_trades_incl_open / total_trades_incl_open * 100) if total_trades_incl_open > 0 else 0
-
-                _log_data_quality("fetch_perf", total_trades)
-                data_freshness = perf.get("data_freshness", {})
-                updated_at = data_freshness.get("last_updated_at") if isinstance(data_freshness, dict) else None
-                return {
-                    "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
-                    "_open_w": open_winning_trades, "_open_l": open_losing_trades,
-                    "wr": wr_pct, "wr_incl_open": round(wr_incl_open, 1), "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
-                    "_open_trades_count": total_open_trades, "_total_trades_incl_open": total_trades_incl_open, "pnl": round(pnl, 2), "streak": current_streak,
-                    "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
-                    "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
-                    "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
-                    "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence, "stale_alerts": stale_alerts,
-                    "_source": "api_algo_performance", "_updated_at": updated_at
-                }
-
-        # API failed, try database fallback
-        logger.info("fetch_perf: API unavailable, falling back to database")
         if c is None:
             c = get_conn()
 
-        # Return minimal performance data from database
-        result = q1(c, """
-            SELECT COUNT(*) as n FROM algo_trades WHERE status IN ('closed', 'exited')
-        """)
-        if result:
-            _log_data_quality("fetch_perf", 1)
+        cur = c.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        fetcher = AlgoMetricsFetcher(cur)
+        perf = fetcher.fetch_performance_metrics()
+
+        if "_error" in perf:
+            logger.error(f"fetch_perf: {perf['_error']}")
+            _log_data_quality("fetch_perf", 0, perf['_error'])
             return {
-                "n": result.get("n", 0), "w": 0, "l": 0, "b": 0,
+                "n": 0, "w": 0, "l": 0, "b": 0,
                 "wr": 0, "wr_incl_open": 0, "wr_confidence": "low",
                 "sharpe": None, "sharpe_confidence": "low",
-                "stale_alerts": ["Performance data unavailable - using database fallback"],
-                "_source": "database_fallback", "_updated_at": None,
-                "_error": "API unavailable, showing fallback data"
+                "stale_alerts": ["Performance data unavailable"],
+                "_source": "database_direct", "_updated_at": None,
+                "_error": perf['_error']
             }
 
-        logger.error(f"fetch_perf: API error: {api_resp.get('_error', 'Unknown')}")
-        _log_data_quality("fetch_perf", 0, api_resp.get('_error', 'API unavailable'))
+        total_trades = perf.get("total_trades", 0)
+        if total_trades == 0:
+            logger.info("fetch_perf: No trade history found")
+            _log_data_quality("fetch_perf", 0)
+            return {
+                "n": 0, "w": 0, "l": 0, "b": 0,
+                "wr": 0, "wr_incl_open": 0, "wr_confidence": "low",
+                "sharpe": None, "sharpe_confidence": "low",
+                "stale_alerts": ["No trade history available"],
+                "_source": "database_direct", "_updated_at": None
+            }
+
+        winning_trades = perf.get("winning_trades", 0)
+        losing_trades = perf.get("losing_trades", 0)
+        breakeven_trades = perf.get("breakeven_trades", 0)
+        wr_pct = perf.get("win_rate_pct", 0)
+        wr_confidence = perf.get("win_rate_confidence", "medium")
+        be_pct = (breakeven_trades / total_trades * 100) if total_trades > 0 else 0
+        if be_pct > 15:
+            wr_confidence = "low"
+        elif be_pct > 5:
+            wr_confidence = "medium"
+
+        sharpe = perf.get("sharpe_ratio")
+        sharpe_confidence = perf.get("sharpe_confidence", "medium")
+        maxdd = perf.get("max_drawdown_pct")
+        pf = perf.get("profit_factor")
+        exp = perf.get("expectancy_r")
+        avg_win = perf.get("avg_win_pct")
+        avg_loss = perf.get("avg_loss_pct")
+        avg_r = perf.get("expectancy_r")
+        current_streak = perf.get("current_streak", 0)
+        pnl = perf.get("total_pnl_dollars", 0)
+        portfolio_snapshots = perf.get("portfolio_snapshots", 0)
+
+        equity_vals = []
+        recent_rets = []
+        recent_rets_confidence = "medium"
+        if portfolio_snapshots < 5:
+            stale_alerts.append(f"Insufficient data for Sharpe ({portfolio_snapshots} snapshots, need 5+)")
+
+        _log_data_quality("fetch_perf", total_trades)
+
         return {
-            "n": 0, "w": 0, "l": 0, "b": 0,
-            "wr": 0, "wr_incl_open": 0, "wr_confidence": "low",
-            "sharpe": None, "sharpe_confidence": "low",
-            "stale_alerts": ["Performance data unavailable"],
-            "_source": "database_fallback", "_updated_at": None
+            "n": total_trades, "w": winning_trades, "l": losing_trades, "b": breakeven_trades,
+            "wr": wr_pct, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "pnl": round(pnl, 2), "streak": current_streak,
+            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
+            "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
+            "profit_factor": pf, "expectancy": exp, "avg_r": avg_r, "equity_vals": equity_vals,
+            "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence, "stale_alerts": stale_alerts,
+            "_source": "database_direct", "_updated_at": None
         }
     except (KeyError, TypeError, ValueError, ZeroDivisionError, psycopg2.Error) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
@@ -1925,76 +1918,29 @@ def fetch_perf(c=None):
             "wr": 0, "wr_incl_open": 0, "wr_confidence": "low",
             "sharpe": None, "sharpe_confidence": "low",
             "stale_alerts": ["Performance data unavailable"],
-            "_source": "error", "_updated_at": None,
+            "_source": "database_direct", "_updated_at": None,
             "_error": str(e)
         }
 
 
 def fetch_positions(c):
-    """Fetch open positions from database directly (avoid API dependency).
+    """Fetch open positions from database using unified fetcher.
 
-    Queries algo_trades for open positions, joins with latest prices and metadata.
+    ARCHITECTURE FIX: Uses unified AlgoMetricsFetcher for consistent data access.
     """
     stale_alerts = []
     try:
-        # Query directly from database
         cur = c.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        cur.execute("""
-            SELECT
-                at.symbol,
-                at.entry_price as avg_entry_price,
-                COALESCE(pd.close, at.entry_price) as current_price,
-                CASE
-                    WHEN at.entry_price > 0
-                    THEN (((COALESCE(pd.close, at.entry_price) - at.entry_price) / at.entry_price) * 100)
-                    ELSE 0
-                END as unrealized_pnl_pct,
-                (at.entry_quantity * COALESCE(pd.close, at.entry_price))::DECIMAL(14,2) as position_value,
-                at.entry_quantity as quantity,
-                at.stop_loss_price,
-                at.target_1_price,
-                at.target_2_price,
-                at.target_3_price,
-                cp.sector,
-                at.trade_id,
-                at.trade_date as created_at,
-                'open' as status
-            FROM algo_trades at
-            LEFT JOIN (
-                SELECT DISTINCT ON (symbol) symbol, close
-                FROM price_daily
-                ORDER BY symbol, date DESC
-            ) pd ON at.symbol = pd.symbol
-            LEFT JOIN company_profile cp ON cp.ticker = at.symbol
-            WHERE at.exit_price IS NULL
-            ORDER BY position_value DESC NULLS LAST
-        """)
-        rows = cur.fetchall()
+        fetcher = AlgoMetricsFetcher(cur)
+        positions, error = fetcher.fetch_open_positions()
 
-        result = []
-        for row in rows:
-            d = dict(row)
-            # Compute unrealized P&L
-            position_value = d.get('position_value')
-            unrealized_pnl_pct = d.get('unrealized_pnl_pct')
-            if position_value is not None and unrealized_pnl_pct is not None:
-                d['unrealized_pnl'] = round(float(position_value) * float(unrealized_pnl_pct) / 100, 2)
-            else:
-                d['unrealized_pnl'] = None
+        if error:
+            logger.error(f"fetch_positions: {error}")
+            _log_data_quality("fetch_positions", 0, error)
+            return {"_error": error, "positions": [], "stale_alerts": stale_alerts}
 
-            # Compute R multiple
-            if (d.get('avg_entry_price') and d.get('stop_loss_price') and
-                float(d['avg_entry_price']) > float(d.get('stop_loss_price', 0))):
-                d['r_multiple'] = round(
-                    (float(d.get('current_price', d['avg_entry_price'])) - float(d['avg_entry_price'])) /
-                    (float(d['avg_entry_price']) - float(d['stop_loss_price'])), 2)
-            else:
-                d['r_multiple'] = None
-
-            result.append(d)
-
-        _log_data_quality("fetch_positions", len(result) if result else 0)
-        return {"positions": result, "stale_alerts": stale_alerts}
+        _log_data_quality("fetch_positions", len(positions) if positions else 0)
+        return {"positions": positions, "stale_alerts": stale_alerts}
     except (KeyError, TypeError, ValueError, Exception) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
@@ -2080,7 +2026,11 @@ def fetch_signals(c):
         # Dashboard no longer filters signals by quality threshold
         # API must return only valid signals (quality >= configured threshold)
         # If invalid signals received, dashboard validates but does NOT filter
-        min_quality_threshold = cfg.get("min_quality", 40.0) if cfg else 40.0
+        try:
+            from config.thresholds import ThresholdConfig
+            min_quality_threshold = ThresholdConfig.dashboard_min_quality_threshold()
+        except Exception:
+            min_quality_threshold = cfg.get("min_quality", 40.0) if cfg else 40.0
 
         # Data integrity validation only — dashboard does NOT filter
         signals_below_threshold = 0
@@ -3159,8 +3109,9 @@ def load_all() -> dict:
 
     # If failure rate exceeds threshold: degraded state (but show what we have)
     failure_rate = len(failures) / len(FETCHERS) if len(FETCHERS) > 0 else 0
-    if failure_rate > FETCHER_FAILURE_THRESHOLD:
-        msg = f"Data degraded: {len(failures)}/{len(FETCHERS)} fetchers failed ({failure_rate*100:.1f}% > {FETCHER_FAILURE_THRESHOLD*100:.0f}% threshold)"
+    fetcher_threshold = _get_fetcher_failure_threshold()
+    if failure_rate > fetcher_threshold:
+        msg = f"Data degraded: {len(failures)}/{len(FETCHERS)} fetchers failed ({failure_rate*100:.1f}% > {fetcher_threshold*100:.0f}% threshold)"
         logger.warning(f"DEGRADED: {msg}")
         return {**out, "_degraded": True, "_failure_count": len(failures), "_failed_fetchers": failures, "_failure_rate": round(failure_rate, 2)}
 
