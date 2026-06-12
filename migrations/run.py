@@ -29,14 +29,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def _load_credentials():
-    """Load database credentials from environment or stdin."""
+    """Load database credentials from environment or stdin.
+
+    DB_HOST is required - no localhost fallback for safety. All credentials
+    must be explicitly set via environment or stdin to prevent accidental
+    misconfiguration.
+    """
     # Check if credentials should be loaded from stdin
     if '--credentials-from-stdin' in sys.argv:
         try:
             creds_json = sys.stdin.read()
             creds = json.loads(creds_json)
+            host = creds.get('host')
+            if not host:
+                logger.error("ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)")
+                sys.exit(1)
             return (
-                creds.get('host', 'localhost'),
+                host,
                 int(creds.get('port', 5432)),
                 creds.get('username', 'postgres'),
                 creds.get('password', ''),
@@ -46,9 +55,14 @@ def _load_credentials():
             logger.error(f"Failed to parse credentials from stdin: {e}")
             sys.exit(1)
 
-    # Fall back to environment variables
+    # DB_HOST is required - no localhost fallback for safety
+    db_host = os.getenv('DB_HOST')
+    if not db_host:
+        logger.error("ERROR: DB_HOST environment variable is required (no localhost fallback for safety)")
+        sys.exit(1)
+
     return (
-        os.getenv('DB_HOST', 'localhost'),
+        db_host,
         int(os.getenv('DB_PORT', 5432)),
         os.getenv('DB_USER', 'postgres'),
         os.getenv('DB_PASSWORD', ''),

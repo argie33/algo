@@ -33,12 +33,19 @@ _INDEXES = [
 
 
 def _connect_autocommit():
-    """Open an autocommit connection using the same env vars as the migration runner."""
+    """Open an autocommit connection using the same env vars as the migration runner.
+
+    DB_HOST is required - no localhost fallback for safety.
+    """
     import psycopg2
+    db_host = os.getenv('DB_HOST')
+    if not db_host:
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
+
     ssl_map = {'true': 'require', 'false': 'disable', 'disable': 'disable',
                'prefer': 'prefer', 'require': 'require'}
     conn = psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
+        host=db_host,
         port=int(os.getenv('DB_PORT', 5432)),
         user=os.getenv('DB_USER', 'postgres'),
         password=os.getenv('DB_PASSWORD', ''),
