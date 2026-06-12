@@ -32,6 +32,7 @@ _safe_spec = importlib.util.spec_from_file_location(
 _safe_module = importlib.util.module_from_spec(_safe_spec)
 _safe_spec.loader.exec_module(_safe_module)
 safe_float = _safe_module.safe_float
+safe_float_strict = _safe_module.safe_float_strict
 safe_int = _safe_module.safe_int
 
 # Import unified metrics fetcher (same source used by dashboard)
