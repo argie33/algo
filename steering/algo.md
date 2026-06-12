@@ -42,20 +42,13 @@ This workflow:
 
 **Network Limitation (Expected Behavior):**
 - **RDS Proxy is VPC-internal:** `algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com` cannot be reached from local machines (intentional, for security)
-- **Dashboard fallback:** When running `tools/dashboard/dashboard.py` locally, the tool detects that AWS RDS is unreachable and automatically falls back to local PostgreSQL at `localhost:5432` (expected behavior for local development)
-- **Production code path:** Lambda functions, loaders, and other AWS-deployed code use the valid AWS credentials to reach RDS via the VPC
+- **AWS-only mode:** Dashboard and all tools connect exclusively to AWS RDS. No fallback to localhost.
 
 **Verification:**
 ```powershell
 # Test AWS credentials are loaded
 aws sts get-caller-identity
 # Output: UserId, Account, Arn
-
-# Test dashboard with local database (expected)
-python tools/dashboard/dashboard.py --local
-
-# Test dashboard with auto-detection (will show "AWS unreachable, falling back to local database" — expected)
-python tools/dashboard/dashboard.py
 ```
 
 ## Deployment
