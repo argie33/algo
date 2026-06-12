@@ -176,23 +176,6 @@ def _compute_advanced_metrics(cur, metric_date: date):
         return 0.0, 0.0, 0.0, 0.0, 0.0
 
 
-def _compute_max_drawdown(returns):
-    """Compute maximum drawdown from daily returns."""
-    cum_ret = 1.0
-    peak = 1.0
-    max_dd = 0.0
-
-    for ret in returns:
-        cum_ret *= (1 + ret)
-        if cum_ret > peak:
-            peak = cum_ret
-        dd = (cum_ret - peak) / peak
-        if dd < max_dd:
-            max_dd = dd
-
-    return max_dd
-
-
 def _compute_streaks(pnl_dollars):
     """Compute best win streak and worst loss streak."""
     best_win_streak = 0
