@@ -740,76 +740,16 @@ def fetch_recent_trades(c):
         return []
 
 def fetch_signals(c):
+    # Issue 3 FIX: Use /api/algo/dashboard-signals endpoint instead of direct DB access
     try:
-        sig = q1(c, """
-            SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
-            WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
-              AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))""")
-        total_r = q1(c, """SELECT COUNT(*) AS n FROM buy_sell_daily
-                           WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))""")
-        total_n = int(total_r["n"] or 0) if total_r else 0
-
-        # Actual BUY signals with rich setup detail
-        buy_sigs = q(c, """
-            SELECT b.symbol, b.signal_type, b.stage_number, b.signal_quality_score,
-                   b.entry_quality_score, b.close, b.buylevel, b.stoplevel,
-                   b.risk_reward_ratio, b.volume_surge_pct, b.rs_rating,
-                   b.breakout_quality, b.base_type, b.reason,
-                   cp.sector,
-                   s.score AS swing_score
-            FROM buy_sell_daily b
-            LEFT JOIN company_profile cp ON cp.ticker = b.symbol
-            LEFT JOIN (
-                SELECT DISTINCT ON (symbol) symbol, score
-                FROM swing_trader_scores ORDER BY symbol, date DESC
-            ) s ON s.symbol = b.symbol
-            WHERE b.signal='BUY' AND b.timeframe IN ('1d', 'daily', 'Daily')
-              AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
-            ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
-            LIMIT 30""")
-
-        grades_r = q(c, """
-            SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
-                   COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
-                   COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
-                   COUNT(*) FILTER (WHERE score < 40) AS d,
-                   COUNT(*) AS total
-            FROM swing_trader_scores
-            WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
-        grades = grades_r[0] if grades_r else {}
-
-        # Near-misses: scored stocks close to BUY threshold
-        near = q(c, """
-            SELECT s.symbol, s.score, cp.sector
-            FROM swing_trader_scores s
-            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
-              AND s.score BETWEEN 55 AND 69
-            ORDER BY s.score DESC LIMIT 15""")
-
-        # Top A-grade stocks by name (radar display — score ≥ 80)
-        top_a = q(c, """
-            SELECT s.symbol, s.score
-            FROM swing_trader_scores s
-            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
-              AND s.score >= 80
-            ORDER BY s.score DESC LIMIT 20""")
-
-        # Signal count trend: last 7 trading days
-        trend = q(c, """
-            SELECT date,
-                   COUNT(*) FILTER (WHERE signal='BUY') AS buy_n,
-                   COUNT(*) AS total_n
-            FROM buy_sell_daily
-            WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
-            GROUP BY date ORDER BY date DESC LIMIT 7""")
-
-        return {"n": int(sig["n"] or 0) if sig else 0, "total": total_n,
-                "date": sig["d"] if sig else None,
-                "buy_sigs": buy_sigs, "grades": grades, "near": near,
-                "top_a": top_a, "trend": trend}
+        resp = api_call("/api/algo/dashboard-signals")
+        if resp.get("_error"):
+            logger.warning(f"fetch_signals: {resp.get('_error')}")
+            return {"_error": resp.get("_error"), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+        return resp.get("data", {})
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_signals: {type(e).__name__}: {e}")
+        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
 
 def fetch_sector_ranking(c):
     try:
@@ -1448,8 +1388,9 @@ def panel_circuit(cb, risk=None):
     for a, b in zip(bs[::2], bs[1::2] + [None]):
         def fmt_b(br):
             if br is None: return ""
-            fc  = R if br["fired"] else (Y if float(br["thr"]) > 0 and float(br["cur"]) / float(br["thr"]) >= 0.75 else G)
-            ind = "[bold red] ![/]" if br["fired"] else ""
+            fired = br.get("fired", False)
+            fc  = R if fired else (Y if float(br["thr"]) > 0 and float(br["cur"]) / float(br["thr"]) >= 0.75 else G)
+            ind = "[bold red] ![/]" if fired else ""
             return f"[{fc}]{br['lbl']}:[/]{br['cur']}{br['u']}[dim]/{br['thr']:.0f}{br['u']}[/]{hbar(br['cur'], br['thr'], w=4)}{ind}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]

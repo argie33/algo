@@ -40,13 +40,15 @@ def compute_performance_metrics(cur, metric_date: date = None):
     try:
         metrics = {}
 
-        # Fetch all closed trades
+        # Fetch all closed trades + open trades with unrealized P&L (E10 fix)
+        # Open trades count as wins/losses based on unrealized_pnl_dollars
         cur.execute("""
             SELECT profit_loss_dollars, profit_loss_pct, exit_r_multiple,
                    (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
             FROM algo_trades
-            WHERE status = 'closed' AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC LIMIT 10000
+            WHERE (status = 'closed' AND exit_date IS NOT NULL)
+               OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
+            ORDER BY COALESCE(exit_date, CURRENT_DATE) DESC LIMIT 10000
         """)
         trades = cur.fetchall()
 

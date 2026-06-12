@@ -145,6 +145,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/positions':
             # Positions accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_positions(cur, user_id=user_id)
+        elif path == '/api/algo/dashboard-signals':
+            # Dashboard signals with aggregations for the Ops Terminal
+            return _get_dashboard_signals(cur)
         elif path == '/api/algo/performance':
             # Performance accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_performance(cur)
@@ -641,6 +644,106 @@ def _get_algo_performance(cur) -> Dict:
             }
         }
         return json_response(200, result)
+
+@db_route_handler('fetch dashboard signals', default_error_response={'n': 0, 'total': 0, 'date': None, 'buy_sigs': [], 'grades': {}, 'near': [], 'top_a': [], 'trend': [], 'data_freshness': {}})
+def _get_dashboard_signals(cur) -> Dict:
+        """Get dashboard-specific signal data with aggregations for the Ops Terminal.
+
+        Returns: BUY signals with quality scores, grade distribution (A-D by score),
+        near-miss signals, top A-grade stocks, and signal trend.
+        """
+        try:
+            cur.execute("SET LOCAL statement_timeout = '30000ms'")
+
+            cur.execute("""
+                SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
+                WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
+                  AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))""")
+            sig = cur.fetchone()
+
+            cur.execute("""SELECT COUNT(*) AS n FROM buy_sell_daily
+                           WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))""")
+            total_r = cur.fetchone()
+            total_n = int(total_r["n"] or 0) if total_r else 0
+
+            # Actual BUY signals with rich setup detail
+            cur.execute("""
+                SELECT b.symbol, b.signal_type, b.stage_number, b.signal_quality_score,
+                       b.entry_quality_score, b.close, b.buylevel, b.stoplevel,
+                       b.risk_reward_ratio, b.volume_surge_pct, b.rs_rating,
+                       b.breakout_quality, b.base_type, b.reason,
+                       cp.sector,
+                       s.score AS swing_score
+                FROM buy_sell_daily b
+                LEFT JOIN company_profile cp ON cp.ticker = b.symbol
+                LEFT JOIN (
+                    SELECT DISTINCT ON (symbol) symbol, score
+                    FROM swing_trader_scores ORDER BY symbol, date DESC
+                ) s ON s.symbol = b.symbol
+                WHERE b.signal='BUY' AND b.timeframe IN ('1d', 'daily', 'Daily')
+                  AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
+                ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
+                LIMIT 30""")
+            buy_sigs = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+
+            # Grade distribution (A/B/C/D by swing score)
+            cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
+                       COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+                       COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+                       COUNT(*) FILTER (WHERE score < 40) AS d,
+                       COUNT(*) AS total
+                FROM swing_trader_scores
+                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
+            grades_r = cur.fetchone()
+            grades = dict(grades_r) if grades_r else {}
+
+            # Near-misses: scored stocks close to BUY threshold
+            cur.execute("""
+                SELECT s.symbol, s.score, cp.sector
+                FROM swing_trader_scores s
+                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+                  AND s.score BETWEEN 55 AND 69
+                ORDER BY s.score DESC LIMIT 15""")
+            near = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+
+            # Top A-grade stocks by name (radar display — score ≥ 80)
+            cur.execute("""
+                SELECT s.symbol, s.score
+                FROM swing_trader_scores s
+                WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+                  AND s.score >= 80
+                ORDER BY s.score DESC LIMIT 20""")
+            top_a = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+
+            # Signal count trend: last 7 trading days
+            cur.execute("""
+                SELECT date,
+                       COUNT(*) FILTER (WHERE signal='BUY') AS buy_n,
+                       COUNT(*) AS total_n
+                FROM buy_sell_daily
+                WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
+                GROUP BY date ORDER BY date DESC LIMIT 7""")
+            trend = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+
+            freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
+
+            return json_response(200, {
+                'n': int(sig["n"] or 0) if sig else 0,
+                'total': total_n,
+                'date': sig["d"] if sig else None,
+                'buy_sigs': buy_sigs,
+                'grades': grades,
+                'near': near,
+                'top_a': top_a,
+                'trend': trend,
+                'data_freshness': freshness
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            code, error_type, message = handle_db_error(e, 'fetch dashboard signals')
+            return json_response(code, {'_error': message, 'errorType': error_type})
 
 @db_route_handler('fetch circuit breakers', default_error_response={'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_circuit_breakers(cur) -> Dict:
