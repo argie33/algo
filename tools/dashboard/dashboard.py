@@ -149,6 +149,7 @@ logger = logging.getLogger(__name__)
 
 # Connection pool for dashboard (prevents exhaustion with 27 concurrent fetchers)
 _dashboard_pool = None
+_dashboard_pool_lock = threading.Lock()
 _db_creds_loaded = False
 
 def _load_db_credentials_from_secrets():
@@ -176,33 +177,38 @@ def _load_db_credentials_from_secrets():
         return False
 
 def _init_dashboard_pool():
-    """Initialize the dashboard connection pool (thread-safe)."""
+    """Initialize the dashboard connection pool (thread-safe with double-checked locking)."""
     global _dashboard_pool
     if _dashboard_pool is not None:
         return
 
-    miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-    if miss:
-        if not _load_db_credentials_from_secrets():
-            return None  # Can't initialize pool without credentials
-    
-    try:
-        _dashboard_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=2,
-            maxconn=15,
-            host=os.environ["DB_HOST"],
-            port=int(os.environ.get("DB_PORT", 5432)),
-            user=os.environ["DB_USER"],
-            password=os.environ["DB_PASSWORD"],
-            database=os.environ["DB_NAME"],
-            connect_timeout=10,
-            cursor_factory=psycopg2.extras.RealDictCursor,
-            options="-c statement_timeout=8000"
-        )
-        logger.info("Dashboard connection pool initialized (minconn=2, maxconn=15)")
-    except Exception as e:
-        logger.warning(f"Failed to initialize dashboard pool: {e}, falling back to direct connections")
-        _dashboard_pool = None
+    with _dashboard_pool_lock:
+        # Double-check pattern to avoid race conditions
+        if _dashboard_pool is not None:
+            return
+
+        miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
+        if miss:
+            if not _load_db_credentials_from_secrets():
+                return None  # Can't initialize pool without credentials
+
+        try:
+            _dashboard_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=15,
+                host=os.environ["DB_HOST"],
+                port=int(os.environ.get("DB_PORT", 5432)),
+                user=os.environ["DB_USER"],
+                password=os.environ["DB_PASSWORD"],
+                database=os.environ["DB_NAME"],
+                connect_timeout=10,
+                cursor_factory=psycopg2.extras.RealDictCursor,
+                options="-c statement_timeout=8000"
+            )
+            logger.info("Dashboard connection pool initialized (minconn=2, maxconn=15)")
+        except Exception as e:
+            logger.warning(f"Failed to initialize dashboard pool: {e}, falling back to direct connections")
+            _dashboard_pool = None
 
 
 # API configuration
