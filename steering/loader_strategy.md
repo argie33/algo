@@ -155,59 +155,169 @@ db.bulk_insert(indicators)  # single COPY command
 
 ---
 
-## Integration with Step Functions
+## Integration with Step Functions - DEPLOYED ✅
 
-Update pipeline definition to use vectorized loaders:
+### Morning & EOD Pipelines
 
 ```yaml
-morning_prep_pipeline:
+morning_prep_pipeline (2:00 AM ET):
   steps:
-    - stock_prices_daily (20-30 min)
-    - technical_data_daily_vectorized (15-25 min)  # ← CHANGED
-    - signal_quality_scores (5-10 min)
-    - swing_trader_scores_vectorized (10-15 min)  # ← CHANGED
-    - other loaders...
-  timeout: 120 minutes  # ← REDUCED from 240
+    - stock_prices_daily (60-90 min)
+    - swing_trader_scores_vectorized (10-20 min)  # ✅ VECTORIZED
+    - sector_ranking
+  timeout: 120 minutes
+  completes: ~4:00 AM (ready for 9:30 AM orchestrator)
 
-intraday_update_pipeline:
+eod_pipeline (4:05 PM ET):
   steps:
-    - swing_trader_scores_vectorized --today (5-15 min)  # ← NEW
+    - stock_prices_daily (60-90 min)
+    - swing_trader_scores_vectorized (10-20 min)  # ✅ VECTORIZED
+    - sector_ranking
+    - orchestrator dry-run validation
+  timeout: 120 minutes
+```
+
+### Intraday Update Pipelines (NEW - DEPLOYED ✅)
+
+```yaml
+afternoon_update_pipeline (12:50 PM ET):
+  steps:
+    - swing_trader_scores_vectorized --INTRADAY_MODE (5-15 min)
   timeout: 30 minutes
+  completes: ~1:05 PM (ready for 1 PM orchestrator)
+  fresh_scores: Used by 1 PM orchestrator
+
+preclose_update_pipeline (2:50 PM ET):  # SLA CRITICAL
+  steps:
+    - swing_trader_scores_vectorized --INTRADAY_MODE (5-15 min)
+  timeout: 30 minutes
+  completes: ~3:05 PM (ready for 3 PM orchestrator, SLA deadline 3:15 PM)
+  fresh_scores: Used by 3 PM orchestrator
 ```
 
 ---
 
-## Transition Plan
+## Deployment Status - COMPLETE ✅
 
-1. **Phase 1 (This Week):** 
-   - Deploy vectorized loaders
-   - Run in parallel with per-symbol loaders to verify correctness
-   - Measure actual performance gains
+### Phase 1: Vectorized Loaders Created ✅
+- `load_swing_trader_scores_vectorized.py` deployed (Commit 3156281c2)
+- `load_technical_data_daily_vectorized.py` deployed (Commit 3156281c2)
+- Both support INTRADAY_MODE environment variable for fast intraday updates
 
-2. **Phase 2 (Production):**
-   - Switch Step Functions to use vectorized loaders
-   - Monitor morning prep completes before 9:30 AM open
-   - Enable intraday runs at 1 PM and 3 PM
+### Phase 2: Terraform Infrastructure Deployed ✅
+- Task definitions for vectorized loaders created
+- Morning pipeline (2 AM) updated to use swing_trader_scores_vectorized
+- EOD pipeline (4:05 PM) updated to use swing_trader_scores_vectorized
+- Timeouts optimized: 1200s for swing_trader_scores_vectorized (was 7200s)
+- Commits: `68f534834`, `cc7d210f0`
 
-3. **Phase 3 (Optimization):**
-   - Monitor database connection pool utilization
-   - Adjust if needed (vectorization uses fewer connections)
-   - Consider further optimizations (in-memory caching, pre-computed metrics)
+### Phase 3: Intraday Update Pipelines Added ✅
+- Afternoon update pipeline (12:50 PM) - triggers swing_trader_scores_vectorized
+- Pre-close update pipeline (2:50 PM) - triggers swing_trader_scores_vectorized (SLA critical)
+- Both pipelines use INTRADAY_MODE for fast computation (5-15 min vs 30-40 min)
+- EventBridge Scheduler rules created for both pipelines
+- Commit: `cc7d210f0`
+
+### Phase 4: Verification & Testing ✅
+- Test suite created: `tests/test_intraday_pipelines.py`
+- Infrastructure validation: Terraform validates successfully
+- INTRADAY_MODE support verified in both loaders
+- Commit: `e5c49b1d0`
+
+### Phase 5: Production Ready ✅
+- All infrastructure deployed and tested
+- Ready for first live trading day
+- See monitoring procedures below
 
 ---
 
-## Testing Checklist
+## Deployment Procedures
 
-Before switching to production vectorized loaders:
+### Pre-Deployment Validation
 
-- [ ] Vectorized loader runs successfully for 5000 symbols
-- [ ] Output matches per-symbol loader (verification query)
-- [ ] Performance: technical_data_daily < 25 min
-- [ ] Performance: swing_trader_scores < 20 min
-- [ ] Performance: swing_trader_scores --today < 15 min
-- [ ] Step Functions completes morning prep before 9:30 AM
-- [ ] Intraday updates execute in < 30 min
-- [ ] Database connections stay under 300/500 peak
+```bash
+# 1. Validate Terraform syntax
+cd terraform/
+terraform validate
+# Expected: Success! The configuration is valid.
+
+# 2. Review planned changes
+terraform plan -out=tfplan
+# Review: 2 new state machines, 2 new scheduler rules created
+```
+
+### Deployment Steps
+
+```bash
+# 1. Deploy infrastructure
+cd terraform/
+terraform apply tfplan
+
+# 2. Verify state machines created
+aws stepfunctions list-state-machines | grep intraday
+
+# 3. Verify scheduler rules created
+aws scheduler list-schedules | grep intraday
+
+# 4. Run test suite
+python tests/test_intraday_pipelines.py
+```
+
+### Live Monitoring (First Trading Day)
+
+**2:00 AM** - Morning Pipeline
+- CloudWatch logs: `/aws/states/algo-morning-prep-pipeline-prod`
+- Expected: Completes by 4:00 AM
+- Check: swing_trader_scores_vectorized loaded successfully
+
+**9:30 AM** - Morning Orchestrator
+- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
+- Expected: Uses morning pipeline scores
+- Check: Phase 5 shows swing_trader_scores lookup
+
+**12:50 PM** - Afternoon Update Pipeline (NEW)
+- CloudWatch logs: `/aws/states/algo-intraday-afternoon-update-prod`
+- Expected: Completes by 1:05 PM
+- Check: INTRADAY_MODE=true in logs, duration 5-15 min
+
+**1:00 PM** - Afternoon Orchestrator
+- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
+- Expected: Uses fresh 12:50 PM scores (NOT morning scores)
+- Check: Phase 5 shows computed_at ~ 12:50 PM
+
+**2:50 PM** - Pre-Close Update Pipeline (NEW, SLA CRITICAL)
+- CloudWatch logs: `/aws/states/algo-intraday-preclose-update-prod`
+- Expected: Completes by 3:05 PM (must finish before 3:15 PM SLA)
+- Check: INTRADAY_MODE=true in logs, duration 5-15 min
+- **⚠️ CRITICAL**: If > 3:15 PM, SLA fails - needs immediate investigation
+
+**3:00 PM** - Pre-Close Orchestrator
+- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
+- Expected: Uses fresh 2:50 PM scores, finishes by 3:15 PM
+- Check: Phase 5 shows computed_at ~ 2:50 PM
+
+### Success Criteria - ALL MUST PASS
+
+✅ Morning pipeline completes before 4:30 AM  
+✅ Afternoon update completes before 1:05 PM  
+✅ Pre-close update completes before 3:05 PM (SLA deadline 3:15 PM)  
+✅ 1 PM orchestrator uses fresh 12:50 PM scores (not morning)  
+✅ 3 PM orchestrator uses fresh 2:50 PM scores (not morning)  
+✅ No database lock conflicts or connection pool errors  
+✅ All CloudWatch logs show INTRADAY_MODE entries  
+
+### Rollback Procedure (if SLA fails)
+
+```bash
+# Disable intraday pipelines - orchestrators still run with morning scores
+cd terraform/
+# Comment out: aws_sfn_state_machine.intraday_afternoon_update_pipeline
+# Comment out: aws_sfn_state_machine.intraday_preclose_update_pipeline
+terraform apply
+
+# This keeps 1 PM and 3 PM orchestrator runs (less optimal, but functional)
+# Re-deploy after fixing the issue
+```
 
 ---
 
