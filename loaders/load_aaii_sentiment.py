@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 
 from utils.optimal_loader import OptimalLoader
 from utils.url_validator import validate_url
-from config.api_endpoints import get_aaii_sentiment_url
+from utils.api_endpoints import get_aaii_sentiment_url
 
 logger = logging.getLogger(__name__)
 

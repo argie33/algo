@@ -14,7 +14,7 @@ import boto3
 
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_api_key
-from config.api_endpoints import get_fred_url
+from utils.api_endpoints import get_fred_url
 
 logger = logging.getLogger(__name__)
 
