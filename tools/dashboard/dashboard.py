@@ -1526,10 +1526,10 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
-    pv    = float(port.get("total_portfolio_value") or 0)
-    dr    = float(port.get("daily_return_pct") or 0)
-    urp   = float(port.get("unrealized_pnl_pct") or 0)
-    cash  = float(port.get("total_cash") or 0)
+    pv    = safe_float(port.get("total_portfolio_value"), default=None)
+    dr    = safe_float(port.get("daily_return_pct"), default=None)
+    urp   = safe_float(port.get("unrealized_pnl_pct"), default=None)
+    cash  = safe_float(port.get("total_cash"), default=None)
     npos  = int(port.get("position_count") or 0)
     cum   = port.get("cumulative_return_pct")
     mxdd  = port.get("max_drawdown_pct")
@@ -1537,7 +1537,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     snap  = port.get("snapshot_date")
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
     pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
-    bp    = pv * pct_c / 100 if (pv and pct_c) else cash
+    bp    = (pv * pct_c / 100 if (pv is not None and pct_c) else cash) if cash is not None else pv
     if max_n:
         _sb   = mini_bar(npos, max_n, w=5)
         pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
@@ -1720,34 +1720,38 @@ def panel_positions(pos, compact=False, trades=None):
         t.add_column("Swg",    justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim",     no_wrap=True, max_width=12)
     for p in pos:
-        entry = float(p.get("avg_entry_price") or 0)
-        price = float(p.get("current_price")   or 0)
-        pval  = float(p.get("position_value")  or 0) if p.get("position_value") else None
-        stop  = float(p.get("stop_loss_price") or 0) if p.get("stop_loss_price") else None
-        t1    = float(p.get("target_1_price")  or 0) if p.get("target_1_price")  else None
-        pnl   = float(p.get("unrealized_pnl_pct") or 0)
+        if not isinstance(p, dict):
+            logger.warning(f"panel_positions: skipping non-dict position: {type(p).__name__}")
+            continue
+        entry = safe_float(p.get("avg_entry_price"), default=None)
+        price = safe_float(p.get("current_price"), default=None)
+        pval  = safe_float(p.get("position_value"), default=None)
+        stop  = safe_float(p.get("stop_loss_price"), default=None)
+        t1    = safe_float(p.get("target_1_price"), default=None)
+        pnl   = safe_float(p.get("unrealized_pnl_pct"), default=None)
         days  = p.get("days_since_entry") or "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
         rmul  = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
         dist  = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
-        t1pct = (t1 - price)    / price * 100         if (t1 and price)         else None
-        pc    = G if pnl >= 0        else R
-        rc    = G if (rmul or 0) >= 0 else R
-        dc    = R if (dist or 99) < 3 else (Y if (dist or 99) < 5 else "white")
+        t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price != 0) else None
+        pc    = G if (pnl is not None and pnl >= 0) else R
+        rc    = G if (rmul is not None and rmul >= 0) else R
+        dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
-            f"${entry:.2f}", f"${price:.2f}",
-            Text(f"{sign(pnl)}{pnl:.2f}%", style=pc),
-            Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
-            f"${stop:.2f}" if stop else "--",
+            f"${entry:.2f}" if entry is not None else "--",
+            f"${price:.2f}" if price is not None else "--",
+            Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
+            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
+            f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
         if not compact:
             swg_s = float(swg) if swg is not None else None
-            swg_c = G if (swg_s or 0) >= 80 else (Y if (swg_s or 0) >= 60 else "white")
+            swg_c = G if (swg_s is not None and swg_s >= 80) else (Y if (swg_s is not None and swg_s >= 60) else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -3152,6 +3156,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         pv = float(port.get("total_portfolio_value") or 0)
         sd: dict = {}
         for p in pos:
+            if not isinstance(p, dict):
+                logger.warning(f"panel_sectors_expanded: skipping non-dict position: {type(p).__name__}")
+                continue
             sec = p.get("sector") or "Unknown"
             val = float(p.get("position_value") or 0)
             pnl = float(p.get("unrealized_pnl_pct") or 0)
@@ -3595,4 +3602,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

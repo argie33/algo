@@ -441,7 +441,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

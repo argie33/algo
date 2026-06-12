@@ -135,6 +135,14 @@ def run(
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
+    # ISSUE #8 FIX: Check halt flag before generating signals
+    # If Phase 1 detected stale data, don't generate full-intensity signals
+    if check_halt_flag and check_halt_flag():
+        logger.critical("[PHASE 5] Halt flag set by Phase 1 — data quality degradation detected. Halting signal generation.")
+        log_phase_result_fn(5, 'signal_generation', 'halt', 'Halt flag set: data quality degradation')
+        return PhaseResult(5, 'signal_generation', 'halted', {'qualified_trades': []}, True,
+                         'Halt flag set: data quality degradation detected')
+
     # Market regime gate
     regime = _check_market_regime(run_date)
     logger.info(
