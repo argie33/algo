@@ -645,11 +645,24 @@ def get_conn() -> psycopg2.extensions.connection:
     except psycopg2.OperationalError as e:
         err = str(e).lower()
         if "authentication failed" in err:
-            logger.error(f"CRITICAL: Authentication FAILED: check DB_USER and DB_PASSWORD")
+            msg = "DB authentication failed - check DB_USER and DB_PASSWORD"
+            logger.error(f"CRITICAL: {msg}")
         elif "could not translate" in err:
-            logger.error(f"CRITICAL: Host resolution FAILED: {creds['host']} unreachable")
+            msg = (
+                f"RDS proxy unreachable from local machine (VPC-internal for security).\n"
+                f"\n"
+                f"To access AWS data, use ONE of these solutions:\n"
+                f"  1. [RECOMMENDED] Use Lambda API endpoint via DASHBOARD_API_URL:\n"
+                f"     Run: ./scripts/setup-dashboard-aws.ps1\n"
+                f"\n"
+                f"  2. [ADVANCED] Set up VPN or bastion access to reach RDS proxy\n"
+                f"\n"
+                f"  3. [ALTERNATIVE] Use local development database (localhost:5432)\n"
+            )
+            logger.error(f"CRITICAL: Host resolution FAILED\n{msg}")
         elif "connection refused" in err:
-            logger.error(f"CRITICAL: Connection refused: RDS not running or port blocked")
+            msg = "RDS proxy port blocked or service not running"
+            logger.error(f"CRITICAL: {msg}")
         else:
             logger.error(f"CRITICAL: Connection error: {e}")
         raise
@@ -829,7 +842,30 @@ def validate_schema() -> None:
         logger.info("Database schema validation passed (columns exist with correct types, critical tables have data)")
     except (psycopg2.Error, KeyError) as e:
         logger.error(f"Schema validation failed: {e}")
-        sys.exit(f"Database connection/schema error: {e}")
+
+        # Detect VPC-internal RDS proxy issue and provide helpful guidance
+        err_str = str(e).lower()
+        if "could not translate" in err_str and "algo-rds-proxy" in err_str:
+            guidance = (
+                "\n"
+                "╔════════════════════════════════════════════════════════════════╗\n"
+                "║ RDS PROXY IS VPC-INTERNAL (NOT REACHABLE FROM LOCAL MACHINE)   ║\n"
+                "╠════════════════════════════════════════════════════════════════╣\n"
+                "║ To access AWS data from your local machine, use:               ║\n"
+                "║                                                                ║\n"
+                "║ [RECOMMENDED] Lambda API Endpoint (requires no setup):         ║\n"
+                "║   1. Run: ./scripts/setup-dashboard-aws.ps1                    ║\n"
+                "║   2. Re-run dashboard: python tools/dashboard/dashboard.py     ║\n"
+                "║                                                                ║\n"
+                "║ [ADVANCED] VPN or Bastion Access:                              ║\n"
+                "║   1. Connect to AWS VPN or set up bastion tunnel               ║\n"
+                "║   2. Re-run dashboard                                          ║\n"
+                "║                                                                ║\n"
+                "╚════════════════════════════════════════════════════════════════╝"
+            )
+            sys.exit(f"Database connection failed: {e}{guidance}")
+        else:
+            sys.exit(f"Database connection/schema error: {e}")
 
 def validate_phase_results(phase_results: any) -> List[Dict]:
     """Validate phase_results schema. Each phase must have 'name'/'phase' and valid 'status'.
