@@ -181,6 +181,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             return _get_sector_rotation(cur, days)
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
+        elif path == '/api/algo/sector-position-warnings':
+            return _get_sector_position_warnings(cur)
         elif path == '/api/algo/swing-scores':
             # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
@@ -1423,6 +1425,68 @@ def _get_sector_breadth(cur) -> Dict:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.error(f'Sector breadth query failed: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
             return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
+
+def _get_sector_position_warnings(cur) -> Dict:
+        """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
+
+        Returns list of sectors with position counts and concentration warnings.
+        """
+        try:
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
+
+            cur.execute("""
+                SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+                FROM algo_positions ap
+                LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                WHERE ap.status = 'open' AND ap.quantity > 0
+                GROUP BY cp.sector
+                ORDER BY position_count DESC
+            """)
+            sector_counts = [(dict(row).get('sector'), dict(row).get('position_count')) for row in cur.fetchall()]
+
+            cur.execute("SELECT value FROM algo_config WHERE key='max_positions_per_sector' LIMIT 1")
+            max_per_sector_row = cur.fetchone()
+            max_per_sector = int(max_per_sector_row[0]) if max_per_sector_row and max_per_sector_row[0] else 3
+
+            warnings = []
+            at_cap = []
+            for sector, count in sector_counts:
+                if not sector:
+                    continue
+                if count >= max_per_sector:
+                    at_cap.append({
+                        "sector": sector,
+                        "position_count": count,
+                        "max": max_per_sector,
+                        "status": "AT_CAP"
+                    })
+                elif count >= max_per_sector - 1:
+                    warnings.append({
+                        "sector": sector,
+                        "position_count": count,
+                        "max": max_per_sector,
+                        "status": "NEAR_CAP"
+                    })
+
+            return json_response(200, {
+                "warnings": warnings,
+                "at_cap": at_cap,
+                "data": {
+                    "warnings": warnings,
+                    "at_cap": at_cap
+                }
+            })
+
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Sector position warnings data unavailable: {type(e).__name__}: {str(e)}')
+            return error_response(503, 'service_unavailable', f'Data unavailable: {type(e).__name__}')
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f'Sector position warnings query failed: {type(e).__name__}: {str(e)}')
+            return error_response(503, 'service_unavailable', f'Database unavailable: {type(e).__name__}')
+        except Exception as e:
+            logger.error(f'Sector position warnings failed: {type(e).__name__}: {str(e)}', exc_info=True)
+            return error_response(500, 'internal_error', f'Failed to fetch sector position warnings: {type(e).__name__}')
+
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
