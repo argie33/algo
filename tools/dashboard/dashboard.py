@@ -2053,7 +2053,7 @@ def fetch_recent_trades(c):
     try:
         api_resp = api_call("/api/algo/trades", params={"limit": "50"})
         if "_error" not in api_resp:
-            trades_data = api_resp.get("data", {})
+            trades_data = api_resp.get("data", api_resp)
             trades = trades_data.get("items", [])
             _log_data_quality("fetch_recent_trades", len(trades) if trades else 0)
             return {"trades": trades, "stale_alerts": stale_alerts}
@@ -2083,17 +2083,11 @@ def fetch_recent_trades(c):
         logger.error(f"fetch_recent_trades fallback failed: {type(e).__name__}: {e}")
         _log_data_quality("fetch_recent_trades", 0, f"API and DB both failed: {e}")
         return {"trades": [], "stale_alerts": stale_alerts + ["Trade data unavailable (API and database both failed)"]}
-def fetch_signals(c):
+def fetch_signals(c, cfg=None):
     stale_alerts = []
-    cfg = None
+    if cfg is None:
+        cfg = {}
     try:
-        # Load config for grade thresholds (M1 FIX)
-        try:
-            cfg_data = fetch_algo_config(c)
-            if isinstance(cfg_data, dict) and not cfg_data.get("_error"):
-                cfg = cfg_data
-        except Exception:
-            cfg = {}
 
         # Issue 21 FIX: Use default min_swing_score instead of separate query (already fetched by fetch_algo_config)
         # This avoids redundant database round-trips; cfg will fetch the actual value from algo_config
@@ -2336,7 +2330,7 @@ def fetch_sector_position_warnings(c, cfg=None):
     try:
         api_resp = api_call("/api/algo/sector-position-warnings")
         if "_error" not in api_resp:
-            warnings_data = api_resp.get("data", {})
+            warnings_data = api_resp.get("data", api_resp)
             warnings = warnings_data.get("warnings", [])
             at_cap_list = warnings_data.get("at_cap", [])
             
@@ -3181,6 +3175,20 @@ FETCHERS = {
 def load_all() -> dict:
     out: dict = {}
     load_start = time.time()
+
+    # ISSUE 5 FIX: Preload cfg once to avoid tight coupling (fetch_signals no longer calls fetch_algo_config inline)
+    cfg_data = None
+    try:
+        conn = get_conn()
+        conn.autocommit = True
+        cfg_result = fetch_algo_config(conn)
+        conn.close()
+        if isinstance(cfg_result, dict) and not cfg_result.get("_error"):
+            cfg_data = cfg_result
+    except Exception as e:
+        logger.warning(f"Failed to preload config in load_all: {e}")
+        cfg_data = {}
+
     def one(name, fn):
         max_retries = 3
         for attempt in range(max_retries + 1):
@@ -3188,7 +3196,11 @@ def load_all() -> dict:
             try:
                 conn = get_conn()
                 conn.autocommit = True
-                result = fn(conn)
+                # Pass cfg to fetch_signals to decouple from fetch_algo_config call
+                if name == "sig":
+                    result = fn(conn, cfg_data)
+                else:
+                    result = fn(conn)
                 return name, result
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt < max_retries:
@@ -6512,21 +6524,15 @@ def _configure_database(use_aws_only: bool = True):
 
     Dashboard now connects to AWS RDS exclusively via credential_manager.py.
     The credential_manager handles both environment variables and AWS Secrets Manager.
+    Never hardcode the RDS proxy hostname here — it's VPC-internal and unreachable
+    from local machines. credential_manager will fetch the actual endpoint from:
+    1. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT) set by PowerShell profile
+    2. AWS Secrets Manager (algo/database secret) if env vars not set
 
     Args:
         use_aws_only: Always True (AWS-only mode, no fallback to localhost)
     """
-    # AWS mode is now the only option
-    # RDS Proxy endpoint - will attempt connection via credential_manager
-    # If creds unavailable, will fail fast with clear error
-    aws_host = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
-
-    # Set AWS RDS endpoint
-    os.environ['DB_HOST'] = aws_host
-    os.environ['DB_PORT'] = '5432'
-    os.environ['DB_NAME'] = 'stocks'
-    os.environ['DB_USER'] = 'stocks'
-
+    # Do NOT hardcode RDS proxy hostname — credential_manager will handle it
     return 'aws'
 
 def main():
