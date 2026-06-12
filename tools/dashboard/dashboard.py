@@ -6415,7 +6415,13 @@ def print_legend():
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def _configure_database(use_local: bool | None = None):
-    """Configure database environment. Intent is AWS (production), graceful fallback to local if offline."""
+    """Configure database environment. Intent is AWS (production), graceful fallback to local if offline.
+
+    Control with:
+    - --local or --aws flags: force mode
+    - FORCE_AWS=true env var: skip fallback, always use AWS
+    - Default (no flags/env): auto-detect with DNS check
+    """
     # If explicitly requested via --local flag, use local
     if use_local is True:
         os.environ['DB_HOST'] = 'localhost'
@@ -6427,6 +6433,14 @@ def _configure_database(use_local: bool | None = None):
 
     # If explicitly requested to use AWS, use it
     if use_local is False:
+        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
+        os.environ['DB_PORT'] = '5432'
+        os.environ['DB_NAME'] = 'stocks'
+        os.environ['DB_USER'] = 'stocks'
+        return 'aws'
+
+    # FORCE_AWS env var: skip fallback, always use AWS (no DNS check)
+    if os.getenv('FORCE_AWS', '').lower() in ('true', '1', 'yes'):
         os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
         os.environ['DB_PORT'] = '5432'
         os.environ['DB_NAME'] = 'stocks'

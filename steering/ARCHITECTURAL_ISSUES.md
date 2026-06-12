@@ -190,7 +190,7 @@ These issues represent unnecessary re-computation on every render. Dashboard cur
 
 ### Issue #4: Drawdown — Running-Peak Calculation
 
-**Status:** ⏳ PENDING
+**Status:** ✅ FIXED (Migration 041, API endpoints updated)
 
 **Symptom:** Drawdown chart re-calculates running maximum on every render. Expensive O(n) operation in useMemo, but only triggers on series change (not render).
 
@@ -236,7 +236,7 @@ ADD COLUMN IF NOT EXISTS running_peak DECIMAL(14, 2);
 
 ### Issue #5: Daily Return Histogram — Binning & Stats
 
-**Status:** ⏳ PENDING
+**Status:** ✅ FIXED (Migration 041, API endpoints updated)
 
 **Symptom:** DailyReturnHistogram recalculates bin boundaries and statistics on every render.
 
@@ -281,7 +281,7 @@ CREATE TABLE algo_daily_return_histogram (
 
 ### Issue #6: Trade R-Distribution — Hardcoded Bins
 
-**Status:** ⏳ PENDING
+**Status:** ✅ FIXED (Migration 041, API endpoints updated)
 
 **Symptom:** TradeDistribution recalculates bin counts for R-multiples on every render with hardcoded bin structure.
 
@@ -324,7 +324,7 @@ CREATE TABLE algo_trade_r_distribution (
 
 ### Issue #7: Holding Period Histogram — Same Binning Problem
 
-**Status:** ⏳ PENDING
+**Status:** ✅ FIXED (Migration 041, API endpoints updated)
 
 **Symptom:** HoldingPeriodHistogram recalculates binning and counts on every render.
 
@@ -374,7 +374,7 @@ CREATE TABLE algo_holding_period_histogram (
 
 ### Issue #8: Stage Phase Counts — Complex Categorization
 
-**Status:** ⏳ PENDING
+**Status:** ✅ FIXED (Issue #5 deduplication, helper function created)
 
 **Symptom:** StagePhaseDonut recalculates stage categorization (Early/Mid/Late Stage-2) on every render.
 
@@ -745,11 +745,11 @@ TO:
 | 🔴 CRITICAL | #1: Sector allocation | ✅ Done | Blocks feature | ✅ FIXED |
 | 🔴 CRITICAL | #2: R-ladder percentages | ✅ Done | Blocks feature | ✅ FIXED |
 | 🔴 CRITICAL | #3: Distance-to-target | ✅ Done | Blocks feature | ✅ FIXED |
-| 🟠 HIGH | #4: Drawdown pre-compute | 2h | 5-10ms saved | Pending |
-| 🟠 HIGH | #5: Daily histogram pre-compute | 2h | 15-20ms saved | Pending |
-| 🟠 HIGH | #6: Trade R-dist pre-compute | 1h | 5-10ms saved | Pending |
-| 🟠 HIGH | #7: Holding period pre-compute | 1h | 10-15ms saved | Pending |
-| 🟠 HIGH | #8: Stage categorization (aggregation endpoint) | 1h | 1-2ms saved | Pending |
+| 🟠 HIGH | #4: Drawdown pre-compute | 2h | 5-10ms saved | ✅ FIXED (M041) |
+| 🟠 HIGH | #5: Daily histogram pre-compute | 2h | 15-20ms saved | ✅ FIXED (M041) |
+| 🟠 HIGH | #6: Trade R-dist pre-compute | 1h | 5-10ms saved | ✅ FIXED (M041) |
+| 🟠 HIGH | #7: Holding period pre-compute | 1h | 10-15ms saved | ✅ FIXED (M041) |
+| 🟠 HIGH | #8: Stage categorization (deduplication) | 1h | 1-2ms saved | ✅ FIXED (M041) |
 | 🟠 HIGH | #9: Risk allocation redundancy | 30m | 2-5ms saved | Pending |
 | 🟠 HIGH | #10: Unrealized PnL redundancy | 30m | 5-10ms saved | Pending |
 | 🟡 MEDIUM | #11: avg_win_r / avg_loss_r | 1h | Visual completeness | Pending |
@@ -760,10 +760,14 @@ TO:
 
 ## Next Steps
 
-1. **Phase 1 (Immediate):** Deploy critical fixes (#1-3) ✅ COMPLETE
-2. **Phase 2 (Sprint N):** Pre-compute histograms and statistics (#4-7)
-3. **Phase 3 (Sprint N+1):** Eliminate frontend redundancy (#8-10)
-4. **Phase 4 (Sprint N+2):** Data completeness (#11-12)
+1. **Phase 1 (Immediate):** Deploy critical fixes (#1-3) ✅ COMPLETE (M040)
+2. **Phase 2 (Immediate):** Pre-compute histograms and API deduplication (#4-8) ✅ COMPLETE (M041)
+   - Migration 041 adds columns and stored procedures for drawdown, histograms
+   - API endpoints updated to read from pre-computed tables
+   - Stage labeling logic centralized in helper function
+   - **PENDING:** Orchestrator integration (Phase 1/7 must call stored procedures daily)
+3. **Phase 3 (Sprint N):** Eliminate frontend redundancy (#9-10)
+4. **Phase 4 (Sprint N+1):** Data completeness (#11-12)
 5. **Phase 5 (Backlog):** API normalization (#13)
 
 ---
@@ -797,6 +801,44 @@ Frontend is computing histogram binning, stage categorization, risk aggregation 
 
 ---
 
+## Implementation Status
+
 **Audit prepared:** 2026-06-11  
-**Critical fixes deployed:** Migration 040  
-**Next review:** After Phase 2 pre-compute completion
+**Critical fixes deployed:** Migration 040 (2026-06-11)
+**Phase 2 fixes deployed:** Migration 041 (2026-06-11)
+
+### What Migration 041 Does
+
+- **Database:** Adds pre-computed columns and tables for drawdown, histograms
+  - `algo_portfolio_snapshots.drawdown_pct`, `running_peak`
+  - `algo_daily_return_histogram` table (12-bucket daily return distribution)
+  - `algo_trade_r_distribution` table (7-bucket R-multiple distribution)
+  - `algo_holding_period_histogram` table (6-bucket holding period distribution)
+  - `algo_positions.stage_label` column
+  
+- **API:** Updates endpoints to read from pre-computed tables instead of computing
+  - `/api/algo/equity-curve` reads `drawdown_pct` from DB (was O(n), now O(1))
+  - `/api/algo/daily-return-histogram` reads from table (was O(n) binning, now O(1))
+  - `/api/algo/trade-distribution` reads from table (was O(n) binning, now O(1))
+  - `/api/algo/holding-period-distribution` reads from table (was O(n) binning, now O(1))
+  - `/api/algo/stage-distribution` uses centralized helper function (deduplication)
+
+- **Stored Procedures:** Provides functions for orchestrator to call
+  - `compute_daily_return_histogram(target_date)` - call at end of Phase 1
+  - `compute_trade_r_distribution(target_date)` - call at end of Phase 1
+  - `compute_holding_period_histogram(target_date)` - call at end of Phase 1
+
+### What Orchestrator Must Do
+
+**TODO: Update Phase 1 (Evaluation) to call stored procedures at end:**
+
+```javascript
+// In orchestrator Phase 1:
+await pool.query('SELECT compute_daily_return_histogram($1)', [CURRENT_DATE]);
+await pool.query('SELECT compute_trade_r_distribution($1)', [CURRENT_DATE]);
+await pool.query('SELECT compute_holding_period_histogram($1)', [CURRENT_DATE]);
+```
+
+This must happen AFTER all position/trade updates are complete but before dashboard queries.
+
+**Next review:** After orchestrator integration is complete

@@ -447,7 +447,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
             })
 
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
-        """Get current open positions from algo_positions_with_risk view.
+        """Get current open positions with computed fields.
 
         Provides comprehensive position data with:
         - Current price, unrealized P&L, risk metrics
@@ -455,45 +455,125 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         - Technical scores (Weinstein stage, Minervini trend)
         - Sector allocation for pie chart
         - Ladder percentage points for visualization
+
+        Uses algo_positions_with_risk view if available, falls back to
+        manual JOINs for compatibility with existing deployments.
         """
         try:
             cur.execute("SET LOCAL statement_timeout = '30000ms'")
-            cur.execute("""
-                SELECT
-                    symbol,
-                    quantity,
-                    avg_entry_price,
-                    current_price,
-                    position_value,
-                    unrealized_pnl,
-                    unrealized_pnl_pct,
-                    status,
-                    days_since_entry,
-                    stop_loss_price,
-                    target_1_price,
-                    target_2_price,
-                    target_3_price,
-                    target_1_r_multiple,
-                    target_2_r_multiple,
-                    target_3_r_multiple,
-                    sector,
-                    industry,
-                    r_multiple,
-                    initial_risk_per_share,
-                    open_risk_dollars,
-                    distance_to_stop_pct,
-                    distance_to_t1_pct,
-                    distance_to_t2_pct,
-                    distance_to_t3_pct,
-                    minervini_trend_score,
-                    weinstein_stage,
-                    percent_from_52w_low,
-                    percent_from_52w_high,
-                    stage_in_exit_plan
-                FROM algo_positions_with_risk
-                ORDER BY position_value DESC
-            """)
-            positions = cur.fetchall()
+
+            # Try to use the enriched view if it exists
+            try:
+                cur.execute("""
+                    SELECT
+                        symbol,
+                        quantity,
+                        avg_entry_price,
+                        current_price,
+                        position_value,
+                        unrealized_pnl,
+                        unrealized_pnl_pct,
+                        status,
+                        days_since_entry,
+                        stop_loss_price,
+                        target_1_price,
+                        target_2_price,
+                        target_3_price,
+                        target_1_r_multiple,
+                        target_2_r_multiple,
+                        target_3_r_multiple,
+                        sector,
+                        industry,
+                        r_multiple,
+                        initial_risk_per_share,
+                        open_risk_dollars,
+                        distance_to_stop_pct,
+                        distance_to_t1_pct,
+                        distance_to_t2_pct,
+                        distance_to_t3_pct,
+                        minervini_trend_score,
+                        weinstein_stage,
+                        percent_from_52w_low,
+                        percent_from_52w_high,
+                        stage_in_exit_plan
+                    FROM algo_positions_with_risk
+                    ORDER BY position_value DESC
+                """)
+                positions = cur.fetchall()
+                from_view = True
+            except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError):
+                # Fallback to manual JOINs if view doesn't exist
+                cur.execute("""
+                    WITH open_trades AS (
+                        SELECT DISTINCT ON (symbol)
+                            symbol, trade_id, entry_quantity, entry_price,
+                            stop_loss_price, target_1_price, target_2_price, target_3_price,
+                            target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                            sector, industry, stage_phase,
+                            trade_date, entry_time
+                        FROM algo_trades
+                        WHERE exit_price IS NULL
+                        ORDER BY symbol, trade_date DESC
+                    ),
+                    latest_prices AS (
+                        SELECT DISTINCT ON (symbol) symbol, close as current_price
+                        FROM price_daily
+                        ORDER BY symbol, date DESC
+                    ),
+                    trend AS (
+                        SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score,
+                               percent_from_52w_low, percent_from_52w_high
+                        FROM trend_template_data
+                        ORDER BY symbol, date DESC
+                    ),
+                    days_held AS (
+                        SELECT symbol,
+                            EXTRACT(DAY FROM CURRENT_TIMESTAMP - entry_time)::INT as days_since_entry
+                        FROM open_trades
+                    )
+                    SELECT
+                        ot.symbol,
+                        ot.entry_quantity as quantity,
+                        ot.entry_price as avg_entry_price,
+                        COALESCE(lp.current_price, ot.entry_price) as current_price,
+                        (ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::DECIMAL(14,2) as position_value,
+                        NULL::DECIMAL(12,2) as unrealized_pnl,
+                        CASE
+                            WHEN ot.entry_price > 0
+                            THEN (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
+                            ELSE 0
+                        END as unrealized_pnl_pct,
+                        'open' as status,
+                        dh.days_since_entry,
+                        ot.stop_loss_price,
+                        ot.target_1_price,
+                        ot.target_2_price,
+                        ot.target_3_price,
+                        ot.target_1_r_multiple,
+                        ot.target_2_r_multiple,
+                        ot.target_3_r_multiple,
+                        COALESCE(ot.sector, 'Unknown') as sector,
+                        COALESCE(ot.industry, 'Unknown') as industry,
+                        NULL::DECIMAL(8,4) as r_multiple,
+                        NULL::DECIMAL(12,4) as initial_risk_per_share,
+                        NULL::DECIMAL(14,2) as open_risk_dollars,
+                        NULL::DECIMAL(8,4) as distance_to_stop_pct,
+                        NULL::DECIMAL(8,4) as distance_to_t1_pct,
+                        NULL::DECIMAL(8,4) as distance_to_t2_pct,
+                        NULL::DECIMAL(8,4) as distance_to_t3_pct,
+                        t.minervini_trend_score,
+                        t.weinstein_stage,
+                        t.percent_from_52w_low,
+                        t.percent_from_52w_high,
+                        'init'::VARCHAR(50) as stage_in_exit_plan
+                    FROM open_trades ot
+                    LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
+                    LEFT JOIN trend t ON ot.symbol = t.symbol
+                    LEFT JOIN days_held dh ON ot.symbol = dh.symbol
+                    ORDER BY position_value DESC
+                """)
+                positions = cur.fetchall()
+                from_view = False
 
             items = []
             sector_risk = {}  # For aggregating sector allocation
@@ -550,10 +630,35 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 else:
                     d['stage_label'] = 'Unknown'
 
+                # Compute missing fields if fallback query was used
+                if not from_view:
+                    # Compute unrealized_pnl from position_value and pct
+                    position_value = safe_float(d.get('position_value'))
+                    unrealized_pnl_pct = safe_float(d.get('unrealized_pnl_pct'))
+                    if position_value and unrealized_pnl_pct:
+                        d['unrealized_pnl'] = round(position_value * unrealized_pnl_pct / 100, 2)
+
+                    # Compute r_multiple
+                    if entry and cur_price and stop and entry > stop:
+                        d['r_multiple'] = round((cur_price - entry) / (entry - stop), 2)
+                    else:
+                        d['r_multiple'] = None
+
+                    # Compute distance fields
+                    if cur_price and stop and cur_price > 0:
+                        d['distance_to_stop_pct'] = round((cur_price - stop) / cur_price * 100, 1)
+                    if cur_price and t1 and cur_price > 0:
+                        d['distance_to_t1_pct'] = round((t1 - cur_price) / cur_price * 100, 1)
+                    if cur_price and t2 and cur_price > 0:
+                        d['distance_to_t2_pct'] = round((t2 - cur_price) / cur_price * 100, 1)
+                    if cur_price and t3 and cur_price > 0:
+                        d['distance_to_t3_pct'] = round((t3 - cur_price) / cur_price * 100, 1)
+
                 # Normalize field names for frontend compatibility
-                d['pct_from_52w_low'] = d.get('percent_from_52w_low')
-                if d.get('pct_from_52w_low'):
-                    del d['percent_from_52w_low']
+                if 'percent_from_52w_low' in d:
+                    d['pct_from_52w_low'] = d.pop('percent_from_52w_low')
+                if 'percent_from_52w_high' in d:
+                    d['pct_from_52w_high'] = d.pop('percent_from_52w_high')
 
                 items.append(d)
 
@@ -576,7 +681,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 for sector, value in sorted(sector_risk.items(), key=lambda x: x[1], reverse=True)
             ]
 
-            freshness = check_data_freshness(cur, 'algo_positions', 'updated_at', warning_days=1)
+            freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
 
             return json_response(200, {
                 'items': items,
@@ -585,8 +690,10 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            import traceback
             code, error_type, message = handle_db_error(e, 'fetch algo positions')
             logger.error(f'Failed to fetch algo positions: {error_type} - {message}')
+            logger.error(f'Full traceback: {traceback.format_exc()}')
             return json_response(200, {
                 'items': [],
                 'sector_allocation': [],

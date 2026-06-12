@@ -44,7 +44,16 @@ class CredentialManager:
         self._secrets_client = None
 
     def _detect_aws(self) -> bool:
-        """Check if running in AWS Lambda/ECS."""
+        """Check if running in AWS Lambda/ECS or if AWS mode is forced.
+
+        Returns True if:
+        - Running in Lambda/ECS (AWS_EXECUTION_ENV is set)
+        - FORCE_AWS env var is explicitly set to true (allows local access to AWS Secrets Manager)
+        """
+        # Check if forced by env var (allows local dev to access AWS Secrets Manager)
+        if os.getenv("FORCE_AWS", "").lower() in ("true", "1", "yes"):
+            return True
+        # Check if running in AWS Lambda/ECS
         return bool(os.getenv("AWS_EXECUTION_ENV"))
 
     def _get_secrets_client(self):
