@@ -35,6 +35,7 @@ import requests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
+from algo.algo_signals import SignalComputer
 
 # Configure logging to file instead of stderr to avoid interfering with Rich Live display
 _log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
@@ -2214,11 +2215,11 @@ def fetch_computed_signals(c):
         sc = SignalComputer()
         eval_date = date.today()
         buy_sigs = q(c, """
-            SELECT DISTINCT b.symbol
+            SELECT b.symbol, COALESCE(b.signal_quality_score, b.entry_quality_score, 0) as quality
             FROM buy_sell_daily b
             WHERE b.signal='BUY' AND b.timeframe IN ('1d', 'daily', 'Daily')
               AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
-            ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
+            ORDER BY quality DESC
             LIMIT 10""")
         if not buy_sigs:
             logger.debug("No BUY signals found for signal computation")
@@ -2430,11 +2431,14 @@ def fetch_economic_pulse(c):
         except Exception as e:
             logger.debug(f"Could not fetch pre-computed yield curve slope: {e}")
 
+        t10 = d.get('DGS10')
+        t2 = d.get('DGS2')
+        t3m = d.get('DGS3MO')
+
         if yc_10_2 is None:
             logger.warning("Yield curve slope 10Y-2Y not in pre-computed table — economic_metrics_daily incomplete")
             # Don't calculate; use pre-computed or error
         else:
-            t10 = d.get('DGS10'); t3m = d.get('DGS3MO')
             yc_10_3m = d.get('yield_curve_slope_10y3m') if ycs_metrics else None  # Also from pre-computed
 
         cpi_yoy = None
@@ -2531,7 +2535,6 @@ def fetch_notifications(c):
 def fetch_sentiment(c, cfg=None):
     stale_alerts = []
     try:
-        mkt_cfg = load_market_thresholds(cfg)
         row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
         if not row:
             _log_data_quality("fetch_sentiment", 0, "No sentiment data")
@@ -2541,14 +2544,18 @@ def fetch_sentiment(c, cfg=None):
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
             return {"_error": "fear_greed_index missing", "date": row.get("date"), "stale_alerts": stale_alerts}
         label = get_string(row, "label")
-        if fg is not None and fg <= mkt_cfg['fear_greed_alert']:
-            c_fg = R
-        elif fg is not None and fg <= mkt_cfg['fear_greed_caution']:
-            c_fg = Y
-        elif fg is not None and fg >= mkt_cfg['fear_greed_bullish']:
-            c_fg = G
+        # Use fixed thresholds for sentiment coloring (Fear & Greed Index ranges 0-100)
+        # 0-25: Extreme Fear (Red), 25-45: Fear (Yellow), 45-55: Neutral (Cyan), 55-75: Greed (Yellow), 75-100: Extreme Greed (Green)
+        if fg <= 25:
+            c_fg = R  # Extreme Fear
+        elif fg <= 45:
+            c_fg = Y  # Fear
+        elif fg <= 55:
+            c_fg = CY  # Neutral
+        elif fg <= 75:
+            c_fg = Y  # Greed
         else:
-            c_fg = CY
+            c_fg = G  # Extreme Greed
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
         return {**result, "stale_alerts": stale_alerts}
