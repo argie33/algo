@@ -114,6 +114,7 @@ class FallbackStep:
     description: str
     conditions: str  # When this is used (e.g., "if API fails")
     logs_with: str  # Log prefix or message pattern
+    hardcoded_values: Optional[Dict[str, Any]] = None  # If fallback returns hardcoded values, document them here
 
 
 @dataclass
@@ -222,14 +223,37 @@ FALLBACK_CHAINS: Dict[str, FallbackChain] = {
             FallbackStep(
                 name="hardcoded_defaults",
                 priority=2,
-                description="Static placeholder metrics",
+                description="All-zero placeholder metrics: total_trades=0, win_rate=0%, profit_factor=0, sharpe=0, max_drawdown=0%, etc.",
                 conditions="Neither API nor cache available (rare)",
-                logs_with="[METRICS] CRITICAL - using hardcoded defaults"
+                logs_with="[METRICS] CRITICAL - using hardcoded defaults (all zeros)",
+                hardcoded_values={
+                    "total_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "breakeven_trades": 0,
+                    "win_rate_pct": 0.0,
+                    "profit_factor": 0.0,
+                    "total_pnl_dollars": 0.0,
+                    "total_pnl_pct": 0.0,
+                    "total_return_pct": 0.0,
+                    "avg_win_pct": 0.0,
+                    "avg_loss_pct": 0.0,
+                    "best_trade_pct": 0.0,
+                    "worst_trade_pct": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "sortino_ratio": 0.0,
+                    "max_drawdown_pct": 0.0,
+                    "avg_holding_days": 0.0,
+                    "expectancy_r": 0.0,
+                    "best_win_streak": 0,
+                    "worst_loss_streak": 0,
+                    "current_streak": 0,
+                }
             ),
         ],
         metrics_tracked=["performance_api_failures", "cache_fallback_uses", "cache_age_at_fallback"],
         recovery_condition="Next API request succeeds and refreshes cache",
-        safety_notes="Users see 'stale_alerts' in dashboard when fallback is used. Cache age should be displayed.",
+        safety_notes="Users see 'stale_alerts' in dashboard when fallback is used. Cache age should be displayed. All-zero fallback is a CRITICAL state meaning no real performance data available.",
     ),
 
     "price_data": FallbackChain(
@@ -322,6 +346,59 @@ def validate_fallback_chain_documented(resource: str) -> bool:
     if not is_documented:
         logger.warning(f"[FALLBACK_UNDOCUMENTED] {resource} has fallback behavior but no FallbackChain entry")
     return is_documented
+
+
+def get_hardcoded_fallback_values(resource: str, fallback_step: str) -> Optional[Dict[str, Any]]:
+    """Get hardcoded fallback values for a resource/fallback step combination.
+
+    This is useful for auditing and detecting when the system is returning fake/placeholder data
+    to users (e.g., all-zero performance metrics when the API is unavailable).
+
+    Args:
+        resource: Resource name (e.g., 'performance_metrics')
+        fallback_step: Which fallback step (e.g., 'hardcoded_defaults')
+
+    Returns:
+        Dict of hardcoded values if this fallback uses them, None otherwise
+    """
+    chain = get_fallback_chain(resource)
+    if not chain:
+        return None
+    for step in chain.fallbacks:
+        if step.name == fallback_step:
+            return step.hardcoded_values
+    return None
+
+
+def is_hardcoded_fallback_data(resource: str, data: Dict) -> bool:
+    """Check if returned data matches a hardcoded fallback pattern (all zeros, etc).
+
+    This helps identify when we're showing users fake placeholder data instead of real metrics.
+
+    Args:
+        resource: What resource this data is for
+        data: The returned data
+
+    Returns:
+        True if data matches a hardcoded fallback pattern
+    """
+    chain = get_fallback_chain(resource)
+    if not chain:
+        return False
+
+    # Check each fallback step to see if data matches its hardcoded values
+    for step in chain.fallbacks:
+        if not step.hardcoded_values:
+            continue
+        # If all keys in the data match the hardcoded values, this is likely fallback data
+        matches = all(
+            data.get(k) == v
+            for k, v in step.hardcoded_values.items()
+            if k in data
+        )
+        if matches:
+            return True
+    return False
 
 
 if __name__ == "__main__":

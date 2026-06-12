@@ -599,6 +599,7 @@ def _get_algo_performance(cur) -> Dict:
                 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
                 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
                 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
+                '_error': 'Data unavailable'
             })
 
         # Wrap fetched data in response format expected by frontend

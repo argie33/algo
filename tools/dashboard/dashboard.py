@@ -782,81 +782,66 @@ def fetch_recent_trades(c):
         return []
 
 def fetch_signals(c):
+    """Fetch dashboard signals from API."""
     try:
-        # Optimize: Add LIMIT in SQL instead of fetching all rows and slicing in Python
-        signals = q(c, """SELECT symbol, swing_score, signal_date
-                         FROM algo_signals_evaluated
-                         WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
-                         ORDER BY swing_score DESC LIMIT 20""")
+        data = api_call('/api/algo/dashboard-signals')
+        if data.get('_error'):
+            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+        if not data.get('data'):
+            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
 
-        # Get total count separately (counts all signals, not just top 20)
-        count_row = q1(c, """SELECT COUNT(*) as total_sigs FROM algo_signals_evaluated
-                            WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
-        total_count = count_row.get("total_sigs", 0) if count_row else 0
-
-        # Get signal grade distribution if available
-        grades = {}
-        try:
-            grade_rows = q(c, """SELECT signal_grade, COUNT(*) as cnt
-                                FROM algo_signals_evaluated
-                                WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
-                                GROUP BY signal_grade""")
-            grades = {r.get("signal_grade"): r.get("cnt", 0) for r in grade_rows}
-        except:
-            pass
-
+        result = data['data']
+        signals = result.get('signals', [])
         return {
             "n": len(signals),
-            "total": total_count,
+            "total": result.get('total', len(signals)),
             "buy_sigs": signals[:5] if signals else [],
-            "grades": grades,
+            "grades": result.get('grades', {}),
             "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
             "top_a": signals[:3] if signals else [],
-            "trend": []
+            "trend": result.get('trend', [])
         }
     except Exception as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
 
 def fetch_sector_ranking(c):
+    """Fetch sector rankings from API."""
     try:
-        return q(c, """
-            SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
-            FROM sector_ranking
-            WHERE date=(SELECT MAX(date) FROM sector_ranking)
-            ORDER BY current_rank ASC""")
+        data = api_call('/api/sectors')
+        if data.get('_error'):
+            return {"_error": data.get('_error')}
+        rankings = data.get('data', [])
+        return rankings if isinstance(rankings, list) else []
     except Exception as e:
+        logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 def fetch_activity(c):
+    """Fetch activity and audit log from API."""
     try:
-        latest = q1(c, """
-            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-            FROM algo_audit_log
-            WHERE details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
-        rid    = latest["run_id"]
-        run_at = latest.get("run_at")
-        phases = q(c, """
-            SELECT action_type, status, details, created_at
-            FROM algo_audit_log WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        recent_actions = q(c, """
-            SELECT action_type, status, details, created_at
-            FROM algo_audit_log
-            WHERE action_type IN ('entry_executed','exit_executed','entry_rejected',
-                                  'position_exited','order_placed','order_rejected')
-            ORDER BY created_at DESC LIMIT 6""")
-        return {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
+        data = api_call('/api/algo/audit-log')
+        if data.get('_error'):
+            return {"_error": data.get('_error')}
+        result = data.get('data', {})
+        return {
+            "run_id": result.get("run_id"),
+            "run_at": result.get("run_at"),
+            "phases": result.get("phases", []),
+            "recent_actions": result.get("recent_actions", [])
+        }
     except Exception as e:
+        logger.error(f"fetch_activity: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 def fetch_health(c):
+    """Fetch data loader health status from API."""
     try:
-        return q(c, """SELECT table_name, status, latest_date, age_days,
-                              completion_pct, error_message
-                       FROM data_loader_status
-                       ORDER BY latest_date DESC LIMIT 10""")
+        data = api_call('/api/algo/data-status')
+        if data.get('_error'):
+            return []
+        health = data.get('data', [])
+        return health if isinstance(health, list) else []
     except Exception as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         return []

@@ -831,7 +831,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       MorningSwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 2700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
