@@ -1473,7 +1473,10 @@ def fetch_market(c):
                              'market_tier_threshold_pressure', 'market_tier_threshold_caution')
             """)
             if tier_config_r and len(tier_config_r) == 4:
-                tier_config = {r.get('key'): safe_float(r.get('value', 0), 0) for r in tier_config_r if r.get('value')}
+                null_keys = [r.get('key') for r in tier_config_r if r.get('value') is None]
+                if null_keys:
+                    logger.warning(f"VALIDATION: fetch_market {len(null_keys)} config values are NULL: {null_keys}")
+                tier_config = {r.get('key'): safe_float(r.get('value', 0), 0) for r in tier_config_r if r.get('value') is not None}
                 tier_thresholds = {
                     'confirmed': tier_config.get('market_tier_threshold_confirmed', TIER_THRESHOLD_CONFIRMED),
                     'healthy': tier_config.get('market_tier_threshold_healthy', TIER_THRESHOLD_HEALTHY),
@@ -1499,35 +1502,10 @@ def fetch_market(c):
         exp_age = None
         mkt_health_age = None
         if exp and exp.get("date"):
-            try:
-                if isinstance(exp["date"], datetime):
-                    exp_date = exp["date"]
-                else:
-                    try:
-                        exp_date = datetime.fromisoformat(str(exp["date"]))
-                    except (ValueError, TypeError):
-                        exp_date = None
-                if exp_date:
-                    # Ensure timezone-aware comparison (handle naive datetimes)
-                    if exp_date.tzinfo is None:
-                        exp_date = exp_date.replace(tzinfo=timezone.utc)
-                    exp_age = (datetime.now(timezone.utc) - exp_date).days
-            except (ValueError, TypeError, KeyError): pass
+            exp_age = _days_since_timestamp(exp["date"])
         # Track market_health_daily age for distribution_days, yield curve, etc.
         if h and h.get("date"):
-            try:
-                if isinstance(h["date"], datetime):
-                    mkt_date = h["date"]
-                else:
-                    try:
-                        mkt_date = datetime.fromisoformat(str(h["date"]))
-                    except (ValueError, TypeError):
-                        mkt_date = None
-                if mkt_date:
-                    if mkt_date.tzinfo is None:
-                        mkt_date = mkt_date.replace(tzinfo=timezone.utc)
-                    mkt_health_age = (datetime.now(timezone.utc) - mkt_date).days
-            except (ValueError, TypeError, KeyError): pass
+            mkt_health_age = _days_since_timestamp(h["date"])
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
@@ -1563,15 +1541,7 @@ def fetch_market(c):
                 if cur_spy is not None and prev_spy is not None:
                     if spy_v is None: spy_v = cur_spy
                     if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
-                try:
-                    spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
-                    if spy_date.tzinfo is None:
-                        spy_date = spy_date.replace(tzinfo=timezone.utc)
-                    else:
-                        spy_date = spy_date.astimezone(timezone.utc)
-                    spy_age = (datetime.now(timezone.utc) - spy_date).days
-                except (ValueError, AttributeError, TypeError):
-                    pass
+                spy_age = _days_since_timestamp(spy_rows[0]["date"])
             elif close0 is None or close1 is None:
                 logger.warning(f"VALIDATION: SPY price_daily has rows but close price is NULL")
                 stale_alerts.append("SPY close price is NULL")
