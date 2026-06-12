@@ -694,7 +694,10 @@ API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 10
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
-    """Call API endpoint. Returns dict with 'data' key on success, '_error' on failure."""
+    """Call API endpoint. Returns dict with 'data' key on success, '_error' on failure.
+
+    Properly detects errors in JSON responses (statusCode >= 400) to prevent silent failures.
+    """
     try:
         url = f"{API_BASE_URL}{endpoint}"
         headers = {"Content-Type": "application/json"}
@@ -707,7 +710,15 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
             logger.warning(f"API call to {endpoint} returned {resp.status_code}: {resp.text[:200]}")
             return {"_error": f"API error {resp.status_code}"}
 
-        return resp.json()
+        data = resp.json()
+
+        # CRITICAL FIX: Detect errors in JSON response body (statusCode >= 400 in response)
+        if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
+            error_msg = data.get("message") or data.get("errorType") or "Unknown API error"
+            logger.warning(f"API call to {endpoint} returned error in JSON: {error_msg}")
+            return {"_error": error_msg}
+
+        return data
     except requests.exceptions.Timeout:
         logger.warning(f"API call to {endpoint} timed out after {API_TIMEOUT}s")
         return {"_error": "API timeout"}
