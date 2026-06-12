@@ -5,6 +5,7 @@ with sensible defaults for development and production environments.
 """
 import os
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -104,15 +105,20 @@ class HealthCheckConfig:
             return default
 
 
-# Global singleton — initialized at Lambda cold start
+# Global singleton — initialized at Lambda cold start (thread-safe)
 _config = None
+_config_lock = threading.Lock()
 
 def get_config() -> HealthCheckConfig:
-    """Get the global health check configuration (lazy initialized).
+    """Get the global health check configuration (lazy initialized, thread-safe).
 
     Returns the same instance on every call (singleton pattern).
+    Uses double-checked locking to prevent race conditions during initialization.
     """
     global _config
     if _config is None:
-        _config = HealthCheckConfig()
+        with _config_lock:
+            # Double-check pattern to avoid race conditions
+            if _config is None:
+                _config = HealthCheckConfig()
     return _config

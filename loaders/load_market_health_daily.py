@@ -306,6 +306,12 @@ class MarketHealthDailyLoader(OptimalLoader):
             dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-24):idx+1].sum()) if idx >= 0 else 0
             dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-19):idx+1].sum()) if idx >= 0 else 0
 
+            spy_change_pct = None
+            if idx > 0:
+                prev_close = float(df.iloc[idx-1]["close"])
+                if prev_close > 0:
+                    spy_change_pct = round((close - prev_close) / prev_close * 100, 2)
+
             results.append({
                 "date": row["date"].date().isoformat(),
                 "market_trend": market_trend,
@@ -317,6 +323,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "new_highs_count": None,         # filled from _fetch_breadth_data
                 "new_lows_count": None,          # filled from _fetch_breadth_data
                 "breadth_momentum_10d": float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50,
+                "spy_change_pct": spy_change_pct,
                 "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
                 "put_call_ratio": None,
                 "yield_curve_slope": None,
