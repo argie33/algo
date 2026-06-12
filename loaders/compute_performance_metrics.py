@@ -2,8 +2,12 @@
 Compute algorithm performance metrics and store in algo_performance_metrics table.
 Runs nightly after Phase 7 reconciliation (around 5:15 PM ET).
 
+CRITICAL FIX (E10 - Data Integrity):
+Win rate now includes OPEN TRADES based on unrealized P&L, not just closed trades.
+This prevents the dashboard from showing artificially high win rates that ignore losses on open positions.
+
 Metrics computed:
-- Win/loss counts and rates
+- Win/loss counts and rates (includes closed + open trades with unrealized P&L)
 - Profit factor
 - Sharpe ratio (annualized)
 - Sortino ratio (annualized)
@@ -41,21 +45,31 @@ def compute_performance_metrics(cur, metric_date: date = None):
         metrics = {}
 
         # Fetch all closed trades + open trades with unrealized P&L (E10 fix)
-        # Open trades count as wins/losses based on unrealized_pnl_dollars
+        # Closed trades: use profit_loss_dollars directly
+        # Open trades: calculate unrealized P&L as (current_price - entry_price) * quantity
         cur.execute("""
-            SELECT profit_loss_dollars, profit_loss_pct, exit_r_multiple,
-                   (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
-            FROM algo_trades
-            WHERE (status = 'closed' AND exit_date IS NOT NULL)
-               OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
-            ORDER BY COALESCE(exit_date, CURRENT_DATE) DESC LIMIT 10000
+            SELECT COALESCE(at.profit_loss_dollars,
+                           CASE WHEN at.status != 'closed'
+                                THEN (ap.current_price - at.entry_price) * at.entry_quantity
+                                ELSE NULL END) as profit_loss_dollars,
+                   COALESCE(at.profit_loss_pct,
+                           CASE WHEN at.status != 'closed'
+                                THEN ((ap.current_price - at.entry_price) / at.entry_price * 100)
+                                ELSE NULL END) as profit_loss_pct,
+                   at.exit_r_multiple,
+                   (COALESCE(at.exit_date, CURRENT_DATE) - at.trade_date) as holding_days
+            FROM algo_trades at
+            LEFT JOIN algo_positions ap ON at.trade_id = ANY(ap.trade_ids_arr)
+            WHERE (at.status = 'closed' AND at.exit_date IS NOT NULL)
+               OR (at.status IN ('open', 'filled', 'partially_filled', 'active') AND ap.current_price IS NOT NULL)
+            ORDER BY COALESCE(at.exit_date, CURRENT_DATE) DESC LIMIT 10000
         """)
         trades = cur.fetchall()
 
         if not trades:
             # No trades, use defaults
             _insert_default_metrics(cur, metric_date)
-            logger.info(f'No closed trades for {metric_date}, inserted defaults')
+            logger.info(f'No trades (closed or open with current price) for {metric_date}, inserted defaults')
             return
 
         # Extract metrics from trades

@@ -58,18 +58,28 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
 
             with DatabaseContext('read') as cur:
                 # 1. Fetch all closed trades + open trades for comprehensive win rate (H15, H16 FIX)
-                # Open trades count as potential wins if unrealized P&L > 0, losses if < 0
+                # Closed trades: use profit_loss_dollars (already calculated at exit)
+                # Open trades: calculate unrealized P&L as (current_price - entry_price) * quantity
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
-                        COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
-                        COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
-                        AVG(exit_r_multiple) as avg_r_all,
-                        AVG(exit_r_multiple) FILTER (WHERE profit_loss_dollars > 0) as avg_win_r,
-                        AVG(exit_r_multiple) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_r
-                    FROM algo_trades
-                    WHERE (status = 'closed' AND exit_date IS NOT NULL)
-                       OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
+                        COUNT(*) FILTER (WHERE pnl > 0) as wins,
+                        COUNT(*) FILTER (WHERE pnl < 0) as losses,
+                        AVG(at.exit_r_multiple) as avg_r_all,
+                        AVG(at.exit_r_multiple) FILTER (WHERE pnl > 0) as avg_win_r,
+                        AVG(at.exit_r_multiple) FILTER (WHERE pnl < 0) as avg_loss_r
+                    FROM (
+                        SELECT
+                            at.exit_r_multiple,
+                            COALESCE(at.profit_loss_dollars,
+                                    CASE WHEN at.status != 'closed'
+                                         THEN (ap.current_price - at.entry_price) * at.entry_quantity
+                                         ELSE NULL END) as pnl
+                        FROM algo_trades at
+                        LEFT JOIN algo_positions ap ON at.trade_id = ANY(ap.trade_ids_arr)
+                        WHERE (at.status = 'closed' AND at.exit_date IS NOT NULL)
+                           OR (at.status IN ('open', 'filled', 'partially_filled', 'active') AND ap.current_price IS NOT NULL)
+                    ) t
                 """)
                 trade_stats = cur.fetchone() or {}
 
@@ -147,22 +157,36 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT
-                        AVG(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as avg_win_dollars,
-                        AVG(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_dollars,
-                        SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as total_wins,
-                        SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses,
-                        SUM(profit_loss_dollars) as total_pnl,
-                        COUNT(*) FILTER (WHERE profit_loss_dollars = 0) as breakeven_count,
-                        AVG(profit_loss_pct) FILTER (WHERE profit_loss_dollars > 0) as avg_win_pct,
-                        AVG(profit_loss_pct) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_pct,
-                        AVG(trade_duration_days) as avg_hold_days,
-                        MAX(profit_loss_dollars) as biggest_win,
-                        MIN(profit_loss_dollars) as biggest_loss,
-                        MAX(exit_r_multiple) as best_trade_r,
-                        MIN(exit_r_multiple) as worst_trade_r
-                    FROM algo_trades
-                    WHERE (status = 'closed' AND exit_date IS NOT NULL)
-                       OR (status != 'closed' AND profit_loss_dollars IS NOT NULL)
+                        AVG(pnl) FILTER (WHERE pnl > 0) as avg_win_dollars,
+                        AVG(ABS(pnl)) FILTER (WHERE pnl < 0) as avg_loss_dollars,
+                        SUM(pnl) FILTER (WHERE pnl > 0) as total_wins,
+                        SUM(ABS(pnl)) FILTER (WHERE pnl < 0) as total_losses,
+                        SUM(pnl) as total_pnl,
+                        COUNT(*) FILTER (WHERE pnl = 0) as breakeven_count,
+                        AVG(pnl_pct) FILTER (WHERE pnl > 0) as avg_win_pct,
+                        AVG(pnl_pct) FILTER (WHERE pnl < 0) as avg_loss_pct,
+                        AVG(at.trade_duration_days) as avg_hold_days,
+                        MAX(pnl) as biggest_win,
+                        MIN(pnl) as biggest_loss,
+                        MAX(at.exit_r_multiple) as best_trade_r,
+                        MIN(at.exit_r_multiple) as worst_trade_r
+                    FROM (
+                        SELECT
+                            at.exit_r_multiple,
+                            at.trade_duration_days,
+                            COALESCE(at.profit_loss_dollars,
+                                    CASE WHEN at.status != 'closed'
+                                         THEN (ap.current_price - at.entry_price) * at.entry_quantity
+                                         ELSE NULL END) as pnl,
+                            COALESCE(at.profit_loss_pct,
+                                    CASE WHEN at.status != 'closed'
+                                         THEN ((ap.current_price - at.entry_price) / at.entry_price * 100)
+                                         ELSE NULL END) as pnl_pct
+                        FROM algo_trades at
+                        LEFT JOIN algo_positions ap ON at.trade_id = ANY(ap.trade_ids_arr)
+                        WHERE (at.status = 'closed' AND at.exit_date IS NOT NULL)
+                           OR (at.status IN ('open', 'filled', 'partially_filled', 'active') AND ap.current_price IS NOT NULL)
+                    ) t
                 """)
                 row = cur.fetchone() or {}
                 avg_win_dollars = float(row.get('avg_win_dollars')) if row.get('avg_win_dollars') is not None else None
