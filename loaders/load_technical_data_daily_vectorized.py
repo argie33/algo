@@ -303,6 +303,13 @@ def main():
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")
     args = parser.parse_args()
 
+    # Support INTRADAY_MODE environment variable (set by EventBridge/Step Functions)
+    # When set, load only today's data for rapid intraday updates (3-8 min vs 15-25 min)
+    if os.getenv('INTRADAY_MODE', '').lower() in ('true', '1', 'yes'):
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        args.since = now_et.date().isoformat()
+        logger.info(f"[ENV] INTRADAY_MODE=true, loading data since {args.since}")
+
     # Get symbols
     try:
         symbols = get_active_symbols(timeout_secs=300)

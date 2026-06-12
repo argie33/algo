@@ -260,10 +260,17 @@ class VectorizedSwingScoresLoader:
 
 
 def main():
+    import os
     parser = argparse.ArgumentParser(description="Vectorized Swing Trader Scores Loader")
     parser.add_argument("--today", action="store_true", help="Intraday mode: only compute today's scores (fast)")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     args = parser.parse_args()
+
+    # Support INTRADAY_MODE environment variable (set by EventBridge/Step Functions)
+    # This enables intraday updates without requiring command-line flags
+    if os.getenv('INTRADAY_MODE', '').lower() in ('true', '1', 'yes'):
+        args.today = True
+        logger.info("[ENV] INTRADAY_MODE=true, enabling fast intraday computation")
 
     # Get symbols
     try:

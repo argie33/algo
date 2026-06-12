@@ -337,12 +337,6 @@ def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
         'win_rate_history_caution': 50.0,
     }
 
-# Grade thresholds for signal scoring (separate from market tier thresholds)
-GRADE_A_PLUS = 90
-GRADE_A = 80
-GRADE_B = 70
-GRADE_C = 60
-
 # Health bar and visual indicator thresholds
 HBAR_CRITICAL = 1.0
 HBAR_WARNING = 0.75
@@ -946,13 +940,10 @@ def fmt_money_short(v: any) -> str:
     return f"{s}${av:.0f}"
 
 def grade(s: float) -> str:
+    """Classify dashboard signal score using unified GradeClassifier."""
     s = safe_float(s)
     if s is None: return "--"
-    if s >= GRADE_A_PLUS: return "A+"
-    if s >= GRADE_A: return "A"
-    if s >= GRADE_B: return "B"
-    if s >= GRADE_C: return "C"
-    return "D"
+    return GradeClassifier.classify_dashboard_signal(s)
 
 def tier_from_pct(p: Optional[float], thresholds: Optional[dict] = None) -> str:
     """Classify market tier based on exposure percentage.
