@@ -26,6 +26,7 @@ import os
 from datetime import datetime, time, timezone
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from utils.api_endpoints import get_alpaca_data_url, get_iex_cloud_url
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,7 @@ class RealtimePricingEngine:
                 return {}
 
             # Alpaca Data API endpoint for latest quotes
-            base_url = "https://data.alpaca.markets/v2/stocks"
+            base_url = f"{get_alpaca_data_url()}/v2/stocks"
             quotes = {}
 
             for symbol in symbols:
@@ -176,7 +177,7 @@ class RealtimePricingEngine:
             quotes = {}
             for symbol in symbols:
                 try:
-                    url = f"https://cloud.iexapis.com/stable/stock/{symbol}/quote"
+                    url = f"{get_iex_cloud_url()}/stock/{symbol}/quote"
                     resp = requests.get(url, params={"token": iex_key}, timeout=5)
                     if resp.status_code == 200:
                         data = resp.json()
