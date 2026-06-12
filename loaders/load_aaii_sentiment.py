@@ -16,10 +16,9 @@ import xml.etree.ElementTree as ET
 
 from utils.optimal_loader import OptimalLoader
 from utils.url_validator import validate_url
+from config.api_endpoints import get_aaii_sentiment_url
 
 logger = logging.getLogger(__name__)
-
-AAII_EXCEL_URL = os.getenv("AAII_SENTIMENT_URL", "https://www.aaii.com/files/surveys/sentiment.xls")
 
 
 class AAIISentimentLoader(OptimalLoader):
@@ -31,10 +30,11 @@ class AAIISentimentLoader(OptimalLoader):
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch AAII sentiment data from Excel file."""
-        logging.info(f"Downloading AAII sentiment data from: {AAII_EXCEL_URL}")
+        aaii_url = get_aaii_sentiment_url()
+        logging.info(f"Downloading AAII sentiment data from: {aaii_url}")
 
         # SECURITY FIX S-05: Validate AAII URL to prevent SSRF attacks
-        is_valid, error_msg = validate_url(AAII_EXCEL_URL, allowed_domains=['aaii.com'])
+        is_valid, error_msg = validate_url(aaii_url, allowed_domains=['aaii.com'])
         if not is_valid:
             # SECURITY FIX S-12: Don't log full URL (exposes infrastructure)
             logging.error(f"SSRF prevention: Invalid AAII URL: {error_msg}")
@@ -50,7 +50,7 @@ class AAIISentimentLoader(OptimalLoader):
         for attempt in range(1, 6):  # 5 retries
             try:
                 logging.info(f"Download attempt {attempt}/5")
-                response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
+                response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=60)
                 response.raise_for_status()
 
                 content_type = response.headers.get("Content-Type", "")

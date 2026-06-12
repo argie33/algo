@@ -2,6 +2,7 @@
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
+from config.api_endpoints import get_yahoo_finance_url
 from algo.algo_config import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
@@ -613,8 +614,7 @@ class DataPatrol:
         mismatches = []
         for sym in symbols:
             try:
-                # Yahoo's free endpoint
-                url = f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}'
+                url = f'{get_yahoo_finance_url()}/chart/{sym}'
                 resp = requests.get(
                     url,
                     headers={'User-Agent': 'Mozilla/5.0 (algo-patrol)'},

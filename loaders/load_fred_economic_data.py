@@ -14,10 +14,9 @@ import boto3
 
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_api_key
+from config.api_endpoints import get_fred_url
 
 logger = logging.getLogger(__name__)
-
-FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 
 SERIES = [
     # Treasury yield curve (needed by YieldCurveCard + _get_yield_curve_full)
@@ -139,7 +138,8 @@ class FredEconomicDataLoader(OptimalLoader):
                         "observation_end": end_date,
                         "sort_order": "asc",
                     }
-                    resp = requests.get(FRED_BASE, params=params, timeout=30)
+                    fred_url = f"{get_fred_url()}/series/observations"
+                    resp = requests.get(fred_url, params=params, timeout=30)
                     resp.raise_for_status()
                     observations = resp.json().get("observations", [])
 
