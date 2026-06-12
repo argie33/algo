@@ -11,10 +11,24 @@ import logging
 import socket
 import os
 import subprocess
+import re
 
 from config.credential_manager import get_db_config
 
 logger = logging.getLogger(__name__)
+
+def _sanitize_error(error: Exception, sensitive_value: str = '') -> str:
+    """Sanitize error messages to prevent credential leakage in logs.
+
+    Removes known credential patterns and sensitive values before logging.
+    """
+    error_str = str(error)
+    if sensitive_value:
+        error_str = error_str.replace(sensitive_value, '***')
+    error_str = re.sub(r'password["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'password=***', error_str, flags=re.IGNORECASE)
+    error_str = re.sub(r'PGPASSWORD["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'PGPASSWORD=***', error_str, flags=re.IGNORECASE)
+    error_str = re.sub(r'user["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'user=***', error_str, flags=re.IGNORECASE)
+    return error_str
 
 # Import connection monitor - integrates pool health tracking
 try:
@@ -71,6 +85,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
     last_error = None
     # max_retries=0 means 1 total attempt (no retries), so range should be (1, 2)
     # max_retries=1 means 2 total attempts (1 retry), so range should be (1, 3)
+    password = db_config.get('password', '')
     for attempt in range(1, max_retries + 2):
         try:
             if debug:
@@ -81,7 +96,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
                 port=int(db_config['port']),
                 database=db_config['database'],
                 user=db_config['user'],
-                password=db_config['password'],
+                password=password,
                 connect_timeout=timeout
             )
 
@@ -95,10 +110,12 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
                 import time
                 wait_time = min(2 ** (attempt - 1), 10)  # Exponential backoff, max 10s
                 if debug:
-                    logger.debug(f"[DB_CONNECT] Connection failed (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s")
+                    safe_error = _sanitize_error(e, password)
+                    logger.debug(f"[DB_CONNECT] Connection failed (attempt {attempt}): {safe_error[:100]}, retrying in {wait_time}s")
                 time.sleep(wait_time)
             else:
                 if debug:
-                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries + 1} attempts: {e}")
+                    safe_error = _sanitize_error(e, password)
+                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries + 1} attempts: {safe_error}")
 
     raise last_error if last_error else psycopg2.OperationalError("Failed to connect to database")

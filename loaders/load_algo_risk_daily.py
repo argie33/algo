@@ -18,13 +18,13 @@ import logging
 import statistics
 from datetime import date, datetime, timezone
 from typing import Optional, List
-from zoneinfo import ZoneInfo
 
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
+ET = EASTERN_TZ
 
 
 class AlgoRiskDailyLoader(OptimalLoader):

@@ -885,7 +885,7 @@ def validate_schema() -> None:
         else:
             sys.exit(f"Database connection/schema error: {e}")
 
-def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[Dict]:
+def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[PhaseResult]:
     """Normalize audit_log phases to match orchestrator_execution_log schema.
 
     Transforms: [{'action_type': 'X', 'status': 'Y'}, ...]
@@ -896,7 +896,7 @@ def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[Dict]:
     if not isinstance(audit_phases, list):
         return []
 
-    normalized = []
+    normalized: List[PhaseResult] = []
     for phase in audit_phases:
         if not isinstance(phase, dict):
             continue
@@ -909,7 +909,7 @@ def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[Dict]:
 
     return normalized
 
-def validate_phase_results(phase_results: any) -> List[Dict]:
+def validate_phase_results(phase_results: any) -> List[PhaseResult]:
     """Validate phase_results schema using centralized validation framework.
 
     Uses utils.validation_framework for consistent validation.
@@ -1234,6 +1234,55 @@ def format_halt_reason(halt_code: str) -> str:
     code = halt_code.split(":")[0].strip().lower()
     return HALT_REASON_NAMES.get(code, halt_code[:20])
 
+def _parse_timestamp_to_utc(ts_val: any) -> Optional[datetime]:
+    """Issue 23 FIX: Unified timestamp-to-UTC converter for data freshness checks.
+
+    Handles datetime, date, and string inputs (ISO, YYYY-MM-DD formats).
+    Always returns timezone-aware datetime in UTC, or None if parsing fails.
+    Used for consistent age/staleness calculations across all data fetchers.
+    """
+    if ts_val is None:
+        return None
+    try:
+        if isinstance(ts_val, datetime):
+            dt = ts_val
+        elif isinstance(ts_val, date):
+            dt = datetime(ts_val.year, ts_val.month, ts_val.day)
+        elif isinstance(ts_val, str):
+            try:
+                dt = datetime.fromisoformat(ts_val)
+            except (ValueError, TypeError):
+                if len(ts_val) >= 10:
+                    dt = datetime.strptime(ts_val[:10], "%Y-%m-%d")
+                else:
+                    return None
+        else:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+def _days_since_timestamp(ts_val: any) -> Optional[int]:
+    """Issue 23 FIX: Safe calculation of days since a timestamp.
+
+    Handles all timestamp types (datetime, date, string) and always
+    returns integer days difference from now, or None if unparseable.
+    Fixes type mismatches at comparison time (no more date-datetime subtract bugs).
+    """
+    parsed = _parse_timestamp_to_utc(ts_val)
+    if parsed is None:
+        return None
+    try:
+        now_utc = datetime.now(timezone.utc)
+        delta = (now_utc - parsed).days
+        return delta
+    except (TypeError, AttributeError):
+        return None
+
 
 # â”€â”€ fetchers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1328,6 +1377,27 @@ def fetch_run(c) -> RunData:
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
         phase_results = normalize_audit_log_phases(audit_phases)
         phase_results = validate_phase_results(phase_results)
+
+        if not phase_results:
+            msg = f"No valid phase data in audit log for run_id={rid}"
+            logger.warning(msg)
+            _log_data_quality("fetch_run", 0, msg)
+            return {
+                "run_id": rid,
+                "run_at": latest["run_at"],
+                "success": False,
+                "halted": False,
+                "errored": True,
+                "summary": None,
+                "halt_reason": None,
+                "phases_completed": 0,
+                "phases_halted": 0,
+                "phases_errored": 0,
+                "phase_results": [],
+                "_source": "audit_log_fallback",
+                "_error": msg,
+            }
+
         halted  = any(p["status"] == "halt"  for p in phase_results)
         errored = any(p["status"] == "error" for p in phase_results)
         success = (not halted and not errored and len(phase_results) > 0)
@@ -6652,6 +6722,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

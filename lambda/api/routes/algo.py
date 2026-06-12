@@ -1380,7 +1380,7 @@ def _get_sector_position_warnings(cur) -> Dict:
             """)
             sector_counts = [(dict(row).get('sector'), dict(row).get('position_count')) for row in cur.fetchall()]
 
-            cur.execute("SELECT value FROM algo_config WHERE key='max_positions_per_sector' LIMIT 1")
+            cur.execute("SELECT value FROM algo_config WHERE key = %s LIMIT 1", ('max_positions_per_sector',))
             max_per_sector_row = cur.fetchone()
             max_per_sector = int(max_per_sector_row[0]) if max_per_sector_row and max_per_sector_row[0] else 3
 

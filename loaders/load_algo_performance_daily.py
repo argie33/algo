@@ -16,14 +16,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional, List
-from zoneinfo import ZoneInfo
 
 from utils.optimal_loader import OptimalLoader
+from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
+ET = EASTERN_TZ
 
 
 class AlgoPerformanceDailyLoader(OptimalLoader):
