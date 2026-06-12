@@ -2048,64 +2048,41 @@ def _categorize_config_key(key: str) -> str:
         else:
             return 'Other'
 
+@db_route_handler('fetch algo config', default_error_response={'items': [], 'total': 0})
 def _get_algo_config(cur) -> Dict:
-        """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
-        try:
-            from algo.algo_config import AlgoConfig
+    """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
+    from algo.algo_config import AlgoConfig
 
-            cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
-            rows = cur.fetchall()
+    cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
+    rows = cur.fetchall()
 
-            # Build config with defaults and categorization
-            config_items = []
-            for row in rows:
-                config_dict = safe_json_serialize(dict(row))
-                key = config_dict['key']
+    # Build config with defaults and categorization
+    config_items = []
+    for row in rows:
+        config_dict = safe_json_serialize(dict(row))
+        key = config_dict['key']
 
-                # Get default value and metadata from AlgoConfig.DEFAULTS
-                if key in AlgoConfig.DEFAULTS:
-                    default_val, _, _ = AlgoConfig.DEFAULTS[key]
-                    config_dict['default_value'] = default_val
-                    config_dict['is_custom'] = str(config_dict['value']).strip() != str(default_val).strip()
-                else:
-                    config_dict['default_value'] = None
-                    config_dict['is_custom'] = True
+        # Get default value and metadata from AlgoConfig.DEFAULTS
+        if key in AlgoConfig.DEFAULTS:
+            default_val, _, _ = AlgoConfig.DEFAULTS[key]
+            config_dict['default_value'] = default_val
+            config_dict['is_custom'] = str(config_dict['value']).strip() != str(default_val).strip()
+        else:
+            config_dict['default_value'] = None
+            config_dict['is_custom'] = True
 
-                # Categorize by key name patterns
-                config_dict['category'] = _categorize_config_key(key)
-                config_items.append(config_dict)
+        # Categorize by key name patterns
+        config_dict['category'] = _categorize_config_key(key)
+        config_items.append(config_dict)
 
-            return list_response(config_items)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch algo config')
+    return list_response(config_items)
+
+@db_route_handler('fetch algo config key', default_error_response={})
 def _get_algo_config_key(cur, key: str) -> Dict:
-        """Return a single algo config key."""
-        try:
-            cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
-            row = cur.fetchone()
-            return json_response(200, safe_json_serialize(dict(row)) if row else {})
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config key'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config key'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch config key')
+    """Return a single algo config key."""
+    cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
+    row = cur.fetchone()
+    return json_response(200, safe_json_serialize(dict(row)) if row else {})
 
 @db_route_handler('update algo config key')
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
@@ -2168,57 +2145,44 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
 
 @db_route_handler('reset algo config key')
 def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
-        """Reset a configuration key to its default value (TIER 5: Reset capability)."""
-        try:
-            from algo.algo_config import AlgoConfig
+    """Reset a configuration key to its default value (TIER 5: Reset capability)."""
+    from algo.algo_config import AlgoConfig
 
-            # Validate the key exists
-            if key not in AlgoConfig.DEFAULTS:
-                return error_response(404, 'not_found', f'Config key not found: {key}')
+    # Validate the key exists
+    if key not in AlgoConfig.DEFAULTS:
+        return error_response(404, 'not_found', f'Config key not found: {key}')
 
-            default_val, _, _ = AlgoConfig.DEFAULTS[key]
+    default_val, _, _ = AlgoConfig.DEFAULTS[key]
 
-            # Get current value for audit
-            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
-            old_row = cur.fetchone()
-            old_value = old_row['value'] if old_row else None
+    # Get current value for audit
+    cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+    old_row = cur.fetchone()
+    old_value = old_row['value'] if old_row else None
 
-            # Reset to default
-            cur.execute("""
-                UPDATE algo_config
-                SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
-                WHERE key = %s
-            """, (default_val, actor, key))
+    # Reset to default
+    cur.execute("""
+        UPDATE algo_config
+        SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+        WHERE key = %s
+    """, (default_val, actor, key))
 
-            # Log to audit trail
-            cur.execute("""
-                INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (key, old_value, default_val, actor))
+    # Log to audit trail
+    cur.execute("""
+        INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+    """, (key, old_value, default_val, actor))
 
-            logger.info(f'[TIER5] Config reset by {actor}: {key} = {default_val} (was {old_value})')
+    logger.info(f'[TIER5] Config reset by {actor}: {key} = {default_val} (was {old_value})')
 
-            return json_response(200, {
-                'status': 'success',
-                'key': key,
-                'old_value': old_value,
-                'new_value': default_val,
-                'reset_to_default': True,
-                'updated_at': datetime.now(timezone.utc).isoformat(),
-                'updated_by': actor,
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'reset algo config key'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'reset algo config key'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'reset algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'reset algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to reset config key')
+    return json_response(200, {
+        'status': 'success',
+        'key': key,
+        'old_value': old_value,
+        'new_value': default_val,
+        'reset_to_default': True,
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+        'updated_by': actor,
+    })
 
 @db_route_handler('get algo audit log')
 def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:

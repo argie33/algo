@@ -42,6 +42,11 @@ from utils.safe_data_conversion import safe_parse_json_or_default
 from algo.algo_signals import SignalComputer
 from utils.validation_integration import validate_phase_results as validate_phase_results_framework
 
+class PhaseResult(TypedDict):
+	"""Normalized phase result with guaranteed schema for orchestrator execution tracking."""
+	name: str
+	status: str
+
 # Configure logging to file instead of stderr to avoid interfering with Rich Live display
 _log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
 logging.basicConfig(
@@ -675,10 +680,25 @@ def q1(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> Opt
     return rows[0] if rows else None
 
 # â”€â”€ API Client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3001")
+# API CLIENT CONFIGURATION
+#
+# The API client is responsible for making HTTP calls to the backend API service.
+# Three endpoints are available with sequential execution:
+# - /api/algo/trades: Get algorithmic trades
+# - /api/algo/sector-position-warnings: Get sector position warnings
+# - /api/algo/circuit-breakers: Get circuit breaker triggers
+#
+# Each endpoint times out after API_TIMEOUT seconds. Sequential execution without
+# async/concurrent handling adds 30s total latency on failures (3 endpoints × 10s).
+# See steering/algo.md for Issue 14 analysis and timeout cascade details.
+#
+API_BASE_URL = os.getenv(“DASHBOARD_API_URL”, “http://localhost:3001”)
+API_RETRY_ATTEMPTS = int(os.getenv(“API_RETRY_ATTEMPTS”, “1”))
+API_RETRY_DELAY = float(os.getenv(“API_RETRY_DELAY”, “0.5”))
+API_CIRCUIT_BREAKER_THRESHOLD = int(os.getenv(“API_CIRCUIT_BREAKER_THRESHOLD”, “5”))
 API_TIMEOUT = 10
 
-def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+def api_call(endpoint: str, params: Optional[Dict] = None, method: str = “GET”) -> Dict:
     """Call API endpoint. Returns dict with 'data' key on success, '_error' on failure.
 
     Properly detects errors in JSON responses (statusCode >= 400) to prevent silent failures.
@@ -2186,9 +2206,25 @@ def fetch_signals(c, cfg=None):
 
 def fetch_computed_signals(c):
     """Compute technical signals (Minervini, Weinstein, VCP) for top BUY symbols."""
+    stale_alerts = []
     try:
         sc = SignalComputer()
         eval_date = date.today()
+
+        # Get latest signal date for freshness check
+        signal_date_row = q1(c, """
+            SELECT MAX(date) as d FROM buy_sell_daily
+            WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')""")
+        signal_date = signal_date_row.get("d") if signal_date_row else None
+
+        # Check freshness of signal data
+        freshness_check = _check_data_freshness({
+            'buy_sell_daily': signal_date,
+            'price_daily': signal_date,
+        })
+        all_critical_fresh, freshness_alerts = freshness_check
+        stale_alerts.extend(freshness_alerts)
+
         buy_sigs = q(c, """
             SELECT b.symbol, COALESCE(b.signal_quality_score, b.entry_quality_score, 0) as quality
             FROM buy_sell_daily b
@@ -2465,9 +2501,10 @@ def fetch_economic_pulse(c):
             logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
 
         # Issue 38 FIX: Include data freshness status
+        # Issue 23 FIX: Use unified timestamp handler to avoid date-datetime type mismatches
         max_date_row = q1(c, "SELECT MAX(date) as max_date FROM economic_data WHERE series_id = ANY(%s)", (KEY,))
         last_update = max_date_row.get('max_date') if max_date_row else None
-        days_stale = (datetime.now(ET).date() - last_update).days if last_update else None
+        days_stale = _days_since_timestamp(last_update)
         data_status = 'current' if days_stale == 0 else ('1day_old' if days_stale == 1 else f'{days_stale}days_old' if days_stale else 'unknown')
 
         # M15 FIX: Track staleness for display
