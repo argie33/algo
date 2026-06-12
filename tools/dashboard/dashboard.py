@@ -691,11 +691,6 @@ def q1(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> Opt
 # Each endpoint times out after API_TIMEOUT seconds. Sequential execution without
 # async/concurrent handling adds 30s total latency on failures (3 endpoints × 10s).
 # See steering/algo.md for Issue 14 analysis and timeout cascade details.
-#
-API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3001")
-API_RETRY_ATTEMPTS = int(os.getenv("API_RETRY_ATTEMPTS", "1"))
-API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "0.5"))
-API_CIRCUIT_BREAKER_THRESHOLD = int(os.getenv("API_CIRCUIT_BREAKER_THRESHOLD", "5"))
 API_TIMEOUT = 10
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
