@@ -449,135 +449,134 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         - Sector allocation for pie chart
         - Ladder percentage points for visualization
         """
-        try:
-            cur.execute("SET LOCAL statement_timeout = '30000ms'")
+        cur.execute("SET LOCAL statement_timeout = '30000ms'")
 
-            cur.execute("""
-                SELECT
-                    symbol,
-                    quantity,
-                    avg_entry_price,
-                    current_price,
-                    position_value,
-                    unrealized_pnl,
-                    unrealized_pnl_pct,
-                    status,
-                    days_since_entry,
-                    stop_loss_price,
-                    target_1_price,
-                    target_2_price,
-                    target_3_price,
-                    target_1_r_multiple,
-                    target_2_r_multiple,
-                    target_3_r_multiple,
-                    sector,
-                    industry,
-                    r_multiple,
-                    initial_risk_per_share,
-                    open_risk_dollars,
-                    distance_to_stop_pct,
-                    distance_to_t1_pct,
-                    distance_to_t2_pct,
-                    distance_to_t3_pct,
-                    minervini_trend_score,
-                    weinstein_stage,
-                    percent_from_52w_low,
-                    percent_from_52w_high,
-                    stage_in_exit_plan
-                FROM algo_positions_with_risk
-                ORDER BY position_value DESC
-            """)
-            positions = cur.fetchall()
+        cur.execute("""
+            SELECT
+            symbol,
+            quantity,
+            avg_entry_price,
+            current_price,
+            position_value,
+            unrealized_pnl,
+            unrealized_pnl_pct,
+            status,
+            days_since_entry,
+            stop_loss_price,
+            target_1_price,
+            target_2_price,
+            target_3_price,
+            target_1_r_multiple,
+            target_2_r_multiple,
+            target_3_r_multiple,
+            sector,
+            industry,
+            r_multiple,
+            initial_risk_per_share,
+            open_risk_dollars,
+            distance_to_stop_pct,
+            distance_to_t1_pct,
+            distance_to_t2_pct,
+            distance_to_t3_pct,
+            minervini_trend_score,
+            weinstein_stage,
+            percent_from_52w_low,
+            percent_from_52w_high,
+            stage_in_exit_plan
+            FROM algo_positions_with_risk
+            ORDER BY position_value DESC
+        """)
+        positions = cur.fetchall()
 
-            items = []
-            sector_risk = {}  # For aggregating sector allocation
+        items = []
+        sector_risk = {}  # For aggregating sector allocation
 
-            for p in positions:
-                d = safe_json_serialize(dict(p))
+        for p in positions:
+            d = safe_json_serialize(dict(p))
 
-                # Compute ladder_pct_* fields for visualization (Issue #2)
-                entry = safe_float(d.get('avg_entry_price'))
-                cur_price = safe_float(d.get('current_price'))
-                stop = safe_float(d.get('stop_loss_price'))
-                t1 = safe_float(d.get('target_1_price'))
-                t2 = safe_float(d.get('target_2_price'))
-                t3 = safe_float(d.get('target_3_price'))
+            # Compute ladder_pct_* fields for visualization (Issue #2)
+            entry = safe_float(d.get('avg_entry_price'))
+            cur_price = safe_float(d.get('current_price'))
+            stop = safe_float(d.get('stop_loss_price'))
+            t1 = safe_float(d.get('target_1_price'))
+            t2 = safe_float(d.get('target_2_price'))
+            t3 = safe_float(d.get('target_3_price'))
 
-                if entry and cur_price and stop:
-                    lo = min(stop, entry, cur_price)
-                    hi = max(t3 or t2 or t1 or entry, cur_price)
-                    span = max(0.0001, hi - lo)
+            if entry and cur_price and stop:
+                lo = min(stop, entry, cur_price)
+                hi = max(t3 or t2 or t1 or entry, cur_price)
+                span = max(0.0001, hi - lo)
 
-                    def pos(price):
-                        return ((price - lo) / span) * 100 if price is not None else None
+                def pos(price):
+                    return ((price - lo) / span) * 100 if price is not None else None
 
-                    d['ladder_pct_stop'] = pos(stop)
-                    d['ladder_pct_entry'] = pos(entry)
-                    d['ladder_pct_current'] = pos(cur_price)
-                    d['ladder_pct_t1'] = pos(t1)
-                    d['ladder_pct_t2'] = pos(t2)
-                    d['ladder_pct_t3'] = pos(t3)
+                d['ladder_pct_stop'] = pos(stop)
+                d['ladder_pct_entry'] = pos(entry)
+                d['ladder_pct_current'] = pos(cur_price)
+                d['ladder_pct_t1'] = pos(t1)
+                d['ladder_pct_t2'] = pos(t2)
+                d['ladder_pct_t3'] = pos(t3)
+            else:
+                d['ladder_pct_stop'] = None
+                d['ladder_pct_entry'] = None
+                d['ladder_pct_current'] = None
+                d['ladder_pct_t1'] = None
+                d['ladder_pct_t2'] = None
+                d['ladder_pct_t3'] = None
+
+            # Compute stage_label for stage distribution (Issue #8)
+            stage = safe_int(d.get('weinstein_stage'))
+            trend_score = safe_float(d.get('minervini_trend_score'))
+            if stage == 2:
+                if trend_score and trend_score < 4:
+                    d['stage_label'] = 'Early Stage-2'
+                elif trend_score and trend_score >= 6:
+                    d['stage_label'] = 'Late Stage-2'
                 else:
-                    d['ladder_pct_stop'] = None
-                    d['ladder_pct_entry'] = None
-                    d['ladder_pct_current'] = None
-                    d['ladder_pct_t1'] = None
-                    d['ladder_pct_t2'] = None
-                    d['ladder_pct_t3'] = None
+                    d['stage_label'] = 'Mid Stage-2'
+            elif stage == 1:
+                d['stage_label'] = 'Stage 1 (base)'
+            elif stage == 3:
+                d['stage_label'] = 'Stage 3 (top)'
+            elif stage == 4:
+                d['stage_label'] = 'Stage 4 (down)'
+            else:
+                d['stage_label'] = 'Unknown'
 
-                # Compute stage_label for stage distribution (Issue #8)
-                stage = safe_int(d.get('weinstein_stage'))
-                trend_score = safe_float(d.get('minervini_trend_score'))
-                if stage == 2:
-                    if trend_score and trend_score < 4:
-                        d['stage_label'] = 'Early Stage-2'
-                    elif trend_score and trend_score >= 6:
-                        d['stage_label'] = 'Late Stage-2'
-                    else:
-                        d['stage_label'] = 'Mid Stage-2'
-                elif stage == 1:
-                    d['stage_label'] = 'Stage 1 (base)'
-                elif stage == 3:
-                    d['stage_label'] = 'Stage 3 (top)'
-                elif stage == 4:
-                    d['stage_label'] = 'Stage 4 (down)'
-                else:
-                    d['stage_label'] = 'Unknown'
+            # Normalize field names for frontend compatibility
+            if 'percent_from_52w_low' in d:
+                d['pct_from_52w_low'] = d.pop('percent_from_52w_low')
+            if 'percent_from_52w_high' in d:
+                d['pct_from_52w_high'] = d.pop('percent_from_52w_high')
 
-                # Normalize field names for frontend compatibility
-                if 'percent_from_52w_low' in d:
-                    d['pct_from_52w_low'] = d.pop('percent_from_52w_low')
-                if 'percent_from_52w_high' in d:
-                    d['pct_from_52w_high'] = d.pop('percent_from_52w_high')
+            items.append(d)
 
-                items.append(d)
-
-                # Accumulate sector allocation for aggregation (Issue #1)
-                sector = d.get('sector', 'Unknown')
-                pos_val = safe_float(d.get('position_value')) or 0
-                if sector not in sector_risk:
-                    sector_risk[sector] = 0
-                sector_risk[sector] += pos_val
+            # Accumulate sector allocation for aggregation (Issue #1)
+            sector = d.get('sector', 'Unknown')
+            pos_val = safe_float(d.get('position_value')) or 0
+            if sector not in sector_risk:
+                sector_risk[sector] = 0
+            sector_risk[sector] += pos_val
 
             # Compute sector_allocation array (Issue #1)
             total_value = sum(sector_risk.values()) or 1
             sector_allocation = [
-                {
-                    'sector': sector,
-                    'allocation_pct': round((value / total_value) * 100, 1),
-                    'pct': round((value / total_value) * 100, 1),
-                    'is_overweight': (value / total_value) * 100 > 30
-                }
-                for sector, value in sorted(sector_risk.items(), key=lambda x: x[1], reverse=True)
+            {
+                'sector': sector,
+                'allocation_pct': round((value / total_value) * 100, 1),
+                'pct': round((value / total_value) * 100, 1),
+                'is_overweight': (value / total_value) * 100 > 30
+            }
+            for sector, value in sorted(sector_risk.items(), key=lambda x: x[1], reverse=True)
             ]
 
             freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
 
             return json_response(200, {
-                'items': items,
-                'sector_allocation': sector_allocation,
-                'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
-                'data_freshness': freshness
+            'items': items,
+            'sector_allocation': sector_allocation,
+            'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
+            'data_freshness': freshness
             })
 
 @db_route_handler('calculate performance', default_error_response={'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0, 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0, 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})

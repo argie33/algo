@@ -887,7 +887,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 'statusCode': 401,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                'body': json.dumps({'error': 'unauthorized', 'message': auth_error})
+                'body': json.dumps({'statusCode': 401, 'errorType': 'unauthorized', 'message': auth_error, '_error': auth_error})
             }
 
         # Skip rate limiting for health check endpoints (required for uptime monitoring)
@@ -914,10 +914,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         cors_headers = get_cors_headers(event)
                         logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
                         log_api_request(event, 413, error_msg='request_entity_too_large')
+                        msg = 'Request body too large'
                         return {
                             'statusCode': 413,
                             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                            'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
+                            'body': json.dumps({'statusCode': 413, 'errorType': 'request_entity_too_large', 'message': msg, '_error': msg})
                         }
                     try:
                         body = json.loads(body_str)
@@ -925,10 +926,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         cors_headers = get_cors_headers(event)
                         logger.warning(f'Failed to parse JSON body: {e}')
                         log_api_request(event, 400, error_msg='invalid_json')
+                        msg = 'Request body must be valid JSON'
                         return {
                             'statusCode': 400,
                             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                            'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
+                            'body': json.dumps({'statusCode': 400, 'errorType': 'invalid_json', 'message': msg, '_error': msg})
                         }
 
                 # O-1: POST /api/logout — revoke current token server-side
@@ -936,10 +938,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     cors_headers = get_cors_headers(event)
                     if not is_authorized or not jwt_claims:
                         log_api_request(event, 401, error_msg='unauthorized')
+                        msg = 'Authentication required'
                         return {
                             'statusCode': 401,
                             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                            'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                            'body': json.dumps({'statusCode': 401, 'errorType': 'unauthorized', 'message': msg, '_error': msg})
                         }
                     jti = jwt_claims.get('jti')
                     exp = jwt_claims.get('exp')
@@ -967,13 +970,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             error_type = categorize_error(e)
             logger.error(f'[HANDLER_ERROR] path={path} error_type={error_type} {error_detail}', exc_info=True)
             # Never expose error details to client (prevents info disclosure)
+            msg = 'Service temporarily unavailable. Please try again later.'
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
-                    'error': 'service_unavailable',
-                    'error_type': error_type,
-                    'message': 'Service temporarily unavailable. Please try again later.'
+                    'statusCode': 503,
+                    'errorType': 'service_unavailable',
+                    'message': msg,
+                    '_error': msg,
+                    'error_type': error_type
                 })
             }
 
@@ -1010,21 +1016,25 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {'statusCode': status, 'headers': headers, 'body': body}
 
         cors_headers = get_cors_headers(event)
+        msg = 'Handler returned invalid response format'
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'invalid_response'})
+            'body': json.dumps({'statusCode': 500, 'errorType': 'invalid_response', 'message': msg, '_error': msg})
         }
 
     except Exception as e:
         error_msg = f'{type(e).__name__}: {str(e)}'
         logger.error(f'[UNHANDLED_ERROR] {error_msg}', exc_info=True)
         cors_headers = get_cors_headers(event)
+        msg = 'An unexpected error occurred'
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({
-                'error': 'internal_server_error',
-                'message': 'An unexpected error occurred'
+                'statusCode': 500,
+                'errorType': 'internal_server_error',
+                'message': msg,
+                '_error': msg
             })
         }

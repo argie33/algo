@@ -117,7 +117,8 @@ if _SKIPPED_ROUTES:
 def _add_cors_headers(response):
     """Add CORS headers to response."""
     if not isinstance(response, dict):
-        response = {"statusCode": 500, "errorType": "internal_error", "message": "Invalid response format"}
+        msg = "Invalid response format"
+        response = {"statusCode": 500, "errorType": "internal_error", "message": msg, "_error": msg}
     if 'headers' not in response:
         response['headers'] = {}
     response['headers']['Access-Control-Allow-Origin'] = '*'
@@ -155,10 +156,12 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
             import_status = get_import_status()
             logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
             # Include diagnostic information for dashboard/clients
+            msg = f"Route handler unavailable: {module_name} module failed to load"
             response = {
                 "statusCode": 503,
                 "errorType": "route_load_error",
-                "message": f"Route handler unavailable: {module_name} module failed to load",
+                "message": msg,
+                "_error": msg,
                 "_diagnostic": {
                     "failed_module": module_name,
                     "module_error": error,
@@ -171,7 +174,8 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
-    return _add_cors_headers({"statusCode": 404, "errorType": "not_found", "message": "Endpoint not found"})
+    msg = "Endpoint not found"
+    return _add_cors_headers({"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg})
 
 
 def get_import_status():
@@ -253,6 +257,7 @@ def _format_handler_error(e):
     Returns specific error type to client for debugging without exposing sensitive details.
     Logs full stack trace server-side for investigation.
     Error types documented in steering/algo.md → Error Handling & Diagnostics section.
+    All errors include _error field for consistent error detection by dashboard.
     """
     error_type = type(e).__name__
     error_msg = str(e)
@@ -260,45 +265,56 @@ def _format_handler_error(e):
     # Map exception types to documented diagnostic error codes
     # Schema errors: missing tables, columns, or migration issues
     if 'UndefinedTable' in error_type or 'UndefinedColumn' in error_type:
-        return {"statusCode": 503, "errorType": "schema_error", "message": "Database schema mismatch or migration issue"}
+        msg = "Database schema mismatch or migration issue"
+        return {"statusCode": 503, "errorType": "schema_error", "message": msg, "_error": msg}
 
     # Connection errors: RDS/proxy unavailable or network issues
     elif 'OperationalError' in error_type or 'Connection' in error_type or 'failed to connect' in error_msg.lower():
-        return {"statusCode": 503, "errorType": "connection_error", "message": "RDS/database connection failed"}
+        msg = "RDS/database connection failed"
+        return {"statusCode": 503, "errorType": "connection_error", "message": msg, "_error": msg}
 
     # Query execution errors: SQL syntax or constraint violations
     elif 'ProgrammingError' in error_type or 'IntegrityError' in error_type or 'statement error' in error_msg.lower():
-        return {"statusCode": 503, "errorType": "query_error", "message": "Database query execution failed"}
+        msg = "Database query execution failed"
+        return {"statusCode": 503, "errorType": "query_error", "message": msg, "_error": msg}
 
     # Auth errors: JWT validation, token expiry, Cognito failures
     elif 'Unauthorized' in error_type or 'Forbidden' in error_type or 'JWT' in error_type or 'token' in error_msg.lower():
-        return {"statusCode": 403, "errorType": "auth_error", "message": "JWT validation or Cognito authorization failed"}
+        msg = "JWT validation or Cognito authorization failed"
+        return {"statusCode": 403, "errorType": "auth_error", "message": msg, "_error": msg}
 
     # Cognito config errors: missing or invalid Cognito environment variables
     elif 'COGNITO_USER_POOL_ID' in error_msg or 'COGNITO_CLIENT_ID' in error_msg or 'cognito.*config' in error_msg.lower():
-        return {"statusCode": 500, "errorType": "cognito_config_error", "message": "Cognito environment variables not configured"}
+        msg = "Cognito environment variables not configured"
+        return {"statusCode": 500, "errorType": "cognito_config_error", "message": msg, "_error": msg}
 
     # Data access errors: code bugs (AttributeError, KeyError, etc.) accessing response fields
     elif 'AttributeError' in error_type or 'KeyError' in error_type or 'IndexError' in error_type:
-        return {"statusCode": 500, "errorType": "data_access_error", "message": "Code bug accessing data fields"}
+        msg = "Code bug accessing data fields"
+        return {"statusCode": 500, "errorType": "data_access_error", "message": msg, "_error": msg}
 
     # No data errors: required data table is empty or missing
     elif 'no.*data' in error_msg.lower() or 'empty' in error_msg.lower() or 'not.*found' in error_msg.lower():
-        return {"statusCode": 500, "errorType": "no_data_error", "message": "Required data table is empty or missing"}
+        msg = "Required data table is empty or missing"
+        return {"statusCode": 500, "errorType": "no_data_error", "message": msg, "_error": msg}
 
     # Data processing errors: generic data transformation/processing failures
     elif 'process' in error_msg.lower() or 'data' in error_msg.lower() or 'ValueError' in error_type or 'TypeError' in error_type:
-        return {"statusCode": 500, "errorType": "data_processing_error", "message": "Generic data processing failure"}
+        msg = "Generic data processing failure"
+        return {"statusCode": 500, "errorType": "data_processing_error", "message": msg, "_error": msg}
 
     # Invalid input: malformed request parameters or body
     elif 'invalid' in error_msg.lower() or 'Bad Request' in error_msg:
-        return {"statusCode": 400, "errorType": "invalid_input", "message": "Client sent invalid query parameters or request body"}
+        msg = "Client sent invalid query parameters or request body"
+        return {"statusCode": 400, "errorType": "invalid_input", "message": msg, "_error": msg}
 
     # Request timeouts
     elif 'Timeout' in error_type or 'timeout' in error_msg.lower():
-        return {"statusCode": 504, "errorType": "timeout", "message": "Request exceeded statement_timeout"}
+        msg = "Request exceeded statement_timeout"
+        return {"statusCode": 504, "errorType": "timeout", "message": msg, "_error": msg}
 
     else:
         # Generic internal error for unknown exceptions (log type for debugging)
         logger.error(f"Unclassified error type '{error_type}': {error_msg}")
-        return {"statusCode": 500, "errorType": "data_processing_error", "message": "Service error"}
+        msg = "Service error"
+        return {"statusCode": 500, "errorType": "data_processing_error", "message": msg, "_error": msg}
