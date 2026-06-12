@@ -2180,6 +2180,15 @@ def fetch_signals(c, cfg=None):
         d_grade = grades.get('d')
         logger.debug(f"Grade distribution from pre-computed table: A={a_grade} B={b_grade} C={c_grade} D={d_grade}")
 
+        # Unified freshness check for signal tables
+        freshness_check = _check_data_freshness({
+            'buy_sell_daily': signal_date,
+            'swing_trader_scores': signal_date,  # Uses same date as buy_sell_daily
+            'grade_distribution_daily': grades_date,
+        })
+        all_critical_fresh, freshness_alerts = freshness_check
+        stale_alerts.extend(freshness_alerts)
+
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
         # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
         near_lower = max(0, min_score - 15)
@@ -2659,9 +2668,16 @@ def fetch_risk_metrics(c) -> dict:
             stale_alerts.append("Risk metrics not yet computed")
             return {"_has_data": False, "stale_alerts": stale_alerts}
 
-        # Issue 18 FIX: Check freshness but still return stale data with warning
+        # Unified freshness check using centralized rules
+        report_date = row.get('report_date')
+        is_fresh_check, _, freshness_msg = is_table_fresh('algo_risk_daily', report_date)
+        is_fresh = is_fresh_check
+        if not is_fresh:
+            logger.warning(f"fetch_risk_metrics: {freshness_msg}")
+            stale_alerts.append(freshness_msg)
+
+        # Also check calculation recency (how recently the metrics were computed)
         age_minutes = None
-        is_fresh = False
         if row and row.get('updated_at'):
             try:
                 if isinstance(row['updated_at'], datetime):
@@ -2671,11 +2687,11 @@ def fetch_risk_metrics(c) -> dict:
                 if update_time.tzinfo is None:
                     update_time = update_time.replace(tzinfo=timezone.utc)
                 age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
-                is_fresh = age_minutes < METRICS_CALCULATION_MAX_AGE_MINUTES  # Metric calculation must be recent
-                if age_minutes > 120:
-                    logger.warning(f"fetch_risk_metrics: table data {age_minutes:.0f}m old (stale); will return with warning flag")
+                if age_minutes > METRICS_CALCULATION_MAX_AGE_MINUTES:
+                    logger.warning(f"fetch_risk_metrics: calculation {age_minutes:.0f}m old (stale); will return with warning flag")
+                    stale_alerts.append(f"Metrics calculated {age_minutes:.0f}m ago")
             except (ValueError, TypeError):
-                is_fresh = row is not None
+                pass
 
         # M6 FIX: Add calculation status to indicate data quality
         var95_val = row.get("var_pct_95")
@@ -3165,7 +3181,75 @@ FETCHERS = {
     "audit":        fetch_audit_log,
     "exec_hist":    fetch_exec_history,
     "sec_warn":       fetch_sector_position_warnings,
+
+# ISSUE 12 FIX: Document fetcher dependencies explicitly
+# Each fetcher can depend on others being loaded first. Format: "key": ["dependency1", "dependency2", ...]
+# This enables staged loading (cfg → sig, then independent batches) and prevents thread pool exhaustion.
+# When adding new fetchers, declare any data dependencies here.
+FETCHER_DEPENDENCIES = {
+    # Stage 1 (no dependencies): runs first, loads foundational config
+    "cfg": [],
+
+    # Stage 2 (depends on cfg): uses config values
+    "sig": ["cfg"],
+
+    # Stage 3+ (independent): all others can run in parallel
+    "run": [],
+    "mkt": [],
+    "port": [],
+    "perf": [],
+    "pos": [],
+    "trades": [],
+    "comp_sig": [],
+    "health": [],
+    "cb": [],
+    "srank": [],
+    "activity": [],
+    "exp_factors": [],
+    "eco": [],
+    "notifs": [],
+    "sentiment": [],
+    "econ_cal": [],
+    "risk": [],
+    "perf_anl": [],
+    "sig_eval": [],
+    "sec_rot": [],
+    "algo_metrics": [],
+    "irank": [],
+    "loader": [],
+    "audit": [],
+    "exec_hist": [],
+    "sec_warn": [],
 }
+
+def _build_loading_stages() -> list[list[str]]:
+    """Build load stages from dependency graph using topological sort.
+
+    Returns list of stages: [[independent], [dependent on stage 0], ...]
+    Each stage contains fetchers that can run in parallel.
+    Enforces that all dependencies are loaded before their dependents.
+    """
+    stages = []
+    loaded = set()
+    remaining = set(FETCHER_DEPENDENCIES.keys())
+
+    while remaining:
+        # Find all fetchers whose dependencies are satisfied
+        current_stage = []
+        for key in sorted(remaining):  # Sort for deterministic order
+            deps = FETCHER_DEPENDENCIES.get(key, [])
+            if all(dep in loaded for dep in deps):
+                current_stage.append(key)
+
+        if not current_stage:
+            # Circular dependency or missing dependency detected
+            raise RuntimeError(f"Circular dependency or missing fetcher in FETCHER_DEPENDENCIES: {remaining}")
+
+        stages.append(current_stage)
+        loaded.update(current_stage)
+        remaining -= set(current_stage)
+
+    return stages
 
 def load_all() -> dict:
     global _config_mgr
@@ -3228,46 +3312,66 @@ def load_all() -> dict:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-    # Issue 15 FIX: Increase thread pool workers from 4 to better utilize CPU cores while respecting RDS limits
-    # With 27 fetchers: 8 workers means only 3-4 fetchers queue per batch, avoiding timeout cascades
-    # RDS connection pool typically 10-20 connections; fetchers hold conn 1-5s, so 8 workers is safe
-    # Issue 16 FIX: Use per-batch timeout instead of global timeout to prevent cascading failures
+    # ISSUE 12 FIX: Use dependency-aware staged loading instead of loading all fetchers in parallel.
+    # This enforces dependencies (cfg before sig), prevents thread pool exhaustion,
+    # and makes it possible to implement future loading strategies.
+    try:
+        loading_stages = _build_loading_stages()
+    except RuntimeError as e:
+        logger.error(f"Failed to build loading stages: {e}")
+        return {"_error": str(e)}
+
+    logger.debug(f"Fetcher loading stages: {loading_stages}")
+
     import os
     cpu_count = os.cpu_count() or 4
-    max_workers = min(len(FETCHERS), max(cpu_count - 1, 6))  # Use most CPUs, minimum 6 workers
+    max_workers = min(len(FETCHERS), max(cpu_count - 1, 6))
     logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers on {cpu_count} CPUs")
 
-    # Per-batch timeout: with 8 workers and 27 fetchers, ~4 batches of ~25s each = 100s total
-    # ISSUE 31 FIX: Increased timeout to 100s to handle network latency and RDS connection pool contention
-    # Each fetcher takes 1-5s; with 8 workers and 27 fetchers, worst-case is ~27/8 * 5s = ~17s, but
-    # including pool acquisition delays, network jitter, and query compilation, allow 100s total
     BATCH_TIMEOUT = 100
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
-        try:
-            for f in as_completed(future_to_key, timeout=BATCH_TIMEOUT):
-                try:
-                    n, d = f.result()
-                    out[n] = d
-                except Exception as e:
-                    logger.error(f"Thread exception in load_all: {type(e).__name__}: {e}")
-                    k = future_to_key[f]
-                    out[k] = {"_error": str(e)}
-        except TimeoutError:
-            elapsed = time.time() - load_start
-            msg = f"load_all batch timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) â€” some fetchers incomplete"
-            logger.error(msg)
-            # Issue 21 FIX: Mark timed-out fetchers and track which are still running
-            completed_count = sum(1 for f in future_to_key if f.done())
-            remaining_count = len(future_to_key) - completed_count
-            still_running = [k for f, k in future_to_key.items() if not f.done()]
-            logger.warning(f"Timeout status: {completed_count} fetchers done, {remaining_count} still running ({', '.join(still_running[:5])}{'...' if remaining_count > 5 else ''})")
-            # Mark remaining incomplete fetchers; this is now rare with improved pool sizing
-            for f, k in future_to_key.items():
-                if not f.done():
-                    logger.warning(f"Fetcher {k} timed out â€” marking incomplete")
-                    f.cancel()
-                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
+    cfg_data = {}
+
+    # Load in stages: cfg first, then sig (which depends on cfg), then all independent fetchers
+    for stage_idx, stage_fetchers in enumerate(loading_stages):
+        logger.debug(f"Loading stage {stage_idx + 1}/{len(loading_stages)}: {stage_fetchers}")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            # Submit all fetchers in this stage
+            futures = {}
+            for key in stage_fetchers:
+                fn = FETCHERS[key]
+                futures[pool.submit(one, key, fn, cfg_data)] = key
+
+            try:
+                for f in as_completed(futures, timeout=BATCH_TIMEOUT):
+                    try:
+                        n, d = f.result()
+                        out[n] = d
+                        # Capture cfg_data for use in dependent fetchers
+                        if n == "cfg" and isinstance(d, dict) and not d.get("_error"):
+                            cfg_data = d
+                    except Exception as e:
+                        logger.error(f"Thread exception in load_all: {type(e).__name__}: {e}")
+                        k = futures[f]
+                        out[k] = {"_error": str(e)}
+            except TimeoutError:
+                elapsed = time.time() - load_start
+                msg = f"load_all stage {stage_idx + 1} timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) – some fetchers incomplete"
+                logger.error(msg)
+                # Issue 21 FIX: Mark timed-out fetchers and track which are still running
+                completed_count = sum(1 for f in futures if f.done())
+                remaining_count = len(futures) - completed_count
+                still_running = [k for f, k in futures.items() if not f.done()]
+                logger.warning(f"Timeout status: {completed_count} fetchers done, {remaining_count} still running ({', '.join(still_running[:5])}{'...' if remaining_count > 5 else ''})")
+                # Mark remaining incomplete fetchers
+                for f, k in futures.items():
+                    if not f.done():
+                        logger.warning(f"Fetcher {k} timed out – marking incomplete")
+                        f.cancel()
+                        out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
+
+    # ARCHITECTURE FIX (C3-1): Initialize centralized ConfigManager once (replaces fragmented load_*_thresholds functions)
+    _config_mgr = ConfigManager(cfg_data)
 
     # H14 FIX: Check cumulative failure threshold â€” determine if dashboard should fail or show degraded
     # Define critical fetchers: dashboard cannot operate without these
@@ -4253,7 +4357,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     top_a = sig.get("top_a")
     near  = sig.get("near")
     # M1 FIX: Load grade thresholds from config for dynamic score color coding
-    grade_thresholds = get_grade_thresholds(cfg)
+    grade_thresholds = _config_mgr.grade_colors if _config_mgr else {'a_plus': 90.0, 'a': 80.0, 'b': 70.0, 'c': 60.0}
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
@@ -4272,7 +4376,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         return t[:12]
 
     # â”€â”€ Row 1: count  Â·  7-day sparkline  Â·  grade pool  Â·  date â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    ui_cfg = load_ui_display_thresholds()
+    ui_cfg = _config_mgr.ui if _config_mgr else {}
     buy_c = G if raw >= ui_cfg['buy_signal_count_good'] else (Y if raw >= ui_cfg['buy_signal_count_caution'] else (DIM if total == 0 else R))
     trend = sig.get("trend")
     spark_s = ""
@@ -4326,7 +4430,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         ev_t1  = sig_eval.get("t1", 0)
         ev_t5  = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)
-        sig_cfg = load_signal_thresholds(cfg)
+        sig_cfg = _config_mgr.signal if _config_mgr else {}
         ev_c   = G if ev_t5 >= sig_cfg['event_value_good'] else (Y if ev_t5 >= sig_cfg['event_value_caution'] else R)
         rejected   = sig_eval.get("rejected")
         block_parts = ["  ".join(
@@ -4343,7 +4447,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
 
     # â”€â”€ Signal table (Rich Table for proper column alignment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     buy_sigs = sig.get("buy_sigs")
-    sig_thr = load_signal_thresholds(cfg)
+    sig_thr = _config_mgr.signal if _config_mgr else {}
     if buy_sigs:
         t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
                   padding=(0, 1), expand=True, row_styles=["", "dim"])
@@ -4525,7 +4629,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength is not None and strength > 1:
             strength = strength / 100.0
-        sig_cfg = load_signal_thresholds(cfg)
+        sig_cfg = _config_mgr.signal if _config_mgr else {}
         sig_c = R if def_s is not None and def_s >= sig_cfg.get('signal_alert') else (Y if def_s is not None and def_s >= sig_cfg.get('signal_caution') else G)
         scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if (def_s is not None or cyc_s is not None) else ""
         str_s    = f" [dim]strength:{strength:.0%}[/]" if strength is not None else ""
@@ -5755,7 +5859,7 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
 
     rows.append(Rule(style="dim"))
     buy_sigs = sig.get("buy_sigs")
-    sig_thr = load_signal_thresholds(cfg)
+    sig_thr = _config_mgr.signal if _config_mgr else {}
     if buy_sigs:
         rows.append(Text.from_markup(
             "[dim]sym    stg  type           Q    R:R  vol%    entry    stop   RS  bk-qual   base[/]"
@@ -6049,7 +6153,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength > 1:
             strength = strength / 100.0
-        sig_cfg = load_signal_thresholds(cfg)
+        sig_cfg = _config_mgr.signal if _config_mgr else {}
         sig_c    = R if def_s >= sig_cfg.get('signal_alert') else (Y if def_s >= sig_cfg.get('signal_caution') else G)
         rows.append(Text.from_markup(
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "

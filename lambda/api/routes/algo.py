@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from pathlib import Path
 from routes.utils import (
     error_response, success_response, list_response, json_response,
-    safe_limit, safe_days, safe_offset, handle_db_error,
+    safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
     check_data_freshness, safe_json_serialize
 )
 
@@ -315,148 +315,130 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
+@db_route_handler('get last run')
 def _get_last_run(cur) -> Dict:
     """Get the most recent orchestrator run with per-phase status."""
-    try:
-        cur.execute("""
-            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-            FROM algo_audit_log
-            WHERE details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id'
-            ORDER BY MAX(created_at) DESC
-            LIMIT 1
-        """)
-        latest = cur.fetchone()
-        if not latest or not latest['run_id']:
-            return json_response(200, {'run_id': None, 'run_at': None, 'halted': False, 'phases': []})
+    cur.execute("""
+        SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
+        FROM algo_audit_log
+        WHERE details->>'run_id' IS NOT NULL
+        GROUP BY details->>'run_id'
+        ORDER BY MAX(created_at) DESC
+        LIMIT 1
+    """)
+    latest = cur.fetchone()
+    if not latest or not latest['run_id']:
+        return json_response(200, {'run_id': None, 'run_at': None, 'halted': False, 'phases': []})
 
-        run_id = latest['run_id']
-        run_at = latest['run_at']
+    run_id = latest['run_id']
+    run_at = latest['run_at']
 
-        cur.execute("""
-            SELECT action_type, status, action_date, created_at,
-                   details->>'summary' AS summary,
-                   error_message AS error
-            FROM algo_audit_log
-            WHERE details->>'run_id' = %s
-            ORDER BY created_at ASC
-        """, (run_id,))
-        phases = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+    cur.execute("""
+        SELECT action_type, status, action_date, created_at,
+               details->>'summary' AS summary,
+               error_message AS error
+        FROM algo_audit_log
+        WHERE details->>'run_id' = %s
+        ORDER BY created_at ASC
+    """, (run_id,))
+    phases = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
 
-        halted = any(p.get('status') == 'halt' for p in phases)
-        errored = any(p.get('status') == 'error' for p in phases)
-        success = len(phases) > 0 and not errored
+    halted = any(p.get('status') == 'halt' for p in phases)
+    errored = any(p.get('status') == 'error' for p in phases)
+    success = len(phases) > 0 and not errored
 
-        return json_response(200, {
-            'run_id': run_id,
-            'run_at': run_at.isoformat() if run_at else None,
-            'success': success,
-            'halted': halted,
-            'phases': phases,
-        })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'get last run')
-        logger.error(f'Failed to fetch last run: {error_type} - {message}')
-        return json_response(code, {'errorType': error_type, 'message': message})
+    return json_response(200, {
+        'run_id': run_id,
+        'run_at': run_at.isoformat() if run_at else None,
+        'success': success,
+        'halted': halted,
+        'phases': phases,
+    })
 
+@db_route_handler('fetch algo status', default_error_response={'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
+        cur.execute("""
+            SELECT
+                details->>'run_id' AS run_id,
+                action_type,
+                action_date,
+                details->>'summary' AS message,
+                status,
+                created_at
+            FROM algo_audit_log
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
+
+        portfolio = {}
         try:
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
+            cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute("""
-                SELECT
-                    details->>'run_id' AS run_id,
-                    action_type,
-                    action_date,
-                    details->>'summary' AS message,
-                    status,
-                    created_at
-                FROM algo_audit_log
-                ORDER BY created_at DESC
-                LIMIT 1
+                SELECT total_portfolio_value, daily_return_pct,
+                       unrealized_pnl_total, position_count
+                FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1
             """)
-            row = cur.fetchone()
-            if not row:
-                return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
-
-            portfolio = {}
-            try:
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
-                    SELECT total_portfolio_value, daily_return_pct,
-                           unrealized_pnl_total, position_count
-                    FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1
-                """)
-                snap = cur.fetchone()
-                if snap:
-                    pv = safe_float(snap[0])
-                    portfolio = {
-                        'total_value': round(pv, 2),
-                        'daily_return_pct': round(safe_float(snap[1]), 2),
-                        'unrealized_pnl_pct': round((safe_float(snap[2]) / pv * 100) if pv > 0 else 0, 2),
-                        'open_positions': safe_int(snap[3]),
-                    }
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                logger.warning(f"[STATUS] Portfolio snapshot unavailable: {type(e).__name__}: {e}")
-
-            freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
-            return json_response(200, {
-                'run_id': row['run_id'],
-                'last_run': row['action_date'].isoformat() if row['action_date'] else None,
-                'current_phase': row['action_type'],
-                'status': row['status'],
-                'message': row['message'],
-                'portfolio': portfolio,
-                'data_freshness': freshness,
-            })
+            snap = cur.fetchone()
+            if snap:
+                pv = safe_float(snap[0])
+                portfolio = {
+                    'total_value': round(pv, 2),
+                    'daily_return_pct': round(safe_float(snap[1]), 2),
+                    'unrealized_pnl_pct': round((safe_float(snap[2]) / pv * 100) if pv > 0 else 0, 2),
+                    'open_positions': safe_int(snap[3]),
+                }
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch algo status')
-            logger.error(f'Failed to fetch algo status: {error_type} - {message}')
-            return json_response(200, {'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
+            logger.warning(f"[STATUS] Portfolio snapshot unavailable: {type(e).__name__}: {e}")
 
+        freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
+        return json_response(200, {
+            'run_id': row['run_id'],
+            'last_run': row['action_date'].isoformat() if row['action_date'] else None,
+            'current_phase': row['action_type'],
+            'status': row['status'],
+            'message': row['message'],
+            'portfolio': portfolio,
+            'data_freshness': freshness,
+        })
+
+@db_route_handler('fetch algo trades', default_error_response={'items': [], 'pagination': {'total': 0, 'limit': 200, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
         """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
-        try:
-            if user_id:
-                where_clause = "WHERE cognito_sub = %s"
-                params = (user_id, limit)
-            else:
-                where_clause = ""
-                params = (limit,)
+        if user_id:
+            where_clause = "WHERE cognito_sub = %s"
+            params = (user_id, limit)
+        else:
+            where_clause = ""
+            params = (limit,)
 
-            cur.execute(f"""
-                SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
-                       entry_quantity, entry_reason, exit_price, exit_date, exit_time,
-                       exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
-                       status, swing_score, swing_grade, base_type, stage_phase,
-                       trade_duration_days, mfe_pct, mae_pct, created_at
-                FROM algo_trades
-                {where_clause}
-                ORDER BY trade_date DESC, trade_id DESC
-                LIMIT %s
-            """, params)
-            trades = cur.fetchall()
-            items = [safe_json_serialize(dict(t)) for t in trades]
-            freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-            return json_response(200, {
-                'items': items,
-                'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
-                'data_freshness': freshness
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch algo trades')
-            logger.error(f'Failed to fetch algo trades: {error_type} - {message}')
-            return json_response(200, {
-                'items': [],
-                'pagination': {'total': 0, 'limit': limit, 'offset': 0},
-                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
-            })
+        cur.execute(f"""
+            SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
+                   entry_quantity, entry_reason, exit_price, exit_date, exit_time,
+                   exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
+                   status, swing_score, swing_grade, base_type, stage_phase,
+                   trade_duration_days, mfe_pct, mae_pct, created_at
+            FROM algo_trades
+            {where_clause}
+            ORDER BY trade_date DESC, trade_id DESC
+            LIMIT %s
+        """, params)
+        trades = cur.fetchall()
+        items = [safe_json_serialize(dict(t)) for t in trades]
+        freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
+        return json_response(200, {
+            'items': items,
+            'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
+            'data_freshness': freshness
+        })
 
+@db_route_handler('fetch algo positions', default_error_response={'items': [], 'sector_allocation': [], 'pagination': {'total': 0, 'limit': 10000, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
         """Get current open positions with computed fields.
 
@@ -597,92 +579,71 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
                 'data_freshness': freshness
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            import traceback
-            code, error_type, message = handle_db_error(e, 'fetch algo positions')
-            logger.error(f'Failed to fetch algo positions: {error_type} - {message}')
-            logger.error(f'Full traceback: {traceback.format_exc()}')
-            return json_response(200, {
-                'items': [],
-                'sector_allocation': [],
-                'pagination': {'total': 0, 'limit': 10000, 'offset': 0},
-                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
-            })
 
+@db_route_handler('calculate performance', default_error_response={'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0, 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0, 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics using unified fetcher.
 
         ARCHITECTURE FIX: Uses unified AlgoMetricsFetcher to ensure performance metrics
         and positions use identical data sources. Eliminates redundant metric calculations.
         """
-        try:
-            fetcher = AlgoMetricsFetcher(cur)
-            perf = fetcher.fetch_performance_metrics()
+        fetcher = AlgoMetricsFetcher(cur)
+        perf = fetcher.fetch_performance_metrics()
 
-            if "_error" in perf:
-                logger.error(f"Performance metrics fetch failed: {perf['_error']}")
-                return json_response(200, {
-                    'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
-                    'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
-                    'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
-                    'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
-                })
-
-            # Wrap fetched data in response format expected by frontend
-            result = {
-                'total_trades': perf.get('total_trades', 0),
-                'winning_trades': perf.get('winning_trades', 0),
-                'losing_trades': perf.get('losing_trades', 0),
-                'breakeven_trades': perf.get('breakeven_trades', 0),
-                'win_rate': perf.get('win_rate_pct', 0.0),
-                'win_rate_pct': perf.get('win_rate_pct', 0.0),
-                'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
-                'profit_factor': perf.get('profit_factor', 0.0),
-                'total_pnl_dollars': perf.get('total_pnl_dollars', 0.0),
-                'total_pnl_pct': perf.get('total_pnl_pct', 0.0),
-                'total_return_pct': perf.get('total_return_pct'),
-                'avg_trade_pct': perf.get('avg_win_pct', 0.0),  # Placeholder
-                'avg_win_pct': perf.get('avg_win_pct', 0.0),
-                'avg_loss_pct': perf.get('avg_loss_pct', 0.0),
-                'best_trade_pct': perf.get('best_trade_pct', 0.0),
-                'worst_trade_pct': perf.get('worst_trade_pct', 0.0),
-                'sharpe_annualized': perf.get('sharpe_ratio', 0.0),
-                'sharpe_ratio': perf.get('sharpe_ratio', 0.0),
-                'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
-                'sortino_annualized': perf.get('sortino_ratio', 0.0),
-                'sortino_ratio': perf.get('sortino_ratio', 0.0),
-                'max_drawdown_pct': perf.get('max_drawdown_pct', 0.0),
-                'expectancy_r': perf.get('expectancy_r', 0.0),
-                'avg_hold_days': perf.get('avg_holding_days', 0.0),
-                'avg_holding_days': perf.get('avg_holding_days', 0.0),
-                'portfolio_snapshots': perf.get('portfolio_snapshots', 0),
-                'best_win_streak': perf.get('best_win_streak', 0),
-                'worst_loss_streak': perf.get('worst_loss_streak', 0),
-                'current_streak': perf.get('current_streak', 0),
-                'gross_win_dollars': 0.0,  # Fetcher doesn't compute these
-                'gross_loss_dollars': 0.0,
-                'data_freshness': {},
-                'confidence_metadata': {
-                    'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
-                    'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
-                    'return_confidence': 'low',
-                    'snapshot_count': perf.get('portfolio_snapshots', 0),
-                    'total_trades': perf.get('total_trades', 0),
-                }
-            }
-            return json_response(200, result)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'calculate performance')
-            logger.error(f'Failed to calculate performance: {error_type} - {message}')
+        if "_error" in perf:
+            logger.error(f"Performance metrics fetch failed: {perf['_error']}")
             return json_response(200, {
                 'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
                 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
                 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
-                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
             })
 
+        # Wrap fetched data in response format expected by frontend
+        result = {
+            'total_trades': perf.get('total_trades', 0),
+            'winning_trades': perf.get('winning_trades', 0),
+            'losing_trades': perf.get('losing_trades', 0),
+            'breakeven_trades': perf.get('breakeven_trades', 0),
+            'win_rate': perf.get('win_rate_pct', 0.0),
+            'win_rate_pct': perf.get('win_rate_pct', 0.0),
+            'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
+            'profit_factor': perf.get('profit_factor', 0.0),
+            'total_pnl_dollars': perf.get('total_pnl_dollars', 0.0),
+            'total_pnl_pct': perf.get('total_pnl_pct', 0.0),
+            'total_return_pct': perf.get('total_return_pct'),
+            'avg_trade_pct': perf.get('avg_win_pct', 0.0),  # Placeholder
+            'avg_win_pct': perf.get('avg_win_pct', 0.0),
+            'avg_loss_pct': perf.get('avg_loss_pct', 0.0),
+            'best_trade_pct': perf.get('best_trade_pct', 0.0),
+            'worst_trade_pct': perf.get('worst_trade_pct', 0.0),
+            'sharpe_annualized': perf.get('sharpe_ratio', 0.0),
+            'sharpe_ratio': perf.get('sharpe_ratio', 0.0),
+            'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
+            'sortino_annualized': perf.get('sortino_ratio', 0.0),
+            'sortino_ratio': perf.get('sortino_ratio', 0.0),
+            'max_drawdown_pct': perf.get('max_drawdown_pct', 0.0),
+            'expectancy_r': perf.get('expectancy_r', 0.0),
+            'avg_hold_days': perf.get('avg_holding_days', 0.0),
+            'avg_holding_days': perf.get('avg_holding_days', 0.0),
+            'portfolio_snapshots': perf.get('portfolio_snapshots', 0),
+            'best_win_streak': perf.get('best_win_streak', 0),
+            'worst_loss_streak': perf.get('worst_loss_streak', 0),
+            'current_streak': perf.get('current_streak', 0),
+            'gross_win_dollars': 0.0,  # Fetcher doesn't compute these
+            'gross_loss_dollars': 0.0,
+            'data_freshness': {},
+            'confidence_metadata': {
+                'sharpe_confidence': perf.get('sharpe_confidence', 'low'),
+                'win_rate_confidence': perf.get('win_rate_confidence', 'low'),
+                'return_confidence': 'low',
+                'snapshot_count': perf.get('portfolio_snapshots', 0),
+                'total_trades': perf.get('total_trades', 0),
+            }
+        }
+        return json_response(200, result)
+
+@db_route_handler('fetch circuit breakers', default_error_response={'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_circuit_breakers(cur) -> Dict:
         """Get real-time circuit breaker state with current values vs thresholds."""
         try:
@@ -917,11 +878,6 @@ def _get_circuit_breakers(cur) -> Dict:
             triggered_count = sum(1 for b in breakers if b['triggered'])
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
             return json_response(200, {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness})
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch circuit breakers')
-            logger.error(f'Failed to fetch circuit breakers: {error_type} - {message}')
-            return json_response(200, {'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 
 def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
@@ -1235,110 +1191,102 @@ def _trigger_data_patrol() -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'trigger data patrol', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to trigger data patrol')
+@db_route_handler('get patrol log')
 def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
-        try:
-            cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
-            row = cur.fetchone()
-            total = row['total'] if row else 0
+        cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
+        row = cur.fetchone()
+        total = row['total'] if row else 0
 
-            cur.execute("""
-                SELECT created_at, check_name, severity, target_table, message, patrol_run_id
-                FROM data_patrol_log
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """, (limit, offset))
-            findings = cur.fetchall()
-            return list_response([safe_json_serialize(dict(f)) for f in findings], total=total)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch patrol log: {type(e).__name__}: {str(e)}', extra={'operation': 'get patrol log'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch patrol log: {type(e).__name__}')
+        cur.execute("""
+            SELECT created_at, check_name, severity, target_table, message, patrol_run_id
+            FROM data_patrol_log
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+        findings = cur.fetchall()
+        return list_response([safe_json_serialize(dict(f)) for f in findings], total=total)
+@db_route_handler('get sector rotation')
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
-        try:
-            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
-            cur.execute("""
-                WITH defensive_sectors AS (
-                    SELECT 'Consumer Defensive' AS sector UNION ALL
-                    SELECT 'Utilities' UNION ALL
-                    SELECT 'Healthcare' UNION ALL
-                    SELECT 'Real Estate'
-                ),
-                cyclical_sectors AS (
-                    SELECT 'Consumer Cyclical' AS sector UNION ALL
-                    SELECT 'Industrials' UNION ALL
-                    SELECT 'Basic Materials' UNION ALL
-                    SELECT 'Technology'
-                ),
-                sector_perf AS (
-                    SELECT
-                        date,
-                        sector,
-                        COALESCE(return_pct, 0) AS return_pct,
-                        COALESCE(relative_strength, 0) AS relative_strength
-                    FROM sector_performance
-                    WHERE date >= %s
-                ),
-                rotation_stats AS (
-                    SELECT
-                        sp.date,
-                        AVG(CASE WHEN d.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS defensive_return,
-                        AVG(CASE WHEN c.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS cyclical_return,
-                        AVG(CASE WHEN d.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS defensive_strength,
-                        AVG(CASE WHEN c.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS cyclical_strength
-                    FROM sector_perf sp
-                    LEFT JOIN defensive_sectors d ON sp.sector = d.sector
-                    LEFT JOIN cyclical_sectors c ON sp.sector = c.sector
-                    WHERE d.sector IS NOT NULL OR c.sector IS NOT NULL
-                    GROUP BY sp.date
-                ),
-                rotation_with_signal AS (
-                    SELECT
-                        date,
-                        defensive_strength,
-                        cyclical_strength,
-                        CASE
-                            WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE'
-                            WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL'
-                            ELSE 'NEUTRAL'
-                        END AS signal
-                    FROM rotation_stats
-                ),
-                signal_changes AS (
-                    SELECT
-                        date,
-                        defensive_strength,
-                        cyclical_strength,
-                        signal,
-                        CASE WHEN signal != LAG(signal) OVER (ORDER BY date DESC) THEN 1 ELSE 0 END AS is_signal_change
-                    FROM rotation_with_signal
-                ),
-                signal_groups AS (
-                    SELECT
-                        date,
-                        defensive_strength,
-                        cyclical_strength,
-                        signal,
-                        SUM(is_signal_change) OVER (ORDER BY date DESC) AS signal_group_id
-                    FROM signal_changes
-                )
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+        cur.execute("""
+            WITH defensive_sectors AS (
+                SELECT 'Consumer Defensive' AS sector UNION ALL
+                SELECT 'Utilities' UNION ALL
+                SELECT 'Healthcare' UNION ALL
+                SELECT 'Real Estate'
+            ),
+            cyclical_sectors AS (
+                SELECT 'Consumer Cyclical' AS sector UNION ALL
+                SELECT 'Industrials' UNION ALL
+                SELECT 'Basic Materials' UNION ALL
+                SELECT 'Technology'
+            ),
+            sector_perf AS (
                 SELECT
                     date,
-                    ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
-                    ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
-                    ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
+                    sector,
+                    COALESCE(return_pct, 0) AS return_pct,
+                    COALESCE(relative_strength, 0) AS relative_strength
+                FROM sector_performance
+                WHERE date >= %s
+            ),
+            rotation_stats AS (
+                SELECT
+                    sp.date,
+                    AVG(CASE WHEN d.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS defensive_return,
+                    AVG(CASE WHEN c.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS cyclical_return,
+                    AVG(CASE WHEN d.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS defensive_strength,
+                    AVG(CASE WHEN c.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS cyclical_strength
+                FROM sector_perf sp
+                LEFT JOIN defensive_sectors d ON sp.sector = d.sector
+                LEFT JOIN cyclical_sectors c ON sp.sector = c.sector
+                WHERE d.sector IS NOT NULL OR c.sector IS NOT NULL
+                GROUP BY sp.date
+            ),
+            rotation_with_signal AS (
+                SELECT
+                    date,
+                    defensive_strength,
+                    cyclical_strength,
+                    CASE
+                        WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE'
+                        WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL'
+                        ELSE 'NEUTRAL'
+                    END AS signal
+                FROM rotation_stats
+            ),
+            signal_changes AS (
+                SELECT
+                    date,
+                    defensive_strength,
+                    cyclical_strength,
                     signal,
-                    ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent
-                FROM signal_groups
-                ORDER BY date DESC
-            """, (cutoff_date,))
-            rotation = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rotation])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch sector rotation: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector rotation'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch sector rotation: {type(e).__name__}')
+                    CASE WHEN signal != LAG(signal) OVER (ORDER BY date DESC) THEN 1 ELSE 0 END AS is_signal_change
+                FROM rotation_with_signal
+            ),
+            signal_groups AS (
+                SELECT
+                    date,
+                    defensive_strength,
+                    cyclical_strength,
+                    signal,
+                    SUM(is_signal_change) OVER (ORDER BY date DESC) AS signal_group_id
+                FROM signal_changes
+            )
+            SELECT
+                date,
+                ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
+                ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
+                ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
+                signal,
+                ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent
+            FROM signal_groups
+            ORDER BY date DESC
+        """, (cutoff_date,))
+        rotation = cur.fetchall()
+        return list_response([safe_json_serialize(dict(r)) for r in rotation])
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -2159,77 +2107,66 @@ def _get_algo_config_key(cur, key: str) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch config key')
 
+@db_route_handler('update algo config key')
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         """Update a configuration key (TIER 4: Configuration Editing)."""
+        from algo.algo_config import AlgoConfig
+
+        if not body or 'value' not in body:
+            return error_response(400, 'bad_request', 'value required in request body')
+
+        # Validate the key exists and get its type
+        cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
+        row = cur.fetchone()
+        if not row:
+            return error_response(404, 'not_found', f'Config key not found: {key}')
+
+        value_type = row['value_type']
+        new_value = body.get('value')
+
+        # Validate the new value against AlgoConfig constraints
         try:
-            from algo.algo_config import AlgoConfig
+            if not AlgoConfig.DEFAULTS.get(key):
+                return error_response(400, 'bad_request', f'Unknown config key: {key}')
 
-            if not body or 'value' not in body:
-                return error_response(400, 'bad_request', 'value required in request body')
+            _, expected_type, _ = AlgoConfig.DEFAULTS[key]
+            # Validate bounds and type
+            config = AlgoConfig()
+            config._validate_value(key, str(new_value), expected_type)
+        except ValueError as e:
+            logger.warning(f'Config validation failed for {key}={new_value}: {e}')
+            return error_response(400, 'bad_request', f'Invalid value for {key}: {str(e)}')
 
-            # Validate the key exists and get its type
-            cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
-            row = cur.fetchone()
-            if not row:
-                return error_response(404, 'not_found', f'Config key not found: {key}')
+        # Get old value for audit
+        cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+        old_row = cur.fetchone()
+        old_value = old_row['value'] if old_row else None
 
-            value_type = row['value_type']
-            new_value = body.get('value')
+        # Update the config
+        cur.execute("""
+            UPDATE algo_config
+            SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+            WHERE key = %s
+        """, (str(new_value), actor, key))
 
-            # Validate the new value against AlgoConfig constraints
-            try:
-                if not AlgoConfig.DEFAULTS.get(key):
-                    return error_response(400, 'bad_request', f'Unknown config key: {key}')
+        # Log to audit trail
+        cur.execute("""
+            INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+        """, (key, old_value, str(new_value), actor))
 
-                _, expected_type, _ = AlgoConfig.DEFAULTS[key]
-                # Validate bounds and type
-                config = AlgoConfig()
-                config._validate_value(key, str(new_value), expected_type)
-            except ValueError as e:
-                logger.warning(f'Config validation failed for {key}={new_value}: {e}')
-                return error_response(400, 'bad_request', f'Invalid value for {key}: {str(e)}')
+        logger.info(f'[TIER4] Config updated by {actor}: {key} = {new_value} (was {old_value})')
 
-            # Get old value for audit
-            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
-            old_row = cur.fetchone()
-            old_value = old_row['value'] if old_row else None
+        return json_response(200, {
+            'status': 'success',
+            'key': key,
+            'old_value': old_value,
+            'new_value': str(new_value),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+            'updated_by': actor,
+        })
 
-            # Update the config
-            cur.execute("""
-                UPDATE algo_config
-                SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
-                WHERE key = %s
-            """, (str(new_value), actor, key))
-
-            # Log to audit trail
-            cur.execute("""
-                INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (key, old_value, str(new_value), actor))
-
-            logger.info(f'[TIER4] Config updated by {actor}: {key} = {new_value} (was {old_value})')
-
-            return json_response(200, {
-                'status': 'success',
-                'key': key,
-                'old_value': old_value,
-                'new_value': str(new_value),
-                'updated_at': datetime.now(timezone.utc).isoformat(),
-                'updated_by': actor,
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'update algo config key'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'update algo config key'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'update algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'update algo config key', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to update config key')
-
+@db_route_handler('reset algo config key')
 def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
         """Reset a configuration key to its default value (TIER 5: Reset capability)."""
         try:
@@ -2283,46 +2220,34 @@ def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'reset algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to reset config key')
 
+@db_route_handler('get algo audit log')
 def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
-        try:
-            if action_type:
-                cur.execute("SELECT COUNT(*) as total FROM algo_audit_log WHERE action_type = %s", (action_type,))
-            else:
-                cur.execute("SELECT COUNT(*) as total FROM algo_audit_log")
-            total = cur.fetchone()['total']
+        if action_type:
+            cur.execute("SELECT COUNT(*) as total FROM algo_audit_log WHERE action_type = %s", (action_type,))
+        else:
+            cur.execute("SELECT COUNT(*) as total FROM algo_audit_log")
+        total = cur.fetchone()['total']
 
-            if action_type:
-                cur.execute("""
-                    SELECT id, action_type, symbol, action_date, details, actor, status,
-                           error_message AS error, created_at
-                    FROM algo_audit_log
-                    WHERE action_type = %s
-                    ORDER BY created_at DESC
-                    LIMIT %s OFFSET %s
-                """, (action_type, limit, offset))
-            else:
-                cur.execute("""
-                    SELECT id, action_type, symbol, action_date, details, actor, status,
-                           error_message AS error, created_at
-                    FROM algo_audit_log
-                    ORDER BY created_at DESC
-                    LIMIT %s OFFSET %s
-                """, (limit, offset))
-            rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows], total=total, limit=limit, offset=offset)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo audit log'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo audit log'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch audit log')
+        if action_type:
+            cur.execute("""
+                SELECT id, action_type, symbol, action_date, details, actor, status,
+                       error_message AS error, created_at
+                FROM algo_audit_log
+                WHERE action_type = %s
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (action_type, limit, offset))
+        else:
+            cur.execute("""
+                SELECT id, action_type, symbol, action_date, details, actor, status,
+                       error_message AS error, created_at
+                FROM algo_audit_log
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        rows = cur.fetchall()
+        return list_response([safe_json_serialize(dict(r)) for r in rows], total=total, limit=limit, offset=offset)
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
