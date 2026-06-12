@@ -21,6 +21,7 @@ from pathlib import Path
 import logging
 
 from utils.database_context import DatabaseContext
+from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -67,24 +68,9 @@ class LivePerformance:
                 return None
 
             values = [float(row[1]) for row in rows]
-            daily_returns = []
-            for i in range(1, len(values)):
-                ret = (values[i] - values[i-1]) / values[i-1]
-                daily_returns.append(ret)
+            daily_returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
 
-            if not daily_returns:
-                return None
-
-            mean_return = np.mean(daily_returns)
-            std_return = np.std(daily_returns)
-
-            if std_return == 0:
-                return None
-
-            daily_sharpe = mean_return / std_return
-            annualized_sharpe = daily_sharpe * np.sqrt(252)
-
-            return round(annualized_sharpe, 4)
+            return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except Exception as e:
             logger.error(f"[PERFORMANCE_SHARPE] Failed: {e}", exc_info=True)
             return None
@@ -206,17 +192,7 @@ class LivePerformance:
                 return None
 
             values = [float(row[1]) for row in rows]
-            peak = values[0]
-            max_dd = 0.0
-
-            for value in values:
-                if value > peak:
-                    peak = value
-                dd = (value - peak) / peak * 100
-                if dd < max_dd:
-                    max_dd = dd
-
-            return round(max_dd, 2)
+            return MetricsCalculator.calculate_max_drawdown(values)
         except Exception as e:
             logger.error(f"Performance: max_drawdown failed: {e}")
             return None
@@ -245,19 +221,8 @@ class LivePerformance:
             values = [float(r[0]) for r in rows]
             daily_returns = [(values[i] - values[i-1]) / values[i-1]
                              for i in range(1, len(values))]
-            if not daily_returns:
-                return None
 
-            mean_return = sum(daily_returns) / len(daily_returns)
-            # Downside deviation: std dev of returns below zero (target = 0)
-            downside = [r for r in daily_returns if r < 0]
-            if not downside:
-                return None
-            downside_dev = (sum(r ** 2 for r in downside) / len(daily_returns)) ** 0.5
-            if downside_dev == 0:
-                return None
-
-            return round(mean_return / downside_dev * (252 ** 0.5), 4)
+            return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except Exception as e:
             logger.error(f"Performance: rolling_sortino failed: {e}")
             return None
@@ -283,26 +248,7 @@ class LivePerformance:
                 return None
 
             values = [float(r[0]) for r in rows]
-            # Annualized return
-            n_days = len(values)
-            if values[0] <= 0:
-                return None
-            annualized_return = (values[-1] / values[0]) ** (252.0 / n_days) - 1.0
-
-            # Max drawdown
-            peak = values[0]
-            max_dd = 0.0
-            for v in values:
-                if v > peak:
-                    peak = v
-                dd = (v - peak) / peak
-                if dd < max_dd:
-                    max_dd = dd
-
-            if max_dd == 0.0:
-                return None
-
-            return round(annualized_return / abs(max_dd), 4)
+            return MetricsCalculator.calculate_calmar_ratio(values)
         except Exception as e:
             logger.error(f"Performance: calmar_ratio failed: {e}")
             return None

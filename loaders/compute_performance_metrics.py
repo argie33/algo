@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.database import get_db_connection
 from utils.safe_data_conversion import safe_float, safe_int
+from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def compute_performance_metrics(cur, metric_date: date = None):
 
 
 def _compute_advanced_metrics(cur, metric_date: date):
-    """Compute Sharpe, Sortino, max drawdown, CAGR, and Calmar ratios."""
+    """Compute Sharpe, Sortino, max drawdown, CAGR, and Calmar ratios using MetricsCalculator."""
     try:
         # Fetch all portfolio snapshots
         cur.execute("""
@@ -154,34 +155,21 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if not returns:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
-        # Sharpe ratio
-        mean_ret = sum(returns) / len(returns)
-        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-        std_dev = math.sqrt(variance) if variance > 0 else 0.0
-        sharpe = (mean_ret / std_dev * math.sqrt(252)) if std_dev > 0 else 0.0
+        # Use MetricsCalculator for all metrics
+        sharpe = MetricsCalculator.calculate_sharpe_ratio(returns) or 0.0
+        sortino = MetricsCalculator.calculate_sortino_ratio(returns) or 0.0
+        max_drawdown = MetricsCalculator.calculate_max_drawdown(vals) or 0.0
+        calmar = MetricsCalculator.calculate_calmar_ratio(vals) or 0.0
 
-        # Sortino ratio (downside deviation)
-        downside_rets = [r for r in returns if r < 0]
-        downside_var = sum(r ** 2 for r in downside_rets) / len(downside_rets) if downside_rets else 0.0
-        downside_std = math.sqrt(downside_var) if downside_var > 0 else 0.0
-        sortino = (mean_ret / downside_std * math.sqrt(252)) if downside_std > 0 else 0.0
-
-        # Max drawdown
-        max_drawdown = _compute_max_drawdown(returns)
-
-        # CAGR and Calmar
+        # CAGR calculation (not in MetricsCalculator, so keep custom implementation)
         start_val = vals[0]
         end_val = vals[-1]
         n_days = (dates[-1] - dates[0]).days if len(dates) > 1 else 0
-
         cagr = 0.0
-        calmar = 0.0
         if n_days > 0 and start_val > 0 and end_val > 0:
             cagr = (end_val / start_val) ** (365.25 / n_days) - 1
-            if max_drawdown < 0:
-                calmar = cagr / abs(max_drawdown)
 
-        return sharpe, sortino, max_drawdown, cagr, calmar
+        return sharpe, sortino, max_drawdown / 100.0, cagr, calmar
 
     except Exception as e:
         logger.warning(f'Failed to compute advanced metrics: {e}')
