@@ -561,9 +561,9 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 sector_risk[sector] = 0
             sector_risk[sector] += pos_val
 
-            # Compute sector_allocation array (Issue #1)
-            total_value = sum(sector_risk.values()) or 1
-            sector_allocation = [
+        # Compute sector_allocation array after processing all positions (E5 fix)
+        total_value = sum(sector_risk.values()) or 1
+        sector_allocation = [
             {
                 'sector': sector,
                 'allocation_pct': round((value / total_value) * 100, 1),
@@ -571,16 +571,16 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 'is_overweight': (value / total_value) * 100 > 30
             }
             for sector, value in sorted(sector_risk.items(), key=lambda x: x[1], reverse=True)
-            ]
+        ]
 
-            freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
+        freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
 
-            return json_response(200, {
+        return json_response(200, {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
             'data_freshness': freshness
-            })
+        })
 
 @db_route_handler('calculate performance', default_error_response={'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0, 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0, 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 def _get_algo_performance(cur) -> Dict:
