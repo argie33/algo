@@ -723,7 +723,7 @@ def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -
     return rows[0] if rows else None
 
 # ── API Client ─────────────────────────────────────────────────────────────────
-API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3000")
+API_BASE_URL = os.getenv("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 10
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
