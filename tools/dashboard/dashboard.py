@@ -1043,11 +1043,18 @@ def fetch_circuit(c):
             logger.warning(f"fetch_circuit: {resp.get('_error')}")
             return {"_error": resp.get("_error")}
         data = resp.get("data", {})
-        bs = data.get("breakers", [])
+        breakers = data.get("breakers", [])
+        bs = [{
+            "lbl": b.get("label", ""),
+            "cur": b.get("current", 0),
+            "thr": b.get("threshold", 0),
+            "u": b.get("unit", ""),
+            "fired": b.get("triggered", False)
+        } for b in breakers]
         return {
             "bs": bs,
-            "any": data.get("any_fired", False),
-            "n": data.get("fired_count", 0)
+            "any": data.get("any_triggered", False),
+            "n": data.get("triggered_count", 0)
         }
     except Exception as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
@@ -1389,9 +1396,11 @@ def panel_circuit(cb, risk=None):
         def fmt_b(br):
             if br is None: return ""
             fired = br.get("fired", False)
-            fc  = R if fired else (Y if float(br["thr"]) > 0 and float(br["cur"]) / float(br["thr"]) >= 0.75 else G)
+            thr = br.get("thr", 0)
+            cur = br.get("cur", 0)
+            fc  = R if fired else (Y if float(thr) > 0 and float(cur) / float(thr) >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
-            return f"[{fc}]{br['lbl']}:[/]{br['cur']}{br['u']}[dim]/{br['thr']:.0f}{br['u']}[/]{hbar(br['cur'], br['thr'], w=4)}{ind}"
+            return f"[{fc}]{br.get('lbl', 'N/A')}:[/]{cur}{br.get('u', '')}[dim]/{thr:.0f}{br.get('u', '')}[/]{hbar(cur, thr, w=4)}{ind}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
