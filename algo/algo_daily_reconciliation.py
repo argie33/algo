@@ -49,16 +49,16 @@ class DailyReconciliation:
             logger.info(f"DAILY RECONCILIATION - {reconcile_date}")
             logger.info(f"{'='*70}\n")
 
-            # 1. Fetch Alpaca account
+            # 1. Fetch Alpaca account (required - no fallback to stale DB data)
             alpaca_data = self._fetch_alpaca_account()
             if not alpaca_data:
-                logger.warning("Alpaca account fetch failed — writing snapshot with DB-computed positions (cash from prior snapshot)")
+                logger.critical("Alpaca account fetch failed — reconciliation cannot proceed without live account data")
                 try:
-                    notify('critical', title='Alpaca Connection Failed',
-                           message='Reconciliation using DB-only fallback — cash balance may be stale')
+                    notify('critical', title='Reconciliation Halted',
+                           message='Alpaca unavailable. Reconciliation requires live account data — cannot use stale DB cache.')
                 except Exception as e:
-                    logger.warning(f"Failed to send Alpaca failure notification: {e}")
-                alpaca_data = {}
+                    logger.warning(f"Failed to send notification: {e}")
+                raise ValueError("Alpaca account data required for reconciliation — cannot proceed with DB-only fallback")
             else:
                 logger.info(f"1. Alpaca Account:")
                 logger.info(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")

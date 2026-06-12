@@ -85,13 +85,16 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = cur.fetchone()[0]
 
                 if tech_count == 0:
-                    # Fall back: find most recent date with technical data for this symbol
+                    # Fallback: Use most recent technical data available (safe for signal generation)
+                    # Signal generation doesn't require exact date match - closest recent data is valid
                     cur.execute(
                         "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
                         (symbol, end)
                     )
                     fallback_date = cur.fetchone()[0]
                     if fallback_date:
+                        days_back = (end - fallback_date).days
+                        logger.debug(f"{symbol}: Using technical data from {fallback_date} ({days_back} days back) for signal generation")
                         end = fallback_date
                     else:
                         # Technical data is missing entirely - log rejection
