@@ -1317,7 +1317,7 @@ def panel_market_full(mkt, sentiment=None):
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar   = exp_bar(exp or 0, w=10)
     vix   = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-    vc    = R if (mkt.get("vix") or 0) >= 30 else (Y if (mkt.get("vix") or 0) >= 20 else G)
+    vc    = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
     dist  = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
@@ -2701,11 +2701,12 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
 
     # ── D: Data health (compact) ──────────────────────────────────────────────
     if hlth:
-        stale = [r for r in hlth if r.get("st") != "ok"]
+        hlth_list = [r for r in hlth if isinstance(r, dict)]
+        stale = [r for r in hlth_list if r.get("st") != "ok"]
         if not stale:
-            crit  = [r for r in hlth if r.get("role") == "CRIT"]
+            crit  = [r for r in hlth_list if r.get("role") == "CRIT"]
             ok_s  = "  ".join(f"[{G}]✓[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
-            rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth)} tables[/]  {ok_s}"))
+            rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth_list)} tables[/]  {ok_s}"))
         else:
             stale_parts = []
             for r in stale[:5]:
