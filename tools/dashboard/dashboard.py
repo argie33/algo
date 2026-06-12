@@ -28,7 +28,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TypedDict
 from zoneinfo import ZoneInfo
 
 import requests
@@ -97,6 +97,7 @@ if sys.platform == "win32":
 
 try:
     import psycopg2, psycopg2.extras
+    from psycopg2 import pool
 except ImportError:
     sys.exit("pip install psycopg2-binary")
 
@@ -127,6 +128,12 @@ except ImportError:
 # ── globals ───────────────────────────────────────────────────────────────────
 ET      = ZoneInfo("America/New_York")
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
+
+# Connection pool — 27 fetchers with 8 concurrent workers need adequate pool size.
+# With 8 workers, peak concurrent connections = min(8, 27) = 8.
+# Set minconn=2, maxconn=15 to allow burst to 15 while normally using 2-8.
+# Pool is thread-safe via ThreadedConnectionPool.
+_db_pool = None
 
 G   = "bright_green"
 R   = "bright_red"
@@ -328,27 +335,6 @@ def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
         'buy_signal_count_caution': 1.0,
         'win_rate_history_good': 80.0,
         'win_rate_history_caution': 50.0,
-    }
-
-def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load grade thresholds from config or hardcoded defaults.
-
-    Used for coloring signal quality scores (RED/YELLOW/GREEN based on A/B/C grades).
-    Allows runtime configuration without code changes.
-    """
-    if cfg:
-        return {
-            'a_plus': safe_float(cfg.get('grade_a_plus_threshold', 90.0), 90.0),
-            'a': safe_float(cfg.get('grade_a_threshold', 80.0), 80.0),
-            'b': safe_float(cfg.get('grade_b_threshold', 70.0), 70.0),
-            'c': safe_float(cfg.get('grade_c_threshold', 60.0), 60.0),
-        }
-    # Fallback hardcoded defaults (M1 FIX: these are now configurable)
-    return {
-        'a_plus': 90.0,
-        'a': 80.0,
-        'b': 70.0,
-        'c': 60.0,
     }
 
 # Grade thresholds for signal scoring (separate from market tier thresholds)
@@ -630,7 +616,18 @@ def _get_db_credentials() -> dict:
         logger.error(f"CRITICAL: {msg}")
         sys.exit(msg)
 
-def get_conn() -> psycopg2.extensions.connection:
+def _init_db_pool():
+    """Initialize thread-safe connection pool for 27 fetchers with 8 concurrent workers.
+
+    Pool size: minconn=2, maxconn=15
+    - minconn=2: Maintain at least 2 idle connections
+    - maxconn=15: Allow burst to 15 concurrent connections (RDS default is 20-100)
+    - ThreadedConnectionPool: Thread-safe for concurrent fetchers
+    """
+    global _db_pool
+    if _db_pool is not None:
+        return _db_pool
+
     creds = _get_db_credentials()
     missing = {k: "not set" for k, v in creds.items() if not v}
     if missing:
@@ -640,14 +637,17 @@ def get_conn() -> psycopg2.extensions.connection:
         sys.exit(msg)
 
     try:
-        logger.debug(f"Connecting to {creds['host']}:{creds['port']}/{creds['dbname']} (user: {creds['user']})")
-        return psycopg2.connect(
+        logger.info(f"Initializing connection pool for {creds['host']}:{creds['port']}/{creds['dbname']}")
+        _db_pool = pool.ThreadedConnectionPool(
+            minconn=2, maxconn=15,
             host=creds["host"], port=creds["port"],
             user=creds["user"], password=creds["password"],
             dbname=creds["dbname"], connect_timeout=5,
             cursor_factory=psycopg2.extras.RealDictCursor,
             options="-c statement_timeout=30000",
         )
+        logger.info("Connection pool initialized successfully")
+        return _db_pool
     except psycopg2.OperationalError as e:
         err = str(e).lower()
         if "authentication failed" in err:
@@ -670,7 +670,18 @@ def get_conn() -> psycopg2.extensions.connection:
             msg = "RDS proxy port blocked or service not running"
             logger.error(f"CRITICAL: {msg}")
         else:
-            logger.error(f"CRITICAL: Connection error: {e}")
+            logger.error(f"CRITICAL: Connection pool initialization failed: {e}")
+        raise
+
+def get_conn() -> psycopg2.extensions.connection:
+    """Get a connection from the pool. Must be returned via putconn() or close()."""
+    global _db_pool
+    if _db_pool is None:
+        _init_db_pool()
+    try:
+        return _db_pool.getconn()
+    except pool.PoolError as e:
+        logger.error(f"Failed to get connection from pool (all {_db_pool.maxconn} connections in use): {e}")
         raise
 
 def q(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> List[Dict]:
@@ -1216,8 +1227,33 @@ def format_halt_reason(halt_code: str) -> str:
 
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
-def fetch_run(c):
-    # Primary: orchestrator_execution_log has structured named phase data
+class RunData(TypedDict, total=False):
+    """Canonical schema for run execution data.
+
+    Both orchestrator_execution_log and algo_audit_log fallback normalize to this schema.
+    This prevents schema fragmentation and makes consuming code robust.
+    """
+    run_id: Optional[str]
+    run_at: Optional[datetime]
+    success: bool
+    halted: bool
+    errored: bool
+    summary: Optional[str]
+    halt_reason: Optional[str]
+    phases_completed: Optional[int]
+    phases_halted: Optional[int]
+    phases_errored: Optional[int]
+    phase_results: List
+    _source: str
+    _error: Optional[str]
+
+def fetch_run(c) -> RunData:
+    """Fetch the latest run execution data from orchestrator_execution_log (primary) or algo_audit_log (fallback).
+
+    Both sources normalize to the canonical RunData schema to prevent fragile schema mismatches.
+    Returns complete schema in both success and fallback cases.
+    """
+    primary_error = None
     try:
         row = q1(c, """
             SELECT run_id, started_at, completed_at, overall_status,
@@ -1235,7 +1271,7 @@ def fetch_run(c):
                     logger.error(f"Raw content (first 200 chars): {str(pr)[:200]}")
                     pr = []
             overall = (row.get("overall_status") or "").lower()
-            result = {
+            result: RunData = {
                 "run_id":    row.get("run_id"),
                 "run_at":    row.get("completed_at") or row.get("started_at"),
                 "success":   overall in ("success", "completed"),
@@ -1251,37 +1287,79 @@ def fetch_run(c):
             }
             _log_data_quality("fetch_run", 1)
             return result
-        _log_data_quality("fetch_run", 0, "No execution log data found")
-        return {"_error": "No recent execution log data"}
+        primary_error = "No data in execution log"
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
-        logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
-        _log_data_quality("fetch_run", 0, str(e))
-        return {"_error": f"Failed to load execution log: {type(e).__name__}"}
+        primary_error = f"{type(e).__name__}: {e}"
+        logger.error(f"fetch_run (exec_log): {primary_error}")
 
-    # Fallback: reconstruct from algo_audit_log
+    logger.info(f"Primary source failed ({primary_error}); trying fallback (algo_audit_log)")
+
     try:
         latest = q1(c, """
             SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
             FROM algo_audit_log WHERE details->>'run_id' IS NOT NULL
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
         if not latest or not latest.get("run_id"):
-            _log_data_quality("fetch_run", 0)
-            return {"_error": "No recent execution data in audit log"}
+            msg = "No recent data in audit log fallback"
+            logger.warning(msg)
+            _log_data_quality("fetch_run", 0, msg)
+            return {
+                "run_id": None,
+                "run_at": None,
+                "success": False,
+                "halted": False,
+                "errored": True,
+                "summary": None,
+                "halt_reason": None,
+                "phases_completed": 0,
+                "phases_halted": 0,
+                "phases_errored": 0,
+                "phase_results": [],
+                "_source": "audit_log_fallback_empty",
+                "_error": msg,
+            }
         rid = latest["run_id"]
         phases = q(c, """SELECT action_type, status FROM algo_audit_log
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
         halted  = any(p["status"] == "halt"  for p in phases)
         errored = any(p["status"] == "error" for p in phases)
-        overall = "halted" if halted else ("error" if errored else "success" if phases else "unknown")
-        result = {"run_id": rid, "run_at": latest["run_at"],
-                "success": overall in ("success", "completed"), "halted": halted,
-                "phases": phases, "_source": "audit_log"}
+        success = (not halted and not errored and len(phases) > 0)
+        result: RunData = {
+            "run_id": rid,
+            "run_at": latest["run_at"],
+            "success": success,
+            "halted": halted,
+            "errored": errored,
+            "summary": None,
+            "halt_reason": None,
+            "phases_completed": len([p for p in phases if p["status"] == "success"]),
+            "phases_halted": 1 if halted else 0,
+            "phases_errored": len([p for p in phases if p["status"] == "error"]),
+            "phase_results": phases,
+            "_source": "audit_log_fallback",
+        }
         _log_data_quality("fetch_run", 1)
         return result
     except (psycopg2.Error, KeyError, TypeError) as e:
-        logger.error(f"fetch_run (audit): {type(e).__name__}: {e}")
-        _log_data_quality("fetch_run", 0, str(e))
-        return {"_error": f"Failed to load audit log fallback: {type(e).__name__}"}
+        fallback_error = f"{type(e).__name__}: {e}"
+        logger.error(f"fetch_run (audit_log fallback): {fallback_error}")
+        msg = f"Both sources failed: exec_log({primary_error}) → audit_log({fallback_error})"
+        _log_data_quality("fetch_run", 0, msg)
+        return {
+            "run_id": None,
+            "run_at": None,
+            "success": False,
+            "halted": False,
+            "errored": True,
+            "summary": None,
+            "halt_reason": None,
+            "phases_completed": 0,
+            "phases_halted": 0,
+            "phases_errored": 0,
+            "phase_results": [],
+            "_source": "error",
+            "_error": msg,
+        }
 
 def _parse_config_float(config_dict: dict, key: str, default: float) -> float:
     """Parse a config value as float with validation. Issue 11 fix: consolidate threshold parsing."""
