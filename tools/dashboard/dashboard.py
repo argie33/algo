@@ -2994,15 +2994,16 @@ def check_loader_health() -> dict:
 
         # Issue 24: Validate row counts and data freshness for critical tables
         critical_tables = {
-            "algo_trades": {"min_rows": 1, "max_age_days": 7, "label": "Trade history"},
-            "algo_portfolio_snapshots": {"min_rows": 1, "max_age_days": 1, "label": "Portfolio snapshot"},
-            "price_daily": {"min_rows": 100, "max_age_days": 1, "label": "Price data"},
-            "market_health_daily": {"min_rows": 1, "max_age_days": 1, "label": "Market health"},
+            "algo_trades": {"min_rows": 1, "max_age_days": 7, "label": "Trade history", "date_col": "trade_date"},
+            "algo_portfolio_snapshots": {"min_rows": 1, "max_age_days": 1, "label": "Portfolio snapshot", "date_col": "snapshot_date"},
+            "price_daily": {"min_rows": 100, "max_age_days": 1, "label": "Price data", "date_col": "date"},
+            "market_health_daily": {"min_rows": 1, "max_age_days": 1, "label": "Market health", "date_col": "date"},
         }
 
         for table_name, config in critical_tables.items():
             try:
-                check = q1(conn, f"SELECT COUNT(*) as cnt, MAX(date) as latest_date FROM {table_name}")
+                date_col = config.get("date_col", "date")
+                check = q1(conn, f"SELECT COUNT(*) as cnt, MAX({date_col}) as latest_date FROM {table_name}")
                 if check:
                     cnt_val = check.get("cnt")
                     row_count = int(cnt_val) if cnt_val is not None else None
