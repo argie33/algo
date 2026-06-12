@@ -2438,7 +2438,7 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
     ]
     return success_response({'patterns': patterns, 'period_days': days})
 
-@db_route_handler('fetch orchestrator execution stats', default_error_response={'data': {'total_runs': 0, 'by_status': {}, 'success_rate': 'N/A', 'halt_rate': 'N/A', 'error_rate': 'N/A', 'period_days': 0}})
+@db_route_handler('fetch orchestrator execution stats', default_error_response={'data': {'total_runs': 0, 'by_status': {}, 'success_rate': 'N/A', 'halt_rate': 'N/A', 'error_rate': 'N/A', 'period_days': 0}, '_error': 'Data unavailable'})
 def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
     """Return execution statistics."""
     cur.execute("""
