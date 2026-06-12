@@ -49,22 +49,17 @@ class LoaderHistoryTracker:
             return
 
         try:
-            duration = (self.end_time - self.start_time).total_seconds() if self.end_time else None
-
             with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO loader_execution_history
-                    (loader_name, execution_start, execution_end, execution_duration_seconds,
-                     status, symbols_processed, error_count, error_message)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (loader_name, execution_start, execution_end, status, rows_processed, error_message)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     self.loader_name,
                     self.start_time,
                     self.end_time,
-                    duration,
                     status,
                     symbols_processed or None,
-                    error_count or None,
                     error_message,
                 ))
 
