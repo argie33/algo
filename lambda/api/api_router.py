@@ -7,9 +7,10 @@ api_dir = str(Path(__file__).parent)
 lambda_dir = str(Path(__file__).parent.parent)
 root_dir = str(Path(__file__).parent.parent.parent)
 
-sys.path.insert(0, api_dir)
-sys.path.insert(0, lambda_dir)
+# IMPORTANT: api_dir must come FIRST so that /lambda/api/utils is found before /utils
 sys.path.insert(0, root_dir)
+sys.path.insert(0, lambda_dir)
+sys.path.insert(0, api_dir)
 
 logger = logging.getLogger(__name__)
 
