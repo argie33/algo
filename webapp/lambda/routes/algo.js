@@ -2359,6 +2359,76 @@ router.get('/sector-rotation', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/algo/sector-position-warnings
+ * Get sector position concentration warnings (sector allocation alerts)
+ */
+router.get('/sector-position-warnings', async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+
+    // Fetch sector position counts for open positions
+    const sectorResult = await pool.query(`
+      SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+      FROM algo_positions ap
+      LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+      WHERE ap.status = 'open' AND ap.quantity > 0
+      GROUP BY cp.sector
+      ORDER BY position_count DESC
+    `);
+
+    validateQueryResult(sectorResult, { requireRows: false });
+
+    // Get configuration for max positions per sector
+    const configResult = await pool.query(`
+      SELECT value FROM algo_config WHERE key = 'max_positions_per_sector' LIMIT 1
+    `);
+
+    let max_per_sector = 3; // default
+    if (configResult.rows && configResult.rows.length > 0 && configResult.rows[0].value) {
+      max_per_sector = parseInt(configResult.rows[0].value, 10);
+    }
+
+    const sector_counts = sectorResult.rows || [];
+    const warnings = [];
+    const at_cap = [];
+
+    for (const row of sector_counts) {
+      const sector = row.sector || 'Unknown';
+      const count = row.position_count || 0;
+
+      if (count >= max_per_sector) {
+        at_cap.push({
+          sector: sector,
+          position_count: count,
+          max: max_per_sector,
+          status: 'AT_CAP'
+        });
+      } else if (count >= max_per_sector - 1) {
+        warnings.push({
+          sector: sector,
+          position_count: count,
+          max: max_per_sector,
+          status: 'NEAR_CAP'
+        });
+      }
+    }
+
+    return sendSuccess(res, {
+      warnings: warnings,
+      at_cap: at_cap,
+      data: {
+        warnings: warnings,
+        at_cap: at_cap
+      }
+    });
+  } catch (error) {
+    logger.error('Error in /algo/sector-position-warnings:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while fetching sector position warnings');
+  }
+});
+
 // ============================================================
 // PHASE 1-4 INTEGRATION: Data Quality, Signal Performance, Rejections, Orders
 // ============================================================
