@@ -223,11 +223,10 @@ class CredentialManager:
         return result
 
     def get_alpaca_credentials(self, user_id: Optional[str] = None) -> Dict[str, str]:
-        """Get Alpaca API credentials as a dict (with caching and graceful fallback).
+        """Get Alpaca API credentials as a dict.
 
-        FIX H-3: Implements graceful fallback + in-memory caching (10-min TTL) to handle
-        Secrets Manager outages. If Secrets Manager is unavailable, uses cached credentials
-        (if available) with age warning log. Fail fast with clear error if no cache.
+        Always fetches fresh credentials from Secrets Manager. Never returns cached/stale credentials
+        for normal operation. Cache is only used as a last resort if all sources fail.
 
         Supports per-user credential isolation for multi-tenant trading.
 
@@ -241,22 +240,11 @@ class CredentialManager:
         3. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
         4. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
         5. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        6. Last-resort: Cached credentials (only if all above fail)
 
-        If fetch fails, falls back to cached credentials (if available).
-        Raises ValueError if credentials not found and no cache available.
+        Raises ValueError if credentials not found from any source.
         """
         _ALPACA_CREDS_CACHE_KEY = '__alpaca_credentials__'
-        _ALPACA_CREDS_CACHE_TTL = 600  # 10 minutes, longer than credential_manager TTL
-
-        # Step 0: Check cache first (FIX H-3)
-        if _ALPACA_CREDS_CACHE_KEY in self._cache:
-            cached_creds, timestamp = self._cache[_ALPACA_CREDS_CACHE_KEY]
-            age = time.time() - timestamp
-            if age < _ALPACA_CREDS_CACHE_TTL:
-                return cached_creds
-            else:
-                # Cache expired, remove and fetch fresh
-                del self._cache[_ALPACA_CREDS_CACHE_KEY]
 
         # Step 1: Try user-specific secret if user_id provided
         if user_id and self._is_aws:
@@ -271,9 +259,7 @@ class CredentialManager:
                         secret = creds.get('api_secret') or creds.get('APCA_API_SECRET_KEY')
                         if key and secret:
                             logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
-                            result = {'key': key, 'secret': secret}
-                            self._cache[_ALPACA_CREDS_CACHE_KEY] = (result, time.time())
-                            return result
+                            return {'key': key, 'secret': secret}
                     except client.exceptions.ResourceNotFoundException:
                         logger.debug(f"[CREDENTIALS] No user-specific Alpaca secret for {user_id}, falling back to shared")
                     except Exception as e:
@@ -297,9 +283,7 @@ class CredentialManager:
                     secret = creds.get('APCA_API_SECRET_KEY')
                     if key and secret:
                         logger.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN (paper mode)")
-                        result = {'key': key, 'secret': secret}
-                        self._cache[_ALPACA_CREDS_CACHE_KEY] = (result, time.time())
-                        return result
+                        return {'key': key, 'secret': secret}
                     else:
                         logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields")
             except Exception as e:
@@ -318,9 +302,7 @@ class CredentialManager:
                     key = creds.get('api_key')
                     secret = creds.get('api_secret')
                     if key and secret:
-                        result = {'key': key, 'secret': secret}
-                        self._cache[_ALPACA_CREDS_CACHE_KEY] = (result, time.time())
-                        return result
+                        return {'key': key, 'secret': secret}
             except Exception as e:
                 logger.debug(f"Could not fetch 'algo/alpaca' from Secrets Manager: {e}")
 
@@ -336,10 +318,8 @@ class CredentialManager:
             secret = os.getenv('APCA_API_SECRET_KEY')
 
         if key and secret:
-            result = {'key': key, 'secret': secret}
-            self._cache[_ALPACA_CREDS_CACHE_KEY] = (result, time.time())
             logger.info(f"[CREDENTIALS] Alpaca credentials loaded successfully")
-            return result
+            return {'key': key, 'secret': secret}
 
         # FIX H-3: Secrets Manager completely unavailable - check cache before failing
         if _ALPACA_CREDS_CACHE_KEY in self._cache:

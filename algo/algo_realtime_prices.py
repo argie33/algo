@@ -74,7 +74,7 @@ class RealtimePricingEngine:
             Exception if unable to fetch prices (circuit breaker halts trading)
         """
         if not self.is_market_hours():
-            logger.warning(f"get_latest_prices called outside market hours: {datetime.now().strftime('%H:%M %Z')}")
+            logger.warning(f"get_latest_prices called outside market hours: {datetime.now(EASTERN_TZ).strftime('%H:%M %Z')}")
             # Return cached prices or daily prices as fallback
             return self._get_fallback_prices(symbols)
 
