@@ -96,7 +96,7 @@ if sys.platform == "win32":
         pass  # AttributeError on older Python, ValueError on some environments
 
 try:
-    import psycopg2, psycopg2.extras
+    import psycopg2, psycopg2.extras, psycopg2.sql
     from psycopg2 import pool
 except ImportError:
     sys.exit("pip install psycopg2-binary")
@@ -631,7 +631,7 @@ def _init_db_pool():
         sys.exit(msg)
 
     try:
-        logger.info(f"Initializing connection pool for {creds['host']}:{creds['port']}/{creds['dbname']}")
+        logger.info("Initializing connection pool")
         _db_pool = pool.ThreadedConnectionPool(
             minconn=2, maxconn=15,
             host=creds["host"], port=creds["port"],
@@ -868,6 +868,30 @@ def validate_schema() -> None:
             return  # Continue without direct RDS access - use API endpoints instead
         else:
             sys.exit(f"Database connection/schema error: {e}")
+
+def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[Dict]:
+    """Normalize audit_log phases to match orchestrator_execution_log schema.
+
+    Transforms: [{'action_type': 'X', 'status': 'Y'}, ...]
+    Into:       [{'name': 'X', 'status': 'Y'}, ...]
+
+    Returns: list of phases with canonical {name, status} schema.
+    """
+    if not isinstance(audit_phases, list):
+        return []
+
+    normalized = []
+    for phase in audit_phases:
+        if not isinstance(phase, dict):
+            continue
+
+        name = phase.get("action_type")  # Map action_type → name
+        status = (phase.get("status") or "").lower().strip()
+
+        if name and status:
+            normalized.append({"name": name, "status": status})
+
+    return normalized
 
 def validate_phase_results(phase_results: any) -> List[Dict]:
     """Validate phase_results schema. Each phase must have 'name'/'phase' and valid 'status'.
@@ -1265,6 +1289,7 @@ def fetch_run(c) -> RunData:
                     logger.error(f"phase_results JSON corrupt (orchestrator version mismatch?): {e}")
                     logger.error(f"Raw content (first 200 chars): {str(pr)[:200]}")
                     pr = []
+            pr = validate_phase_results(pr)
             overall = (row.get("overall_status") or "").lower()
             result: RunData = {
                 "run_id":    row.get("run_id"),
@@ -1314,11 +1339,13 @@ def fetch_run(c) -> RunData:
                 "_error": msg,
             }
         rid = latest["run_id"]
-        phases = q(c, """SELECT action_type, status FROM algo_audit_log
+        audit_phases = q(c, """SELECT action_type, status FROM algo_audit_log
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        halted  = any(p["status"] == "halt"  for p in phases)
-        errored = any(p["status"] == "error" for p in phases)
-        success = (not halted and not errored and len(phases) > 0)
+        phase_results = normalize_audit_log_phases(audit_phases)
+        phase_results = validate_phase_results(phase_results)
+        halted  = any(p["status"] == "halt"  for p in phase_results)
+        errored = any(p["status"] == "error" for p in phase_results)
+        success = (not halted and not errored and len(phase_results) > 0)
         result: RunData = {
             "run_id": rid,
             "run_at": latest["run_at"],
@@ -1327,10 +1354,10 @@ def fetch_run(c) -> RunData:
             "errored": errored,
             "summary": None,
             "halt_reason": None,
-            "phases_completed": len([p for p in phases if p["status"] == "success"]),
+            "phases_completed": len([p for p in phase_results if p["status"] == "success"]),
             "phases_halted": 1 if halted else 0,
-            "phases_errored": len([p for p in phases if p["status"] == "error"]),
-            "phase_results": phases,
+            "phases_errored": len([p for p in phase_results if p["status"] == "error"]),
+            "phase_results": phase_results,
             "_source": "audit_log_fallback",
         }
         _log_data_quality("fetch_run", 1)
@@ -2021,23 +2048,41 @@ def fetch_positions(c):
 
 
 def fetch_recent_trades(c):
-    """Fetch recent trades from API instead of database."""
+    """Fetch recent trades from API with fallback to database (FIX: mixed data sources)."""
     stale_alerts = []
     try:
         api_resp = api_call("/api/algo/trades", params={"limit": "50"})
-        if "_error" in api_resp:
-            logger.warning(f"fetch_recent_trades: API error: {api_resp['_error']}")
-            return {"trades": [], "stale_alerts": stale_alerts}
+        if "_error" not in api_resp:
+            trades_data = api_resp.get("data", {})
+            trades = trades_data.get("items", [])
+            _log_data_quality("fetch_recent_trades", len(trades) if trades else 0)
+            return {"trades": trades, "stale_alerts": stale_alerts}
 
-        trades_data = api_resp.get("data", {})
-        trades = trades_data.get("items", [])
-        _log_data_quality("fetch_recent_trades", len(trades) if trades else 0)
+        logger.warning(f"fetch_recent_trades: API error, falling back to database: {api_resp.get('_error')}")
+        stale_alerts.append("Trade data from database cache (API unavailable)")
+
+    except Exception as e:
+        logger.warning(f"fetch_recent_trades: API call failed ({type(e).__name__}), falling back to database")
+        stale_alerts.append("Trade data from database cache (API call failed)")
+
+    try:
+        c.execute("""
+            SELECT trade_id, symbol, signal_date, trade_date, entry_time,
+                   entry_price, entry_quantity, entry_reason,
+                   exit_price, exit_date, exit_reason,
+                   stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
+                   execution_mode, created_at
+            FROM algo_trades
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+        trades = [dict(row) for row in c.fetchall()]
+        _log_data_quality("fetch_recent_trades (db fallback)", len(trades))
         return {"trades": trades, "stale_alerts": stale_alerts}
-    except (KeyError, TypeError, ValueError) as e:
-        logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
-        return {"trades": [], "stale_alerts": stale_alerts}
-
-
+    except Exception as e:
+        logger.error(f"fetch_recent_trades fallback failed: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_recent_trades", 0, f"API and DB both failed: {e}")
+        return {"trades": [], "stale_alerts": stale_alerts + ["Trade data unavailable (API and database both failed)"]}
 def fetch_signals(c):
     stale_alerts = []
     cfg = None
@@ -2287,40 +2332,57 @@ def fetch_sector_ranking(c):
         return {"_error": f"Failed to load sector ranking: {type(e).__name__}"}
 
 def fetch_sector_position_warnings(c, cfg=None):
-    """ARCHITECTURE FIX (C2-2): Sector position warnings must come from API, not dashboard calculation.
-
-    Issue: Dashboard was doing COUNT(*) GROUP BY + business logic (AT_CAP/NEAR_CAP determination)
-    Fix: API pre-computes warnings and returns them
-
-    This function now fetches pre-computed warnings from API instead of calculating.
-    If API not available, errors rather than falling back to calculation.
-    """
+    """Fetch sector position warnings with DB fallback (FIX: missing API endpoint)."""
     try:
-        # Fetch pre-computed sector position warnings from API
         api_resp = api_call("/api/algo/sector-position-warnings")
-        if "_error" in api_resp:
-            logger.error(f"fetch_sector_position_warnings: API error: {api_resp['_error']}")
-            _log_data_quality("fetch_sector_position_warnings", 0, api_resp['_error'])
-            return {"_error": api_resp['_error'], "warnings": [], "at_cap": []}
+        if "_error" not in api_resp:
+            warnings_data = api_resp.get("data", {})
+            warnings = warnings_data.get("warnings", [])
+            at_cap_list = warnings_data.get("at_cap", [])
+            
+            if warnings:
+                logger.info(f"Sector position warnings: {len(warnings)} sectors near/at cap")
+                _log_data_quality("fetch_sector_position_warnings", len(warnings))
+            else:
+                _log_data_quality("fetch_sector_position_warnings", 0)
+            
+            return {"warnings": warnings, "at_cap": at_cap_list}
 
-        warnings_data = api_resp.get("data", {})
-        warnings = warnings_data.get("warnings", [])
-        at_cap_list = warnings_data.get("at_cap", [])
-
-        if warnings:
-            logger.info(f"Sector position warnings: {len(warnings)} sectors near/at cap")
-            _log_data_quality("fetch_sector_position_warnings", len(warnings))
-        else:
-            _log_data_quality("fetch_sector_position_warnings", 0)
-
-        return {"warnings": warnings, "at_cap": at_cap_list}
+        logger.warning(f"fetch_sector_position_warnings: API error, falling back to database")
 
     except Exception as e:
-        logger.error(f"fetch_sector_position_warnings: {type(e).__name__}: {e}")
+        logger.warning(f"fetch_sector_position_warnings: API call failed ({type(e).__name__}), falling back to database")
+
+    try:
+        c.execute("""
+            SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+            FROM algo_positions ap
+            LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+            WHERE ap.status = 'open' AND ap.quantity > 0
+            GROUP BY cp.sector
+            ORDER BY position_count DESC
+        """)
+        sector_counts = {dict(row)['sector']: dict(row)['position_count'] for row in c.fetchall()}
+        
+        c.execute("SELECT value FROM algo_config WHERE key='max_positions_per_sector' LIMIT 1")
+        max_per_sector_row = c.fetchone()
+        max_per_sector = int(max_per_sector_row[0]) if max_per_sector_row and max_per_sector_row[0] else 3
+        
+        warnings = []
+        at_cap = []
+        for sector, count in sector_counts.items():
+            if count >= max_per_sector:
+                at_cap.append({"sector": sector, "position_count": count, "max": max_per_sector})
+            elif count >= max_per_sector - 1:
+                warnings.append({"sector": sector, "position_count": count, "max": max_per_sector})
+        
+        _log_data_quality("fetch_sector_position_warnings (db fallback)", len(warnings) + len(at_cap))
+        return {"warnings": warnings, "at_cap": at_cap}
+        
+    except Exception as e:
+        logger.error(f"fetch_sector_position_warnings fallback failed: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_position_warnings", 0, str(e))
-        return {"_error": f"Failed to load sector position warnings: {type(e).__name__}"}
-
-
+        return {"_error": f"Failed to load sector position warnings: {type(e).__name__}", "warnings": [], "at_cap": []}
 def fetch_activity(c):
     try:
         latest = q1(c, """
@@ -6465,6 +6527,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
