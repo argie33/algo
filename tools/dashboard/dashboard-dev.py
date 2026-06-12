@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Algo Ops Terminal Dashboard (AWS)  --  connects to RDS via AWS Secrets Manager.
+Algo Ops Terminal Dashboard (Development)  --  connects to localhost API (port 3001).
 
 Usage:
-  python tools/dashboard/dashboard.py            # live view (q or Ctrl+C to exit)
-  python tools/dashboard/dashboard.py -w         # watch mode, auto-refresh every 30s
-  python tools/dashboard/dashboard.py -w 60      # watch mode, refresh every 60s
-  python tools/dashboard/dashboard.py --compact  # narrow positions table
+  python tools/dashboard/dashboard-dev.py            # live view (q or Ctrl+C to exit)
+  python tools/dashboard/dashboard-dev.py -w         # watch mode, auto-refresh every 30s
+  python tools/dashboard/dashboard-dev.py -w 60      # watch mode, refresh every 60s
+  python tools/dashboard/dashboard-dev.py --compact  # narrow positions table
 
-Requires: AWS credentials (AWS_PROFILE env var), reads DB creds from AWS Secrets Manager.
-For local development, use: python tools/dashboard/dashboard-dev.py
+For local development with API at http://localhost:3001.
+For production (AWS RDS direct), use: python tools/dashboard/dashboard.py
 """
 
 import argparse
@@ -598,18 +598,22 @@ def fetch_run(c):
 
 def fetch_algo_config(c):
     try:
-        rows = q(c, "SELECT key, value FROM algo_config")
-        cfg = {row["key"]: row["value"] for row in rows}
+        resp = api_call("/api/algo/config")
+        if resp.get("_error"):
+            return resp
+        cfg = resp.get("data", {})
+        if not cfg:
+            return {"_error": "No config data from API"}
         return {
-            "enabled":      cfg.get("algo_enabled", True),
-            "mode":         cfg.get("trade_mode", "unknown"),
-            "max_pos_pct":  float(cfg.get("max_position_size_pct", 0)) if cfg.get("max_position_size_pct") else None,
-            "max_pos_n":    int(cfg.get("max_positions", 0)) if cfg.get("max_positions") else None,
-            "max_sec_n":    int(cfg.get("max_positions_per_sector", 0)) if cfg.get("max_positions_per_sector") else None,
-            "min_score":    float(cfg.get("min_swing_score", 0)) if cfg.get("min_swing_score") else None,
-            "base_risk":    float(cfg.get("base_risk_pct", 0)) if cfg.get("base_risk_pct") else None,
-            "t1_r":         float(cfg.get("t1_target_r_multiple", 0)) if cfg.get("t1_target_r_multiple") else None,
-            "pyramid":      cfg.get("pyramid_enabled", "false").lower() == "true",
+            "enabled":      cfg.get("enabled", True),
+            "mode":         cfg.get("mode", "unknown"),
+            "max_pos_pct":  cfg.get("max_position_size_pct"),
+            "max_pos_n":    cfg.get("max_positions"),
+            "max_sec_n":    cfg.get("max_positions_per_sector"),
+            "min_score":    cfg.get("min_swing_score"),
+            "base_risk":    cfg.get("base_risk_pct"),
+            "t1_r":         cfg.get("t1_target_r_multiple"),
+            "pyramid":      cfg.get("pyramid_enabled", False),
         }
     except Exception as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
@@ -617,34 +621,30 @@ def fetch_algo_config(c):
 
 def fetch_market(c):
     try:
-        row = q1(c, """SELECT exposure_pct, halt_reasons, regime FROM market_exposure_daily
-                       ORDER BY date DESC LIMIT 1""")
-        if not row:
-            return {"pct": None, "tier": "unknown", "halts": []}
-
-        halts = row.get("halt_reasons") or []
-        if isinstance(halts, str):
-            try: halts = json.loads(halts)
-            except: halts = []
-
+        resp = api_call("/api/algo/markets")
+        if resp.get("_error"):
+            return resp
+        data = resp.get("data", {})
+        if not data:
+            return {"_error": "No market data from API"}
         return {
-            "pct":   float(row.get("exposure_pct") or 0),
-            "tier":  row.get("regime") or "unknown",
-            "halts": halts if isinstance(halts, list) else [],
-            "vix":   None,
-            "dist":  None,
-            "stage": None,
-            "spy":   None,
-            "spy_chg": None,
-            "trend": None,
-            "upvol": None,
-            "adr":   None,
-            "nh":    None,
-            "nl":    None,
-            "pcr":   None,
-            "ycs":   None,
-            "bmom":  None,
-            "fed":   None,
+            "pct":   data.get("exposure_pct"),
+            "tier":  tier_from_pct(data.get("exposure_pct")),
+            "halts": data.get("halt_reasons", []),
+            "vix":   data.get("vix_level"),
+            "dist":  data.get("distribution_days_4w"),
+            "stage": data.get("market_stage"),
+            "spy":   data.get("spy_price"),
+            "spy_chg": data.get("spy_change_pct"),
+            "trend": data.get("market_trend"),
+            "upvol": data.get("up_volume_percent"),
+            "adr":   data.get("advance_decline_ratio"),
+            "nh":    data.get("new_highs_count"),
+            "nl":    data.get("new_lows_count"),
+            "pcr":   data.get("put_call_ratio"),
+            "ycs":   data.get("yield_curve_slope"),
+            "bmom":  data.get("breadth_momentum_10d"),
+            "fed":   data.get("fed_rate_environment"),
         }
     except Exception as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
@@ -685,25 +685,24 @@ def fetch_portfolio(c):
 
 def fetch_perf(c):
     try:
-        row = q1(c, """SELECT total_trades, winning_trades, losing_trades, win_rate,
-                              total_pnl_dollars, sharpe_ratio, max_drawdown_pct,
-                              avg_winning_trade, avg_losing_trade, profit_factor, expectancy
-                       FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row:
+        resp = api_call("/api/algo/performance")
+        if resp.get("_error"):
+            logger.warning(f"fetch_perf: {resp.get('_error')}")
             return {}
+        data = resp.get("data", {})
         return {
-            "n": int(row.get("total_trades") or 0),
-            "w": int(row.get("winning_trades") or 0),
-            "l": int(row.get("losing_trades") or 0),
-            "wr": float(row.get("win_rate") or 0),
-            "pnl": float(row.get("total_pnl_dollars") or 0),
+            "n": data.get("total_trades", 0),
+            "w": data.get("winning_trades", 0),
+            "l": data.get("losing_trades", 0),
+            "wr": data.get("win_rate", 0),
+            "pnl": data.get("total_pnl_dollars", 0),
             "streak": 0,
-            "sharpe": float(row.get("sharpe_ratio") or 0) if row.get("sharpe_ratio") else None,
-            "maxdd": float(row.get("max_drawdown_pct") or 0),
-            "avg_win": float(row.get("avg_winning_trade") or 0) if row.get("avg_winning_trade") else 0,
-            "avg_loss": float(row.get("avg_losing_trade") or 0) if row.get("avg_losing_trade") else 0,
-            "profit_factor": float(row.get("profit_factor") or 0) if row.get("profit_factor") else None,
-            "expectancy": float(row.get("expectancy") or 0) if row.get("expectancy") else None,
+            "sharpe": data.get("sharpe_ratio"),
+            "maxdd": data.get("max_drawdown_pct", 0),
+            "avg_win": data.get("avg_winning_trade", 0),
+            "avg_loss": data.get("avg_losing_trade", 0),
+            "profit_factor": data.get("profit_factor"),
+            "expectancy": data.get("expectancy"),
             "avg_r": 0,
             "equity_vals": [],
             "recent_rets": []
@@ -714,40 +713,34 @@ def fetch_perf(c):
 
 def fetch_positions(c):
     try:
-        return q(c, """SELECT position_id, symbol, quantity, entry_price, current_price,
-                              position_value, stop_loss_price, unrealized_pnl_dollars,
-                              unrealized_pnl_pct, sector, stage_in_lifecycle
-                       FROM algo_positions WHERE status='open'
-                       ORDER BY position_value DESC""")
+        resp = api_call("/api/algo/positions")
+        if resp.get("_error"):
+            logger.warning(f"fetch_positions: {resp.get('_error')}")
+            return []
+        items = resp.get("data", {}).get("items", [])
+        return items
     except Exception as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         return []
 
 def fetch_recent_trades(c):
     try:
-        return q(c, """SELECT trade_id, symbol, entry_date, entry_price, exit_date,
-                              exit_price, profit_loss_dollars, profit_loss_pct
-                       FROM algo_trades WHERE status='closed'
-                       ORDER BY exit_date DESC LIMIT 10""")
+        resp = api_call("/api/algo/trades", params={"limit": "10"})
+        if resp.get("_error"):
+            logger.warning(f"fetch_recent_trades: {resp.get('_error')}")
+            return []
+        return resp.get("data", [])
     except Exception as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         return []
 
 def fetch_signals(c):
     try:
-        signals = q(c, """SELECT symbol, swing_score, signal_date
-                         FROM algo_signals_evaluated
-                         WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
-                         ORDER BY swing_score DESC""")
-        return {
-            "n": len(signals),
-            "total": len(signals),
-            "buy_sigs": signals[:5] if signals else [],
-            "grades": {},
-            "near": signals[5:10] if len(signals) > 5 else [],
-            "top_a": signals[:3] if signals else [],
-            "trend": []
-        }
+        resp = api_call("/api/algo/dashboard-signals")
+        if resp.get("_error"):
+            logger.warning(f"fetch_signals: {resp.get('_error')}")
+            return {"_error": resp.get("_error"), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+        return resp.get("data", {})
     except Exception as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
@@ -787,10 +780,11 @@ def fetch_activity(c):
 
 def fetch_health(c):
     try:
-        return q(c, """SELECT table_name, status, latest_date, age_days,
-                              completion_pct, error_message
-                       FROM data_loader_status
-                       ORDER BY latest_date DESC LIMIT 10""")
+        resp = api_call("/api/algo/data-status")
+        if resp.get("_error"):
+            logger.warning(f"fetch_health: {resp.get('_error')}")
+            return []
+        return resp.get("data", [])
     except Exception as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         return []
@@ -1036,22 +1030,23 @@ def fetch_audit_log(c):
 
 def fetch_circuit(c):
     try:
-        rows = q(c, """SELECT breaker_name, current_value, threshold_value,
-                              unit, triggered_at, is_active
-                       FROM algo_circuit_breakers
-                       ORDER BY triggered_at DESC LIMIT 10""")
+        resp = api_call("/api/algo/circuit-breakers")
+        if resp.get("_error"):
+            logger.warning(f"fetch_circuit: {resp.get('_error')}")
+            return {"_error": resp.get("_error")}
+        data = resp.get("data", {})
+        breakers = data.get("breakers", [])
         bs = [{
-            "lbl": r.get("breaker_name", ""),
-            "cur": float(r.get("current_value") or 0),
-            "thr": float(r.get("threshold_value") or 0),
-            "u": r.get("unit", ""),
-            "fired": bool(r.get("is_active"))
-        } for r in rows]
-        any_fired = any(b["fired"] for b in bs)
+            "lbl": b.get("label", ""),
+            "cur": b.get("current", 0),
+            "thr": b.get("threshold", 0),
+            "u": b.get("unit", ""),
+            "fired": b.get("triggered", False)
+        } for b in breakers]
         return {
             "bs": bs,
-            "any": any_fired,
-            "n": sum(1 for b in bs if b["fired"])
+            "any": data.get("any_triggered", False),
+            "n": data.get("triggered_count", 0)
         }
     except Exception as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
