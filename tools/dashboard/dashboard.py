@@ -2071,7 +2071,11 @@ def fetch_signals(c, cfg=None):
               AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))""")
         total_r = q1(c, """SELECT COUNT(*) AS n FROM buy_sell_daily
                            WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))""")
+        if total_r and total_r.get("n") is None:
+            logger.warning("VALIDATION: fetch_signals total_count is NULL in database")
         total_n = int(total_r["n"]) if total_r and total_r.get("n") is not None else None
+        if sig and sig.get("d") is None:
+            logger.warning("VALIDATION: fetch_signals signal_date is NULL in database")
         signal_date = sig.get("d") if sig else None
 
         # Actual BUY signals with rich setup detail
@@ -2225,6 +2229,9 @@ def fetch_computed_signals(c):
         if not buy_sigs:
             logger.debug("No BUY signals found for signal computation")
             return {"symbols": [], "signals": {}, "eval_date": eval_date}
+        null_symbols = len([s for s in buy_sigs if not s.get("symbol")])
+        if null_symbols > 0:
+            logger.warning(f"VALIDATION: fetch_computed_signals {null_symbols} signals have NULL symbols")
         symbols = [s.get("symbol") for s in buy_sigs if s.get("symbol")]
         computed = {}
         for symbol in symbols:
@@ -2264,12 +2271,12 @@ def fetch_sector_ranking(c):
             SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
             FROM sector_ranking
             WHERE date=%s
-            ORDER BY current_rank ASC""", (max_date.get("max_date"),))
+            ORDER BY current_rank ASC""", (sector_date,))
 
         if not raw_result:
-            logger.warning(f"VALIDATION: sector_ranking has max_date {max_date.get('max_date')} but no rows for that date")
+            logger.warning(f"VALIDATION: sector_ranking has max_date {sector_date} but no rows for that date")
             _log_data_quality("fetch_sector_ranking", 0, "no rows for max_date")
-            return {"_error": "No sector ranking rows for latest date"}
+            return {"_error": "No sector ranking rows for latest date", "stale_alerts": stale_alerts}
 
         # H7 FIX: Validate completeness of each sector entry and track filtered count
         required_fields = ["sector_name", "current_rank", "momentum_score", "rank_1w_ago", "rank_4w_ago"]
@@ -2294,12 +2301,13 @@ def fetch_sector_ranking(c):
             "sectors": result,
             "total_returned": len(result),
             "filtered_out_count": filtered_out_count,
-            "total_fetched": len(raw_result)
+            "total_fetched": len(raw_result),
+            "stale_alerts": stale_alerts
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_ranking", 0, str(e))
-        return {"_error": f"Failed to load sector ranking: {type(e).__name__}"}
+        return {"_error": f"Failed to load sector ranking: {type(e).__name__}", "stale_alerts": stale_alerts}
 
 def fetch_sector_position_warnings(c, cfg=None):
     """Fetch sector position warnings with DB fallback (FIX: missing API endpoint)."""
@@ -2429,6 +2437,10 @@ def fetch_economic_pulse(c):
             SELECT DISTINCT ON (series_id) series_id, date, value
             FROM economic_data WHERE series_id = ANY(%s)
             ORDER BY series_id, date DESC""", (KEY,))
+
+        null_count = sum(1 for r in rows if r.get('value') is None)
+        if null_count > 0:
+            logger.warning(f"VALIDATION: fetch_economic_pulse {null_count} rows have NULL values")
         d = {r['series_id']: safe_float(r['value']) for r in rows if r.get('value') is not None}
 
         missing_required = [k for k in ['DGS10', 'DGS2', 'CPIAUCSL'] if k not in d or d[k] is None]
