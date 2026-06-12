@@ -349,29 +349,50 @@ router.get('/positions', authenticateToken, async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    const result = await pool.query(`
-      SELECT
-        position_id, symbol, quantity, avg_entry_price, current_price,
-        position_value, unrealized_pnl, unrealized_pnl_pct,
-        status, stage_in_exit_plan, days_since_entry,
-        stop_loss_price, target_1_price, target_2_price, target_3_price,
-        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-        sector, industry,
-        weinstein_stage, minervini_trend_score,
-        percent_from_52w_low, percent_from_52w_high,
-        r_multiple, initial_risk_per_share, open_risk_dollars,
-        distance_to_stop_pct, distance_to_t1_pct, distance_to_t2_pct, distance_to_t3_pct
-      FROM algo_positions_with_risk
-      ORDER BY position_value DESC
-    `);
+    // Fetch stage threshold config in parallel with positions
+    const [posResult, configResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          position_id, symbol, quantity, avg_entry_price, current_price,
+          position_value, unrealized_pnl, unrealized_pnl_pct,
+          status, stage_in_exit_plan, days_since_entry,
+          stop_loss_price, target_1_price, target_2_price, target_3_price,
+          target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+          sector, industry,
+          weinstein_stage, minervini_trend_score,
+          percent_from_52w_low, percent_from_52w_high,
+          r_multiple, initial_risk_per_share, open_risk_dollars,
+          distance_to_stop_pct, distance_to_t1_pct, distance_to_t2_pct, distance_to_t3_pct
+        FROM algo_positions_with_risk
+        ORDER BY position_value DESC
+      `),
+      pool.query(`
+        SELECT key, value FROM algo_config
+        WHERE key IN ('stage_2_early_min_score', 'stage_2_mid_min_score', 'stage_2_late_min_score')
+      `)
+    ]);
 
-    // Validate result structure
-    validateQueryResult(result, { requireRows: false });
+    // Validate result structures
+    validateQueryResult(posResult, { requireRows: false });
+    validateQueryResult(configResult, { requireRows: false });
+
+    // Parse stage threshold config (with sensible defaults)
+    const stageConfig = {
+      stage_2_early_min_score: 0,
+      stage_2_mid_min_score: 6,
+      stage_2_late_min_score: 8,
+    };
+    for (const row of configResult.rows) {
+      const val = parseFloat(row.value);
+      if (!isNaN(val)) {
+        stageConfig[row.key] = val;
+      }
+    }
 
     const sf = (v) => v == null ? null : parseFloat(v);
 
-    // Enrich positions with computed fields (Issue #5, #8, #6)
-    const items = validateAndCoerceRows(result, {
+    // Enrich positions with computed fields (Issue #5, #8, #6, #7)
+    const items = validateAndCoerceRows(posResult, {
       position_id: { type: 'int', required: true },
       symbol: { type: 'string', required: true },
       quantity: { type: 'float', required: true },
@@ -435,6 +456,27 @@ router.get('/positions', authenticateToken, async (req, res) => {
       // Issue #8: Risk allocation fields (rank will be added after sorting)
       const openRisk = sf(row.open_risk_dollars) || 0;
 
+      // Issue #7: Compute stage_label based on config
+      let stage_label = 'Unknown';
+      const stage = row.weinstein_stage;
+      const score = row.minervini_trend_score;
+      if (stage === 1) {
+        stage_label = 'Stage 1 (base)';
+      } else if (stage === 2) {
+        if (score != null) {
+          if (score >= stageConfig.stage_2_late_min_score) stage_label = 'Late Stage-2';
+          else if (score >= stageConfig.stage_2_mid_min_score) stage_label = 'Mid Stage-2';
+          else if (score >= stageConfig.stage_2_early_min_score) stage_label = 'Early Stage-2';
+          else stage_label = 'Early Stage-2';
+        } else {
+          stage_label = 'Stage 2';
+        }
+      } else if (stage === 3) {
+        stage_label = 'Stage 3 (top)';
+      } else if (stage === 4) {
+        stage_label = 'Stage 4 (down)';
+      }
+
       return {
         position_id: row.position_id,
         symbol: row.symbol,
@@ -471,6 +513,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
         industry: row.industry,
         weinstein_stage: row.weinstein_stage,
         minervini_trend_score: row.minervini_trend_score,
+        stage_label,
         pct_from_52w_low: sf(row.percent_from_52w_low),
         pct_from_52w_high: sf(row.percent_from_52w_high),
 
@@ -1150,20 +1193,20 @@ router.get('/data-status', async (req, res) => {
         SELECT 'price_daily'          AS table_name, 'daily'   AS frequency, 'CRITICAL'    AS role,
                MAX(date)::date        AS latest_date, COUNT(*)  AS row_count, 3  AS stale_days FROM price_daily
         UNION ALL
-        SELECT 'buy_sell_daily',       'daily',   'CRITICAL',
+        SELECT 'market_health_daily',  'daily',   'CRITICAL',
+               MAX(date)::date,        COUNT(*),  3  FROM market_health_daily
+        UNION ALL
+        SELECT 'trend_template_data',  'daily',   'CRITICAL',
+               MAX(date)::date,        COUNT(*),  7  FROM trend_template_data
+        UNION ALL
+        SELECT 'buy_sell_daily',       'daily',   'SUPPLEMENTAL',
                MAX(date)::date,        COUNT(*),  3  FROM buy_sell_daily
         UNION ALL
-        SELECT 'stock_scores',         'daily',   'CRITICAL',
+        SELECT 'stock_scores',         'daily',   'SUPPLEMENTAL',
                MAX(updated_at::date),  COUNT(*),  3  FROM stock_scores
         UNION ALL
-        SELECT 'technical_data_daily', 'daily',   'IMPORTANT',
+        SELECT 'technical_data_daily', 'daily',   'SUPPLEMENTAL',
                MAX(date)::date,        COUNT(*),  3  FROM technical_data_daily
-        UNION ALL
-        SELECT 'market_health_daily',  'daily',   'IMPORTANT',
-               MAX(date)::date,        COUNT(*),  7  FROM market_health_daily
-        UNION ALL
-        SELECT 'trend_template_data',  'daily',   'IMPORTANT',
-               MAX(date)::date,        COUNT(*),  7  FROM trend_template_data
         UNION ALL
         SELECT 'economic_data',        'weekly',  'SUPPLEMENTAL',
                MAX(date)::date,        COUNT(*),  14 FROM economic_data
@@ -2676,6 +2719,49 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
   } catch (error) {
     logger.error('Error in /api/algo/trade-distribution:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while computing trade distribution');
+  }
+});
+
+/**
+ * GET /api/algo/holding-period-distribution
+ * Issue #4: Pre-computed holding period distribution by days held
+ */
+router.get('/holding-period-distribution', authenticateToken, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT trade_duration_days
+      FROM algo_closed_trades
+      ORDER BY close_date DESC
+      LIMIT 500
+    `);
+
+    validateQueryResult(result, { requireRows: false });
+
+    const bins = [
+      { range: '0-3d', min: 0, max: 4, count: 0 },
+      { range: '4-7d', min: 4, max: 8, count: 0 },
+      { range: '8-14d', min: 8, max: 15, count: 0 },
+      { range: '15-30d', min: 15, max: 31, count: 0 },
+      { range: '31-60d', min: 31, max: 61, count: 0 },
+      { range: '60d+', min: 61, max: Infinity, count: 0 },
+    ];
+
+    for (const row of result.rows) {
+      const d = Number(row.trade_duration_days);
+      if (!Number.isFinite(d)) continue;
+      const b = bins.find(x => d >= x.min && d < x.max);
+      if (b) b.count += 1;
+    }
+
+    return sendSuccess(res, {
+      buckets: bins,
+      total_trades: result.rows.length,
+    });
+  } catch (error) {
+    logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while computing holding period distribution');
   }
 });
 

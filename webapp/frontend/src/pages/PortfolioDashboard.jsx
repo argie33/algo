@@ -126,10 +126,14 @@ function PortfolioDashboardPage() {
     ['algo-trade-distribution'],
     () => api.get('/api/algo/trade-distribution'),
   );
+  const { data: holdingDistribution, loading: holdingLoading, error: holdingError, refetch: refetchHolding } = useApiQuery(
+    ['algo-holding-period-distribution'],
+    () => api.get('/api/algo/holding-period-distribution'),
+  );
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
-  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading;
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading || holdingLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -236,6 +240,7 @@ function PortfolioDashboardPage() {
             refetchBreakers();
             refetchHistogram();
             refetchDistribution();
+            refetchHolding();
           }}>
             <RefreshCw size={14} /> Refresh
           </button>
@@ -525,7 +530,7 @@ function PortfolioDashboardPage() {
           </div>
 
           <ErrorBoundary>
-            <HoldingPeriodHistogram trades={safeTradesList} />
+            <HoldingPeriodHistogram holding_data={holdingDistribution} />
           </ErrorBoundary>
         </div>
       )}
@@ -969,25 +974,11 @@ function TradeDistribution({ distribution_data, loading }) {
 }
 
 // ─── Holding period histogram ──────────────────────────────────────────────
-function HoldingPeriodHistogram({ trades }) {
+function HoldingPeriodHistogram({ holding_data }) {
   const buckets = useMemo(() => {
-    if (!trades || trades.length === 0) return [];
-    const bins = [
-      { range: '0-3d', min: 0, max: 4, count: 0 },
-      { range: '4-7d', min: 4, max: 8, count: 0 },
-      { range: '8-14d', min: 8, max: 15, count: 0 },
-      { range: '15-30d', min: 15, max: 31, count: 0 },
-      { range: '31-60d', min: 31, max: 61, count: 0 },
-      { range: '60d+', min: 61, max: Infinity, count: 0 },
-    ];
-    for (const t of trades) {
-      const d = Number(t.trade_duration_days);
-      if (!Number.isFinite(d)) continue;
-      const b = bins.find(x => d >= x.min && d < x.max);
-      if (b) b.count += 1;
-    }
-    return bins;
-  }, [trades]);
+    if (!holding_data || !holding_data.buckets) return [];
+    return holding_data.buckets || [];
+  }, [holding_data]);
 
   return (
     <div className="card">
@@ -1244,22 +1235,9 @@ function SectorConcentration({ sector_allocation, loading }) {
 function StagePhaseDonut({ positions, loading }) {
   const data = useMemo(() => {
     if (!positions) return [];
-    const labelFor = (p) => {
-      const stage = p.weinstein_stage;
-      const score = p.minervini_trend_score;
-      if (stage === 1) return 'Stage 1 (base)';
-      if (stage === 2) {
-        if (score != null && score >= 8) return 'Late Stage-2';
-        if (score != null && score >= 6) return 'Mid Stage-2';
-        return 'Early Stage-2';
-      }
-      if (stage === 3) return 'Stage 3 (top)';
-      if (stage === 4) return 'Stage 4 (down)';
-      return 'Unknown';
-    };
     const counts = {};
     for (const p of positions) {
-      const k = labelFor(p);
+      const k = p.stage_label || 'Unknown';
       counts[k] = (counts[k] || 0) + 1;
     }
     const order = ['Early Stage-2', 'Mid Stage-2', 'Late Stage-2',
