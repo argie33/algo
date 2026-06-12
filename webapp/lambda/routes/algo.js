@@ -488,9 +488,14 @@ router.get('/positions', authenticateToken, async (req, res) => {
 
     // Issue #8: Compute risk_pct and risk_rank
     const totalRisk = items.reduce((s, p) => s + (p.open_risk_dollars || 0), 0);
-    items.forEach((item, i) => {
+    const itemsByRisk = [...items].sort((a, b) => (b.open_risk_dollars || 0) - (a.open_risk_dollars || 0));
+    const riskRankMap = new Map();
+    itemsByRisk.forEach((item, i) => {
+      riskRankMap.set(item.position_id, i + 1);
+    });
+    items.forEach((item) => {
       item.risk_pct = totalRisk > 0 ? (item.open_risk_dollars / totalRisk) * 100 : 0;
-      item.risk_rank = i + 1;
+      item.risk_rank = riskRankMap.get(item.position_id) || 0;
     });
 
     // Issue #6: Group sector concentration (add to response)

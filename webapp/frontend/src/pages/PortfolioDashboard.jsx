@@ -127,6 +127,9 @@ function PortfolioDashboardPage() {
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
   const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
   const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
+  const sectorAllocation = (positions && typeof positions === 'object' && Array.isArray(positions.sector_allocation))
+    ? positions.sector_allocation
+    : [];
 
   // Add null safety checks for arrays - ensure they're always valid arrays
   const safePositionsList = (Array.isArray(positionsList) && positionsList.length > 0) ? positionsList : [];
@@ -454,7 +457,7 @@ function PortfolioDashboardPage() {
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading} />
+          <SectorConcentration sector_allocation={sectorAllocation} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
           <StagePhaseDonut positions={safePositionsList} loading={isPrimaryLoading} />
@@ -1166,11 +1169,12 @@ function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
   const data = useMemo(() => {
     if (!positions) return [];
     return positions
+      .filter(p => (p.open_risk_dollars || 0) > 0)
       .map(p => ({
         symbol: p.symbol,
         risk: Number(p.open_risk_dollars) || 0,
+        risk_pct: Number(p.risk_pct) || 0,
       }))
-      .filter(d => d.risk > 0)
       .sort((a, b) => b.risk - a.risk);
   }, [positions]);
   const totalRisk = data.reduce((s, d) => s + d.risk, 0);
@@ -1218,19 +1222,9 @@ function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
 }
 
 // ─── Sector concentration bar chart ────────────────────────────────────────
-function SectorConcentration({ positions, totalValue, loading }) {
-  const data = useMemo(() => {
-    if (!positions || totalValue <= 0) return [];
-    const byS = {};
-    for (const p of positions) {
-      const s = p.sector || 'Unknown';
-      byS[s] = (byS[s] || 0) + Number(p.position_value || 0);
-    }
-    return Object.entries(byS)
-      .map(([sector, value]) => ({ sector, value, pct: (value / totalValue) * 100 }))
-      .sort((a, b) => b.pct - a.pct);
-  }, [positions, totalValue]);
-  const overweight = data.find(d => d.pct > 30);
+function SectorConcentration({ sector_allocation, loading }) {
+  const data = sector_allocation || [];
+  const overweight = data.find(d => d.allocation_pct > 30);
 
   return (
     <div className="card">
@@ -1260,9 +1254,9 @@ function SectorConcentration({ positions, totalValue, loading }) {
                        fontSize={11} width={110} />
                 <Tooltip contentStyle={TOOLTIP_STYLE}
                   formatter={(v) => [`${v.toFixed(1)}%`, 'Allocation']} />
-                <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="allocation_pct" radius={[0, 4, 4, 0]}>
                   {data.map((d, i) => (
-                    <Cell key={i} fill={d.pct > 30 ? 'var(--danger)' : 'var(--brand)'} />
+                    <Cell key={i} fill={d.allocation_pct > 30 ? 'var(--danger)' : 'var(--brand)'} />
                   ))}
                 </Bar>
               </BarChart>
