@@ -16,6 +16,7 @@ from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpac
 from utils.database_context import DatabaseContext
 
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from zoneinfo import ZoneInfo
@@ -78,47 +79,52 @@ class MarketEventHandler:
             return None
 
     def check_market_circuit_breaker(self) -> Optional[Dict[str, Any]]:
-        """Check if market circuit breaker is active (S&P 500 down 7%+).
+        """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
 
         Circuit breaker levels:
         - L1: S&P 500 down 7% intraday → 15-min halt
         - L2: S&P 500 down 13% intraday → 15-min halt
         - L3: S&P 500 down 20% intraday → halt for rest of day
 
+        Fetches quotes and bars concurrently to reduce timeout latency from 15s sequential
+        to ~10s concurrent (both timeout at 10s, run in parallel).
+
         Returns:
             dict with level, % down, timestamp if triggered, else None
         """
         try:
-            url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
             headers = {
                 'APCA-API-KEY-ID': self.alpaca_key,
                 'APCA-API-SECRET-KEY': self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
-            if resp.status_code != 200:
+
+            def fetch_quotes():
+                url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
+                try:
+                    resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+                    if resp.status_code == 200:
+                        return resp.json().get('quote', {}).get('ap')
+                except Exception as e:
+                    logger.debug(f"Failed to fetch SPY quotes: {e}")
                 return None
 
-            try:
-                data = resp.json()
-            except (ValueError, Exception) as e:
-                logger.warning(f"Invalid JSON response from {url}: {e}")
-                return None
-            current_price = data.get('quote', {}).get('ap')  # ask price
-            if not current_price:
-                return None
-
-            url_bars = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
-            resp_bars = requests.get(url_bars, headers=headers, timeout=get_market_data_timeout())
-            if resp_bars.status_code != 200:
+            def fetch_bars():
+                url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
+                try:
+                    resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
+                    if resp.status_code == 200:
+                        return resp.json().get('bar', {}).get('o')
+                except Exception as e:
+                    logger.debug(f"Failed to fetch SPY bars: {e}")
                 return None
 
-            try:
-                bars_data = resp_bars.json()
-            except (ValueError, Exception) as e:
-                logger.warning(f"Invalid JSON response from {url_bars}: {e}")
-                return None
-            open_price = bars_data.get('bar', {}).get('o')
-            if not open_price:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                quote_future = executor.submit(fetch_quotes)
+                bars_future = executor.submit(fetch_bars)
+                current_price = quote_future.result(timeout=get_api_timeout() + 2)
+                open_price = bars_future.result(timeout=get_market_data_timeout() + 2)
+
+            if not current_price or not open_price:
                 return None
 
             pct_down = (open_price - current_price) / open_price * 100
@@ -358,7 +364,11 @@ class MarketEventHandler:
             return None
 
     def run_pre_market_checks(self) -> Dict[str, Any]:
-        """Run all pre-market checks at start of trading day.
+        """Run all pre-market checks at start of trading day (concurrent execution).
+
+        Independent checks are executed in parallel using ThreadPoolExecutor to avoid
+        sequential timeout cascades. If all three checks timeout (10s each), concurrent
+        execution takes ~10s instead of ~30s total.
 
         Returns:
             dict with all checks and any alerts
@@ -369,18 +379,27 @@ class MarketEventHandler:
             'alerts': [],
         }
 
-        early_close = self.check_early_close()
-        result['checks']['early_close'] = early_close
-        if early_close:
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                executor.submit(self.check_early_close): 'early_close',
+                executor.submit(self.check_market_circuit_breaker): 'circuit_breaker',
+                executor.submit(self.check_after_hours_window): 'after_hours_window',
+            }
+
+            for future in as_completed(futures, timeout=30):
+                check_name = futures[future]
+                try:
+                    result['checks'][check_name] = future.result()
+                except Exception as e:
+                    logger.warning(f"Pre-market check {check_name} failed: {e}")
+                    result['checks'][check_name] = None
+
+        if result['checks'].get('early_close'):
             result['alerts'].append('MARKET CLOSES EARLY AT 13:00 ET')
 
-        cb = self.check_market_circuit_breaker()
-        result['checks']['circuit_breaker'] = cb
+        cb = result['checks'].get('circuit_breaker')
         if cb:
             result['alerts'].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
-
-        after_hours = self.check_after_hours_window()
-        result['checks']['after_hours_window'] = after_hours
 
         return result
 
