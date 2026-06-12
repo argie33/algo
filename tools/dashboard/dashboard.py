@@ -13,6 +13,7 @@ For local development, use: python tools/dashboard/dashboard-dev.py
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -28,6 +29,11 @@ from zoneinfo import ZoneInfo
 
 import requests
 import requests.exceptions
+
+from data_validation import (
+    safe_float, safe_int, safe_json_parse, safe_bool, safe_str,
+    validate_required_fields, validate_field_types, log_data_issue
+)
 
 try:
     import boto3
@@ -233,7 +239,7 @@ _sector_agg_cache = {}  # {"pos_id": {"sorted_secs": [...], "total_secs": N}}
 def compute_sector_agg(pos, port):
     """
     Compute sector aggregation with caching to avoid recomputation on every 30-sec refresh.
-    Only recomputes when positions data changes (different object identity).
+    Only recomputes when positions data changes (via content hash, not object identity).
 
     E5 optimization: Sector aggregation from 100+ positions was O(n) × 2,880 times/day.
     Now computes only when positions change (typically 2-5 times/day).
@@ -241,9 +247,9 @@ def compute_sector_agg(pos, port):
     if not pos:
         return None, None, 0
 
-    pos_id = id(pos)
-    if pos_id in _sector_agg_cache:
-        cached = _sector_agg_cache[pos_id]
+    pos_hash = hashlib.md5(json.dumps(pos, sort_keys=True, default=str).encode()).hexdigest()
+    if pos_hash in _sector_agg_cache:
+        cached = _sector_agg_cache[pos_hash]
         return cached["sorted_secs"], cached["total_secs"], cached.get("pv", 0)
 
     pv = float(port.get("total_portfolio_value") or 0)
@@ -261,7 +267,7 @@ def compute_sector_agg(pos, port):
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)
 
-    _sector_agg_cache[pos_id] = {
+    _sector_agg_cache[pos_hash] = {
         "sorted_secs": sorted_secs,
         "total_secs": total_secs,
         "pv": pv
@@ -556,10 +562,7 @@ def fetch_run(c):
             FROM orchestrator_execution_log
             ORDER BY started_at DESC LIMIT 1""")
         if row:
-            pr = row.get("phase_results") or []
-            if isinstance(pr, str):
-                try: pr = json.loads(pr)
-                except: pr = []
+            pr = safe_json_parse(row.get("phase_results"), default=[], field_name="fetch_run.phase_results")
             overall = (row.get("overall_status") or "").lower()
             return {
                 "run_id":    row.get("run_id"),
@@ -575,8 +578,8 @@ def fetch_run(c):
                 "phase_results":    pr,
                 "_source": "exec_log",
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"fetch_run: {type(e).__name__}: {e}")
 
     # Fallback: reconstruct from algo_audit_log
     try:
@@ -584,16 +587,19 @@ def fetch_run(c):
             SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
             FROM algo_audit_log WHERE details->>'run_id' IS NOT NULL
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
+        if not latest or not latest.get("run_id"):
+            logger.warning("fetch_run: No data in algo_audit_log")
+            return {}
         rid = latest["run_id"]
         phases = q(c, """SELECT action_type, status FROM algo_audit_log
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        halted  = any(p["status"] == "halt"  for p in phases)
-        errored = any(p["status"] == "error" for p in phases)
+        halted  = any(p.get("status") == "halt"  for p in phases)
+        errored = any(p.get("status") == "error" for p in phases)
         return {"run_id": rid, "run_at": latest["run_at"],
                 "success": bool(phases) and not errored, "halted": halted,
                 "phases": phases, "_source": "audit_log"}
     except Exception as e:
+        logger.error(f"fetch_run fallback: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 def fetch_algo_config(c):
@@ -627,7 +633,7 @@ def fetch_market(c):
             try: halts = json.loads(halts)
             except: halts = []
 
-        return {
+        result = {
             "pct":   float(row.get("exposure_pct") or 0),
             "tier":  row.get("regime") or "unknown",
             "halts": halts if isinstance(halts, list) else [],
@@ -646,6 +652,35 @@ def fetch_market(c):
             "bmom":  None,
             "fed":   None,
         }
+
+        # Fetch market health data (VIX, stage, trend, distribution days)
+        mkt = q1(c, """SELECT vix_level, market_stage, market_trend, distribution_days_4w
+                       FROM market_health_daily ORDER BY date DESC LIMIT 1""")
+        if mkt:
+            result["vix"] = float(mkt.get("vix_level")) if mkt.get("vix_level") else None
+            result["stage"] = mkt.get("market_stage")
+            result["trend"] = mkt.get("market_trend")
+            result["dist"] = int(mkt.get("distribution_days_4w")) if mkt.get("distribution_days_4w") else None
+
+        # Fetch SPY price and calculate daily change
+        spy_row = q1(c, """SELECT current_price FROM algo_positions
+                           WHERE symbol='SPY' AND status='open' LIMIT 1""")
+        if spy_row:
+            result["spy"] = float(spy_row.get("current_price")) if spy_row.get("current_price") else None
+
+        # Calculate yield curve slope (10Y - 2Y) from economic data
+        econ = q(c, """SELECT series_id, value FROM economic_data
+                       WHERE series_id IN ('DGS10', 'DGS2')
+                       AND date = (SELECT MAX(date) FROM economic_data WHERE series_id IN ('DGS10', 'DGS2'))
+                       LIMIT 2""")
+        if econ:
+            econ_dict = {r['series_id']: float(r['value']) for r in econ if r.get('value')}
+            t10 = econ_dict.get('DGS10')
+            t2 = econ_dict.get('DGS2')
+            if t10 is not None and t2 is not None:
+                result["ycs"] = round(t10 - t2, 2)
+
+        return result
     except Exception as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
         return {"_error": str(e)}
