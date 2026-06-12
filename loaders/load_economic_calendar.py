@@ -15,7 +15,7 @@ import boto3
 from utils.database_context import DatabaseContext
 from utils.url_validator import validate_url
 from utils.loader_helpers import get_api_key
-from utils.api_endpoints import get_fred_url
+from config.api_endpoints import get_fred_url
 
 logger = logging.getLogger(__name__)
 
