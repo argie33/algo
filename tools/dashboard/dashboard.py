@@ -11,7 +11,9 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
+import random
 import statistics
 import sys
 import threading
@@ -20,6 +22,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
+
+import requests
+import requests.exceptions
 
 try:
     import msvcrt
@@ -125,6 +130,21 @@ MASCOT_COLORS = [
 ]
 LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
+# Configure logging for stability monitoring
+_log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(_log_file, encoding="utf-8")]
+)
+logger = logging.getLogger(__name__)
+
+# API configuration
+API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
+API_TIMEOUT = 10
+API_MAX_RETRIES = 3
+API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
+
 
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
@@ -148,6 +168,14 @@ def get_conn():
         options="-c statement_timeout=8000",
     )
 
+def return_conn(conn):
+    """Close database connection."""
+    if conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 def q(c, sql, p=None):
     with c.cursor() as cur:
         cur.execute(sql, p or ())
@@ -156,6 +184,58 @@ def q(c, sql, p=None):
 def q1(c, sql, p=None):
     rows = q(c, sql, p)
     return rows[0] if rows else None
+
+
+def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+    """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
+
+    Returns dict with 'data' key on success, '_error' on failure.
+    Implements exponential backoff with maximum cap to prevent runaway delays.
+    """
+    url = f"{API_BASE_URL}{endpoint}"
+    headers = {"Content-Type": "application/json"}
+
+    for attempt in range(API_MAX_RETRIES + 1):
+        try:
+            if method == "GET":
+                resp = requests.get(url, params=params, headers=headers, timeout=API_TIMEOUT)
+            else:
+                resp = requests.post(url, json=params, headers=headers, timeout=API_TIMEOUT)
+
+            if resp.status_code >= 400:
+                logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
+                return {"_error": f"API error {resp.status_code}"}
+
+            data = resp.json()
+            if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
+                logger.warning(f"API {endpoint}: error in JSON response")
+                return {"_error": data.get("message", "Unknown API error")}
+
+            return data
+        except requests.exceptions.Timeout:
+            if attempt < API_MAX_RETRIES:
+                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
+                logger.warning(f"API {endpoint} timeout (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s")
+                time.sleep(backoff)
+                continue
+            logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
+            return {"_error": "API timeout"}
+        except requests.exceptions.ConnectionError:
+            if attempt < API_MAX_RETRIES:
+                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
+                logger.warning(f"API {endpoint} connection failed (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s")
+                time.sleep(backoff)
+                continue
+            logger.error(f"API {endpoint}: connection unavailable after {API_MAX_RETRIES+1} attempts")
+            return {"_error": "API unavailable"}
+        except Exception as e:
+            if attempt < API_MAX_RETRIES:
+                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
+                logger.warning(f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}, retry in {backoff:.1f}s")
+                time.sleep(backoff)
+                continue
+            logger.error(f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts")
+            return {"_error": str(e)}
 
 
 # ── formatters ────────────────────────────────────────────────────────────────
@@ -1030,22 +1110,65 @@ FETCHERS = {
 }
 
 def load_all() -> dict:
+    """Load all fetcher data in parallel with exponential backoff retry and timeout handling.
+
+    Issue 10 FIX: Exponential backoff capped at API_MAX_BACKOFF (30s) to prevent runaway delays.
+    Issue 11 FIX: Timeout handling ensures orphaned fetchers are marked incomplete and not lost.
+    Issue 12 FIX: API calls use retry logic with capped exponential backoff.
+    """
     out: dict = {}
+    MAX_RETRIES = 3
+    BATCH_TIMEOUT = 100
+
     def one(name, fn):
+        """Execute fetcher with exponential backoff retry on connection errors."""
         conn = None
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                conn = get_conn()
+                conn.autocommit = True
+                return name, fn(conn)
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt < MAX_RETRIES:
+                    # Issue 10 FIX: Exponential backoff capped at 30 seconds
+                    # Formula: (2^attempt) + random jitter, but never exceed API_MAX_BACKOFF
+                    base_backoff = (2 ** attempt) + random.random() * (2 ** attempt)
+                    backoff = min(base_backoff, API_MAX_BACKOFF)
+                    logger.warning(f"Fetcher {name} retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}")
+                    time.sleep(backoff)
+                    continue
+                logger.error(f"Fetcher {name} failed after {MAX_RETRIES+1} attempts: {e}")
+                return name, {"_error": str(e)}
+            except Exception as e:
+                logger.error(f"Fetcher {name}: {type(e).__name__}: {e}")
+                return name, {"_error": str(e)}
+            finally:
+                if conn:
+                    try:
+                        return_conn(conn)
+                    except Exception:
+                        pass
+
+    with ThreadPoolExecutor(max_workers=min(len(FETCHERS), 8)) as pool:
+        futures = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
         try:
-            conn = get_conn()
-            conn.autocommit = True
-            return name, fn(conn)
-        except Exception as e:
-            return name, {"_error": str(e)}
-        finally:
-            if conn:
-                return_conn(conn)
-    with ThreadPoolExecutor(max_workers=len(FETCHERS)) as pool:
-        for f in as_completed({pool.submit(one, k, v): k for k, v in FETCHERS.items()}):
-            n, d = f.result()
-            out[n] = d
+            # Issue 11 FIX: Timeout ensures orphaned fetchers are properly handled
+            for f in as_completed(futures, timeout=BATCH_TIMEOUT):
+                try:
+                    n, d = f.result()
+                    out[n] = d
+                except Exception as e:
+                    k = futures[f]
+                    logger.error(f"Thread exception for {k}: {type(e).__name__}: {e}")
+                    out[k] = {"_error": str(e)}
+        except TimeoutError:
+            logger.error(f"load_all timeout after {BATCH_TIMEOUT}s - marking incomplete fetchers")
+            # Mark any unfinished futures as incomplete (orphaned fetchers)
+            for f, k in futures.items():
+                if not f.done():
+                    logger.warning(f"Fetcher {k} timed out - marking incomplete")
+                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
+
     return out
 
 
