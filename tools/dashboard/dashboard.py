@@ -46,7 +46,7 @@ if sys.platform == "win32":
         pass
 
 try:
-    import psycopg2, psycopg2.extras
+    import psycopg2, psycopg2.extras, psycopg2.pool
 except ImportError:
     sys.exit("pip install psycopg2-binary")
 
@@ -139,6 +139,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Connection pool for dashboard (prevents exhaustion with 27 concurrent fetchers)
+_dashboard_pool = None
+
+def _init_dashboard_pool():
+    """Initialize the dashboard connection pool (thread-safe)."""
+    global _dashboard_pool
+    if _dashboard_pool is not None:
+        return
+    
+    miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
+    if miss:
+        return None  # Can't initialize pool without credentials
+    
+    try:
+        _dashboard_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=2,
+            maxconn=15,
+            host=os.environ["DB_HOST"],
+            port=int(os.environ.get("DB_PORT", 5432)),
+            user=os.environ["DB_USER"],
+            password=os.environ["DB_PASSWORD"],
+            database=os.environ["DB_NAME"],
+            connect_timeout=10,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+            options="-c statement_timeout=8000"
+        )
+        logger.info("Dashboard connection pool initialized (minconn=2, maxconn=15)")
+    except Exception as e:
+        logger.warning(f"Failed to initialize dashboard pool: {e}, falling back to direct connections")
+        _dashboard_pool = None
+
+
 # API configuration
 API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 10
@@ -157,6 +189,20 @@ def mascot_pose(data: dict, frame: int) -> int:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def get_conn():
+    """Get a connection from the pool, or direct connection if pool unavailable."""
+    global _dashboard_pool
+    
+    # Try to get from pool
+    if _dashboard_pool is None:
+        _init_dashboard_pool()
+    
+    if _dashboard_pool is not None:
+        try:
+            return _dashboard_pool.getconn()
+        except psycopg2.pool.PoolError:
+            logger.warning("Dashboard pool exhausted, falling back to direct connection")
+    
+    # Fallback: direct connection
     miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
     if miss:
         sys.exit(f"Missing env vars: {', '.join(miss)}")
@@ -169,11 +215,19 @@ def get_conn():
     )
 
 def return_conn(conn):
-    """Close database connection."""
-    if conn:
+    """Return a connection to the pool."""
+    global _dashboard_pool
+    if _dashboard_pool is not None and conn is not None:
+        try:
+            _dashboard_pool.putconn(conn)
+            return
+        except (psycopg2.pool.PoolError, TypeError):
+            pass
+    # Fallback: close the connection if not pooled
+    if conn is not None:
         try:
             conn.close()
-        except Exception:
+        except:
             pass
 
 def q(c, sql, p=None):
