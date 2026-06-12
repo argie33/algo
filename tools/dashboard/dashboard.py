@@ -2988,30 +2988,64 @@ def fetch_audit_log(c):
         return {"_error": f"Failed to load audit log: {type(e).__name__}"}
 
 def fetch_circuit(c):
-    """Fetch circuit breaker status from API instead of database.
-
-    Uses /api/algo/circuit-breakers endpoint which returns real-time
-    circuit breaker state and trigger status.
-
-    M15 FIX: Return stale_alerts for consistency with other fetchers.
-    """
+    """Fetch circuit breaker status with DB fallback (FIX: mixed data sources)."""
     stale_alerts = []
     try:
         api_resp = api_call("/api/algo/circuit-breakers")
-        if "_error" in api_resp:
-            logger.error(f"fetch_circuit: API error: {api_resp['_error']}")
-            _log_data_quality("fetch_circuit", 0, api_resp['_error'])
-            stale_alerts.append(f"Circuit breaker API unavailable: {api_resp['_error']}")
-            return {"_error": api_resp['_error'], "breakers": [], "any_triggered": False, "triggered_count": 0, "stale_alerts": stale_alerts}
+        if "_error" not in api_resp:
+            breakers_data = api_resp.get("data", api_resp)
+            breakers = breakers_data.get("breakers", [])
+            any_triggered = breakers_data.get("any_triggered", False)
+            triggered_count = breakers_data.get("triggered_count", 0)
+            _log_data_quality("fetch_circuit", len(breakers))
+            return {"breakers": breakers, "any_triggered": any_triggered, "triggered_count": triggered_count, "stale_alerts": stale_alerts}
 
-        breakers_data = api_resp.get("data", api_resp)
-        breakers = breakers_data.get("breakers", [])
-        any_triggered = breakers_data.get("any_triggered", False)
-        triggered_count = breakers_data.get("triggered_count", 0)
-        _log_data_quality("fetch_circuit", len(breakers))
+        logger.warning(f"fetch_circuit: API error, falling back to database")
+        stale_alerts.append("Circuit breaker data from database cache (API unavailable)")
+
+    except Exception as e:
+        logger.warning(f"fetch_circuit: API call failed ({type(e).__name__}), falling back to database")
+        stale_alerts.append("Circuit breaker data from database cache (API call failed)")
+
+    try:
+        c.execute("""
+            SELECT current_drawdown_pct, daily_loss_pct, weekly_loss_pct, total_risk_pct, consecutive_losses
+            FROM circuit_breaker_metrics LIMIT 1
+        """)
+        cbm_row = c.fetchone()
+
+        breakers = []
+        any_triggered = False
+        triggered_count = 0
+
+        if cbm_row:
+            cbm_data = dict(cbm_row)
+
+            for check_name, current, threshold in [
+                ('drawdown', cbm_data.get('current_drawdown_pct', 0), 20.0),
+                ('daily_loss', cbm_data.get('daily_loss_pct', 0), 2.0),
+                ('weekly_loss', cbm_data.get('weekly_loss_pct', 0), 5.0),
+                ('total_risk', cbm_data.get('total_risk_pct', 0), 4.0),
+                ('consecutive_losses', cbm_data.get('consecutive_losses', 0), 3),
+            ]:
+                triggered = current >= threshold
+                breakers.append({
+                    'id': check_name,
+                    'label': check_name.replace('_', ' ').title(),
+                    'triggered': triggered,
+                    'current': current,
+                    'threshold': threshold,
+                    'unit': '%' if '_pct' in check_name else ''
+                })
+                if triggered:
+                    any_triggered = True
+                    triggered_count += 1
+
+        _log_data_quality("fetch_circuit (db fallback)", len(breakers))
         return {"breakers": breakers, "any_triggered": any_triggered, "triggered_count": triggered_count, "stale_alerts": stale_alerts}
-    except (KeyError, TypeError, ValueError) as e:
-        logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
+
+    except Exception as e:
+        logger.error(f"fetch_circuit fallback failed: {type(e).__name__}: {e}")
         _log_data_quality("fetch_circuit", 0, str(e))
         stale_alerts.append(f"Circuit breaker fetch failed: {type(e).__name__}")
         return {"_error": str(e), "breakers": [], "any_triggered": False, "triggered_count": 0, "stale_alerts": stale_alerts}
