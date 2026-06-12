@@ -36,6 +36,7 @@ from algo.algo_sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
 from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.grade_classifier import GradeClassifier
 
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
@@ -234,26 +235,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                 (multi_tf / 100.0) * 5
             )
 
-            # --- Grade based on weighted composite (0-100) ---
-            # Thresholds are configurable via algo_config table
-            threshold_aplus = self._load_config_val('swing_grade_threshold_aplus', 85)
-            threshold_a = self._load_config_val('swing_grade_threshold_a', 75)
-            threshold_b = self._load_config_val('swing_grade_threshold_b', 65)
-            threshold_c = self._load_config_val('swing_grade_threshold_c', 55)
-            threshold_d = self._load_config_val('swing_grade_threshold_d', 45)
-
-            if weighted_score >= threshold_aplus:
-                grade = 'A+'
-            elif weighted_score >= threshold_a:
-                grade = 'A'
-            elif weighted_score >= threshold_b:
-                grade = 'B'
-            elif weighted_score >= threshold_c:
-                grade = 'C'
-            elif weighted_score >= threshold_d:
-                grade = 'D'
-            else:
-                grade = 'F'
+            grade = GradeClassifier.classify_swing_score(weighted_score)
 
             pass_gates = composite >= 75
             fail_reason = None if pass_gates else (
