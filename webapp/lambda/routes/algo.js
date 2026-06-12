@@ -1923,7 +1923,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'portfolio');
     const result = await pool.query(`
       SELECT snapshot_date, total_portfolio_value, daily_return_pct,
-             unrealized_pnl_pct, position_count
+             unrealized_pnl_pct, position_count, drawdown_pct
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC
       LIMIT $1
@@ -1932,34 +1932,21 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
-    // Validate and coerce row types
+    // Validate and coerce row types - drawdown_pct now comes from DB
     const validated = validateAndCoerceRows(result, {
       snapshot_date: { type: 'date', required: true },
       total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
       daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
       unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
-      position_count: { type: 'int', required: false, defaultValue: 0 }
+      position_count: { type: 'int', required: false, defaultValue: 0 },
+      drawdown_pct: { type: 'float', required: false, defaultValue: 0 }
     });
 
-    // Issue #1: Compute drawdown (peak-to-current) for each snapshot
+    // Reverse to chronological order (oldest first)
     const chronological = validated.reverse();
-    let peak = 0;
-    const withDrawdown = chronological.map(r => {
-      const value = r.total_portfolio_value || 0;
-      if (value > 0) peak = Math.max(peak, value);
-      const dd = peak > 0 ? -((peak - value) / peak) * 100 : 0;
-      return {
-        snapshot_date: r.snapshot_date,
-        total_portfolio_value: value,
-        daily_return_pct: r.daily_return_pct || 0,
-        unrealized_pnl_pct: r.unrealized_pnl_pct || 0,
-        position_count: r.position_count || 0,
-        drawdown_pct: Number(dd.toFixed(2)),
-      };
-    });
 
     return sendSuccess(res, {
-      items: withDrawdown
+      items: chronological
     });
   } catch (error) {
     logger.error('Error in /algo/equity-curve:', { error: error.message, stack: error.stack });
@@ -2689,28 +2676,23 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 
 /**
  * GET /api/algo/daily-return-histogram
- * Issue #2: Pre-computed daily return histogram with statistics
- * Returns histogram bins and statistics (mean, std) for last 90 days
+ * Issue #2: Returns pre-computed daily return histogram with statistics
+ * Reads from algo_daily_return_histogram table (computed daily by orchestrator)
  */
 router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT daily_return_pct
-      FROM algo_portfolio_snapshots
+      SELECT buckets, stats
+      FROM algo_daily_return_histogram
       ORDER BY snapshot_date DESC
-      LIMIT 90
+      LIMIT 1
     `);
 
     validateQueryResult(result, { requireRows: false });
 
-    const returns = result.rows
-      .map(r => Number(r.daily_return_pct || 0))
-      .filter(r => Number.isFinite(r))
-      .sort((a, b) => a - b);
-
-    if (returns.length === 0) {
+    if (result.rows.length === 0) {
       return sendSuccess(res, {
         buckets: [],
         stats: null,
@@ -2718,125 +2700,95 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
       });
     }
 
-    const lo = Math.min(...returns);
-    const hi = Math.max(...returns);
-    const span = Math.max(0.5, hi - lo);
-    const bins = 12;
-    const step = span / bins;
-
-    const buckets = Array.from({ length: bins }, (_, i) => ({
-      bucket: i,
-      mid: Number((lo + step * (i + 0.5)).toFixed(2)),
-      min: Number((lo + step * i).toFixed(2)),
-      max: Number((lo + step * (i + 1)).toFixed(2)),
-      count: 0,
-    }));
-
-    for (const r of returns) {
-      let idx = Math.floor((r - lo) / step);
-      if (idx >= bins) idx = bins - 1;
-      if (idx < 0) idx = 0;
-      buckets[idx].count += 1;
-    }
-
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
-    const std = Math.sqrt(variance);
+    const row = result.rows[0];
+    const buckets = row.buckets || [];
+    const stats = row.stats || { n: 0, mean: 0, std: 0 };
 
     return sendSuccess(res, {
       buckets,
-      stats: { mean: Number(mean.toFixed(2)), std: Number(std.toFixed(2)), count: returns.length },
+      stats,
     });
   } catch (error) {
     logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while computing daily return histogram');
+    return sendDatabaseError(res, error, 'An error occurred while fetching daily return histogram');
   }
 });
 
 /**
  * GET /api/algo/trade-distribution
- * Issue #3: Pre-computed trade outcome distribution by R-multiple
+ * Issue #3: Returns pre-computed trade outcome distribution by R-multiple
+ * Reads from algo_trade_r_distribution table (computed daily by orchestrator)
  */
 router.get('/trade-distribution', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT exit_r_multiple
-      FROM algo_closed_trades
-      ORDER BY close_date DESC
-      LIMIT 500
+      SELECT buckets, total_trades
+      FROM algo_trade_r_distribution
+      ORDER BY snapshot_date DESC
+      LIMIT 1
     `);
 
     validateQueryResult(result, { requireRows: false });
 
-    const bins = [
-      { range: '< -2R', min: -Infinity, max: -2, count: 0 },
-      { range: '-2 to -1R', min: -2, max: -1, count: 0 },
-      { range: '-1 to 0R', min: -1, max: 0, count: 0 },
-      { range: '0 to 1R', min: 0, max: 1, count: 0 },
-      { range: '1 to 2R', min: 1, max: 2, count: 0 },
-      { range: '2 to 3R', min: 2, max: 3, count: 0 },
-      { range: '> 3R', min: 3, max: Infinity, count: 0 },
-    ];
-
-    for (const row of result.rows) {
-      const r = Number(row.exit_r_multiple);
-      if (isNaN(r)) continue;
-      const b = bins.find(x => r >= x.min && r < x.max);
-      if (b) b.count += 1;
+    if (result.rows.length === 0) {
+      return sendSuccess(res, {
+        buckets: [],
+        total_trades: 0,
+      });
     }
 
+    const row = result.rows[0];
+    const buckets = row.buckets || [];
+    const totalTrades = row.total_trades || 0;
+
     return sendSuccess(res, {
-      buckets: bins,
-      total_trades: result.rows.length,
+      buckets,
+      total_trades: totalTrades,
     });
   } catch (error) {
     logger.error('Error in /api/algo/trade-distribution:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while computing trade distribution');
+    return sendDatabaseError(res, error, 'An error occurred while fetching trade distribution');
   }
 });
 
 /**
  * GET /api/algo/holding-period-distribution
- * Issue #4: Pre-computed holding period distribution by days held
+ * Issue #4: Returns pre-computed holding period distribution by days held
+ * Reads from algo_holding_period_histogram table (computed daily by orchestrator)
  */
 router.get('/holding-period-distribution', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT trade_duration_days
-      FROM algo_closed_trades
-      ORDER BY close_date DESC
-      LIMIT 500
+      SELECT buckets, total_trades
+      FROM algo_holding_period_histogram
+      ORDER BY snapshot_date DESC
+      LIMIT 1
     `);
 
     validateQueryResult(result, { requireRows: false });
 
-    const bins = [
-      { range: '0-3d', min: 0, max: 4, count: 0 },
-      { range: '4-7d', min: 4, max: 8, count: 0 },
-      { range: '8-14d', min: 8, max: 15, count: 0 },
-      { range: '15-30d', min: 15, max: 31, count: 0 },
-      { range: '31-60d', min: 31, max: 61, count: 0 },
-      { range: '60d+', min: 61, max: Infinity, count: 0 },
-    ];
-
-    for (const row of result.rows) {
-      const d = Number(row.trade_duration_days);
-      if (!Number.isFinite(d)) continue;
-      const b = bins.find(x => d >= x.min && d < x.max);
-      if (b) b.count += 1;
+    if (result.rows.length === 0) {
+      return sendSuccess(res, {
+        buckets: [],
+        total_trades: 0,
+      });
     }
 
+    const row = result.rows[0];
+    const buckets = row.buckets || [];
+    const totalTrades = row.total_trades || 0;
+
     return sendSuccess(res, {
-      buckets: bins,
-      total_trades: result.rows.length,
+      buckets,
+      total_trades: totalTrades,
     });
   } catch (error) {
     logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while computing holding period distribution');
+    return sendDatabaseError(res, error, 'An error occurred while fetching holding period distribution');
   }
 });
 
