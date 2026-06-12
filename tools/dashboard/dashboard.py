@@ -715,44 +715,17 @@ def fetch_perf(c):
         return {}
 
 def fetch_positions(c):
+    # Issue 3 FIX: Use /api/algo/positions endpoint instead of direct DB access
     try:
-        return q(c, """
-            WITH lt AS (
-                SELECT DISTINCT ON (symbol) symbol, stop_loss_price, target_1_price
-                FROM algo_trades WHERE status='open' ORDER BY symbol, trade_date DESC
-            ),
-            ltt AS (
-                SELECT DISTINCT ON (symbol) symbol, weinstein_stage
-                FROM trend_template_data ORDER BY symbol, date DESC
-            ),
-            lss AS (
-                SELECT DISTINCT ON (symbol) symbol, score AS swing_score
-                FROM swing_trader_scores ORDER BY symbol, date DESC
-            )
-            SELECT p.symbol, p.avg_entry_price, p.current_price,
-                   p.unrealized_pnl_pct, p.position_value, p.days_since_entry,
-                   lt.stop_loss_price, lt.target_1_price,
-                   ltt.weinstein_stage, cp.sector, lss.swing_score,
-                   CASE
-                     WHEN lt.stop_loss_price IS NOT NULL AND p.avg_entry_price > lt.stop_loss_price
-                     THEN (p.current_price - p.avg_entry_price) / (p.avg_entry_price - lt.stop_loss_price)
-                     ELSE NULL
-                   END AS r_multiple,
-                   CASE
-                     WHEN lt.stop_loss_price IS NOT NULL AND p.current_price > 0
-                     THEN (p.current_price - lt.stop_loss_price) / p.current_price * 100
-                     ELSE NULL
-                   END AS distance_to_stop_pct
-            FROM algo_positions p
-            LEFT JOIN lt  ON lt.symbol  = p.symbol
-            LEFT JOIN ltt ON ltt.symbol = p.symbol
-            LEFT JOIN company_profile cp ON cp.ticker = p.symbol
-            LEFT JOIN lss ON lss.symbol = p.symbol
-            WHERE p.status = 'open' ORDER BY p.position_value DESC""")
-    except Exception:
+        resp = api_call("/api/algo/positions")
+        if resp.get("_error"):
+            logger.warning(f"fetch_positions: {resp.get('_error')}")
+            return []
+        items = resp.get("data", {}).get("items", [])
+        return items
+    except Exception as e:
+        logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         return []
-    finally:
-        pass
 
 def fetch_recent_trades(c):
     # Issue 3 FIX: Use /api/algo/trades endpoint instead of direct DB access

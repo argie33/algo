@@ -294,15 +294,22 @@ class LoaderConfigManager:
         return True
 
 
-# Global instance for convenience
+# Global instance for convenience (thread-safe)
 _global_manager = None
+_global_manager_lock = threading.Lock()
 
 
 def get_config_manager() -> LoaderConfigManager:
-    """Get the global configuration manager instance."""
+    """Get the global configuration manager instance (thread-safe).
+
+    Uses double-checked locking to prevent race conditions during initialization.
+    """
     global _global_manager
     if _global_manager is None:
-        _global_manager = LoaderConfigManager()
+        with _global_manager_lock:
+            # Double-check pattern to avoid race conditions
+            if _global_manager is None:
+                _global_manager = LoaderConfigManager()
     return _global_manager
 
 

@@ -13,6 +13,7 @@ Usage:
 import json
 import logging
 import os
+import threading
 from typing import Dict, Any, Optional
 
 try:
@@ -112,15 +113,22 @@ class LambdaAPIClient:
             }
 
 
-# Singleton instance
+# Singleton instance (thread-safe)
 _client = None
+_client_lock = threading.Lock()
 
 
 def get_lambda_client() -> LambdaAPIClient:
-    """Get the global Lambda API client."""
+    """Get the global Lambda API client (thread-safe).
+
+    Uses double-checked locking to prevent race conditions during initialization.
+    """
     global _client
     if _client is None:
-        _client = LambdaAPIClient()
+        with _client_lock:
+            # Double-check pattern to avoid race conditions
+            if _client is None:
+                _client = LambdaAPIClient()
     return _client
 
 

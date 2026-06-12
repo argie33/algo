@@ -23,6 +23,7 @@ import json as _json
 import logging
 import os
 import time
+import threading
 from typing import Dict, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
@@ -402,14 +403,21 @@ class CredentialManager:
             logger.info("[CREDENTIALS_INVALID] Alpaca credentials not in cache (already cleared or never cached)")
 
 
-# Singleton instance
+# Singleton instance (thread-safe)
 _manager = None
+_manager_lock = threading.Lock()
 
 def get_credential_manager() -> CredentialManager:
-    """Get the global credential manager instance."""
+    """Get the global credential manager instance (thread-safe).
+
+    Uses double-checked locking to prevent race conditions during initialization.
+    """
     global _manager
     if _manager is None:
-        _manager = CredentialManager()
+        with _manager_lock:
+            # Double-check pattern to avoid race conditions
+            if _manager is None:
+                _manager = CredentialManager()
     return _manager
 
 def get_password(secret_name: str, default: Optional[str] = None) -> str:

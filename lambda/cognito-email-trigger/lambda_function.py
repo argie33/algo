@@ -15,18 +15,23 @@ import boto3
 import json
 import logging
 import os
+import threading
 from typing import Any
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 _ses_client = None
+_ses_client_lock = threading.Lock()
 
 def get_ses_client():
-	"""Lazy-load SES client to avoid credential loading during imports."""
+	"""Lazy-load SES client to avoid credential loading during imports (thread-safe)."""
 	global _ses_client
 	if _ses_client is None:
-		_ses_client = boto3.client('ses', region_name='us-east-1')
+		with _ses_client_lock:
+			# Double-check pattern to avoid race conditions
+			if _ses_client is None:
+				_ses_client = boto3.client('ses', region_name='us-east-1')
 	return _ses_client
 
 # Configuration

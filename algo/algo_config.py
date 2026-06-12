@@ -9,6 +9,7 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 import os
 import time
 import logging
+import threading
 from typing import Any
 from config.credential_validator import assert_credentials
 from utils.database_context import DatabaseContext
@@ -453,15 +454,22 @@ class AlgoConfig:
         return f"<AlgoConfig {len(self._config)} keys>"
 
 
-# Global config instance
+# Global config instance (thread-safe)
 _instance = None
+_instance_lock = threading.Lock()
 
 
 def get_config():
-    """Get or create global config instance."""
+    """Get or create global config instance (thread-safe).
+
+    Uses double-checked locking to prevent race conditions during initialization.
+    """
     global _instance
     if _instance is None:
-        _instance = AlgoConfig()
+        with _instance_lock:
+            # Double-check pattern to avoid race conditions
+            if _instance is None:
+                _instance = AlgoConfig()
     return _instance
 
 
@@ -470,9 +478,11 @@ def reset_config() -> None:
 
     This ensures warm Lambda invocations reload config from the DB, picking up
     any changes made between invocations (e.g., lowering a risk threshold).
+    Thread-safe reset using lock.
     """
     global _instance
-    _instance = None
+    with _instance_lock:
+        _instance = None
     logger.info("[AlgoConfig] Singleton reset — will reload from DB on next get_config() call")
 
 

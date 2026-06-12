@@ -1,5 +1,5 @@
 """API Router - dispatcher."""
-import logging, sys, os, json
+import logging, sys, os, json, threading
 from pathlib import Path
 
 # Ensure routes module and utils can be imported (needed for dev_server.py)
@@ -32,9 +32,10 @@ _ROUTE_MODULES = [
     'data_coverage'
 ]
 
-# Track startup state for diagnostics
+# Track startup state for diagnostics (thread-safe)
 _STARTUP_TIME = None
 _IMPORT_DURATION = None
+_STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration updates
 
 for module_name in _ROUTE_MODULES:
     try:

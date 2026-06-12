@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from enum import Enum
@@ -242,14 +243,21 @@ def initialize_safe_defaults():
         logger.error(f"Failed to initialize feature flags: {e}")
         return False
 
-# Singleton
+# Singleton (thread-safe)
 _flags = None
+_flags_lock = threading.Lock()
 
 def get_flags() -> FeatureFlags:
-    """Get singleton feature flags manager."""
+    """Get singleton feature flags manager (thread-safe).
+
+    Uses double-checked locking to prevent race conditions during initialization.
+    """
     global _flags
     if _flags is None:
-        _flags = FeatureFlags()
+        with _flags_lock:
+            # Double-check pattern to avoid race conditions
+            if _flags is None:
+                _flags = FeatureFlags()
     return _flags
 
 if __name__ == "__main__":
