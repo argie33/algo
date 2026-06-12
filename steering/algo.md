@@ -22,6 +22,42 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 **Rules:** Rotate quarterly (first Monday of each quarter). If leaked, rotate immediately. Never commit .env files. OIDC for GitHub Actions (no static keys).
 
+## LOCAL AWS CREDENTIALS
+
+**Setup (Automatic):**
+AWS credentials are managed via PowerShell profile (`$PROFILE`):
+1. `$env:AWS_PROFILE = "algo-developer"` is set on shell startup
+2. `~/.aws/credentials` file contains the `[algo-developer]` profile (managed by `scripts/refresh-aws-credentials.ps1`)
+3. Boto3 and AWS CLI automatically pick up credentials via standard AWS credential chain
+
+**If credentials expire or become invalid:**
+```powershell
+scripts/refresh-aws-credentials.ps1
+```
+This workflow:
+1. Triggers GitHub Actions workflow `refresh-dev-credentials.yml`
+2. Workflow fetches fresh credentials from AWS Secrets Manager via OIDC (no static keys)
+3. Downloads credentials artifact and updates `~/.aws/credentials` (algo-developer profile)
+4. Verifies credentials work by calling `aws sts get-caller-identity`
+
+**Network Limitation (Expected Behavior):**
+- **RDS Proxy is VPC-internal:** `algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com` cannot be reached from local machines (intentional, for security)
+- **Dashboard fallback:** When running `tools/dashboard/dashboard.py` locally, the tool detects that AWS RDS is unreachable and automatically falls back to local PostgreSQL at `localhost:5432` (expected behavior for local development)
+- **Production code path:** Lambda functions, loaders, and other AWS-deployed code use the valid AWS credentials to reach RDS via the VPC
+
+**Verification:**
+```powershell
+# Test AWS credentials are loaded
+aws sts get-caller-identity
+# Output: UserId, Account, Arn
+
+# Test dashboard with local database (expected)
+python tools/dashboard/dashboard.py --local
+
+# Test dashboard with auto-detection (will show "AWS unreachable, falling back to local database" — expected)
+python tools/dashboard/dashboard.py
+```
+
 ## Deployment
 
 **Frontend Build Process (Critical for API URL & Cognito Config):**
