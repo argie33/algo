@@ -3809,8 +3809,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
 
     # H15/H16 FIX: Use adjusted win rate that includes open trades with unrealized risk
     wr_incl_open = get_numeric(perf, "wr_incl_open")
-    open_trades = get_numeric(perf, "_open_trades_count") or 0
-    wr_v = wr_incl_open if wr_incl_open is not None and open_trades > 0 else get_numeric(perf, "wr")
+    open_trades = get_numeric(perf, "_open_trades_count")
+    wr_v = wr_incl_open if wr_incl_open is not None and open_trades is not None and open_trades > 0 else get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
     wr_c = G if wr_v is not None and wr_v >= perf_thr['win_rate_good'] else (R if wr_v is not None else DIM)
     # Issue 45 FIX: Show breakeven percentage in performance display
