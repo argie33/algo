@@ -356,6 +356,11 @@ class SwingTraderScoresLoader(OptimalLoader):
             logger.debug(f"Could not log rejection: {e}")
 
 def main():
+    import time
+    from utils.database_context import DatabaseContext
+    from datetime import datetime
+
+    start_time = time.time()
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=get_default_parallelism("swing_trader_scores"), help="Concurrent workers")
@@ -380,6 +385,35 @@ def main():
         loader.close()
 
     fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+    duration_seconds = time.time() - start_time
+
+    # Log execution time for performance monitoring
+    try:
+        with DatabaseContext('write') as cur:
+            cur.execute("""
+                INSERT INTO data_loader_runs (
+                    loader_name, table_name, run_date, status, records_loaded,
+                    error_message, duration_seconds, started_at, completed_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                )
+                ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    records_loaded = EXCLUDED.records_loaded,
+                    duration_seconds = EXCLUDED.duration_seconds,
+                    completed_at = NOW()
+            """, (
+                'swing_trader_scores',
+                'swing_trader_scores',
+                datetime.now().date(),
+                'completed' if fail_rate <= 0.05 else 'failed',
+                stats.get("symbols_processed", 0),
+                str(stats.get("symbols_failed", 0)) if fail_rate > 0.05 else None,
+                round(duration_seconds, 2)
+            ))
+    except Exception as e:
+        logger.error(f"Failed to log execution time: {e}")
+
     if fail_rate > 0.05:
         logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
         return 1

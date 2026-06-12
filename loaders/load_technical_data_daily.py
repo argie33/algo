@@ -277,6 +277,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
         return records
 
 def main():
+    import time
+    from utils.database_context import DatabaseContext
+    from datetime import datetime
+
+    start_time = time.time()
     parser = argparse.ArgumentParser(description="Load technical indicators")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=get_default_parallelism("technical_data_daily"), help="Parallel workers")
@@ -316,9 +321,65 @@ def main():
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
         logger.info(f"Technical data daily load completed: {result}")
+        duration_seconds = time.time() - start_time
+
+        # Log execution time for performance monitoring
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_runs (
+                        loader_name, table_name, run_date, status, records_loaded,
+                        duration_seconds, started_at, completed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        records_loaded = EXCLUDED.records_loaded,
+                        duration_seconds = EXCLUDED.duration_seconds,
+                        completed_at = NOW()
+                """, (
+                    'technical_data_daily',
+                    'technical_data_daily',
+                    datetime.now().date(),
+                    'completed',
+                    result.get('rows_inserted', 0) if result else 0,
+                    round(duration_seconds, 2)
+                ))
+        except Exception as e:
+            logger.error(f"Failed to log execution time: {e}")
+
         return 0
     except Exception as e:
+        duration_seconds = time.time() - start_time
         logger.error(f"Technical data daily load failed: {e}", exc_info=True)
+
+        # Log failure
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_runs (
+                        loader_name, table_name, run_date, status, error_message,
+                        duration_seconds, started_at, completed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        error_message = EXCLUDED.error_message,
+                        duration_seconds = EXCLUDED.duration_seconds,
+                        completed_at = NOW()
+                """, (
+                    'technical_data_daily',
+                    'technical_data_daily',
+                    datetime.now().date(),
+                    'failed',
+                    str(e),
+                    round(duration_seconds, 2)
+                ))
+        except Exception as log_err:
+            logger.error(f"Failed to log failure: {log_err}")
+
         return 1
 
 if __name__ == "__main__":
