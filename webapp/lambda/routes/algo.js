@@ -370,80 +370,151 @@ router.get('/positions', authenticateToken, async (req, res) => {
 
     const sf = (v) => v == null ? null : parseFloat(v);
 
+    // Enrich positions with computed fields (Issue #5, #8, #6)
+    const items = validateAndCoerceRows(result, {
+      position_id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      quantity: { type: 'float', required: true },
+      avg_entry_price: { type: 'float', required: false },
+      current_price: { type: 'float', required: false },
+      position_value: { type: 'float', required: false },
+      unrealized_pnl: { type: 'float', required: false },
+      unrealized_pnl_pct: { type: 'float', required: false },
+      status: { type: 'string', required: false },
+      stage_in_exit_plan: { type: 'string', required: false },
+      days_since_entry: { type: 'int', required: false },
+      stop_loss_price: { type: 'float', required: false },
+      target_1_price: { type: 'float', required: false },
+      target_2_price: { type: 'float', required: false },
+      target_3_price: { type: 'float', required: false },
+      target_1_r_multiple: { type: 'float', required: false },
+      target_2_r_multiple: { type: 'float', required: false },
+      target_3_r_multiple: { type: 'float', required: false },
+      sector: { type: 'string', required: false },
+      industry: { type: 'string', required: false },
+      weinstein_stage: { type: 'int', required: false },
+      minervini_trend_score: { type: 'int', required: false },
+      percent_from_52w_low: { type: 'float', required: false },
+      percent_from_52w_high: { type: 'float', required: false },
+      r_multiple: { type: 'float', required: false },
+      initial_risk_per_share: { type: 'float', required: false },
+      open_risk_dollars: { type: 'float', required: false },
+      distance_to_stop_pct: { type: 'float', required: false },
+      distance_to_t1_pct: { type: 'float', required: false },
+      distance_to_t2_pct: { type: 'float', required: false },
+      distance_to_t3_pct: { type: 'float', required: false }
+    }).map(row => {
+      // Issue #5: Compute R-ladder percentages
+      const entry = sf(row.avg_entry_price) || 0;
+      const cur = sf(row.current_price) || 0;
+      const stop = sf(row.stop_loss_price) || 0;
+      const t1 = sf(row.target_1_price);
+      const t2 = sf(row.target_2_price);
+      const t3 = sf(row.target_3_price);
+
+      let ladder_pct_stop = null, ladder_pct_entry = null, ladder_pct_current = null;
+      let ladder_pct_t1 = null, ladder_pct_t2 = null, ladder_pct_t3 = null;
+      let ladder_scale_min = null, ladder_scale_max = null;
+
+      if (entry && cur && stop) {
+        const lo = Math.min(stop, entry, cur);
+        const hi = Math.max(t3 || t2 || t1 || entry, cur);
+        const span = Math.max(0.0001, hi - lo);
+        const pos = (price) => price != null ? ((price - lo) / span) * 100 : null;
+
+        ladder_scale_min = lo;
+        ladder_scale_max = hi;
+        ladder_pct_stop = pos(stop);
+        ladder_pct_entry = pos(entry);
+        ladder_pct_current = pos(cur);
+        if (t1 != null) ladder_pct_t1 = pos(t1);
+        if (t2 != null) ladder_pct_t2 = pos(t2);
+        if (t3 != null) ladder_pct_t3 = pos(t3);
+      }
+
+      // Issue #8: Risk allocation fields (rank will be added after sorting)
+      const openRisk = sf(row.open_risk_dollars) || 0;
+
+      return {
+        position_id: row.position_id,
+        symbol: row.symbol,
+        quantity: row.quantity,
+        avg_entry_price: sf(row.avg_entry_price),
+        current_price: sf(row.current_price),
+        position_value: sf(row.position_value),
+        unrealized_pnl: sf(row.unrealized_pnl),
+        unrealized_pnl_pct: sf(row.unrealized_pnl_pct),
+        status: row.status,
+        stage_in_exit_plan: row.stage_in_exit_plan,
+        days_since_entry: row.days_since_entry,
+
+        // Stops & targets
+        stop_loss_price: sf(row.stop_loss_price),
+        target_1_price: sf(row.target_1_price),
+        target_2_price: sf(row.target_2_price),
+        target_3_price: sf(row.target_3_price),
+        target_1_r: sf(row.target_1_r_multiple),
+        target_2_r: sf(row.target_2_r_multiple),
+        target_3_r: sf(row.target_3_r_multiple),
+
+        // Risk metrics (pre-computed in database)
+        r_multiple: sf(row.r_multiple),
+        initial_risk_per_share: sf(row.initial_risk_per_share),
+        open_risk_dollars: openRisk,
+        distance_to_stop_pct: sf(row.distance_to_stop_pct),
+        distance_to_t1_pct: sf(row.distance_to_t1_pct),
+        distance_to_t2_pct: sf(row.distance_to_t2_pct),
+        distance_to_t3_pct: sf(row.distance_to_t3_pct),
+
+        // Context
+        sector: row.sector,
+        industry: row.industry,
+        weinstein_stage: row.weinstein_stage,
+        minervini_trend_score: row.minervini_trend_score,
+        pct_from_52w_low: sf(row.percent_from_52w_low),
+        pct_from_52w_high: sf(row.percent_from_52w_high),
+
+        // Issue #5: R-ladder percentages (computed above)
+        ladder_pct_stop,
+        ladder_pct_entry,
+        ladder_pct_current,
+        ladder_pct_t1,
+        ladder_pct_t2,
+        ladder_pct_t3,
+        ladder_scale_min,
+        ladder_scale_max,
+      };
+    });
+
+    // Issue #8: Compute risk_pct and risk_rank
+    const totalRisk = items.reduce((s, p) => s + (p.open_risk_dollars || 0), 0);
+    items.forEach((item, i) => {
+      item.risk_pct = totalRisk > 0 ? (item.open_risk_dollars / totalRisk) * 100 : 0;
+      item.risk_rank = i + 1;
+    });
+
+    // Issue #6: Group sector concentration (add to response)
+    const sectorMap = {};
+    for (const p of items) {
+      const s = p.sector || 'Unknown';
+      if (!sectorMap[s]) {
+        sectorMap[s] = { sector: s, position_count: 0, total_value_dollars: 0 };
+      }
+      sectorMap[s].position_count += 1;
+      sectorMap[s].total_value_dollars += p.position_value || 0;
+    }
+    const totalValue = items.reduce((s, p) => s + (p.position_value || 0), 0);
+    const sector_allocation = Object.values(sectorMap)
+      .map(s => ({
+        ...s,
+        allocation_pct: totalValue > 0 ? (s.total_value_dollars / totalValue) * 100 : 0,
+        is_overweight: totalValue > 0 && (s.total_value_dollars / totalValue) > 0.3
+      }))
+      .sort((a, b) => b.allocation_pct - a.allocation_pct);
+
     return sendSuccess(res, {
-      items: validateAndCoerceRows(result, {
-        position_id: { type: 'int', required: true },
-        symbol: { type: 'string', required: true },
-        quantity: { type: 'float', required: true },
-        avg_entry_price: { type: 'float', required: false },
-        current_price: { type: 'float', required: false },
-        position_value: { type: 'float', required: false },
-        unrealized_pnl: { type: 'float', required: false },
-        unrealized_pnl_pct: { type: 'float', required: false },
-        status: { type: 'string', required: false },
-        stage_in_exit_plan: { type: 'string', required: false },
-        days_since_entry: { type: 'int', required: false },
-        stop_loss_price: { type: 'float', required: false },
-        target_1_price: { type: 'float', required: false },
-        target_2_price: { type: 'float', required: false },
-        target_3_price: { type: 'float', required: false },
-        target_1_r_multiple: { type: 'float', required: false },
-        target_2_r_multiple: { type: 'float', required: false },
-        target_3_r_multiple: { type: 'float', required: false },
-        sector: { type: 'string', required: false },
-        industry: { type: 'string', required: false },
-        weinstein_stage: { type: 'int', required: false },
-        minervini_trend_score: { type: 'int', required: false },
-        percent_from_52w_low: { type: 'float', required: false },
-        percent_from_52w_high: { type: 'float', required: false },
-        r_multiple: { type: 'float', required: false },
-        initial_risk_per_share: { type: 'float', required: false },
-        open_risk_dollars: { type: 'float', required: false },
-        distance_to_stop_pct: { type: 'float', required: false },
-        distance_to_t1_pct: { type: 'float', required: false },
-        distance_to_t2_pct: { type: 'float', required: false },
-        distance_to_t3_pct: { type: 'float', required: false }
-      }).map(row => {
-        return {
-          position_id: row.position_id,
-          symbol: row.symbol,
-          quantity: row.quantity,
-          avg_entry_price: sf(row.avg_entry_price),
-          current_price: sf(row.current_price),
-          position_value: sf(row.position_value),
-          unrealized_pnl: sf(row.unrealized_pnl),
-          unrealized_pnl_pct: sf(row.unrealized_pnl_pct),
-          status: row.status,
-          stage_in_exit_plan: row.stage_in_exit_plan,
-          days_since_entry: row.days_since_entry,
-
-          // Stops & targets
-          stop_loss_price: sf(row.stop_loss_price),
-          target_1_price: sf(row.target_1_price),
-          target_2_price: sf(row.target_2_price),
-          target_3_price: sf(row.target_3_price),
-          target_1_r: sf(row.target_1_r_multiple),
-          target_2_r: sf(row.target_2_r_multiple),
-          target_3_r: sf(row.target_3_r_multiple),
-
-          // Risk metrics (pre-computed in database)
-          r_multiple: sf(row.r_multiple),
-          initial_risk_per_share: sf(row.initial_risk_per_share),
-          open_risk_dollars: sf(row.open_risk_dollars),
-          distance_to_stop_pct: sf(row.distance_to_stop_pct),
-          distance_to_t1_pct: sf(row.distance_to_t1_pct),
-          distance_to_t2_pct: sf(row.distance_to_t2_pct),
-          distance_to_t3_pct: sf(row.distance_to_t3_pct),
-
-          // Context
-          sector: row.sector,
-          industry: row.industry,
-          weinstein_stage: row.weinstein_stage,
-          minervini_trend_score: row.minervini_trend_score,
-          pct_from_52w_low: sf(row.percent_from_52w_low),
-          pct_from_52w_high: sf(row.percent_from_52w_high),
-        };
-      }),
+      items,
+      sector_allocation,
       pagination: {
         total: result.rows.length,
         count: result.rows.length

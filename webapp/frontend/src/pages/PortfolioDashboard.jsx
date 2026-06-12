@@ -1048,33 +1048,24 @@ function RLadderPanel({ positions, loading, onSelect }) {
   const ladders = useMemo(() => {
     if (!positions) return [];
     return positions
-      .filter(p => p.avg_entry_price && p.current_price && (p.stop_loss_price || p.current_stop_price))
-      .map(p => {
-        const entry = p.avg_entry_price;
-        const cur = p.current_price;
-        const stop = p.stop_loss_price || p.current_stop_price;
-        const t1 = p.target_1_price;
-        const t2 = p.target_2_price;
-        const t3 = p.target_3_price;
-
-        const lo = Math.min(stop, entry, cur);
-        const hi = Math.max(t3 || t2 || t1 || entry, cur);
-        const span = Math.max(0.0001, hi - lo);
-        const pos = (price) => ((price - lo) / span) * 100;
-
-        return {
-          symbol: p.symbol,
-          r_multiple: p.r_multiple,
-          entry, cur, stop, t1, t2, t3,
-          unrealized_pnl_pct: p.unrealized_pnl_pct,
-          pStop: pos(stop),
-          pEntry: pos(entry),
-          pCur: pos(cur),
-          pT1: t1 ? pos(t1) : null,
-          pT2: t2 ? pos(t2) : null,
-          pT3: t3 ? pos(t3) : null,
-        };
-      });
+      .filter(p => p.ladder_pct_stop != null && p.ladder_pct_entry != null && p.ladder_pct_current != null)
+      .map(p => ({
+        symbol: p.symbol,
+        r_multiple: p.r_multiple,
+        entry: p.avg_entry_price,
+        cur: p.current_price,
+        stop: p.stop_loss_price,
+        t1: p.target_1_price,
+        t2: p.target_2_price,
+        t3: p.target_3_price,
+        unrealized_pnl_pct: p.unrealized_pnl_pct,
+        pStop: p.ladder_pct_stop,
+        pEntry: p.ladder_pct_entry,
+        pCur: p.ladder_pct_current,
+        pT1: p.ladder_pct_t1,
+        pT2: p.ladder_pct_t2,
+        pT3: p.ladder_pct_t3,
+      }));
   }, [positions]);
 
   return (
