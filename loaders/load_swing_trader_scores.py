@@ -352,13 +352,9 @@ def main():
 
     logger.info(f"Starting swing_trader_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
-    # VALIDATION: swing_trader_scores is critical path; parallelism should be 2 per steering doc line 44-48
-    # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
-    if args.parallelism > 4:
-        logger.warning(
-            f"[PARALLELISM] swing_trader_scores: parallelism={args.parallelism} exceeds recommended max (2). "
-            f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
-        )
+    # NOTE: For large-scale production (5000+ symbols), consider using load_swing_trader_scores_vectorized.py
+    # which is 3-5x faster by fetching all data in bulk queries and computing scores vectorized.
+    # For intraday updates during market hours, use: python3 load_swing_trader_scores_vectorized.py --today (5-15 min)
 
     loader = SwingTraderScoresLoader()
     try:

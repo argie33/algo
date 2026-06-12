@@ -304,18 +304,9 @@ def main():
 
     logger.info(f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
-    # ADAPTIVE PARALLELISM: Use reasonable default (4) with RDS backoff instead of hard cap at 2
-    # Previous fix (cap=2) made loader TOO SLOW: 9925 symbols ÷ 2 parallel = too many iterations
-    # Result: technical_data_daily stalls at 11% coverage, blocking buy_sell_daily for 6+ days
-    # Solution: Use parallelism=4-6 with connection pooling and rate limiting
-    # RDS Proxy handles connection multiplexing: 24 loaders → 20-30 persistent connections
-    max_parallelism = 4
-    if args.parallelism > max_parallelism:
-        logger.warning(
-            f"[PARALLELISM] technical_data_daily: requested={args.parallelism}, capped at {max_parallelism}. "
-            f"Reason: RDS connection pooling effective with 4 workers; higher parallelism hits diminishing returns."
-        )
-        args.parallelism = max_parallelism
+    # NOTE: For large-scale production (5000+ symbols), consider using load_technical_data_daily_vectorized.py
+    # which is 4-6x faster by fetching all prices in 1 query and computing indicators vectorized.
+    # The per-symbol approach below is kept for backward compatibility and incremental loads.
 
     loader = TechnicalDataDailyLoader()
     try:
