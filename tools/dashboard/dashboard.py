@@ -1123,50 +1123,21 @@ def fetch_audit_log(c):
         return {"_error": str(e)}
 
 def fetch_circuit(c):
+    # Issue 3 FIX: Use /api/algo/circuit-breakers endpoint instead of direct DB access
     try:
-        cfg = {r["key"]: float(r["value"]) for r in q(c,
-            "SELECT key, value FROM algo_config WHERE key=ANY(%s)",
-            (["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
-              "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"],))}
-        snaps = q(c, "SELECT total_portfolio_value, daily_return_pct FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
-        lat   = snaps[0] if snaps else {}
-        pk    = max((float(s.get("total_portfolio_value") or 0) for s in snaps), default=0)
-        cur_v = float(lat.get("total_portfolio_value") or 0)
-        dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
-        dl    = max(0.0, -float(lat.get("daily_return_pct") or 0))
-        wl    = max(0.0, -sum(float(s.get("daily_return_pct") or 0) for s in snaps[:5]))
-        trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 20")
-        consec = 0
-        for t in trades:
-            if float(t.get("profit_loss_dollars") or 0) < 0: consec += 1
-            else: break
-        h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
-        vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
-        vix_v = vix_r.get("vix_level") if vix_r else None
-        vix   = float(vix_v) if vix_v is not None else 0.0
-        stage = int(h.get("market_stage") or 1) if h else 1
-        rr    = q1(c, """
-            WITH lt AS (
-                SELECT DISTINCT ON (symbol) symbol, stop_loss_price
-                FROM algo_trades WHERE status='open' ORDER BY symbol, trade_date DESC
-            )
-            SELECT SUM(GREATEST(p.current_price - lt.stop_loss_price, 0) * p.quantity) AS risk,
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS pv
-            FROM algo_positions p LEFT JOIN lt ON lt.symbol = p.symbol WHERE p.status='open'""")
-        rp = float(rr["risk"] or 0) / float(rr["pv"] or 1) * 100 if rr and rr.get("risk") and rr.get("pv") else 0
-        def th(k, d): return cfg.get(k, d)
-        bs = [
-            {"lbl": "Drawdown",     "cur": round(dd, 1),    "thr": th("halt_drawdown_pct", 20),     "u": "%"},
-            {"lbl": "Daily Loss",   "cur": round(dl, 1),    "thr": th("max_daily_loss_pct", 2),     "u": "%"},
-            {"lbl": "Weekly Loss",  "cur": round(wl, 1),    "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
-            {"lbl": "Consec Loss",  "cur": consec,           "thr": th("max_consecutive_losses", 3), "u": ""},
-            {"lbl": "Total Risk",   "cur": round(rp, 1),    "thr": th("max_total_risk_pct", 4),     "u": "%"},
-            {"lbl": "VIX",          "cur": round(vix, 1),   "thr": th("vix_max_threshold", 35),     "u": ""},
-            {"lbl": "Mkt Stage",    "cur": stage,            "thr": 4,                                "u": ""},
-        ]
-        for b in bs: b["fired"] = float(b["cur"]) >= float(b["thr"])
-        return {"bs": bs, "any": any(b["fired"] for b in bs), "n": sum(1 for b in bs if b["fired"])}
+        resp = api_call("/api/algo/circuit-breakers")
+        if resp.get("_error"):
+            logger.warning(f"fetch_circuit: {resp.get('_error')}")
+            return {"_error": resp.get("_error")}
+        data = resp.get("data", {})
+        bs = data.get("breakers", [])
+        return {
+            "bs": bs,
+            "any": data.get("any_fired", False),
+            "n": data.get("fired_count", 0)
+        }
     except Exception as e:
+        logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 
