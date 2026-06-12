@@ -843,27 +843,14 @@ def validate_schema() -> None:
     except (psycopg2.Error, KeyError) as e:
         logger.error(f"Schema validation failed: {e}")
 
-        # Detect VPC-internal RDS proxy issue and provide helpful guidance
+        # Detect VPC-internal RDS proxy issue - allow API-only mode
         err_str = str(e).lower()
         if "could not translate" in err_str and "algo-rds-proxy" in err_str:
-            guidance = (
-                "\n"
-                "╔════════════════════════════════════════════════════════════════╗\n"
-                "║ RDS PROXY IS VPC-INTERNAL (NOT REACHABLE FROM LOCAL MACHINE)   ║\n"
-                "╠════════════════════════════════════════════════════════════════╣\n"
-                "║ To access AWS data from your local machine, use:               ║\n"
-                "║                                                                ║\n"
-                "║ [RECOMMENDED] Lambda API Endpoint (requires no setup):         ║\n"
-                "║   1. Run: ./scripts/setup-dashboard-aws.ps1                    ║\n"
-                "║   2. Re-run dashboard: python tools/dashboard/dashboard.py     ║\n"
-                "║                                                                ║\n"
-                "║ [ADVANCED] VPN or Bastion Access:                              ║\n"
-                "║   1. Connect to AWS VPN or set up bastion tunnel               ║\n"
-                "║   2. Re-run dashboard                                          ║\n"
-                "║                                                                ║\n"
-                "╚════════════════════════════════════════════════════════════════╝"
-            )
-            sys.exit(f"Database connection failed: {e}{guidance}")
+            logger.warning("RDS proxy is VPC-internal (unreachable locally)")
+            logger.warning("Using API-only mode - dashboard will fetch data via Lambda API")
+            print("[INFO] Dashboard running in API-only mode (RDS proxy unreachable locally)", file=sys.stderr)
+            print("[INFO] Data will be fetched via Lambda API endpoint", file=sys.stderr)
+            return  # Continue without direct RDS access - use API endpoints instead
         else:
             sys.exit(f"Database connection/schema error: {e}")
 
