@@ -65,7 +65,7 @@ class VectorizedSwingScoresLoader:
         try:
             # STEP 1: Fetch signal quality scores (required for all scores)
             signal_scores = self._fetch_signal_quality_scores(symbols, start_date, end_date)
-            if not signal_scores:
+            if signal_scores.empty:
                 logger.warning("No signal quality scores found")
                 return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0}
 
@@ -104,7 +104,7 @@ class VectorizedSwingScoresLoader:
             with DatabaseContext('read') as cur:
                 placeholders = ','.join(['%s'] * len(symbols))
                 cur.execute(f"""
-                    SELECT symbol, date, composite_sqs, rs_vs_spy
+                    SELECT symbol, date, composite_sqs
                     FROM signal_quality_scores
                     WHERE symbol IN ({placeholders})
                     AND date >= %s AND date <= %s
@@ -113,7 +113,7 @@ class VectorizedSwingScoresLoader:
 
                 return pd.DataFrame(
                     cur.fetchall(),
-                    columns=['symbol', 'date', 'composite_sqs', 'rs_vs_spy']
+                    columns=['symbol', 'date', 'composite_sqs']
                 )
         except Exception as e:
             logger.error(f"Failed to fetch signal scores: {e}")

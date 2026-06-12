@@ -317,13 +317,13 @@ def _verify_user_email(body: Dict = None) -> Dict:
 
         logger.info(f"Email verified for user: {username}")
         return json_response(200, {
-                'status': 'success',
-                'message': f'Email verified for {username}',
-                'username': username
-            })
-        except Exception as e:
-            error_str = str(e)
-            if 'UserNotFoundException' in error_str:
-                return error_response(404, 'not_found', f'User not found: {body.get("username")}')
-            logger.error(f"Failed to verify email: {e}")
-            return error_response(500, 'email_verification_error', 'Failed to verify email')
+            'status': 'success',
+            'message': f'Email verified for {username}',
+            'username': username
+        })
+    except Exception as e:
+        error_str = str(e)
+        if 'UserNotFoundException' in error_str:
+            return error_response(404, 'not_found', f'User not found: {body.get("username")}')
+        logger.error(f"Failed to verify email: {e}")
+        return error_response(500, 'email_verification_error', 'Failed to verify email')
