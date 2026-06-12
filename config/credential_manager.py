@@ -216,7 +216,7 @@ class CredentialManager:
             'host': db_host,
             'port': int(os.getenv('DB_PORT', '5432')),
             'user': self.get_password('db/username', default='stocks'),
-            'password': self.get_password('db/password', default=os.getenv('DB_PASSWORD')),  # Try Secrets Manager first, fallback to env var
+            'password': self.get_password('db/password'),
             'database': os.getenv('DB_NAME', 'stocks'),
         }
         self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())

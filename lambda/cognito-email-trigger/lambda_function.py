@@ -33,10 +33,6 @@ def get_ses_client():
 SENDER_EMAIL = "argeropolos@gmail.com"
 SENDER_NAME = "Bullseye Trading"
 
-# Development mode: log codes when SES fails
-DEV_MODE = os.environ.get('DEV_MODE', 'true').lower() == 'true'
-
-
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle Cognito custom message trigger."""
 
@@ -67,27 +63,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Failed to send email: {error_msg}", exc_info=True)
-
-        # Development fallback: if SES fails (sandbox or permissions), log code clearly
-        if DEV_MODE and ("Email address is not verified" in error_msg or "AccessDenied" in error_msg or "MessageRejected" in error_msg):
-            logger.warning("=" * 70)
-            logger.warning("[DEV MODE] PASSWORD RESET CODE - SES UNAVAILABLE")
-            logger.warning("=" * 70)
-            logger.warning(f"Email: {email}")
-            logger.warning(f"Type:  {trigger_source}")
-            logger.warning(f"Code:  {code_parameter}")
-            logger.warning("")
-            logger.warning("TO TEST PASSWORD RESET:")
-            logger.warning(f"1. Run: python scripts/get-reset-code.py {email}")
-            logger.warning("2. Enter the code when prompted for password reset")
-            logger.warning("3. Set your new password")
-            logger.warning("=" * 70)
-            # Log in parseable format for script retrieval
-            logger.info(f"[RESET_CODE] email={email} code={code_parameter} type={trigger_source}")
-
-        # Return event as-is so Cognito falls back to its default behavior
-        # This prevents auth from breaking if SES fails
-        return event
+        raise
 
     # Return event unchanged (Cognito won't send its default email)
     return event
