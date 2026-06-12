@@ -487,6 +487,8 @@ def fetch_portfolio(c):
             FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""") or {})
     except Exception as e:
         return {"_error": str(e)}
+    finally:
+        pass
 
 def fetch_perf(c):
     try:
@@ -540,6 +542,8 @@ def fetch_perf(c):
                 "equity_vals": equity_vals, "recent_rets": recent_rets}
     except Exception as e:
         return {"_error": str(e)}
+    finally:
+        pass
 
 def fetch_positions(c):
     try:
@@ -566,8 +570,10 @@ def fetch_positions(c):
             LEFT JOIN company_profile cp ON cp.ticker = p.symbol
             LEFT JOIN lss ON lss.symbol = p.symbol
             WHERE p.status = 'open' ORDER BY p.position_value DESC""")
-    except:
+    except Exception:
         return []
+    finally:
+        pass
 
 def fetch_recent_trades(c):
     try:
@@ -575,8 +581,10 @@ def fetch_recent_trades(c):
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
             FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
-    except:
+    except Exception:
         return []
+    finally:
+        pass
 
 def fetch_signals(c):
     try:
