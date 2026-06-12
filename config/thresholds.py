@@ -144,6 +144,11 @@ class ThresholdConfig:
         return float(ThresholdConfig._get_config_value('dashboard_min_quality_threshold', 40.0))
 
     @staticmethod
+    def dashboard_metrics_max_age_minutes() -> int:
+        """Dashboard: maximum age of metrics in minutes before warning."""
+        return int(ThresholdConfig._get_config_value('dashboard_metrics_max_age_minutes', 120))
+
+    @staticmethod
     def dashboard_fetcher_failure_threshold() -> float:
         """Dashboard: if >N% of fetchers fail, enter degraded mode."""
         return float(ThresholdConfig._get_config_value('dashboard_fetcher_failure_threshold', 0.5))

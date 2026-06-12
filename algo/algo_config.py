@@ -203,6 +203,10 @@ class AlgoConfig:
         'dashboard_grade_threshold_b': ('60', 'int', 'Dashboard signals: B grade threshold (score >= this value)'),
         'dashboard_grade_threshold_c': ('40', 'int', 'Dashboard signals: C grade threshold (score >= this value)'),
 
+        # Dashboard Configuration (E8, E9 - Operator-tunable thresholds)
+        'dashboard_min_quality_threshold': ('40.0', 'float', 'Minimum signal quality score to display (0-100; E8)'),
+        'dashboard_metrics_max_age_minutes': ('120', 'int', 'Maximum age of metrics in minutes before warning (E9)'),
+
         # Execution Mode
         'execution_mode': ('auto', 'string', 'paper|dry|review|auto'),
         'alpaca_paper_trading': ('false', 'bool', 'Use Alpaca paper account'),
