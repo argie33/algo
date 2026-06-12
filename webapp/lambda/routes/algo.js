@@ -108,15 +108,20 @@ router.get('/status', async (req, res) => {
       }
     });
 
+    const totalValue = snapshot.total_portfolio_value || 0;
+    const unrealizedPnlPct = snapshot.unrealized_pnl_pct || 0;
+    const unrealizedPnlDollars = totalValue > 0 ? (totalValue * unrealizedPnlPct / 100) : 0;
+
     return sendSuccess(res, {
       algo_enabled: algo_enabled,
       execution_mode: execution_mode,
       status: 'operational',
       portfolio: {
-        total_value: snapshot.total_portfolio_value || 0,
+        total_value: totalValue,
         position_count: positions.open_count,
         total_position_value: positions.total_value || 0,
-        unrealized_pnl_pct: snapshot.unrealized_pnl_pct || 0,
+        unrealized_pnl_pct: unrealizedPnlPct,
+        unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
         daily_return_pct: snapshot.daily_return_pct || 0
       },
       market: {

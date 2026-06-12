@@ -166,13 +166,8 @@ function PortfolioDashboardPage() {
     vix: currentHealth?.vix_level ?? 0,
     distribution_days: currentExp?.distribution_days_4w ?? currentExp?.distribution_days ?? 0,
   };
-  // Derive portfolio totals from open positions when status doesn't carry them
-  // Use nullish coalescing and strict null checks to prevent NaN propagation
-  const unrealizedPnl = safePositionsList.reduce((s, p) => {
-    const pnl = p?.unrealized_pnl ?? 0;
-    const numPnl = Number(pnl);
-    return s + (isNaN(numPnl) ? 0 : numPnl);
-  }, 0);
+  // Use pre-computed unrealized PnL from status endpoint (Issue #10: Unrealized PnL sum)
+  const unrealizedPnl = portfolio?.unrealized_pnl_dollars ?? 0;
   const totalPositionValue = safePositionsList.reduce((s, p) => {
     const val = p?.position_value ?? 0;
     const numVal = Number(val);
@@ -1145,8 +1140,9 @@ function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
       }))
       .sort((a, b) => b.risk - a.risk);
   }, [positions]);
+  // Risk percentage is pre-computed per-position; aggregate using backend-computed total
   const totalRisk = data.reduce((s, d) => s + d.risk, 0);
-  const riskPct = totalValue > 0 ? (totalRisk / totalValue) * 100 : 0;
+  const riskPct = data.length > 0 ? data.reduce((s, d) => s + d.risk_pct, 0) : 0;
 
   return (
     <div className="card">
