@@ -2,6 +2,7 @@
 
 import logging
 from utils.database_context import DatabaseContext
+from utils.grade_classifier import GradeClassifier
 from datetime import date as _date
 from algo.algo_signals import SignalComputer
 
@@ -404,24 +405,7 @@ class AdvancedFilters:
         pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
 
         # Assign letter grade using configurable thresholds from algo_config
-        threshold_aplus = self._load_config_val('advanced_filters_grade_threshold_aplus', 90)
-        threshold_a = self._load_config_val('advanced_filters_grade_threshold_a', 80)
-        threshold_b = self._load_config_val('advanced_filters_grade_threshold_b', 70)
-        threshold_c = self._load_config_val('advanced_filters_grade_threshold_c', 60)
-        threshold_d = self._load_config_val('advanced_filters_grade_threshold_d', 50)
-
-        if composite >= threshold_aplus:
-            grade = 'A+'
-        elif composite >= threshold_a:
-            grade = 'A'
-        elif composite >= threshold_b:
-            grade = 'B'
-        elif composite >= threshold_c:
-            grade = 'C'
-        elif composite >= threshold_d:
-            grade = 'D'
-        else:
-            grade = 'F'
+        grade = GradeClassifier.classify_ibd_composite(composite)
 
         return pts, {
             'composite': round(composite, 1),

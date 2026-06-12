@@ -164,6 +164,13 @@ class AlgoConfig:
         'block_days_before_earnings': ('5', 'int', 'Block entries N days before earnings'),
         'max_extension_above_50ma_pct': ('15.0', 'float', 'Max extension above 50-DMA %'),
         'strong_sector_top_n': ('5', 'int', 'Top N sectors count as strong'),
+        'require_strong_sector': ('false', 'bool', 'Require market sector to be strong before entering'),
+        'min_adv_shares': ('50000', 'int', 'Minimum average daily volume (shares)'),
+        'min_adv_dollars': ('500000', 'float', 'Minimum average daily dollar volume'),
+        'min_order_size_dollars': ('100.0', 'float', 'Minimum order size in dollars'),
+        'max_pyramid_adds': ('3', 'int', 'Maximum number of additional pyramid entries'),
+        'phase1_min_coverage_pct': ('75', 'int', 'Phase 1: Minimum data coverage %'),
+        'phase1_min_symbol_count': ('8000', 'int', 'Phase 1: Minimum symbol count for healthy coverage'),
 
         # Swing Trader Score Weights (Minervini Research-Weighted Composite)
         'swing_weight_setup': ('25', 'int', 'Swing score: Setup quality weight %'),
@@ -336,7 +343,19 @@ class AlgoConfig:
             pass
 
     def get(self, key, default=None):
-        """Get configuration value."""
+        """Get configuration value with validation of hardcoded defaults.
+
+        WARNING: Providing a hardcoded default parameter can hide config load failures.
+        Ensures the default matches DEFAULTS to detect misalignment in code.
+        """
+        if default is not None and key in self.DEFAULTS:
+            default_value, _, _ = self.DEFAULTS[key]
+            parsed_default = self._parse_value(default_value, self.DEFAULTS[key][1])
+            if parsed_default != default:
+                logger.warning(
+                    f"[CONFIG] Default mismatch for {key!r}: "
+                    f"code has {default!r} but DEFAULTS has {parsed_default!r}"
+                )
         return self._config.get(key, default)
 
     def override(self, key: str, value: Any) -> None:

@@ -28,7 +28,7 @@ class EarningsBlackout:
     def __init__(self, config=None):
         self.config = config or {}
         self.days_before = int(self.config.get('earnings_blackout_days_before', 7))
-        self.days_after = int(self.config.get('earnings_blackout_days_after', 7))
+        self.days_after = int(self.config.get('earnings_blackout_days_after', 3))
 
     def run(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
         """Check if eval_date is in earnings blackout window (Issue #27: trading day aware).

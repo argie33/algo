@@ -63,7 +63,7 @@ class PreTradeChecks:
             - If passed: (True, None)
             - If failed: (False, "reason for failure")
         """
-        max_position_pct = float(self.config.get('max_position_size_pct', 10.0)) / 100.0
+        max_position_pct = float(self.config.get('max_position_size_pct', 8.0)) / 100.0
         max_position_value = portfolio_value * max_position_pct
 
         if position_value > max_position_value:
