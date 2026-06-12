@@ -986,11 +986,186 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
   })
 }
 
-# EventBridge Scheduler (timezone-aware): both pipelines use America/New_York so they
+# ============================================================
+# Intraday Update Pipelines (1 PM & 3 PM ET)
+# FIXED Issue #???: Enable fresh score updates during trading hours
+# Uses vectorized swing_trader_scores with INTRADAY_MODE for 5-15 min updates
+# ============================================================
+
+resource "aws_sfn_state_machine" "intraday_afternoon_update_pipeline" {
+  name     = "${var.project_name}-intraday-afternoon-update-${var.environment}"
+  role_arn = aws_iam_role.sfn_pipeline.arn
+  type     = "STANDARD"
+
+  logging_configuration {
+    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
+    include_execution_data = true
+    level                  = "ALL"
+  }
+
+  definition = jsonencode({
+    Comment = "Intraday afternoon score update: 1:00 PM ET, fresh swing_trader_scores for afternoon trading"
+    StartAt = "AfternoonSwingScores"
+
+    States = {
+      AfternoonSwingScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "${var.project_name}-swing_trader_scores_vectorized"
+              Environment = [
+                {
+                  Name  = "INTRADAY_MODE"
+                  Value = "true"
+                }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogAfternoonFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "AfternoonSuccess"
+      }
+
+      LogAfternoonFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "swing_trader_scores_vectorized (afternoon 1 PM)"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AfternoonSuccess"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AfternoonSuccess"
+      }
+
+      AfternoonSuccess = {
+        Type = "Succeed"
+      }
+    }
+  })
+
+  tags = var.common_tags
+}
+
+resource "aws_sfn_state_machine" "intraday_preclose_update_pipeline" {
+  name     = "${var.project_name}-intraday-preclose-update-${var.environment}"
+  role_arn = aws_iam_role.sfn_pipeline.arn
+  type     = "STANDARD"
+
+  logging_configuration {
+    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
+    include_execution_data = true
+    level                  = "ALL"
+  }
+
+  definition = jsonencode({
+    Comment = "Intraday pre-close score update: 3:00 PM ET, fresh swing_trader_scores for final trading (SLA critical: finish by 3:15 PM)"
+    StartAt = "PrecloseSwingScores"
+
+    States = {
+      PrecloseSwingScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "${var.project_name}-swing_trader_scores_vectorized"
+              Environment = [
+                {
+                  Name  = "INTRADAY_MODE"
+                  Value = "true"
+                }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 1
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogPrecloseFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "PrecloseSuccess"
+      }
+
+      LogPrecloseFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "swing_trader_scores_vectorized (preclose 3 PM)"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 1
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PrecloseSuccess"
+          ResultPath  = "$.logError"
+        }]
+        Next = "PrecloseSuccess"
+      }
+
+      PrecloseSuccess = {
+        Type = "Succeed"
+      }
+    }
+  })
+
+  tags = var.common_tags
+}
+
+# ============================================================
+# EventBridge Scheduler (timezone-aware): all pipelines use America/New_York so they
 # fire at the correct wall-clock time year-round regardless of EST/EDT offset.
 #
 # Morning: 2:00 AM ET   — loads prices + technicals before market open (7h 30m before 9:30 AM, 210min buffer)
-# EOD:     4:05 PM ET   — 5 min after market close, gives Alpaca time to settle prices
+# Afternoon: 12:50 PM ET — fresh scores 10 min before 1 PM orchestrator
+# Preclose: 2:50 PM ET   — fresh scores 10 min before 3 PM orchestrator (SLA critical)
+# EOD:     4:05 PM ET    — 5 min after market close, gives Alpaca time to settle prices
 
 resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   name                         = "${var.project_name}-morning-pipeline-${var.environment}"
@@ -1009,6 +1184,48 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
 
     input = jsonencode({
       execution_name = "morning-<aws.scheduler.execution-id>"
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "afternoon_update_pipeline_trigger" {
+  name                         = "${var.project_name}-afternoon-update-pipeline-${var.environment}"
+  description                  = "Intraday afternoon score update: 12:50 PM ET (10 min before 1 PM orchestrator, 20-25 min total)"
+  schedule_expression          = "cron(50 12 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_sfn_state_machine.intraday_afternoon_update_pipeline.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      execution_name = "afternoon-<aws.scheduler.execution-id>"
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "preclose_update_pipeline_trigger" {
+  name                         = "${var.project_name}-preclose-update-pipeline-${var.environment}"
+  description                  = "Intraday pre-close score update: 2:50 PM ET (10 min before 3 PM orchestrator, SLA critical: finish by 3:15 PM)"
+  schedule_expression          = "cron(50 14 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_sfn_state_machine.intraday_preclose_update_pipeline.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      execution_name = "preclose-<aws.scheduler.execution-id>"
     })
   }
 }

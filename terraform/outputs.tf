@@ -336,7 +336,7 @@ output "data_patrol_task_definition_arn" {
 
 output "pipeline_state_machine_arn" {
   description = "Step Functions state machine ARN for EOD pipeline"
-  value       = module.pipeline.state_machine_arn
+  value       = module.pipeline.eod_state_machine_arn
 }
 
 output "aws_region" {
