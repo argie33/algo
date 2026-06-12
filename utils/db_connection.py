@@ -74,7 +74,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
     for attempt in range(1, max_retries + 2):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: {db_config['host']}")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}")
 
             conn = psycopg2.connect(
                 host=db_config['host'],

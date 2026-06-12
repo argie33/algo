@@ -262,7 +262,7 @@ def lambda_handler(event, context):
             logger.info("Master user credentials not provided, skipping user creation")
 
         # Step 2: Initialize schema as stocks user
-        logger.info(f"Step 2: Initializing database schema — Connecting to RDS: {creds['host']}:{creds['port']}/{creds['database']}")
+        logger.info("Step 2: Initializing database schema")
         conn = psycopg2.connect(
             host=creds['host'],
             port=creds['port'],
