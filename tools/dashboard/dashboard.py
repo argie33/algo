@@ -29,6 +29,11 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+try:
+    from api_data_layer import DashboardDataAPI
+except ImportError:
+    DashboardDataAPI = None
+
 import requests
 import requests.exceptions
 
@@ -639,48 +644,36 @@ def fetch_market(c):
             "pct":   float(row.get("exposure_pct") or 0),
             "tier":  row.get("regime") or "unknown",
             "halts": halts if isinstance(halts, list) else [],
-            "vix":   None,
-            "dist":  None,
-            "stage": None,
-            "spy":   None,
-            "spy_chg": None,
-            "trend": None,
-            "upvol": None,
-            "adr":   None,
-            "nh":    None,
-            "nl":    None,
-            "pcr":   None,
-            "ycs":   None,
-            "bmom":  None,
-            "fed":   None,
         }
 
-        # Fetch market health data (VIX, stage, trend, distribution days)
-        mkt = q1(c, """SELECT vix_level, market_stage, market_trend, distribution_days_4w
+        # Fetch all market health data in one query
+        mkt = q1(c, """SELECT
+                       vix_level, market_stage, market_trend, distribution_days_4w,
+                       spy_close, spy_change_pct, up_volume_percent, advance_decline_ratio,
+                       new_highs_count, new_lows_count, breadth_momentum_10d,
+                       put_call_ratio, yield_curve_slope, fed_rate_environment
                        FROM market_health_daily ORDER BY date DESC LIMIT 1""")
         if mkt:
-            result["vix"] = float(mkt.get("vix_level")) if mkt.get("vix_level") else None
+            result["vix"]   = float(mkt.get("vix_level")) if mkt.get("vix_level") else None
             result["stage"] = mkt.get("market_stage")
             result["trend"] = mkt.get("market_trend")
-            result["dist"] = int(mkt.get("distribution_days_4w")) if mkt.get("distribution_days_4w") else None
-
-        # Fetch SPY price and calculate daily change
-        spy_row = q1(c, """SELECT current_price FROM algo_positions
-                           WHERE symbol='SPY' AND status='open' LIMIT 1""")
-        if spy_row:
-            result["spy"] = float(spy_row.get("current_price")) if spy_row.get("current_price") else None
-
-        # Calculate yield curve slope (10Y - 2Y) from economic data
-        econ = q(c, """SELECT series_id, value FROM economic_data
-                       WHERE series_id IN ('DGS10', 'DGS2')
-                       AND date = (SELECT MAX(date) FROM economic_data WHERE series_id IN ('DGS10', 'DGS2'))
-                       LIMIT 2""")
-        if econ:
-            econ_dict = {r['series_id']: float(r['value']) for r in econ if r.get('value')}
-            t10 = econ_dict.get('DGS10')
-            t2 = econ_dict.get('DGS2')
-            if t10 is not None and t2 is not None:
-                result["ycs"] = round(t10 - t2, 2)
+            result["dist"]  = int(mkt.get("distribution_days_4w")) if mkt.get("distribution_days_4w") else None
+            result["spy"]   = float(mkt.get("spy_close")) if mkt.get("spy_close") else None
+            result["spy_chg"] = float(mkt.get("spy_change_pct")) if mkt.get("spy_change_pct") else None
+            result["upvol"] = float(mkt.get("up_volume_percent")) if mkt.get("up_volume_percent") else None
+            result["adr"]   = float(mkt.get("advance_decline_ratio")) if mkt.get("advance_decline_ratio") else None
+            result["nh"]    = int(mkt.get("new_highs_count")) if mkt.get("new_highs_count") else None
+            result["nl"]    = int(mkt.get("new_lows_count")) if mkt.get("new_lows_count") else None
+            result["pcr"]   = float(mkt.get("put_call_ratio")) if mkt.get("put_call_ratio") else None
+            result["bmom"]  = float(mkt.get("breadth_momentum_10d")) if mkt.get("breadth_momentum_10d") else None
+            result["ycs"]   = float(mkt.get("yield_curve_slope")) if mkt.get("yield_curve_slope") else None
+            result["fed"]   = mkt.get("fed_rate_environment")
+        else:
+            result.update({
+                "vix": None, "dist": None, "stage": None, "spy": None, "spy_chg": None,
+                "trend": None, "upvol": None, "adr": None, "nh": None, "nl": None,
+                "pcr": None, "ycs": None, "bmom": None, "fed": None,
+            })
 
         return result
     except Exception as e:
@@ -761,10 +754,17 @@ def fetch_perf(c):
         return {}
 
 def fetch_positions(c):
+    """Issue 3 FIX: Fetch positions via API instead of direct DB access (dual data source elimination)."""
     try:
-        return q(c, """SELECT position_id, symbol, quantity, entry_price, current_price,
+        if DashboardDataAPI:
+            positions = DashboardDataAPI.get_positions()
+            if positions:
+                return positions
+        # Fallback to DB if API unavailable or disabled
+        return q(c, """SELECT position_id, symbol, quantity, avg_entry_price, current_price,
                               position_value, stop_loss_price, unrealized_pnl_dollars,
-                              unrealized_pnl_pct, sector, stage_in_lifecycle
+                              unrealized_pnl_pct, sector, stage_in_lifecycle, r_multiple,
+                              weinstein_stage, days_since_entry, distance_to_stop_pct
                        FROM algo_positions WHERE status='open'
                        ORDER BY position_value DESC""")
     except Exception as e:
