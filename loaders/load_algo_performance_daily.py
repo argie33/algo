@@ -281,11 +281,6 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             if start_val > 0:
                 total_return_pct = ((end_val - start_val) / start_val) * 100
 
-        # Extract avg_r_all from trade_stats (already computed in fetch_global)
-        avg_r_all = None
-        if trade_stats.get('avg_r_all') is not None:
-            avg_r_all = MetricsCalculator.calculate_avg_r_multiple([float(trade_stats.get('avg_r_all'))])
-
         return {
             'report_date': report_date,
             'rolling_sharpe_252d': rolling_sharpe_252d,
@@ -303,7 +298,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             'profit_factor': profit_factor,
             'avg_win': avg_win_dollars,
             'avg_loss': avg_loss_dollars,
-            'avg_r': avg_r_all,
+            'avg_r': avg_win_r,
             # PHASE 1 FIX: New fields to support API performance endpoint
             'current_win_streak': current_streak,
             'best_win_streak': best_win_streak,

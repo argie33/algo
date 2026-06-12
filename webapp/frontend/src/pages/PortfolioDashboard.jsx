@@ -130,10 +130,14 @@ function PortfolioDashboardPage() {
     ['algo-holding-period-distribution'],
     () => api.get('/api/algo/holding-period-distribution'),
   );
+  const { data: stageDistribution, loading: stageLoading, error: stageError, refetch: refetchStage } = useApiQuery(
+    ['algo-stage-distribution'],
+    () => api.get('/api/algo/stage-distribution'),
+  );
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
-  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading || holdingLoading;
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading || holdingLoading || stageLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -241,6 +245,7 @@ function PortfolioDashboardPage() {
             refetchHistogram();
             refetchDistribution();
             refetchHolding();
+            refetchStage();
           }}>
             <RefreshCw size={14} /> Refresh
           </button>
@@ -475,7 +480,7 @@ function PortfolioDashboardPage() {
           <SectorConcentration sector_allocation={sectorAllocation} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <StagePhaseDonut positions={safePositionsList} loading={isPrimaryLoading} />
+          <StagePhaseDonut distribution={stageDistribution} loading={isPrimaryLoading} />
         </ErrorBoundary>
       </div>
 
@@ -890,7 +895,7 @@ function DailyReturnHistogram({ histogram_data, loading }) {
           <div className="card-title">Daily Return Distribution</div>
           <div className="card-sub">
             {stats
-              ? `${stats.n} sessions · mean ${stats.mean.toFixed(2)}% · σ ${stats.std.toFixed(2)}%`
+              ? `${stats.count} sessions · mean ${stats.mean.toFixed(2)}% · σ ${stats.std.toFixed(2)}%`
               : 'Last 90 days'}
           </div>
         </div>
@@ -1232,20 +1237,11 @@ function SectorConcentration({ sector_allocation, loading }) {
 }
 
 // ─── Stage phase donut ─────────────────────────────────────────────────────
-function StagePhaseDonut({ positions, loading }) {
+function StagePhaseDonut({ distribution, loading }) {
   const data = useMemo(() => {
-    if (!positions) return [];
-    const counts = {};
-    for (const p of positions) {
-      const k = p.stage_label || 'Unknown';
-      counts[k] = (counts[k] || 0) + 1;
-    }
-    const order = ['Early Stage-2', 'Mid Stage-2', 'Late Stage-2',
-                   'Stage 1 (base)', 'Stage 3 (top)', 'Stage 4 (down)', 'Unknown'];
-    return order
-      .filter(k => counts[k])
-      .map(k => ({ phase: k, count: counts[k] }));
-  }, [positions]);
+    if (!distribution || !distribution.distribution) return [];
+    return distribution.distribution || [];
+  }, [distribution]);
 
   const colorFor = (p) => {
     if (p.startsWith('Early')) return 'var(--success)';
@@ -1468,7 +1464,7 @@ SectorConcentration.propTypes = {
 };
 
 StagePhaseDonut.propTypes = {
-  positions: PropTypes.array,
+  distribution: PropTypes.object,
   loading: PropTypes.bool,
 };
 

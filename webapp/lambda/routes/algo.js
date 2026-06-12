@@ -564,8 +564,8 @@ router.get('/positions', authenticateToken, async (req, res) => {
       items,
       sector_allocation,
       pagination: {
-        total: result.rows.length,
-        count: result.rows.length
+        total: items.length,
+        count: items.length
       }
     });
   } catch (error) {
@@ -2768,6 +2768,81 @@ router.get('/holding-period-distribution', authenticateToken, async (req, res) =
   } catch (error) {
     logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while computing holding period distribution');
+  }
+});
+
+/**
+ * GET /api/algo/stage-distribution
+ * Stage phase distribution across open positions
+ */
+router.get('/stage-distribution', authenticateToken, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const configResult = await pool.query(`
+      SELECT key, value FROM algo_config
+      WHERE key IN ('stage_2_early_min_score', 'stage_2_mid_min_score', 'stage_2_late_min_score')
+    `);
+    const posResult = await pool.query(`
+      SELECT weinstein_stage, minervini_trend_score
+      FROM algo_positions_with_risk
+      WHERE status = 'open'
+    `);
+
+    validateQueryResult(configResult, { requireRows: false });
+    validateQueryResult(posResult, { requireRows: false });
+
+    const stageConfig = {
+      stage_2_early_min_score: 0,
+      stage_2_mid_min_score: 6,
+      stage_2_late_min_score: 8,
+    };
+    for (const row of configResult.rows) {
+      const val = parseFloat(row.value);
+      if (!isNaN(val)) {
+        stageConfig[row.key] = val;
+      }
+    }
+
+    const counts = {};
+    const order = ['Early Stage-2', 'Mid Stage-2', 'Late Stage-2',
+                   'Stage 1 (base)', 'Stage 3 (top)', 'Stage 4 (down)', 'Unknown'];
+
+    for (const row of posResult.rows) {
+      const stage = row.weinstein_stage;
+      const score = row.minervini_trend_score;
+      let label = 'Unknown';
+      if (stage === 1) {
+        label = 'Stage 1 (base)';
+      } else if (stage === 2) {
+        if (score != null) {
+          if (score >= stageConfig.stage_2_late_min_score) label = 'Late Stage-2';
+          else if (score >= stageConfig.stage_2_mid_min_score) label = 'Mid Stage-2';
+          else if (score >= stageConfig.stage_2_early_min_score) label = 'Early Stage-2';
+          else label = 'Early Stage-2';
+        } else {
+          label = 'Stage 2';
+        }
+      } else if (stage === 3) {
+        label = 'Stage 3 (top)';
+      } else if (stage === 4) {
+        label = 'Stage 4 (down)';
+      }
+
+      counts[label] = (counts[label] || 0) + 1;
+    }
+
+    const distribution = order
+      .filter(k => counts[k])
+      .map(k => ({ phase: k, count: counts[k] }));
+
+    return sendSuccess(res, {
+      distribution,
+      total_positions: posResult.rows.length,
+    });
+  } catch (error) {
+    logger.error('Error in /api/algo/stage-distribution:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while computing stage distribution');
   }
 });
 

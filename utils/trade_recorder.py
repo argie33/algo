@@ -60,13 +60,14 @@ class TradeRecorder:
                 cursor.execute("""
                     INSERT INTO algo_positions (
                         symbol, entry_date, entry_price, current_price, quantity,
-                        status, unrealized_pnl, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, 'OPEN', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        status, unrealized_pnl, stage_in_exit_plan, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, 'OPEN', 0, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (symbol) DO UPDATE SET
                         entry_date = %s,
                         entry_price = %s,
                         quantity = %s,
                         status = 'OPEN',
+                        stage_in_exit_plan = 'active',
                         updated_at = CURRENT_TIMESTAMP
                 """, (
                     symbol, entry_date, Decimal(str(entry_price)), Decimal(str(entry_price)),
