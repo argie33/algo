@@ -706,17 +706,28 @@ def fetch_exposure_factors(c):
         pass
 
 def fetch_portfolio(c):
-    # Issue 3 FIX: Use API instead of direct DB access
     try:
-        # Dashboard doesn't currently have a dedicated /api/algo/portfolio endpoint,
-        # but portfolio data can be derived from other API endpoints or we need to create one
-        # For now, return empty to avoid DB fallback
-        return {}
+        row = q1(c, """SELECT snapshot_date, total_portfolio_value, total_cash, position_count,
+                              daily_return_pct, unrealized_pnl_pct, cumulative_return_pct,
+                              max_drawdown_pct, largest_position_pct
+                       FROM algo_portfolio_snapshots
+                       ORDER BY snapshot_date DESC LIMIT 1""")
+        if not row:
+            return {}
+        return {
+            "snapshot_date": row.get("snapshot_date"),
+            "total_portfolio_value": float(row.get("total_portfolio_value") or 0),
+            "total_cash": float(row.get("total_cash") or 0),
+            "position_count": int(row.get("position_count") or 0),
+            "daily_return_pct": float(row.get("daily_return_pct") or 0),
+            "unrealized_pnl_pct": float(row.get("unrealized_pnl_pct") or 0),
+            "cumulative_return_pct": float(row.get("cumulative_return_pct") or 0) if row.get("cumulative_return_pct") else None,
+            "max_drawdown_pct": float(row.get("max_drawdown_pct") or 0) if row.get("max_drawdown_pct") else None,
+            "largest_position_pct": float(row.get("largest_position_pct") or 0) if row.get("largest_position_pct") else None
+        }
     except Exception as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
         return {"_error": str(e)}
-    finally:
-        pass
 
 def fetch_perf(c):
     try:
@@ -770,16 +781,34 @@ def fetch_recent_trades(c):
 
 def fetch_signals(c):
     try:
+        # Optimize: Add LIMIT in SQL instead of fetching all rows and slicing in Python
         signals = q(c, """SELECT symbol, swing_score, signal_date
                          FROM algo_signals_evaluated
                          WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
-                         ORDER BY swing_score DESC""")
+                         ORDER BY swing_score DESC LIMIT 20""")
+
+        # Get total count separately (counts all signals, not just top 20)
+        count_row = q1(c, """SELECT COUNT(*) as total_sigs FROM algo_signals_evaluated
+                            WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
+        total_count = count_row.get("total_sigs", 0) if count_row else 0
+
+        # Get signal grade distribution if available
+        grades = {}
+        try:
+            grade_rows = q(c, """SELECT signal_grade, COUNT(*) as cnt
+                                FROM algo_signals_evaluated
+                                WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
+                                GROUP BY signal_grade""")
+            grades = {r.get("signal_grade"): r.get("cnt", 0) for r in grade_rows}
+        except:
+            pass
+
         return {
             "n": len(signals),
-            "total": len(signals),
+            "total": total_count,
             "buy_sigs": signals[:5] if signals else [],
-            "grades": {},
-            "near": signals[5:10] if len(signals) > 5 else [],
+            "grades": grades,
+            "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
             "top_a": signals[:3] if signals else [],
             "trend": []
         }
