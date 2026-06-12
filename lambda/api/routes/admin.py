@@ -258,65 +258,65 @@ def _get_database_stats(cur) -> Dict:
     return json_response(200, stats)
 @db_route_handler('get data quality')
 def _get_data_quality(cur) -> Dict:
-        """Get data quality metrics."""
-            quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
-            cur.execute("SET LOCAL statement_timeout = '10000ms'")
+    """Get data quality metrics."""
+    quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
+    cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
-            cur.execute("""
-                SELECT COUNT(*) FROM price_daily
-                WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
-            """)
-            null_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
-            quality['checks']['null_prices'] = {'count': null_prices, 'status': 'ok' if null_prices == 0 else 'warning'}
+    cur.execute("""
+        SELECT COUNT(*) FROM price_daily
+        WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
+    """)
+    null_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
+    quality['checks']['null_prices'] = {'count': null_prices, 'status': 'ok' if null_prices == 0 else 'warning'}
 
-            cur.execute("""
-                SELECT COUNT(*) FROM (
-                    SELECT symbol, date, COUNT(*)
-                    FROM price_daily
-                    GROUP BY symbol, date HAVING COUNT(*) > 1
-                ) t
-            """)
-            duplicate_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
-            quality['checks']['duplicate_prices'] = {'count': duplicate_prices, 'status': 'ok' if duplicate_prices == 0 else 'warning'}
+    cur.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT symbol, date, COUNT(*)
+            FROM price_daily
+            GROUP BY symbol, date HAVING COUNT(*) > 1
+        ) t
+    """)
+    duplicate_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
+    quality['checks']['duplicate_prices'] = {'count': duplicate_prices, 'status': 'ok' if duplicate_prices == 0 else 'warning'}
 
-            cur.execute("""
-                SELECT COUNT(*) FROM price_daily
-                WHERE high < low OR close > high OR close < low
-            """)
-            invalid_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
-            quality['checks']['invalid_price_ranges'] = {'count': invalid_prices, 'status': 'ok' if invalid_prices == 0 else 'error'}
+    cur.execute("""
+        SELECT COUNT(*) FROM price_daily
+        WHERE high < low OR close > high OR close < low
+    """)
+    invalid_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
+    quality['checks']['invalid_price_ranges'] = {'count': invalid_prices, 'status': 'ok' if invalid_prices == 0 else 'error'}
 
-        # Overall status
-        quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
+    # Overall status
+    quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
 
-        return json_response(200, quality)
+    return json_response(200, quality)
 
 def _verify_user_email(body: Dict = None) -> Dict:
-        """Verify a user's email in Cognito (dev/testing only)."""
-        if not body or 'username' not in body:
-            return error_response(400, 'bad_request', 'username required')
+    """Verify a user's email in Cognito (dev/testing only)."""
+    if not body or 'username' not in body:
+        return error_response(400, 'bad_request', 'username required')
 
-        try:
-            cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
-            cognito_region = os.getenv('COGNITO_REGION', 'us-east-1').strip()
+    try:
+        cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
+        cognito_region = os.getenv('COGNITO_REGION', 'us-east-1').strip()
 
-            if not cognito_user_pool_id:
-                return error_response(500, 'cognito_config_error', 'Cognito not configured')
+        if not cognito_user_pool_id:
+            return error_response(500, 'cognito_config_error', 'Cognito not configured')
 
-            cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
-            username = body.get('username')
+        cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
+        username = body.get('username')
 
-            # Update user attributes to mark email as verified
-            cognito_client.admin_update_user_attributes(
-                UserPoolId=cognito_user_pool_id,
-                Username=username,
-                UserAttributes=[
-                    {'Name': 'email_verified', 'Value': 'true'}
-                ]
-            )
+        # Update user attributes to mark email as verified
+        cognito_client.admin_update_user_attributes(
+            UserPoolId=cognito_user_pool_id,
+            Username=username,
+            UserAttributes=[
+                {'Name': 'email_verified', 'Value': 'true'}
+            ]
+        )
 
-            logger.info(f"Email verified for user: {username}")
-            return json_response(200, {
+        logger.info(f"Email verified for user: {username}")
+        return json_response(200, {
                 'status': 'success',
                 'message': f'Email verified for {username}',
                 'username': username

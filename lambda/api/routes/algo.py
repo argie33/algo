@@ -980,6 +980,18 @@ def _get_circuit_breakers(cur) -> Dict:
             triggered_count = sum(1 for b in breakers if b['triggered'])
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
             return json_response(200, {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness})
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
+            return error_response(500, 'internal_error', 'Database query failed')
+        except Exception as e:
+            logger.error(f'Unexpected error (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch circuit breakers')
 
 def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
