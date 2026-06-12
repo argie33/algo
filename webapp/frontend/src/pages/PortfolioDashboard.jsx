@@ -118,10 +118,18 @@ function PortfolioDashboardPage() {
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
   );
+  const { data: returnHistogram, loading: histogramLoading, error: histogramError, refetch: refetchHistogram } = useApiQuery(
+    ['algo-daily-return-histogram'],
+    () => api.get('/api/algo/daily-return-histogram'),
+  );
+  const { data: tradeDistribution, loading: distLoading, error: distError, refetch: refetchDistribution } = useApiQuery(
+    ['algo-trade-distribution'],
+    () => api.get('/api/algo/trade-distribution'),
+  );
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
-  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading;
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -226,6 +234,8 @@ function PortfolioDashboardPage() {
             refetchMarkets();
             refetchEquity();
             refetchBreakers();
+            refetchHistogram();
+            refetchDistribution();
           }}>
             <RefreshCw size={14} /> Refresh
           </button>
@@ -436,10 +446,10 @@ function PortfolioDashboardPage() {
       ) : (
         <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
           <ErrorBoundary>
-            <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading} />
+            <DailyReturnHistogram histogram_data={returnHistogram} loading={isPrimaryLoading} />
           </ErrorBoundary>
           <ErrorBoundary>
-            <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading} />
+            <TradeDistribution distribution_data={tradeDistribution} loading={isPrimaryLoading} />
           </ErrorBoundary>
         </div>
       )}
@@ -811,14 +821,12 @@ function EquityCurve({ series, loading }) {
 function DrawdownChart({ series, loading }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
-    let peak = 0;
-    return series.map(s => {
-      const v = Number(s.total_portfolio_value || 0);
-      if (v <= 0) return null;
-      peak = Math.max(peak, v);
-      const dd = peak > 0 ? -((peak - v) / peak) * 100 : 0;
-      return { date: String(s.snapshot_date || '').slice(5, 10), dd: Number(dd.toFixed(2)) };
-    }).filter(Boolean);
+    return series
+      .map(s => ({
+        date: String(s.snapshot_date || '').slice(5, 10),
+        dd: Number(s.drawdown_pct || 0),
+      }))
+      .filter(s => s.dd !== 0 || s.date);
   }, [series]);
 
   return (
@@ -862,34 +870,13 @@ function DrawdownChart({ series, loading }) {
 }
 
 // ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
-function DailyReturnHistogram({ series, loading }) {
+function DailyReturnHistogram({ histogram_data, loading }) {
   const { buckets, stats } = useMemo(() => {
-    if (!series || series.length === 0) return { buckets: [], stats: null };
-    const last90 = series.slice(-90);
-    const returns = last90
-      .map(s => Number(s.daily_return_pct || 0))
-      .filter(r => Number.isFinite(r));
-    if (returns.length === 0) return { buckets: [], stats: null };
-    const lo = Math.min(...returns);
-    const hi = Math.max(...returns);
-    const span = Math.max(0.5, hi - lo);
-    const bins = 12;
-    const step = span / bins;
-    const arr = Array.from({ length: bins }, (_, i) => ({
-      mid: Number((lo + step * (i + 0.5)).toFixed(2)),
-      count: 0,
-    }));
-    for (const r of returns) {
-      let idx = Math.floor((r - lo) / step);
-      if (idx >= bins) idx = bins - 1;
-      if (idx < 0) idx = 0;
-      arr[idx].count += 1;
-    }
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
-    const std = Math.sqrt(variance);
-    return { buckets: arr, stats: { mean, std, n: returns.length } };
-  }, [series]);
+    if (!histogram_data) return { buckets: [], stats: null };
+    const data = histogram_data.buckets || [];
+    const stat = histogram_data.stats || null;
+    return { buckets: data, stats: stat };
+  }, [histogram_data]);
 
   return (
     <div className="card">
@@ -937,26 +924,11 @@ function DailyReturnHistogram({ series, loading }) {
 }
 
 // ─── Trade outcome distribution ────────────────────────────────────────────
-function TradeDistribution({ trades, loading }) {
+function TradeDistribution({ distribution_data, loading }) {
   const buckets = useMemo(() => {
-    if (!trades || trades.length === 0) return [];
-    const bins = [
-      { range: '< -2R', min: -Infinity, max: -2, count: 0 },
-      { range: '-2 to -1R', min: -2, max: -1, count: 0 },
-      { range: '-1 to 0R', min: -1, max: 0, count: 0 },
-      { range: '0 to 1R', min: 0, max: 1, count: 0 },
-      { range: '1 to 2R', min: 1, max: 2, count: 0 },
-      { range: '2 to 3R', min: 2, max: 3, count: 0 },
-      { range: '> 3R', min: 3, max: Infinity, count: 0 },
-    ];
-    for (const t of trades) {
-      const r = Number(t.exit_r_multiple);
-      if (isNaN(r)) continue;
-      const b = bins.find(x => r >= x.min && r < x.max) || bins[bins.length - 1];
-      b.count += 1;
-    }
-    return bins;
-  }, [trades]);
+    if (!distribution_data || !distribution_data.buckets) return [];
+    return distribution_data.buckets || [];
+  }, [distribution_data]);
 
   return (
     <div className="card">

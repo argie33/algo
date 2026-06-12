@@ -1823,14 +1823,25 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
       position_count: { type: 'int', required: false, defaultValue: 0 }
     });
 
-    return sendSuccess(res, {
-      items: validated.reverse().map(r => ({
+    // Issue #1: Compute drawdown (peak-to-current) for each snapshot
+    const chronological = validated.reverse();
+    let peak = 0;
+    const withDrawdown = chronological.map(r => {
+      const value = r.total_portfolio_value || 0;
+      if (value > 0) peak = Math.max(peak, value);
+      const dd = peak > 0 ? -((peak - value) / peak) * 100 : 0;
+      return {
         snapshot_date: r.snapshot_date,
-        total_portfolio_value: r.total_portfolio_value || 0,
+        total_portfolio_value: value,
         daily_return_pct: r.daily_return_pct || 0,
         unrealized_pnl_pct: r.unrealized_pnl_pct || 0,
         position_count: r.position_count || 0,
-      }))
+        drawdown_pct: Number(dd.toFixed(2)),
+      };
+    });
+
+    return sendSuccess(res, {
+      items: withDrawdown
     });
   } catch (error) {
     logger.error('Error in /algo/equity-curve:', { error: error.message, stack: error.stack });
@@ -2555,6 +2566,116 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
   } catch (error) {
     logger.error("Error in /algo/signal-performance-by-pattern:", { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing signal performance');
+  }
+});
+
+/**
+ * GET /api/algo/daily-return-histogram
+ * Issue #2: Pre-computed daily return histogram with statistics
+ * Returns histogram bins and statistics (mean, std) for last 90 days
+ */
+router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT daily_return_pct
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC
+      LIMIT 90
+    `);
+
+    validateQueryResult(result, { requireRows: false });
+
+    const returns = result.rows
+      .map(r => Number(r.daily_return_pct || 0))
+      .filter(r => Number.isFinite(r))
+      .sort((a, b) => a - b);
+
+    if (returns.length === 0) {
+      return sendSuccess(res, {
+        buckets: [],
+        stats: null,
+        count: 0,
+      });
+    }
+
+    const lo = Math.min(...returns);
+    const hi = Math.max(...returns);
+    const span = Math.max(0.5, hi - lo);
+    const bins = 12;
+    const step = span / bins;
+
+    const buckets = Array.from({ length: bins }, (_, i) => ({
+      bucket: i,
+      mid: Number((lo + step * (i + 0.5)).toFixed(2)),
+      min: Number((lo + step * i).toFixed(2)),
+      max: Number((lo + step * (i + 1)).toFixed(2)),
+      count: 0,
+    }));
+
+    for (const r of returns) {
+      let idx = Math.floor((r - lo) / step);
+      if (idx >= bins) idx = bins - 1;
+      if (idx < 0) idx = 0;
+      buckets[idx].count += 1;
+    }
+
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const std = Math.sqrt(variance);
+
+    return sendSuccess(res, {
+      buckets,
+      stats: { mean: Number(mean.toFixed(2)), std: Number(std.toFixed(2)), count: returns.length },
+    });
+  } catch (error) {
+    logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while computing daily return histogram');
+  }
+});
+
+/**
+ * GET /api/algo/trade-distribution
+ * Issue #3: Pre-computed trade outcome distribution by R-multiple
+ */
+router.get('/trade-distribution', authenticateToken, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT exit_r_multiple
+      FROM algo_closed_trades
+      ORDER BY close_date DESC
+      LIMIT 500
+    `);
+
+    validateQueryResult(result, { requireRows: false });
+
+    const bins = [
+      { range: '< -2R', min: -Infinity, max: -2, count: 0 },
+      { range: '-2 to -1R', min: -2, max: -1, count: 0 },
+      { range: '-1 to 0R', min: -1, max: 0, count: 0 },
+      { range: '0 to 1R', min: 0, max: 1, count: 0 },
+      { range: '1 to 2R', min: 1, max: 2, count: 0 },
+      { range: '2 to 3R', min: 2, max: 3, count: 0 },
+      { range: '> 3R', min: 3, max: Infinity, count: 0 },
+    ];
+
+    for (const row of result.rows) {
+      const r = Number(row.exit_r_multiple);
+      if (isNaN(r)) continue;
+      const b = bins.find(x => r >= x.min && r < x.max);
+      if (b) b.count += 1;
+    }
+
+    return sendSuccess(res, {
+      buckets: bins,
+      total_trades: result.rows.length,
+    });
+  } catch (error) {
+    logger.error('Error in /api/algo/trade-distribution:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while computing trade distribution');
   }
 });
 
