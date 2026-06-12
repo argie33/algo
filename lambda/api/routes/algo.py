@@ -1,7 +1,7 @@
 """Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, json, os, sys
+import logging, re, json, os, sys, importlib.util
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
@@ -12,12 +12,27 @@ from routes.utils import (
     check_data_freshness, safe_json_serialize
 )
 
-# Import from root utils package - add root to sys.path first to ensure correct resolution
+# Import from root utils package using importlib to avoid package shadowing issues
+# (there's both /lambda/api/utils/ and /utils/ which causes conflicts)
 _root_dir = str(Path(__file__).parent.parent.parent.parent)
-if _root_dir not in sys.path:
-    sys.path.insert(0, _root_dir)
-from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
-from utils.safe_data_conversion import safe_float, safe_int
+import importlib.util
+_admin_spec = importlib.util.spec_from_file_location(
+    "admin_rate_limiter",
+    str(Path(_root_dir) / "utils" / "admin_rate_limiter.py")
+)
+_admin_module = importlib.util.module_from_spec(_admin_spec)
+_admin_spec.loader.exec_module(_admin_module)
+check_admin_rate_limit = _admin_module.check_admin_rate_limit
+ADMIN_RATE_LIMITS = _admin_module.ADMIN_RATE_LIMITS
+
+_safe_spec = importlib.util.spec_from_file_location(
+    "safe_data_conversion",
+    str(Path(_root_dir) / "utils" / "safe_data_conversion.py")
+)
+_safe_module = importlib.util.module_from_spec(_safe_spec)
+_safe_spec.loader.exec_module(_safe_module)
+safe_float = _safe_module.safe_float
+safe_int = _safe_module.safe_int
 
 logger = logging.getLogger(__name__)
 
