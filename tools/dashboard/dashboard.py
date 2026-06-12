@@ -26,7 +26,7 @@ import statistics
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, TypedDict
 from zoneinfo import ZoneInfo
@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
 from utils.algo_metrics_fetcher import AlgoMetricsFetcher
+from utils.safe_data_conversion import safe_parse_json_or_default
 from algo.algo_signals import SignalComputer
 from utils.validation_integration import validate_phase_results as validate_phase_results_framework
 
@@ -1252,13 +1253,7 @@ def fetch_run(c) -> RunData:
             ORDER BY started_at DESC LIMIT 1""")
         if row:
             pr = row.get("phase_results")
-            if isinstance(pr, str):
-                try:
-                    pr = json.loads(pr)
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.error(f"phase_results JSON corrupt (orchestrator version mismatch?): {e}")
-                    logger.error(f"Raw content (first 200 chars): {str(pr)[:200]}")
-                    pr = []
+            pr = safe_parse_json_or_default(pr, default=[], context="phase_results")
             pr = validate_phase_results(pr)
             overall = (row.get("overall_status") or "").lower()
             result: RunData = {
@@ -1498,12 +1493,7 @@ def fetch_market(c):
                         FROM market_health_daily ORDER BY date DESC LIMIT 1""")
         pct   = safe_float(exp.get("exposure_pct")) if exp else None
         halts = exp.get("halt_reasons") if exp else []
-        if isinstance(halts, str):
-            try:
-                halts = json.loads(halts)
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"halt_reasons JSON invalid: {e}. Using empty list.")
-                halts = []
+        halts = safe_parse_json_or_default(halts, default=[], context="halt_reasons")
 
         # Check data freshness (should be from today or recent trading day)
         exp_age = None
@@ -1796,12 +1786,10 @@ def fetch_exposure_factors(c):
         if factors is None:
             factors = {}
         elif isinstance(factors, str):
-            try:
-                factors = json.loads(factors)
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"Failed to parse exposure factors JSON: {e}")
-                factors_error = str(e)
-                factors = {}
+            parsed = safe_parse_json_or_default(factors, default={}, context="exposure_factors")
+            if parsed == {}:
+                factors_error = "JSON parse failed"
+            factors = parsed
         # Issue 12 fix: Enhanced schema validation â€” ensure factors are numeric and properly structured
         # Issue 25 fix: Complete exposure factors schema with all 12+ factors from MarketExposure.compute()
         data_quality = "good"
@@ -2837,10 +2825,9 @@ def fetch_sector_rotation(c):
         if d is None:
             d = {}
         elif isinstance(d, str):
-            try:
-                d = json.loads(d)
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"sector_rotation details corrupt; sector rotation signal unavailable: {e}")
+            d = safe_parse_json_or_default(d, default=None, context="sector_rotation_details")
+            if d is None:
+                logger.error("sector_rotation details corrupt; sector rotation signal unavailable")
                 return {"_error": "Sector rotation data corrupted"}
         strength = safe_float(row.get("strength"))
         signal = row.get("signal")
@@ -2959,10 +2946,7 @@ def fetch_audit_log(c):
             if det is None:
                 det = {}
             elif isinstance(det, str):
-                try: det = json.loads(det)
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(f"Failed to parse audit_log details JSON: {e}")
-                    det = {}
+                det = safe_parse_json_or_default(det, default={}, context="audit_log_details")
             result.append({
                 "action_type": r.get("action_type", ""),
                 "symbol":      r.get("symbol") or det.get("symbol", ""),
@@ -3415,11 +3399,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
         pdata = p.get("data")
         if isinstance(pdata, str):
-            try:
-                pdata = json.loads(pdata)
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse phase data JSON: {e}")
-                pdata = {}
+            pdata = safe_parse_json_or_default(pdata, default={}, context="phase_data")
         elif pdata is None:
             pdata = {}
         detail = ""
@@ -3448,8 +3428,8 @@ def _fmt_phases_halted(phases_halted) -> str:
     if isinstance(phases_halted, int):
         return ""
     if isinstance(phases_halted, str):
-        try:    phases_halted = json.loads(phases_halted)
-        except (json.JSONDecodeError, ValueError, TypeError): phases_halted = [phases_halted]
+        parsed = safe_parse_json_or_default(phases_halted, default=None, context="phases_halted")
+        phases_halted = parsed if isinstance(parsed, list) else [phases_halted]
     if not isinstance(phases_halted, (list, tuple)):
         return ""
     names = []
@@ -5210,10 +5190,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if det is None:
             det = {}
         elif isinstance(det, str):
-            try: det = json.loads(det)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning("action details JSON parse failed in panel_status")
-                det = {}
+            det = safe_parse_json_or_default(det, default={}, context="action_details")
         sym = det.get("symbol", "")
         ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
@@ -6369,7 +6346,8 @@ def run_once(compact: bool) -> None:
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame += 1
                 if not done.is_set():
-                    live.update(loading_layout(frame))
+                    if frame % 2 == 0:
+                        live.update(loading_layout(frame))
                 else:
                     live.update(render_dashboard(
                         result[0], compact=compact, elapsed=elapsed[0], frame=frame,
