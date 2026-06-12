@@ -889,42 +889,17 @@ def normalize_audit_log_phases(audit_phases: List[Dict]) -> List[Dict]:
     return normalized
 
 def validate_phase_results(phase_results: any) -> List[Dict]:
-    """Validate phase_results schema. Each phase must have 'name'/'phase' and valid 'status'.
+    """Validate phase_results schema using centralized validation framework.
 
+    Uses utils.validation_framework for consistent validation.
     Returns: list of valid phase objects with guaranteed structure; invalid entries logged.
     """
-    if not isinstance(phase_results, list):
-        logger.warning(f"VALIDATION: phase_results expected list, got {type(phase_results).__name__}")
-        return []
-
-    # Issue 20 FIX: Define valid status values (not just any string like 'unknown')
-    VALID_STATUSES = {'ok', 'success', 'running', 'pending', 'halt', 'halted', 'failed', 'completed', 'skipped'}
-
-    valid = []
-    for i, p in enumerate(phase_results):
-        if not isinstance(p, dict):
-            logger.warning(f"VALIDATION: phase_results[{i}] expected dict, got {type(p).__name__}")
-            continue
-
-        # Check required fields: name/phase and status
-        name = p.get("name") or p.get("phase")
-        status = (p.get("status") or "").lower().strip()
-
-        if not name:
-            logger.warning(f"VALIDATION: phase_results[{i}] missing 'name'/'phase' field")
-        if not status:
-            logger.warning(f"VALIDATION: phase_results[{i}] missing 'status' field")
-        elif status not in VALID_STATUSES:
-            logger.warning(f"VALIDATION: phase_results[{i}] has invalid status '{status}' (not in {VALID_STATUSES})")
-            status = None  # Treat as missing for validation
-
-        if name and status:
-            valid.append(p)
-
-    if len(valid) < len(phase_results):
-        logger.warning(f"VALIDATION: phase_results schema check: {len(valid)} valid, {len(phase_results) - len(valid)} invalid entries")
-
-    return valid
+    result = validate_phase_results_framework(phase_results)
+    if result["valid"] and result["phases"]:
+        return result["phases"]
+    if result["errors"]:
+        logger.warning(f"VALIDATION: phase_results schema check failed: {result['errors']}")
+    return []
 
 # â”€â”€ formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1739,6 +1714,15 @@ def fetch_market(c):
                 msg = f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})"
                 logger.debug(msg)
 
+        # Unified freshness check for all critical market data using centralized rules
+        freshness_check = _check_data_freshness({
+            'price_daily': spy_rows[0].get("date") if spy_rows else None,
+            'market_exposure_daily': exp.get("date") if exp else None,
+            'market_health_daily': h.get("date") if h else None,
+        })
+        all_critical_fresh, freshness_alerts = freshness_check
+        stale_alerts.extend(freshness_alerts)
+
         # CRITICAL ISSUE 3 FIX: Enforce hard thresholds for market data freshness
         # Use centralized config (data_freshness_config.py) instead of hardcoded values
         # This ensures dashboard, API, orchestrator all use same thresholds
@@ -1747,8 +1731,8 @@ def fetch_market(c):
         dist_rule = get_freshness_rule("market_health_daily")
 
         MAX_SPY_AGE_DAYS = spy_rule["max_age_days"] if spy_rule else 1
-        MAX_EXPOSURE_AGE_DAYS = exposure_rule["max_age_days"] if exposure_rule else 2
-        MAX_DIST_DAYS_AGE = dist_rule["max_age_days"] if dist_rule else 5
+        MAX_EXPOSURE_AGE_DAYS = exposure_rule["max_age_days"] if exposure_rule else 1
+        MAX_DIST_DAYS_AGE = dist_rule["max_age_days"] if dist_rule else 1
 
         if spy_age is not None and spy_age > MAX_SPY_AGE_DAYS:
             msg = f"HALT: SPY price data is {spy_age} days old (max {MAX_SPY_AGE_DAYS}d allowed) â€” dashboard cannot run with stale market prices"
@@ -3181,6 +3165,7 @@ FETCHERS = {
     "audit":        fetch_audit_log,
     "exec_hist":    fetch_exec_history,
     "sec_warn":       fetch_sector_position_warnings,
+}
 
 # ISSUE 12 FIX: Document fetcher dependencies explicitly
 # Each fetcher can depend on others being loaded first. Format: "key": ["dependency1", "dependency2", ...]
@@ -3272,7 +3257,9 @@ def load_all() -> dict:
     # ARCHITECTURE FIX (C3-1): Initialize centralized ConfigManager once (replaces fragmented load_*_thresholds functions)
     _config_mgr = ConfigManager(cfg_data)
 
-    def one(name, fn):
+    def one(name, fn, cfg_data=None):
+        if cfg_data is None:
+            cfg_data = {}
         max_retries = 3
         for attempt in range(max_retries + 1):
             conn = None
@@ -3370,8 +3357,6 @@ def load_all() -> dict:
                         f.cancel()
                         out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
 
-    # ARCHITECTURE FIX (C3-1): Initialize centralized ConfigManager once (replaces fragmented load_*_thresholds functions)
-    _config_mgr = ConfigManager(cfg_data)
 
     # H14 FIX: Check cumulative failure threshold â€” determine if dashboard should fail or show degraded
     # Define critical fetchers: dashboard cannot operate without these

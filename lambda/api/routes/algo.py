@@ -963,8 +963,9 @@ def _get_data_status(cur) -> Dict:
                         status = 'ok'
 
                 # Calculate age in hours for reference
-                if last_updated:
-                    age_h = (datetime.now(timezone.utc) - (last_updated if isinstance(last_updated, datetime) else datetime.combine(last_updated, datetime.min.time()))).total_seconds() / 3600
+                last_updated_utc = normalize_to_utc_datetime(last_updated)
+                if last_updated_utc:
+                    age_h = (datetime.now(timezone.utc) - last_updated_utc).total_seconds() / 3600
                 else:
                     age_h = 999
 
