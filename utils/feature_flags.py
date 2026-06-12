@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from enum import Enum
 
@@ -133,7 +133,7 @@ class FeatureFlags:
     def disable_flag(self, flag_name: str) -> bool:
         """Disable a flag immediately (emergency disable)."""
         return self.set_flag(flag_name, "emergency_disable", False,
-                            description=f"Emergency disable at {datetime.now().isoformat()}")
+                            description=f"Emergency disable at {datetime.now(timezone.utc).isoformat()}")
 
     def enable_flag(self, flag_name: str) -> bool:
         """Re-enable a flag."""

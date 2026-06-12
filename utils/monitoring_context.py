@@ -15,7 +15,7 @@ The context manager tracks duration and logs to logger. Integration points:
 import logging
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class TimeBlock:
             _metrics_buffer[self.operation_name] = []
         _metrics_buffer[self.operation_name].append({
             "duration_ms": self.duration_ms,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "is_slow": is_slow,
         })
 

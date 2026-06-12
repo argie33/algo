@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 from abc import ABC
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, List, Optional, Sequence
 
 import psycopg2
@@ -636,7 +636,7 @@ class OptimalLoader(ABC):
 
         # If backfill window is set, use that instead of watermark
         if self._backfill_days > 0:
-            previous_date = datetime.now().date() - timedelta(days=self._backfill_days)
+            previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
         else:
             previous = wm_store.get(symbol) if wm_store else None
             previous_date = self._parse_watermark_date(previous)
