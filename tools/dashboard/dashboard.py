@@ -4,15 +4,17 @@ Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
 Usage:
   python tools/dashboard/dashboard.py                        # AWS mode (production, default)
-  python tools/dashboard/dashboard.py --local                # LOCAL mode (development)
   python tools/dashboard/dashboard.py -w                     # AWS mode, watch mode (auto-refresh 30s)
-  python tools/dashboard/dashboard.py --local -w 60          # LOCAL mode, watch mode (refresh 60s)
+  python tools/dashboard/dashboard.py -w 60                  # AWS mode, watch mode (refresh 60s)
   python tools/dashboard/dashboard.py --compact              # AWS mode, narrow positions table
-  python tools/dashboard/dashboard.py --local --compact      # LOCAL mode, narrow positions table
 
-Data Modes (default: AWS):
-  (no flag)  Use AWS RDS database (production, full data, team access)
-  --local    Use LOCAL database at localhost:5432 (development only)
+Data Mode (AWS-only):
+  Dashboard connects to AWS RDS via credential_manager.py (Secrets Manager or environment variables).
+  No localhost fallback - all data comes from AWS.
+
+Environment:
+  DASHBOARD_API_URL: Override API endpoint (default: http://localhost:3001)
+  DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME: Override database connection (env vars take precedence)
 """
 
 import argparse
@@ -585,104 +587,42 @@ def error_panel(title: str, err_msg: str) -> Panel:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_db_credentials() -> dict:
-    """Fetch and validate DB credentials: try env vars first, then AWS Secrets Manager.
+    """Fetch database credentials using credential_manager.py.
 
-    CRITICAL ISSUE 1 FIX: Validate immediately and fail fast with specific missing field info.
-    Don't return incomplete credentials—let caller know exactly what's missing and where from.
+    This module handles:
+    1. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT)
+    2. AWS Secrets Manager via credential_manager.get_db_credentials()
+    3. Fails fast with clear error if credentials unavailable
+
+    credential_manager handles the AWS Secrets Manager fallback and caching internally.
     """
-    port_str = os.environ.get("DB_PORT")
     try:
-        port = int(port_str) if port_str else None
-    except (ValueError, TypeError):
-        port = None
+        from config.credential_manager import get_db_credentials as get_creds_from_manager
+        creds_dict = get_creds_from_manager()
+        creds = {
+            "host": creds_dict.get("host"),
+            "user": creds_dict.get("user"),
+            "password": creds_dict.get("password"),
+            "dbname": creds_dict.get("database"),
+            "port": creds_dict.get("port"),
+        }
 
-    env_creds = {
-        "host": os.environ.get("DB_HOST"),
-        "user": os.environ.get("DB_USER"),
-        "password": os.environ.get("DB_PASSWORD"),
-        "dbname": os.environ.get("DB_NAME"),
-        "port": port,
-    }
-
-    # If env vars are complete, use them
-    if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"], env_creds["port"]]):
-        logger.debug("DB credentials loaded from environment variables")
-        return env_creds
-
-    # Env vars incomplete — check what's missing
-    env_missing = [k for k in ["host", "user", "password", "dbname", "port"] if not env_creds.get(k)]
-    env_status = f"incomplete ({', '.join(env_missing)} missing)" if env_missing else "complete"
-
-    # Otherwise try AWS Secrets Manager (with explicit timeout handling)
-    if boto3:
-        try:
-            # Issue 5 FIX: Add explicit timeout to prevent hangs during testing
-            config = botocore.config.Config(
-                connect_timeout=5,
-                read_timeout=5,
-                retries={'max_attempts': 1}
-            )
-            client = boto3.client("secretsmanager", region_name="us-east-1", config=config)
-            secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
-            response = client.get_secret_value(SecretId=secret_name)
-            secret_dict = json.loads(response.get("SecretString", "{}"))
-            sm_port = secret_dict.get("port")
-            try:
-                sm_port = int(sm_port) if sm_port else None
-            except (ValueError, TypeError):
-                sm_port = None
-
-            creds = {
-                "host": secret_dict.get("host"),
-                "user": secret_dict.get("username"),
-                "password": secret_dict.get("password"),
-                "dbname": secret_dict.get("dbname"),
-                "port": sm_port,
-            }
-
-            # Validate Secrets Manager creds before returning
-            sm_missing = [k for k in ["host", "user", "password", "dbname", "port"] if not creds.get(k)]
-            if sm_missing:
-                msg = f"AWS Secrets Manager ({secret_name}) incomplete: missing fields {sm_missing}. " \
-                      f"Environment variables also {env_status}. Cannot proceed."
-                logger.error(f"CRITICAL: {msg}")
-                sys.exit(msg)
-
-            logger.debug(f"DB credentials loaded from AWS Secrets Manager ({secret_name})")
-            return creds
-        except (ConnectTimeoutError, ReadTimeoutError) as e:
-            # Issue 5 FIX: Distinguish timeout from credential/access errors
-            msg = f"AWS Secrets Manager timeout ({type(e).__name__}). " \
-                  f"For testing, set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables. " \
-                  f"Environment variables are {env_status}. Cannot proceed."
-            logger.error(f"CRITICAL: {msg}")
-            sys.exit(msg)
-        except ClientError as e:
-            # Issue 5 FIX: Distinguish access/permission errors
-            err_code = e.response.get('Error', {}).get('Code', 'Unknown')
-            if err_code == 'ResourceNotFoundException':
-                msg = f"AWS Secrets Manager: secret '{secret_name}' not found. " \
-                      f"Verify secret exists in us-east-1 and name matches DB_SECRET_NAME env var. " \
-                      f"Or set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME for local testing."
-            elif err_code == 'AccessDeniedException':
-                msg = f"AWS Secrets Manager: access denied to '{secret_name}'. " \
-                      f"Check IAM permissions for role running dashboard."
-            else:
-                msg = f"AWS Secrets Manager error ({err_code}): {e}. " \
-                      f"Or set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME for local testing."
-            logger.error(f"CRITICAL: {msg}")
-            sys.exit(msg)
-        except Exception as e:
-            msg = f"Failed to fetch credentials from Secrets Manager ({type(e).__name__}: {e}). " \
-                  f"Environment variables are {env_status}. Cannot proceed."
+        # Validate all required fields are present
+        missing = [k for k in ["host", "user", "password", "dbname", "port"] if not creds.get(k)]
+        if missing:
+            msg = f"Database credentials incomplete: missing {missing}. " \
+                  f"Check environment variables or AWS Secrets Manager configuration."
             logger.error(f"CRITICAL: {msg}")
             sys.exit(msg)
 
-    # Neither env vars nor Secrets Manager available
-    msg = f"Database credentials unavailable. Environment variables are {env_status}. " \
-          f"boto3 not available or AWS Secrets Manager not configured. Cannot proceed."
-    logger.error(f"CRITICAL: {msg}")
-    sys.exit(msg)
+        logger.debug(f"DB credentials loaded via credential_manager (host: {creds['host']})")
+        return creds
+    except Exception as e:
+        msg = f"Failed to load database credentials: {e}. " \
+              f"Ensure environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT) are set " \
+              f"or AWS Secrets Manager is accessible."
+        logger.error(f"CRITICAL: {msg}")
+        sys.exit(msg)
 
 def get_conn() -> psycopg2.extensions.connection:
     creds = _get_db_credentials()
@@ -6421,62 +6361,31 @@ def print_legend():
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
-def _configure_database(use_local: bool | None = None):
-    """Configure database environment. Intent is AWS (production), graceful fallback to local if offline.
+def _configure_database(use_aws_only: bool = True):
+    """Configure database environment for AWS-only mode.
 
-    Control with:
-    - --local or --aws flags: force mode
-    - FORCE_AWS=true env var: skip fallback, always use AWS
-    - Default (no flags/env): auto-detect with DNS check
+    Dashboard now connects to AWS RDS exclusively via credential_manager.py.
+    The credential_manager handles both environment variables and AWS Secrets Manager.
+
+    Args:
+        use_aws_only: Always True (AWS-only mode, no fallback to localhost)
     """
-    # If explicitly requested via --local flag, use local
-    if use_local is True:
-        os.environ['DB_HOST'] = 'localhost'
-        os.environ['DB_PORT'] = '5432'
-        os.environ['DB_NAME'] = 'stocks'
-        os.environ['DB_USER'] = 'stocks'
-        os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
-        return 'local'
-
-    # If explicitly requested to use AWS, use it
-    if use_local is False:
-        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
-        os.environ['DB_PORT'] = '5432'
-        os.environ['DB_NAME'] = 'stocks'
-        os.environ['DB_USER'] = 'stocks'
-        return 'aws'
-
-    # FORCE_AWS env var: skip fallback, always use AWS (no DNS check)
-    if os.getenv('FORCE_AWS', '').lower() in ('true', '1', 'yes'):
-        os.environ['DB_HOST'] = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
-        os.environ['DB_PORT'] = '5432'
-        os.environ['DB_NAME'] = 'stocks'
-        os.environ['DB_USER'] = 'stocks'
-        return 'aws'
-
-    # Auto-detect (default): try AWS first (production intent), gracefully fall back to local if unreachable
-    import socket
+    # AWS mode is now the only option
+    # RDS Proxy endpoint - will attempt connection via credential_manager
+    # If creds unavailable, will fail fast with clear error
     aws_host = 'algo-rds-proxy-dev.proxy-cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    try:
-        socket.getaddrinfo(aws_host, 5432, socket.AF_INET, socket.SOCK_STREAM)
-        # AWS is reachable - use it (production intent)
-        os.environ['DB_HOST'] = aws_host
-        os.environ['DB_PORT'] = '5432'
-        os.environ['DB_NAME'] = 'stocks'
-        os.environ['DB_USER'] = 'stocks'
-        return 'aws'
-    except (socket.gaierror, OSError):
-        # AWS is unreachable - fall back to local for offline work
-        os.environ['DB_HOST'] = 'localhost'
-        os.environ['DB_PORT'] = '5432'
-        os.environ['DB_NAME'] = 'stocks'
-        os.environ['DB_USER'] = 'stocks'
-        os.environ['DB_PASSWORD'] = os.environ.get('DB_PASSWORD', 'stocks')
-        return 'local'
+
+    # Set AWS RDS endpoint
+    os.environ['DB_HOST'] = aws_host
+    os.environ['DB_PORT'] = '5432'
+    os.environ['DB_NAME'] = 'stocks'
+    os.environ['DB_USER'] = 'stocks'
+
+    return 'aws'
 
 def main():
     pa = argparse.ArgumentParser(
-        description="Algo ops terminal dashboard",
+        description="Algo ops terminal dashboard (AWS-only mode)",
         epilog=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -6486,25 +6395,11 @@ def main():
                     help="Omit T1 and Sector columns from positions table")
     pa.add_argument("--legend", "-l", action="store_true",
                     help="Print a guide explaining every term and panel, then exit")
-    pa.add_argument("--local", action="store_true",
-                    help="Force LOCAL database (localhost:5432)")
-    pa.add_argument("--aws", action="store_true",
-                    help="Force AWS database (requires VPN/bastion access)")
     args = pa.parse_args()
 
-    # Configure database with intelligent fallback
-    if args.local and args.aws:
-        print("ERROR: Cannot specify both --local and --aws", file=sys.stderr)
-        sys.exit(1)
-
-    use_local = True if args.local else (False if args.aws else None)
-    db_mode = _configure_database(use_local)
-
-    if use_local is None:
-        if db_mode == 'aws':
-            print(f"[INFO] Using AWS database (production intent)", file=sys.stderr)
-        else:
-            print(f"[INFO] AWS unreachable, falling back to local database", file=sys.stderr)
+    # Configure for AWS-only mode (no fallback to localhost)
+    db_mode = _configure_database(use_aws_only=True)
+    print(f"[INFO] Dashboard running in AWS mode - connecting to RDS proxy", file=sys.stderr)
 
     validate_schema()
 
