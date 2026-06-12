@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 from routes.utils import (
     error_response, success_response, list_response, json_response,
-    safe_limit, handle_db_error, check_data_freshness, safe_json_serialize
+    safe_limit, handle_db_error, db_route_handler, check_data_freshness, safe_json_serialize,
+    normalize_to_utc_datetime
 )
 
 # Import from root utils package - add root to sys.path first to ensure correct resolution
@@ -97,13 +98,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'handle admin')
             return error_response(code, error_type, message)
+@db_route_handler('get loader status')
 def _get_loader_status(cur) -> Dict:
         """Get status of all data loaders from data_loader_status table.
 
         Reads from data_loader_status, which OptimalLoader updates after each run
         with the table's current row count and latest watermark date.
         """
-        try:
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute("""
                 SELECT
@@ -128,10 +129,8 @@ def _get_loader_status(cur) -> Dict:
             now = datetime.now(timezone.utc)
             loaders = []
             for row in rows:
-                last_updated = row['last_updated']
+                last_updated = normalize_to_utc_datetime(row['last_updated'])
                 if last_updated:
-                    if last_updated.tzinfo is None:
-                        last_updated = last_updated.replace(tzinfo=timezone.utc)
                     age_hours = (now - last_updated).total_seconds() / 3600
                 else:
                     age_hours = 9999
@@ -170,13 +169,9 @@ def _get_loader_status(cur) -> Dict:
                 },
                 'data_freshness': freshness
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'get loader status')
-            return error_response(code, error_type, message)
+@db_route_handler('get system health')
 def _get_system_health(cur) -> Dict:
         """Get overall system health status."""
-        try:
             health_data = {'status': 'healthy', 'components': {}}
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
 
@@ -232,15 +227,11 @@ def _get_system_health(cur) -> Dict:
                     table_counts[table] = 0
 
             health_data['tables'] = table_counts
-            health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
-            return json_response(200, health_data)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'get system health')
-            return error_response(code, error_type, message)
+        health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
+        return json_response(200, health_data)
+@db_route_handler('get database stats')
 def _get_database_stats(cur) -> Dict:
         """Get database statistics (schema-safe version - no table name exposure)."""
-        try:
             stats = {}
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
@@ -263,15 +254,11 @@ def _get_database_stats(cur) -> Dict:
             table_count_row = cur.fetchone()
             stats['table_count'] = safe_json_serialize(dict(table_count_row)).get('table_count', 0) if table_count_row else 0
 
-            stats['timestamp'] = datetime.now(timezone.utc).isoformat()
-            return json_response(200, stats)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'get database stats')
-            return error_response(code, error_type, message)
+        stats['timestamp'] = datetime.now(timezone.utc).isoformat()
+        return json_response(200, stats)
+@db_route_handler('get data quality')
 def _get_data_quality(cur) -> Dict:
         """Get data quality metrics."""
-        try:
             quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
             cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
@@ -299,14 +286,10 @@ def _get_data_quality(cur) -> Dict:
             invalid_prices = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
             quality['checks']['invalid_price_ranges'] = {'count': invalid_prices, 'status': 'ok' if invalid_prices == 0 else 'error'}
 
-            # Overall status
-            quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
+        # Overall status
+        quality['status'] = 'healthy' if invalid_prices == 0 else 'degraded'
 
-            return json_response(200, quality)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'get data quality')
-            return error_response(code, error_type, message)
+        return json_response(200, quality)
 
 def _verify_user_email(body: Dict = None) -> Dict:
         """Verify a user's email in Cognito (dev/testing only)."""

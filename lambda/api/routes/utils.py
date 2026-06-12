@@ -1,9 +1,39 @@
 """Shared route utilities."""
 import psycopg2.errors
+import psycopg2
 import logging
 import time
+from functools import wraps
+from datetime import datetime, date, timezone
 
 logger = logging.getLogger(__name__)
+
+def normalize_to_utc_datetime(dt):
+	"""Convert date or naive/aware datetime to UTC-aware datetime.
+
+	Handles three cases:
+	- date: converted to datetime at 00:00 UTC
+	- naive datetime: assumed to be UTC, tzinfo added
+	- aware datetime: returned as-is
+
+	Args:
+		dt: datetime, date, or None
+
+	Returns:
+		UTC-aware datetime or None
+	"""
+	if dt is None:
+		return None
+
+	if isinstance(dt, date) and not isinstance(dt, datetime):
+		dt = datetime.combine(dt, datetime.min.time())
+
+	if isinstance(dt, datetime):
+		if dt.tzinfo is None:
+			dt = dt.replace(tzinfo=timezone.utc)
+		return dt
+
+	return None
 
 def safe_limit(limit_str, max_val=5000, default=500):
     """Parse and validate limit parameter."""
@@ -86,10 +116,11 @@ def safe_symbol(symbol_str):
 def error_response(code, typ, msg):
     """Standardized error response.
 
-    Returns consistent error format with statusCode, errorType, and message.
+    Returns consistent error format with statusCode, errorType, message, and _error.
     All error responses include HTTP status code for client-side error handling.
+    The _error field enables consistent error detection across the dashboard.
     """
-    return {"statusCode": code, "errorType": typ, "message": msg}
+    return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
 def success_response(data, metadata=None):
     """Standardized success response for single object.
@@ -317,7 +348,6 @@ def handle_db_error(error, context="database operation"):
     Returns:
         Tuple of (statusCode, errorType, message) for standardized error responses
     """
-    import psycopg2
     error_type = type(error).__name__
     error_str = str(error)
 
@@ -335,3 +365,35 @@ def handle_db_error(error, context="database operation"):
         return 503, 'query_error', 'Database query failed'
     else:
         return 500, 'database_error', f'Error during {context}'
+
+def db_route_handler(operation_name: str, default_error_response=None):
+    """Decorator for route handlers to standardize database error handling.
+
+    Eliminates redundant try-except blocks by wrapping function with:
+    - Consistent database error catching
+    - Unified error logging via handle_db_error()
+    - Standard error response formatting with _error field for consistency
+
+    Args:
+        operation_name: Description of the operation for logging context
+        default_error_response: Default error response dict to return on exception.
+                              If None, returns json_response(code, {...})
+
+    Example:
+        @db_route_handler('fetch user data', default_error_response={'items': []})
+        def _get_users(cur): ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+                code, error_type, message = handle_db_error(e, operation_name)
+                logger.error(f'Failed to {operation_name}: {error_type} - {message}')
+                if default_error_response is not None:
+                    return default_error_response
+                return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
+        return wrapper
+    return decorator

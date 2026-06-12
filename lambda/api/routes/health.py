@@ -57,7 +57,7 @@ def _handle_basic(cur) -> Dict:
     health = {
         "status": "healthy",
         "version": "v2-2026-06-06",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     has_critical = False

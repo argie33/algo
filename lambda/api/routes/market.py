@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from routes.utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, db_route_handler, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)
 
@@ -660,9 +660,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, 'handle market')
         return error_response(code, error_type, message)
+@db_route_handler('get fear greed history')
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
     """Get fear/greed index history with signals."""
-    try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute("""
@@ -742,13 +742,9 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
                 'statistics': {'min': None, 'max': None, 'avg': None},
                 'signals': {}
             })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'get fear greed history')
-        return error_response(code, error_type, message)
+@db_route_handler('get market latest')
 def _get_market_latest(cur) -> Dict:
     """Get latest market data including indices, breadth, and sentiment."""
-    try:
         cur.execute("""
             SELECT date, market_trend, market_stage, advance_decline_ratio,
                        new_highs_count, new_lows_count, vix_level, put_call_ratio,
@@ -785,10 +781,6 @@ def _get_market_latest(cur) -> Dict:
             result['prices'] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
         return json_response(200, result if result else {})
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'get market latest')
-        return error_response(code, error_type, message)
 
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
@@ -796,9 +788,9 @@ def _parse_range_param(params: Dict, default: int = 30) -> int:
     except (ValueError, TypeError, IndexError):
         return default
 
+@db_route_handler('get correlation matrix')
 def _get_correlation_matrix(cur) -> Dict:
     """Compute and return correlation matrix between key market indices."""
-    try:
         symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
 
         cur.execute("SAVEPOINT correlation_matrix")
@@ -980,44 +972,10 @@ def _get_correlation_matrix(cur) -> Dict:
                 }
             }
         }, data_freshness=freshness)
-    except psycopg2.errors.QueryCanceled as e:
-        logger.warning(f"[CORRELATION_MATRIX] Query timeout: {type(e).__name__}: {e}")
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
-            cur.execute("RELEASE SAVEPOINT correlation_matrix")
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        except Exception as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        code, error_type, message = handle_db_error(e, 'get correlation matrix')
-        return error_response(code, error_type, message)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.warning(f"[CORRELATION_MATRIX] Database error: {type(e).__name__}: {e}")
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
-            cur.execute("RELEASE SAVEPOINT correlation_matrix")
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        except Exception as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        code, error_type, message = handle_db_error(e, 'get correlation matrix')
-        return error_response(code, error_type, message)
-    except Exception as e:
-        logger.warning(f"[CORRELATION_MATRIX] Unexpected error: {type(e).__name__}: {e}")
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
-            cur.execute("RELEASE SAVEPOINT correlation_matrix")
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        except Exception as sp_err:
-            logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        code, error_type, message = handle_db_error(e, 'get correlation matrix')
-        return error_response(code, error_type, message)
 
+@db_route_handler('get cap distribution')
 def _get_cap_distribution(cur) -> Dict:
     """Get market cap distribution across market cap buckets and sectors."""
-    try:
         # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
         cur.execute("""
             SELECT ss.symbol, cp.sector, km.market_cap,
@@ -1117,10 +1075,6 @@ def _get_cap_distribution(cur) -> Dict:
                 'category_distribution': category_dist
             }
         }, data_freshness=freshness)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'get cap distribution')
-        return error_response(code, error_type, message)
 
 INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']
 INDEX_NAMES = {
@@ -1131,8 +1085,8 @@ INDEX_NAMES = {
     '^RUT': 'Russell 2000'
 }
 
+@db_route_handler('get market indices')
 def _get_markets(cur) -> Dict:
-    try:
         cur.execute("""
             WITH latest_date AS (
                 SELECT date AS d FROM price_daily WHERE symbol = ANY(%s) ORDER BY date DESC LIMIT 1
@@ -1201,13 +1155,10 @@ def _get_markets(cur) -> Dict:
             'history': history,
         }
         return json_response(200, result)
-    except (psycopg2.errors.UndefinedTable, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'get market indices')
-        return error_response(code, error_type, message)
 
+@db_route_handler('get sector overview')
 def _get_sector_overview(cur) -> Dict:
     """Get latest sector performance overview from sectors table."""
-    try:
         cur.execute("""
             SELECT sector_name, performance_ytd, performance_1y, pe_ratio,
                    dividend_yield, market_cap, stock_count, metric_date
@@ -1227,9 +1178,3 @@ def _get_sector_overview(cur) -> Dict:
                 [{'sector_name': r['sector'], 'stock_count': r['stock_count']} for r in rows]
             )
         return list_response([safe_json_serialize(dict(r)) for r in rows])
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(f'Sector overview query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'get sector overview'})
-        return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
-    except Exception as e:
-        code, error_type, message = handle_db_error(e, 'get sector overview')
-        return error_response(code, error_type, message)

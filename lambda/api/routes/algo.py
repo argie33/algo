@@ -1096,78 +1096,66 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             logger.error(f'Failed to fetch notifications: {type(e).__name__}: {str(e)}', extra={'operation': 'fetch notifications'}, exc_info=True)
             return error_response(500, 'internal_error', f'Failed to fetch notifications: {type(e).__name__}')
 
+@db_route_handler('analyze trade impact')
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
-        try:
-            symbol = body.get('symbol', '').upper()
-            entry_price = body.get('entry_price')
-            position_dollars = body.get('position_dollars')
-            position_pct = body.get('position_pct')
+        symbol = body.get('symbol', '').upper()
+        entry_price = body.get('entry_price')
+        position_dollars = body.get('position_dollars')
+        position_pct = body.get('position_pct')
 
-            if not symbol:
-                return error_response(400, 'bad_request', 'symbol is required')
+        if not symbol:
+            return error_response(400, 'bad_request', 'symbol is required')
 
-            # Call stored procedure to compute all impact metrics in database
-            cur.execute("""
-                SELECT position_size_dollars, position_size_percent, new_total_positions,
-                       new_sector_percent, new_sector_invested, drawdown_impact_pct,
-                       sector_name, sector_count,
-                       meets_position_limit, meets_size_limit, meets_sector_limit,
-                       meets_cash_requirement, meets_risk_limit
-                FROM calculate_pretrade_impact(%s, %s, %s, %s)
-            """, (symbol, entry_price, position_dollars, position_pct))
-            impact_row = cur.fetchone()
+        # Call stored procedure to compute all impact metrics in database
+        cur.execute("""
+            SELECT position_size_dollars, position_size_percent, new_total_positions,
+                   new_sector_percent, new_sector_invested, drawdown_impact_pct,
+                   sector_name, sector_count,
+                   meets_position_limit, meets_size_limit, meets_sector_limit,
+                   meets_cash_requirement, meets_risk_limit
+            FROM calculate_pretrade_impact(%s, %s, %s, %s)
+        """, (symbol, entry_price, position_dollars, position_pct))
+        impact_row = cur.fetchone()
 
-            if not impact_row:
-                return error_response(500, 'internal_error', f'Unable to calculate impact for {symbol}')
+        if not impact_row:
+            return error_response(500, 'internal_error', f'Unable to calculate impact for {symbol}')
 
-            impact = safe_json_serialize(dict(impact_row))
+        impact = safe_json_serialize(dict(impact_row))
 
-            allOk = (impact.get('meets_position_limit', False) and
-                    impact.get('meets_size_limit', False) and
-                    impact.get('meets_sector_limit', False) and
-                    impact.get('meets_cash_requirement', False) and
-                    impact.get('meets_risk_limit', False))
+        allOk = (impact.get('meets_position_limit', False) and
+                impact.get('meets_size_limit', False) and
+                impact.get('meets_sector_limit', False) and
+                impact.get('meets_cash_requirement', False) and
+                impact.get('meets_risk_limit', False))
 
-            return json_response(200, {
-                'symbol': symbol,
-                'entry_price': float(entry_price) if entry_price else 0,
-                'position_size_dollars': float(impact.get('position_size_dollars', 0)),
-                'position_size_percent': float(impact.get('position_size_percent', 0)),
-                'sector': impact.get('sector_name'),
-                'risk_score': 0.0 if allOk else 0.5,
-                'all_constraints_met': allOk,
-                'recommendation': 'APPROVED' if allOk else 'REJECTED',
-                'portfolio_impact': {
-                    'new_total_positions': impact.get('new_total_positions', 0),
-                    'position_limit': 6,
-                    'position_limit_ok': impact.get('meets_position_limit', False),
-                    'new_position_percent': float(impact.get('position_size_percent', 0)),
-                    'max_position_percent': 15,
-                    'position_size_ok': impact.get('meets_size_limit', False),
-                    'new_sector_percent': float(impact.get('new_sector_percent', 0)),
-                    'max_sector_percent': 30,
-                    'sector_limit_ok': impact.get('meets_sector_limit', False),
-                    'worst_case_drawdown_impact': float(impact.get('drawdown_impact_pct', 0)),
-                    'max_acceptable_impact': 0.05,
-                    'drawdown_risk_ok': impact.get('meets_risk_limit', False),
-                    'cash_available': 0,
-                    'cash_required': float(impact.get('position_size_dollars', 0)),
-                    'cash_ok': impact.get('meets_cash_requirement', False)
-                }
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {type(e).__name__}: {str(e)}', extra={'operation': 'analyze pre trade impact'}, exc_info=True)
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {type(e).__name__}: {str(e)}', extra={'operation': 'analyze pre trade impact'}, exc_info=True)
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {type(e).__name__}: {str(e)}', extra={'operation': 'analyze pre trade impact'}, exc_info=True)
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {type(e).__name__}: {str(e)}', extra={'operation': 'analyze pre trade impact'}, exc_info=True)
-            return error_response(500, 'internal_error', 'Failed to analyze trade impact')
+        return json_response(200, {
+            'symbol': symbol,
+            'entry_price': float(entry_price) if entry_price else 0,
+            'position_size_dollars': float(impact.get('position_size_dollars', 0)),
+            'position_size_percent': float(impact.get('position_size_percent', 0)),
+            'sector': impact.get('sector_name'),
+            'risk_score': 0.0 if allOk else 0.5,
+            'all_constraints_met': allOk,
+            'recommendation': 'APPROVED' if allOk else 'REJECTED',
+            'portfolio_impact': {
+                'new_total_positions': impact.get('new_total_positions', 0),
+                'position_limit': 6,
+                'position_limit_ok': impact.get('meets_position_limit', False),
+                'new_position_percent': float(impact.get('position_size_percent', 0)),
+                'max_position_percent': 15,
+                'position_size_ok': impact.get('meets_size_limit', False),
+                'new_sector_percent': float(impact.get('new_sector_percent', 0)),
+                'max_sector_percent': 30,
+                'sector_limit_ok': impact.get('meets_sector_limit', False),
+                'worst_case_drawdown_impact': float(impact.get('drawdown_impact_pct', 0)),
+                'max_acceptable_impact': 0.05,
+                'drawdown_risk_ok': impact.get('meets_risk_limit', False),
+                'cash_available': 0,
+                'cash_required': float(impact.get('position_size_dollars', 0)),
+                'cash_ok': impact.get('meets_cash_requirement', False)
+            }
+        })
 def _trigger_data_patrol() -> Dict:
         """Trigger async data patrol ECS task."""
         try:

@@ -39,6 +39,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
 from utils.algo_metrics_fetcher import AlgoMetricsFetcher
 from algo.algo_signals import SignalComputer
+from utils.validation_integration import validate_phase_results as validate_phase_results_framework
 
 # Configure logging to file instead of stderr to avoid interfering with Rich Live display
 _log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
@@ -160,182 +161,172 @@ TIER_SHORT = {
     "correction":        "CORRECT",
 }
 
-def load_grade_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load grade thresholds from config, used for dashboard signal grades.
+class ConfigManager:
+    """Centralized config validation and threshold loading.
 
-    Separate from swing_grade_threshold_* (used in algo_swing_score.py).
-    ARCHITECTURE FIX (Issue #2, C3-3): All thresholds required in config; no hardcoded defaults.
+    Single source of truth for all dashboard thresholds. Loads and validates once,
+    fails fast if required keys missing. No hardcoded fallbacks.
     """
-    if not cfg:
-        logger.error("ARCHITECTURE (C3-3): load_grade_thresholds requires config; failing instead of hardcoded 80/60/40")
-        return {}
-    required = ['dashboard_grade_threshold_a', 'dashboard_grade_threshold_b', 'dashboard_grade_threshold_c']
-    missing = [k for k in required if k not in cfg]
-    if missing:
-        logger.error(f"ARCHITECTURE (C3-3): Missing grade thresholds in config: {missing}")
-        return {}
-    return {
-        'a': int(cfg['dashboard_grade_threshold_a']),
-        'b': int(cfg['dashboard_grade_threshold_b']),
-        'c': int(cfg['dashboard_grade_threshold_c']),
-    }
 
-def load_market_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load market indicator thresholds from config.
+    def __init__(self, cfg: Optional[dict] = None):
+        self.cfg = cfg or {}
+        self.grade = {}
+        self.market = {}
+        self.performance = {}
+        self.risk = {}
+        self.signal = {}
+        self.ui = {}
+        self.fetcher_failure_threshold = 0.5
+        self._load_and_validate()
 
-    Provides thresholds for: VIX, Put/Call, up-volume, breadth, etc.
-    Used for coloring market health indicators (RED/YELLOW/GREEN).
-    Handles both raw DB keys (_threshold suffix) and processed keys from fetch_algo_config.
-    """
-    if not cfg:
-        logger.error("load_market_thresholds: no config provided")
-        return {}
+    def _load_and_validate(self):
+        """Load and validate all thresholds. Fail fast if required keys missing."""
+        if not self.cfg:
+            logger.error("CONFIG: No config provided; cannot initialize thresholds")
+            return
 
-    def get_threshold(key_raw, key_processed=None, default=None):
-        """Try raw key first, then processed key, then default."""
-        val = cfg.get(key_raw)
-        if val is not None:
-            return safe_float(val, default)
-        if key_processed:
-            val = cfg.get(key_processed)
-            if val is not None:
-                return safe_float(val, default)
-        return default
+        # Grade thresholds (dashboard signal quality)
+        grade_keys = ['dashboard_grade_threshold_a', 'dashboard_grade_threshold_b', 'dashboard_grade_threshold_c']
+        if all(k in self.cfg for k in grade_keys):
+            self.grade = {
+                'a': int(self.cfg['dashboard_grade_threshold_a']),
+                'b': int(self.cfg['dashboard_grade_threshold_b']),
+                'c': int(self.cfg['dashboard_grade_threshold_c']),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing grade thresholds: {[k for k in grade_keys if k not in self.cfg]}")
 
-    return {
-        'vix_alert': get_threshold('vix_alert_threshold', 'vix_alert', 30.0),
-        'vix_caution': get_threshold('vix_caution_threshold', 'vix_caution', 20.0),
-        'put_call_bullish': get_threshold('put_call_bullish_threshold', 'put_call_bull', 0.8),
-        'put_call_fearful': get_threshold('put_call_fearful_threshold', 'put_call_caution', 1.0),
-        'upvol_good': get_threshold('upvol_good_threshold', 'up_vol_good', 60.0),
-        'upvol_caution': get_threshold('upvol_caution_threshold', 'up_vol_caution', 50.0),
-        'breadth_good': int(get_threshold('breadth_good_threshold', None, 50.0)),
-        'breadth_caution': int(get_threshold('breadth_caution_threshold', None, 40.0)),
-        'yield_curve_good': get_threshold('yield_curve_good_threshold', None, 0.5),
-        'breadth_momentum_good': get_threshold('breadth_momentum_good_threshold', None, 0.5),
-        'beta_warning': get_threshold('beta_warning_threshold', None, 1.2),
-        'beta_caution': get_threshold('beta_caution_threshold', None, 1.1),
-    }
+        # Grade color thresholds (A+/A/B/C scoring)
+        grade_color_keys = ['grade_a_plus_threshold', 'grade_a_threshold', 'grade_b_threshold', 'grade_c_threshold']
+        if all(k in self.cfg for k in grade_color_keys):
+            self.grade_colors = {
+                'a_plus': safe_float(self.cfg['grade_a_plus_threshold'], 90.0),
+                'a': safe_float(self.cfg['grade_a_threshold'], 80.0),
+                'b': safe_float(self.cfg['grade_b_threshold'], 70.0),
+                'c': safe_float(self.cfg['grade_c_threshold'], 60.0),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing grade color thresholds; using defaults")
+            self.grade_colors = {'a_plus': 90.0, 'a': 80.0, 'b': 70.0, 'c': 60.0}
 
+        # Market thresholds (VIX, Put/Call, etc.)
+        market_keys = [
+            'vix_alert_threshold', 'vix_caution_threshold',
+            'put_call_bullish_threshold', 'put_call_fearful_threshold',
+            'upvol_good_threshold', 'upvol_caution_threshold',
+            'breadth_good_threshold', 'breadth_caution_threshold',
+            'yield_curve_good_threshold', 'breadth_momentum_good_threshold',
+            'beta_warning_threshold', 'beta_caution_threshold'
+        ]
+        if all(k in self.cfg for k in market_keys):
+            self.market = {
+                'vix_alert': safe_float(self.cfg['vix_alert_threshold'], 30.0),
+                'vix_caution': safe_float(self.cfg['vix_caution_threshold'], 20.0),
+                'put_call_bullish': safe_float(self.cfg['put_call_bullish_threshold'], 0.8),
+                'put_call_fearful': safe_float(self.cfg['put_call_fearful_threshold'], 1.0),
+                'upvol_good': safe_float(self.cfg['upvol_good_threshold'], 60.0),
+                'upvol_caution': safe_float(self.cfg['upvol_caution_threshold'], 50.0),
+                'breadth_good': int(safe_float(self.cfg['breadth_good_threshold'], 50.0)),
+                'breadth_caution': int(safe_float(self.cfg['breadth_caution_threshold'], 40.0)),
+                'yield_curve_good': safe_float(self.cfg['yield_curve_good_threshold'], 0.5),
+                'breadth_momentum_good': safe_float(self.cfg['breadth_momentum_good_threshold'], 0.5),
+                'beta_warning': safe_float(self.cfg['beta_warning_threshold'], 1.2),
+                'beta_caution': safe_float(self.cfg['beta_caution_threshold'], 1.1),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing market thresholds")
 
-def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load grade thresholds from config or hardcoded defaults.
+        # Performance thresholds
+        perf_keys = [
+            'win_rate_good_threshold', 'win_rate_excellent_threshold',
+            'sharpe_good_threshold', 'sharpe_excellent_threshold',
+            'profit_factor_good_threshold', 'profit_factor_excellent_threshold',
+            'calmar_good_threshold', 'beta_warning_threshold', 'beta_caution_threshold'
+        ]
+        if all(k in self.cfg for k in perf_keys):
+            self.performance = {
+                'win_rate_good': safe_float(self.cfg['win_rate_good_threshold'], None),
+                'win_rate_excellent': safe_float(self.cfg['win_rate_excellent_threshold'], None),
+                'sharpe_good': safe_float(self.cfg['sharpe_good_threshold'], None),
+                'sharpe_excellent': safe_float(self.cfg['sharpe_excellent_threshold'], None),
+                'profit_factor_good': safe_float(self.cfg['profit_factor_good_threshold'], None),
+                'profit_factor_excellent': safe_float(self.cfg['profit_factor_excellent_threshold'], None),
+                'calmar_good': safe_float(self.cfg['calmar_good_threshold'], None),
+                'beta_warning': safe_float(self.cfg['beta_warning_threshold'], None),
+                'beta_caution': safe_float(self.cfg['beta_caution_threshold'], None),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing performance thresholds")
 
-    Used for coloring signal quality scores (RED/YELLOW/GREEN based on A/B/C grades).
-    Allows runtime configuration without code changes.
-    """
-    if cfg:
-        return {
-            'a_plus': safe_float(cfg.get('grade_a_plus_threshold', 90.0), 90.0),
-            'a': safe_float(cfg.get('grade_a_threshold', 80.0), 80.0),
-            'b': safe_float(cfg.get('grade_b_threshold', 70.0), 70.0),
-            'c': safe_float(cfg.get('grade_c_threshold', 60.0), 60.0),
-        }
-    # Fallback hardcoded defaults (M1 FIX: these are now configurable)
-    return {
-        'a_plus': 90.0,
-        'a': 80.0,
-        'b': 70.0,
-        'c': 60.0,
-    }
+        # Risk thresholds
+        risk_keys = [
+            'drawdown_alert_threshold', 'drawdown_caution_threshold',
+            'large_position_alert_threshold', 'large_position_caution_threshold'
+        ]
+        if all(k in self.cfg for k in risk_keys):
+            self.risk = {
+                'drawdown_alert': safe_float(self.cfg['drawdown_alert_threshold'], None),
+                'drawdown_caution': safe_float(self.cfg['drawdown_caution_threshold'], None),
+                'large_position_alert': safe_float(self.cfg['large_position_alert_threshold'], None),
+                'large_position_caution': safe_float(self.cfg['large_position_caution_threshold'], None),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing risk thresholds")
 
+        # Signal thresholds
+        signal_keys = [
+            'event_value_good_threshold', 'event_value_caution_threshold',
+            'signal_alert_threshold', 'signal_caution_threshold',
+            'volume_surge_good_threshold', 'volume_surge_caution_threshold',
+            'reward_risk_good_threshold', 'reward_risk_caution_threshold'
+        ]
+        if all(k in self.cfg for k in signal_keys):
+            self.signal = {
+                'event_value_good': safe_float(self.cfg['event_value_good_threshold'], None),
+                'event_value_caution': safe_float(self.cfg['event_value_caution_threshold'], None),
+                'signal_alert': safe_float(self.cfg['signal_alert_threshold'], None),
+                'signal_caution': safe_float(self.cfg['signal_caution_threshold'], None),
+                'volume_surge_good': safe_float(self.cfg['volume_surge_good_threshold'], None),
+                'volume_surge_caution': safe_float(self.cfg['volume_surge_caution_threshold'], None),
+                'reward_risk_good': safe_float(self.cfg['reward_risk_good_threshold'], None),
+                'reward_risk_caution': safe_float(self.cfg['reward_risk_caution_threshold'], None),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing signal thresholds")
 
-def load_performance_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load performance metric thresholds for coloring (win rate, Sharpe, profit factor, etc.).
+        # UI display thresholds
+        ui_keys = [
+            'circuit_breaker_ratio_caution_threshold', 'buy_signal_count_good_threshold',
+            'buy_signal_count_caution_threshold', 'win_rate_history_good_threshold',
+            'win_rate_history_caution_threshold'
+        ]
+        if all(k in self.cfg for k in ui_keys):
+            self.ui = {
+                'circuit_breaker_ratio_caution': safe_float(self.cfg['circuit_breaker_ratio_caution_threshold'], 0.75),
+                'buy_signal_count_good': safe_float(self.cfg['buy_signal_count_good_threshold'], 5.0),
+                'buy_signal_count_caution': safe_float(self.cfg['buy_signal_count_caution_threshold'], 1.0),
+                'win_rate_history_good': safe_float(self.cfg['win_rate_history_good_threshold'], 80.0),
+                'win_rate_history_caution': safe_float(self.cfg['win_rate_history_caution_threshold'], 50.0),
+            }
+        else:
+            logger.warning(f"CONFIG: Missing UI thresholds; using defaults")
+            self.ui = {
+                'circuit_breaker_ratio_caution': 0.75,
+                'buy_signal_count_good': 5.0,
+                'buy_signal_count_caution': 1.0,
+                'win_rate_history_good': 80.0,
+                'win_rate_history_caution': 50.0,
+            }
 
-    ARCHITECTURE FIX (C3-7): No hardcoded fallback defaults.
-    Requires performance thresholds in algo_config; fails if missing.
-    """
-    if not cfg:
-        logger.error("ARCHITECTURE (C3-7): load_performance_thresholds requires config; failing instead of hardcoded defaults")
-        return {}
-    required = ['win_rate_good_threshold', 'win_rate_excellent_threshold',
-                'sharpe_good_threshold', 'sharpe_excellent_threshold',
-                'profit_factor_good_threshold', 'profit_factor_excellent_threshold',
-                'calmar_good_threshold', 'beta_warning_threshold', 'beta_caution_threshold']
-    missing = [k for k in required if k not in cfg]
-    if missing:
-        logger.error(f"ARCHITECTURE (C3-7): Missing performance thresholds in config: {missing}")
-        return {}
-    return {
-        'win_rate_good': safe_float(cfg['win_rate_good_threshold'], None),
-        'win_rate_excellent': safe_float(cfg['win_rate_excellent_threshold'], None),
-        'sharpe_good': safe_float(cfg['sharpe_good_threshold'], None),
-        'sharpe_excellent': safe_float(cfg['sharpe_excellent_threshold'], None),
-        'profit_factor_good': safe_float(cfg['profit_factor_good_threshold'], None),
-        'profit_factor_excellent': safe_float(cfg['profit_factor_excellent_threshold'], None),
-        'calmar_good': safe_float(cfg['calmar_good_threshold'], None),
-        'beta_warning': safe_float(cfg['beta_warning_threshold'], None),
-        'beta_caution': safe_float(cfg['beta_caution_threshold'], None),
-    }
+        # Fetcher failure threshold (from config.thresholds if available, else default)
+        try:
+            from config.thresholds import ThresholdConfig
+            self.fetcher_failure_threshold = ThresholdConfig.dashboard_fetcher_failure_threshold()
+        except Exception:
+            self.fetcher_failure_threshold = self.cfg.get('dashboard_fetcher_failure_threshold', 0.5)
 
-def load_risk_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load risk metric thresholds (drawdown, position size, etc.).
-
-    ARCHITECTURE FIX (C3-5): No hardcoded fallback defaults.
-    Requires risk thresholds in algo_config; fails if missing.
-    """
-    if not cfg:
-        logger.error("ARCHITECTURE (C3-5): load_risk_thresholds requires config; failing instead of hardcoded defaults")
-        return {}
-    required = ['drawdown_alert_threshold', 'drawdown_caution_threshold',
-                'large_position_alert_threshold', 'large_position_caution_threshold']
-    missing = [k for k in required if k not in cfg]
-    if missing:
-        logger.error(f"ARCHITECTURE (C3-5): Missing risk thresholds in config: {missing}")
-        return {}
-    return {
-        'drawdown_alert': safe_float(cfg['drawdown_alert_threshold'], None),
-        'drawdown_caution': safe_float(cfg['drawdown_caution_threshold'], None),
-        'large_position_alert': safe_float(cfg['large_position_alert_threshold'], None),
-        'large_position_caution': safe_float(cfg['large_position_caution_threshold'], None),
-    }
-
-def load_signal_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load signal evaluation thresholds for quality scoring.
-
-    ARCHITECTURE FIX (C3-6): No hardcoded fallback defaults.
-    Requires signal thresholds in algo_config; fails if missing.
-    """
-    if not cfg:
-        logger.error("ARCHITECTURE (C3-6): load_signal_thresholds requires config; failing instead of hardcoded defaults")
-        return {}
-    required = ['event_value_good_threshold', 'event_value_caution_threshold',
-                'signal_alert_threshold', 'signal_caution_threshold',
-                'volume_surge_good_threshold', 'volume_surge_caution_threshold',
-                'reward_risk_good_threshold', 'reward_risk_caution_threshold']
-    missing = [k for k in required if k not in cfg]
-    if missing:
-        logger.error(f"ARCHITECTURE (C3-6): Missing signal thresholds in config: {missing}")
-        return {}
-    return {
-        'event_value_good': safe_float(cfg['event_value_good_threshold'], None),
-        'event_value_caution': safe_float(cfg['event_value_caution_threshold'], None),
-        'signal_alert': safe_float(cfg['signal_alert_threshold'], None),
-        'signal_caution': safe_float(cfg['signal_caution_threshold'], None),
-        'volume_surge_good': safe_float(cfg['volume_surge_good_threshold'], None),
-        'volume_surge_caution': safe_float(cfg['volume_surge_caution_threshold'], None),
-        'reward_risk_good': safe_float(cfg['reward_risk_good_threshold'], None),
-        'reward_risk_caution': safe_float(cfg['reward_risk_caution_threshold'], None),
-    }
-
-def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
-    """Load UI color coding thresholds for dashboard panels."""
-    if cfg:
-        return {
-            'circuit_breaker_ratio_caution': safe_float(cfg.get('circuit_breaker_ratio_caution_threshold', 0.75), 0.75),
-            'buy_signal_count_good': safe_float(cfg.get('buy_signal_count_good_threshold', 5.0), 5.0),
-            'buy_signal_count_caution': safe_float(cfg.get('buy_signal_count_caution_threshold', 1.0), 1.0),
-            'win_rate_history_good': safe_float(cfg.get('win_rate_history_good_threshold', 80.0), 80.0),
-            'win_rate_history_caution': safe_float(cfg.get('win_rate_history_caution_threshold', 50.0), 50.0),
-        }
-    return {
-        'circuit_breaker_ratio_caution': 0.75,
-        'buy_signal_count_good': 5.0,
-        'buy_signal_count_caution': 1.0,
-        'win_rate_history_good': 80.0,
-        'win_rate_history_caution': 50.0,
-    }
+# Global config manager instance (initialized in load_all)
+_config_mgr = None
 
 # Health bar and visual indicator thresholds
 HBAR_CRITICAL = 1.0
@@ -414,13 +405,6 @@ HALT_REASON_NAMES = {
     "data_freshness":           "Required data stale",
 }
 
-# H14 FIX: Define failure threshold for load_all degradation logic (from config/thresholds.py)
-def _get_fetcher_failure_threshold():
-    try:
-        from config.thresholds import ThresholdConfig
-        return ThresholdConfig.dashboard_fetcher_failure_threshold()
-    except Exception:
-        return 0.5  # Fallback to original hardcoded value
 
 # â”€â”€ mascot (dancing monkey) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
@@ -2210,7 +2194,7 @@ def fetch_signals(c, cfg=None):
 
         # Top A-grade stocks by name (radar display â€” score â‰¥ threshold_a)
         # M1 FIX: Use config threshold instead of hardcoded 80
-        grade_cfg = load_grade_thresholds(cfg)
+        grade_cfg = _config_mgr.grade if _config_mgr else {}
         thr_a = grade_cfg.get('a', 80)
         top_a = q(c, f"""
             SELECT s.symbol, s.score
@@ -3184,6 +3168,7 @@ FETCHERS = {
 }
 
 def load_all() -> dict:
+    global _config_mgr
     out: dict = {}
     load_start = time.time()
 
@@ -3199,6 +3184,9 @@ def load_all() -> dict:
     except Exception as e:
         logger.warning(f"Failed to preload config in load_all: {e}")
         cfg_data = {}
+
+    # ARCHITECTURE FIX (C3-1): Initialize centralized ConfigManager once (replaces fragmented load_*_thresholds functions)
+    _config_mgr = ConfigManager(cfg_data)
 
     def one(name, fn):
         max_retries = 3
@@ -3304,7 +3292,7 @@ def load_all() -> dict:
 
     # If failure rate exceeds threshold: degraded state (but show what we have)
     failure_rate = len(failures) / len(FETCHERS) if len(FETCHERS) > 0 else 0
-    fetcher_threshold = _get_fetcher_failure_threshold()
+    fetcher_threshold = _config_mgr.fetcher_failure_threshold if _config_mgr else 0.5
     if failure_rate > fetcher_threshold:
         msg = f"Data degraded: {len(failures)}/{len(FETCHERS)} fetchers failed ({failure_rate*100:.1f}% > {fetcher_threshold*100:.0f}% threshold)"
         logger.warning(f"DEGRADED: {msg}")
@@ -3393,7 +3381,7 @@ def panel_orch(run, cfg, risk=None):
     if cfg and cfg.get("_error"):
         return Panel(Text(f"error: {cfg.get('_error')}", style="dim"), title="[bold]ORCHESTRATOR[/]", border_style="yellow", padding=(0, 1))
 
-    mkt_cfg = load_market_thresholds(cfg)
+    mkt_cfg = _config_mgr.market if _config_mgr else {}
     next_run  = next_run_str()
     mode      = cfg.get("mode", "?") if cfg else "?"
     mc2       = G if mode and "LIVE" in mode else Y
@@ -3532,7 +3520,7 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     vix_val = get_numeric(mkt, "vix")
     vix   = f"{vix_val:.1f}" if vix_val is not None else "--"
     # M2 FIX: Load market thresholds from config instead of hardcoded 30, 20
-    mkt_cfg = load_market_thresholds(cfg)
+    mkt_cfg = _config_mgr.market if _config_mgr else {}
     if vix_val is not None and vix_val >= mkt_cfg['vix_alert']:
         vc = R
     elif vix_val is not None and vix_val >= mkt_cfg['vix_caution']:
@@ -3661,8 +3649,8 @@ def panel_circuit(cb, risk=None):
             else:
                 cur_str = f"{cur}{u}" if u else str(cur)
                 ratio = cur / thr if thr > 0 else 0
-            ui_cfg = load_ui_display_thresholds()
-            caution_threshold = ui_cfg['circuit_breaker_ratio_caution']
+            ui_cfg = _config_mgr.ui if _config_mgr else {}
+            caution_threshold = ui_cfg.get('circuit_breaker_ratio_caution', 0.75)
             fc = R if fired else (Y if ratio >= caution_threshold else G)
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
@@ -3686,7 +3674,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         # TIER 1A FIX: exp_bar now handles None safely
         bar     = exp_bar(exp, w=8)
         # M2 FIX: Load market thresholds from config
-        mkt_cfg = load_market_thresholds(cfg)
+        mkt_cfg = _config_mgr.market if _config_mgr else {}
         vix_val = get_numeric(mkt, "vix")
         vix     = f"{vix_val:.1f}" if vix_val is not None else "--"
         if vix_val is not None and vix_val >= mkt_cfg['vix_alert']:
@@ -3797,8 +3785,8 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 
 
 def panel_portfolio(port, cfg, risk=None, perf=None):
-    risk_thr = load_risk_thresholds(cfg)
-    mkt_cfg = load_market_thresholds(cfg)
+    risk_thr = _config_mgr.risk if _config_mgr else {}
+    mkt_cfg = _config_mgr.market if _config_mgr else {}
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv_val = port.get("total_portfolio_value")
@@ -3904,8 +3892,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
 def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     """Performance metrics + equity sparkline + rolling analytics."""
-    perf_thr = load_performance_thresholds(cfg)
-    risk_thr = load_risk_thresholds(cfg)
+    perf_thr = _config_mgr.performance if _config_mgr else {}
+    risk_thr = _config_mgr.risk if _config_mgr else {}
     if not perf or perf.get("_error") or perf.get("_reason"):
         err = perf.get("_error") if perf else None
         error_msg = err
@@ -4993,8 +4981,8 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h  = n_ok / total_h * 100 if total_h else 0
-        ui_cfg = load_ui_display_thresholds()
-        wc_h = G if wr_h >= ui_cfg['win_rate_history_good'] else (Y if wr_h >= ui_cfg['win_rate_history_caution'] else R)
+        ui_cfg = _config_mgr.ui if _config_mgr else {}
+        wc_h = G if wr_h >= ui_cfg.get('win_rate_history_good', 80.0) else (Y if wr_h >= ui_cfg.get('win_rate_history_caution', 50.0) else R)
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
@@ -5713,7 +5701,7 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     """Full-screen buy signals â€” all signals, full text, breakout quality, base type."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
-    grade_thresholds = get_grade_thresholds(cfg)
+    grade_thresholds = _config_mgr.grade_colors if _config_mgr else {'a_plus': 90.0, 'a': 80.0, 'b': 70.0, 'c': 60.0}
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
     d     = sig.get("date")
@@ -5722,8 +5710,8 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     if g is None:
         g = {}
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
-    ui_cfg = load_ui_display_thresholds()
-    if raw >= ui_cfg['buy_signal_count_good']:
+    ui_cfg = _config_mgr.ui if _config_mgr else {}
+    if raw >= ui_cfg.get('buy_signal_count_good', 5.0):
         buy_c = G
     elif raw >= ui_cfg['buy_signal_count_caution']:
         buy_c = Y

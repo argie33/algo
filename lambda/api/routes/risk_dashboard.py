@@ -12,7 +12,7 @@ Endpoints:
 import psycopg2, json
 from typing import Dict, Any
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from routes.utils import error_response, success_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
     """Get all current risk metrics in one view."""
     try:
         result = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'drawdown': None,
             'exposure_tier': None,
             'vix_metrics': None,
