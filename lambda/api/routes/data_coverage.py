@@ -17,7 +17,7 @@ import logging
 import psycopg2, psycopg2.errors, psycopg2.extras
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
-from .utils import error_response, execute_with_timeout, success_response, json_response
+from routes.utils import error_response, execute_with_timeout, success_response, json_response
 
 logger = logging.getLogger(__name__)
 

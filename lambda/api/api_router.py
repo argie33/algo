@@ -7,10 +7,16 @@ api_dir = str(Path(__file__).parent)
 lambda_dir = str(Path(__file__).parent.parent)
 root_dir = str(Path(__file__).parent.parent.parent)
 
-# IMPORTANT: api_dir must come FIRST so that /lambda/api/utils is found before /utils
-sys.path.insert(0, root_dir)
-sys.path.insert(0, lambda_dir)
-sys.path.insert(0, api_dir)
+# CRITICAL: Ensure /lambda/api comes BEFORE /utils root in sys.path
+# Remove and reorder paths to ensure correct import resolution
+_path_list = list(sys.path)
+for p in [api_dir, lambda_dir, root_dir]:
+    if p in _path_list:
+        _path_list.remove(p)
+_path_list.insert(0, api_dir)
+_path_list.insert(1, lambda_dir)
+_path_list.insert(2, root_dir)
+sys.path[:] = _path_list
 
 logger = logging.getLogger(__name__)
 

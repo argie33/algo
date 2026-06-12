@@ -1,23 +1,29 @@
+#!/usr/bin/env python3
 """Add rejection_reason field to algo_trades to capture Alpaca API errors."""
-from alembic import op
-import sqlalchemy as sa
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.database_context import DatabaseContext
+
+DESCRIPTION = "Add rejection_reason column to algo_trades"
 
 
-# revision identifiers, used by Alembic.
-revision = '029_add_rejection_reason'
-down_revision = '028_cleanup_hardcoded_user_ids'
-branch_labels = None
-depends_on = None
+def up():
+    with DatabaseContext('write') as cur:
+        cur.execute("""
+            ALTER TABLE algo_trades
+            ADD COLUMN IF NOT EXISTS rejection_reason TEXT
+        """)
+        cur.execute("""
+            COMMENT ON COLUMN algo_trades.rejection_reason IS 'Error message from Alpaca API when order is rejected'
+        """)
 
 
-def upgrade():
-    """Add rejection_reason column to algo_trades."""
-    op.add_column(
-        'algo_trades',
-        sa.Column('rejection_reason', sa.Text(), nullable=True, comment='Error message from Alpaca API when order is rejected')
-    )
-
-
-def downgrade():
-    """Remove rejection_reason column from algo_trades."""
-    op.drop_column('algo_trades', 'rejection_reason')
+def down():
+    with DatabaseContext('write') as cur:
+        cur.execute("""
+            ALTER TABLE algo_trades
+            DROP COLUMN IF EXISTS rejection_reason
+        """)

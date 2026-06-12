@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Migration: Add configurable grade thresholds to algo_config.
 
 ISSUE #31 FIX: Make hardcoded grade thresholds configurable via the algo_config database table.
@@ -13,38 +14,46 @@ This migration adds configurable thresholds to algo_config:
 
 All code has been updated to load these values dynamically from the database.
 """
-from alembic import op
-import sqlalchemy as sa
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.database_context import DatabaseContext
+
+DESCRIPTION = "Add configurable grade thresholds to algo_config"
 
 
-def upgrade():
+def up():
     """Add configurable grade thresholds to algo_config."""
-    op.execute("""
-        INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
-        VALUES
-            ('swing_grade_threshold_aplus', '85', 'int', 'Swing score: A+ grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('swing_grade_threshold_a', '75', 'int', 'Swing score: A grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('swing_grade_threshold_b', '65', 'int', 'Swing score: B grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('swing_grade_threshold_c', '55', 'int', 'Swing score: C grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('swing_grade_threshold_d', '45', 'int', 'Swing score: D grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('advanced_filters_grade_threshold_aplus', '90', 'int', 'Advanced filters: A+ grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('advanced_filters_grade_threshold_a', '80', 'int', 'Advanced filters: A grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('advanced_filters_grade_threshold_b', '70', 'int', 'Advanced filters: B grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('advanced_filters_grade_threshold_c', '60', 'int', 'Advanced filters: C grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration'),
-            ('advanced_filters_grade_threshold_d', '50', 'int', 'Advanced filters: D grade threshold (score >= this value)', CURRENT_TIMESTAMP, 'migration')
-        ON CONFLICT (key) DO NOTHING
-    """)
+    with DatabaseContext('write') as cur:
+        cur.execute("""
+            INSERT INTO algo_config (key, value, value_type, description, updated_by)
+            VALUES
+                ('swing_grade_threshold_aplus', '85', 'int', 'Swing score: A+ grade threshold (score >= this value)', 'migration'),
+                ('swing_grade_threshold_a', '75', 'int', 'Swing score: A grade threshold (score >= this value)', 'migration'),
+                ('swing_grade_threshold_b', '65', 'int', 'Swing score: B grade threshold (score >= this value)', 'migration'),
+                ('swing_grade_threshold_c', '55', 'int', 'Swing score: C grade threshold (score >= this value)', 'migration'),
+                ('swing_grade_threshold_d', '45', 'int', 'Swing score: D grade threshold (score >= this value)', 'migration'),
+                ('advanced_filters_grade_threshold_aplus', '90', 'int', 'Advanced filters: A+ grade threshold (score >= this value)', 'migration'),
+                ('advanced_filters_grade_threshold_a', '80', 'int', 'Advanced filters: A grade threshold (score >= this value)', 'migration'),
+                ('advanced_filters_grade_threshold_b', '70', 'int', 'Advanced filters: B grade threshold (score >= this value)', 'migration'),
+                ('advanced_filters_grade_threshold_c', '60', 'int', 'Advanced filters: C grade threshold (score >= this value)', 'migration'),
+                ('advanced_filters_grade_threshold_d', '50', 'int', 'Advanced filters: D grade threshold (score >= this value)', 'migration')
+            ON CONFLICT (key) DO NOTHING
+        """)
 
 
-def downgrade():
+def down():
     """Remove configurable grade thresholds from algo_config."""
-    op.execute("""
-        DELETE FROM algo_config
-        WHERE key IN (
-            'swing_grade_threshold_aplus', 'swing_grade_threshold_a', 'swing_grade_threshold_b',
-            'swing_grade_threshold_c', 'swing_grade_threshold_d',
-            'advanced_filters_grade_threshold_aplus', 'advanced_filters_grade_threshold_a',
-            'advanced_filters_grade_threshold_b', 'advanced_filters_grade_threshold_c',
-            'advanced_filters_grade_threshold_d'
-        )
-    """)
+    with DatabaseContext('write') as cur:
+        cur.execute("""
+            DELETE FROM algo_config
+            WHERE key IN (
+                'swing_grade_threshold_aplus', 'swing_grade_threshold_a', 'swing_grade_threshold_b',
+                'swing_grade_threshold_c', 'swing_grade_threshold_d',
+                'advanced_filters_grade_threshold_aplus', 'advanced_filters_grade_threshold_a',
+                'advanced_filters_grade_threshold_b', 'advanced_filters_grade_threshold_c',
+                'advanced_filters_grade_threshold_d'
+            )
+        """)

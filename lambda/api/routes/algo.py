@@ -1,15 +1,21 @@
 """Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, json, os
+import logging, re, json, os, sys
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
-from .utils import (
+from pathlib import Path
+from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error,
     check_data_freshness, safe_json_serialize
 )
+
+# Import from root utils package - add root to sys.path first to ensure correct resolution
+_root_dir = str(Path(__file__).parent.parent.parent.parent)
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 from utils.safe_data_conversion import safe_float, safe_int
 

@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 import json
 import logging
 from typing import Dict
-from .utils import error_response, json_response, handle_db_error, execute_with_timeout
+from routes.utils import error_response, json_response, handle_db_error, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 

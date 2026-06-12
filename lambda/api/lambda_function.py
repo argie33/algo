@@ -13,13 +13,15 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 # Add lambda/api to path so routes module can be imported
-sys.path.insert(0, str(Path(__file__).parent))
-# Utils are packaged in the same directory as lambda_function.py (/var/task)
-# Explicitly add /var/task to ensure utils module can be imported
-sys.path.insert(0, '/var/task')
+# IMPORTANT: /lambda/api must come FIRST so that /lambda/api/utils is found before /utils (avoids naming conflicts)
 if not __file__.startswith('/var/task'):
     # Local dev (Mac, Linux, Windows): add project root so utils/ is importable
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Utils are packaged in the same directory as lambda_function.py (/var/task)
+# Explicitly add /var/task to ensure utils module can be imported
+sys.path.insert(0, '/var/task')
+# Add lambda/api LAST so it comes FIRST in sys.path (insert(0) reverses order)
+sys.path.insert(0, str(Path(__file__).parent))
 
 IMPORT_ERROR = None
 ENV_VALIDATION_ERROR = None

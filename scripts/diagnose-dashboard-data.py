@@ -39,43 +39,62 @@ CRITICAL_TABLES = {
 def check_table_exists(conn, table_name):
     """Check if table exists and return row count + max date."""
     try:
+        # Use a fresh cursor for each check to avoid transaction state issues
         cur = conn.cursor()
 
-        # Check if table exists
+        # Check if table or materialized view exists
         cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = %s
+            ) OR EXISTS (
+                SELECT FROM pg_matviews
+                WHERE schemaname = 'public'
+                AND matviewname = %s
             )
-        """, (table_name,))
+        """, (table_name, table_name))
         exists = cur.fetchone()[0]
+        cur.close()
 
         if not exists:
             return {'exists': False, 'row_count': 0, 'latest_date': None}
 
-        # Get row count
+        # Get row count with fresh cursor
+        cur = conn.cursor()
         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
         row_count = cur.fetchone()[0]
+        cur.close()
 
         # Try to find latest date (look for common date columns)
         latest_date = None
         for date_col in ['date', 'snapshot_date', 'report_date', 'metric_date', 'check_date', 'created_at']:
             try:
+                cur = conn.cursor()
                 cur.execute(f"SELECT MAX({date_col}) FROM {table_name}")
                 latest_date = cur.fetchone()[0]
+                cur.close()
                 if latest_date:
                     break
             except:
-                pass
+                try:
+                    cur.close()
+                except:
+                    pass
 
         return {'exists': True, 'row_count': row_count, 'latest_date': latest_date}
     except Exception as e:
+        try:
+            cur.close()
+        except:
+            pass
         return {'exists': False, 'error': str(e)}
 
 def main():
     try:
         conn = get_db_connection()
+        # Use autocommit mode for diagnostic queries to avoid transaction abort issues
+        conn.autocommit = True
         logger.info("✓ Database connection successful\n")
 
         logger.info("=" * 70)
