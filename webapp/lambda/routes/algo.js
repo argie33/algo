@@ -1008,7 +1008,13 @@ router.get('/markets', async (req, res) => {
         regime: r.regime,
         distribution_days: r.distribution_days,
       })),
-      market_health: health,
+      market_health: health ? {
+        date: health.date,
+        trend: health.market_trend,
+        stage: health.market_stage,
+        distribution_days_4w: health.distribution_days_4w,
+        vix_level: health.vix_level || 0,
+      } : null,
       sectors: sectorsRows.map(r => ({
         name: r.sector_name,
         rank: r.current_rank,
