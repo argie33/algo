@@ -6,8 +6,8 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
-| Orchestrator | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
-| Loaders (37 total: 9 core + 28 supporting) | `loaders/load_*.py` | ECS Fargate | 9 core via Step Functions EOD pipeline (4:05 PM ET), 28 supporting via EventBridge schedules |
+| Orchestrator (7 phases) | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
+| Loaders (6 core + supporting) | `loaders/load_*.py` | ECS Fargate | 6 core via Step Functions pipelines (2:15 AM, 4:05 PM ET); supporting loaders async |
 | API | `lambda/api/lambda_function.py` | Lambda algo-api-dev | HTTP requests |
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
@@ -142,23 +142,23 @@ If you need to rebuild the schema:
 ## Schedule
 
 **Daily runs (Mon-Fri):**
-- 2:00 AM ET: morning-prep-pipeline (Step Functions) + stock_symbols (EventBridge)
-- 2:40 AM ET: sp500/russell constituents (EventBridge)
-  - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
-  - Starts at 2:00 AM ET to provide safety buffer: 450 minutes (7 h 30 min) available until 9:30 AM deadline
-  - **TIMING CONSTRAINT:** 2:00 AM start → 9:30 AM deadline = 7:30 (450 min) available
-    - **Loader execution time** (with internal parallelism per loader): stock_prices_daily (15 min) + technical_data_daily (90 min) + buy_sell_daily (30 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = **195 min (3.25 h)**
-    - **Overhead** (ECS cold-start, RDS cache warm-up, per-task setup): ~35-60 min
-    - **Total realistic time**: 230-255 min (3.8-4.25 h)
-    - **Safety buffer**: 450 - 255 = 195 min (3.25 h) — accommodates slowness up to 50-80% without triggering stale-data halts
-    - **Early warning:** If any loader takes >2.5h, Phase 1 will detect and log. Check ECS CPU metrics and RDS slow queries.
-    - **Remediation:** If morning pipeline lags significantly (running past 3:30 AM), Phase 1 will warn but has adequate buffer. Monitor CloudWatch logs for slowness patterns and missing loaders.
-- 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
+- 2:15 AM ET: morning-prep-pipeline (Step Functions) — loads 1d prices + swing_trader_scores (60-90 min). Ensures fresh prices for orchestrator's on-demand signal computation before 9:30 AM market open.
+  - **TIMING CONSTRAINT:** 2:15 AM start → 9:30 AM deadline = 7 hours 15 minutes (435 min) available
+    - **Loader execution time:** stock_prices_daily (60-90 min) + swing_trader_scores (30 min) = **90-120 min (1.5-2 h)**
+    - **Overhead** (ECS cold-start, RDS warm-up): ~20-40 min
+    - **Total realistic time**: 110-160 min (1.8-2.7 h)
+    - **Safety buffer**: 435 - 160 = 275 min (4.6 h) — ample buffer for slowness
+- 2:40 AM ET: sp500/russell constituents (EventBridge) — load stock universe reference data
+- 4:05 PM ET: EOD pipeline (Step Functions) — stock_symbols → prices → (market_health + trend_template) → algo_metrics → swing_trader_scores → sector_ranking (3-4 h total)
+  - **Why prices-only?** Orchestrator Phase 5 computes signals on-the-fly (Minervini, Weinstein, VCP, power trend). No pre-computed technical_data_daily, buy_sell_daily, signal_quality_scores needed for trading.
 - 4:30 PM ET: compute_circuit_breakers (EventBridge) — pre-computes 9 circuit breaker metrics, stores in circuit_breaker_status table
 - 4:45 PM ET: compute_performance_metrics (EventBridge) — pre-computes Sharpe, Sortino, max drawdown, win rate, streaks from all closed trades and portfolio snapshots
-- 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
+- 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases) — reads fresh prices, computes signals on-demand, executes trades
 
-**Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
+**Loaders:** 6 core via Step Functions pipelines + 28 supporting via EventBridge.
+- **EOD Pipeline (4:05 PM ET):** stock_symbols → stock_prices_daily → (market_health_daily + trend_template_data) → algo_metrics_daily → swing_trader_scores → sector_ranking
+- **Morning Pipeline (2:15 AM ET):** stock_prices_daily (1d only) → swing_trader_scores
+- **Why simplified:** Orchestrator Phase 5 computes signals on-the-fly from price_daily (Minervini, Weinstein, VCP, base detection, power trend). No dependency on pre-computed technical_data_daily, buy_sell_daily, or signal_quality_scores. These tables can be populated separately for reporting if needed, but are not critical for trading.
 
 **LOADER_PARALLELISM (FIXED ISSUE #7: Adaptive Per-Loader Parallelism):** Loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)`, which implements RDS-aware adaptive parallelism. No manual tuning required.
 

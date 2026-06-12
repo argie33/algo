@@ -5,27 +5,25 @@
  * Step Functions state machines. Guarantees the orchestrator only runs when
  * all signal data is actually ready, not on a fixed timer.
  *
- * EOD PIPELINE (4:05 PM ET, 6h max execution):
+ * EOD PIPELINE (4:05 PM ET, 3h max execution):
  *   stock_symbols (10 min, 600s timeout)
- *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s)
- *       → [parallel] technical_data_daily (90 min expected, 3h timeout = 10800s)
- *                  + market_health_daily (20 min expected, 20 min timeout = 1200s)
- *         → trend_template_data (30 min expected, 90 min timeout = 5400s)
- *           → buy_sell_daily (30 min expected, 90 min timeout = 5400s)
- *             → signal_quality_scores (15 min expected, 2h timeout = 7200s)
- *               → algo_metrics_daily (12 min expected, 2h timeout = 7200s)
- *                 → swing_trader_scores (30+ min expected, 2h timeout = 7200s)
- *                   → sector_ranking (15 min expected, 15 min timeout = 900s)
- *                     → algo_orchestrator dry-run (20 min expected, 20 min timeout = 1200s)
+ *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s) [CRITICAL: must succeed]
+ *       → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
+ *                  + trend_template_data (30 min expected, 90 min timeout = 5400s)
+ *         → algo_metrics_daily (12 min expected, 2h timeout = 7200s)
+ *           → swing_trader_scores (30+ min expected, 2h timeout = 7200s)
+ *             → sector_ranking (15 min expected, 15 min timeout = 900s)
+ *               → algo_orchestrator (dry-run & live: Phase 1-7)
  *
- * MORNING PIPELINE (2:15 AM ET, 5.5h max execution):
+ * KEY INSIGHT: Removed technical_data_daily, buy_sell_daily, signal_quality_scores
+ * from the critical path. Orchestrator Phase 5 computes signals on-the-fly from
+ * price_daily; no pre-computed signal tables needed for trading.
+ *
+ * MORNING PIPELINE (2:15 AM ET, 2.5h max execution):
  *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
- *     → [parallel] technical_data_daily (90 min expected, 90 min timeout = 5400s)
- *                + market_health_daily (20 min expected, 20 min timeout = 1200s)
- *       → buy_sell_daily (30 min expected, 45 min timeout = 2700s)
- *         → [parallel] signal_quality_scores (15 min expected, 45 min timeout = 2700s)
- *                    + swing_trader_scores (30+ min expected, 45 min timeout = 2700s)
- *           → sector_ranking (15 min expected, 15 min timeout = 900s)
+ *     → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
+ *                + trend_template_data (30 min expected, 90 min timeout = 5400s)
+ *       → swing_trader_scores (30+ min expected, 45 min timeout = 2700s)
  *
  * TIMEOUT STRATEGY: Expected + 2-3x safety margin to catch slow queries without being excessive.
  * - Fail fast on real failures (RDS unavailable, API errors) within 2-3x expected time
@@ -265,7 +263,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogPriceLoadFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "ParallelTechnicals"
+        Next = "ParallelEnrichment"
       }
 
       LogPriceLoadFailure = {
@@ -299,33 +297,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
-      # ── Step 2: Technical indicators + market health (both read price_daily) ─
-      ParallelTechnicals = {
+      # ── Step 2: Market health + trend template (parallel enrichment) ─
+      # REFACTORED: Removed technical_data_daily (90 min) — orchestrator Phase 5 computes signals on-the-fly.
+      ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
-          {
-            StartAt = "TechnicalDataDaily"
-            States = {
-              TechnicalDataDaily = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 10800
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
           {
             StartAt = "MarketHealthDaily"
             States = {
@@ -348,47 +324,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 End = true
               }
             }
-          }
-        ]
-        ResultPath = null
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogLoaderFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "ParallelEnrichment"
-      }
-
-      # FIXED Issue #4: Log loader failures and continue with available data (graceful degradation)
-      LogLoaderFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "parallel_technicals"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "ParallelEnrichment"
-          ResultPath  = "$.logError"
-        }]
-        Next = "ParallelEnrichment"
-      }
-
-      # ── Step 3: Parallel enrichment (trend template only — stock_scores moved after signals) ────────
-      # FIXED Issue #2: Task definition timeout increased from 2700s to 5400s to match SF timeout
-      # FIXED Issue #4b: Added ResultPath = null to discard parallel output and preserve original input
-      ParallelEnrichment = {
-        Type = "Parallel"
-        Branches = [
+          },
           {
             StartAt = "TrendTemplate"
             States = {
@@ -419,9 +355,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogEnrichmentFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "SignalGeneration"
+        Next = "AlgoMetrics"
       }
 
+      # Log enrichment (market health + trend template) failures
       LogEnrichmentFailure = {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
@@ -439,112 +376,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "SignalGeneration"
-          ResultPath  = "$.logError"
-        }]
-        Next = "SignalGeneration"
-      }
-
-      # ── Step 5: Generate daily signals ──────────────────────────
-      # parallelism=4: ~8 min expected, 1.5h timeout for safety.
-      # FIXED Issue #4: Graceful degradation — if signals fail, continue with available data
-      SignalGeneration = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 5400
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogSignalGenerationFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "SignalQualityScores"
-      }
-
-      LogSignalGenerationFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "buy_sell_daily"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "SignalQualityScores"
-          ResultPath  = "$.logError"
-        }]
-        Next = "SignalQualityScores"
-      }
-
-      # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
-      # parallelism=8: ~15 min expected, 2h timeout ensures full dataset processing.
-      # FIXED Issue #4: Graceful degradation — if quality scoring fails, continue with available data
-      # FIXED 2026-06-02: Increased parallelism 4→8, timeout 3600→7200 to handle full 10k+ symbol dataset
-      SignalQualityScores = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogQualityScoresFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "AlgoMetrics"
-      }
-
-      LogQualityScoresFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "signal_quality_scores"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
           Next        = "AlgoMetrics"
           ResultPath  = "$.logError"
         }]
         Next = "AlgoMetrics"
       }
+
 
       # ── Step 7: Summarize signal quality metrics ──────────────────────────
       # parallelism=4: ~12 min expected, 2h timeout for safety.
@@ -951,7 +788,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           Next        = "LogMorningPriceFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MorningTechnicals"
+        Next = "MorningSwingScores"
       }
 
       LogMorningPriceFailure = {
@@ -984,85 +821,22 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Cause = "stock_prices_daily failed during morning prep. Pipeline halted to prevent trading on stale data. Morning prep needs 7.5 hours to complete before market open. Check CloudWatch logs for details (yfinance rate limiting, RDS issues, or network problems)."
       }
 
-      MorningTechnicals = {
-        Type = "Parallel"
-        Branches = [
-          {
-            StartAt = "TechnicalsTask"
-            States = {
-              TechnicalsTask = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 5400
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "MarketHealthTask"
-            States = {
-              MarketHealthTask = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 1200
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          }
-        ]
-        ResultPath = null
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          # Fail-open: if technicals or market health fail, still regenerate signals
-          # using prior data rather than hard-failing the entire morning prep.
-          Next       = "MorningSignals"
-          ResultPath = "$.technicalError"
-        }]
-        Next = "MorningSignals"
-      }
-
-      # ── Morning signal refresh (fail-open) ─────────────────────────────
-      # Regenerates buy_sell_daily, signal_quality_scores, and swing_trader_scores
-      # using today's fresh prices and technicals. Ensures the 9:30 AM Lambda
-      # orchestrator always has up-to-date signals even if the EOD pipeline ran slow
-      # or its signal steps didn't complete before midnight.
-      # All signal steps are fail-open: failures don't block the pipeline.
-      MorningSignals = {
+      # ── Morning swing trader scores (only critical supporting loader) ─
+      # REFACTORED: Removed technical_data_daily, buy_sell_daily, signal_quality_scores.
+      # Orchestrator Phase 5 computes signals on-the-fly; pre-computed tables no longer needed.
+      # swing_trader_scores still runs for ranking/reporting, but not critical for trading.
+      MorningSwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
         TimeoutSeconds = 2700
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
         }
-        # Enhanced retry: 2 attempts with exponential backoff for resilience
-        # Critical for signal generation: if it fails, all signals are stale
+        # Fail-open: if swing scores fail, morning prep still succeeds
+        # Orchestrator doesn't depend on pre-computed swing scores
         Retry = [{
           ErrorEquals     = ["States.ALL"]
           IntervalSeconds = 90
@@ -1071,90 +845,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSignalScores"
-          ResultPath  = "$.signalError"
-        }]
-        Next = "MorningSignalScores"
-      }
-
-      # Parallel execution of quality scores and swing scores.
-      # Both depend on buy_sell_daily completion but not on each other.
-      # Reduces critical path from 180min to 60min for these two stages.
-      MorningSignalScores = {
-        Type = "Parallel"
-        Branches = [
-          {
-            StartAt = "QualityScoresTask"
-            States = {
-              QualityScoresTask = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 2700
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
-                  NetworkConfiguration = local.network_config
-                }
-                # Enhanced retry: 2 attempts for critical signal scoring
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 90
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                Catch = [{
-                  ErrorEquals = ["States.ALL"]
-                  Next        = "SkipQualityError"
-                  ResultPath  = "$.qualityError"
-                }]
-                End = true
-              }
-              SkipQualityError = {
-                Type = "Pass"
-                End  = true
-              }
-            }
-          },
-          {
-            StartAt = "SwingScoresTask"
-            States = {
-              SwingScoresTask = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 2700
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
-                  NetworkConfiguration = local.network_config
-                }
-                # Enhanced retry: 2 attempts for critical signal ranking
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 90
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                Catch = [{
-                  ErrorEquals = ["States.ALL"]
-                  Next        = "SkipSwingError"
-                  ResultPath  = "$.swingError"
-                }]
-                End = true
-              }
-              SkipSwingError = {
-                Type = "Pass"
-                End  = true
-              }
-            }
-          }
-        ]
-        ResultPath = null
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
           Next        = "MorningSectorRanking"
-          ResultPath  = "$.scoresError"
+          ResultPath  = "$.swingError"
         }]
         Next = "MorningSectorRanking"
       }
