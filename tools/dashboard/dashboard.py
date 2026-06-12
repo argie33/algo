@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
@@ -82,6 +82,18 @@ def _log_data_quality(source: str, count: int, error: Optional[str] = None):
     else:
         logger.debug(f"Data fetch [{source}] OK: {count} rows")
 
+def _check_data_freshness(tables_and_dates: Dict[str, Optional[Any]]) -> Tuple[bool, List[str]]:
+    """Check freshness of multiple tables."""
+    from utils.data_freshness_config import check_multiple_tables
+    all_fresh, stale_critical, messages = check_multiple_tables(tables_and_dates)
+    freshness_alerts = [msg for msg in messages if "STALE" in msg]
+    all_critical_fresh = len(stale_critical) == 0
+    if freshness_alerts:
+        for alert in freshness_alerts:
+            logger.warning(alert)
+    return all_critical_fresh, freshness_alerts
+
+
 try:
     import msvcrt
     def _keypress() -> str:
@@ -132,7 +144,7 @@ try:
 except ImportError:
     sys.exit("pip install rich>=13.0.0")
 
-# â"â" globals â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" globals -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 ET      = ZoneInfo("America/New_York")
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
 
@@ -399,7 +411,7 @@ HALT_REASON_NAMES = {
     "drawdown":                 "Portfolio drawdown >=20%",
     "drawdown_re_engagement":   "Drawdown recovery in progress",
     "daily_loss":               "Daily loss >=2%",
-    "consecutive_losses":       "â‰¥3 consecutive losing trades",
+    "consecutive_losses":       "-‰¥3 consecutive losing trades",
     "total_risk":               "Total open risk >=4%",
     "vix_spike":                "VIX spike >35",
     "market_stage":             "Market in downtrend (Stage 4)",
@@ -412,7 +424,7 @@ HALT_REASON_NAMES = {
 }
 
 
-# â"â" mascot (dancing monkey) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" mascot (dancing monkey) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
 # MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
 # @ = ears, \{~~~}/ = wide shoulders, |{~~~}| = body. Frame 7 = CB panic freeze.
@@ -432,7 +444,7 @@ MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
     "bright_yellow", "white", "yellow", "bright_red",
 ]
-LOAD_SEQ = [0, 1, 4, 3]  # groove â†' step R â†' JUMP â†' step L
+LOAD_SEQ = [0, 1, 4, 3]  # groove -†' step R -†' JUMP -†' step L
 
 
 def mascot_pose(data: dict, frame: int) -> int:
@@ -450,7 +462,7 @@ def mascot_pose(data: dict, frame: int) -> int:
     return seq[(frame // 2) % len(seq)]
 
 
-# â"â" Data validation helpers (CRITICAL ISSUE 1, 2, 3 FIX) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" Data validation helpers (CRITICAL ISSUE 1, 2, 3 FIX) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def is_error_dict(data) -> bool:
     """Check if data is an error dict. Error dicts have _error key with non-empty value."""
@@ -560,7 +572,7 @@ def error_panel(title: str, err_msg: str) -> Panel:
     return Panel(Text(msg, style="red"), title=f"[bold red]{title}[/]", border_style="red", padding=(0, 1))
 
 
-# â"â" DB helpers â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" DB helpers -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def _get_db_credentials() -> dict:
     """Fetch database credentials using credential_manager.py.
@@ -658,7 +670,7 @@ def _init_db_pool():
         raise
 
 def get_conn() -> psycopg2.extensions.connection:
-    """Get a connection from the pool. Must be returned via putconn() or close()."""
+    """Get a connection from the pool. Must be returned via return_conn()."""
     global _db_pool
     if _db_pool is None:
         _init_db_pool()
@@ -667,6 +679,15 @@ def get_conn() -> psycopg2.extensions.connection:
     except pool.PoolError as e:
         logger.error(f"Failed to get connection from pool (all {_db_pool.maxconn} connections in use): {e}")
         raise
+
+def return_conn(conn: psycopg2.extensions.connection) -> None:
+    """Return a connection to the pool. Do NOT call close() on pooled connections."""
+    global _db_pool
+    if _db_pool is not None and conn is not None:
+        try:
+            _db_pool.putconn(conn)
+        except (pool.PoolError, TypeError):
+            pass
 
 def q(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> List[Dict]:
     with c.cursor() as cur:
@@ -679,7 +700,7 @@ def q1(c: psycopg2.extensions.connection, sql, p: Optional[tuple] = None) -> Opt
     rows = q(c, sql, p)
     return rows[0] if rows else None
 
-# â"â" API Client â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" API Client -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 # API CLIENT CONFIGURATION
 #
 # The API client is responsible for making HTTP calls to the backend API service.
@@ -864,7 +885,7 @@ def validate_schema() -> None:
                 else:
                     raise
 
-        conn.close()
+        return_conn(conn)
         logger.info("Database schema validation passed (columns exist with correct types, critical tables have data)")
     except (psycopg2.Error, KeyError) as e:
         logger.error(f"Schema validation failed: {e}")
@@ -917,7 +938,7 @@ def validate_phase_results(phase_results: any) -> List[PhaseResult]:
         logger.warning(f"VALIDATION: phase_results schema check failed: {result['errors']}")
     return []
 
-# â"â" formatters â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" formatters -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def fmt_age(ts: any) -> str:
     if ts is None: return "--"
@@ -1006,7 +1027,7 @@ def mkt_hours_str() -> tuple:
         return f"{h}h{mm:02d}m" if h > 0 else f"{mm}m"
 
     if wd >= 5:
-        days_ahead = 7 - wd  # satâ†'2, sunâ†'1
+        days_ahead = 7 - wd  # sat-†'2, sun-†'1
         open_dt = (n + timedelta(days=days_ahead)).replace(
             hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
@@ -1135,10 +1156,10 @@ def sparkline(values: list, width: int = 24) -> str:
             if v_f is not None and v_f > 0:
                 vals.append(v_f)
     if len(vals) < 2:
-        return f"[{DIM}]{'â"' * width}[/]"
+        return f"[{DIM}]{'-' * width}[/]"
     mn, mx = min(vals), max(vals)
     if mx == mn:
-        return f"[{CY}]{'â"' * width}[/]"
+        return f"[{CY}]{'-' * width}[/]"
     rng = mx - mn
     if len(vals) > width:
         idxs = [int(i * (len(vals) - 1) / (width - 1)) for i in range(width)]
@@ -1279,7 +1300,7 @@ def _days_since_timestamp(ts_val: any) -> Optional[int]:
         return None
 
 
-# â"â" fetchers â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" fetchers -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 class RunData(TypedDict, total=False):
     """Canonical schema for run execution data.
@@ -1415,7 +1436,7 @@ def fetch_run(c) -> RunData:
     except (psycopg2.Error, KeyError, TypeError) as e:
         fallback_error = f"{type(e).__name__}: {e}"
         logger.error(f"fetch_run (audit_log fallback): {fallback_error}")
-        msg = f"Both sources failed: exec_log({primary_error}) â†' audit_log({fallback_error})"
+        msg = f"Both sources failed: exec_log({primary_error}) -†' audit_log({fallback_error})"
         _log_data_quality("fetch_run", 0, msg)
         return {
             "run_id": None,
@@ -2232,7 +2253,7 @@ def fetch_signals(c, cfg=None):
               AND s.score BETWEEN %s AND %s
             ORDER BY s.score DESC LIMIT 15""", (grades_date, near_lower, near_upper)) if grades_date else []
 
-        # Top A-grade stocks by name (radar display - score â‰¥ threshold_a)
+        # Top A-grade stocks by name (radar display - score -‰¥ threshold_a)
         # M1 FIX: Use config threshold instead of hardcoded 80
         grade_cfg = _config_mgr.grade if _config_mgr else {}
         thr_a = grade_cfg.get('a', 80)
@@ -3185,7 +3206,7 @@ def check_loader_health() -> dict:
                 logger.warning(f"VALIDATION: {issue}")
 
         status = "ok" if not failures and not data_quality_issues else ("degraded" if successes else "failed")
-        conn.close()
+        return_conn(conn)
         return {
             "status": status,
             "failures": failures,
@@ -3202,7 +3223,7 @@ def check_loader_health() -> dict:
         }
 
 
-# â"â" parallel data loader â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" parallel data loader -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 FETCHERS = {
     "run":          fetch_run,
@@ -3315,7 +3336,7 @@ def load_all() -> dict:
         conn = get_conn()
         conn.autocommit = True
         cfg_result = fetch_algo_config(conn)
-        conn.close()
+        return_conn(conn)
         if isinstance(cfg_result, dict) and not cfg_result.get("_error"):
             cfg_data = cfg_result
     except Exception as e:
@@ -3365,7 +3386,7 @@ def load_all() -> dict:
                 return name, {"_error": str(e)}
             finally:
                 if conn:
-                    try: conn.close()
+                    try: return_conn(conn)
                     except (psycopg2.Error, AttributeError): pass
     # ISSUE 12 FIX: Use dependency-aware staged loading instead of loading all fetchers in parallel.
     # This enforces dependencies (cfg before sig), prevents thread pool exhaustion,
@@ -3411,7 +3432,7 @@ def load_all() -> dict:
                         out[k] = {"_error": str(e)}
             except TimeoutError:
                 elapsed = time.time() - load_start
-                msg = f"load_all stage {stage_idx + 1} timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) – some fetchers incomplete"
+                msg = f"load_all stage {stage_idx + 1} timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) - some fetchers incomplete"
                 logger.error(msg)
                 # Issue 21 FIX: Mark timed-out fetchers and track which are still running
                 completed_count = sum(1 for f in futures if f.done())
@@ -3421,7 +3442,7 @@ def load_all() -> dict:
                 # Mark remaining incomplete fetchers
                 for f, k in futures.items():
                     if not f.done():
-                        logger.warning(f"Fetcher {k} timed out – marking incomplete")
+                        logger.warning(f"Fetcher {k} timed out - marking incomplete")
                         f.cancel()
                         out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
 
@@ -3462,7 +3483,7 @@ def load_all() -> dict:
     return out
 
 
-# â"â" halt reason helpers â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" halt reason helpers -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
@@ -3525,7 +3546,7 @@ def _fmt_phases_halted(phases_halted) -> str:
     return ", ".join(names[:3])
 
 
-# â"â" panel builders â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" panel builders -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def panel_orch(run, cfg, risk=None):
     # Validate error dicts (Issue 2 FIX: don't process errors as valid data)
@@ -3548,9 +3569,9 @@ def panel_orch(run, cfg, risk=None):
     pyr       = cfg.get("pyramid", False)
 
     min_score_f = safe_float(min_score) if min_score else None
-    score_s   = f"[dim]min score â‰¥[/][white]{min_score}[/]" if min_score_f is not None and min_score_f > 0 else ""
+    score_s   = f"[dim]min score -‰¥[/][white]{min_score}[/]" if min_score_f is not None and min_score_f > 0 else ""
     slots_s   = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
-    sec_s     = f"[dim]sector â‰¤[/][white]{max_sec_n}[/]" if max_sec_n else ""
+    sec_s     = f"[dim]sector -‰¤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s    = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
     t1r_s     = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r else ""
     pyr_s     = f"[{G}]pyramid on[/]" if pyr else ""
@@ -3598,9 +3619,9 @@ def panel_orch(run, cfg, risk=None):
         )
     else:
         age  = fmt_age(run.get("run_at"))
-        sts  = ("[bold bright_green]âœ" COMPLETED[/]" if run.get("success") and not run.get("halted")
+        sts  = ("[bold bright_green]-œ" COMPLETED[/]" if run.get("success") and not run.get("halted")
                 else ("[bold yellow]~ HALTED[/]" if run.get("halted")
-                else "[bold bright_red]âœ— ERROR[/]"))
+                else "[bold bright_red]-œ- ERROR[/]"))
 
         pbadges = []
         # exec_log source: structured per-phase objects with names + statuses
@@ -3615,13 +3636,13 @@ def panel_orch(run, cfg, risk=None):
                 ps    = (p.get("status") or "").lower()
                 if ps in ("success", "completed"):
                     pc = G
-                    pi = "âœ""
+                    pi = "-œ""
                 elif ps in ("halt", "halted", "warn"):
                     pc = Y
                     pi = "~"
                 else:
                     pc = R
-                    pi = "âœ—"
+                    pi = "-œ-"
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason") or ""
@@ -3643,7 +3664,7 @@ def panel_orch(run, cfg, risk=None):
                 short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
                 ps   = p.get("status", "")
                 pc   = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
-                pi   = "âœ"" if ps == "success" else ("~" if ps in ("halt", "warn") else "âœ—")
+                pi   = "-œ"" if ps == "success" else ("~" if ps in ("halt", "warn") else "-œ-")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             extra = ""
 
@@ -3922,8 +3943,8 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             base_risk = cfg.get("base_risk")
             t1r       = cfg.get("t1_r")
             parts6    = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
-            if pyr:       parts6.append(f"[{G}]pyrâœ"[/]")
-            if min_score: parts6.append(f"[dim]scoreâ‰¥[/][white]{min_score}[/]")
+            if pyr:       parts6.append(f"[{G}]pyr-œ"[/]")
+            if min_score: parts6.append(f"[dim]score-‰¥[/][white]{min_score}[/]")
             if max_n:     parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
             if base_risk: parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
             if t1r:       parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
@@ -4287,7 +4308,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
     for p in pos:
         # CRITICAL ISSUE 7 FIX: Check if price data is stale/missing and flag for special display
         is_stale_price = p.get("_missing_price", False)
-        price_quality_warning = f" âš  {p.get('_price_quality', '')}" if is_stale_price else ""
+        price_quality_warning = f" -š  {p.get('_price_quality', '')}" if is_stale_price else ""
         # ISSUE 19 FIX: Validate entry price is positive to avoid division by zero
         entry_val = p.get("avg_entry_price")
         entry = float(entry_val) if entry_val is not None and float(entry_val) > 0 else None
@@ -4330,7 +4351,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         swg   = p.get("swing_score")
         # ISSUE 15 FIX: Indicate when sector data is missing from lookup
         sec_val = p.get("sector")
-        sec_warning = " âš " if p.get("_missing_sector", False) else ""
+        sec_warning = " -š " if p.get("_missing_sector", False) else ""
         sec   = ((sec_val or "--")[:12] + sec_warning) if sec_val else ("--" + sec_warning)
         denom = (entry - stop) if (stop is not None and entry is not None and entry != stop) else None
         # Category 8: Position metrics - guard against None current_price (missing market data)
@@ -4354,7 +4375,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         row = [
             symbol_display,
             fmt_money_short(pval) if pval is not None else "--",
-            f"${entry:.2f}" if entry is not None else "--", (f"${price:.2f} [yellow]âš  stale[/]" if is_stale_price else f"${price:.2f}") if price is not None else "--",
+            f"${entry:.2f}" if entry is not None else "--", (f"${price:.2f} [yellow]-š  stale[/]" if is_stale_price else f"${price:.2f}") if price is not None else "--",
             Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
             # TIER 1A FIX: sign() handles None safely
             Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
@@ -4424,7 +4445,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
         return t[:12]
 
-    # â"â" Row 1: count  Â·  7-day sparkline  Â·  grade pool  Â·  date â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" Row 1: count  Â·  7-day sparkline  Â·  grade pool  Â·  date -"-"-"-"-"-"-"-"-"-"-"-"-"
     ui_cfg = _config_mgr.ui if _config_mgr else {}
     buy_c = G if raw >= ui_cfg['buy_signal_count_good'] else (Y if raw >= ui_cfg['buy_signal_count_caution'] else (DIM if total == 0 else R))
     trend = sig.get("trend")
@@ -4447,7 +4468,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         f"  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]{near_hint}{filtered_hint}"
     )]
 
-    # â"â" Row 2: A-grade radar (always; near-misses only when nothing better) â"â"
+    # -"-" Row 2: A-grade radar (always; near-misses only when nothing better) -"-"
     if top_a:
         parts = []
         for s in top_a[:8]:
@@ -4473,7 +4494,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
                 parts.append(f"[{CY}]{a['symbol']}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
-    # â"â" Row 3: Funnel arrow chain  Â·  avg score  Â·  top blockers â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" Row 3: Funnel arrow chain  Â·  avg score  Â·  top blockers -"-"-"-"-"-"-"-"-"-"-"-"-"
     if sig_eval and not sig_eval.get("_error"):
         ev_tot = sig_eval.get("total", 0)
         ev_t1  = sig_eval.get("t1", 0)
@@ -4488,13 +4509,13 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         )]
         blocks_s = "  [dim]blocked:[/]  " + block_parts[0] if rejected else ""
         rows.append(Text.from_markup(
-            f"[dim]{ev_tot} â†'[/] [{ev_c}]{ev_t5} qualified[/]"
+            f"[dim]{ev_tot} -†'[/] [{ev_c}]{ev_t5} qualified[/]"
             f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
         ))
 
     rows.append(Rule(style="dim"))
 
-    # â"â" Signal table (Rich Table for proper column alignment) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" Signal table (Rich Table for proper column alignment) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     buy_sigs = sig.get("buy_sigs")
     sig_thr = _config_mgr.signal if _config_mgr else {}
     if buy_sigs:
@@ -4565,7 +4586,7 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         else:
             rows.append(Text.from_markup(f"[dim]0 BUY signals from {total} screened[/]"))
 
-    # â"â" Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) â"â"
+    # -"-" Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) -"-"
     if near and top_a:
         rows.append(Rule(style="dim"))
         # TIER 1A FIX: Show "--" for missing scores
@@ -4616,7 +4637,7 @@ def panel_recent_trades(trades):
         # Issue 10: Show breakeven separately from losses
         is_breakeven = is_closed and pnl_d is not None and pnl_d == 0
         pc  = G if (pnl_d is not None and pnl_d > 0) else (Y if is_breakeven else (R if (is_closed and pnl_d is not None and pnl_d < 0) else (DIM if is_closed else Y)))
-        si  = f"[{G}]âœ"[/]" if (pnl_d is not None and pnl_d > 0) else (f"[{Y}]â‰ˆ[/]" if is_breakeven else (f"[{R}]âœ—[/]" if (is_closed and pnl_d is not None and pnl_d < 0) else f"[{Y}]-·[/]"))
+        si  = f"[{G}]-œ"[/]" if (pnl_d is not None and pnl_d > 0) else (f"[{Y}]-‰ˆ[/]" if is_breakeven else (f"[{R}]-œ-[/]" if (is_closed and pnl_d is not None and pnl_d < 0) else f"[{Y}]-·[/]"))
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
@@ -4652,7 +4673,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         for w in sec_warn.get("warnings", []):
             status_color = R if w.get("status") == "AT_CAP" else Y
             rows.append(Text.from_markup(
-                f"[{status_color}]âš  {w.get('sector')}: {w.get('count')}/{w.get('max')} positions[/]"
+                f"[{status_color}]-š  {w.get('sector')}: {w.get('count')}/{w.get('max')} positions[/]"
             ))
 
     def rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -4857,7 +4878,7 @@ def panel_exposure_compact(exp_f):
             v = f.get("value")
             return f" {v:.0f}" if v is not None else "(--)"
         if key == "ibd_state":
-            st = (f.get("state") or "").replace("_under_pressure", "â†"").replace("_", " ")[:9]
+            st = (f.get("state") or "").replace("_under_pressure", "-†"").replace("_", " ")[:9]
             dd = f.get("distribution_days_25d")
             if st or dd is not None:
                 dd_s = f" D{dd}" if dd is not None else ""
@@ -4921,13 +4942,13 @@ def panel_exposure_compact(exp_f):
     data_quality = exp_f.get("_data_quality", "good")
     quality_indicator = ""
     if data_quality == "degraded":
-        quality_indicator = " [yellow]âš  partial data[/]"
+        quality_indicator = " [yellow]-š  partial data[/]"
     elif data_quality == "missing":
-        quality_indicator = " [red]âš  no data[/]"
+        quality_indicator = " [red]-š  no data[/]"
     elif data_quality == "error":
-        quality_indicator = " [red]âœ— error[/]"
+        quality_indicator = " [red]-œ- error[/]"
     header  = Text.from_markup(
-        f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]â†' allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
+        f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]-†' allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
     )
     return Panel(Group(header, tbl), title=f"[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts){quality_indicator}[/]",
                  border_style="blue", padding=(0, 1))
@@ -5071,7 +5092,7 @@ def panel_economic_pulse(eco, econ_cal=None):
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
-    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS â†' Exposure Score[/]",
+    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS -†' Exposure Score[/]",
                  border_style="bright_magenta", padding=(0, 1))
 
 
@@ -5086,16 +5107,16 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         return error_panel("NOTIFICATIONS", notifs.get("_error"))
     rows: list = []
 
-    # â"â" Run status + schedule + mode + trading config â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" Run status + schedule + mode + trading config -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
     run_id_top = (run.get("run_id") or "") if run_valid else ((act.get("run_id") or "") if act_valid else "")
     run_at_top = (run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None))
     if run_id_top or run_at_top:
         sts = (
-            f"[bold bright_green]âœ" COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
+            f"[bold bright_green]-œ" COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
             else (f"[bold yellow]~ HALTED[/]" if (run_valid and run.get("halted"))
-            else (f"[bold bright_red]âœ˜ ERROR[/]" if (run_valid and run.get("errored"))
+            else (f"[bold bright_red]-œ˜ ERROR[/]" if (run_valid and run.get("errored"))
             else "[dim]RUN[/]"))
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
@@ -5113,10 +5134,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     # Trading config params - visible context for position sizing decisions
     cfg_parts = []
     if cfg_v.get("max_pos_n"):    cfg_parts.append(f"[dim]slots:[/][white]{cfg_v['max_pos_n']}[/]")
-    if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sectorâ‰¤4:[/][white]{cfg_v['max_sec_n']}[/]")
+    if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sector-‰¤4:[/][white]{cfg_v['max_sec_n']}[/]")
     if cfg_v.get("base_risk"):   cfg_parts.append(f"[dim]risk:[/][white]{cfg_v['base_risk']}%[/]")
     if cfg_v.get("t1_r"):        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v['t1_r']}R[/]")
-    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyrâœ"[/]")
+    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyr-œ"[/]")
     if cfg_parts:
         rows.append(Text.from_markup("  ".join(cfg_parts)))
     rows.append(Rule(style="dim"))
@@ -5139,9 +5160,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
-            if s in ("success", "completed"): badges.append(f"[{G}]âœ"[/]")
+            if s in ("success", "completed"): badges.append(f"[{G}]-œ"[/]")
             elif s == "halted":               badges.append(f"[{Y}]~[/]")
-            else:                             badges.append(f"[{R}]âœ—[/]")
+            else:                             badges.append(f"[{R}]-œ-[/]")
         rows.append(Text.from_markup(
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
             f"  [{wc_h}]{n_ok}/{total_h} success[/]"
@@ -5155,7 +5176,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {body[:55]}[/]{ph_s}"))
+                rows.append(Text.from_markup(f"  [{Y}]-†³ {body[:55]}[/]{ph_s}"))
         rows.append(Rule(style="dim"))
 
     # Current run status - shown prominently even when history is empty
@@ -5168,9 +5189,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         age_s  = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         r_stat = ""
         if run and not run.get("_error"):
-            if run.get("success"):   r_stat = f"  [{G}]âœ" COMPLETED[/]"
+            if run.get("success"):   r_stat = f"  [{G}]-œ" COMPLETED[/]"
             elif run.get("halted"):  r_stat = f"  [{Y}]~ HALTED[/]"
-            elif run.get("errored"): r_stat = f"  [{R}]âœ— ERROR[/]"
+            elif run.get("errored"): r_stat = f"  [{R}]-œ- ERROR[/]"
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
@@ -5179,7 +5200,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             n_hlt  = _pc(run.get("phases_halted"))
             n_err  = _pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
-                done_s = f"[{G}]{n_done} phases âœ"[/]"
+                done_s = f"[{G}]{n_done} phases -œ"[/]"
                 hlt_s  = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
                 err_s  = f"  [{R}]{n_err} errored[/]" if n_err else ""
                 rows.append(Text.from_markup(f"  {done_s}{hlt_s}{err_s}"))
@@ -5192,7 +5213,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"[{Y}]â†³ {prefix}{detail[:60]}[/]"))
+                rows.append(Text.from_markup(f"[{Y}]-†³ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
@@ -5204,7 +5225,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
             ps    = (p.get("status") or "").lower()
             sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
-            si    = "âœ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "âœ—")
+            si    = "-œ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "-œ-")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
             # Show error or key data for failed/halted phases
@@ -5214,13 +5235,13 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 try: pdata = json.loads(pdata)
                 except (json.JSONDecodeError, ValueError, TypeError): pdata = None
             if err and ps not in ("success", "completed", "ok"):
-                rows.append(Text.from_markup(f"  [{sc}]â†³ {err[:62]}[/]"))
+                rows.append(Text.from_markup(f"  [{sc}]-†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata is not None:
                 reason = ""
                 if isinstance(pdata, dict):
                     reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
                 if reason:
-                    rows.append(Text.from_markup(f"  [{Y}]â†³ {reason}[/]"))
+                    rows.append(Text.from_markup(f"  [{Y}]-†³ {reason}[/]"))
             elif ps in ("success", "completed", "ok") and pdata is not None:
                 # Surface a key metric per phase if available
                 for key in ("signals_generated", "entries_executed", "exits_executed",
@@ -5257,7 +5278,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
             st    = p.get("status", "")
             sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            si    = "âœ"" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "âœ—")
+            si    = "-œ"" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "-œ-")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -5285,10 +5306,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         rows.append(Rule(style="dim"))
         stale = [r for r in hlth if r.get("st") != "ok"]
         if not stale:
-            rows.append(Text.from_markup(f"[{G}]âœ" Data OK[/]  [dim]{len(hlth)} tables[/]"))
+            rows.append(Text.from_markup(f"[{G}]-œ" Data OK[/]  [dim]{len(hlth)} tables[/]"))
             crit = [r for r in hlth if r.get("role") == "CRIT"]
             if crit:
-                crit_parts = "  ".join(f"[{G}]âœ"[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
+                crit_parts = "  ".join(f"[{G}]-œ"[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
                 rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
@@ -5298,7 +5319,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 cc  = "bold white" if rc == "CRIT" else "white"
                 lat = r.get("latest")
                 lat_s = f" ({lat.strftime('%b %d') if hasattr(lat, 'strftime') else str(lat)[:5]})" if lat else ""
-                rows.append(Text.from_markup(f"[{R}]âœ—[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
+                rows.append(Text.from_markup(f"[{R}]-œ-[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
 
     # Notifications (up to 4)
     notifs_list = []
@@ -5379,7 +5400,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
         elif ok_count > 0:
             rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(f"[{G}]âœ" Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
+            rows.append(Text.from_markup(f"[{G}]-œ" Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log - most recent notable actions
     valid_audit = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
@@ -5405,7 +5426,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 
 def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
-    """Focused 'did the algo work?' panel: run outcome â†' what it did â†' system health."""
+    """Focused 'did the algo work?' panel: run outcome -†' what it did -†' system health."""
     # Issue 2 FIX: Validate error dicts - return early if any critical param has _error
     if isinstance(hlth, dict) and hlth.get("_error"):
         return error_panel("DATA HEALTH", hlth.get("_error"))
@@ -5413,7 +5434,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         return error_panel("NOTIFICATIONS", notifs.get("_error"))
     rows: list = []
 
-    # â"â" A: Run outcome â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" A: Run outcome -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
     run_at    = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
@@ -5421,11 +5442,11 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
 
     if run_valid:
         if run.get("success") and not run.get("halted"):
-            sts = f"[bold {G}]âœ" COMPLETED[/]"
+            sts = f"[bold {G}]-œ" COMPLETED[/]"
         elif run.get("halted"):
             sts = f"[bold {Y}]~ HALTED[/]"
         elif run.get("errored"):
-            sts = f"[bold {R}]âœ— ERROR[/]"
+            sts = f"[bold {R}]-œ- ERROR[/]"
         else:
             sts = "[dim]UNKNOWN[/]"
         rid = (run.get("run_id") or "")[:28]
@@ -5435,7 +5456,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {prefix}{detail[:80]}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]-†³ {prefix}{detail[:80]}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
     elif act_valid:
@@ -5443,7 +5464,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     else:
         rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
 
-    # â"â" B: Phase badges + aggregated "what did it do?" metrics â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" B: Phase badges + aggregated "what did it do?" metrics -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     signals_gen  = 0
     entries_exec = 0
     exits_exec   = 0
@@ -5462,7 +5483,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
             ps    = (p.get("status") or "").lower()
             sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
-            si    = "âœ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "âœ—")
+            si    = "-œ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "-œ-")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
             pdata = p.get("data")
             if pdata is None:
@@ -5492,7 +5513,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:8]
             st    = p.get("status", "")
             sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            si    = "âœ"" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "âœ—")
+            si    = "-œ"" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "-œ-")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
     if phase_badges:
@@ -5547,7 +5568,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
 
     rows.append(Rule(style="dim"))
 
-    # â"â" C: Run history (last 7 runs as badges) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" C: Run history (last 7 runs as badges) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
         n_ok  = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
@@ -5557,7 +5578,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         badges  = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
-            badges.append(f"[{G}]âœ"[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]âœ—[/]"))
+            badges.append(f"[{G}]-œ"[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]-œ-[/]"))
         wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
         rows.append(Text.from_markup(
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
@@ -5572,24 +5593,24 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {body[:68]}[/]{ph_s}"))
+                rows.append(Text.from_markup(f"  [{Y}]-†³ {body[:68]}[/]{ph_s}"))
 
     rows.append(Rule(style="dim"))
 
-    # â"â" D: Data health (compact) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" D: Data health (compact) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     if hlth:
         stale = [r for r in hlth if r.get("st") != "ok"]
         if not stale:
             crit  = [r for r in hlth if r.get("role") == "CRIT"]
-            ok_s  = "  ".join(f"[{G}]âœ"[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
-            rows.append(Text.from_markup(f"[{G}]âœ" Data OK[/]  [dim]{len(hlth)} tables[/]  {ok_s}"))
+            ok_s  = "  ".join(f"[{G}]-œ"[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
+            rows.append(Text.from_markup(f"[{G}]-œ" Data OK[/]  [dim]{len(hlth)} tables[/]  {ok_s}"))
         else:
             stale_parts = []
             for r in stale[:5]:
                 nm  = (r.get("tbl") or "--")[:9]
                 age = r.get("age") or "?"
                 cc  = "bold white" if r.get("role") == "CRIT" else "white"
-                stale_parts.append(f"[{R}]âœ—[/][{cc}]{nm}[/][dim]{age}d[/]")
+                stale_parts.append(f"[{R}]-œ-[/][{cc}]{nm}[/][dim]{age}d[/]")
             rows.append(Text.from_markup("[dim]Data stale:[/] " + "  ".join(stale_parts)))
 
     # Loader status (compact inline)
@@ -5604,9 +5625,9 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     elif running_loader:
         rows.append(Text.from_markup(f"[{CY}]Loading:[/] [dim]{running_loader[0].get('table_name','')[:16]}[/]"))
     else:
-        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]âœ" {ok_count} healthy[/]"))
+        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]-œ" {ok_count} healthy[/]"))
 
-    # â"â" E: Risk snapshot (VaR / CVaR / Beta / Concentration) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" E: Risk snapshot (VaR / CVaR / Beta / Concentration) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     var95_v = get_numeric(risk, "var95") if risk else None
     if risk and not risk.get("_error") and var95_v is not None and var95_v > 0:
         rows.append(Rule(style="dim"))
@@ -5618,11 +5639,11 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         risk_source = risk.get("_source", "unknown")
         source_label = "pre-computed" if risk_source == "table" else ("calculated" if risk_source == "calculated" else risk_source)
         if not has_data:
-            rows.append(Text.from_markup(f"[{R}]âš  Risk calculation incomplete - awaiting data[/]"))
+            rows.append(Text.from_markup(f"[{R}]-š  Risk calculation incomplete - awaiting data[/]"))
         elif is_stale and age_min:
-            rows.append(Text.from_markup(f"[{Y}]âš  Risk data stale ({age_min:.0f}min old) [{source_label}][/]"))
+            rows.append(Text.from_markup(f"[{Y}]-š  Risk data stale ({age_min:.0f}min old) [{source_label}][/]"))
         else:
-            rows.append(Text.from_markup(f"[{G}]âœ" Risk metrics current[/] [dim]({source_label})[/]"))
+            rows.append(Text.from_markup(f"[{G}]-œ" Risk metrics current[/] [dim]({source_label})[/]"))
 
         beta_v = get_numeric(risk, "beta")
         conc5_v = get_numeric(risk, "conc5")
@@ -5645,7 +5666,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
-    # â"â" F: Notifications (compact) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+    # -"-" F: Notifications (compact) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
     notifs_list = []
     if notifs and isinstance(notifs, dict) and not notifs.get("_error"):
         notifs_list = notifs.get("notifications", []) if isinstance(notifs.get("notifications"), list) else []
@@ -5702,13 +5723,13 @@ def panel_data_quality_status() -> Panel:
 
     if status == "ok":
         status_c = G
-        status_t = "âœ" ALL SYSTEMS HEALTHY"
+        status_t = "-œ" ALL SYSTEMS HEALTHY"
     elif status == "degraded":
         status_c = Y
-        status_t = "âš  DEGRADED (Some data stale or missing)"
+        status_t = "-š  DEGRADED (Some data stale or missing)"
     else:
         status_c = R
-        status_t = "âœ— CRITICAL (Data unavailable)"
+        status_t = "-œ- CRITICAL (Data unavailable)"
 
     ts = hlth.get("timestamp")
     ts_s = ts.strftime("%H:%M:%S ET") if ts and hasattr(ts, "strftime") else "?"
@@ -5720,9 +5741,9 @@ def panel_data_quality_status() -> Panel:
     critical_fetchers = ["fetch_run", "fetch_algo_config", "fetch_market", "fetch_positions"]
     for fname in critical_fetchers:
         if fname in failures:
-            rows.append(Text.from_markup(f"  [{R}]âœ—[/] {fname:<25} [dim]failed[/]"))
+            rows.append(Text.from_markup(f"  [{R}]-œ-[/] {fname:<25} [dim]failed[/]"))
         else:
-            rows.append(Text.from_markup(f"  [{G}]âœ"[/] {fname:<25} [dim]ok[/]"))
+            rows.append(Text.from_markup(f"  [{G}]-œ"[/] {fname:<25} [dim]ok[/]"))
 
     rows.append(Rule(style="dim"))
 
@@ -5730,11 +5751,11 @@ def panel_data_quality_status() -> Panel:
     if issues:
         rows.append(Text.from_markup(f"[{Y}]Data Quality Issues ({len(issues)}):[/]"))
         for issue in issues[:10]:
-            rows.append(Text.from_markup(f"  [{Y}]âš [/] {issue}"))
+            rows.append(Text.from_markup(f"  [{Y}]-š [/] {issue}"))
         if len(issues) > 10:
             rows.append(Text.from_markup(f"  [dim]... and {len(issues) - 10} more issues[/]"))
     else:
-        rows.append(Text.from_markup(f"[{G}]âœ" No data quality issues[/]"))
+        rows.append(Text.from_markup(f"[{G}]-œ" No data quality issues[/]"))
 
     rows.append(Rule(style="dim"))
 
@@ -5744,7 +5765,7 @@ def panel_data_quality_status() -> Panel:
     return Panel(Group(*rows), title="[bold cyan]DATA QUALITY STATUS[/]  [dim][d] detailed view[/]", border_style="cyan", padding=(0, 1))
 
 
-# â"â" mascot panel (compact - dancing man only) â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" mascot panel (compact - dancing man only) -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 
@@ -5770,7 +5791,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     )
 
 
-# â"â" loading layout - same structure as render_dashboard to prevent flicker â"â"
+# -"-" loading layout - same structure as render_dashboard to prevent flicker -"-"
 
 def loading_layout(frame: int) -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
@@ -5829,7 +5850,7 @@ def loading_layout(frame: int) -> Layout:
     return layout
 
 
-# â"â" expanded panel helpers â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" expanded panel helpers -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Layout:
     """Shared skeleton: market header row on top, one full-height panel below."""
@@ -6017,9 +6038,9 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     age_s     = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
-        sts = (f"[bold {G}]âœ" COMPLETED[/]" if run.get("success") and not run.get("halted")
+        sts = (f"[bold {G}]-œ" COMPLETED[/]" if run.get("success") and not run.get("halted")
                else (f"[bold {Y}]~ HALTED[/]" if run.get("halted")
-               else f"[bold {R}]âœ— ERROR[/]"))
+               else f"[bold {R}]-œ- ERROR[/]"))
         rid = (run.get("run_id") or "")
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r  = run.get("halt_reason") or ""
@@ -6027,7 +6048,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {prefix}{detail}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]-†³ {prefix}{detail}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
@@ -6040,7 +6061,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
             ps    = (p.get("status") or "").lower()
             sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
-            si    = "âœ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "âœ—")
+            si    = "-œ"" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "-œ-")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges:
         rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -6058,12 +6079,12 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             dt   = r.get("started_at")
             dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
             ic   = G if s in ("success", "completed") else (Y if s == "halted" else R)
-            ii   = "âœ"" if s in ("success", "completed") else ("~" if s == "halted" else "âœ—")
+            ii   = "-œ"" if s in ("success", "completed") else ("~" if s == "halted" else "-œ-")
             hr   = r.get("halt_reason") or ""
             lph  = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
-            hr_s = f"  [{Y}]â†³ {body}[/]{ph_s}" if body else ""
+            hr_s = f"  [{Y}]-†³ {body}[/]{ph_s}" if body else ""
             rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     rows.append(Rule(style="dim"))
@@ -6080,7 +6101,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             lat_s = lat.strftime("%b %d") if hasattr(lat, "strftime") else str(lat or "")[:5]
             ok   = r.get("st") == "ok"
             ic   = G if ok else R
-            ii   = "âœ"" if ok else "âœ—"
+            ii   = "-œ"" if ok else "-œ-"
             rc   = "white" if role == "CRIT" else (Y if role == "IMP" else DIM)
             rows.append(Text.from_markup(
                 f"  [{ic}]{ii}[/] [{rc}]{nm:<18}[/] [dim]{role:<4}  {age}d  {lat_s}[/]"
@@ -6270,7 +6291,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
     return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]  [dim][r] return[/]", border_style="cyan", padding=(0, 1))
 
 
-# â"â" dashboard layout â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" dashboard layout -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
@@ -6313,10 +6334,10 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     refresh_s = ""
     if refreshing:
-        refresh_s = "  [cyan]â†»[/]"
+        refresh_s = "  [cyan]-†»[/]"
     elif watch_interval is not None and last_load_time is not None:
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
-        refresh_s = f"  [dim]â†»{secs}s[/]"
+        refresh_s = f"  [dim]-†»{secs}s[/]"
 
     hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg)
 
@@ -6400,7 +6421,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     return outer
 
 
-# â"â" run modes â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" run modes -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def run_once(compact: bool) -> None:
     """Single Live session: mascot stays in upper right through loading and live view."""
@@ -6504,29 +6525,29 @@ def run_watch(interval: int, compact: bool) -> None:
 
 
 LEGEND = """
-â•"â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•'                     ALGO DASHBOARD - TERM GUIDE                            â•'
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-•"-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-
+-•'                     ALGO DASHBOARD - TERM GUIDE                            -•'
+-•š-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•-•
 
 PANELS:
 
   ORCHESTRATOR - algo run status & configuration
     Mode            LIVE or PAPER trading, SWING/MOMENTUM style
     Enabled         Whether the algo is currently active
-    min score â‰¥     Minimum swing score a stock must have to be considered
+    min score -‰¥     Minimum swing score a stock must have to be considered
     max N positions Max simultaneous open positions allowed
-    sector â‰¤ N      Max positions in any single sector
+    sector -‰¤ N      Max positions in any single sector
     base risk %     % of portfolio risked per trade (stop-loss sizing)
-    T1 target NR    Target profit = N Ã— the initial risk amount (R-multiple)
+    T1 target NR    Target profit = N Ã- the initial risk amount (R-multiple)
     pyramid on      Algo can add to winning positions (scale in)
-    Phase 1/2/3âœ"    Algo run phases: prep, screening, execution - âœ"=passed
+    Phase 1/2/3-œ"    Algo run phases: prep, screening, execution - -œ"=passed
     VaR 95%         Value at Risk: max expected daily loss 95% of the time
     CVaR 95%        Conditional VaR: avg loss on the worst 5% of days
     Portfolio Beta  How much the portfolio moves vs SPY (1.0 = same as market)
     Top-5 Conc      % of portfolio in top 5 positions (concentration risk)
 
   MARKET - market regime inputs to the algo
-    CONF UP etc     Market tier: Confirmed Uptrend â†' Correction (5 levels)
+    CONF UP etc     Market tier: Confirmed Uptrend -†' Correction (5 levels)
     exposure %      How much of the portfolio the algo is deploying (0-"100%)
     VIX             Volatility Index (>20 = caution, >30 = reduces exposure, >35 = halts trading)
     Dist Days       Distribution days in 4 weeks (heavy selling by institutions)
@@ -6549,7 +6570,7 @@ PANELS:
     Consec Losses   Consecutive losing trades / max before halt
     Total Risk      Open position risk (vs stops) as % of portfolio
     VIX             Current VIX / threshold that triggers halt
-    Mkt Stage       Current market stage (halts if stage â‰¥ 4)
+    Mkt Stage       Current market stage (halts if stage -‰¥ 4)
 
   PORTFOLIO - live account snapshot
     Total value     Current account value including unrealized P&L
@@ -6588,7 +6609,7 @@ PANELS:
     R-Mult          How many R (risk units) this position has moved
     Stop            Current stop-loss price
     Dist%           Distance from current price to stop (buffer remaining)
-    T1â†'             % gain needed to hit first profit target
+    T1-†'             % gain needed to hit first profit target
     Days            Days since position was entered
     Stage           Weinstein stage of the stock (2 = uptrend)
     Swing Score     Algo's composite score for this stock (0-"100)
@@ -6596,12 +6617,12 @@ PANELS:
   SIGNALS - today's buy signal analysis
     A/B/C/D grades  Score grade distribution of all stocks screened today
     buy signals / N scored  How many stocks got a BUY signal today
-    Screened â†' Selected   Signal filter funnel (how many pass each gate)
-      â†'Mkt:          Market condition gate (is market healthy enough?)
-      â†'Score:        Minimum swing score gate
-      â†'Risk:         Position sizing / risk gate
-      â†'Sector:       Sector concentration gate
-      â†'Selected:     Final candidates the algo can trade
+    Screened -†' Selected   Signal filter funnel (how many pass each gate)
+      -†'Mkt:          Market condition gate (is market healthy enough?)
+      -†'Score:        Minimum swing score gate
+      -†'Risk:         Position sizing / risk gate
+      -†'Sector:       Sector concentration gate
+      -†'Selected:     Final candidates the algo can trade
     avg score       Average quality score of signals passing all filters
     Top rejection reasons   Why most signals were filtered out
 
@@ -6612,7 +6633,7 @@ PANELS:
     #2 Industry -²1    Top industry sub-groups within sectors
 
   EXPOSURE SCORE BREAKDOWN - what drives the algo's allocation %
-    Score N/100       Raw points scored â†' converted to exposure % (0-"100%)
+    Score N/100       Raw points scored -†' converted to exposure % (0-"100%)
     30wk Trend        Is SPY above its 30-week moving average?
     Breadth 50MA      % of S&P 500 stocks above their 50-day MA
     IBD State         IBD market status (Confirmed Uptrend/Under Pressure/etc)
@@ -6625,11 +6646,11 @@ PANELS:
     AAII Sentiment    Weekly survey: retail investor bullish vs bearish %
     NAAIM Exposure    Active manager equity exposure level
 
-  ECONOMIC INPUTS â†' Exposure Score - macro factors the algo monitors
+  ECONOMIC INPUTS -†' Exposure Score - macro factors the algo monitors
     3M/6M/2Y/10Y Tsy  Treasury yield curve (used in yield curve slope factor)
     10Y-2Y spread     Yield curve inversion (algo reduces exposure when inverted)
     Fed Rate          Federal Funds Rate (algo's fed_rate_environment filter)
-    HY/IG OAS         Credit spreads - widening = risk-off â†' algo reduces exposure
+    HY/IG OAS         Credit spreads - widening = risk-off -†' algo reduces exposure
     CPI YoY           Inflation rate (algo's economic overlay factor)
     Unemployment      Labor market health (economic overlay)
     WTI Crude Oil     Oil price (energy cost / inflation proxy)
@@ -6640,7 +6661,7 @@ PANELS:
     UMich Sentiment   Consumer confidence (economic overlay factor)
 
   ACTIVITY & HEALTH - algo system status
-    Run phases        Which phases of today's run completed (âœ"/~/âœ—)
+    Run phases        Which phases of today's run completed (-œ"/~/-œ-)
     Data health       Whether all required data tables are fresh
     Notifications     System alerts (circuit breaker fired, trade executed, etc)
     Daily actions     How many entries/exits the algo took each day
@@ -6658,7 +6679,7 @@ SIDEBAR:
     N positions       Currently open position count
     Win rate %        All-time trade win rate
     P&L $             Total realized profit/loss
-    Last run status   âœ"=completed âœ—=error ~=halted, and time since
+    Last run status   -œ"=completed -œ-=error ~=halted, and time since
     - N alerts        Unread notifications needing attention
 """
 
@@ -6667,14 +6688,14 @@ def print_legend():
     CONSOLE.print(LEGEND)
 
 
-# â"â" entry point â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"â"
+# -"-" entry point -"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"-"
 
 def _configure_database(use_aws_only: bool = True):
     """Configure database environment for AWS-only mode.
 
     Dashboard now connects to AWS RDS exclusively via credential_manager.py.
     The credential_manager handles both environment variables and AWS Secrets Manager.
-    Never hardcode the RDS proxy hostname here — it's VPC-internal and unreachable
+    Never hardcode the RDS proxy hostname here - it's VPC-internal and unreachable
     from local machines. credential_manager will fetch the actual endpoint from:
     1. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT) set by PowerShell profile
     2. AWS Secrets Manager (algo/database secret) if env vars not set
@@ -6682,7 +6703,7 @@ def _configure_database(use_aws_only: bool = True):
     Args:
         use_aws_only: Always True (AWS-only mode, no fallback to localhost)
     """
-    # Do NOT hardcode RDS proxy hostname — credential_manager will handle it
+    # Do NOT hardcode RDS proxy hostname - credential_manager will handle it
     return 'aws'
 
 def main():
