@@ -121,7 +121,12 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_errors = 0
         self._rate_limit_error_start_time = None
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
-        self._rate_limit_circuit_break_threshold = 180 if self._is_eod_pipeline else 480  # Dynamic threshold
+        # Load from centralized config (config/thresholds.py)
+        try:
+            from config.thresholds import ThresholdConfig
+            self._rate_limit_circuit_break_threshold = ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
+        except Exception:
+            self._rate_limit_circuit_break_threshold = 180 if self._is_eod_pipeline else 480
 
         # Granular failure tracking for partial batch credit
         # Instead of counting entire batch as 1 failure, track success ratio
@@ -1217,9 +1222,14 @@ class PriceLoader(OptimalLoader):
                 market_close_available = True  # Optimistic - proceed
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
-        # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode
+        # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)
         TASK_TIMEOUT_SEC = 25200
-        EMERGENCY_MODE_THRESHOLD = TASK_TIMEOUT_SEC * 0.5  # 12600s = 3.5h
+        try:
+            from config.thresholds import ThresholdConfig
+            emergency_multiplier = ThresholdConfig.loader_emergency_mode_threshold_multiplier()
+        except Exception:
+            emergency_multiplier = 0.5
+        EMERGENCY_MODE_THRESHOLD = TASK_TIMEOUT_SEC * emergency_multiplier
         COMPLETION_THRESHOLD_PCT = 0.10  # 10% complete
         emergency_mode_enabled = False
 

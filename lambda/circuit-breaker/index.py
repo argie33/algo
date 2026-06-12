@@ -142,7 +142,13 @@ def lambda_handler(event, context):
                 })
             }
 
-        threshold = 0.15
+        # Load portfolio variance threshold from centralized config
+        try:
+            from config.thresholds import ThresholdConfig
+            threshold = ThresholdConfig.portfolio_variance_threshold()
+        except Exception:
+            threshold = 0.15  # Fallback to default
+
         if variance > threshold:
             logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
             _set_halt(table, True, f'Portfolio variance {variance:.1%} exceeds {threshold:.1%}', check_time)

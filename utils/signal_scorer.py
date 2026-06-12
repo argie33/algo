@@ -22,10 +22,25 @@ class SignalScorer:
     SCORE_MIN = 0.0
     SCORE_MAX = 100.0
 
-    # Standard signal strength thresholds (can be overridden per signal type)
-    WEAK_THRESHOLD = 40.0      # Below this = weak signal
-    MEDIUM_THRESHOLD = 60.0    # 40-60 = medium
-    STRONG_THRESHOLD = 80.0    # 60-80 = strong, >= 80 = very strong
+    # Standard signal strength thresholds (loaded from config; see _get_config_thresholds())
+    WEAK_THRESHOLD = 40.0      # Below this = weak signal (default)
+    MEDIUM_THRESHOLD = 60.0    # 40-60 = medium (default)
+    STRONG_THRESHOLD = 80.0    # 60-80 = strong, >= 80 = very strong (default)
+
+    @staticmethod
+    def _get_config_thresholds():
+        """Load signal strength thresholds from centralized config.
+
+        Returns:
+            Tuple of (weak, medium, strong) thresholds, or defaults if config unavailable.
+        """
+        try:
+            from config.thresholds import ThresholdConfig
+            t = ThresholdConfig.get_signal_strength_thresholds()
+            return t['weak'], t['medium'], t['strong']
+        except Exception as e:
+            logger.debug(f"Failed to load thresholds from config: {e}")
+            return SignalScorer.WEAK_THRESHOLD, SignalScorer.MEDIUM_THRESHOLD, SignalScorer.STRONG_THRESHOLD
 
     @staticmethod
     def normalize_score(raw_score: float, min_val: float = 0, max_val: float = 100) -> float:
@@ -45,21 +60,31 @@ class SignalScorer:
         return max(SignalScorer.SCORE_MIN, min((raw_score - min_val) / (max_val - min_val) * 100, SignalScorer.SCORE_MAX))
 
     @staticmethod
-    def classify_strength(score: float, weak_threshold: float = WEAK_THRESHOLD,
-                         medium_threshold: float = MEDIUM_THRESHOLD,
-                         strong_threshold: float = STRONG_THRESHOLD) -> str:
+    def classify_strength(score: float, weak_threshold: float = None,
+                         medium_threshold: float = None,
+                         strong_threshold: float = None) -> str:
         """
         Classify signal strength based on score.
 
+        Thresholds are loaded from centralized config (config/thresholds.py).
+        Can be overridden by passing explicit values.
+
         Args:
             score: Signal score (0-100)
-            weak_threshold: Score below which signal is weak (default 40)
-            medium_threshold: Score above which signal is medium (default 60)
-            strong_threshold: Score above which signal is strong (default 80)
+            weak_threshold: Optional override for weak threshold (default: load from config)
+            medium_threshold: Optional override for medium threshold (default: load from config)
+            strong_threshold: Optional override for strong threshold (default: load from config)
 
         Returns:
             Strength classification: 'very_weak', 'weak', 'medium', 'strong', 'very_strong'
         """
+        # Load from config if not provided
+        if weak_threshold is None or medium_threshold is None or strong_threshold is None:
+            w, m, s = SignalScorer._get_config_thresholds()
+            weak_threshold = weak_threshold or w
+            medium_threshold = medium_threshold or m
+            strong_threshold = strong_threshold or s
+
         if score < weak_threshold:
             return 'very_weak' if score < weak_threshold / 2 else 'weak'
         elif score < medium_threshold:
@@ -72,9 +97,11 @@ class SignalScorer:
     @staticmethod
     def format_result(signal_type: str, symbol: str, eval_date: date,
                      score: float, strength: str = None, details: Dict[str, Any] = None,
-                     threshold: float = MEDIUM_THRESHOLD) -> Dict[str, Any]:
+                     threshold: float = None) -> Dict[str, Any]:
         """
         Format a standardized signal result.
+
+        Threshold defaults to 'medium' from centralized config (config/thresholds.py).
 
         Args:
             signal_type: Type of signal (e.g., 'momentum', 'pattern', 'trend')
@@ -83,13 +110,17 @@ class SignalScorer:
             score: Signal score (0-100)
             strength: Optional override for strength classification
             details: Optional dict of component details (e.g., {'rsv': 60.5, 'volume_ratio': 1.2})
-            threshold: Threshold for signal pass/fail
+            threshold: Optional override for pass/fail threshold (default: medium threshold from config)
 
         Returns:
             Standardized dict with signal result
         """
         if strength is None:
             strength = SignalScorer.classify_strength(score)
+
+        # Load default threshold from config if not provided
+        if threshold is None:
+            _, threshold, _ = SignalScorer._get_config_thresholds()
 
         return {
             'signal_type': signal_type,
