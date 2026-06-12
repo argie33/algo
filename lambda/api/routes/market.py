@@ -745,42 +745,42 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
 @db_route_handler('get market latest')
 def _get_market_latest(cur) -> Dict:
     """Get latest market data including indices, breadth, and sentiment."""
-        cur.execute("""
-            SELECT date, market_trend, market_stage, advance_decline_ratio,
-                       new_highs_count, new_lows_count, vix_level, put_call_ratio,
-                       distribution_days_4w, up_volume_percent, breadth_momentum_10d
-            FROM market_health_daily
-            ORDER BY date DESC
-            LIMIT 1
-        """)
-        market_row = cur.fetchone()
+    cur.execute("""
+        SELECT date, market_trend, market_stage, advance_decline_ratio,
+                   new_highs_count, new_lows_count, vix_level, put_call_ratio,
+                   distribution_days_4w, up_volume_percent, breadth_momentum_10d
+        FROM market_health_daily
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    market_row = cur.fetchone()
 
-        cur.execute("""
-            SELECT date, fear_greed_value, fear_greed_label
-            FROM fear_greed_index
-            ORDER BY date DESC
-            LIMIT 1
-        """)
-        sentiment_row = cur.fetchone()
+    cur.execute("""
+        SELECT date, fear_greed_value, fear_greed_label
+        FROM fear_greed_index
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    sentiment_row = cur.fetchone()
 
-        cur.execute("""
-            SELECT symbol, close
-            FROM price_daily
-            WHERE date = (SELECT date FROM price_daily ORDER BY date DESC LIMIT 1)
-            ORDER BY symbol
-            LIMIT 10
-        """)
-        recent_prices = cur.fetchall()
+    cur.execute("""
+        SELECT symbol, close
+        FROM price_daily
+        WHERE date = (SELECT date FROM price_daily ORDER BY date DESC LIMIT 1)
+        ORDER BY symbol
+        LIMIT 10
+    """)
+    recent_prices = cur.fetchall()
 
-        result = {}
-        if market_row:
-            result['market'] = dict(market_row)
-        if sentiment_row:
-            result['sentiment'] = dict(sentiment_row)
-        if recent_prices:
-            result['prices'] = [safe_json_serialize(dict(p)) for p in recent_prices]
+    result = {}
+    if market_row:
+        result['market'] = dict(market_row)
+    if sentiment_row:
+        result['sentiment'] = dict(sentiment_row)
+    if recent_prices:
+        result['prices'] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
-        return json_response(200, result if result else {})
+    return json_response(200, result if result else {})
 
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
@@ -791,10 +791,10 @@ def _parse_range_param(params: Dict, default: int = 30) -> int:
 @db_route_handler('get correlation matrix')
 def _get_correlation_matrix(cur) -> Dict:
     """Compute and return correlation matrix between key market indices."""
-        symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
+    symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
 
-        cur.execute("SAVEPOINT correlation_matrix")
-        cur.execute("SET LOCAL statement_timeout = '12s'")  # Query on 252 days of data
+    cur.execute("SAVEPOINT correlation_matrix")
+    cur.execute("SET LOCAL statement_timeout = '12s'")  # Query on 252 days of data
         cur.execute("""
             SELECT symbol, date, close
             FROM price_daily
