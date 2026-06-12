@@ -1653,10 +1653,13 @@ def _get_markets(cur) -> Dict:
                 logger.warning(f"[MARKETS] sector_ranking query failed: {e}")
                 sectors = []
 
-            market_health = None
+            market_health = {}
             try:
                 cur.execute("""
-                    SELECT market_trend, market_stage, vix_level
+                    SELECT market_trend, market_stage, vix_level, spy_change_pct,
+                           up_volume_percent, advance_decline_ratio, new_highs_count,
+                           new_lows_count, breadth_momentum_10d, put_call_ratio,
+                           yield_curve_slope, fed_rate_environment
                     FROM market_health_daily
                     ORDER BY date DESC LIMIT 1
                 """)
@@ -1666,6 +1669,19 @@ def _get_markets(cur) -> Dict:
             except Exception as e:
                 logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
 
+            spy_price = None
+            try:
+                cur.execute("""
+                    SELECT close FROM price_daily
+                    WHERE symbol = 'SPY'
+                    ORDER BY date DESC LIMIT 1
+                """)
+                spy_row = cur.fetchone()
+                if spy_row:
+                    spy_price = float(spy_row[0])
+            except Exception as e:
+                logger.warning(f"[MARKETS] SPY price unavailable: {type(e).__name__}: {e}")
+
             return json_response(200, {
                 'success': True,
                 'current': current,
@@ -1673,6 +1689,22 @@ def _get_markets(cur) -> Dict:
                 'history': history,
                 'sectors': sectors,
                 'market_health': market_health,
+                'exposure_pct': current.get('exposure_pct') if current else None,
+                'halt_reasons': current.get('halt_reasons', []) if current else [],
+                'vix_level': market_health.get('vix_level') if market_health else None,
+                'distribution_days_4w': current.get('distribution_days') if current else None,
+                'market_stage': market_health.get('market_stage') if market_health else None,
+                'market_trend': market_health.get('market_trend') if market_health else None,
+                'spy_price': spy_price,
+                'spy_change_pct': market_health.get('spy_change_pct') if market_health else None,
+                'up_volume_percent': market_health.get('up_volume_percent') if market_health else None,
+                'advance_decline_ratio': market_health.get('advance_decline_ratio') if market_health else None,
+                'new_highs_count': market_health.get('new_highs_count') if market_health else None,
+                'new_lows_count': market_health.get('new_lows_count') if market_health else None,
+                'put_call_ratio': market_health.get('put_call_ratio') if market_health else None,
+                'yield_curve_slope': market_health.get('yield_curve_slope') if market_health else None,
+                'breadth_momentum_10d': market_health.get('breadth_momentum_10d') if market_health else None,
+                'fed_rate_environment': market_health.get('fed_rate_environment') if market_health else None,
                 'data_freshness': freshness,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

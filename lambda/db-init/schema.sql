@@ -1391,6 +1391,7 @@ CREATE TABLE IF NOT EXISTS market_health_daily (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL UNIQUE,
     spy_close DECIMAL(12, 4),
+    spy_change_pct DECIMAL(8, 2),
     market_trend VARCHAR(20),
     market_stage INTEGER,
     distribution_days_4w INTEGER,

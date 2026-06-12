@@ -872,23 +872,15 @@ def fetch_activity(c):
         return {"_error": str(e)}
 
 def fetch_health(c):
+    # Issue 3 FIX: Use /api/algo/data-status endpoint instead of direct DB access
     try:
-        return q(c, """
-            SELECT tbl, role, latest, age,
-                   CASE WHEN age IS NULL OR age > stale THEN 'stale' ELSE 'ok' END AS st
-            FROM (
-              SELECT 'price_daily'    tbl,'CRIT' role, MAX(date)::date latest,(CURRENT_DATE-MAX(date)::date) age,3  stale FROM price_daily       UNION ALL
-              SELECT 'buy_sell_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM buy_sell_daily  UNION ALL
-              SELECT 'swing_scores',  'CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM swing_trader_scores UNION ALL
-              SELECT 'exposure_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM market_exposure_daily UNION ALL
-              SELECT 'port_snapshot', 'CRIT',          MAX(snapshot_date)::date,(CURRENT_DATE-MAX(snapshot_date)::date),3 FROM algo_portfolio_snapshots UNION ALL
-              SELECT 'technicals',    'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM technical_data_daily UNION ALL
-              SELECT 'market_health', 'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM market_health_daily UNION ALL
-              SELECT 'trend_template','IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM trend_template_data UNION ALL
-              SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
-              SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
-            ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
-    except:
+        resp = api_call("/api/algo/data-status")
+        if resp.get("_error"):
+            logger.warning(f"fetch_health: {resp.get('_error')}")
+            return []
+        return resp.get("data", [])
+    except Exception as e:
+        logger.error(f"fetch_health: {type(e).__name__}: {e}")
         return []
 
 def fetch_economic_pulse(c):
