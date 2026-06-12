@@ -27,6 +27,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, os.path.dirname(__file__))
+
 import requests
 import requests.exceptions
 
@@ -772,7 +774,7 @@ def fetch_positions(c):
 def fetch_recent_trades(c):
     try:
         return q(c, """SELECT trade_id, symbol, entry_date, entry_price, exit_date,
-                              exit_price, profit_loss_dollars, profit_loss_pct
+                              exit_price, profit_loss_dollars, profit_loss_pct, exit_r_multiple
                        FROM algo_trades WHERE status='closed'
                        ORDER BY exit_date DESC LIMIT 10""")
     except Exception as e:
