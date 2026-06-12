@@ -20,6 +20,7 @@ import argparse
 import logging
 import time
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 from utils.database_context import DatabaseContext
