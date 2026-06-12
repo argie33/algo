@@ -2214,141 +2214,108 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
         return list_response([safe_json_serialize(dict(r)) for r in rows], total=total, limit=limit, offset=offset)
 
 # FIXED Issue #6: Orchestrator execution history endpoints
+@db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0})
 def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
-        """Return recent orchestrator execution runs."""
-        try:
-            cur.execute("""
-                SELECT run_id, run_date, started_at, completed_at, overall_status,
-                       phases_completed, phases_halted, phases_errored, summary
-                FROM orchestrator_execution_log
-                WHERE run_date >= CURRENT_DATE - %s
-                ORDER BY started_at DESC
-                LIMIT %s
-            """, (days, limit))
-            rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows), limit=limit)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution recent'})
-            return error_response(503, 'service_unavailable', 'Execution history unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get orchestrator execution recent'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except Exception as e:
-            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution recent'})
-            return error_response(500, 'internal_error', 'Failed to fetch execution history')
+    """Return recent orchestrator execution runs."""
+    cur.execute("""
+        SELECT run_id, run_date, started_at, completed_at, overall_status,
+               phases_completed, phases_halted, phases_errored, summary
+        FROM orchestrator_execution_log
+        WHERE run_date >= CURRENT_DATE - %s
+        ORDER BY started_at DESC
+        LIMIT %s
+    """, (days, limit))
+    rows = cur.fetchall()
+    return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows), limit=limit)
 
+@db_route_handler('fetch orchestrator execution failed', default_error_response={'items': [], 'total': 0})
 def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
-        """Return failed/halted orchestrator runs."""
-        try:
-            cur.execute("""
-                SELECT run_id, run_date, started_at, overall_status, summary, halt_reason
-                FROM orchestrator_execution_log
-                WHERE run_date >= CURRENT_DATE - %s
-                  AND overall_status IN ('halted', 'error')
-                ORDER BY started_at DESC
-            """, (days,))
-            rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows))
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution failed'})
-            return error_response(503, 'service_unavailable', 'Execution history unavailable')
-        except Exception as e:
-            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution failed'})
-            return error_response(500, 'internal_error', 'Failed to fetch failed runs')
+    """Return failed/halted orchestrator runs."""
+    cur.execute("""
+        SELECT run_id, run_date, started_at, overall_status, summary, halt_reason
+        FROM orchestrator_execution_log
+        WHERE run_date >= CURRENT_DATE - %s
+          AND overall_status IN ('halted', 'error')
+        ORDER BY started_at DESC
+    """, (days,))
+    rows = cur.fetchall()
+    return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows))
 
+@db_route_handler('fetch orchestrator execution details', default_error_response={'data': {}})
 def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
-        """Return full details of a specific orchestrator run."""
+    """Return full details of a specific orchestrator run."""
+    cur.execute("""
+        SELECT run_id, run_date, started_at, completed_at, overall_status,
+               phase_results, summary, halt_reason, phases_completed,
+               phases_halted, phases_errored
+        FROM orchestrator_execution_log
+        WHERE run_id = %s
+    """, (run_id,))
+    row = cur.fetchone()
+    if not row:
+        return error_response(404, 'not_found', f'Run {run_id} not found')
+
+    result = safe_json_serialize(dict(row))
+    # Parse phase_results JSONB
+    if result.get('phase_results'):
         try:
-            cur.execute("""
-                SELECT run_id, run_date, started_at, completed_at, overall_status,
-                       phase_results, summary, halt_reason, phases_completed,
-                       phases_halted, phases_errored
-                FROM orchestrator_execution_log
-                WHERE run_id = %s
-            """, (run_id,))
-            row = cur.fetchone()
-            if not row:
-                return error_response(404, 'not_found', f'Run {run_id} not found')
-
-            result = safe_json_serialize(dict(row))
-            # Parse phase_results JSONB
-            if result.get('phase_results'):
-                try:
-                    result['phase_results'] = json.loads(result['phase_results'])
-                except Exception as e:
-                    logger.warning(f'Failed to parse phase_results JSON: {e}')
-                    result['phase_results'] = {}
-            return success_response(result)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution details'})
-            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+            result['phase_results'] = json.loads(result['phase_results'])
         except Exception as e:
-            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution details'})
-            return error_response(500, 'internal_error', 'Failed to fetch execution details')
+            logger.warning(f'Failed to parse phase_results JSON: {e}')
+            result['phase_results'] = {}
+    return success_response(result)
 
+@db_route_handler('fetch orchestrator execution patterns', default_error_response={'data': {'patterns': [], 'period_days': 0}})
 def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
-        """Analyze halt patterns - which phases halt most often."""
-        try:
-            cur.execute("""
-                SELECT
-                    phase_results->>'name' as phase_name,
-                    COUNT(*) as halt_count,
-                    array_agg(DISTINCT phase_results->>'summary') as reasons
-                FROM orchestrator_execution_log,
-                     jsonb_array_elements(phase_results) as phase_results
-                WHERE run_date >= CURRENT_DATE - %s
-                  AND phase_results->>'status' = 'halt'
-                GROUP BY phase_results->>'name'
-                ORDER BY halt_count DESC
-            """, (days,))
-            rows = cur.fetchall()
-            patterns = [
-                {
-                    'phase': r['phase_name'],
-                    'total_halts': r['halt_count'],
-                    'example_reasons': r['reasons'][:3] if r['reasons'] else []
-                }
-                for r in rows
-            ]
-            return success_response({'patterns': patterns, 'period_days': days})
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution patterns'})
-            return error_response(503, 'service_unavailable', 'Execution history unavailable')
-        except Exception as e:
-            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution patterns'})
-            return error_response(500, 'internal_error', 'Failed to analyze halt patterns')
+    """Analyze halt patterns - which phases halt most often."""
+    cur.execute("""
+        SELECT
+            phase_results->>'name' as phase_name,
+            COUNT(*) as halt_count,
+            array_agg(DISTINCT phase_results->>'summary') as reasons
+        FROM orchestrator_execution_log,
+             jsonb_array_elements(phase_results) as phase_results
+        WHERE run_date >= CURRENT_DATE - %s
+          AND phase_results->>'status' = 'halt'
+        GROUP BY phase_results->>'name'
+        ORDER BY halt_count DESC
+    """, (days,))
+    rows = cur.fetchall()
+    patterns = [
+        {
+            'phase': r['phase_name'],
+            'total_halts': r['halt_count'],
+            'example_reasons': r['reasons'][:3] if r['reasons'] else []
+        }
+        for r in rows
+    ]
+    return success_response({'patterns': patterns, 'period_days': days})
 
+@db_route_handler('fetch orchestrator execution stats', default_error_response={'data': {'total_runs': 0, 'by_status': {}, 'success_rate': 'N/A', 'halt_rate': 'N/A', 'error_rate': 'N/A', 'period_days': 0}})
 def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
-        """Return execution statistics."""
-        try:
-            cur.execute("""
-                SELECT
-                    overall_status,
-                    COUNT(*) as count
-                FROM orchestrator_execution_log
-                WHERE run_date >= CURRENT_DATE - %s
-                GROUP BY overall_status
-            """, (days,))
-            rows = cur.fetchall()
+    """Return execution statistics."""
+    cur.execute("""
+        SELECT
+            overall_status,
+            COUNT(*) as count
+        FROM orchestrator_execution_log
+        WHERE run_date >= CURRENT_DATE - %s
+        GROUP BY overall_status
+    """, (days,))
+    rows = cur.fetchall()
 
-            stats_by_status = {r['overall_status']: r['count'] for r in rows}
-            total = sum(stats_by_status.values())
+    stats_by_status = {r['overall_status']: r['count'] for r in rows}
+    total = sum(stats_by_status.values())
 
-            success_count = stats_by_status.get('success', 0)
-            halt_count = stats_by_status.get('halted', 0)
-            error_count = stats_by_status.get('error', 0)
+    success_count = stats_by_status.get('success', 0)
+    halt_count = stats_by_status.get('halted', 0)
+    error_count = stats_by_status.get('error', 0)
 
-            return success_response({
-                'total_runs': total,
-                'by_status': stats_by_status,
-                'success_rate': f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A",
-                'halt_rate': f"{(halt_count / total * 100):.1f}%" if total > 0 else "N/A",
-                'error_rate': f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
-                'period_days': days
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution stats'})
-            return error_response(503, 'service_unavailable', 'Execution history unavailable')
-        except Exception as e:
-            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution stats'})
-            return error_response(500, 'internal_error', 'Failed to compute execution statistics')
+    return success_response({
+        'total_runs': total,
+        'by_status': stats_by_status,
+        'success_rate': f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A",
+        'halt_rate': f"{(halt_count / total * 100):.1f}%" if total > 0 else "N/A",
+        'error_rate': f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
+        'period_days': days
+    })
