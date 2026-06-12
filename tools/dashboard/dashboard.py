@@ -1336,8 +1336,8 @@ def panel_market_full(mkt, sentiment=None):
 
     uvc   = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
     pcr_c = G if (pcr or 99) <= 0.8 else (Y if (pcr or 99) <= 1.0 else R)
-    nhnl  = (nh or 0) - (nl or 0)
-    nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R)
+    nhnl  = (nh - nl) if (nh is not None and nl is not None) else None
+    nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R) if nhnl is not None else DIM
 
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
@@ -1349,7 +1349,7 @@ def panel_market_full(mkt, sentiment=None):
     ]
     if upvol is not None:
         adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nh is not None else ""
+        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
         lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
@@ -1417,7 +1417,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         exp_s   = f"{float(exp):.0f}%" if exp is not None else "--"
         bar     = exp_bar(exp or 0, w=8)
         vix     = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-        vc      = R if (mkt.get("vix") or 0) >= 30 else (Y if (mkt.get("vix") or 0) >= 20 else G)
+        vc      = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
         dist    = str(mkt.get("dist") or "--")
         stage   = str(mkt.get("stage") or "--")
         spy_raw = mkt.get("spy"); spy_chg = mkt.get("spy_chg")
@@ -1431,13 +1431,14 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         upvol = mkt.get("upvol"); nh = mkt.get("nh"); nl = mkt.get("nl"); adr = mkt.get("adr")
         if upvol is not None:
             uvc    = G if upvol >= 60 else (Y if upvol >= 50 else R)
-            nhnl   = (nh or 0) - (nl or 0)
-            nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R)
+            nhnl   = (nh - nl) if (nh is not None and nl is not None) else None
+            nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R) if nhnl is not None else DIM
             adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
+            nhnl_s = f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else "[dim]NH-NL: --[/]"
             rows.append(Text.from_markup(
                 f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
                 f"[dim]NH:[/][{G}]{nh or '--'}[/] [dim]NL:[/][{R}]{nl or '--'}[/]  "
-                f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]"
+                f"{nhnl_s}"
             ))
         pcr = mkt.get("pcr"); bmom = mkt.get("bmom"); ycs = mkt.get("ycs"); fed = mkt.get("fed")
         parts4 = []
