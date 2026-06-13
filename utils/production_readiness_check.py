@@ -27,24 +27,55 @@ class ProductionReadinessCheck:
         self.checks_warnings = []
 
     def check_database_connectivity(self) -> bool:
-        """Verify database is accessible and schema exists."""
+        """Verify database is accessible and schema exists with correct column data types."""
         try:
             from utils.database_context import DatabaseContext
+            from utils.schema_validator import validate_table_schema
+            from loaders.schema_definitions import TABLE_SCHEMAS
 
             with DatabaseContext('read') as cur:
-                # Quick schema validation: check key tables exist
-                cur.execute("""
-                    SELECT COUNT(*) FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                    AND table_name IN ('price_daily', 'algo_positions', 'signal_quality_scores')
-                """)
-                result = cur.fetchone()[0]
+                # Validate critical tables exist with correct column types
+                required_tables = {
+                    'price_daily': TABLE_SCHEMAS.get('price_daily', {}),
+                    'algo_positions': {},  # No strict schema definition yet
+                    'signal_quality_scores': {},  # No strict schema definition yet
+                }
 
-                if result >= 3:
-                    self.checks_passed.append("Database connectivity and schema OK")
+                all_valid = True
+                validation_results = []
+
+                for table_name, schema in required_tables.items():
+                    if not schema:
+                        # Table without strict schema - just check existence
+                        cur.execute("""
+                            SELECT 1 FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = %s
+                        """, (table_name,))
+                        exists = cur.fetchone() is not None
+                        if exists:
+                            validation_results.append(f"{table_name} exists")
+                        else:
+                            validation_results.append(f"{table_name} MISSING")
+                            all_valid = False
+                    else:
+                        # Table with strict schema - validate column types
+                        is_valid, errors = validate_table_schema(
+                            cur,
+                            table_name,
+                            required_columns=schema,
+                            check_row_count=False  # Don't require table to have data yet
+                        )
+                        if is_valid:
+                            validation_results.append(f"{table_name} schema valid ({len(schema)} columns)")
+                        else:
+                            validation_results.append(f"{table_name} schema INVALID: {'; '.join(errors[:2])}")
+                            all_valid = False
+
+                if all_valid:
+                    self.checks_passed.append(f"Database connectivity and schema OK: {', '.join(validation_results)}")
                     return True
                 else:
-                    self.checks_failed.append(f"Missing required tables: found {result}/3")
+                    self.checks_failed.append(f"Schema validation failed: {'; '.join(validation_results)}")
                     return False
 
         except Exception as e:
