@@ -673,7 +673,7 @@ def _get_algo_performance(cur) -> Dict:
             trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             if not trades:
-                return json_response(200, {
+                empty_response = {
                     'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                     'breakeven_trades': 0, 'win_rate': None, 'profit_factor': None,
                     'total_pnl_dollars': None, 'total_pnl_pct': None,
@@ -685,7 +685,9 @@ def _get_algo_performance(cur) -> Dict:
                         'sharpe_confidence': 'low', 'win_rate_confidence': 'low',
                         'return_confidence': 'low', 'snapshot_count': 0, 'total_trades': 0
                     }
-                })
+                }
+                sanitized = APIResponseValidator.sanitize_response(empty_response)
+                return json_response(200, sanitized)
 
             # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
             pnl_dollars = []

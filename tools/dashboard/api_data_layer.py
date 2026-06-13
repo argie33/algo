@@ -6,20 +6,16 @@ consistent data freshness.
 
 ISSUE 1.1 FIX: Consistent API Response Handling
 ================================================
-Different endpoints returned different response formats causing silent parsing failures:
-- Some: {data: {...}}
-- Others: {items: [...]} or direct fields
-- Created inconsistency in panel builders
+All API responses follow a standardized format from the backend via _wrap_response():
+- Format: {statusCode: 200, data: {...payload...}, ...metadata}
+- Error format: {statusCode: 4xx, errorType: "...", message: "...", _error: "..."}
 
 FIX IMPLEMENTATION:
-1. api_call() now unwraps the statusCode wrapper from all responses
-2. _unwrap_api_response() standardizes payload extraction
-3. Each data fetcher uses resp.get("data", resp) to handle both:
-   - json_response() format: {"data": {...}}
-   - Direct field format: {"n": 0, "buy_sigs": [...], ...}
-4. list_response() format stays at top level: {"items": [...], "pagination": {...}}
+1. api_call() invokes _unwrap_api_response() to extract just the payload
+2. _unwrap_api_response() returns response["data"] directly
+3. All data fetchers work with unwrapped payloads (no more nested data fields)
 
-Result: Single consistent unpacking pattern across all data fetchers.
+Result: Consistent response handling — all methods access fields at the same nesting level.
 
 Migration status:
 - Positions, Trades, Performance, Signals: ✅ API-only + standardized
