@@ -12,6 +12,7 @@ setup_imports()
 
 import sys
 import logging
+from datetime import date
 from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -151,9 +152,9 @@ def load_seasonality() -> int:
                 ('seasonality_monthly_stats',)
             )
             cur.execute(
-                "INSERT INTO data_loader_status (table_name, row_count, last_updated) "
-                "VALUES (%s, %s, NOW())",
-                ('seasonality_monthly_stats', len(monthly_records))
+                "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
+                "VALUES (%s, %s, %s, NOW())",
+                ('seasonality_monthly_stats', len(monthly_records), date.today())
             )
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status for seasonality_monthly_stats: {e}")
