@@ -2225,7 +2225,7 @@ def _get_algo_config(cur) -> Dict:
 
     return list_response(config_items)
 
-@db_route_handler('fetch algo config key', default_error_response={, '_error': 'Data unavailable'})
+@db_route_handler('fetch algo config key', default_error_response={'_error': 'Data unavailable'})
 def _get_algo_config_key(cur, key: str) -> Dict:
     """Return a single algo config key."""
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
