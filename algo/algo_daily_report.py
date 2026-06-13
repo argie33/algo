@@ -262,38 +262,61 @@ class DailyFinanceReport:
             pv = 0
         dpnl = portfolio.get('daily_pnl_pct')
         if dpnl is None:
-            dpnl = 0
+            logger.warning(f"Daily P&L missing for {report['date']} — using N/A instead of fake 0")
+            dpnl_str = "N/A"
+        else:
+            dpnl_str = f"{dpnl:+.2f}%"
+
         ytd = portfolio.get('ytd_pnl_pct')
         if ytd is None:
-            ytd = 0
+            logger.warning(f"YTD P&L missing for {report['date']} — using N/A instead of fake 0")
+            ytd_str = "N/A"
+        else:
+            ytd_str = f"{ytd:+.2f}%"
+
         var95 = risk.get('var_95_pct')
         if var95 is None:
-            var95 = 0
+            logger.warning(f"VaR 95% missing for {report['date']} — using N/A instead of fake 0")
+            var95_str = "N/A"
+        else:
+            var95_str = f"{var95:.1f}%"
+
         beta = risk.get('beta')
         if beta is None:
-            beta = 0
+            logger.warning(f"Beta missing for {report['date']} — using N/A instead of fake 0")
+            beta_str = "N/A"
+        else:
+            beta_str = f"{beta:.2f}"
+
         sharpe = risk.get('sharpe_ytd')
         if sharpe is None:
-            sharpe = 0
+            logger.warning(f"Sharpe YTD missing for {report['date']} — using N/A instead of fake 0")
+            sharpe_str = "N/A"
+        else:
+            sharpe_str = f"{sharpe:.1f}"
+
         exp_r = strategy.get('expectancy_r')
         if exp_r is None:
-            exp_r = 0
+            logger.warning(f"Expectancy missing for {report['date']} — using N/A instead of fake 0")
+            exp_r_str = "N/A"
+        else:
+            exp_r_str = f"{exp_r:+.2f}R"
 
         lines = [
             f"{'='*70}",
             f"DAILY FINANCE REPORT — {report['date']} | Regime: {regime.get('current', 'unknown')}",
             f"{'='*70}",
             f"Portfolio: ${pv:,.0f} | "
-            f"Daily P&L: {dpnl:+.2f}% | "
-            f"YTD: {ytd:+.2f}%",
-            f"Risk: VaR {var95:.1f}% | "
-            f"Beta {beta:.2f} | "
-            f"Sharpe {sharpe:.1f}",
+            f"Daily P&L: {dpnl_str} | "
+            f"YTD: {ytd_str}",
+            f"Risk: VaR {var95_str} | "
+            f"Beta {beta_str} | "
+            f"Sharpe {sharpe_str}",
             f"",
             f"Strategy (last 50 trades):",
             f"  Win rate: {strategy.get('win_rate_pct', 0):.0f}% | "
             f"Profit factor: {strategy.get('profit_factor', 0):.1f}x | "
-            f"Expectancy: {exp_r:+.2f}R",
+            f"Expectancy: {exp_r_str}",
             f"",
             f"Component IC (alpha contribution):",
         ]
@@ -324,17 +347,22 @@ class DailyFinanceReport:
         risk = report.get('risk', {})
         var_95 = risk.get('var_95_pct')
         if var_95 is None:
-            var_95 = 0
-        if var_95 > 2.0:
+            logger.critical(f"VaR 95% unavailable for {report['date']} - cannot assess daily risk threshold")
+            warnings.append("🔴 CRITICAL: VaR 95% missing - cannot assess daily risk. Manually verify before trading.")
+        elif var_95 > 2.0:
             warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
         sharpe_ytd = risk.get('sharpe_ytd')
-        if sharpe_ytd is not None and sharpe_ytd < 0.5:
+        if sharpe_ytd is None:
+            logger.warning(f"Sharpe YTD unavailable for {report['date']} - cannot assess strategy quality")
+            warnings.append("⚠️  Sharpe YTD missing - strategy quality unavailable")
+        elif sharpe_ytd < 0.5:
             warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get('portfolio', {})
         daily_pnl = portfolio.get('daily_pnl_pct')
         if daily_pnl is None:
+            logger.critical(f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold")
             warnings.append("🔴 CRITICAL: Daily P&L missing - cannot assess halt threshold. Manually verify before trading.")
         elif daily_pnl < -2.0:
             warnings.append(f"⚠️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")

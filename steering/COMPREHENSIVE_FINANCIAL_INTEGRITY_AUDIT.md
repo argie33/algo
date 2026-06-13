@@ -2,17 +2,24 @@
 
 ## Executive Summary
 
-**Status:** CRITICAL FINDINGS IDENTIFIED  
-**Date:** 2026-06-13  
-**Severity:** HIGH — Financial metrics reliability compromised
+**Status:** AUDIT IN PROGRESS - FIXES BEING DEPLOYED  
+**Last Updated:** 2026-06-13  
+**Severity:** HIGH → IMPROVING
 
-Five critical financial data integrity issues found that prevent accurate performance reporting and risk management:
+### Completed Fixes
+- ✅ **Initial Capital** — Now fetches from Alpaca account history (fallback to DB)
+- ✅ **Daily P&L Alerts** — Now properly fail-closed when data unavailable
+- ✅ **Dashboard Placeholder Flags** — Both portfolio and performance panels display warnings
 
-1. **Initial Capital Hardcoded → Return Inflation** (CRITICAL)
-2. **Missing Metrics Return As Zero** (CRITICAL)  
-3. **Zero Defaults Hide Missing Data** (HIGH)
-4. **Daily P&L Missing → Silent Failures** (HIGH)
-5. **VIX Logic Contradiction** (MEDIUM)
+### In Progress
+- 🔄 Move business logic from dashboard to API endpoints
+- 🔄 Standardize JS endpoints for consistent error metadata
+- 🔄 Document all fallback patterns and safe defaults
+
+### Known Critical Issues Still Remaining
+1. Business logic computed in dashboard panels (60+ lines of UI layer calculations)
+2. 30+ JavaScript endpoints return empty arrays without error indication
+3. Some metrics still use .get() with silent 0 defaults
 
 ---
 

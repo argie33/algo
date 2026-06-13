@@ -323,7 +323,7 @@ def fmt_money(v):
     return f"{s}${av:.2f}"
 
 def fmt_money_short(v):
-    """Compact dollar format: $45K, $1.2M, $850 – for narrow table columns."""
+    """Compact dollar format: $45K, $1.2M, $850 - for narrow table columns."""
     if v is None: return "--"
     v = float(v)
     s = "-" if v < 0 else ""
@@ -436,13 +436,13 @@ def hbar(cur, thr, w=6):
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
-    return f"[{tc}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
+    return f"[{tc}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
 
 def mini_bar(pts, max_pts, w=5):
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
     f = int(r * w)
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
-    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
+    return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
 
 def sign(v) -> str:
     return "+" if float(v) >= 0 else ""
@@ -459,10 +459,10 @@ def extract_items_and_error(data):
 def sparkline(values: list, width: int = 24) -> str:
     vals = [v for v in (values or []) if v is not None and float(v) > 0]
     if len(vals) < 2:
-        return f"[{DIM}]{'─' * width}[/]"
+        return f"[{DIM}]{'#' * width}[/]"
     mn, mx = min(vals), max(vals)
     if mx == mn:
-        return f"[{CY}]{'─' * width}[/]"
+        return f"[{CY}]{'#' * width}[/]"
     rng = mx - mn
     if len(vals) > width:
         idxs = [int(i * (len(vals) - 1) / (width - 1)) for i in range(width)]
@@ -1271,7 +1271,7 @@ def panel_market_full(mkt, sentiment=None):
         fg_lbl = (sentiment.get("label") or "")[:16]
         fg_c   = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
-        fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
+        fg_bar_s = f"[{fg_c}]{'#' * fg_bar}[/][dim]{'#' * (8 - fg_bar)}[/]"
         lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
@@ -1304,7 +1304,7 @@ def panel_circuit(cb, risk=None):
 
 
 def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None):
-    """Compact market header – fits alongside exposure factors + monkey in the top row."""
+    """Compact market header - fits alongside exposure factors + monkey in the top row."""
     rows = [Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}")]
     if mkt and not mkt.get("_error"):
         tier    = mkt.get("tier", "unknown")
@@ -1361,7 +1361,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             fg_lbl = (sentiment.get("label") or "")[:14]
             fg_c   = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
-            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
+            fg_bar_s = f"[{fg_c}]{'#' * fg_bar}[/][dim]{'#' * (6 - fg_bar)}[/]"
             line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
@@ -1594,7 +1594,7 @@ def panel_positions(pos, compact=False, trades=None):
         pos_timestamp = None
     
     if not pos_items:
-        return Panel(Text("  No open positions – algo is flat", style="dim"),
+        return Panel(Text("  No open positions - algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
 
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
@@ -1677,7 +1677,7 @@ def panel_positions(pos, compact=False, trades=None):
 
 
 def panel_signals_compact(sig, sig_eval=None):
-    """Signals & screening – actual BUY signals from buy_sell_daily with setup detail."""
+    """Signals & screening - actual BUY signals from buy_sell_daily with setup detail."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
 
@@ -1798,7 +1798,7 @@ def panel_signals_compact(sig, sig_eval=None):
         rows.append(t)
     else:
         if total == 0:
-            rows.append(Text.from_markup(f"[{Y}]No signals — buy_sell_daily may be stale (check Data Health)[/]"))
+            rows.append(Text.from_markup(f"[{Y}]No signals -- buy_sell_daily may be stale (check Data Health)[/]"))
         else:
             rows.append(Text.from_markup(f"[dim]0 BUY signals from {total} screened[/]"))
 
@@ -1806,7 +1806,7 @@ def panel_signals_compact(sig, sig_eval=None):
     if near and top_a:
         rows.append(Rule(style="dim"))
         parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
-        rows.append(Text.from_markup("[dim]Near BUY (55–69):[/]  " + "  ".join(parts)))
+        rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]  [dim][s] expand[/]", border_style="magenta", padding=(0, 1))
 
@@ -1889,7 +1889,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
             bar_f   = int(min(pct, 30) / 30 * 3)
-            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-'' * (3 - bar_f)}[/]"
+            bar_s   = f"[{pc}]{'#' * bar_f}[/][dim]{'-' * (3 - bar_f)}[/]"
             return (f"[white]{sec[:11]:<11}[/]{bar_s}"
                     f"[dim]{pct:.0f}%[/] [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}%[/]")
 
@@ -2078,7 +2078,7 @@ def panel_economic_pulse(eco, econ_cal=None):
 
 
 def panel_exposure_compact(exp_f):
-    """12-factor exposure score – compact 2-col layout."""
+    """12-factor exposure score - compact 2-col layout."""
     if not exp_f or exp_f.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]EXPOSURE FACTORS[/]",
                      border_style="blue", padding=(0, 1))
@@ -2528,7 +2528,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     elif act_valid:
         rows.append(Text.from_markup(f"[dim]Last run (audit):[/]  [dim]{fmt_age(run_at)}[/]"))
     else:
-        rows.append(Text.from_markup("[dim]No run data – algo has not run yet[/]"))
+        rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
 
     # ── B: Phase badges + aggregated "what did it do?" metrics ───────────────
     signals_gen  = 0
@@ -2821,7 +2821,7 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
 
 
 def panel_signals_expanded(sig, sig_eval=None):
-    """Full-screen buy signals – all signals, full text, breakout quality, base type."""
+    """Full-screen buy signals - all signals, full text, breakout quality, base type."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
     raw   = sig.get("n", 0)
@@ -2893,16 +2893,16 @@ def panel_signals_expanded(sig, sig_eval=None):
     near = sig.get("near") or []
     if near:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55–69):[/]"))
+        rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55-69):[/]"))
         parts = [f"[{CY}]{a['symbol']}[/][dim] {float(a.get('score') or 0):.0f}[/]" for a in near]
         for i in range(0, len(parts), 4):
             rows.append(Text.from_markup("  " + "    ".join(parts[i:i+4])))
 
-    return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS – EXPANDED[/]  [dim][s] return[/]", border_style="magenta", padding=(0, 1))
+    return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS - EXPANDED[/]  [dim][s] return[/]", border_style="magenta", padding=(0, 1))
 
 
 def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
-    """Full-screen algo health – complete run history, all data tables, all notifications."""
+    """Full-screen algo health - complete run history, all data tables, all notifications."""
     rows: list = [Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
     run_valid = run and not run.get("_error")
@@ -3024,11 +3024,11 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             unread = "â--" if not n.get("seen", True) else "Â·"
             rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH – EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
+    return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
 
 
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
-    """Full-screen sectors – all sector and industry rankings, full portfolio breakdown."""
+    """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
     def rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -3080,7 +3080,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
             bar_f   = int(min(pct, 25) / 25 * 8)
-            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-'' * (8 - bar_f)}[/]"
+            bar_s   = f"[{pc}]{'#' * bar_f}[/][dim]{'-' * (8 - bar_f)}[/]"
             rows.append(Text.from_markup(
                 f"  [white]{sec:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
             ))
@@ -3113,7 +3113,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     if not rows:
         return Panel(Text("no data", style="dim"), title="[bold]SECTORS[/]", border_style="cyan", padding=(0, 1))
-    return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES – EXPANDED[/]  [dim][r] return[/]", border_style="cyan", padding=(0, 1))
+    return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]  [dim][r] return[/]", border_style="cyan", padding=(0, 1))
 
 
 # ── dashboard layout ──────────────────────────────────────────────────────────
@@ -3329,12 +3329,12 @@ def run_watch(interval: int, compact: bool) -> None:
 
 LEGEND = """
 â•"â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•--
-â•'                     ALGO DASHBOARD – TERM GUIDE                            â•'
+â•'                     ALGO DASHBOARD - TERM GUIDE                            â•'
 â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 PANELS:
 
-  ORCHESTRATOR – algo run status & configuration
+  ORCHESTRATOR - algo run status & configuration
     Mode            LIVE or PAPER trading, SWING/MOMENTUM style
     Enabled         Whether the algo is currently active
     min score â‰¥     Minimum swing score a stock must have to be considered
@@ -3343,18 +3343,18 @@ PANELS:
     base risk %     % of portfolio risked per trade (stop-loss sizing)
     T1 target NR    Target profit = N Ã-- the initial risk amount (R-multiple)
     pyramid on      Algo can add to winning positions (scale in)
-    Phase 1/2/3✓    Algo run phases: prep, screening, execution – ✓=passed
+    Phase 1/2/3✓    Algo run phases: prep, screening, execution - ✓=passed
     VaR 95%         Value at Risk: max expected daily loss 95% of the time
     CVaR 95%        Conditional VaR: avg loss on the worst 5% of days
     Portfolio Beta  How much the portfolio moves vs SPY (1.0 = same as market)
     Top-5 Conc      % of portfolio in top 5 positions (concentration risk)
 
-  MARKET – market regime inputs to the algo
+  MARKET - market regime inputs to the algo
     CONF UP etc     Market tier: Confirmed Uptrend â†' Correction (5 levels)
-    exposure %      How much of the portfolio the algo is deploying (0–100%)
+    exposure %      How much of the portfolio the algo is deploying (0-100%)
     VIX             Volatility Index (>20 = caution, >30 = algo reduces)
     Dist Days       Distribution days in 4 weeks (heavy selling by institutions)
-    Stage           Market stage 1–4 (Weinstein: 1=base, 2=up, 3=top, 4=down)
+    Stage           Market stage 1-4 (Weinstein: 1=base, 2=up, 3=top, 4=down)
     SPY             S&P 500 ETF price + daily % change
     Up Volume %     % of NYSE volume in advancing stocks (>60% = bullish)
     Adv/Dec         Advance/Decline ratio (stocks up vs down)
@@ -3366,7 +3366,7 @@ PANELS:
     Trading Halt    Reasons the algo has paused new entries
     Fear & Greed    CNN composite sentiment index (0=extreme fear, 100=greed)
 
-  CIRCUIT BREAKERS – hard stops that halt the algo
+  CIRCUIT BREAKERS - hard stops that halt the algo
     Drawdown        Current drawdown from equity peak / halt threshold
     Daily Loss      Today's loss / max allowed daily loss
     Weekly Loss     This week's loss / max allowed weekly loss
@@ -3375,7 +3375,7 @@ PANELS:
     VIX             Current VIX / threshold that triggers halt
     Mkt Stage       Current market stage (halts if stage â‰¥ 4)
 
-  PORTFOLIO – live account snapshot
+  PORTFOLIO - live account snapshot
     Total value     Current account value including unrealized P&L
     Cash            Available cash (not invested)
     Positions       Number of open positions / open slots remaining
@@ -3385,7 +3385,7 @@ PANELS:
     Total Return    Cumulative portfolio return since algo started
     Max Drawdown    Largest peak-to-trough portfolio drop
 
-  PERFORMANCE – historical trade analytics
+  PERFORMANCE - historical trade analytics
     N Trades        Total closed trades
     W/L             Wins / Losses
     Win Rate        % of trades that were profitable
@@ -3404,7 +3404,7 @@ PANELS:
     Avg Win R       Average R-multiple on winning trades
     Avg Loss R      Average R-multiple on losing trades (should be < 1.0)
 
-  POSITIONS – currently open trades
+  POSITIONS - currently open trades
     Val             Current dollar value of the position ($45K, $1.2M)
     Entry           Average cost basis per share
     Price           Current market price
@@ -3415,9 +3415,9 @@ PANELS:
     T1â†'             % gain needed to hit first profit target
     Days            Days since position was entered
     Stage           Weinstein stage of the stock (2 = uptrend)
-    Swing Score     Algo's composite score for this stock (0–100)
+    Swing Score     Algo's composite score for this stock (0-100)
 
-  SIGNALS – today's buy signal analysis
+  SIGNALS - today's buy signal analysis
     A/B/C/D grades  Score grade distribution of all stocks screened today
     buy signals / N scored  How many stocks got a BUY signal today
     Screened â†' Selected   Signal filter funnel (how many pass each gate)
@@ -3429,14 +3429,14 @@ PANELS:
     avg score       Average quality score of signals passing all filters
     Top rejection reasons   Why most signals were filtered out
 
-  SECTORS & INDUSTRY – rotation context for position decisions
+  SECTORS & INDUSTRY - rotation context for position decisions
     Rotation signal   Whether defensive or cyclical sectors are leading
     Sector holdings   Which sectors our current positions are in
     #1 Tech â-²2        Sector rank (1=best), with 1-week rank change
     #2 Industry â-²1    Top industry sub-groups within sectors
 
-  EXPOSURE SCORE BREAKDOWN – what drives the algo's allocation %
-    Score N/100       Raw points scored â†' converted to exposure % (0–100%)
+  EXPOSURE SCORE BREAKDOWN - what drives the algo's allocation %
+    Score N/100       Raw points scored â†' converted to exposure % (0-100%)
     30wk Trend        Is SPY above its 30-week moving average?
     Breadth 50MA      % of S&P 500 stocks above their 50-day MA
     IBD State         IBD market status (Confirmed Uptrend/Under Pressure/etc)
@@ -3449,11 +3449,11 @@ PANELS:
     AAII Sentiment    Weekly survey: retail investor bullish vs bearish %
     NAAIM Exposure    Active manager equity exposure level
 
-  ECONOMIC INPUTS â†' Exposure Score – macro factors the algo monitors
+  ECONOMIC INPUTS â†' Exposure Score - macro factors the algo monitors
     3M/6M/2Y/10Y Tsy  Treasury yield curve (used in yield curve slope factor)
     10Y-2Y spread     Yield curve inversion (algo reduces exposure when inverted)
     Fed Rate          Federal Funds Rate (algo's fed_rate_environment filter)
-    HY/IG OAS         Credit spreads – widening = risk-off â†' algo reduces exposure
+    HY/IG OAS         Credit spreads - widening = risk-off â†' algo reduces exposure
     CPI YoY           Inflation rate (algo's economic overlay factor)
     Unemployment      Labor market health (economic overlay)
     WTI Crude Oil     Oil price (energy cost / inflation proxy)
@@ -3463,7 +3463,7 @@ PANELS:
     30Y Mortgage      Housing market health proxy
     UMich Sentiment   Consumer confidence (economic overlay factor)
 
-  ACTIVITY & HEALTH – algo system status
+  ACTIVITY & HEALTH - algo system status
     Run phases        Which phases of today's run completed (✓/~/✗)
     Data health       Whether all required data tables are fresh
     Notifications     System alerts (circuit breaker fired, trade executed, etc)
