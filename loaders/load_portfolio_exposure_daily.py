@@ -155,7 +155,7 @@ class PortfolioExposureDailyLoader(OptimalLoader):
             """)
 
             row = cur.fetchone()
-            avg_distance = float(row[0]) if row and row[0] else 0
+            avg_distance = float(row[0]) if row is not None and row[0] is not None else 0
             return round(avg_distance, 4)
 
         except Exception as e:

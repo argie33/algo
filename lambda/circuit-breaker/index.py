@@ -77,7 +77,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 WHERE status = 'open'
             """)
             row = cur.fetchone()
-            total_equity = float(row[0]) if row and row[0] else 0
+            total_equity = float(row[0]) if row is not None and row[0] is not None else 0
             current_pnl = float(row[1]) if row and row[1] else 0
 
             # Get session opening P&L snapshot (captured at market open).

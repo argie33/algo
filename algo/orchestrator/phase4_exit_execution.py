@@ -126,7 +126,7 @@ def run(
                                 (action['position_id'],),
                             )
                             row = cur.fetchone()
-                            cur_price = float(row[0]) if row and row[0] else 0
+                            cur_price = float(row[0]) if row is not None and row[0] is not None else 0
                     except Exception as e:
                         logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                     if cur_price > 0:

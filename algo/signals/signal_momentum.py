@@ -310,6 +310,6 @@ class SignalMomentumMixin:
                 (symbol, eval_date, lookback),
             )
             row = cur.fetchone()
-            return int(row[0]) if row and row[0] else 0
+            return int(row[0]) if row is not None and row[0] is not None else 0
 
         return self._with_cursor(_count_dist) or 0

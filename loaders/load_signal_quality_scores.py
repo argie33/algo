@@ -62,7 +62,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     (end,)
                 )
                 row = cur.fetchone()
-                last_bs_date = row[0] if row and row[0] else None
+                last_bs_date = row[0] if row is not None and row[0] is not None else None
                 if last_bs_date:
                     last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
                     if last_bs and last_bs < end:

@@ -1135,7 +1135,7 @@ class OptimalLoader(ABC):
                     )
                     row = cur.fetchone()
                     since = (
-                        self._parse_watermark_date(row[0]) if row and row[0] else None
+                        self._parse_watermark_date(row[0]) if row is not None and row[0] is not None else None
                     )
             except Exception as e:
                 logger.warning(

@@ -86,7 +86,7 @@ class RegimeManager:
                 )
                 row = cur.fetchone()
 
-            regime = str(row[0]) if row and row[0] else 'caution'
+            regime = str(row[0]) if row is not None and row[0] is not None else 'caution'
 
             if regime not in self.REGIMES:
                 logger.warning(f"Unknown regime '{regime}', defaulting to caution (conservative)")
@@ -229,7 +229,7 @@ class RegimeManager:
                 )
                 row = cur.fetchone()
 
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 score = float(row[0])
                 return min(1.0, max(0.0, score / 100.0))
             # CRITICAL: Market exposure data unavailable. Default to neutral (0.5) masks infrastructure failure.

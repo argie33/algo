@@ -56,7 +56,7 @@ def _compute_true_atr(symbol: str, run_date: _date, period: int = 14) -> Optiona
                 WHERE tr IS NOT NULL AND rn <= %s
             """, (symbol, run_date, period + 1, period))
             row = cur.fetchone()
-            return float(row[0]) if row and row[0] else None
+            return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not compute ATR for {symbol}: {e}")
         return None
@@ -74,7 +74,7 @@ def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
                 ) recent
             """, (symbol, run_date))
             row = cur.fetchone()
-            return float(row[0]) if row and row[0] else None
+            return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
         return None
@@ -89,7 +89,7 @@ def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
                 (symbol, run_date)
             )
             row = cur.fetchone()
-            return float(row[0]) if row and row[0] else None
+            return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not get close for {symbol}: {e}")
         return None

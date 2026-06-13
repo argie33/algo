@@ -683,7 +683,7 @@ class SwingTraderScore:
         row = cur.fetchone()
         ratio = None
         ratio_pts = 0.0
-        if row and row[0] and row[1]:
+        if row is not None and row[0] is not None and row[1] is not None:
             ratio = float(row[0]) / float(row[1])
             # Breakout volume ratio tiers
             if ratio >= 2.0:
@@ -973,7 +973,7 @@ class SwingTraderScore:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if row and row[0] and row[1]:
+            if row is not None and row[0] is not None and row[1] is not None:
                 weekly_above_ma = float(row[0]) > float(row[1])
 
             # Monthly BUY in last 270 days (~9 months — long-term confirmation window)
@@ -997,7 +997,7 @@ class SwingTraderScore:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if row and row[0] and row[1]:
+            if row is not None and row[0] is not None and row[1] is not None:
                 monthly_above_ma = float(row[0]) > float(row[1])
         except Exception as e:
             logger.debug(f"Monthly MA check failed: {e}")
