@@ -571,23 +571,25 @@ def fetch_run(c):
         return {"_error": str(e)}
 
 def fetch_algo_config(c):
+    """Issue 3 FIX: API-only algo configuration."""
     try:
-        rows = q(c, "SELECT key, value FROM algo_config")
-        cfg = {row["key"]: row["value"] for row in rows}
+        cfg = DashboardDataAPI.get_config() if DashboardDataAPI else {}
+        if "_error" in cfg:
+            return {"_error": cfg["_error"]}
         return {
-            "enabled":      cfg.get("algo_enabled", True),
-            "mode":         cfg.get("trade_mode", "unknown"),
-            "max_pos_pct":  float(cfg.get("max_position_size_pct", 0)) if cfg.get("max_position_size_pct") else None,
-            "max_pos_n":    int(cfg.get("max_positions", 0)) if cfg.get("max_positions") else None,
-            "max_sec_n":    int(cfg.get("max_positions_per_sector", 0)) if cfg.get("max_positions_per_sector") else None,
-            "min_score":    float(cfg.get("min_swing_score", 0)) if cfg.get("min_swing_score") else None,
-            "base_risk":    float(cfg.get("base_risk_pct", 0)) if cfg.get("base_risk_pct") else None,
-            "t1_r":         float(cfg.get("t1_target_r_multiple", 0)) if cfg.get("t1_target_r_multiple") else None,
-            "pyramid":      cfg.get("pyramid_enabled", "false").lower() == "true",
+            "enabled": cfg.get("algo_enabled", True),
+            "mode": cfg.get("trade_mode", "unknown"),
+            "max_pos_pct": safe_float(cfg.get("max_position_size_pct")),
+            "max_pos_n": safe_int(cfg.get("max_positions")),
+            "max_sec_n": safe_int(cfg.get("max_positions_per_sector")),
+            "min_score": safe_float(cfg.get("min_swing_score")),
+            "base_risk": safe_float(cfg.get("base_risk_pct")),
+            "t1_r": safe_float(cfg.get("t1_target_r_multiple")),
+            "pyramid": cfg.get("pyramid_enabled", "false").lower() == "true",
         }
     except Exception as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {}
 
 def fetch_market(c):
     try:
@@ -662,50 +664,45 @@ def fetch_exposure_factors(c):
         pass
 
 def fetch_portfolio(c):
+    """Issue 3 FIX: API-only portfolio snapshot."""
     try:
-        row = q1(c, """SELECT snapshot_date, total_portfolio_value, total_cash, position_count,
-                              daily_return_pct, unrealized_pnl_pct, cumulative_return_pct,
-                              max_drawdown_pct, largest_position_pct
-                       FROM algo_portfolio_snapshots
-                       ORDER BY snapshot_date DESC LIMIT 1""")
-        if not row:
+        port = DashboardDataAPI.get_portfolio() if DashboardDataAPI else {}
+        if "_error" in port:
             return {}
         return {
-            "snapshot_date": row.get("snapshot_date"),
-            "total_portfolio_value": safe_float(row.get("total_portfolio_value"), default=None),
-            "total_cash": safe_float(row.get("total_cash"), default=None),
-            "position_count": int(row.get("position_count") or 0),
-            "daily_return_pct": safe_float(row.get("daily_return_pct"), default=None),
-            "unrealized_pnl_pct": safe_float(row.get("unrealized_pnl_pct"), default=None),
-            "cumulative_return_pct": safe_float(row.get("cumulative_return_pct"), default=None),
-            "max_drawdown_pct": safe_float(row.get("max_drawdown_pct"), default=None),
-            "largest_position_pct": safe_float(row.get("largest_position_pct"), default=None)
+            "snapshot_date": port.get("last_run"),
+            "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
+            "total_cash": safe_float(port.get("total_cash")),
+            "position_count": safe_int(port.get("open_positions")),
+            "daily_return_pct": safe_float(port.get("daily_return_pct")),
+            "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct")),
+            "cumulative_return_pct": None,
+            "max_drawdown_pct": None,
+            "largest_position_pct": None
         }
     except Exception as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {}
 
 def fetch_perf(c):
+    """Issue 3 FIX: API-only performance data."""
     try:
-        row = q1(c, """SELECT total_trades, winning_trades, losing_trades, win_rate,
-                              total_pnl_dollars, sharpe_ratio, max_drawdown_pct,
-                              avg_winning_trade, avg_losing_trade, profit_factor, expectancy
-                       FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row:
+        perf = DashboardDataAPI.get_performance() if DashboardDataAPI else {}
+        if "_error" in perf or not perf:
             return {}
         return {
-            "n": int(row.get("total_trades") or 0),
-            "w": int(row.get("winning_trades") or 0),
-            "l": int(row.get("losing_trades") or 0),
-            "wr": safe_float(row.get("win_rate"), default=None),
-            "pnl": safe_float(row.get("total_pnl_dollars"), default=None),
+            "n": safe_int(perf.get("total_trades")),
+            "w": safe_int(perf.get("winning_trades")),
+            "l": safe_int(perf.get("losing_trades")),
+            "wr": safe_float(perf.get("win_rate")),
+            "pnl": safe_float(perf.get("total_pnl_dollars")),
             "streak": 0,
-            "sharpe": safe_float(row.get("sharpe_ratio"), default=None),
-            "maxdd": safe_float(row.get("max_drawdown_pct"), default=None),
-            "avg_win": safe_float(row.get("avg_winning_trade"), default=None),
-            "avg_loss": safe_float(row.get("avg_losing_trade"), default=None),
-            "profit_factor": safe_float(row.get("profit_factor"), default=None),
-            "expectancy": safe_float(row.get("expectancy"), default=None),
+            "sharpe": safe_float(perf.get("sharpe_ratio")),
+            "maxdd": safe_float(perf.get("max_drawdown_pct")),
+            "avg_win": safe_float(perf.get("avg_winning_trade")),
+            "avg_loss": safe_float(perf.get("avg_losing_trade")),
+            "profit_factor": safe_float(perf.get("profit_factor")),
+            "expectancy": safe_float(perf.get("expectancy")),
             "avg_r": 0,
             "equity_vals": [],
             "recent_rets": []
@@ -733,11 +730,11 @@ def fetch_positions(c):
         return []
 
 def fetch_recent_trades(c):
+    """Issue 3 FIX: API-only trades data."""
     try:
-        return q(c, """SELECT trade_id, symbol, entry_date, entry_price, exit_date,
-                              exit_price, profit_loss_dollars, profit_loss_pct, exit_r_multiple
-                       FROM algo_trades WHERE status='closed'
-                       ORDER BY exit_date DESC LIMIT 10""")
+        trades = DashboardDataAPI.get_trades(limit=100) if DashboardDataAPI else []
+        closed = [t for t in trades if t.get("status") == "closed"]
+        return closed[:10]
     except Exception as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         return []
