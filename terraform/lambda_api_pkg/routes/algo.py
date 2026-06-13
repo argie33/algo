@@ -2213,12 +2213,20 @@ def _get_algo_evaluate(cur) -> Dict:
             cur.execute("""
                 SELECT
                     COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN daily_return_pct END), 0) as today_return_pct,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_total END), 0) as unrealized_pnl
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_total END), 0) as unrealized_pnl_total,
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_pct END), 0) as unrealized_pnl_pct,
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_winning_count END), 0) as winning_count,
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_losing_count END), 0) as losing_count,
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_breakeven_count END), 0) as breakeven_count
                 FROM algo_portfolio_snapshots
             """)
             risk_row = cur.fetchone()
             today_return = risk_row.get('today_return_pct', 0) if risk_row else 0
-            unrealized_pnl = risk_row.get('unrealized_pnl', 0) if risk_row else 0
+            unrealized_pnl_total = risk_row.get('unrealized_pnl_total', 0) if risk_row else 0
+            unrealized_pnl_pct = risk_row.get('unrealized_pnl_pct', 0) if risk_row else 0
+            winning_count = risk_row.get('winning_count', 0) if risk_row else 0
+            losing_count = risk_row.get('losing_count', 0) if risk_row else 0
+            breakeven_count = risk_row.get('breakeven_count', 0) if risk_row else 0
 
             sig_dict = safe_json_serialize(dict(sig_row))
             return json_response(200, {
@@ -2244,7 +2252,15 @@ def _get_algo_evaluate(cur) -> Dict:
                 'sector_exposure': sector_exposure,
                 'portfolio_health': {
                     'today_return_pct': safe_float(today_return),
-                    'unrealized_pnl': safe_float(unrealized_pnl)
+                    'unrealized_pnl': {
+                        'total_dollars': safe_float(unrealized_pnl_total),
+                        'total_pct': safe_float(unrealized_pnl_pct),
+                        'winning_positions': safe_int(winning_count) or 0,
+                        'losing_positions': safe_int(losing_count) or 0,
+                        'breakeven_positions': safe_int(breakeven_count) or 0,
+                        'source': 'open_positions_only',
+                        'note': 'Includes only open positions (no closed trades, no dividends)'
+                    }
                 }
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

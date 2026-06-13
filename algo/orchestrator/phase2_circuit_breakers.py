@@ -40,7 +40,8 @@ def run(
         if verbose:
             for name, state in result['checks'].items():
                 flag = '[HALT]' if state.get('halted') else '[OK]  '
-                logger.info(f"  {flag} {name:22s}: {state.get('reason', '')}")
+                label = state.get('label', name)
+                logger.info(f"  {flag} {label:40s}: {state.get('reason', '')}")
 
         # Publish per-breaker CloudWatch metrics (non-blocking)
         try:

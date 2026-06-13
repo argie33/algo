@@ -79,7 +79,7 @@ def _check_market_regime(run_date: _date) -> Dict:
                 ORDER BY date DESC LIMIT 1
             """, (run_date,))
             row = cur.fetchone()
-            if not row:
+            if row is None:
                 logger.warning("[PHASE 5] No market_exposure_daily data — proceeding with default permissive regime")
                 return {'is_entry_allowed': True, 'exposure_pct': 50, 'regime': 'unknown', 'halt_reasons': []}
             import json

@@ -365,7 +365,7 @@ class PositionMonitor:
             (symbol, current_date),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return None, None, None, None
 
         # Use real-time price if available, otherwise use daily close

@@ -625,7 +625,7 @@ class DailyReconciliation:
                 )
                 row = cur.fetchone()
                 if row is not None:
-                    db_qty = int(row[0] or 0)
+                    db_qty = int(row[0]) if row[0] is not None else 0
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
                     qty_int = int(round(qty))
                     if abs(db_qty - qty_int) > 0:

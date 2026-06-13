@@ -805,7 +805,7 @@ class TradeExecutor:
                 (trade_id,),
             )
             row = cur.fetchone()
-            if not row:
+            if row is None:
                 return {'success': False, 'message': f'Trade {trade_id} not found'}
             symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id, position_id, current_qty, target_hits, position_status = row
 

@@ -482,8 +482,9 @@ def fetch_risk_metrics(c):
             "conc5": safe_float(d.get("top_5_concentration")),
         }
     except Exception as e:
-        logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
-        return {"_error": str(e), "date": None, "var95": None, "cvar95": None, "svar": None, "beta": None, "conc5": None}
+        error_msg = _format_fetcher_error("risk", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "date": None, "var95": None, "cvar95": None, "svar": None, "beta": None, "conc5": None}
 
 def fetch_perf_analytics(c):
     """Issue 3 FIX: API-only performance analytics."""
@@ -503,8 +504,9 @@ def fetch_perf_analytics(c):
             "maxdd": safe_float(d.get("max_drawdown_pct")),
         }
     except Exception as e:
-        logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
-        return {"_error": str(e), "sharpe252": None, "sortino": None, "calmar": None, "wr50": None, "avg_w_r": None, "avg_l_r": None, "expectancy": None, "maxdd": None}
+        error_msg = _format_fetcher_error("perf_anl", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "sharpe252": None, "sortino": None, "calmar": None, "wr50": None, "avg_w_r": None, "avg_l_r": None, "expectancy": None, "maxdd": None}
 
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
@@ -525,8 +527,9 @@ def fetch_signal_eval(c):
             "rejected": result.get("rejected", []),
         }
     except Exception as e:
-        logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        error_msg = _format_fetcher_error("sig_eval", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API."""
@@ -547,8 +550,9 @@ def fetch_sector_rotation(c):
             "cyc_score": details.get("cyclical_weak_score", 0),
         }
     except Exception as e:
-        logger.error(f"fetch_sector_rotation: {type(e).__name__}: {e}")
-        return {"_error": str(e), "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
+        error_msg = _format_fetcher_error("sec_rot", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
 
 def fetch_industry_ranking(c):
     """Fetch industry rankings from API."""
@@ -559,8 +563,9 @@ def fetch_industry_ranking(c):
         industries = data.get('data', [])
         return {"items": industries if isinstance(industries, list) else []}
     except Exception as e:
-        logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("irank", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
@@ -571,8 +576,9 @@ def fetch_exec_history(c):
         executions = data.get('data', [])
         return {"items": executions if isinstance(executions, list) else []}
     except Exception as e:
-        logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("exec_hist", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_audit_log(c):
     """Fetch audit log from API."""
@@ -583,8 +589,9 @@ def fetch_audit_log(c):
         log_entries = data.get('data', [])
         return {"items": log_entries if isinstance(log_entries, list) else []}
     except Exception as e:
-        logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("audit", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_circuit(c):
     """Fetch circuit breakers from API."""
@@ -609,8 +616,9 @@ def fetch_circuit(c):
             "n": result.get("triggered_count", 0)
         }
     except Exception as e:
-        logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        error_msg = _format_fetcher_error("cb", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 
 FETCHERS = {
@@ -681,11 +689,14 @@ def load_all() -> dict:
                 if attempt < MAX_RETRIES:
                     base_backoff = (2 ** attempt) + random.random() * (2 ** attempt)
                     backoff = min(base_backoff, API_MAX_BACKOFF)
-                    logger.warning(f"Fetcher {name} retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}")
+                    meta = FETCHER_METADATA.get(name, {})
+                    endpoint = meta.get("endpoint", "unknown endpoint")
+                    logger.warning(f"Fetcher {name} ({endpoint}) retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}")
                     time.sleep(backoff)
                     continue
-                logger.error(f"Fetcher {name} failed after {MAX_RETRIES+1} attempts: {e}")
-                return name, {"_error": str(e)}
+                error_msg = _format_fetcher_error(name, e)
+                logger.error(error_msg)
+                return name, {"_error": error_msg}
 
     # Execute critical fetchers first (max 10 concurrent to reduce RDS load)
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -701,16 +712,22 @@ def load_all() -> dict:
                     pending_futures.discard(f)
                 except Exception as e:
                     k = futures[f]
-                    logger.error(f"Thread exception for {k}: {type(e).__name__}: {e}")
-                    out[k] = {"_error": str(e)}
+                    error_msg = _format_fetcher_error(k, e)
+                    logger.error(f"Thread exception: {error_msg}")
+                    out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
             logger.error(f"load_all critical timeout after {BATCH_TIMEOUT}s")
             for f in pending_futures:
                 k = futures.get(f)
                 if k and not f.done():
-                    logger.warning(f"Fetcher {k} timed out - marking incomplete")
-                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
+                    meta = FETCHER_METADATA.get(k, {})
+                    endpoint = meta.get("endpoint", "unknown endpoint")
+                    desc = meta.get("desc", "")
+                    context = f"{endpoint}" + (f": {desc}" if desc else "")
+                    timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {BATCH_TIMEOUT}s)"
+                    logger.warning(timeout_msg)
+                    out[k] = {"_error": timeout_msg}
 
     # Execute optional fetchers with reduced concurrency
     optional_timeout = BATCH_TIMEOUT - len(out) * 5
