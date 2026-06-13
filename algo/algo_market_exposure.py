@@ -72,8 +72,7 @@ class MarketExposure:
     W_NAAIM = 3
 
     def __init__(self):
-        from algo.algo_config import get_config
-        self.config = get_config()
+        pass
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
@@ -282,42 +281,31 @@ class MarketExposure:
             halt_reasons = []
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
-            # Load veto thresholds and caps from config
-            veto1_breadth_pct = self.config.get('market_exposure_veto1_breadth_pct', 30)
-            veto1_cap = self.config.get('market_exposure_veto1_cap_pct', 25.0)
-            veto2_vix = self.config.get('market_exposure_veto2_vix_threshold', 40.0)
-            veto2_cap = self.config.get('market_exposure_veto2_cap_pct', 30.0)
-            veto3_dd_threshold = self.config.get('market_exposure_veto3_distribution_days_threshold', 6)
-            veto3_cap = self.config.get('market_exposure_veto3_cap_pct', 35.0)
-            veto4_cap = self.config.get('market_exposure_veto4_cap_pct', 40.0)
-            veto5_credit_threshold = self.config.get('market_exposure_veto5_credit_spread_threshold', 8.5)
-            veto5_cap = self.config.get('market_exposure_veto5_cap_pct', 30.0)
-
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            if (t30.get('price_below_ma') and b50.get('value', 100) < veto1_breadth_pct):
-                halt_reasons.append(f'SPY < 30wk MA AND <{veto1_breadth_pct}% above 50-DMA')
-                cap = min(cap, veto1_cap)
-            # Veto 2: VIX > threshold rising (H11 FIX: only if VIX data available, not converting None to 0)
+            if (t30.get('price_below_ma') and b50.get('value', 100) < 30):
+                halt_reasons.append('SPY < 30wk MA AND <30% above 50-DMA')
+                cap = min(cap, 25.0)
+            # Veto 2: VIX > 40 rising (H11 FIX: only if VIX data available, not converting None to 0)
             vix_value = vix.get('value')
-            if vix_value is not None and vix_value > veto2_vix and vix.get('rising'):
-                halt_reasons.append(f'VIX {vix_value:.1f} rising > {veto2_vix}')
-                cap = min(cap, veto2_cap)
+            if vix_value is not None and vix_value > 40 and vix.get('rising'):
+                halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
+                cap = min(cap, 30.0)
             # Veto 3: 6+ distribution days (reinforces DD factor)
             dd_count = dd.get('count', 0)
-            if dd_count >= veto3_dd_threshold:
-                halt_reasons.append(f'{dd_count} distribution days >= {veto3_dd_threshold}')
-                cap = min(cap, veto3_cap)
+            if dd_count >= 6:
+                halt_reasons.append(f'{dd_count} distribution days >= 6')
+                cap = min(cap, 35.0)
             # Veto 4: no follow-through day — only applies when SPY is actually below its
             # 30-week MA (i.e., we're in a correction that needs confirming). In smooth
             # uptrends SPY never drops enough to need an FTD, so requiring one would
-            # permanently cap exposure at veto4_cap during the best trading environments.
+            # permanently cap exposure at 40% during the best trading environments.
             if not ftd.get('has_ftd') and t30.get('price_below_ma'):
                 halt_reasons.append('No follow-through day while SPY below 30-week MA')
-                cap = min(cap, veto4_cap)
+                cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
-            if cs.get('value') and cs['value'] > veto5_credit_threshold:
-                halt_reasons.append(f'HY credit spread {cs["value"]:.2f}% > {veto5_credit_threshold}% (systemic stress)')
-                cap = min(cap, veto5_cap)
+            if cs.get('value') and cs['value'] > 8.5:
+                halt_reasons.append(f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)')
+                cap = min(cap, 30.0)
 
             if halt_reasons:
                 logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
@@ -880,18 +868,6 @@ class MarketExposure:
         stress = 0.0
         signals = []
 
-        # Load stress scores from config
-        stress_curve_severe = self.config.get('econ_stress_curve_inverted_severe', 35.0)
-        stress_curve_moderate = self.config.get('econ_stress_curve_inverted_moderate', 20.0)
-        stress_curve_flat = self.config.get('econ_stress_curve_flat', 8.0)
-        stress_hy_severe = self.config.get('econ_stress_hy_spread_severe', 35.0)
-        stress_hy_elevated = self.config.get('econ_stress_hy_spread_elevated', 20.0)
-        stress_hy_widening = self.config.get('econ_stress_hy_widening', 15.0)
-        stress_claims_severe = self.config.get('econ_stress_claims_severe', 30.0)
-        stress_claims_elevated = self.config.get('econ_stress_claims_elevated', 15.0)
-        stress_financial_severe = self.config.get('econ_stress_financial_severe', 25.0)
-        stress_financial_elevated = self.config.get('econ_stress_financial_elevated', 12.0)
-
         # Signal 1: Yield curve (T10Y2Y) — inversion duration matters
         cur.execute(
             """
@@ -907,13 +883,13 @@ class MarketExposure:
             # How many consecutive weeks inverted?
             weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
             if latest_spread < -0.5 and weeks_inverted >= 8:
-                stress += stress_curve_severe
+                stress += 35.0
                 signals.append(f'Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks')
             elif latest_spread < 0:
-                stress += stress_curve_moderate
+                stress += 20.0
                 signals.append(f'Curve inverted {latest_spread:.2f}%')
             elif latest_spread < 0.2:
-                stress += stress_curve_flat
+                stress += 8.0
                 signals.append(f'Curve flat {latest_spread:.2f}%')
 
         # Signal 2: HY credit spread trend — is credit stress building?
@@ -931,13 +907,13 @@ class MarketExposure:
             hy_60d = float(hy_rows[-1][0]) if len(hy_rows) >= 50 else hy_now
             hy_widening_60d = hy_now - hy_60d
             if hy_now > 6.5:
-                stress += stress_hy_severe
+                stress += 35.0
                 signals.append(f'HY spread {hy_now:.2f}% (severe stress)')
             elif hy_now > 5.0:
-                stress += stress_hy_elevated
+                stress += 20.0
                 signals.append(f'HY spread {hy_now:.2f}% (elevated)')
             elif hy_widening_60d > 1.5:
-                stress += stress_hy_widening
+                stress += 15.0
                 signals.append(f'HY spread widening +{hy_widening_60d:.2f}pp in 60d')
 
         # Signal 3: Jobless claims trend — rising claims precede recessions
@@ -955,10 +931,10 @@ class MarketExposure:
             claims_26w = float(claims_rows[-1][0])
             chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
             if chg_pct > 30:
-                stress += stress_claims_severe
+                stress += 30.0
                 signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (severe)')
             elif chg_pct > 20:
-                stress += stress_claims_elevated
+                stress += 15.0
                 signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (elevated)')
 
         # Signal 4: St. Louis Financial Stress Index — 18-variable financial market composite
@@ -974,10 +950,10 @@ class MarketExposure:
         if stlfsi_rows:
             stlfsi = float(stlfsi_rows[0][0])
             if stlfsi > 1.5:
-                stress += stress_financial_severe
+                stress += 25.0
                 signals.append(f'Financial stress index {stlfsi:.2f}σ (severe stress)')
             elif stlfsi > 0.8:
-                stress += stress_financial_elevated
+                stress += 12.0
                 signals.append(f'Financial stress index {stlfsi:.2f}σ (elevated)')
 
         # Signal 5: Chicago Fed National Activity Index — 85-indicator broad economic composite
@@ -1001,16 +977,11 @@ class MarketExposure:
 
         stress = min(100.0, stress)
 
-        # Load penalty thresholds from config
-        stress_moderate_threshold = self.config.get('econ_stress_moderate_threshold', 40)
-        stress_severe_threshold = self.config.get('econ_stress_severe_threshold', 60)
-        stress_severe_cap = self.config.get('econ_stress_severe_cap_pct', 40.0)
-
         # Apply penalty and cap based on macro stress level
-        if stress >= stress_severe_threshold:
+        if stress >= 60:
             penalty = 7.0
-            cap = stress_severe_cap
-        elif stress >= stress_moderate_threshold:
+            cap = 40.0
+        elif stress >= 40:
             penalty = 4.0
             cap = 100.0
         elif stress <= 15:

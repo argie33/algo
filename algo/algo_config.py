@@ -50,7 +50,6 @@ class AlgoConfig:
         'risk_reduction_at_minus_10': ('0.5', 'float', 'Risk % at -10% drawdown'),
         'risk_reduction_at_minus_15': ('0.25', 'float', 'Risk % at -15% drawdown'),
         'risk_reduction_at_minus_20': ('0.0', 'float', 'Risk % at -20% drawdown (halt)'),
-        'fallback_drawdown_pct_when_peak_missing': ('25.0', 'float', 'Fallback drawdown % when portfolio peak data missing (fail-closed assumption)'),
 
         # Filter Thresholds
         'min_completeness_score': ('70', 'int', 'Minimum data completeness % (Minervini standard)'),
@@ -82,32 +81,6 @@ class AlgoConfig:
         'yield_curve_good_threshold': ('0.5', 'float', 'Yield curve slope for bullish signal (>= for GREEN)'),
         'beta_warning_threshold': ('1.2', 'float', 'Portfolio beta threshold for caution (>= for WARNING)'),
         'beta_caution_threshold': ('0.8', 'float', 'Portfolio beta threshold for bullish (>= for YELLOW)'),
-
-        # Market Exposure Engine — Veto Thresholds (H12)
-        'market_exposure_veto1_breadth_pct': ('30', 'int', 'Breadth threshold for veto 1: SPY < 30wk MA AND breadth < N%'),
-        'market_exposure_veto1_cap_pct': ('25.0', 'float', 'Exposure cap % when veto 1 triggered (SPY < 30wk MA AND weak breadth)'),
-        'market_exposure_veto2_vix_threshold': ('40.0', 'float', 'VIX threshold for veto 2: VIX > N and rising'),
-        'market_exposure_veto2_cap_pct': ('30.0', 'float', 'Exposure cap % when veto 2 triggered (VIX > 40 rising)'),
-        'market_exposure_veto3_distribution_days_threshold': ('6', 'int', 'Distribution days threshold for veto 3 (6+ days)'),
-        'market_exposure_veto3_cap_pct': ('35.0', 'float', 'Exposure cap % when veto 3 triggered (6+ distribution days)'),
-        'market_exposure_veto4_cap_pct': ('40.0', 'float', 'Exposure cap % when veto 4 triggered (no FTD while SPY below 30wk MA)'),
-        'market_exposure_veto5_credit_spread_threshold': ('8.5', 'float', 'Credit spread threshold for veto 5 (systemic stress)'),
-        'market_exposure_veto5_cap_pct': ('30.0', 'float', 'Exposure cap % when veto 5 triggered (HY spread > 8.5%)'),
-
-        # Economic Regime Stress Scores (H12)
-        'econ_stress_curve_inverted_severe': ('35.0', 'float', 'Stress score for severe yield curve inversion (<-0.5% for 8+ weeks)'),
-        'econ_stress_curve_inverted_moderate': ('20.0', 'float', 'Stress score for moderate yield curve inversion (<0%)'),
-        'econ_stress_curve_flat': ('8.0', 'float', 'Stress score for flat yield curve (<0.2%)'),
-        'econ_stress_hy_spread_severe': ('35.0', 'float', 'Stress score for severe HY credit spread (>6.5%)'),
-        'econ_stress_hy_spread_elevated': ('20.0', 'float', 'Stress score for elevated HY credit spread (>5.0%)'),
-        'econ_stress_hy_widening': ('15.0', 'float', 'Stress score for HY spread widening (>1.5pp in 60d)'),
-        'econ_stress_claims_severe': ('30.0', 'float', 'Stress score for severe jobless claims (>30% in 26w)'),
-        'econ_stress_claims_elevated': ('15.0', 'float', 'Stress score for elevated jobless claims (>20% in 26w)'),
-        'econ_stress_financial_severe': ('25.0', 'float', 'Stress score for severe financial stress (>1.5σ)'),
-        'econ_stress_financial_elevated': ('12.0', 'float', 'Stress score for elevated financial stress (>0.8σ)'),
-        'econ_stress_moderate_threshold': ('40', 'int', 'Stress level for moderate economic regime penalty (4 pts, no cap)'),
-        'econ_stress_severe_threshold': ('60', 'int', 'Stress level for severe economic regime penalty (7 pts, cap at 40%)'),
-        'econ_stress_severe_cap_pct': ('40.0', 'float', 'Exposure cap % at severe economic stress (stress >= 60)'),
 
         # Entry Rules (Minervini)
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),

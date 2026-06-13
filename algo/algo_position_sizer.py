@@ -158,8 +158,6 @@ class PositionSizer:
         B13: Fail-closed — if any data missing, assume worst case to protect capital.
         """
         try:
-            fallback_dd = self.config.get('fallback_drawdown_pct_when_peak_missing', 25.0)
-
             def calc_drawdown(cur):
                 cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
                 count_result = cur.fetchone()
@@ -175,14 +173,14 @@ class PositionSizer:
                 """)
                 result = cur.fetchone()
                 if not result or not result[0] or not result[1]:
-                    logger.warning(f"Portfolio snapshot data inconsistent; assuming {fallback_dd}% drawdown (fail-closed)")
-                    return fallback_dd
+                    logger.warning("Portfolio snapshot data inconsistent; assuming 25% drawdown (fail-closed)")
+                    return 25.0
 
                 peak = float(result[0])
                 current = float(result[1])
                 if peak == 0:
-                    logger.warning(f"Peak portfolio value is zero; assuming {fallback_dd}% drawdown (fail-closed)")
-                    return fallback_dd
+                    logger.warning("Peak portfolio value is zero; assuming 25% drawdown (fail-closed)")
+                    return 25.0
 
                 drawdown_pct = ((peak - current) / peak) * 100
                 return max(0, drawdown_pct)
@@ -190,11 +188,10 @@ class PositionSizer:
             result = self._with_cursor(calc_drawdown)
             if result is not None:
                 return result
-            return fallback_dd
+            return 25.0
         except Exception as e:
             logger.error(f"Could not calculate drawdown: {e}")
-            fallback_dd = self.config.get('fallback_drawdown_pct_when_peak_missing', 25.0)
-            return fallback_dd
+            return 25.0
 
     def get_risk_adjustment(self):
         """Get risk adjustment factor based on drawdown.
