@@ -47,6 +47,17 @@ _fetcher_module = importlib.util.module_from_spec(_fetcher_spec)
 _fetcher_spec.loader.exec_module(_fetcher_module)
 AlgoMetricsFetcher = _fetcher_module.AlgoMetricsFetcher
 
+# Import fallback registry to use documented fallback values
+_fallback_spec = importlib.util.spec_from_file_location(
+    "fallback_registry",
+    str(Path(_root_dir) / "utils" / "fallback_registry.py")
+)
+_fallback_module = importlib.util.module_from_spec(_fallback_spec)
+_fallback_spec.loader.exec_module(_fallback_module)
+get_hardcoded_fallback_values = _fallback_module.get_hardcoded_fallback_values
+log_fallback_usage = _fallback_module.log_fallback_usage
+FallbackTrigger = _fallback_module.FallbackTrigger
+
 logger = logging.getLogger(__name__)
 
 def _check_admin_access(jwt_claims: Dict) -> bool:
@@ -597,13 +608,30 @@ def _get_algo_performance(cur) -> Dict:
 
         if "_error" in perf:
             logger.error(f"Performance metrics fetch failed: {perf['_error']}")
-            return json_response(200, {
-                'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
-                'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
-                'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
-                'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
-                '_error': 'Data unavailable'
+            log_fallback_usage('performance_metrics', 'hardcoded_defaults', FallbackTrigger.PRIMARY_UNAVAILABLE, error=perf.get('_error'))
+
+            # Use documented fallback values from fallback_registry
+            fallback_values = get_hardcoded_fallback_values('performance_metrics', 'hardcoded_defaults')
+            fallback_response = fallback_values.copy() if fallback_values else {}
+
+            # Add metadata indicating these are placeholder/fallback values
+            fallback_response.update({
+                '_is_fallback_data': True,
+                '_fallback_reason': 'Performance data unavailable - using all-zero placeholder metrics',
+                'data_freshness': {
+                    'is_stale': True,
+                    'warning': 'Data unavailable',
+                    'message': 'Unable to fetch performance metrics. Showing placeholder values. Check system logs for details.'
+                },
+                'confidence_metadata': {
+                    'sharpe_confidence': 'critical_unavailable',
+                    'win_rate_confidence': 'critical_unavailable',
+                    'return_confidence': 'critical_unavailable',
+                    'snapshot_count': 0,
+                    'total_trades': 0,
+                }
             })
+            return json_response(200, fallback_response)
 
         # Wrap fetched data in response format expected by frontend
         result = {

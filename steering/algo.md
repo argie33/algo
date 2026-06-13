@@ -1050,22 +1050,24 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 ## Fallback Metrics and Placeholder Data
 
-**Critical:** When the dashboard displays "stale_alerts" or metrics appear unusually low (especially all zeros), the system is showing fallback data instead of real metrics. Users must be aware when they're viewing placeholder data.
+**Critical:** When the dashboard displays fallback data or metrics appear unusually low (especially all zeros), the system is showing placeholder metrics instead of real data. Users and developers must be aware when they're viewing fake placeholder data.
 
 **Fallback Chain for Performance Metrics:**
 
 1. **Primary Source:** `/api/algo/performance` endpoint (fetches from `algo_performance_daily` table and live calculations)
 2. **First Fallback:** In-memory cache of last successful API response (if API temporarily fails)
 3. **Last Resort:** Hardcoded all-zero placeholder metrics (if both API and cache unavailable)
-   - All performance fields set to 0: total_trades=0, win_rate=0%, profit_factor=0, sharpe=0, max_drawdown=0%, all streak values=0, all dollar amounts=$0
+   - All performance fields set to 0: total_trades=0, win_rate_pct=0%, profit_factor=0, sharpe_ratio=0, max_drawdown_pct=0%, all streak values=0, all dollar amounts=$0
    - Indicates a **critical failure:** either database is unreachable, API crashed, or data loader never populated the table
-   - Users see `data_freshness.warning='Data unavailable'` in the response
+   - API includes explicit metadata: `_is_fallback_data=true`, `_fallback_reason`, and `data_freshness.is_stale=true`
+   - Log message: `[FALLBACK] performance_metrics → hardcoded_defaults`
 
 **How to Identify Fallback Data:**
-- Run `python utils/fallback_registry.py` to see all hardcoded fallback values by resource
-- Check API response for `data_freshness.is_stale=true` or warning messages
-- In dashboard logs, watch for `[METRICS] CRITICAL - using hardcoded defaults` messages
-- Helper function `is_hardcoded_fallback_data(resource, data)` in `utils/fallback_registry.py` detects if data matches fallback patterns
+- Check API response for `_is_fallback_data=true` or `data_freshness.is_stale=true`
+- Look for `_fallback_reason` field explaining why fallback was triggered
+- In Lambda/CloudWatch logs, search for `[FALLBACK]` prefix entries
+- Run `python utils/fallback_registry.py` to see all documented fallback values by resource
+- Use helper function `is_hardcoded_fallback_data('performance_metrics', data)` in `utils/fallback_registry.py` to detect placeholder patterns
 
 **Troubleshooting Fallback Metrics:**
 1. Check if API endpoint is responding: `curl https://<api>/api/algo/performance`
