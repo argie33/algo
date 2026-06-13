@@ -42,7 +42,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                     response.raise_for_status()
 
                     tables = pd.read_html(StringIO(response.text))
-                    if tables and len(tables) > 0:
+                    if tables:
                         df = tables[0]
                         if "Symbol" in df.columns or "Ticker" in df.columns:
                             col = "Symbol" if "Symbol" in df.columns else "Ticker"

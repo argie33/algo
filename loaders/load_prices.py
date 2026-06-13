@@ -178,6 +178,52 @@ class PriceLoader(OptimalLoader):
         logger.debug(f"[CONTEXT] Running during morning/regular hours ({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting")
         return False
 
+    def _validate_schema_preflight(self):
+        """Pre-flight validation: Ensure table schema is correct before loading any data.
+
+        CRITICAL: Validates that target table has all required columns with correct data types.
+        This catches schema mismatches (e.g., price column became TEXT instead of NUMERIC)
+        before attempting to load or insert data.
+
+        If validation fails, raises RuntimeError to halt loader immediately and prevent
+        silent data corruption or runtime failures.
+        """
+        from loaders.schema_definitions import TABLE_SCHEMAS
+        from utils.schema_validator import validate_table_schema
+        from utils.database_context import DatabaseContext
+
+        if self.table_name not in TABLE_SCHEMAS:
+            logger.warning(f"[SCHEMA] No pre-defined schema for {self.table_name}, skipping validation")
+            return
+
+        required_schema = TABLE_SCHEMAS[self.table_name]
+
+        try:
+            with DatabaseContext("read") as cur:
+                is_valid, errors = validate_table_schema(
+                    cur,
+                    self.table_name,
+                    required_columns=required_schema,
+                    check_row_count=False  # Don't require table to have rows yet
+                )
+
+                if not is_valid:
+                    error_msg = f"\n".join(errors)
+                    logger.error(
+                        f"[SCHEMA] ❌ Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
+                        f"This will cause data loading to fail. "
+                        f"Verify table schema matches expected definition."
+                    )
+                    raise RuntimeError(f"Schema validation failed for {self.table_name}: {error_msg}")
+
+                logger.info(f"[SCHEMA] ✓ Schema validation passed for {self.table_name} ({len(required_schema)} columns)")
+
+        except RuntimeError:
+            raise  # Re-raise validation errors
+        except Exception as e:
+            logger.error(f"[SCHEMA] Could not perform schema validation for {self.table_name}: {e}", exc_info=True)
+            raise RuntimeError(f"Schema validation could not complete: {e}")
+
     def _get_smart_batch_size(self) -> int:
         """CREATIVE FIX #2: Calculate optimal batch size based on observed API performance.
 
@@ -1181,6 +1227,11 @@ class PriceLoader(OptimalLoader):
 
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # PRE-FLIGHT SCHEMA VALIDATION: Ensure table has correct columns with correct types
+        # CRITICAL: Catches schema mismatches (e.g., price column as TEXT instead of NUMERIC)
+        # before loading any data. Prevents silent corruption or runtime failures.
+        self._validate_schema_preflight()
 
         start = time.time()
         from datetime import timezone

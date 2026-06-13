@@ -170,9 +170,12 @@ class VectorizedSwingScoresLoader:
         for symbol in symbols:
             try:
                 # Get latest data for this symbol
-                sig = signal_scores[signal_scores['symbol'] == symbol].iloc[0] if len(signal_scores[signal_scores['symbol'] == symbol]) > 0 else None
-                tech = technical_data[technical_data['symbol'] == symbol].iloc[0] if len(technical_data[technical_data['symbol'] == symbol]) > 0 else None
-                trend = trend_data[trend_data['symbol'] == symbol].iloc[0] if len(trend_data[trend_data['symbol'] == symbol]) > 0 else None
+                sig_df = signal_scores[signal_scores['symbol'] == symbol]
+                sig = sig_df.iloc[0] if not sig_df.empty else None
+                tech_df = technical_data[technical_data['symbol'] == symbol]
+                tech = tech_df.iloc[0] if not tech_df.empty else None
+                trend_df = trend_data[trend_data['symbol'] == symbol]
+                trend = trend_df.iloc[0] if not trend_df.empty else None
 
                 if sig is None or tech is None or trend is None:
                     continue

@@ -378,7 +378,10 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                         if val is None:
                             return None
                         if hasattr(val, '__len__'):
-                            val = val.iloc[0] if len(val) > 0 else None
+                            try:
+                                val = val.iloc[0] if len(val) else None
+                            except (IndexError, AttributeError):
+                                val = None
                         try:
                             f = float(val)
                             return None if f != f else round(f, 4)

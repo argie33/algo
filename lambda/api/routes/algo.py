@@ -389,12 +389,12 @@ def _get_algo_status(cur) -> Dict:
             """)
             snap = cur.fetchone()
             if snap:
-                pv = safe_float(snap[0])
+                pv = safe_float(snap['total_portfolio_value'])
                 portfolio = {
                     'total_value': round(pv, 2),
-                    'daily_return_pct': round(safe_float(snap[1]), 2),
-                    'unrealized_pnl_pct': round((safe_float(snap[2]) / pv * 100) if pv > 0 else 0, 2),
-                    'open_positions': safe_int(snap[3]),
+                    'daily_return_pct': round(safe_float(snap['daily_return_pct']), 2),
+                    'unrealized_pnl_pct': round((safe_float(snap['unrealized_pnl_total']) / pv * 100) if pv > 0 else 0, 2),
+                    'open_positions': safe_int(snap['position_count']),
                 }
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -634,16 +634,30 @@ def _get_algo_performance(cur) -> Dict:
                     }
                 })
 
-            # Extract metrics from closed trades
-            pnl_dollars = [float(t.get('profit_loss_dollars') or 0) for t in trades]
-            pnl_pcts = [float(t.get('profit_loss_pct') or 0) for t in trades]
+            # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
+            pnl_dollars = []
+            pnl_pcts = []
+            missing_pnl_count = 0
+            for t in trades:
+                pnl_d = t.get('profit_loss_dollars')
+                pnl_p = t.get('profit_loss_pct')
+                if pnl_d is None or pnl_p is None:
+                    missing_pnl_count += 1
+                if pnl_d is not None:
+                    pnl_dollars.append(float(pnl_d))
+                if pnl_p is not None:
+                    pnl_pcts.append(float(pnl_p))
+
+            if missing_pnl_count > 0:
+                logger.warning(f'[PERFORMANCE] Skipped {missing_pnl_count} trades with missing P&L from {len(trades)} closed trades')
+
             r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple')]
-            holding_days = [float(t.get('holding_days') or 0) for t in trades if t.get('holding_days')]
+            holding_days = [float(t.get('holding_days')) for t in trades if t.get('holding_days') is not None]
 
             closed_winning = sum(1 for p in pnl_dollars if p > 0)
             closed_losing = sum(1 for p in pnl_dollars if p < 0)
             closed_breakeven = sum(1 for p in pnl_dollars if p == 0)
-            closed_total = len(trades)
+            closed_total = len(pnl_dollars)
 
             # Fetch open positions
             cur.execute("""
@@ -689,7 +703,7 @@ def _get_algo_performance(cur) -> Dict:
 
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
             if snapshot_count > 1:
-                vals = [float(s.get('total_portfolio_value') or 0) for s in snapshots]
+                vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
                 returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
 
                 if returns:
@@ -705,22 +719,25 @@ def _get_algo_performance(cur) -> Dict:
 
                     max_dd_pct = max_drawdown_pct(returns)
 
-                if vals[0] > 0 and vals[-1] > 0:
+                if len(vals) >= 2 and vals[0] > 0 and vals[-1] > 0:
                     total_return_pct = (vals[-1] / vals[0] - 1) * 100
 
-            # Equity curve and returns
-            equity_vals = [float(s.get('total_portfolio_value') or 0) for s in snapshots] if snapshots else []
+            # Equity curve and returns (skip entries with missing portfolio values)
+            equity_vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
             recent_rets = []
             if len(snapshots) >= 2:
                 for i in range(1, len(snapshots)):
-                    prev = float(snapshots[i-1].get('total_portfolio_value') or 0)
-                    curr = float(snapshots[i].get('total_portfolio_value') or 0)
-                    if prev != 0:
-                        ret_pct = ((curr - prev) / prev) * 100
-                        date_str = snapshots[i].get('snapshot_date')
-                        if date_str:
-                            date_str = date_str.isoformat() if hasattr(date_str, 'isoformat') else str(date_str)
-                        recent_rets.append([date_str, round(ret_pct, 2)])
+                    prev_val = snapshots[i-1].get('total_portfolio_value')
+                    curr_val = snapshots[i].get('total_portfolio_value')
+                    if prev_val is not None and curr_val is not None:
+                        prev = float(prev_val)
+                        curr = float(curr_val)
+                        if prev != 0:
+                            ret_pct = ((curr - prev) / prev) * 100
+                            date_str = snapshots[i].get('snapshot_date')
+                            if date_str:
+                                date_str = date_str.isoformat() if hasattr(date_str, 'isoformat') else str(date_str)
+                            recent_rets.append([date_str, round(ret_pct, 2)])
 
             # Confidence levels
             sharpe_confidence = 'high' if snapshot_count >= 20 else ('medium' if snapshot_count >= 5 else 'low')
@@ -914,11 +931,11 @@ def _get_circuit_breakers(cur) -> Dict:
                 cbm_row = cur.fetchone()
                 if cbm_row:
                     cbm_data = {
-                        'drawdown': safe_float(cbm_row[0]) if cbm_row[0] is not None else 0,
-                        'daily_loss': safe_float(cbm_row[1]) if cbm_row[1] is not None else 0,
-                        'weekly_loss': safe_float(cbm_row[2]) if cbm_row[2] is not None else 0,
-                        'total_risk': safe_float(cbm_row[3]) if cbm_row[3] is not None else 0,
-                        'consecutive_losses': safe_int(cbm_row[4]) if cbm_row[4] is not None else 0,
+                        'drawdown': safe_float(cbm_row['current_drawdown_pct']) if cbm_row['current_drawdown_pct'] is not None else 0,
+                        'daily_loss': safe_float(cbm_row['daily_loss_pct']) if cbm_row['daily_loss_pct'] is not None else 0,
+                        'weekly_loss': safe_float(cbm_row['weekly_loss_pct']) if cbm_row['weekly_loss_pct'] is not None else 0,
+                        'total_risk': safe_float(cbm_row['total_risk_pct']) if cbm_row['total_risk_pct'] is not None else 0,
+                        'consecutive_losses': safe_int(cbm_row['consecutive_losses']) if cbm_row['consecutive_losses'] is not None else 0,
                     }
             except Exception as e:
                 logger.warning(f"Circuit breaker metrics view unavailable: {e}")
@@ -975,7 +992,7 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                vix_val = row[0] if row and row[0] is not None else None
+                vix_val = row['vix_level'] if row and row['vix_level'] is not None else None
                 vix = round(float(vix_val), 1) if vix_val is not None else None
                 threshold_vix = 35.0
                 breakers.append({
@@ -1010,7 +1027,7 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                stage = safe_int(row[0]) if row else 0
+                stage = safe_int(row['market_stage']) if row else 0
                 breakers.append({
                     'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': stage == 4,
@@ -1084,8 +1101,8 @@ def _get_circuit_breakers(cur) -> Dict:
                 """)
                 wr_result = cur.fetchone()
                 if wr_result:
-                    wins = safe_int(wr_result[0])
-                    losses = safe_int(wr_result[1])
+                    wins = safe_int(wr_result['wins'])
+                    losses = safe_int(wr_result['losses'])
                     decisive = wins + losses
                     win_rate = (wins / decisive * 100) if decisive > 0 else 0
                     threshold_wr = 40.0
@@ -1124,7 +1141,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
-                cur.execute("""
+            cur.execute("""
                 SELECT snapshot_date, total_portfolio_value, total_cash,
                        unrealized_pnl_total, position_count, daily_return_pct
                 FROM algo_portfolio_snapshots
@@ -1623,7 +1640,7 @@ def _get_sector_position_warnings(cur) -> Dict:
 
             cur.execute("SELECT value FROM algo_config WHERE key = %s LIMIT 1", ('max_positions_per_sector',))
             max_per_sector_row = cur.fetchone()
-            max_per_sector = int(max_per_sector_row[0]) if max_per_sector_row and max_per_sector_row[0] else 3
+            max_per_sector = int(max_per_sector_row['value']) if max_per_sector_row and max_per_sector_row['value'] else 3
 
             warnings = []
             at_cap = []

@@ -263,7 +263,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         win_rate_50t = None
         avg_win_r_50t = None
         avg_loss_r_50t = None
-        if len(recent_trades) > 0:
+        if recent_trades:
             wins_50 = sum(1 for t in recent_trades if t.get('profit_loss_dollars') and float(t['profit_loss_dollars']) > 0)
             win_rate_50t = MetricsCalculator.calculate_win_rate(
                 len(recent_trades), wins_50, len(recent_trades) - wins_50

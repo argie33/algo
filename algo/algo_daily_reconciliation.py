@@ -1154,7 +1154,7 @@ class DailyReconciliation:
                 data = resp.json()
                 if isinstance(data, dict) and 'equity' in data:
                     equity_list = data.get('equity', [])
-                    if equity_list and len(equity_list) > 0:
+                    if equity_list:
                         initial_val = float(equity_list[0])
                         if initial_val > 0:
                             logger.info(f"Initial capital from Alpaca history: ${initial_val:,.2f}")
