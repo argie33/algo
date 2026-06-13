@@ -1,25 +1,20 @@
-"""Route: algo"""
+﻿"""Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, json, os, sys
+import logging, re, json, os
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
-from pathlib import Path
+
+# Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize, set_statement_timeout_from_config
+    check_data_freshness, safe_json_serialize, safe_dict_convert
 )
 
-# Import from root utils package
-_root_dir = str(Path(__file__).parent.parent.parent.parent)
-if _root_dir not in sys.path:
-    sys.path.insert(0, _root_dir)
-
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
-from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int
-from utils.fallback_registry import get_hardcoded_fallback_values, log_fallback_usage, FallbackTrigger
+from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
 import math
 
 logger = logging.getLogger(__name__)
@@ -34,18 +29,18 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     return 'admin' in groups
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/algo/* endpoints."""
-        try:
-            return _dispatch(cur, path, method, params, body, jwt_claims)
-        except Exception as e:
-            logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
-            return error_response(500, 'internal_error', 'An error occurred while processing your request')
+    """Handle /api/algo/* endpoints."""
+    try:
+        return _dispatch(cur, path, method, params, body, jwt_claims)
+    except Exception as e:
+        logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
+        return error_response(500, 'internal_error', 'An error occurred while processing your request')
 
 def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        # User identity from verified JWT claims (sub is the Cognito user ID)
-        user_id = (jwt_claims or {}).get('sub', '')
+    # User identity from verified JWT claims (sub is the Cognito user ID)
+    user_id = (jwt_claims or {}).get('sub', '')
 
-        if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
+    if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}")
@@ -69,7 +64,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 code, error_type, message = handle_db_error(e, 'mark notification as read')
                 logger.error(f'Failed to mark notification as read: {error_type} - {message}')
                 return json_response(code, {'errorType': error_type, 'message': message})
-        if method == 'DELETE' and '/notifications/' in path:
+    if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}")
@@ -91,7 +86,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 code, error_type, message = handle_db_error(e, 'delete notification')
                 logger.error(f'Failed to delete notification: {error_type} - {message}')
                 return json_response(code, {'errorType': error_type, 'message': message})
-        if method == 'POST' and path == '/api/algo/patrol':
+    if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -102,7 +97,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not is_allowed:
                     return error_response(429, 'too_many_requests', error_msg)
             return _trigger_data_patrol()
-        if method == 'POST' and path == '/api/algo/pre-trade-impact':
+    if method == 'POST' and path == '/api/algo/pre-trade-impact':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -112,42 +107,43 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not is_allowed:
                     return error_response(429, 'too_many_requests', error_msg)
             return _analyze_pre_trade_impact(cur, body)
-        if path == '/api/algo/status':
+    if path == '/api/algo/status':
             # Status is accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_status(cur)
-        elif path == '/api/algo/trades':
+    elif path == '/api/algo/trades':
             # Trades accessible to authenticated users (Portfolio Dashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
-            return _get_algo_trades(cur, limit, user_id=user_id)
-        elif path == '/api/algo/positions':
+            status_filter = params.get('status', [None])[0] if params else None
+            return _get_algo_trades(cur, limit, user_id=user_id, status=status_filter)
+    elif path == '/api/algo/positions':
             # Positions accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_positions(cur, user_id=user_id)
-        elif path == '/api/algo/dashboard-signals':
+    elif path == '/api/algo/dashboard-signals':
             # Dashboard signals with aggregations for the Ops Terminal
             return _get_dashboard_signals(cur)
-        elif path == '/api/algo/performance':
+    elif path == '/api/algo/performance':
             # Performance accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_performance(cur)
-        elif path == '/api/algo/circuit-breakers':
+    elif path == '/api/algo/circuit-breakers':
             # Circuit breakers accessible to authenticated users (Portfolio Dashboard)
             return _get_circuit_breakers(cur)
-        elif path == '/api/algo/equity-curve':
+    elif path == '/api/algo/equity-curve':
             # Equity curve accessible to authenticated users (Portfolio Dashboard)
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_equity_curve(cur, days)
-        elif path == '/api/algo/data-status':
+    elif path == '/api/algo/data-status':
             # Data status accessible to authenticated users
             return _get_data_status(cur)
-        elif path == '/api/algo/notifications':
+    elif path == '/api/algo/notifications':
             # Admin-only: GET returns circuit breaker alerts, halt flags, position alerts, trade execution failures
             # Dev mode: Allow access for testing
             if os.environ.get('DEV_BYPASS_AUTH') != 'true' and not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_notifications(cur, params, jwt_claims)
-        elif path == '/api/algo/patrol-log':
+    elif path == '/api/algo/patrol-log':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -156,15 +152,15 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             return _get_patrol_log(cur, limit, offset)
-        elif path == '/api/algo/sector-rotation':
+    elif path == '/api/algo/sector-rotation':
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_sector_rotation(cur, days)
-        elif path == '/api/algo/sector-breadth':
+    elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
-        elif path == '/api/algo/sector-position-warnings':
+    elif path == '/api/algo/sector-position-warnings':
             return _get_sector_position_warnings(cur)
-        elif path == '/api/algo/swing-scores':
+    elif path == '/api/algo/swing-scores':
             # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
@@ -178,55 +174,55 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):
                     return error_response(400, 'bad_request', 'Invalid symbol format')
             return _get_swing_scores(cur, limit, min_score, symbol_filter)
-        elif path == '/api/algo/swing-scores-history':
+    elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
-        elif path == '/api/algo/rejection-funnel':
+    elif path == '/api/algo/rejection-funnel':
             # Rejection funnel accessible to authenticated users
             return _get_rejection_funnel(cur)
-        elif path == '/api/algo/markets':
+    elif path == '/api/algo/markets':
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
-        elif path == '/api/algo/market':
+    elif path == '/api/algo/market':
             # Simplified market data for dashboard display - public endpoint
             return _get_market(cur)
-        elif path == '/api/algo/market-factors':
+    elif path == '/api/algo/market-factors':
             # Market exposure factors for dashboard display - public endpoint
             return _get_market_factors(cur)
-        elif path == '/api/algo/portfolio':
+    elif path == '/api/algo/portfolio':
             # Portfolio snapshot accessible to authenticated users
             return _get_algo_portfolio(cur)
-        elif path == '/api/algo/metrics':
+    elif path == '/api/algo/metrics':
             # Algo metrics accessible to authenticated users
             return _get_algo_metrics(cur)
-        elif path == '/api/algo/risk-metrics':
+    elif path == '/api/algo/risk-metrics':
             # Risk metrics accessible to authenticated users
             return _get_risk_metrics(cur)
-        elif path == '/api/algo/performance-analytics':
+    elif path == '/api/algo/performance-analytics':
             # Performance analytics accessible to authenticated users
             return _get_performance_analytics(cur)
-        elif path == '/api/algo/sentiment':
+    elif path == '/api/algo/sentiment':
             # Sentiment data accessible to authenticated users
             return _get_sentiment(cur)
-        elif path == '/api/algo/economic-calendar':
+    elif path == '/api/algo/economic-calendar':
             # Economic calendar accessible to authenticated users
             return _get_economic_calendar(cur)
-        elif path == '/api/algo/evaluate':
+    elif path == '/api/algo/evaluate':
             # Evaluate accessible to authenticated users (AlgoTradingDashboard)
             return _get_algo_evaluate(cur)
-        elif path == '/api/algo/data-quality':
+    elif path == '/api/algo/data-quality':
             # Data quality accessible to authenticated users
             return _get_data_quality(cur)
-        elif path == '/api/algo/exposure-policy':
+    elif path == '/api/algo/exposure-policy':
             # Exposure policy accessible to authenticated users
             return _get_exposure_policy(cur)
-        elif path == '/api/algo/sector-stage2':
+    elif path == '/api/algo/sector-stage2':
             return _get_sector_stage2(cur)
-        elif path == '/api/algo/config':
+    elif path == '/api/algo/config':
             # Config accessible to authenticated users
             return _get_algo_config(cur)
-        elif path.startswith('/api/algo/config/'):
+    elif path.startswith('/api/algo/config/'):
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -239,10 +235,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             elif method == 'DELETE':
                 actor = (jwt_claims or {}).get('sub', 'unknown')
                 return _reset_algo_config_key(cur, key, actor)
-        elif path == '/api/algo/last-run':
+    elif path == '/api/algo/last-run':
             # Last run accessible to authenticated users
             return _get_last_run(cur)
-        elif path == '/api/algo/audit-log':
+    elif path == '/api/algo/audit-log':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -276,7 +272,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if action_type not in VALID_ACTION_TYPES:
                     return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
-        elif path == '/api/algo/execution/recent':
+    elif path == '/api/algo/execution/recent':
             # FIXED Issue #6: View recent orchestrator execution history
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -286,7 +282,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=1000, default=50)
             return _get_orchestrator_execution_recent(cur, days, limit)
-        elif path == '/api/algo/execution/failed':
+    elif path == '/api/algo/execution/failed':
             # View failed/halted runs for diagnostics
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -294,14 +290,14 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=30, max_val=90)
             return _get_orchestrator_execution_failed(cur, days)
-        elif path.startswith('/api/algo/execution/details/'):
+    elif path.startswith('/api/algo/execution/details/'):
             # View details of a specific orchestrator run
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             run_id = path.split('/api/algo/execution/details/')[-1]
             return _get_orchestrator_execution_details(cur, run_id)
-        elif path == '/api/algo/execution/patterns':
+    elif path == '/api/algo/execution/patterns':
             # Analyze halt patterns - which phases halt most often
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -309,7 +305,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=30, max_val=90)
             return _get_orchestrator_execution_patterns(cur, days)
-        elif path == '/api/algo/execution/stats':
+    elif path == '/api/algo/execution/stats':
             # View execution statistics
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -317,7 +313,39 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=7, max_val=90)
             return _get_orchestrator_execution_stats(cur, days)
-        else:
+    elif path == '/api/algo/daily-return-histogram':
+            # Dashboard histogram: daily return distribution
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
+            return _get_daily_return_histogram(cur)
+    elif path == '/api/algo/trade-distribution':
+            # Dashboard histogram: trade P&L distribution
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
+            return _get_trade_distribution(cur)
+    elif path == '/api/algo/holding-period-distribution':
+            # Dashboard histogram: position holding period distribution
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
+            return _get_holding_period_distribution(cur)
+    elif path == '/api/algo/stage-distribution':
+            # Dashboard histogram: entry stage distribution
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
+            return _get_stage_distribution(cur)
+    else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
 @db_route_handler('get last run')
@@ -346,7 +374,7 @@ def _get_last_run(cur) -> Dict:
         WHERE details->>'run_id' = %s
         ORDER BY created_at ASC
     """, (run_id,))
-    phases = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+    phases = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
     halted = any(p.get('status') == 'halt' for p in phases)
     errored = any(p.get('status') == 'error' for p in phases)
@@ -363,7 +391,6 @@ def _get_last_run(cur) -> Dict:
 @db_route_handler('fetch algo status', default_error_response={'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
-        set_statement_timeout_from_config(cur, 'normal')
         cur.execute("""
             SELECT
                 details->>'run_id' AS run_id,
@@ -382,7 +409,6 @@ def _get_algo_status(cur) -> Dict:
 
         portfolio = {}
         try:
-            set_statement_timeout_from_config(cur, 'short')
             cur.execute("""
                 SELECT total_portfolio_value, daily_return_pct,
                        unrealized_pnl_total, position_count
@@ -391,12 +417,12 @@ def _get_algo_status(cur) -> Dict:
             """)
             snap = cur.fetchone()
             if snap:
-                pv = safe_float(snap[0])
+                pv = safe_float(snap['total_portfolio_value'])
                 portfolio = {
                     'total_value': round(pv, 2),
-                    'daily_return_pct': round(safe_float(snap[1]), 2),
-                    'unrealized_pnl_pct': round((safe_float(snap[2]) / pv * 100) if pv > 0 else 0, 2),
-                    'open_positions': safe_int(snap[3]),
+                    'daily_return_pct': round(safe_float(snap['daily_return_pct']), 2),
+                    'unrealized_pnl_pct': round((safe_float(snap['unrealized_pnl_total']) / pv * 100) if pv > 0 else 0, 2),
+                    'open_positions': safe_int(snap['position_count']),
                 }
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -414,14 +440,26 @@ def _get_algo_status(cur) -> Dict:
         })
 
 @db_route_handler('fetch algo trades', default_error_response={'items': [], 'pagination': {'total': 0, 'limit': 200, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
-def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
-        """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
+def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = None) -> Dict:
+        """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
+        where_parts = []
+        params = []
+
         if user_id:
-            where_clause = "WHERE cognito_sub = %s"
-            params = (user_id, limit)
-        else:
-            where_clause = ""
-            params = (limit,)
+            where_parts.append("cognito_sub = %s")
+            params.append(user_id)
+
+        if status:
+            # Validate status parameter to prevent SQL injection
+            valid_statuses = ['open', 'closed', 'halted', 'cancelled']
+            if status not in valid_statuses:
+                status = None
+            else:
+                where_parts.append("status = %s")
+                params.append(status)
+
+        where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+        params.append(limit)
 
         cur.execute(f"""
             SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
@@ -435,7 +473,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
             LIMIT %s
         """, params)
         trades = cur.fetchall()
-        items = [safe_json_serialize(dict(t)) for t in trades]
+        items = [safe_json_serialize(safe_dict_convert(t)) for t in trades]
         freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
         return json_response(200, {
             'items': items,
@@ -497,7 +535,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         sector_risk = {}  # For aggregating sector allocation
 
         for p in positions:
-            d = safe_json_serialize(dict(p))
+            d = safe_json_serialize(safe_dict_convert(p))
 
             # Compute ladder_pct_* fields for visualization (Issue #2)
             entry = safe_float(d.get('avg_entry_price'))
@@ -557,8 +595,12 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             items.append(d)
 
             # Accumulate sector allocation for aggregation (Issue #1)
+            # Only include positions with valid position_value (don't silently use 0)
             sector = d.get('sector', 'Unknown')
-            pos_val = safe_float(d.get('position_value'), default=0.0)
+            pos_val = safe_float(d.get('position_value'))
+            if pos_val is None:
+                logger.warning(f"Position missing position_value: symbol={d.get('symbol')}, skipping from sector allocation")
+                continue
             if sector not in sector_risk:
                 sector_risk[sector] = 0
             sector_risk[sector] += pos_val
@@ -576,15 +618,19 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         ]
 
         freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
+        stale_alerts = []
+        if freshness.get('is_stale'):
+            stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
 
         return json_response(200, {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
+            'stale_alerts': stale_alerts,
             'data_freshness': freshness
         })
 
-@db_route_handler('calculate performance', default_error_response={'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0, 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0, 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics.
 
@@ -619,7 +665,7 @@ def _get_algo_performance(cur) -> Dict:
                 ORDER BY exit_date DESC
                 LIMIT 1000
             """)
-            trades = [dict(row) for row in cur.fetchall()]
+            trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             if not trades:
                 return json_response(200, {
@@ -636,24 +682,30 @@ def _get_algo_performance(cur) -> Dict:
                     }
                 })
 
-            # Extract metrics from closed trades (skip trades with missing P&L — don't mask with fallback to 0)
+            # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
             pnl_dollars = []
             pnl_pcts = []
+            missing_pnl_count = 0
             for t in trades:
                 pnl_d = t.get('profit_loss_dollars')
                 pnl_p = t.get('profit_loss_pct')
                 if pnl_d is None or pnl_p is None:
-                    continue
-                pnl_dollars.append(float(pnl_d))
-                pnl_pcts.append(float(pnl_p))
+                    missing_pnl_count += 1
+                if pnl_d is not None:
+                    pnl_dollars.append(float(pnl_d))
+                if pnl_p is not None:
+                    pnl_pcts.append(float(pnl_p))
 
-            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
+            if missing_pnl_count > 0:
+                logger.warning(f'[PERFORMANCE] Skipped {missing_pnl_count} trades with missing P&L from {len(trades)} closed trades')
+
+            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple')]
             holding_days = [float(t.get('holding_days')) for t in trades if t.get('holding_days') is not None]
 
             closed_winning = sum(1 for p in pnl_dollars if p > 0)
             closed_losing = sum(1 for p in pnl_dollars if p < 0)
             closed_breakeven = sum(1 for p in pnl_dollars if p == 0)
-            closed_total = len(trades)
+            closed_total = len(pnl_dollars)
 
             # Fetch open positions
             cur.execute("""
@@ -666,7 +718,7 @@ def _get_algo_performance(cur) -> Dict:
                   ON at.symbol = pd.symbol
                 WHERE at.exit_price IS NULL
             """)
-            open_trades = [dict(row) for row in cur.fetchall()]
+            open_trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
             open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
@@ -694,18 +746,15 @@ def _get_algo_performance(cur) -> Dict:
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date ASC
             """)
-            snapshots = [dict(row) for row in cur.fetchall()]
+            snapshots = [safe_dict_convert(row) for row in cur.fetchall()]
             snapshot_count = len(snapshots)
 
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
             if snapshot_count > 1:
-                # Skip snapshots with missing portfolio values (don't mask with fallback to 0)
-                vals = []
-                for s in snapshots:
-                    pv = s.get('total_portfolio_value')
-                    if pv is None:
-                        continue
-                    vals.append(float(pv))
+                vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
+                missing_snapshot_count = snapshot_count - len(vals)
+                if missing_snapshot_count > 0:
+                    logger.warning(f'[PERFORMANCE] Skipped {missing_snapshot_count} snapshots with missing portfolio value from {snapshot_count} total')
                 returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
 
                 if returns:
@@ -721,35 +770,39 @@ def _get_algo_performance(cur) -> Dict:
 
                     max_dd_pct = max_drawdown_pct(returns)
 
-                if vals[0] > 0 and vals[-1] > 0:
+                if len(vals) >= 2 and vals[0] > 0 and vals[-1] > 0:
                     total_return_pct = (vals[-1] / vals[0] - 1) * 100
 
-            # Equity curve and returns (skip snapshots with missing portfolio values)
-            equity_vals = []
-            for s in snapshots:
-                pv = s.get('total_portfolio_value')
-                if pv is not None:
-                    equity_vals.append(float(pv))
-
+            # Equity curve and returns (skip entries with missing portfolio values)
+            equity_vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
             recent_rets = []
             if len(snapshots) >= 2:
                 for i in range(1, len(snapshots)):
-                    prev = snapshots[i-1].get('total_portfolio_value')
-                    curr = snapshots[i].get('total_portfolio_value')
-                    if prev is None or curr is None:
-                        continue
-                    prev = float(prev)
-                    curr = float(curr)
-                    if prev != 0:
-                        ret_pct = ((curr - prev) / prev) * 100
-                        date_str = snapshots[i].get('snapshot_date')
-                        if date_str:
-                            date_str = date_str.isoformat() if hasattr(date_str, 'isoformat') else str(date_str)
-                        recent_rets.append([date_str, round(ret_pct, 2)])
+                    prev_val = snapshots[i-1].get('total_portfolio_value')
+                    curr_val = snapshots[i].get('total_portfolio_value')
+                    if prev_val is not None and curr_val is not None:
+                        prev = float(prev_val)
+                        curr = float(curr_val)
+                        if prev != 0:
+                            ret_pct = ((curr - prev) / prev) * 100
+                            date_str = snapshots[i].get('snapshot_date')
+                            if date_str:
+                                date_str = date_str.isoformat() if hasattr(date_str, 'isoformat') else str(date_str)
+                            recent_rets.append([date_str, round(ret_pct, 2)])
 
             # Confidence levels
             sharpe_confidence = 'high' if snapshot_count >= 20 else ('medium' if snapshot_count >= 5 else 'low')
             win_rate_confidence = 'high' if win_loss_total >= 30 else ('medium' if win_loss_total >= 10 else 'low')
+
+            # Check data freshness for multiple sources
+            stale_alerts = []
+            trades_freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1) if trades else {}
+            snapshots_freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1) if snapshots else {}
+
+            if trades_freshness.get('is_stale'):
+                stale_alerts.append(f"Trade data {trades_freshness.get('data_age_days', '?')}d old")
+            if snapshots_freshness.get('is_stale'):
+                stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
 
             return json_response(200, {
                 'total_trades': total,
@@ -783,7 +836,8 @@ def _get_algo_performance(cur) -> Dict:
                 'current_streak': 0,
                 'equity_vals': equity_vals,
                 'recent_rets': recent_rets,
-                'data_freshness': {},
+                'stale_alerts': stale_alerts,
+                'data_freshness': {**trades_freshness, **snapshots_freshness},
                 'confidence_metadata': {
                     'sharpe_confidence': sharpe_confidence,
                     'win_rate_confidence': win_rate_confidence,
@@ -805,8 +859,7 @@ def _get_dashboard_signals(cur) -> Dict:
         near-miss signals, top A-grade stocks, and signal trend.
         """
         try:
-            set_statement_timeout_from_config(cur, 'xlong')
-
+    
             cur.execute("""
                 SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
                 WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
@@ -836,7 +889,7 @@ def _get_dashboard_signals(cur) -> Dict:
                   AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
                 ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
                 LIMIT 30""")
-            buy_sigs = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Grade distribution (A/B/C/D by swing score)
             cur.execute("""
@@ -848,7 +901,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 FROM swing_trader_scores
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
             grades_r = cur.fetchone()
-            grades = dict(grades_r) if grades_r else {}
+            grades = safe_dict_convert(grades_r) if grades_r else {}
 
             # Near-misses: scored stocks close to BUY threshold
             cur.execute("""
@@ -858,16 +911,16 @@ def _get_dashboard_signals(cur) -> Dict:
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                   AND s.score BETWEEN 55 AND 69
                 ORDER BY s.score DESC LIMIT 15""")
-            near = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-            # Top A-grade stocks by name (radar display — score ≥ 80)
+            # Top A-grade stocks by name (radar display â€” score â‰¥ 80)
             cur.execute("""
                 SELECT s.symbol, s.score
                 FROM swing_trader_scores s
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                   AND s.score >= 80
                 ORDER BY s.score DESC LIMIT 20""")
-            top_a = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Signal count trend: last 7 trading days
             cur.execute("""
@@ -877,7 +930,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 FROM buy_sell_daily
                 WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
                 GROUP BY date ORDER BY date DESC LIMIT 7""")
-            trend = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
 
@@ -885,10 +938,10 @@ def _get_dashboard_signals(cur) -> Dict:
                 'n': int(sig["n"] or 0) if sig else 0,
                 'total': total_n,
                 'date': sig["d"] if sig else None,
-                'buy_sigs': buy_sigs,
+                'buy_sigs': buy_sigs[:5] if buy_sigs else [],
+                'near': near[0:5] if len(near) > 0 else [],
+                'top_a': top_a[:3] if top_a else [],
                 'grades': grades,
-                'near': near,
-                'top_a': top_a,
                 'trend': trend,
                 'data_freshness': freshness
             })
@@ -940,11 +993,11 @@ def _get_circuit_breakers(cur) -> Dict:
                 cbm_row = cur.fetchone()
                 if cbm_row:
                     cbm_data = {
-                        'drawdown': safe_float(cbm_row[0]) if cbm_row[0] is not None else 0,
-                        'daily_loss': safe_float(cbm_row[1]) if cbm_row[1] is not None else 0,
-                        'weekly_loss': safe_float(cbm_row[2]) if cbm_row[2] is not None else 0,
-                        'total_risk': safe_float(cbm_row[3]) if cbm_row[3] is not None else 0,
-                        'consecutive_losses': safe_int(cbm_row[4]) if cbm_row[4] is not None else 0,
+                        'drawdown': safe_float(cbm_row['current_drawdown_pct']) if cbm_row['current_drawdown_pct'] is not None else 0,
+                        'daily_loss': safe_float(cbm_row['daily_loss_pct']) if cbm_row['daily_loss_pct'] is not None else 0,
+                        'weekly_loss': safe_float(cbm_row['weekly_loss_pct']) if cbm_row['weekly_loss_pct'] is not None else 0,
+                        'total_risk': safe_float(cbm_row['total_risk_pct']) if cbm_row['total_risk_pct'] is not None else 0,
+                        'consecutive_losses': safe_int(cbm_row['consecutive_losses']) if cbm_row['consecutive_losses'] is not None else 0,
                     }
             except Exception as e:
                 logger.warning(f"Circuit breaker metrics view unavailable: {e}")
@@ -957,7 +1010,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'drawdown', 'label': 'Portfolio Drawdown',
                     'triggered': dd >= threshold_dd,
                     'current': dd, 'threshold': threshold_dd, 'unit': '%',
-                    'description': f'Halt when drawdown from peak ≥ {threshold_dd:.0f}%',
+                    'description': f'Halt when drawdown from peak â‰¥ {threshold_dd:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -973,7 +1026,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'daily_loss', 'label': 'Daily Loss',
                     'triggered': daily_loss >= threshold_dl,
                     'current': daily_loss, 'threshold': threshold_dl, 'unit': '%',
-                    'description': f'Halt when today\'s loss ≥ {threshold_dl:.0f}%',
+                    'description': f'Halt when today\'s loss â‰¥ {threshold_dl:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1001,14 +1054,14 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                vix_val = row[0] if row and row[0] is not None else None
+                vix_val = row['vix_level'] if row and row['vix_level'] is not None else None
                 vix = round(float(vix_val), 1) if vix_val is not None else None
                 threshold_vix = 35.0
                 breakers.append({
                     'id': 'vix_spike', 'label': 'VIX Spike',
                     'triggered': vix is not None and vix >= threshold_vix,
                     'current': vix, 'threshold': threshold_vix, 'unit': '',
-                    'description': f'Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)',
+                    'description': f'Halt when VIX â‰¥ {threshold_vix:.0f} (extreme fear)',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1024,7 +1077,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'weekly_loss', 'label': 'Weekly Loss',
                     'triggered': weekly_loss >= threshold_wl,
                     'current': weekly_loss, 'threshold': threshold_wl, 'unit': '%',
-                    'description': f'Halt when 7-day loss ≥ {threshold_wl:.0f}%',
+                    'description': f'Halt when 7-day loss â‰¥ {threshold_wl:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1036,7 +1089,7 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                stage = safe_int(row[0]) if row else 0
+                stage = safe_int(row['market_stage']) if row else 0
                 breakers.append({
                     'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': stage == 4,
@@ -1057,7 +1110,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'total_risk', 'label': 'Total Open Risk',
                     'triggered': risk_pct >= threshold_risk,
                     'current': risk_pct, 'threshold': threshold_risk, 'unit': '%',
-                    'description': f'Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio',
+                    'description': f'Halt when total open risk â‰¥ {threshold_risk:.0f}% of portfolio',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1110,8 +1163,8 @@ def _get_circuit_breakers(cur) -> Dict:
                 """)
                 wr_result = cur.fetchone()
                 if wr_result:
-                    wins = safe_int(wr_result[0])
-                    losses = safe_int(wr_result[1])
+                    wins = safe_int(wr_result['wins'])
+                    losses = safe_int(wr_result['losses'])
                     decisive = wins + losses
                     win_rate = (wins / decisive * 100) if decisive > 0 else 0
                     threshold_wr = 40.0
@@ -1150,7 +1203,6 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
-            set_statement_timeout_from_config(cur, 'medium')
             cur.execute("""
                 SELECT snapshot_date, total_portfolio_value, total_cash,
                        unrealized_pnl_total, position_count, daily_return_pct
@@ -1161,7 +1213,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             """, (cutoff_date,))
             curve = cur.fetchall()
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
-            return list_response([safe_json_serialize(dict(c)) for c in reversed(curve) if c], data_freshness=freshness)
+            return list_response([safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c], data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable (equity curve): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch equity curve'}, exc_info=True)
             return error_response(503, 'service_unavailable', 'Data unavailable')
@@ -1314,7 +1366,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
             cur.execute(query, tuple(where_params))
             notifs = cur.fetchall()
-            return list_response([safe_json_serialize(dict(n)) for n in notifs])
+            return list_response([safe_json_serialize(safe_dict_convert(n)) for n in notifs])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch notifications: {type(e).__name__}: {str(e)}', extra={'operation': 'fetch notifications'}, exc_info=True)
@@ -1345,7 +1397,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         if not impact_row:
             return error_response(500, 'internal_error', f'Unable to calculate impact for {symbol}')
 
-        impact = safe_json_serialize(dict(impact_row))
+        impact = safe_json_serialize(safe_dict_convert(impact_row))
 
         allOk = (impact.get('meets_position_limit', False) and
                 impact.get('meets_size_limit', False) and
@@ -1473,7 +1525,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
             LIMIT %s OFFSET %s
         """, (limit, offset))
         findings = cur.fetchall()
-        return list_response([safe_json_serialize(dict(f)) for f in findings], total=total)
+        return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 @db_route_handler('get sector rotation')
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
@@ -1555,20 +1607,19 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
             ORDER BY date DESC
         """, (cutoff_date,))
         rotation = cur.fetchall()
-        return list_response([safe_json_serialize(dict(r)) for r in rotation])
+        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
         Uses pre-computed sma_50/sma_200 from technical_data_daily (fast indexed lookup)
         instead of recomputing window functions over 290 days of price_daily (too slow on
-        t4g.micro — caused 20s timeout). Joins latest tech row per symbol with company_profile.
+        t4g.micro â€” caused 20s timeout). Joins latest tech row per symbol with company_profile.
         """
         try:
             # SAVEPOINT isolation: sector breadth joins price_daily + technical_data_daily.
-            # Both tables receive heavy writes from ECS loaders — a timeout here must not
+            # Both tables receive heavy writes from ECS loaders â€” a timeout here must not
             # abort the outer transaction and break subsequent API requests in the same Lambda.
             cur.execute("SAVEPOINT sector_breadth_check")
-            set_statement_timeout_from_config(cur, 'medium')
             cur.execute("""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (tdd.symbol)
@@ -1614,7 +1665,7 @@ def _get_sector_breadth(cur) -> Dict:
             """)
             breadth = cur.fetchall()
             cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            return list_response([safe_json_serialize(dict(b)) for b in breadth])
+            return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
@@ -1638,8 +1689,7 @@ def _get_sector_position_warnings(cur) -> Dict:
         Returns list of sectors with position counts and concentration warnings.
         """
         try:
-            set_statement_timeout_from_config(cur, 'normal')
-
+    
             cur.execute("""
                 SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
@@ -1648,11 +1698,11 @@ def _get_sector_position_warnings(cur) -> Dict:
                 GROUP BY cp.sector
                 ORDER BY position_count DESC
             """)
-            sector_counts = [(dict(row).get('sector'), dict(row).get('position_count')) for row in cur.fetchall()]
+            sector_counts = [(safe_dict_convert(row).get('sector'), safe_dict_convert(row).get('position_count')) for row in cur.fetchall()]
 
             cur.execute("SELECT value FROM algo_config WHERE key = %s LIMIT 1", ('max_positions_per_sector',))
             max_per_sector_row = cur.fetchone()
-            max_per_sector = int(max_per_sector_row[0]) if max_per_sector_row and max_per_sector_row[0] else 3
+            max_per_sector = int(max_per_sector_row['value']) if max_per_sector_row and max_per_sector_row['value'] else 3
 
             warnings = []
             at_cap = []
@@ -1696,8 +1746,7 @@ def _get_sector_position_warnings(cur) -> Dict:
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
-            set_statement_timeout_from_config(cur, 'xlong')
-            # Use psycopg2.sql for safe SQL composition
+                # Use psycopg2.sql for safe SQL composition
             filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
             query_params = []
             if min_score is not None:
@@ -1727,7 +1776,7 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
             """).format(where_clause=where_clause)
             cur.execute(query, query_params)
             scores = cur.fetchall()
-            return list_response([safe_json_serialize(dict(s)) for s in scores])
+            return list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores'}, exc_info=True)
@@ -1749,7 +1798,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
                 ORDER BY date ASC
             """, (cutoff_date,))
             history = cur.fetchall()
-            return list_response([safe_json_serialize(dict(h)) for h in history])
+            return list_response([safe_json_serialize(safe_dict_convert(h)) for h in history])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores history'}, exc_info=True)
@@ -1792,7 +1841,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
-            initial_count = safe_json_serialize(dict(row)).get('total_signals', 0) if row else 0
+            initial_count = safe_json_serialize(safe_dict_convert(row)).get('total_signals', 0) if row else 0
 
             # Get scored candidates
             cur.execute("""
@@ -1801,7 +1850,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
-            scored_count = safe_json_serialize(dict(row)).get('scored', 0) if row else 0
+            scored_count = safe_json_serialize(safe_dict_convert(row)).get('scored', 0) if row else 0
 
             # Get high-quality candidates (SQS > 60)
             cur.execute("""
@@ -1811,7 +1860,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 AND score >= 60
             """)
             row = cur.fetchone()
-            high_quality_count = safe_json_serialize(dict(row)).get('high_quality', 0) if row else 0
+            high_quality_count = safe_json_serialize(safe_dict_convert(row)).get('high_quality', 0) if row else 0
 
             # Build funnel stages with rejection reasons
             funnel = [
@@ -1843,7 +1892,7 @@ def _get_rejection_funnel(cur) -> Dict:
                     hq_pct = round((high_quality_count / scored_count * 100), 2) if scored_count else 0
 
                     funnel.append({
-                        'stage': 'High-Quality Candidates (SQS ≥ 60)',
+                        'stage': 'High-Quality Candidates (SQS â‰¥ 60)',
                         'count': high_quality_count,
                         'pct': hq_pct,
                         'rejection_reason': 'Low signal quality score (SQS < 60)',
@@ -1864,8 +1913,8 @@ def _get_rejection_funnel(cur) -> Dict:
                 """, (today,))
 
                 for row in cur.fetchall():
-                    reason_text = row[0] or ""
-                    count = row[1] or 0
+                    reason_text = row['rejection_reason'] or ""
+                    count = row['count'] or 0
                     rejected_list.append({
                         "evaluation_reason": reason_text,
                         "description": _get_rejection_reason_description(reason_text),
@@ -1894,7 +1943,7 @@ def _get_rejection_funnel(cur) -> Dict:
             return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}, 'rejected': []})
 _TIER_CONFIG = {
     'confirmed_uptrend': {
-        'description': 'Confirmed uptrend — full deployment',
+        'description': 'Confirmed uptrend â€” full deployment',
         'min_pct': 70, 'max_pct': 100,
         'risk_mult': 1.0,  'risk_multiplier': 1.0,
         'max_new': 5,      'max_new_positions_today': 5,
@@ -1903,7 +1952,7 @@ _TIER_CONFIG = {
         'min_swing_score': 60.0,
     },
     'uptrend_under_pressure': {
-        'description': 'Uptrend under pressure — reduced exposure',
+        'description': 'Uptrend under pressure â€” reduced exposure',
         'min_pct': 45, 'max_pct': 70,
         'risk_mult': 0.6,  'risk_multiplier': 0.6,
         'max_new': 3,      'max_new_positions_today': 3,
@@ -1912,7 +1961,7 @@ _TIER_CONFIG = {
         'min_swing_score': 65.0,
     },
     'caution': {
-        'description': 'Caution — entries halted unless exceptional',
+        'description': 'Caution â€” entries halted unless exceptional',
         'min_pct': 25, 'max_pct': 45,
         'risk_mult': 0.3,  'risk_multiplier': 0.3,
         'max_new': 1,      'max_new_positions_today': 1,
@@ -1921,7 +1970,7 @@ _TIER_CONFIG = {
         'min_swing_score': 75.0,
     },
     'correction': {
-        'description': 'Market correction — preserve capital',
+        'description': 'Market correction â€” preserve capital',
         'min_pct': 0,  'max_pct': 25,
         'risk_mult': 0.2,  'risk_multiplier': 0.2,
         'max_new': 0,      'max_new_positions_today': 0,
@@ -1934,8 +1983,7 @@ _TIER_CONFIG = {
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
-            set_statement_timeout_from_config(cur, 'medium')
-
+    
             # EARLY VALIDATION: Check data freshness before processing
             freshness = check_data_freshness(cur, 'market_exposure_daily', 'date', warning_days=1)
             if freshness.get('is_stale'):
@@ -1948,7 +1996,25 @@ def _get_markets(cur) -> Dict:
                 LIMIT 1
             """)
             latest = cur.fetchone()
-            current = safe_json_serialize(dict(latest)) if latest else None
+            current = safe_json_serialize(safe_dict_convert(latest)) if latest else None
+
+            # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
+            if current:
+                if current.get('halt_reasons'):
+                    try:
+                        current['halt_reasons'] = json.loads(current['halt_reasons']) if isinstance(current['halt_reasons'], str) else current['halt_reasons']
+                    except (json.JSONDecodeError, TypeError):
+                        current['halt_reasons'] = []
+                else:
+                    current['halt_reasons'] = []
+
+                if current.get('factors'):
+                    try:
+                        current['factors'] = json.loads(current['factors']) if isinstance(current['factors'], str) else current['factors']
+                    except (json.JSONDecodeError, TypeError):
+                        current['factors'] = {}
+                else:
+                    current['factors'] = {}
 
             active_tier = {}
             if current:
@@ -1964,7 +2030,7 @@ def _get_markets(cur) -> Dict:
                 ORDER BY date ASC
                 LIMIT 250
             """)
-            history = [safe_json_serialize(dict(h)) for h in cur.fetchall()]
+            history = [safe_json_serialize(safe_dict_convert(h)) for h in cur.fetchall()]
 
             try:
                 cur.execute("""
@@ -1974,15 +2040,16 @@ def _get_markets(cur) -> Dict:
                     ORDER BY current_rank
                     LIMIT 20
                 """)
-                sectors = [safe_json_serialize(dict(s)) for s in cur.fetchall()]
+                sectors = [safe_json_serialize(safe_dict_convert(s)) for s in cur.fetchall()]
             except Exception as e:
                 logger.warning(f"[MARKETS] sector_ranking query failed: {e}")
                 sectors = []
 
             market_health = {}
             try:
+                cur.execute("SAVEPOINT market_health_check")
                 cur.execute("""
-                    SELECT market_trend, market_stage, vix_level, spy_change_pct,
+                    SELECT market_trend, market_stage, vix_level,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
@@ -1991,9 +2058,14 @@ def _get_markets(cur) -> Dict:
                 """)
                 mh = cur.fetchone()
                 if mh:
-                    market_health = safe_json_serialize(dict(mh))
+                    market_health = safe_json_serialize(safe_dict_convert(mh))
+                cur.execute("RELEASE SAVEPOINT market_health_check")
             except Exception as e:
                 logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT market_health_check")
+                except:
+                    pass
 
             spy_price = None
             try:
@@ -2004,7 +2076,7 @@ def _get_markets(cur) -> Dict:
                 """)
                 spy_row = cur.fetchone()
                 if spy_row:
-                    spy_price = float(spy_row[0])
+                    spy_price = float(spy_row['close'])
             except Exception as e:
                 logger.warning(f"[MARKETS] SPY price unavailable: {type(e).__name__}: {e}")
 
@@ -2022,7 +2094,6 @@ def _get_markets(cur) -> Dict:
                 'market_stage': market_health.get('market_stage') if market_health else None,
                 'market_trend': market_health.get('market_trend') if market_health else None,
                 'spy_price': spy_price,
-                'spy_change_pct': market_health.get('spy_change_pct') if market_health else None,
                 'up_volume_percent': market_health.get('up_volume_percent') if market_health else None,
                 'advance_decline_ratio': market_health.get('advance_decline_ratio') if market_health else None,
                 'new_highs_count': market_health.get('new_highs_count') if market_health else None,
@@ -2043,9 +2114,9 @@ def _get_market(cur) -> Dict:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
-        # Fetch market health: 12 fields from market_health_daily
+        # Fetch market health: 11 fields from market_health_daily
         cur.execute("""
-            SELECT market_trend, market_stage, vix_level, spy_change_pct,
+            SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
                    yield_curve_slope, fed_rate_environment
@@ -2053,7 +2124,7 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
-        market_health = safe_json_serialize(dict(mh)) if mh else {}
+        market_health = safe_json_serialize(safe_dict_convert(mh)) if mh else {}
 
         # Fetch exposure data and distribution days from market_exposure_daily
         cur.execute("""
@@ -2062,7 +2133,16 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         exp = cur.fetchone()
-        exposure = safe_json_serialize(dict(exp)) if exp else {}
+        exposure = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
+
+        # Parse JSON strings from database (halt_reasons is stored as JSON text)
+        if exposure and exposure.get('halt_reasons'):
+            try:
+                exposure['halt_reasons'] = json.loads(exposure['halt_reasons']) if isinstance(exposure['halt_reasons'], str) else exposure['halt_reasons']
+            except (json.JSONDecodeError, TypeError):
+                exposure['halt_reasons'] = []
+        else:
+            exposure['halt_reasons'] = []
 
         # Fetch SPY close price
         spy_close = None
@@ -2074,28 +2154,30 @@ def _get_market(cur) -> Dict:
             """)
             spy_row = cur.fetchone()
             if spy_row:
-                spy_close = safe_float(spy_row[0]) if spy_row[0] else None
+                spy_close = safe_float(spy_row['close']) if spy_row['close'] else None
         except Exception as e:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
         # Combine all data in the format the dashboard expects
+        # Use safe_float_strict/safe_int_strict for optional numeric fields so the dashboard
+        # can distinguish between NULL (data not available) and 0 (actual zero value)
         data = {
             'exposure_pct': safe_float(exposure.get('exposure_pct')),
             'regime': exposure.get('regime'),
             'halt_reasons': exposure.get('halt_reasons') or [],
-            'vix_level': safe_float(market_health.get('vix_level')),
-            'market_stage': safe_int(market_health.get('market_stage')),
+            'vix_level': safe_float_strict(market_health.get('vix_level'), context='market_health.vix_level'),
+            'market_stage': safe_int_strict(market_health.get('market_stage'), context='market_health.market_stage'),
             'market_trend': market_health.get('market_trend'),
-            'distribution_days_4w': safe_int(exposure.get('distribution_days')),
+            'distribution_days_4w': safe_int_strict(exposure.get('distribution_days'), context='exposure.distribution_days'),
             'spy_close': spy_close,
-            'spy_change_pct': safe_float(market_health.get('spy_change_pct')),
-            'up_volume_percent': safe_float(market_health.get('up_volume_percent')),
-            'advance_decline_ratio': safe_float(market_health.get('advance_decline_ratio')),
-            'new_highs_count': safe_int(market_health.get('new_highs_count')),
-            'new_lows_count': safe_int(market_health.get('new_lows_count')),
-            'put_call_ratio': safe_float(market_health.get('put_call_ratio')),
-            'breadth_momentum_10d': safe_float(market_health.get('breadth_momentum_10d')),
-            'yield_curve_slope': safe_float(market_health.get('yield_curve_slope')),
+            'spy_change_pct': safe_float_strict(market_health.get('spy_change_pct'), context='market_health.spy_change_pct'),
+            'up_volume_percent': safe_float_strict(market_health.get('up_volume_percent'), context='market_health.up_volume_percent'),
+            'advance_decline_ratio': safe_float_strict(market_health.get('advance_decline_ratio'), context='market_health.advance_decline_ratio'),
+            'new_highs_count': safe_int_strict(market_health.get('new_highs_count'), context='market_health.new_highs_count'),
+            'new_lows_count': safe_int_strict(market_health.get('new_lows_count'), context='market_health.new_lows_count'),
+            'put_call_ratio': safe_float_strict(market_health.get('put_call_ratio'), context='market_health.put_call_ratio'),
+            'breadth_momentum_10d': safe_float_strict(market_health.get('breadth_momentum_10d'), context='market_health.breadth_momentum_10d'),
+            'yield_curve_slope': safe_float_strict(market_health.get('yield_curve_slope'), context='market_health.yield_curve_slope'),
             'fed_rate_environment': market_health.get('fed_rate_environment'),
         }
 
@@ -2126,7 +2208,7 @@ def _get_market_factors(cur) -> Dict:
                 'factors': {}
             }})
 
-        data_dict = safe_json_serialize(dict(row))
+        data_dict = safe_json_serialize(safe_dict_convert(row))
 
         # Parse factors if it's a JSON string
         factors = {}
@@ -2207,7 +2289,7 @@ def _get_algo_evaluate(cur) -> Dict:
                 GROUP BY sector
                 ORDER BY count DESC
             """)
-            sector_exposure = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+            sector_exposure = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
             # Risk metrics
             cur.execute("""
@@ -2228,7 +2310,7 @@ def _get_algo_evaluate(cur) -> Dict:
             losing_count = risk_row.get('losing_count', 0) if risk_row else 0
             breakeven_count = risk_row.get('breakeven_count', 0) if risk_row else 0
 
-            sig_dict = safe_json_serialize(dict(sig_row))
+            sig_dict = safe_json_serialize(safe_dict_convert(sig_row))
             return json_response(200, {
                 'stage': 'evaluated',
                 'candidates': {
@@ -2255,9 +2337,9 @@ def _get_algo_evaluate(cur) -> Dict:
                     'unrealized_pnl': {
                         'total_dollars': safe_float(unrealized_pnl_total),
                         'total_pct': safe_float(unrealized_pnl_pct),
-                        'winning_positions': safe_int(winning_count) or 0,
-                        'losing_positions': safe_int(losing_count) or 0,
-                        'breakeven_positions': safe_int(breakeven_count) or 0,
+                        'winning_positions': safe_int(winning_count),
+                        'losing_positions': safe_int(losing_count),
+                        'breakeven_positions': safe_int(breakeven_count),
                         'source': 'open_positions_only',
                         'note': 'Includes only open positions (no closed trades, no dividends)'
                     }
@@ -2295,7 +2377,7 @@ def _get_data_quality(cur) -> Dict:
             # Organize by table, keeping latest status per table
             tables_dict = {}
             for row in patrol_rows:
-                row_dict = safe_json_serialize(dict(row))
+                row_dict = safe_json_serialize(safe_dict_convert(row))
                 if row_dict.get('rn') == 1:  # Latest entry per table
                     table_name = row_dict.get('table_name', 'unknown')
                     tables_dict[table_name] = row_dict
@@ -2374,7 +2456,17 @@ def _get_exposure_policy(cur) -> Dict:
                     'regime_factors': {}
                 })
 
-            row = safe_json_serialize(dict(row))
+            row = safe_json_serialize(safe_dict_convert(row))
+
+            # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
+            if row.get('halt_reasons'):
+                try:
+                    row['halt_reasons'] = json.loads(row['halt_reasons']) if isinstance(row['halt_reasons'], str) else row['halt_reasons']
+                except (json.JSONDecodeError, TypeError):
+                    row['halt_reasons'] = []
+            else:
+                row['halt_reasons'] = []
+
             tier_key = str(row.get('regime') or '').lower()
             tier_conf = _TIER_CONFIG.get(tier_key, {})
             active_tier = {'name': tier_key, **tier_conf}
@@ -2420,7 +2512,7 @@ def _get_exposure_policy(cur) -> Dict:
                 """)
                 mh_row = cur.fetchone()
                 if mh_row:
-                    market_health = safe_json_serialize(dict(mh_row))
+                    market_health = safe_json_serialize(safe_dict_convert(mh_row))
             except psycopg2.Error as e:
                 logger.warning(f"Failed to fetch market health: {e}")
 
@@ -2482,7 +2574,7 @@ def _get_sector_stage2(cur) -> Dict:
                 ORDER BY pct_stage_2 DESC
             """)
             rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows])
+            return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f'Sector stage2 data unavailable: {e}')
             return error_response(503, 'service_unavailable', 'Data unavailable')
@@ -2549,7 +2641,7 @@ def _get_algo_config(cur) -> Dict:
     # Build config with defaults and categorization
     config_items = []
     for row in rows:
-        config_dict = safe_json_serialize(dict(row))
+        config_dict = safe_json_serialize(safe_dict_convert(row))
         key = config_dict['key']
 
         # Get default value and metadata from AlgoConfig.DEFAULTS
@@ -2572,7 +2664,7 @@ def _get_algo_config_key(cur, key: str) -> Dict:
     """Return a single algo config key."""
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
     row = cur.fetchone()
-    return json_response(200, safe_json_serialize(dict(row)) if row else {})
+    return json_response(200, safe_json_serialize(safe_dict_convert(row)) if row else {})
 
 @db_route_handler('update algo config key')
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
@@ -2701,7 +2793,7 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
                 LIMIT %s OFFSET %s
             """, (limit, offset))
         rows = cur.fetchall()
-        return list_response([safe_json_serialize(dict(r)) for r in rows], total=total, limit=limit, offset=offset)
+        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=total, limit=limit, offset=offset)
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 @db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
@@ -2721,7 +2813,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
         if not rows:
             return list_response([], total=0, limit=limit)
         try:
-            items = [safe_json_serialize(dict(r)) for r in rows]
+            items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
         except Exception as ser_e:
             logger.warning(f'Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}')
@@ -2741,7 +2833,7 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
         ORDER BY started_at DESC
     """, (days,))
     rows = cur.fetchall()
-    return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows))
+    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))
 
 @db_route_handler('fetch orchestrator execution details', default_error_response={'data': {}, '_error': 'Data unavailable'})
 def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
@@ -2757,7 +2849,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
     if not row:
         return error_response(404, 'not_found', f'Run {run_id} not found')
 
-    result = safe_json_serialize(dict(row))
+    result = safe_json_serialize(safe_dict_convert(row))
     # Parse phase_results JSONB
     if result.get('phase_results'):
         try:
@@ -2822,14 +2914,16 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
         'period_days': days
     })
 
-@db_route_handler('get algo portfolio', default_error_response={'data': {}})
+@db_route_handler('get algo portfolio', default_error_response={})
 def _get_algo_portfolio(cur) -> Dict:
-    """Get latest portfolio snapshot data."""
+    """Get latest portfolio snapshot data with structured unrealized PnL breakdown."""
     try:
         cur.execute("""
             SELECT snapshot_date, total_portfolio_value, total_cash,
                    unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct,
-                   cumulative_return_pct, max_drawdown_pct, largest_position_pct
+                   cumulative_return_pct, max_drawdown_pct, largest_position_pct,
+                   unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
+                   unrealized_pnl_source
             FROM algo_portfolio_snapshots
             ORDER BY snapshot_date DESC
             LIMIT 1
@@ -2841,19 +2935,36 @@ def _get_algo_portfolio(cur) -> Dict:
                 'total_cash': None,
                 'open_positions': 0,
                 'daily_return_pct': None,
-                'unrealized_pnl_pct': None,
+                'unrealized_pnl': {
+                    'total_dollars': 0.0,
+                    'total_pct': 0.0,
+                    'winning_positions': 0,
+                    'losing_positions': 0,
+                    'breakeven_positions': 0,
+                    'source': 'open_positions_only',
+                    'note': 'Includes only open positions (no closed trades, no dividends)'
+                },
                 'cumulative_return_pct': None,
                 'max_drawdown_pct': None,
                 'largest_position_pct': None,
                 'last_run': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
+        pv = safe_float(data.get('total_portfolio_value'))
         return success_response({
-            'total_portfolio_value': safe_float(data.get('total_portfolio_value')),
+            'total_portfolio_value': pv,
             'total_cash': safe_float(data.get('total_cash')),
             'open_positions': safe_int(data.get('position_count')),
             'daily_return_pct': safe_float(data.get('daily_return_pct')),
-            'unrealized_pnl_pct': safe_float(data.get('unrealized_pnl_pct')),
+            'unrealized_pnl': {
+                'total_dollars': safe_float(data.get('unrealized_pnl_total')),
+                'total_pct': safe_float(data.get('unrealized_pnl_pct')),
+                'winning_positions': safe_int(data.get('unrealized_pnl_winning_count')),
+                'losing_positions': safe_int(data.get('unrealized_pnl_losing_count')),
+                'breakeven_positions': safe_int(data.get('unrealized_pnl_breakeven_count')),
+                'source': data.get('unrealized_pnl_source', 'open_positions_only'),
+                'note': 'Includes only open positions (no closed trades, no dividends)'
+            },
             'cumulative_return_pct': safe_float(data.get('cumulative_return_pct')),
             'max_drawdown_pct': safe_float(data.get('max_drawdown_pct')),
             'largest_position_pct': safe_float(data.get('largest_position_pct')),
@@ -2863,7 +2974,6 @@ def _get_algo_portfolio(cur) -> Dict:
         logger.error(f'Portfolio fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Portfolio data unavailable')
 
-@db_route_handler('get algo metrics', default_error_response={'data': []})
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
     try:
@@ -2871,22 +2981,30 @@ def _get_algo_metrics(cur) -> Dict:
             SELECT date, total_actions, entries, exits, avg_signal_score
             FROM algo_metrics_daily
             ORDER BY date DESC
-            LIMIT 30
+            LIMIT 1
         """)
-        rows = cur.fetchall()
-        if not rows:
-            return success_response([])
-        try:
-            metrics = [safe_json_serialize(dict(r)) for r in rows]
-            return success_response(metrics)
-        except Exception as ser_e:
-            logger.warning(f'Serialization error in algo metrics: {type(ser_e).__name__}: {ser_e}')
-            return success_response([])
+        row = cur.fetchone()
+        if row is None:
+            return success_response({
+                'date': None,
+                'total_actions': None,
+                'entries': None,
+                'exits': None,
+                'avg_signal_score': None
+            })
+        data = safe_dict_convert(row)
+        return success_response({
+            'date': data.get('date'),
+            'total_actions': safe_int(data.get('total_actions')),
+            'entries': safe_int(data.get('entries')),
+            'exits': safe_int(data.get('exits')),
+            'avg_signal_score': safe_float(data.get('avg_signal_score'))
+        })
     except Exception as e:
-        logger.error(f'Algo metrics fetch error: {type(e).__name__}: {e}')
-        return success_response([])
+        logger.error(f'Metrics fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Metrics unavailable')
 
-@db_route_handler('get risk metrics', default_error_response={'data': {}})
+@db_route_handler('get risk metrics', default_error_response={})
 def _get_risk_metrics(cur) -> Dict:
     """Get portfolio risk metrics."""
     try:
@@ -2907,7 +3025,7 @@ def _get_risk_metrics(cur) -> Dict:
                 'portfolio_beta': None,
                 'top_5_concentration': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'report_date': data.get('report_date'),
             'var_pct_95': safe_float(data.get('var_pct_95')),
@@ -2920,7 +3038,7 @@ def _get_risk_metrics(cur) -> Dict:
         logger.error(f'Risk metrics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Risk metrics unavailable')
 
-@db_route_handler('get performance analytics', default_error_response={'data': {}})
+@db_route_handler('get performance analytics', default_error_response={})
 def _get_performance_analytics(cur) -> Dict:
     """Get performance analytics data."""
     try:
@@ -2943,7 +3061,7 @@ def _get_performance_analytics(cur) -> Dict:
                 'expectancy': None,
                 'max_drawdown_pct': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'rolling_sharpe_252d': safe_float(data.get('rolling_sharpe_252d')),
             'rolling_sortino_252d': safe_float(data.get('rolling_sortino_252d')),
@@ -2958,10 +3076,17 @@ def _get_performance_analytics(cur) -> Dict:
         logger.error(f'Performance analytics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Performance analytics unavailable')
 
-@db_route_handler('get sentiment', default_error_response={'data': {}})
+@db_route_handler('get sentiment', default_error_response={})
 def _get_sentiment(cur) -> Dict:
-    """Get market sentiment data."""
+    """Get market sentiment data with explicit fallback flagging.
+
+    Removed silent fallback to neutral sentiment (50.0). Returns explicit
+    _is_fallback_data flag when data is missing, enabling clients to detect
+    and handle incomplete data rather than displaying stale defaults.
+    """
     try:
+        freshness = check_data_freshness(cur, 'market_sentiment', 'date', warning_days=1)
+
         cur.execute("""
             SELECT date, fear_greed_index, label
             FROM market_sentiment
@@ -2969,26 +3094,54 @@ def _get_sentiment(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+
         if row is None:
+            logger.warning('Sentiment data missing: market_sentiment table is empty')
             return success_response({
                 'date': None,
-                'fear_greed_index': 50.0,
-                'label': 'Neutral'
+                'fear_greed_index': None,
+                'label': None,
+                '_is_fallback_data': True,
+                '_warning': 'Sentiment data unavailable',
+                'data_freshness': freshness
             })
-        data = dict(row)
+
+        data = safe_dict_convert(row)
+        fear_greed = data.get('fear_greed_index')
+        label = data.get('label')
+
+        if fear_greed is None or label is None:
+            logger.warning(f'Sentiment data incomplete: fear_greed={fear_greed}, label={label}')
+            return success_response({
+                'date': data.get('date'),
+                'fear_greed_index': fear_greed,
+                'label': label,
+                '_is_fallback_data': True,
+                '_warning': 'Sentiment data incomplete',
+                'data_freshness': freshness
+            })
+
         return success_response({
             'date': data.get('date'),
-            'fear_greed_index': safe_float(data.get('fear_greed_index'), default=50.0),
-            'label': data.get('label', 'Neutral')
+            'fear_greed_index': safe_float(fear_greed),
+            'label': label,
+            '_is_fallback_data': False,
+            'data_freshness': freshness
         })
     except Exception as e:
         logger.error(f'Sentiment fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Sentiment data unavailable')
 
-@db_route_handler('get economic calendar', default_error_response={'data': []})
+@db_route_handler('get economic calendar', default_error_response=[])
 def _get_economic_calendar(cur) -> Dict:
-    """Get economic calendar data."""
+    """Get economic calendar data with freshness validation.
+
+    Returns list of upcoming economic events. Includes data_freshness metadata
+    so clients can detect when calendar data is stale or missing.
+    """
     try:
+        freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
+
         cur.execute("""
             SELECT event_date, event_name, country, actual, forecast, previous, impact
             FROM economic_calendar
@@ -2997,8 +3150,205 @@ def _get_economic_calendar(cur) -> Dict:
             LIMIT 100
         """)
         rows = cur.fetchall()
-        events = [safe_json_serialize(dict(r)) for r in rows]
-        return success_response(events)
+        events = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
+
+        response = {
+            'statusCode': 200,
+            'items': events,
+            'total': len(events),
+            'data_freshness': freshness
+        }
+
+        if freshness.get('is_stale'):
+            response['_warning'] = f"Economic calendar data is stale: {freshness.get('warning')}"
+            logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
+
+        return response
     except Exception as e:
         logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Economic calendar unavailable')
+
+@db_route_handler('get daily return histogram', default_error_response={'buckets': [], 'stats': None, '_is_placeholder': True})
+def _get_daily_return_histogram(cur) -> Dict:
+    """Return histogram of daily portfolio returns with stats."""
+    try:
+        cur.execute("""
+            SELECT daily_return_pct
+            FROM algo_portfolio_snapshots
+            WHERE daily_return_pct IS NOT NULL
+            ORDER BY snapshot_date DESC
+            LIMIT 250
+        """)
+        rows = cur.fetchall()
+        returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
+
+        if not returns:
+            return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
+
+        bucket_width = 0.5
+        min_ret = min(returns)
+        max_ret = max(returns)
+        min_bucket = math.floor(min_ret / bucket_width) * bucket_width
+        max_bucket = math.ceil(max_ret / bucket_width) * bucket_width
+
+        buckets_dict = {}
+        mid = min_bucket
+        while mid <= max_bucket:
+            buckets_dict[mid] = 0
+            mid += bucket_width
+
+        for ret in returns:
+            bucket_mid = round((ret / bucket_width)) * bucket_width
+            if bucket_mid in buckets_dict:
+                buckets_dict[bucket_mid] += 1
+
+        buckets = [{'mid': round(mid, 2), 'count': count} for mid, count in sorted(buckets_dict.items())]
+
+        mean_ret = sum(returns) / len(returns)
+        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
+        std_ret = math.sqrt(variance)
+        stats = {'count': len(returns), 'mean': round(mean_ret, 2), 'std': round(std_ret, 2)}
+
+        return json_response(200, {'buckets': buckets, 'stats': stats})
+    except Exception as e:
+        logger.warning(f'[DAILY_RETURN_HISTOGRAM] {type(e).__name__}: {e}')
+        return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
+
+@db_route_handler('get trade distribution', default_error_response={'buckets': [], '_is_placeholder': True})
+def _get_trade_distribution(cur) -> Dict:
+    """Return distribution of trade outcomes by R-multiple."""
+    try:
+        cur.execute("""
+            SELECT exit_r_multiple
+            FROM algo_trades
+            WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
+            ORDER BY exit_date DESC
+            LIMIT 500
+        """)
+        rows = cur.fetchall()
+        r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
+
+        if not r_multiples:
+            return json_response(200, {'buckets': [], '_is_placeholder': True})
+
+        buckets = [
+            {'range': '<-2R', 'count': 0, 'min': -999},
+            {'range': '-2R to -1R', 'count': 0, 'min': -2},
+            {'range': '-1R to 0R', 'count': 0, 'min': -1},
+            {'range': '0R to 1R', 'count': 0, 'min': 0},
+            {'range': '1R to 2R', 'count': 0, 'min': 1},
+            {'range': '2R to 3R', 'count': 0, 'min': 2},
+            {'range': '>3R', 'count': 0, 'min': 3},
+        ]
+
+        for r in r_multiples:
+            if r < -2:
+                buckets[0]['count'] += 1
+            elif r < -1:
+                buckets[1]['count'] += 1
+            elif r < 0:
+                buckets[2]['count'] += 1
+            elif r < 1:
+                buckets[3]['count'] += 1
+            elif r < 2:
+                buckets[4]['count'] += 1
+            elif r < 3:
+                buckets[5]['count'] += 1
+            else:
+                buckets[6]['count'] += 1
+
+        filtered_buckets = [b for b in buckets if b['count'] > 0]
+        return json_response(200, {'buckets': filtered_buckets})
+    except Exception as e:
+        logger.warning(f'[TRADE_DISTRIBUTION] {type(e).__name__}: {e}')
+        return json_response(200, {'buckets': [], '_is_placeholder': True})
+
+@db_route_handler('get holding period distribution', default_error_response={'buckets': [], '_is_placeholder': True})
+def _get_holding_period_distribution(cur) -> Dict:
+    """Return distribution of position holding periods in days."""
+    try:
+        cur.execute("""
+            SELECT trade_duration_days
+            FROM algo_trades
+            WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
+            ORDER BY exit_date DESC
+            LIMIT 500
+        """)
+        rows = cur.fetchall()
+        durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
+
+        if not durations:
+            return json_response(200, {'buckets': [], '_is_placeholder': True})
+
+        buckets = [
+            {'range': '1-3 days', 'count': 0},
+            {'range': '4-7 days', 'count': 0},
+            {'range': '8-14 days', 'count': 0},
+            {'range': '15-30 days', 'count': 0},
+            {'range': '31-60 days', 'count': 0},
+            {'range': '61-90 days', 'count': 0},
+            {'range': '91-180 days', 'count': 0},
+            {'range': '>180 days', 'count': 0},
+        ]
+
+        for d in durations:
+            if d <= 3:
+                buckets[0]['count'] += 1
+            elif d <= 7:
+                buckets[1]['count'] += 1
+            elif d <= 14:
+                buckets[2]['count'] += 1
+            elif d <= 30:
+                buckets[3]['count'] += 1
+            elif d <= 60:
+                buckets[4]['count'] += 1
+            elif d <= 90:
+                buckets[5]['count'] += 1
+            elif d <= 180:
+                buckets[6]['count'] += 1
+            else:
+                buckets[7]['count'] += 1
+
+        filtered_buckets = [b for b in buckets if b['count'] > 0]
+        return json_response(200, {'buckets': filtered_buckets})
+    except Exception as e:
+        logger.warning(f'[HOLDING_DISTRIBUTION] {type(e).__name__}: {e}')
+        return json_response(200, {'buckets': [], '_is_placeholder': True})
+
+@db_route_handler('get stage distribution', default_error_response={'distribution': [], '_is_placeholder': True})
+def _get_stage_distribution(cur) -> Dict:
+    """Return distribution of positions by Weinstein stage."""
+    try:
+        cur.execute("""
+            SELECT
+                COUNT(*) as count,
+                CASE
+                    WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
+                    WHEN weinstein_stage = 2 THEN
+                        CASE
+                            WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
+                            WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
+                            ELSE 'Mid Stage-2'
+                        END
+                    WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
+                    WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
+                    ELSE 'Unknown'
+                END as phase
+            FROM algo_positions_with_risk
+            GROUP BY phase, weinstein_stage
+            ORDER BY weinstein_stage ASC
+        """)
+        rows = cur.fetchall()
+
+        if not rows:
+            return json_response(200, {'distribution': [], '_is_placeholder': True})
+
+        distribution = [
+            {'phase': r['phase'], 'count': safe_int(r['count'])}
+            for r in rows
+        ]
+
+        return json_response(200, {'distribution': distribution})
+    except Exception as e:
+        logger.warning(f'[STAGE_DISTRIBUTION] {type(e).__name__}: {e}')
+        return json_response(200, {'distribution': [], '_is_placeholder': True})

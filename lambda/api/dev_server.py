@@ -30,6 +30,17 @@ def _load_db_credentials():
     # Check if explicitly running in local mode
     local_mode = os.getenv('LOCAL_MODE', '').lower() == 'true'
 
+    # If LOCAL_MODE is explicitly enabled, skip AWS and use localhost immediately
+    if local_mode:
+        print(f"[DEV_SERVER] LOCAL_MODE=true, using localhost postgres", flush=True)
+        return {
+            'host': 'localhost',
+            'port': int(os.getenv('DB_PORT', 5432)),
+            'user': os.getenv('DB_USER', 'stocks'),
+            'password': os.getenv('DB_PASSWORD', 'stocks'),
+            'database': os.getenv('DB_NAME', 'stocks')
+        }
+
     # Try to load from Secrets Manager first (requires AWS credentials)
     try:
         import boto3
