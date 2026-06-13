@@ -15,6 +15,7 @@ from routes.utils import (
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
+from utils.validation import APIResponseValidator
 import math
 
 logger = logging.getLogger(__name__)
@@ -475,11 +476,13 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = N
         trades = cur.fetchall()
         items = [safe_json_serialize(safe_dict_convert(t)) for t in trades]
         freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-        return json_response(200, {
+        response_data = {
             'items': items,
             'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
             'data_freshness': freshness
-        })
+        }
+        sanitized = APIResponseValidator.sanitize_response(response_data)
+        return json_response(200, sanitized)
 
 @db_route_handler('fetch algo positions', default_error_response={'items': [], 'sector_allocation': [], 'pagination': {'total': 0, 'limit': 10000, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
@@ -622,13 +625,15 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         if freshness.get('is_stale'):
             stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
 
-        return json_response(200, {
+        response_data = {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
             'stale_alerts': stale_alerts,
             'data_freshness': freshness
-        })
+        }
+        sanitized = APIResponseValidator.sanitize_response(response_data)
+        return json_response(200, sanitized)
 
 @db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
@@ -668,7 +673,7 @@ def _get_algo_performance(cur) -> Dict:
             trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             if not trades:
-                return json_response(200, {
+                empty_response = {
                     'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                     'breakeven_trades': 0, 'win_rate': None, 'profit_factor': None,
                     'total_pnl_dollars': None, 'total_pnl_pct': None,
@@ -680,7 +685,9 @@ def _get_algo_performance(cur) -> Dict:
                         'sharpe_confidence': 'low', 'win_rate_confidence': 'low',
                         'return_confidence': 'low', 'snapshot_count': 0, 'total_trades': 0
                     }
-                })
+                }
+                sanitized = APIResponseValidator.sanitize_response(empty_response)
+                return json_response(200, sanitized)
 
             # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
             pnl_dollars = []
@@ -804,7 +811,7 @@ def _get_algo_performance(cur) -> Dict:
             if snapshots_freshness.get('is_stale'):
                 stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
 
-            return json_response(200, {
+            response_data = {
                 'total_trades': total,
                 'winning_trades': winning,
                 'losing_trades': losing,
@@ -845,7 +852,9 @@ def _get_algo_performance(cur) -> Dict:
                     'snapshot_count': snapshot_count,
                     'total_trades': total,
                 }
-            })
+            }
+            sanitized = APIResponseValidator.sanitize_response(response_data)
+            return json_response(200, sanitized)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}')
