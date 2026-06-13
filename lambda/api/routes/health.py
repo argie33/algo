@@ -3,17 +3,18 @@ import psycopg2
 from typing import Dict
 import logging
 from datetime import datetime, timezone
-from routes.utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error
+from routes.utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error, safe_json_serialize
 import sys
 import os
+import importlib.util
 from pathlib import Path
 
-# Import get_config from the same utils package (lambda/api/utils)
-# Use direct file import to avoid conflicts with project-level /utils/ package
-_utils_dir = str(Path(__file__).parent.parent / 'utils')
-if _utils_dir not in sys.path:
-    sys.path.insert(0, _utils_dir)
-from config import get_config
+# Import get_config from lambda/api/utils/config.py
+config_path = Path(__file__).parent.parent / 'utils' / 'config.py'
+spec = importlib.util.spec_from_file_location("health_config", config_path)
+config_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(config_module)
+get_config = config_module.get_config
 
 # C-4 FIX: Import route status for health endpoint
 try:

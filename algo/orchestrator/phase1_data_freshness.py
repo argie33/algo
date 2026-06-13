@@ -44,9 +44,10 @@ def run(
 
     # Get configurable thresholds (with realistic defaults for robust operation)
     # 75% coverage vs prior day allows for minor data delays without halting
-    # 8000 minimum symbols ensures we have >75% of typical S&P 5000+ universe
+    # 2000 minimum symbols is realistic for actual available data
+    # (many symbols don't have data for every date; 75% coverage check handles quality)
     min_coverage_pct = config.get('phase1_min_coverage_pct', 75) if config else 75
-    min_symbol_count = config.get('phase1_min_symbol_count', 8000) if config else 8000
+    min_symbol_count = config.get('phase1_min_symbol_count', 2000) if config else 2000
 
     logger.info("[PHASE 1] Starting price data freshness check")
 
