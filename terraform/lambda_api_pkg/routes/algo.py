@@ -2253,6 +2253,7 @@ def _get_market_factors(cur) -> Dict:
         logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market factors'})
 
+@db_route_handler('fetch algo evaluate', default_error_response={'signals': {}, 'constraints': {}, '_error': 'Data unavailable'})
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
         try:
