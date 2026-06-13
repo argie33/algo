@@ -394,6 +394,19 @@ resource "aws_security_group_rule" "rds_self_postgres" {
   description              = "Allow PostgreSQL from RDS security group (db-init Lambda)"
 }
 
+# Development machine local access (for dev_server.py)
+# Only enabled when var.dev_machine_cidr is specified (prevents accidental exposure)
+resource "aws_security_group_rule" "rds_from_dev_machine" {
+  count             = var.dev_machine_cidr != "" ? 1 : 0
+  type              = "ingress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  security_group_id = aws_security_group.rds.id
+  cidr_blocks       = [var.dev_machine_cidr]
+  description       = "Allow PostgreSQL from development machine (local dev_server)"
+}
+
 # VPC Endpoints Security Group (for services in private subnets to reach AWS services)
 resource "aws_security_group" "vpc_endpoints" {
   name        = "${var.project_name}-vpc-endpoints-sg"

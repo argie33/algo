@@ -7,6 +7,17 @@ variable "project_name" {
   type        = string
 }
 
+variable "dev_machine_cidr" {
+  description = "CIDR block for development machine (local dev_server access to RDS). Leave empty to disable."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.dev_machine_cidr == "" || can(cidrhost(var.dev_machine_cidr, 0))
+    error_message = "dev_machine_cidr must be a valid IPv4 CIDR block (e.g., 75.250.183.199/32) or empty string to disable"
+  }
+}
+
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string

@@ -30,6 +30,7 @@ module "vpc" {
   availability_zones   = var.availability_zones
   bastion_sg_enabled   = var.bastion_enabled
   enable_vpc_endpoints = var.enable_vpc_endpoints
+  dev_machine_cidr     = var.dev_machine_cidr
   common_tags          = local.common_tags
 }
 

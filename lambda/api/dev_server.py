@@ -21,8 +21,16 @@ os.environ['ENVIRONMENT'] = 'development'
 
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
 def _load_db_credentials():
-    """Load DB credentials from AWS Secrets Manager if available, else environment variables."""
-    # Try to load from Secrets Manager first
+    """Load DB credentials from AWS Secrets Manager if available, else environment variables.
+
+    Behavior controlled by LOCAL_MODE environment variable:
+    - LOCAL_MODE=true: Use localhost postgres (development only)
+    - LOCAL_MODE not set: Require AWS Secrets Manager (production behavior)
+    """
+    # Check if explicitly running in local mode
+    local_mode = os.getenv('LOCAL_MODE', '').lower() == 'true'
+
+    # Try to load from Secrets Manager first (requires AWS credentials)
     try:
         import boto3
         import json
@@ -38,35 +46,48 @@ def _load_db_credentials():
             'database': creds.get('dbname', 'stocks')
         }
     except Exception as e:
-        print(f"[DEV_SERVER] Could not load from Secrets Manager: {e}. Using environment variables.", flush=True)
+        error_msg = f"{type(e).__name__}: {str(e)[:200]}"
 
-    # Fall back to environment variables
-    return {
-        'host': os.getenv('DB_HOST'),
-        'port': int(os.getenv('DB_PORT', 5432)),
-        'user': os.getenv('DB_USER'),
-        'password': os.getenv('DB_PASSWORD'),
-        'database': os.getenv('DB_NAME', 'stocks')
-    }
+        # If local mode is enabled, fall back to localhost
+        if local_mode:
+            print(f"[DEV_SERVER] AWS Secrets Manager unavailable ({error_msg})", flush=True)
+            print(f"[DEV_SERVER] LOCAL_MODE=true, falling back to localhost postgres", flush=True)
+            return {
+                'host': 'localhost',
+                'port': int(os.getenv('DB_PORT', 5432)),
+                'user': os.getenv('DB_USER', 'stocks'),
+                'password': os.getenv('DB_PASSWORD', 'stocks'),
+                'database': os.getenv('DB_NAME', 'stocks')
+            }
+
+        # In production mode (LOCAL_MODE not set), this is a fatal error
+        print(f"[DEV_SERVER] FATAL: AWS Secrets Manager failed and LOCAL_MODE not enabled", flush=True)
+        print(f"[DEV_SERVER] Error: {error_msg}", flush=True)
+        print(f"[DEV_SERVER]", flush=True)
+        print(f"[DEV_SERVER] To fix:", flush=True)
+        print(f"[DEV_SERVER]   1. Set AWS credentials: aws configure or AWS_PROFILE=algo-developer", flush=True)
+        print(f"[DEV_SERVER]   2. Ensure secret exists: algo/database in Secrets Manager", flush=True)
+        print(f"[DEV_SERVER]   3. For local dev: set LOCAL_MODE=true to use localhost postgres", flush=True)
+        print(f"[DEV_SERVER]", flush=True)
+        sys.exit(1)
 
 creds = _load_db_credentials()
-os.environ['DB_HOST'] = creds['host'] or 'localhost'
+os.environ['DB_HOST'] = creds['host']
 os.environ['DB_PORT'] = str(creds['port'])
 os.environ['DB_NAME'] = creds['database']
-os.environ['DB_USER'] = creds['user'] or 'stocks'
-os.environ['DB_PASSWORD'] = creds['password'] or 'stocks'
+os.environ['DB_USER'] = creds['user']
+os.environ['DB_PASSWORD'] = creds['password']
 
-db_source = "AWS Secrets Manager" if creds['host'] != 'localhost' else "environment variables (localhost fallback)"
+# Determine data source
+is_aws = creds['host'] != 'localhost'
+db_source = "AWS Secrets Manager (RDS Proxy)" if is_aws else "localhost (LOCAL_MODE)"
 print(f"[DEV_SERVER] DB_HOST={os.environ['DB_HOST']} ({db_source})", flush=True)
-if creds['host'] != 'localhost':
-    print(f"[DEV_SERVER] [OK] Using real AWS RDS Proxy", flush=True)
+
+if is_aws:
+    print(f"[DEV_SERVER] [OK] Using real AWS RDS Proxy in {creds['host'].split('.')[2]}", flush=True)
 else:
-    print(f"[DEV_SERVER] [WARN] Using localhost - RDS Proxy is VPC-internal and NOT accessible from local machine", flush=True)
-    print(f"[DEV_SERVER] To see real AWS data:", flush=True)
-    print(f"[DEV_SERVER]   1. Web Frontend: terraform output website_url  (open in browser)", flush=True)
-    print(f"[DEV_SERVER]   2. EC2 Dashboard: ssh to instance in VPC then run python tools/dashboard/dashboard.py", flush=True)
-    print(f"[DEV_SERVER]   3. Local: Open RDS security group to your IP (not recommended)", flush=True)
-    print(f"[DEV_SERVER] This dev_server will return STUB DATA only.", flush=True)
+    print(f"[DEV_SERVER] [OK] Using localhost postgres (LOCAL_MODE=true)", flush=True)
+    print(f"[DEV_SERVER] Note: This uses demo/stub data only", flush=True)
 
 # Add lambda/api and parent directories to path so we can import all modules
 # NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly
