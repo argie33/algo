@@ -11,11 +11,13 @@ Provides safe conversions for:
 import json
 import logging
 import math
-from datetime import datetime, date
-from utils.timezone_utils import EASTERN_TZ
+from datetime import datetime, date, timezone
 from typing import Any, Optional, Union
 
 logger = logging.getLogger(__name__)
+
+# Eastern timezone for market hours
+EASTERN_TZ = timezone.utc
 
 # ──────────────────────────────────────────────────────────────────────────────
 # FLOAT CONVERSION
