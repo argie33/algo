@@ -152,7 +152,7 @@ class CircuitBreaker:
         )
         row = cur.fetchone()
         # Bootstrap path: if table is empty (first ever run), allow through
-        if not row or not row[0] or not row[1]:
+        if row is None or row[0] is None or row[1] is None:
             return {'halted': False, 'reason': 'First run — no portfolio history yet'}
         peak = _safe_float(row[0], 0.0, context="drawdown peak")
         cur_val = _safe_float(row[1], 0.0, context="drawdown current")
@@ -186,7 +186,7 @@ class CircuitBreaker:
             """
         )
         row = cur.fetchone()
-        if not row or not row[0] or not row[1]:
+        if row is None or row[0] is None or row[1] is None:
             return {'halted': False, 'reason': 'No halt history'}
 
         peak = float(row[0])
@@ -221,7 +221,7 @@ class CircuitBreaker:
             """
         )
         halt_row = cur.fetchone()
-        if halt_row:
+        if halt_row is not None:
             halt_date = halt_row[0]
             days_elapsed = (current_date - halt_date.date()).days if isinstance(halt_date, datetime) else (current_date - halt_date).days
             if days_elapsed < min_days_elapsed:
@@ -237,7 +237,7 @@ class CircuitBreaker:
                 "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1"
             )
             market_row = cur.fetchone()
-            if not market_row or market_row[0] != 2:
+            if market_row is None or market_row[0] != 2:
                 return {
                     'halted': True,
                     'reason': 'Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)',
@@ -255,7 +255,7 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if row is None or row[0] is None:
             return {'halted': False, 'reason': 'No today snapshot yet'}
         daily = _safe_float(row[0], 0.0, context="daily_loss")
         threshold = -_safe_float(self.config.get('max_daily_loss_pct', 2.0), 2.0, context="max_daily_loss_pct")
@@ -328,7 +328,7 @@ class CircuitBreaker:
             (TradeStatus.CLOSED.value,)
         )
         row = cur.fetchone()
-        if not row or row[3] is None or int(row[3]) < 10:
+        if row is None or row[3] is None or int(row[3]) < 10:
             return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
 
         wins = int(row[0] or 0)
@@ -367,7 +367,7 @@ class CircuitBreaker:
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
         row = cur.fetchone()
-        if not row or not row[0]:
+        if row is None or row[0] is None:
             # First run (no portfolio snapshots yet) — skip risk check but log
             logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
             return {'halted': False, 'reason': 'No portfolio snapshot (first run?)'}
@@ -400,7 +400,7 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        vix = _safe_float(row[0], None, context="vix_level") if row and row[0] is not None else None
+        vix = _safe_float(row[0], None, context="vix_level") if row is not None and row[0] is not None else None
 
         if vix is None:
             vix = self._compute_vix_fallback(current_date, cur)
@@ -489,7 +489,7 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return {'halted': True, 'reason': 'Market health data missing — fail-closed'}
 
         data_date = row[0]
