@@ -580,19 +580,19 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             trend_score = safe_float(d.get('minervini_trend_score'))
             if stage == 2:
                 if trend_score and trend_score < 4:
-                    d['stage_label'] = 'Early Stage-2
+                    d['stage_label'] = 'Early Stage-2'
                 elif trend_score and trend_score >= 6:
-                    d['stage_label'] = 'Late Stage-2
+                    d['stage_label'] = 'Late Stage-2'
                 else:
-                    d['stage_label'] = 'Mid Stage-2
+                    d['stage_label'] = 'Mid Stage-2'
             elif stage == 1:
-                d['stage_label'] = 'Stage 1 (base)
+                d['stage_label'] = 'Stage 1 (base)'
             elif stage == 3:
-                d['stage_label'] = 'Stage 3 (top)
+                d['stage_label'] = 'Stage 3 (top)'
             elif stage == 4:
-                d['stage_label'] = 'Stage 4 (down)
+                d['stage_label'] = 'Stage 4 (down)'
             else:
-                d['stage_label'] = 'Unknown
+                d['stage_label'] = 'Unknown'
 
             # Normalize field names for frontend compatibility
             if 'percent_from_52w_low' in d:
@@ -996,7 +996,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered_count': 0,
                     'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'},
                     'error': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.',
-                    'error_type': 'missing_critical_tables
+                    'error_type': 'missing_critical_tables'
                 })
 
             # Fetch pre-computed circuit breaker metrics from database
