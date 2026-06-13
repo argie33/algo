@@ -533,7 +533,7 @@ class TradeExecutor:
                 """,
                 (
                     trade_id, idempotency_key, symbol, signal_date, entry_date,
-                    executed_price or entry_price, shares, entry_reason,
+                    executed_price, shares, entry_reason,
                     stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),
                     target_2_price, float(self.config.get('t2_target_r_multiple', 3.0)),
