@@ -19,18 +19,33 @@ _root_dir = str(Path(__file__).parent.parent.parent.parent)
 if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 import importlib.util
+
+# Build path for admin_rate_limiter.py - handle both /var/task (Lambda) and local dev paths
+_admin_path = Path(_root_dir) / "utils" / "admin_rate_limiter.py"
+if not _admin_path.exists():
+    # Fallback: try /var/task/utils/ if root path doesn't exist (Lambda cold start)
+    _admin_path = Path("/var/task") / "utils" / "admin_rate_limiter.py"
+if not _admin_path.exists():
+    # Last resort: look for it in the lambda package's utils directory
+    _admin_path = Path(__file__).parent.parent / "utils" / "admin_rate_limiter.py"
+
 _admin_spec = importlib.util.spec_from_file_location(
     "admin_rate_limiter",
-    str(Path(_root_dir) / "utils" / "admin_rate_limiter.py")
+    str(_admin_path)
 )
 _admin_module = importlib.util.module_from_spec(_admin_spec)
 _admin_spec.loader.exec_module(_admin_module)
 check_admin_rate_limit = _admin_module.check_admin_rate_limit
 ADMIN_RATE_LIMITS = _admin_module.ADMIN_RATE_LIMITS
 
+_safe_path = Path(_root_dir) / "utils" / "safe_data_conversion.py"
+if not _safe_path.exists():
+    _safe_path = Path("/var/task") / "utils" / "safe_data_conversion.py"
+if not _safe_path.exists():
+    _safe_path = Path(__file__).parent.parent / "utils" / "safe_data_conversion.py"
 _safe_spec = importlib.util.spec_from_file_location(
     "safe_data_conversion",
-    str(Path(_root_dir) / "utils" / "safe_data_conversion.py")
+    str(_safe_path)
 )
 _safe_module = importlib.util.module_from_spec(_safe_spec)
 _safe_spec.loader.exec_module(_safe_module)
@@ -39,9 +54,14 @@ safe_float_strict = _safe_module.safe_float_strict
 safe_int = _safe_module.safe_int
 
 # Import unified metrics fetcher (same source used by dashboard)
+_fetcher_path = Path(_root_dir) / "utils" / "algo_metrics_fetcher.py"
+if not _fetcher_path.exists():
+    _fetcher_path = Path("/var/task") / "utils" / "algo_metrics_fetcher.py"
+if not _fetcher_path.exists():
+    _fetcher_path = Path(__file__).parent.parent / "utils" / "algo_metrics_fetcher.py"
 _fetcher_spec = importlib.util.spec_from_file_location(
     "algo_metrics_fetcher",
-    str(Path(_root_dir) / "utils" / "algo_metrics_fetcher.py")
+    str(_fetcher_path)
 )
 _fetcher_module = importlib.util.module_from_spec(_fetcher_spec)
 _fetcher_spec.loader.exec_module(_fetcher_module)

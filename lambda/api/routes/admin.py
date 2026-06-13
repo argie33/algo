@@ -14,7 +14,23 @@ from routes.utils import (
 _root_dir = str(Path(__file__).parent.parent.parent.parent)
 if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
-from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
+
+# Handle both /var/task (Lambda) and local dev paths for admin_rate_limiter
+_admin_path = Path(_root_dir) / "utils" / "admin_rate_limiter.py"
+if not _admin_path.exists():
+    _admin_path = Path("/var/task") / "utils" / "admin_rate_limiter.py"
+if not _admin_path.exists():
+    _admin_path = Path(__file__).parent.parent / "utils" / "admin_rate_limiter.py"
+
+if _admin_path.exists():
+    import importlib.util as _importlib_util
+    _admin_spec = _importlib_util.spec_from_file_location("admin_rate_limiter", str(_admin_path))
+    _admin_module = _importlib_util.module_from_spec(_admin_spec)
+    _admin_spec.loader.exec_module(_admin_module)
+    check_admin_rate_limit = _admin_module.check_admin_rate_limit
+    ADMIN_RATE_LIMITS = _admin_module.ADMIN_RATE_LIMITS
+else:
+    raise ImportError(f"admin_rate_limiter.py not found at {_admin_path}")
 
 logger = logging.getLogger(__name__)
 
