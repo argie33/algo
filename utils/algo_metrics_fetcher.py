@@ -108,13 +108,22 @@ class AlgoMetricsFetcher:
                 logger.info("fetch_performance_metrics: No closed trades found")
                 return self._empty_performance_response()
 
-            # Extract P&L and R-multiple data
-            pnl_dollars = [float(t.get('profit_loss_dollars') or 0) for t in trades]
-            pnl_pcts = [float(t.get('profit_loss_pct') or 0) for t in trades]
+            # Extract P&L and R-multiple data (skip trades with missing P&L — don't mask with fallback to 0)
+            pnl_dollars = []
+            pnl_pcts = []
+            for t in trades:
+                pnl_d = t.get('profit_loss_dollars')
+                pnl_p = t.get('profit_loss_pct')
+                if pnl_d is None or pnl_p is None:
+                    logger.warning(f"Trade {t.get('trade_id')} missing P&L: dollars={pnl_d}, pct={pnl_p}")
+                    continue
+                pnl_dollars.append(float(pnl_d))
+                pnl_pcts.append(float(pnl_p))
+
             r_multiples = [float(t['exit_r_multiple']) for t in trades
                           if t.get('exit_r_multiple') is not None]
-            holding_days = [float(t.get('holding_days') or 0) for t in trades
-                           if t.get('holding_days')]
+            holding_days = [float(t.get('holding_days')) for t in trades
+                           if t.get('holding_days') is not None]
 
             # Count closed trade outcomes
             closed_winning = sum(1 for p in pnl_dollars if p > 0)
@@ -181,7 +190,15 @@ class AlgoMetricsFetcher:
                 snapshot_count = len(snapshots)
 
                 if snapshot_count > 1:
-                    vals = [float(s.get('total_portfolio_value') or 0) for s in snapshots]
+                    # Skip snapshots with missing portfolio values (don't mask with fallback to 0)
+                    vals = []
+                    for s in snapshots:
+                        pv = s.get('total_portfolio_value')
+                        if pv is None:
+                            logger.warning(f"Snapshot {s.get('snapshot_date')} missing total_portfolio_value")
+                            continue
+                        vals.append(float(pv))
+
                     returns = [(vals[i] - vals[i-1]) / vals[i-1]
                               for i in range(1, len(vals)) if vals[i-1] != 0]
 

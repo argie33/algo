@@ -487,7 +487,7 @@ def _calculate_adjusted_win_rate(perf, pos):
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
     if not perf or perf.get("_error"):
-        return perf.get("wr") or 0, perf.get("w"), perf.get("l")
+        return perf.get("wr"), perf.get("w"), perf.get("l")
 
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
@@ -515,20 +515,21 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     if err_panel:
         return err_panel
 
-    streak  = perf.get("streak") or 0
+    streak  = perf.get("streak") if perf.get("streak") is not None else 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
-    pnl_c   = G if (perf.get("pnl") or 0) >= 0 else R
+    pnl_val = perf.get("pnl")
+    pnl_c   = G if pnl_val is not None and pnl_val >= 0 else R
     pf      = perf.get("profit_factor")
     pf_s    = f"{pf:.2f}" if pf is not None else "--"
-    pf_c    = G if (pf or 0) >= 1.5 else (Y if (pf or 0) >= 1.0 else R)
-    exp     = perf.get("expectancy") or 0
+    pf_c    = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
+    exp     = perf.get("expectancy") if perf.get("expectancy") is not None else 0
     exp_c   = G if exp >= 0 else R
     avg_r   = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
     wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    dd_v = perf.get('maxdd') or 0
+    dd_v = perf.get('maxdd') if perf.get('maxdd') is not None else 0
     dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
     closed_wins = perf.get('w', 0)
     closed_losses = perf.get('l', 0)

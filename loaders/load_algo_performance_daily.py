@@ -239,12 +239,16 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                 """)
                 all_trades = cur.fetchall() or []
 
-                # Calculate streaks
+                # Calculate streaks (skip trades with missing P&L — don't mask with fallback to 0)
                 if all_trades:
                     temp_win = 0
                     temp_loss = 0
                     for trade in all_trades:
-                        pnl = float(trade.get('profit_loss_dollars') or 0)
+                        pnl_val = trade.get('profit_loss_dollars')
+                        if pnl_val is None:
+                            logger.warning(f"Trade {trade.get('trade_id')} missing profit_loss_dollars, skipping from streak")
+                            continue
+                        pnl = float(pnl_val)
                         if pnl > 0:
                             temp_win += 1
                             temp_loss = 0
@@ -259,25 +263,30 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Failed to compute streaks: {e}")
 
-        # 50-trade metrics
+        # 50-trade metrics (explicit None checks instead of fallbacks)
         win_rate_50t = None
         avg_win_r_50t = None
         avg_loss_r_50t = None
         if recent_trades:
-            wins_50 = sum(1 for t in recent_trades if t.get('profit_loss_dollars') and float(t['profit_loss_dollars']) > 0)
-            win_rate_50t = MetricsCalculator.calculate_win_rate(
-                len(recent_trades), wins_50, len(recent_trades) - wins_50
-            )
+            # Count wins/losses only for trades with non-null P&L
+            valid_trades = [t for t in recent_trades if t.get('profit_loss_dollars') is not None]
+            if valid_trades:
+                pnl_vals = [float(t['profit_loss_dollars']) for t in valid_trades]
+                wins_50 = sum(1 for p in pnl_vals if p > 0)
+                losses_50 = sum(1 for p in pnl_vals if p < 0)
+                win_rate_50t = MetricsCalculator.calculate_win_rate(
+                    len(valid_trades), wins_50, losses_50
+                )
 
-            wins_50_r = [float(t['exit_r_multiple']) for t in recent_trades
-                        if t.get('exit_r_multiple') and float(t['profit_loss_dollars']) > 0]
-            losses_50_r = [float(t['exit_r_multiple']) for t in recent_trades
-                          if t.get('exit_r_multiple') and float(t['profit_loss_dollars']) < 0]
+                wins_50_r = [float(t['exit_r_multiple']) for t in valid_trades
+                            if t.get('exit_r_multiple') is not None and float(t['profit_loss_dollars']) > 0]
+                losses_50_r = [float(t['exit_r_multiple']) for t in valid_trades
+                              if t.get('exit_r_multiple') is not None and float(t['profit_loss_dollars']) < 0]
 
-            if wins_50_r:
-                avg_win_r_50t = MetricsCalculator.calculate_avg_r_multiple(wins_50_r)
-            if losses_50_r:
-                avg_loss_r_50t = MetricsCalculator.calculate_avg_r_multiple(losses_50_r)
+                if wins_50_r:
+                    avg_win_r_50t = MetricsCalculator.calculate_avg_r_multiple(wins_50_r)
+                if losses_50_r:
+                    avg_loss_r_50t = MetricsCalculator.calculate_avg_r_multiple(losses_50_r)
 
         # Equity curve metrics
         equity_vals = [float(s['total_portfolio_value']) for s in snapshots
