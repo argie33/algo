@@ -744,14 +744,20 @@ def load_all() -> dict:
                     pending_futures.discard(f)
                 except Exception as e:
                     k = futures[f]
-                    logger.debug(f"Optional fetcher {k} failed: {type(e).__name__}")
-                    out[k] = {"_error": str(e)}
+                    error_msg = _format_fetcher_error(k, e)
+                    logger.debug(f"Optional fetcher failed: {error_msg}")
+                    out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
             logger.debug(f"load_all optional timeout - {len(pending_futures)} fetchers incomplete")
             for f in pending_futures:
                 k = futures.get(f)
                 if k and not f.done():
-                    out[k] = {"_error": f"Optional timeout (exceeded {max(60, optional_timeout)}s)"}
+                    meta = FETCHER_METADATA.get(k, {})
+                    endpoint = meta.get("endpoint", "unknown endpoint")
+                    desc = meta.get("desc", "")
+                    context = f"{endpoint}" + (f": {desc}" if desc else "")
+                    timeout_msg = f"Optional fetcher {k} ({context}) timed out (exceeded {max(60, optional_timeout)}s)"
+                    out[k] = {"_error": timeout_msg}
 
     return out

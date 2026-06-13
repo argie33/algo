@@ -2306,9 +2306,9 @@ def _get_algo_evaluate(cur) -> Dict:
                     'unrealized_pnl': {
                         'total_dollars': safe_float(unrealized_pnl_total),
                         'total_pct': safe_float(unrealized_pnl_pct),
-                        'winning_positions': safe_int(winning_count) or 0,
-                        'losing_positions': safe_int(losing_count) or 0,
-                        'breakeven_positions': safe_int(breakeven_count) or 0,
+                        'winning_positions': safe_int(winning_count),
+                        'losing_positions': safe_int(losing_count),
+                        'breakeven_positions': safe_int(breakeven_count),
                         'source': 'open_positions_only',
                         'note': 'Includes only open positions (no closed trades, no dividends)'
                     }
@@ -2928,9 +2928,9 @@ def _get_algo_portfolio(cur) -> Dict:
             'unrealized_pnl': {
                 'total_dollars': safe_float(data.get('unrealized_pnl_total')),
                 'total_pct': safe_float(data.get('unrealized_pnl_pct')),
-                'winning_positions': safe_int(data.get('unrealized_pnl_winning_count')) or 0,
-                'losing_positions': safe_int(data.get('unrealized_pnl_losing_count')) or 0,
-                'breakeven_positions': safe_int(data.get('unrealized_pnl_breakeven_count')) or 0,
+                'winning_positions': safe_int(data.get('unrealized_pnl_winning_count')),
+                'losing_positions': safe_int(data.get('unrealized_pnl_losing_count')),
+                'breakeven_positions': safe_int(data.get('unrealized_pnl_breakeven_count')),
                 'source': data.get('unrealized_pnl_source', 'open_positions_only'),
                 'note': 'Includes only open positions (no closed trades, no dividends)'
             },

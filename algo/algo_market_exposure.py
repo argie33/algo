@@ -96,7 +96,7 @@ class MarketExposure:
                 LIMIT 1
             """, (eval_date,))
             row = cur.fetchone()
-            if not row:
+            if row is None:
                 return None
 
             raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_obj = row
