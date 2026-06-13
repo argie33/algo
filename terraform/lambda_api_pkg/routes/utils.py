@@ -8,6 +8,9 @@ from datetime import datetime, date, timezone
 
 logger = logging.getLogger(__name__)
 
+# Import response validator to sanitize None values in API responses (Issue #14)
+from utils.validation import APIResponseValidator
+
 def normalize_to_utc_datetime(dt):
 	"""Convert date or naive/aware datetime to UTC-aware datetime.
 
@@ -126,9 +129,11 @@ def success_response(data, metadata=None):
     """Standardized success response for single object.
 
     Always returns object with statusCode=200 and data field.
+    Sanitizes response to remove None values (Issue #14 FIX).
     Optionally includes additional metadata (freshness, etc).
     """
-    response = {"statusCode": 200, "data": data}
+    sanitized_data = APIResponseValidator.sanitize_response(data)
+    response = {"statusCode": 200, "data": sanitized_data}
     if metadata:
         response.update(metadata)
     return response
@@ -137,13 +142,15 @@ def list_response(items, total=None, data_freshness=None, limit=None, offset=Non
     """Standardized list response for paginated data.
 
     Always returns array in 'items' field with total count.
+    Sanitizes response to remove None values (Issue #14 FIX).
     Includes pagination metadata for client-side pagination.
     Format: {statusCode: 200, items: [...], total: X, limit?: Y, offset?: Z}
     """
+    sanitized_items = APIResponseValidator.sanitize_response(items if items else [])
     response = {
         "statusCode": 200,
-        "items": items if items else [],
-        "total": total if total is not None else len(items or [])
+        "items": sanitized_items,
+        "total": total if total is not None else len(sanitized_items)
     }
     if limit is not None:
         response["limit"] = limit
@@ -296,6 +303,7 @@ def json_response(code, data, data_freshness=None):
     - Success (200): {statusCode: 200, data: {...}, data_freshness?: {...}}
     - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
 
+    Sanitizes success responses to remove None values (Issue #14 FIX).
     Supports metadata parameter to maintain consistency with list_response().
     """
     if code == 200:
