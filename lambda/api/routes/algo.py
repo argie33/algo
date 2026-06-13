@@ -1989,6 +1989,7 @@ _TIER_CONFIG = {
     },
 }
 
+@db_route_handler('fetch markets', default_error_response={'regime': 'unknown', 'exposure_pct': None, '_error': 'Data unavailable'})
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
@@ -2118,6 +2119,7 @@ def _get_markets(cur) -> Dict:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
             return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
 
+@db_route_handler('fetch market', default_error_response={'stage': None, 'trend': None, 'vix': None, '_error': 'Data unavailable'})
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -2196,6 +2198,7 @@ def _get_market(cur) -> Dict:
         logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market data'})
 
+@db_route_handler('fetch market factors', default_error_response={'factors': {}, '_error': 'Data unavailable'})
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
     try:
@@ -2245,6 +2248,7 @@ def _get_market_factors(cur) -> Dict:
         logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market factors'})
 
+@db_route_handler('fetch algo evaluate', default_error_response={'signals': {}, 'constraints': {}, '_error': 'Data unavailable'})
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
         try:
@@ -2358,6 +2362,8 @@ def _get_algo_evaluate(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}', extra={'operation': 'get algo evaluate'})
             return json_response(200, {'signals': {'total_candidates': 0}, 'constraints': {}, 'sector_exposure': {}, 'portfolio_health': {}})
+
+@db_route_handler('fetch data quality', default_error_response={'tables': [], '_error': 'Data unavailable'})
 def _get_data_quality(cur) -> Dict:
         """Get detailed data quality summary by table from latest data_patrol_log run."""
         try:

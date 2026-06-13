@@ -1187,9 +1187,9 @@ def _get_circuit_breakers(cur) -> Dict:
             any_halted = any(b['triggered'] for b in breakers)
             triggered_count = sum(1 for b in breakers if b['triggered'])
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
-            response = {\'breakers\': breakers, \'any_triggered\': any_halted, \'triggered_count\': triggered_count, \'data_freshness\': freshness}
+            response = {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness}
             if errors:
-                response[\'_error\'] = f\'One or more circuit breakers failed to compute: {"; ".join(errors)}\'
+                response['_error'] = f'One or more circuit breakers failed to compute: {"; ".join(errors)}'
             return json_response(200, response)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
