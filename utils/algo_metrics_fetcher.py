@@ -83,7 +83,7 @@ class AlgoMetricsFetcher:
         """Fetch all performance metrics from database.
 
         Returns comprehensive performance data including:
-        - Trade statistics (wins, losses, win rate)
+        - Trade statistics (wins, losses, win rate including open positions)
         - Profitability metrics (Sharpe, Sortino, max drawdown)
         - Streak analysis (current, best, worst)
 
@@ -116,13 +116,42 @@ class AlgoMetricsFetcher:
             holding_days = [float(t.get('holding_days') or 0) for t in trades
                            if t.get('holding_days')]
 
-            # Count trade outcomes
-            winning = sum(1 for p in pnl_dollars if p > 0)
-            losing = sum(1 for p in pnl_dollars if p < 0)
-            breakeven = sum(1 for p in pnl_dollars if p == 0)
-            total = len(trades)
+            # Count closed trade outcomes
+            closed_winning = sum(1 for p in pnl_dollars if p > 0)
+            closed_losing = sum(1 for p in pnl_dollars if p < 0)
+            closed_breakeven = sum(1 for p in pnl_dollars if p == 0)
+            closed_total = len(trades)
 
-            # Win rate (excludes breakeven)
+            # Fetch open positions and count unrealized P&L
+            self.cursor.execute("""
+                SELECT
+                    CASE
+                        WHEN pd.close IS NULL OR at.entry_price <= 0 THEN NULL
+                        ELSE ((at.entry_quantity * pd.close) - (at.entry_quantity * at.entry_price))
+                    END as unrealized_pnl_dollars
+                FROM algo_trades at
+                LEFT JOIN (
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM price_daily
+                    ORDER BY symbol, date DESC
+                ) pd ON at.symbol = pd.symbol
+                WHERE at.exit_price IS NULL
+            """)
+            open_trades = [dict(row) for row in self.cursor.fetchall()]
+
+            # Count open position outcomes
+            open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
+            open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
+            open_breakeven = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) == 0)
+            open_total = len(open_trades)
+
+            # Combine closed and open for total counts
+            winning = closed_winning + open_winning
+            losing = closed_losing + open_losing
+            breakeven = closed_breakeven + open_breakeven
+            total = closed_total + open_total
+
+            # Win rate (excludes breakeven, includes open positions)
             win_loss_total = winning + losing
             win_rate_pct = (winning / win_loss_total * 100) if win_loss_total > 0 else 0.0
 
