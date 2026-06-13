@@ -592,76 +592,51 @@ def fetch_algo_config(c):
         return {}
 
 def fetch_market(c):
+    """Issue 3 FIX: API-only market data."""
     try:
-        row = q1(c, """SELECT exposure_pct, halt_reasons, regime FROM market_exposure_daily
-                       ORDER BY date DESC LIMIT 1""")
-        if not row:
+        mkt = api_call('/api/algo/market')
+        if mkt.get('_error'):
             return {"pct": None, "tier": "unknown", "halts": []}
-
-        halts = row.get("halt_reasons") or []
-        if isinstance(halts, str):
-            try: halts = json.loads(halts)
-            except: halts = []
-
-        result = {
-            "pct":   float(row.get("exposure_pct") or 0),
-            "tier":  row.get("regime") or "unknown",
-            "halts": halts if isinstance(halts, list) else [],
+        data = mkt.get('data', {})
+        return {
+            "pct": safe_float(data.get("exposure_pct")),
+            "tier": data.get("regime", "unknown"),
+            "halts": safe_json_parse(data.get("halt_reasons"), default=[], field_name="halt_reasons"),
+            "vix": safe_float(data.get("vix_level")),
+            "stage": data.get("market_stage"),
+            "trend": data.get("market_trend"),
+            "dist": safe_int(data.get("distribution_days_4w")),
+            "spy": safe_float(data.get("spy_close")),
+            "spy_chg": safe_float(data.get("spy_change_pct")),
+            "upvol": safe_float(data.get("up_volume_percent")),
+            "adr": safe_float(data.get("advance_decline_ratio")),
+            "nh": safe_int(data.get("new_highs_count")),
+            "nl": safe_int(data.get("new_lows_count")),
+            "pcr": safe_float(data.get("put_call_ratio")),
+            "bmom": safe_float(data.get("breadth_momentum_10d")),
+            "ycs": safe_float(data.get("yield_curve_slope")),
+            "fed": data.get("fed_rate_environment"),
         }
-
-        # Fetch all market health data in one query
-        mkt = q1(c, """SELECT
-                       vix_level, market_stage, market_trend, distribution_days_4w,
-                       spy_close, spy_change_pct, up_volume_percent, advance_decline_ratio,
-                       new_highs_count, new_lows_count, breadth_momentum_10d,
-                       put_call_ratio, yield_curve_slope, fed_rate_environment
-                       FROM market_health_daily ORDER BY date DESC LIMIT 1""")
-        if mkt:
-            result["vix"]   = float(mkt.get("vix_level")) if mkt.get("vix_level") else None
-            result["stage"] = mkt.get("market_stage")
-            result["trend"] = mkt.get("market_trend")
-            result["dist"]  = int(mkt.get("distribution_days_4w")) if mkt.get("distribution_days_4w") else None
-            result["spy"]   = float(mkt.get("spy_close")) if mkt.get("spy_close") else None
-            result["spy_chg"] = float(mkt.get("spy_change_pct")) if mkt.get("spy_change_pct") else None
-            result["upvol"] = float(mkt.get("up_volume_percent")) if mkt.get("up_volume_percent") else None
-            result["adr"]   = float(mkt.get("advance_decline_ratio")) if mkt.get("advance_decline_ratio") else None
-            result["nh"]    = int(mkt.get("new_highs_count")) if mkt.get("new_highs_count") else None
-            result["nl"]    = int(mkt.get("new_lows_count")) if mkt.get("new_lows_count") else None
-            result["pcr"]   = float(mkt.get("put_call_ratio")) if mkt.get("put_call_ratio") else None
-            result["bmom"]  = float(mkt.get("breadth_momentum_10d")) if mkt.get("breadth_momentum_10d") else None
-            result["ycs"]   = float(mkt.get("yield_curve_slope")) if mkt.get("yield_curve_slope") else None
-            result["fed"]   = mkt.get("fed_rate_environment")
-        else:
-            result.update({
-                "vix": None, "dist": None, "stage": None, "spy": None, "spy_chg": None,
-                "trend": None, "upvol": None, "adr": None, "nh": None, "nl": None,
-                "pcr": None, "ycs": None, "bmom": None, "fed": None,
-            })
-
-        return result
     except Exception as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 def fetch_exposure_factors(c):
+    """Issue 3 FIX: API-only exposure factors."""
     try:
-        row = q1(c, """SELECT raw_score, exposure_pct, regime, factors
-                       FROM market_exposure_daily ORDER BY date DESC LIMIT 1""")
-        if not row: return {}
-        factors = row.get("factors") or {}
-        if isinstance(factors, str):
-            try: factors = json.loads(factors)
-            except: factors = {}
+        data = api_call('/api/algo/market-factors')
+        if data.get('_error'):
+            return {}
+        d = data.get('data', {})
         return {
-            "raw_score":    safe_float(row.get("raw_score"), default=None),
-            "exposure_pct": safe_float(row.get("exposure_pct"), default=None),
-            "regime":       row.get("regime"),
-            "factors":      factors,
+            "raw_score": safe_float(d.get("raw_score")),
+            "exposure_pct": safe_float(d.get("exposure_pct")),
+            "regime": d.get("regime"),
+            "factors": safe_json_parse(d.get("factors"), default={}, field_name="factors"),
         }
     except Exception as e:
-        return {"_error": str(e)}
-    finally:
-        pass
+        logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_portfolio(c):
     """Issue 3 FIX: API-only portfolio snapshot."""
@@ -849,12 +824,15 @@ def fetch_economic_pulse(c):
         return {"_error": str(e)}
 
 def fetch_algo_metrics(c):
+    """Issue 3 FIX: API-only algo metrics."""
     try:
-        rows = q(c, """SELECT date, total_actions, entries, exits
-                       FROM algo_metrics_daily ORDER BY date DESC LIMIT 5""")
-        return rows
+        data = api_call('/api/algo/metrics')
+        if data.get('_error'):
+            return []
+        return data.get('data', []) if isinstance(data.get('data'), list) else []
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
+        return []
 
 def fetch_notifications(c):
     try:
@@ -866,15 +844,19 @@ def fetch_notifications(c):
         return {"_error": str(e)}
 
 def fetch_sentiment(c):
+    """Issue 3 FIX: API-only sentiment data."""
     try:
-        row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
-        if not row: return {}
-        fg = float(row.get("fear_greed_index") or 0)
-        label = row.get("label") or ""
-        c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
-        return {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
+        data = api_call('/api/algo/sentiment')
+        if data.get('_error'):
+            return {}
+        d = data.get('data', {})
+        fg = safe_float(d.get("fear_greed_index"), default=50)
+        label = d.get("label", "Neutral")
+        c_fg = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
+        return {"fg": round(fg, 1), "label": label, "date": d.get("date"), "color": c_fg}
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_economic_calendar(c):
     try:
