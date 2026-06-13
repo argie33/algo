@@ -479,9 +479,11 @@ def main():
 
         # Setup Cognito authentication for AWS mode
         from cognito_auth import get_cognito_auth, save_tokens
-        auth = get_cognito_auth(require_auth=False)
-        if auth:
+        auth = get_cognito_auth(require_auth=True)
+        if auth and auth.is_authenticated():
             set_cognito_auth(auth)
+            # Cache token for next run
+            save_tokens(auth)
 
     if args.watch is not None:
         run_watch(max(10, args.watch), args.compact, data_source)
