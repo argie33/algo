@@ -119,6 +119,33 @@ If you need to rebuild the schema:
 2. Run GitHub Actions "Deploy All Infrastructure" workflow manually
 3. Workflow will automatically create, invoke, and clean up the db-init Lambda
 
+## Data Architecture: Positions
+
+**Single Source of Truth:** `algo_positions` table (the ONLY positions data source).
+
+**Table Roles:**
+- **`algo_positions`** — Active trading positions with all tracking fields. This is where position data lives.
+  - Source for: `algo_positions_with_risk` view (enriches with stops, targets, risk metrics)
+  - Used by: Dashboard API `/api/algo/positions` → `algo_positions_with_risk` view
+  - Columns: position_id, symbol, quantity, avg_entry_price, current_price, status, trade_ids, risk_pct, ladder_pct_*, metrics_updated_at, etc.
+
+- **`open_positions`** — Read-only view over `algo_positions` (filters WHERE status IN ('OPEN', 'PARTIALLY_EXITED')). Used for quick lookups.
+
+- **`algo_positions_with_risk`** — Enriched view that joins `algo_positions` with latest trades (stops/targets), prices, and technical data. Single source of truth for dashboard metrics.
+
+- **`positions`** — **LEGACY / UNUSED.** Empty table (0 rows). Created in an earlier architecture phase, now replaced by `algo_positions`. No code references it. Will be dropped in the next DB migration.
+
+**Why the architecture changed:** Early system had `positions` table but no position ranking or ladder metrics. Phase 3-7 refactored to:
+1. Keep position state in `algo_positions` (single writer)
+2. Pre-compute risk rankings and ladder percentages into `algo_positions.risk_pct` and `ladder_pct_*` columns (via `compute_position_metrics()` function)
+3. Enrich with external data (stops, targets, sector) in the `algo_positions_with_risk` view (read-only)
+
+**Data flow for dashboard:**
+1. Orchestrator Phase 6 updates `algo_positions.status`, `position_value`, `unrealized_pnl_pct` as trades execute
+2. `algo_orchestrator.py` Phase 7 calls `compute_position_metrics()` to update `risk_pct`, `risk_rank`, `ladder_pct_*`
+3. Dashboard queries `algo_positions_with_risk` view (reads from `algo_positions` + joins with latest trades/prices/technical data)
+4. API returns pre-computed metrics directly (no runtime calculation)
+
 ## Documentation Standards
 
 **Do NOT create at root level:**
