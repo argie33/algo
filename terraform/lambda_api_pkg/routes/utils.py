@@ -339,6 +339,25 @@ def safe_dict_convert(row):
         return {str(i): v for i, v in enumerate(row)}
     return {'value': row}
 
+def safe_dict_convert(row):
+    """Convert database row to dictionary.
+
+    Handles both tuple rows (from regular cursor) and dict-like rows (from RealDictCursor).
+
+    Args:
+        row: Database row (tuple, dict, or RealDictCursor)
+
+    Returns:
+        Dictionary representation of the row
+    """
+    if isinstance(row, dict):
+        return row
+    if hasattr(row, 'items'):
+        return dict(row.items())
+    if isinstance(row, (list, tuple)):
+        return {str(i): v for i, v in enumerate(row)}
+    return {'value': row}
+
 def safe_json_serialize(obj):
     """Convert database objects to JSON-serializable format.
 
@@ -370,6 +389,20 @@ def safe_json_serialize(obj):
     else:
         return obj
 
+def safe_serialize_row(row):
+    """Convert database row to JSON-serializable dict in one step.
+
+    Combines safe_dict_convert() and safe_json_serialize() to handle both
+    row conversion and type serialization consistently.
+
+    Args:
+        row: Database row (tuple, dict, or RealDictCursor)
+
+    Returns:
+        JSON-serializable dictionary with Decimal→float, datetime→ISO, UUID→string
+    """
+    return safe_json_serialize(safe_dict_convert(row))
+
 def handle_db_error(error, context="database operation"):
     """Unified database error handler for all route handlers.
 
@@ -397,6 +430,25 @@ def handle_db_error(error, context="database operation"):
         return 503, 'query_error', 'Database query failed'
     else:
         return 500, 'database_error', f'Error during {context}'
+
+def set_statement_timeout_from_config(cur, profile: str = 'normal'):
+    """Set statement timeout based on query complexity profile.
+
+    Args:
+        cur: Database cursor
+        profile: Timeout profile ('short', 'normal', 'medium', 'xlong')
+    """
+    timeout_ms = {
+        'short': 5000,      # 5s for quick metadata queries
+        'normal': 15000,    # 15s for standard queries
+        'medium': 30000,    # 30s for complex multi-table joins
+        'xlong': 60000,     # 60s for very long-running aggregations
+    }.get(profile, 15000)
+
+    try:
+        cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+    except Exception as e:
+        logger.warning(f"Failed to set statement timeout to {profile} ({timeout_ms}ms): {e}")
 
 def set_statement_timeout_from_config(cur, profile: str = 'normal'):
     """Set statement timeout based on query complexity profile.
