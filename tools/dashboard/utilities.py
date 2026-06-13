@@ -115,15 +115,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # API configuration
-API_BASE_URL = os.environ.get("DASHBOARD_API_URL")
-if not API_BASE_URL:
-    raise RuntimeError(
-        "DASHBOARD_API_URL environment variable must be set. "
-        "Example: DASHBOARD_API_URL=https://api.example.com"
-    )
+API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 20  # Increased from 10s to handle network latency + slow responses
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
+
+def set_api_url(url: str):
+    """Set API base URL at runtime (used by -local mode)."""
+    global API_BASE_URL
+    API_BASE_URL = url
 
 # HTTP session with connection pooling (reuse TCP connections across 25+ parallel fetchers)
 _http_session = requests.Session()

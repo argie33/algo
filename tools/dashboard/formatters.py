@@ -56,13 +56,28 @@ def tier_from_pct(p) -> str:
     return "correction"
 
 def is_open() -> bool:
-    n = datetime.now(ET)
-    if n.weekday() >= 5: return False
-    t = n.hour * 60 + n.minute
-    return 570 <= t <= 960
+    """Check if market is currently open. Uses MarketCalendar for accurate trading hours."""
+    try:
+        from algo.algo_market_calendar import MarketCalendar
+        return MarketCalendar.is_market_open_now()
+    except Exception:
+        n = datetime.now(ET)
+        if n.weekday() >= 5: return False
+        t = n.hour * 60 + n.minute
+        return 570 <= t <= 960
 
 def mkt_hours_str() -> tuple:
-    """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed."""
+    """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed.
+
+    Uses MarketCalendar for accurate trading hours including holidays and early closes.
+    Falls back to hardcoded hours if calendar unavailable.
+    """
+    try:
+        from algo.algo_market_calendar import MarketCalendar
+        return MarketCalendar.get_market_status_display()
+    except Exception:
+        pass
+
     n  = datetime.now(ET)
     wd = n.weekday()
     t  = n.hour * 60 + n.minute
@@ -105,6 +120,63 @@ def mkt_hours_str() -> tuple:
     return "[dim]- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
 def next_run_str() -> str:
+    """Return next orchestrator run time. Fetches schedule from API if available, falls back to hardcoded."""
+    try:
+        from utilities import api_call
+        resp = api_call('/api/algo/schedule')
+        if not resp.get('_error') and 'schedule' in resp:
+            schedule = resp.get('schedule', [])
+            if schedule and isinstance(schedule, list):
+                return _next_run_from_schedule(schedule)
+    except Exception:
+        pass
+    return _next_run_hardcoded()
+
+def _next_run_from_schedule(schedule: list) -> str:
+    """Calculate next run from dynamic schedule (list of {hour, minute} dicts)."""
+    now = datetime.now(ET)
+    wd = now.weekday()
+    t = now.hour * 60 + now.minute
+
+    def fmt(dt):
+        diff = dt - now
+        mins = int(diff.total_seconds() / 60)
+        if mins < 60:   return f"in {mins}m"
+        if mins < 1440: return f"in {mins//60}h{mins%60:02d}m"
+        return f"{dt.strftime('%a %I:%M %p')}"
+
+    def next_wkd(dt, off=1):
+        d = dt + timedelta(days=off)
+        while d.weekday() >= 5: d += timedelta(days=1)
+        return d
+
+    if wd >= 5:
+        next_day = next_wkd(now)
+        if schedule:
+            sched = sorted(schedule, key=lambda s: s.get('hour', 0) * 60 + s.get('minute', 0))
+            first_run = sched[0]
+            run_dt = next_day.replace(hour=first_run.get('hour', 9), minute=first_run.get('minute', 30),
+                                      second=0, microsecond=0)
+            return f"orch {fmt(run_dt)}"
+        return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
+
+    today_runs = sorted(schedule, key=lambda s: s.get('hour', 0) * 60 + s.get('minute', 0))
+    for run in today_runs:
+        run_t = run.get('hour', 9) * 60 + run.get('minute', 30)
+        if run_t > t:
+            run_dt = now.replace(hour=run.get('hour', 9), minute=run.get('minute', 30), second=0, microsecond=0)
+            return f"orch {fmt(run_dt)}"
+
+    next_day = next_wkd(now)
+    if today_runs:
+        first_run = today_runs[0]
+        run_dt = next_day.replace(hour=first_run.get('hour', 9), minute=first_run.get('minute', 30),
+                                  second=0, microsecond=0)
+        return f"orch {fmt(run_dt)}"
+    return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
+
+def _next_run_hardcoded() -> str:
+    """Fallback: Calculate next run using hardcoded schedule (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)."""
     now = datetime.now(ET)
     wd  = now.weekday()
     t   = now.hour * 60 + now.minute

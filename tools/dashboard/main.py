@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Algo Ops Terminal Dashboard (AWS)  --  connects to RDS via AWS Secrets Manager.
+"""Algo Ops Terminal Dashboard
 
 Usage:
-  python tools/dashboard/dashboard.py            # live view (q or Ctrl+C to exit)
+  python tools/dashboard/dashboard.py            # live view (AWS endpoints, q or Ctrl+C to exit)
   python tools/dashboard/dashboard.py -w         # watch mode, auto-refresh every 30s
   python tools/dashboard/dashboard.py -w 60      # watch mode, refresh every 60s
   python tools/dashboard/dashboard.py --compact  # narrow positions table
+  python tools/dashboard/dashboard.py --local    # use local API (localhost:3001) instead of AWS
 
-Requires: AWS credentials (AWS_PROFILE env var), reads DB creds from AWS Secrets Manager.
-For local development, use: python tools/dashboard/dashboard-dev.py
+Modes:
+  AWS (default): Requires AWS credentials (AWS_PROFILE env var), reads data from AWS Secrets Manager
+  Local: Requires local API service running on http://localhost:3001
 """
 
 import argparse
@@ -36,7 +38,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from utilities import CONSOLE, ET, MASCOT_W, logger
+from utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url
 from fetchers import load_all
 from panels import (
     _extract_items, mascot_compact, loading_layout, _expanded_layout,

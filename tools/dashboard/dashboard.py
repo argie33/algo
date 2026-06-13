@@ -8,7 +8,6 @@ Usage:
   python tools/dashboard/dashboard.py --compact  # narrow positions table
 
 Requires: AWS credentials (AWS_PROFILE env var), reads DB creds from AWS Secrets Manager.
-For local development, use: python tools/dashboard/dashboard-dev.py
 """
 
 import os

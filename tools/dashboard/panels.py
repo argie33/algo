@@ -124,15 +124,6 @@ def _extract_items(data: any) -> list:
 
 
 # ── panel builders ────────────────────────────────────────────────────────────
-        return Panel(
-            Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
-            title=f"[bold]{title}[/]",
-            border_style=border,
-            padding=(0, 1)
-        )
-
-    return None
-
 
 def panel_orch(run, cfg, risk=None):
     next_run  = next_run_str()
