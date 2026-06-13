@@ -1617,19 +1617,11 @@ def panel_positions(pos, compact=False, trades=None):
     if isinstance(pos, dict):
         is_placeholder = pos.get("_is_placeholder") or pos.get("_is_fallback_data")
 
-    # Normalize positions data structure
-    if isinstance(pos, dict) and "items" in pos:
-        pos_items = pos.get("items", [])
-        pos_timestamp = pos.get("timestamp")
-    elif isinstance(pos, dict) and "_error" in pos:
-        err_msg = pos.get("_error") or "Unknown error"
+    # Issue 3.1 FIX: Use unified normalization function
+    pos_items, pos_timestamp, has_error = normalize_positions_data(pos)
+    if has_error:
+        err_msg = pos.get("_error") if isinstance(pos, dict) else "Unknown error"
         return Panel(Text(f"  Error: {err_msg}", style="red"), title="[bold red]POSITIONS[/]", border_style="red", padding=(0, 1))
-    elif isinstance(pos, list):
-        pos_items = pos
-        pos_timestamp = None
-    else:
-        pos_items = []
-        pos_timestamp = None
 
     if not pos_items:
         return Panel(Text("  No open positions - algo is flat", style="dim"),
