@@ -2897,7 +2897,33 @@ def _get_algo_portfolio(cur) -> Dict:
 
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
-    return {"statusCode": 200, "data": []}
+    try:
+        cur.execute("""
+            SELECT date, total_actions, entries, exits, avg_signal_score
+            FROM algo_metrics_daily
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return success_response({
+                'date': None,
+                'total_actions': None,
+                'entries': None,
+                'exits': None,
+                'avg_signal_score': None
+            })
+        data = safe_dict_convert(row)
+        return success_response({
+            'date': data.get('date'),
+            'total_actions': safe_int(data.get('total_actions')),
+            'entries': safe_int(data.get('entries')),
+            'exits': safe_int(data.get('exits')),
+            'avg_signal_score': safe_float(data.get('avg_signal_score'))
+        })
+    except Exception as e:
+        logger.error(f'Metrics fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Metrics unavailable')
 
 @db_route_handler('get risk metrics', default_error_response={})
 def _get_risk_metrics(cur) -> Dict:
