@@ -1959,14 +1959,27 @@ router.get('/performance', async (req, res) => {
       portfolio_snapshots_count: { type: 'int', required: false, defaultValue: 0 }
     });
 
-    return sendSuccess(res, {
-      // Trade counts
-      total_trades: perf.total_trades || 0,
-      winning_trades: perf.winning_trades || 0,
-      losing_trades: perf.losing_trades || 0,
+    // E10 FIX: Recalculate win_rate to include open positions
+    const closedWins = perf.winning_trades || 0;
+    const closedLosses = perf.losing_trades || 0;
+    const openWins = openStats.open_wins || 0;
+    const openLosses = openStats.open_losses || 0;
 
-      // Win/loss profile
-      win_rate_pct: parseFloat(perf.win_rate_pct) || 0,
+    const totalTrades = closedWins + closedLosses + openWins + openLosses;
+    const totalWins = closedWins + openWins;
+    const winRateIncludingOpen = totalTrades > 0 ? parseFloat((totalWins / totalTrades * 100).toFixed(2)) : 0;
+
+    return sendSuccess(res, {
+      // Trade counts (closed + open)
+      total_trades: totalTrades,
+      winning_trades: totalWins,
+      losing_trades: closedLosses + openLosses,
+      closed_trades: perf.total_trades || 0,
+      open_positions: openStats.open_count || 0,
+
+      // Win/loss profile (including open positions)
+      win_rate_pct: winRateIncludingOpen,
+      closed_win_rate_pct: parseFloat(perf.win_rate_pct) || 0,
       avg_win_pct: parseFloat(perf.avg_win_pct) || 0,
       avg_loss_pct: parseFloat(perf.avg_loss_pct) || 0,
       avg_win_r: parseFloat(perf.avg_win_r) || 0,
@@ -1978,6 +1991,7 @@ router.get('/performance', async (req, res) => {
 
       // Total
       total_pnl_dollars: parseFloat(perf.total_pnl_dollars) || 0,
+      unrealized_pnl: openStats.total_unrealized_pnl || 0,
       gross_win_dollars: parseFloat(perf.gross_win_dollars) || 0,
       gross_loss_dollars: parseFloat(perf.gross_loss_dollars) || 0,
       total_return_pct: parseFloat(perf.total_return_pct) || 0,
@@ -2015,7 +2029,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'portfolio');
     const result = await pool.query(`
       SELECT snapshot_date, total_portfolio_value, daily_return_pct,
-             unrealized_pnl_pct, position_count, drawdown_pct
+             unrealized_pnl_pct, position_count, max_drawdown_pct as drawdown_pct
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC
       LIMIT $1

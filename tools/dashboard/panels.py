@@ -535,11 +535,12 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     wr_v = perf.get('wr') or 0
     dd_v = perf.get('maxdd') or 0
     dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
+    open_count = perf.get('open_count', 0)
     rows = [
         Text.from_markup(
             f"[bold white]{perf.get('n', 0)} Trades[/]  "
             f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
-            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v}%[/]  "
+            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v}%{f' ({open_count} open)' if open_count > 0 else ''}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
         ),
