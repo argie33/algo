@@ -29,22 +29,19 @@ class LoaderConflictDetector:
                 'conflicts_detected': bool,
                 'concurrent_loaders': [
                     {
-                        'loader_name': 'load_swing_trader_scores_vectorized',
+                        'table_name': 'swing_trader_scores',
                         'start_time': datetime,
                         'duration_sec': 120,
-                        'status': 'RUNNING',
-                        'pid': 12345,
-                        'correlation_id': 'MORNING-001'
+                        'status': 'RUNNING'
                     },
                     ...
                 ],
                 'stuck_loaders': [
                     {
-                        'loader_name': 'load_prices',
+                        'table_name': 'price_daily',
                         'status': 'RUNNING',
                         'duration_sec': 3600,  # Running for 1 hour
-                        'started_at': datetime,
-                        'timeout_threshold_sec': 1800  # Should timeout at 30m
+                        'started_at': datetime
                     },
                     ...
                 ]
@@ -52,31 +49,31 @@ class LoaderConflictDetector:
         """
         try:
             with DatabaseContext('read') as cur:
-                # Check 1: Find all currently RUNNING loaders
+                # Check 1: Find all currently RUNNING loaders (based on execution_started/completed)
                 cur.execute("""
                     SELECT
-                        loader_name,
+                        table_name,
                         status,
-                        last_updated,
-                        EXTRACT(EPOCH FROM (NOW() - last_updated)) as duration_sec,
-                        run_metadata
+                        execution_started,
+                        EXTRACT(EPOCH FROM (NOW() - execution_started)) as duration_sec
                     FROM data_loader_status
                     WHERE status = 'RUNNING'
-                    ORDER BY last_updated ASC
+                    AND execution_started IS NOT NULL
+                    ORDER BY execution_started ASC
                 """)
 
                 running_loaders = []
                 stuck_loaders = []
 
                 for row in cur.fetchall():
-                    loader_name, status, last_updated, duration_sec, metadata = row
+                    table_name, status, execution_started, duration_sec = row
                     duration_sec = float(duration_sec) if duration_sec else 0
 
                     loader_info = {
-                        'loader_name': loader_name,
+                        'table_name': table_name,
                         'status': status,
                         'duration_sec': round(duration_sec, 1),
-                        'last_updated': last_updated.isoformat() if last_updated else None,
+                        'execution_started': execution_started.isoformat() if execution_started else None,
                     }
 
                     running_loaders.append(loader_info)
@@ -89,13 +86,13 @@ class LoaderConflictDetector:
                             'is_overdue': True
                         })
 
-                # Check 2: Detect concurrent runs of SAME loader (bad sign)
-                loader_counts = {}
+                # Check 2: Detect concurrent runs of SAME table (shouldn't happen)
+                table_counts = {}
                 for loader in running_loaders:
-                    name = loader['loader_name']
-                    loader_counts[name] = loader_counts.get(name, 0) + 1
+                    name = loader['table_name']
+                    table_counts[name] = table_counts.get(name, 0) + 1
 
-                conflicts = [name for name, count in loader_counts.items() if count > 1]
+                conflicts = [name for name, count in table_counts.items() if count > 1]
 
                 has_conflicts = len(conflicts) > 0 or len(stuck_loaders) > 0
 
@@ -146,7 +143,7 @@ class LoaderConflictDetector:
                 cur.execute("""
                     SELECT status, last_updated
                     FROM data_loader_status
-                    WHERE loader_name = 'load_swing_trader_scores_vectorized'
+                    WHERE table_name = 'swing_trader_scores'
                     ORDER BY last_updated DESC
                     LIMIT 1
                 """)

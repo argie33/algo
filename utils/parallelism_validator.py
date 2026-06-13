@@ -115,9 +115,9 @@ class ParallelismValidator:
             }
         """
         try:
-            from loaders.load_technical_data_daily_vectorized import TechnicalDataLoader
+            from loaders.load_technical_data_daily_vectorized import VectorizedTechnicalLoader
 
-            loader = TechnicalDataLoader()
+            loader = VectorizedTechnicalLoader()
 
             issues = []
 

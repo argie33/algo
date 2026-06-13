@@ -140,7 +140,11 @@ def run(
     # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.
     # Each ExposurePolicy tier defines its own concentration ceiling (20%/16%/12%/10%).
     tier_max_conc = exposure_constraints.get('max_concentration_pct') if exposure_constraints else None
-    sizer_config = dict(config or {})
+    # Convert AlgoConfig to dict using to_dict() method, or use empty dict if config is None
+    if hasattr(config, 'to_dict'):
+        sizer_config = config.to_dict()
+    else:
+        sizer_config = dict(config) if config else {}
     if tier_max_conc is not None:
         sizer_config['max_concentration_pct'] = tier_max_conc
         logger.info(f"[PHASE 6] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
