@@ -650,7 +650,6 @@ def fetch_circuit(c):
 # ── parallel data loader ──────────────────────────────────────────────────────
 
 FETCHERS = {
-    "run":          fetch_run,
     "cfg":          fetch_algo_config,
     "mkt":          fetch_market,
     "port":         fetch_portfolio,
@@ -660,22 +659,6 @@ FETCHERS = {
     "sig":          fetch_signals,
     "health":       fetch_health,
     "cb":           fetch_circuit,
-    "srank":        fetch_sector_ranking,
-    "activity":     fetch_activity,
-    "exp_factors":  fetch_exposure_factors,
-    "eco":          fetch_economic_pulse,
-    "notifs":       fetch_notifications,
-    "sentiment":    fetch_sentiment,
-    "econ_cal":     fetch_economic_calendar,
-    "risk":         fetch_risk_metrics,
-    "perf_anl":     fetch_perf_analytics,
-    "sig_eval":     fetch_signal_eval,
-    "sec_rot":      fetch_sector_rotation,
-    "algo_metrics": fetch_algo_metrics,
-    "irank":        fetch_industry_ranking,
-    "loader":       fetch_loader_status,
-    "audit":        fetch_audit_log,
-    "exec_hist":    fetch_exec_history,
 }
 
 def load_all() -> dict:

@@ -453,6 +453,57 @@ class DailyReconciliation:
             logger.warning(f'Exit fill reconciliation error: {e}')
             return {'updated': 0, 'message': f'Error: {e}'}
 
+    def audit_stale_estimated_prices(self, cur) -> dict:
+        """Audit for trades with estimated exit prices that haven't been reconciled.
+
+        CRITICAL: If Phase 7 reconciliation doesn't run or fails, estimated prices
+        remain permanent with no way to distinguish them from actual prices.
+        This audit detects stale estimated prices > 1 day old that are stuck.
+
+        Returns: dict with stale_count, stale_trades list, alert message if any found
+        """
+        try:
+            # Find trades with estimated prices that should have been reconciled by now
+            # Trades closed yesterday or earlier with NO reconciliation timestamp
+            cur.execute("""
+                SELECT trade_id, symbol, exit_date, estimated_exit_price, exit_price,
+                       exit_price_reconciled_at
+                FROM algo_trades
+                WHERE estimated_exit_price IS NOT NULL
+                  AND exit_price_reconciled_at IS NULL
+                  AND exit_date < CURRENT_DATE
+                ORDER BY exit_date ASC
+                LIMIT 100
+            """)
+            stale_trades = cur.fetchall()
+
+            if stale_trades:
+                alert_msg = (
+                    f"CRITICAL: {len(stale_trades)} trades have estimated exit prices "
+                    f"that were not reconciled. Phase 7 reconciliation may have failed. "
+                    f"First stale trade: {stale_trades[0][1]} closed {stale_trades[0][2]}"
+                )
+                logger.critical(alert_msg)
+                try:
+                    notify('critical', title='Exit Price Reconciliation Failed',
+                           message=alert_msg)
+                except Exception as e:
+                    logger.warning(f"Failed to send reconciliation alert: {e}")
+                return {
+                    'status': 'STALE_ESTIMATED_PRICES',
+                    'stale_count': len(stale_trades),
+                    'stale_trades': [
+                        {'trade_id': t[0], 'symbol': t[1], 'exit_date': t[2],
+                         'estimated': float(t[3]), 'actual': float(t[4])}
+                        for t in stale_trades
+                    ],
+                    'message': alert_msg
+                }
+            return {'status': 'OK', 'stale_count': 0, 'message': 'All estimated prices reconciled'}
+        except Exception as e:
+            logger.error(f"Stale price audit failed: {e}")
+            return {'status': 'ERROR', 'error': str(e)}
+
     def sync_alpaca_positions(self, cur):
         """Pull live positions from Alpaca and sync with algo_trades (single source of truth).
 

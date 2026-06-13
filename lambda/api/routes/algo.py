@@ -2677,11 +2677,17 @@ def _get_algo_portfolio(cur) -> Dict:
 
 @db_route_handler('get algo metrics', default_error_response={'data': []})
 def _get_algo_metrics(cur) -> Dict:
-    """Get algo metrics from unified fetcher (same as dashboard uses)."""
+    """Get daily algo metrics (total actions, entries, exits)."""
     try:
-        fetcher = AlgoMetricsFetcher(cur)
-        perf = fetcher.fetch_performance_metrics()
-        return success_response(perf if isinstance(perf, list) else [perf])
+        cur.execute("""
+            SELECT date, total_actions, entries, exits, avg_signal_score
+            FROM algo_metrics_daily
+            ORDER BY date DESC
+            LIMIT 30
+        """)
+        rows = cur.fetchall()
+        metrics = [safe_json_serialize(dict(r)) for r in rows]
+        return success_response(metrics)
     except Exception as e:
         logger.error(f'Algo metrics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Algo metrics unavailable')

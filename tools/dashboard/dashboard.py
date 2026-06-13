@@ -1364,6 +1364,10 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
+
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = port.get("_is_placeholder") or port.get("_is_fallback_data")
+
     pv    = safe_float(port.get("total_portfolio_value"), default=None)
     dr    = safe_float(port.get("daily_return_pct"), default=None)
     urp   = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -1427,13 +1431,23 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             f"[dim]Conc5:[/][white]{risk['conc5']:.0f}%[/]"
         ))
 
-    return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
+    # Warn if placeholder data is being displayed
+    border = "red" if is_placeholder else "green"
+    title = "[bold red]PORTFOLIO ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold green]PORTFOLIO[/]"
+    if is_placeholder:
+        rows.insert(0, Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Values may not be accurate[/]"))
+
+    return Panel(Group(*rows), title=title, border_style=border, padding=(0, 1))
 
 
 def panel_performance_spark(perf, rec, perf_anl=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     if not perf or perf.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
+
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = perf.get("_is_placeholder") or perf.get("_is_fallback_data")
+
     streak  = perf.get("streak") or 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
