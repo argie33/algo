@@ -56,7 +56,12 @@ os.environ['DB_NAME'] = creds['database']
 os.environ['DB_USER'] = creds['user'] or 'stocks'
 os.environ['DB_PASSWORD'] = creds['password'] or 'stocks'
 
-print(f"[DEV_SERVER] Connecting to DB_HOST={os.environ['DB_HOST']} DB_NAME={os.environ['DB_NAME']}", flush=True)
+db_source = "AWS Secrets Manager" if creds['host'] != 'localhost' else "environment variables (localhost fallback)"
+print(f"[DEV_SERVER] DB_HOST={os.environ['DB_HOST']} ({db_source})", flush=True)
+if creds['host'] != 'localhost':
+    print(f"[DEV_SERVER] ✓ Using real AWS RDS Proxy", flush=True)
+else:
+    print(f"[DEV_SERVER] ⚠ Using localhost (RDS not accessible from local machine)", flush=True)
 
 # Add lambda/api and parent directories to path so we can import all modules
 # NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly
