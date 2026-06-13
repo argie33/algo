@@ -64,7 +64,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'mark notification as read')
                 logger.error(f'Failed to mark notification as read: {error_type} - {message}')
-                return json_response(code, {'errorType': error_type, 'message': message})
+                return error_response(code, error_type, message)
     if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
@@ -86,7 +86,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'delete notification')
                 logger.error(f'Failed to delete notification: {error_type} - {message}')
-                return json_response(code, {'errorType': error_type, 'message': message})
+                return error_response(code, error_type, message)
     if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
@@ -957,7 +957,7 @@ def _get_dashboard_signals(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch dashboard signals')
-            return json_response(code, {'_error': message, 'errorType': error_type})
+            return error_response(code, error_type, message)
 
 @db_route_handler('fetch circuit breakers', default_error_response={'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_circuit_breakers(cur) -> Dict:
@@ -2073,8 +2073,8 @@ def _get_markets(cur) -> Dict:
                 logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT market_health_check")
-                except:
-                    pass
+                except Exception as rollback_err:
+                    logger.warning(f"[MARKETS] SAVEPOINT rollback failed: {type(rollback_err).__name__}: {rollback_err}")
 
             spy_price = None
             try:
