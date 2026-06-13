@@ -20,9 +20,7 @@ import logging
 from utils.loader_helpers import get_active_symbols
 from utils.timezone_utils import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.timezone_utils import EASTERN_TZ
 from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
 from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
 logger = logging.getLogger(__name__)

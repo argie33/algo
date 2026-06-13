@@ -789,7 +789,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           Next        = "LogMorningPriceFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MorningSwingScores"
+        Next = "MorningHealthAndTrend"
       }
 
       LogMorningPriceFailure = {
@@ -820,6 +820,92 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type  = "Fail"
         Error = "CRITICAL_LOADER_FAILURE"
         Cause = "stock_prices_daily failed during morning prep. Pipeline halted to prevent trading on stale data. Morning prep needs 7.5 hours to complete before market open. Check CloudWatch logs for details (yfinance rate limiting, RDS issues, or network problems)."
+      }
+
+      # ── Morning market health + trend template (parallel enrichment, fail-open) ─
+      # FIXED: Implement market_health_daily in morning pipeline (was only in EOD)
+      # If EOD pipeline fails, market health data is now refreshed at 3:30 AM each day
+      # Fail-open: if either enrichment fails, orchestrator continues with stale data instead of halting
+      MorningHealthAndTrend = {
+        Type = "Parallel"
+        Branches = [
+          {
+            StartAt = "MorningMarketHealthDaily"
+            States = {
+              MorningMarketHealthDaily = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 1200
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          },
+          {
+            StartAt = "MorningTrendTemplate"
+            States = {
+              MorningTrendTemplate = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 5400
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["trend_template_data"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          }
+        ]
+        ResultPath = null
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMorningHealthFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MorningSwingScores"
+      }
+
+      LogMorningHealthFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "morning_health_and_trend"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSwingScores"
+          ResultPath  = "$.logError"
+        }]
+        Next = "MorningSwingScores"
       }
 
       # ── Morning swing trader scores (only critical supporting loader) ─
