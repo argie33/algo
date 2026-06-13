@@ -998,10 +998,11 @@ class DailyReconciliation:
             # Log critical alert if any reconciliations are stuck (> 1 day old)
             stuck = [p for p in pending_list if p['days_pending'] and p['days_pending'] > 1]
             if stuck:
+                stuck_examples = ', '.join(['{} {}'.format(p['symbol'], p['trade_id']) for p in stuck[:3]])
                 logger.critical(
                     f"RECONCILIATION STUCK: {len(stuck)} trades with estimated exit prices "
                     f"stuck > 1 day without Alpaca price reconciliation. "
-                    f"Examples: {[f\"{p['symbol']} {p['trade_id']}\" for p in stuck[:3]]}"
+                    f"Examples: {stuck_examples}"
                 )
 
             return {
