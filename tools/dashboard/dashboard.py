@@ -155,7 +155,7 @@ logger = logging.getLogger(__name__)
 
 # API configuration
 API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
-API_TIMEOUT = 10
+API_TIMEOUT = 20  # Increased from 10s to handle network latency + slow responses
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
 
@@ -577,30 +577,18 @@ def fetch_exposure_factors(c):
         return {"_error": str(e), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
 
 def fetch_portfolio(c):
-    """AWS-only portfolio snapshot (no local fallback)."""
+    """Fetch portfolio snapshot from API. Fails clean if unavailable."""
     try:
-        # Try the portfolio endpoint first, then fall back to performance data
         data = api_call('/api/algo/portfolio')
         if data.get('_error'):
-            # Portfolio endpoint not available, try to get similar data from performance
-            perf = api_call('/api/algo/performance')
-            if not perf.get('_error'):
-                perf_data = perf.get('data', {})
-                return {
-                    "snapshot_date": perf_data.get("last_updated"),
-                    "total_portfolio_value": safe_float(perf_data.get("portfolio_value")),
-                    "total_cash": None,
-                    "position_count": safe_int(perf_data.get("open_positions", 0)),
-                    "daily_return_pct": safe_float(perf_data.get("daily_return_pct")),
-                    "unrealized_pnl_pct": None,
-                    "cumulative_return_pct": safe_float(perf_data.get("total_return_pct")),
-                    "max_drawdown_pct": safe_float(perf_data.get("max_drawdown_pct")),
-                    "largest_position_pct": None
-                }
-            return {"_error": data.get('_error'), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
+            return {
+                "_error": data.get('_error'),
+                "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
+                "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
+                "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
+                "data_age_seconds": None
+            }
         port = data.get('data', {})
-        if "_error" in port:
-            return {"_error": port.get("_error"), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
@@ -610,11 +598,18 @@ def fetch_portfolio(c):
             "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct")),
             "cumulative_return_pct": safe_float(port.get("cumulative_return_pct")),
             "max_drawdown_pct": safe_float(port.get("max_drawdown_pct")),
-            "largest_position_pct": safe_float(port.get("largest_position_pct"))
+            "largest_position_pct": safe_float(port.get("largest_position_pct")),
+            "data_age_seconds": port.get("data_age_seconds")
         }
     except Exception as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
-        return {"_error": str(e), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
+        return {
+            "_error": str(e),
+            "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
+            "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
+            "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
+            "data_age_seconds": None
+        }
 
 def fetch_perf(c):
     """AWS-only performance data (no local fallback)."""
@@ -696,9 +691,9 @@ def fetch_signals(c):
     try:
         data = api_call('/api/signals/stocks')
         if data.get('_error'):
-            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
+            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
         if not data.get('data'):
-            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
+            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
 
         result = data['data']
         signals = result.get('signals', [])
@@ -710,11 +705,11 @@ def fetch_signals(c):
             "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
             "top_a": signals[:3] if signals else [],
             "trend": result.get('trend', []),
-            "fetched_at": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc)
         }
     except Exception as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
-        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
+        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
@@ -947,18 +942,6 @@ def fetch_industry_ranking(c):
         logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
         return {"_error": str(e), "items": []}
 
-def fetch_loader_status(c):
-    """Fetch data loader status from API. Uses cached data-status."""
-    try:
-        data = _get_data_status_cached()
-        if data.get('_error'):
-            return {"_error": data.get('_error'), "items": []}
-        loaders = data.get('data', [])
-        return {"items": loaders if isinstance(loaders, list) else []}
-    except Exception as e:
-        logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
-
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
     try:
@@ -1037,7 +1020,6 @@ FETCHERS = {
     "sec_rot":      fetch_sector_rotation,
     "algo_metrics": fetch_algo_metrics,
     "irank":        fetch_industry_ranking,
-    "loader":       fetch_loader_status,
     "audit":        fetch_audit_log,
     "exec_hist":    fetch_exec_history,
 }
@@ -1782,6 +1764,7 @@ def panel_positions(pos, compact=False, trades=None):
     content = Group(*content_items) if len(content_items) > 1 else (content_items[0] if content_items else t)
 
     border = "red" if is_placeholder else "cyan"
+    age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
     if invalid_count > 0:
         logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
         border = "red"
@@ -1790,7 +1773,7 @@ def panel_positions(pos, compact=False, trades=None):
         title_str = "[bold red]POSITIONS ⚠ PLACEHOLDER DATA[/]"
     else:
         title_str = f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
-    return Panel(content, title=f"{title_str}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
+    return Panel(content, title=f"{title_str}{age_s}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
 
 
 def panel_signals_compact(sig, sig_eval=None):
@@ -1864,11 +1847,18 @@ def panel_signals_compact(sig, sig_eval=None):
         ev_avg = sig_eval.get("avg_score", 0)
         ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         rejected   = sig_eval.get("rejected") or []
-        block_parts = ["  ".join(
-            f"[dim]{_shorten_reason(rj['evaluation_reason'])}:{rj['n']}[/]"
-            for rj in rejected[:3]
-        )]
-        blocks_s = "  [dim]blocked:[/]  " + block_parts[0] if rejected else ""
+        if rejected:
+            block_parts = []
+            for rj in rejected[:3]:
+                reason_abbr = _shorten_reason(rj['evaluation_reason'])
+                description = rj.get('description', '')
+                if description:
+                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]")
+                else:
+                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/]")
+            blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
+        else:
+            blocks_s = ""
         rows.append(Text.from_markup(
             f"[dim]{ev_tot} â†'[/] [{ev_c}]{ev_t5} qualified[/]"
             f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
@@ -1933,19 +1923,28 @@ def panel_signals_compact(sig, sig_eval=None):
     if is_placeholder:
         rows.insert(0, Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"))
 
+    age_s = f"  [dim]{fmt_age(sig.get('timestamp'))}[/]" if sig.get('timestamp') is not None else ""
     border = "red" if is_placeholder else "magenta"
     title = "[bold red]BUY SIGNALS ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold magenta]BUY SIGNALS & SCREENING[/]"
-    return Panel(Group(*rows), title=f"{title}  [dim][s] expand[/]", border_style=border, padding=(0, 1))
+    return Panel(Group(*rows), title=f"{title}{age_s}  [dim][s] expand[/]", border_style=border, padding=(0, 1))
 
 
 def panel_recent_trades(trades):
     # Closed/recent trade history - sits alongside positions panel
-    if not trades or not isinstance(trades, list):
+    trades_timestamp = None
+    if isinstance(trades, dict):
+        trades_timestamp = trades.get("timestamp")
+        trades_list = trades.get("items", [])
+    else:
+        trades_list = trades if isinstance(trades, list) else []
+
+    if not trades_list:
+        age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
         return Panel(Text('no recent trades', style='dim'),
-                     title='[bold cyan]RECENT TRADES[/]', border_style='cyan', padding=(0, 1))
+                     title=f'[bold cyan]RECENT TRADES[/]{age_s}', border_style='cyan', padding=(0, 1))
 
     # Check if placeholder/fallback data is being displayed
-    is_placeholder = isinstance(trades, list) and any(t.get("_is_placeholder") or t.get("_is_fallback_data") for t in trades if isinstance(t, dict))
+    is_placeholder = any(t.get("_is_placeholder") or t.get("_is_fallback_data") for t in trades_list if isinstance(t, dict))
 
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)
@@ -1955,7 +1954,7 @@ def panel_recent_trades(trades):
     t.add_column("P&L%", justify="right",    no_wrap=True, min_width=5)
     t.add_column("R",    justify="right",    no_wrap=True, min_width=4)
     t.add_column("St",   style="dim",        no_wrap=True, min_width=4)
-    for tr in trades[:10]:
+    for tr in trades_list[:10]:
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
         date_s = date.strftime("%b%d") if hasattr(date, "strftime") else str(date or "--")[:5]
@@ -1983,9 +1982,10 @@ def panel_recent_trades(trades):
 
     content = Group(*content_items) if len(content_items) > 1 else t
 
+    age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     border = "red" if is_placeholder else "cyan"
     title = "[bold red]RECENT TRADES ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold cyan]RECENT TRADES[/]"
-    return Panel(content, title=title, border_style=border, padding=(0, 0))
+    return Panel(content, title=f"{title}{age_s}", border_style=border, padding=(0, 0))
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -3294,7 +3294,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     sig      = data.get("sig")         or {}
     hlth     = _extract_items(data.get("health") or {})
     cb       = data.get("cb")          or {}
-    rec      = _extract_items(data.get("trades") or {})
+    rec      = data.get("trades")      or {}  # Keep as-is to preserve timestamp
     srank    = _extract_items(data.get("srank") or {})
     act      = data.get("activity")    or {}
     exp_f    = data.get("exp_factors") or {}
@@ -3308,7 +3308,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     sec_rot      = data.get("sec_rot")       or {}
     algo_metrics = _extract_items(data.get("algo_metrics") or {})
     irank        = _extract_items(data.get("irank") or {})
-    loader       = _extract_items(data.get("loader") or {})
+    loader       = hlth  # Loader status comes from health endpoint (removed duplicate)
     audit        = _extract_items(data.get("audit") or {})
     exec_hist    = _extract_items(data.get("exec_hist") or {})
 
