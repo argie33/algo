@@ -1179,6 +1179,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     raise ValueError("No trade data")
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"win_rate computation: {str(e)}")
                 breakers.append({'id': 'win_rate', 'label': 'Win Rate Floor',
                     'triggered': False, 'current': 0, 'threshold': 40, 'unit': '%',
                     'description': 'Insufficient closed trades (need 10+)'})
@@ -1186,7 +1187,10 @@ def _get_circuit_breakers(cur) -> Dict:
             any_halted = any(b['triggered'] for b in breakers)
             triggered_count = sum(1 for b in breakers if b['triggered'])
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
-            return json_response(200, {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness})
+            response = {\'breakers\': breakers, \'any_triggered\': any_halted, \'triggered_count\': triggered_count, \'data_freshness\': freshness}
+            if errors:
+                response[\'_error\'] = f\'One or more circuit breakers failed to compute: {"; ".join(errors)}\'
+            return json_response(200, response)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
             return error_response(503, 'service_unavailable', 'Data unavailable')

@@ -1234,6 +1234,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             logger.error(f'Unexpected error (equity curve): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch equity curve'}, exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
+@db_route_handler('fetch data status', default_error_response={'ready_to_trade': False, 'summary': {'ok': 0, 'stale': 0, 'empty': 0, 'error': 0}, 'sources': [], 'critical_stale': [], '_error': 'Data unavailable'})
 def _get_data_status(cur) -> Dict:
         """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -1836,6 +1837,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
     return reason or "Unknown rejection reason"
 
+@db_route_handler('fetch rejection funnel', default_error_response={'total_candidates': 0, 'filters': {}, '_error': 'Data unavailable'})
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
