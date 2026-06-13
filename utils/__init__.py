@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from utils.database_context import DatabaseContext
-from utils.database import get_db_connection
+from utils.db_connection import get_db_connection
 from utils.safe_data_conversion import safe_int, safe_float
 from utils.timezone_utils import EASTERN_TZ
 from utils.structured_logger import get_logger

@@ -250,9 +250,10 @@ def get_import_status():
             "skipped_routes": list[{"path": str, "module": str, "error": str}]
         }
     """
+    total_route_modules = len(_CRITICAL_ROUTES) + len(_OPTIONAL_ROUTE_MODULES)
     critical_failures = [m for m in _ROUTE_IMPORT_ERRORS if m in _CRITICAL_ROUTES]
     return {
-        "total_routes": len(_ROUTE_MODULES),
+        "total_routes": total_route_modules,
         "successful_routes": len(_AVAILABLE_ROUTES),
         "failed_routes": len(_ROUTE_IMPORT_ERRORS),
         "critical_failures": critical_failures,
