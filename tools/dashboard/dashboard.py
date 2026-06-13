@@ -1853,10 +1853,10 @@ def panel_signals_compact(sig, sig_eval=None):
 
 
 def panel_recent_trades(trades):
-    """Closed/recent trade history â€” sits alongside positions panel."""
-    if not trades:
-        return Panel(Text("no recent trades", style="dim"),
-                     title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 1))
+    # Closed/recent trade history - sits alongside positions panel
+    if not trades or not isinstance(trades, list):
+        return Panel(Text('no recent trades', style='dim'),
+                     title='[bold cyan]RECENT TRADES[/]', border_style='cyan', padding=(0, 1))
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)
     t.add_column("Sym",  style="bold white", no_wrap=True, min_width=4)
