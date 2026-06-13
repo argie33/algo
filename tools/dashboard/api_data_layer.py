@@ -222,8 +222,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_last_run failed: {resp['_error']}")
             return {}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_audit_log(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
@@ -232,8 +231,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_audit_log failed: {resp['_error']}")
             return {"items": [], "pagination": {}}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_circuit_breakers() -> Dict[str, Any]:
@@ -242,8 +240,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_circuit_breakers failed: {resp['_error']}")
             return {"breakers": [], "any_triggered": False}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_sector_breadth() -> Dict[str, Any]:
@@ -252,5 +249,4 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_sector_breadth failed: {resp['_error']}")
             return {}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp

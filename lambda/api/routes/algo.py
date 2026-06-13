@@ -476,11 +476,13 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = N
         trades = cur.fetchall()
         items = [safe_json_serialize(safe_dict_convert(t)) for t in trades]
         freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-        return json_response(200, {
+        response_data = {
             'items': items,
             'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
             'data_freshness': freshness
-        })
+        }
+        sanitized = APIResponseValidator.sanitize_response(response_data)
+        return json_response(200, sanitized)
 
 @db_route_handler('fetch algo positions', default_error_response={'items': [], 'sector_allocation': [], 'pagination': {'total': 0, 'limit': 10000, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
@@ -623,13 +625,15 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         if freshness.get('is_stale'):
             stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
 
-        return json_response(200, {
+        response_data = {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
             'stale_alerts': stale_alerts,
             'data_freshness': freshness
-        })
+        }
+        sanitized = APIResponseValidator.sanitize_response(response_data)
+        return json_response(200, sanitized)
 
 @db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:

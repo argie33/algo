@@ -3062,7 +3062,7 @@ def _get_performance_analytics(cur) -> Dict:
                 'expectancy': None,
                 'max_drawdown_pct': None
             })
-        data = safe_dict_convert(row)
+        data = safe_serialize_row(row)
         return success_response({
             'rolling_sharpe_252d': safe_float(data.get('rolling_sharpe_252d')),
             'rolling_sortino_252d': safe_float(data.get('rolling_sortino_252d')),
@@ -3107,7 +3107,7 @@ def _get_sentiment(cur) -> Dict:
                 'data_freshness': freshness
             })
 
-        data = safe_dict_convert(row)
+        data = safe_serialize_row(row)
         fear_greed = data.get('fear_greed_index')
         label = data.get('label')
 
