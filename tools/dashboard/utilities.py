@@ -43,6 +43,9 @@ CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
 _data_status_lock = threading.Lock()
 _data_status_cache = {}
 
+# Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
+_sector_cache_lock = threading.Lock()
+
 G   = "bright_green"
 R   = "bright_red"
 Y   = "yellow"
@@ -112,10 +115,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # API configuration
-API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
+API_BASE_URL = os.environ.get("DASHBOARD_API_URL")
+if not API_BASE_URL:
+    raise RuntimeError(
+        "DASHBOARD_API_URL environment variable must be set. "
+        "Example: DASHBOARD_API_URL=https://api.example.com"
+    )
 API_TIMEOUT = 20  # Increased from 10s to handle network latency + slow responses
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
+
+# HTTP session with connection pooling (reuse TCP connections across 25+ parallel fetchers)
+_http_session = requests.Session()
+_http_adapter = requests.adapters.HTTPAdapter(
+    pool_connections=16,
+    pool_maxsize=16,
+    max_retries=requests.packages.urllib3.util.retry.Retry(
+        total=0,  # Retries handled by api_call() instead
+        backoff_factor=0
+    )
+)
+_http_session.mount("http://", _http_adapter)
+_http_session.mount("https://", _http_adapter)
 
 # Sector aggregation cache (E5 optimization)
 _sector_agg_cache = OrderedDict()
@@ -201,6 +222,8 @@ def compute_sector_agg(pos, port):
 
     E5 optimization: Sector aggregation from 100+ positions was O(n) × 2,880 times/day.
     Now computes only when positions change (typically 2-5 times/day).
+
+    Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
     """
     pos, _, has_error = normalize_positions_data(pos)
     if has_error:
@@ -210,9 +233,11 @@ def compute_sector_agg(pos, port):
         return None, None, 0
 
     pos_hash = hashlib.md5(json.dumps(pos, sort_keys=True, default=str).encode()).hexdigest()
-    if pos_hash in _sector_agg_cache:
-        cached = _sector_agg_cache[pos_hash]
-        return cached["sorted_secs"], cached["total_secs"], cached.get("pv")
+
+    with _sector_cache_lock:
+        if pos_hash in _sector_agg_cache:
+            cached = _sector_agg_cache[pos_hash]
+            return cached["sorted_secs"], cached["total_secs"], cached.get("pv")
 
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     sd = {}
@@ -240,14 +265,15 @@ def compute_sector_agg(pos, port):
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)
 
-    if len(_sector_agg_cache) >= _sector_cache_maxsize:
-        _sector_agg_cache.popitem(last=False)
+    with _sector_cache_lock:
+        if len(_sector_agg_cache) >= _sector_cache_maxsize:
+            _sector_agg_cache.popitem(last=False)
 
-    _sector_agg_cache[pos_hash] = {
-        "sorted_secs": sorted_secs,
-        "total_secs": total_secs,
-        "pv": pv
-    }
+        _sector_agg_cache[pos_hash] = {
+            "sorted_secs": sorted_secs,
+            "total_secs": total_secs,
+            "pv": pv
+        }
 
     return sorted_secs, total_secs, pv
 

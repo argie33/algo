@@ -106,6 +106,16 @@ def fetch_exposure_factors(c):
         logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
         return {"_error": str(e), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
 
+def _validate_required_fields(data_dict, required_fields, source_name):
+    """Validate that all required fields exist in response dict. Return error dict if missing."""
+    if not isinstance(data_dict, dict):
+        return {"_error": f"{source_name}: expected dict but got {type(data_dict).__name__}"}
+    missing = [f for f in required_fields if f not in data_dict]
+    if missing:
+        logger.warning(f"{source_name}: missing required fields: {missing}")
+        return {"_error": f"{source_name}: missing fields {missing}"}
+    return None
+
 def fetch_portfolio(c):
     """Fetch portfolio snapshot from API. Fails clean if unavailable."""
     try:
@@ -119,6 +129,13 @@ def fetch_portfolio(c):
                 "data_age_seconds": None
             }
         port = data.get('data', {})
+        required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
+        validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
+        if validation_error:
+            return {**validation_error, "snapshot_date": None, "total_portfolio_value": None,
+                   "total_cash": None, "position_count": None, "daily_return_pct": None,
+                   "unrealized_pnl_pct": None, "cumulative_return_pct": None,
+                   "max_drawdown_pct": None, "largest_position_pct": None, "data_age_seconds": None}
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
@@ -148,20 +165,19 @@ def fetch_perf(c):
         if data.get('_error'):
             return {
                 "_error": data.get('_error'),
-                "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
-                "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
-                "profit_factor": 0, "expectancy": 0, "avg_r": 0,
+                "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
+                "sharpe": None, "maxdd": None, "avg_win": None, "avg_loss": None,
+                "profit_factor": None, "expectancy": None, "avg_r": None,
                 "equity_vals": [], "recent_rets": []
             }
         perf = data.get('data', {})
-        if "_error" in perf or not perf:
-            return {
-                "_error": "Performance data unavailable",
-                "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
-                "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
-                "profit_factor": 0, "expectancy": 0, "avg_r": 0,
-                "equity_vals": [], "recent_rets": []
-            }
+        required_fields = ["total_trades", "winning_trades", "losing_trades"]
+        validation_error = _validate_required_fields(perf, required_fields, "fetch_perf")
+        if validation_error:
+            return {**validation_error, "n": None, "w": None, "l": None, "wr": None,
+                   "pnl": None, "streak": None, "sharpe": None, "maxdd": None,
+                   "avg_win": None, "avg_loss": None, "profit_factor": None,
+                   "expectancy": None, "avg_r": None, "equity_vals": [], "recent_rets": []}
         return {
             "n": safe_int(perf.get("total_trades")),
             "w": safe_int(perf.get("winning_trades")),
@@ -185,9 +201,9 @@ def fetch_perf(c):
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         return {
             "_error": str(e),
-            "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
-            "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
-            "profit_factor": 0, "expectancy": 0, "avg_r": 0,
+            "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
+            "sharpe": None, "maxdd": None, "avg_win": None, "avg_loss": None,
+            "profit_factor": None, "expectancy": None, "avg_r": None,
             "equity_vals": [], "recent_rets": []
         }
 
@@ -591,19 +607,24 @@ def load_all() -> dict:
 
     with ThreadPoolExecutor(max_workers=min(len(FETCHERS), 16)) as pool:
         futures = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
+        pending_futures = set(futures.keys())
+
         try:
             for f in as_completed(futures, timeout=BATCH_TIMEOUT):
                 try:
                     n, d = f.result()
                     out[n] = d
+                    pending_futures.discard(f)
                 except Exception as e:
                     k = futures[f]
                     logger.error(f"Thread exception for {k}: {type(e).__name__}: {e}")
                     out[k] = {"_error": str(e)}
+                    pending_futures.discard(f)
         except TimeoutError:
             logger.error(f"load_all timeout after {BATCH_TIMEOUT}s - marking incomplete fetchers")
-            for f, k in futures.items():
-                if not f.done():
+            for f in pending_futures:
+                k = futures.get(f)
+                if k and not f.done():
                     logger.warning(f"Fetcher {k} timed out - marking incomplete")
                     out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
 

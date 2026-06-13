@@ -123,31 +123,7 @@ def _extract_items(data: any) -> list:
     return []
 
 
-
-
 # ── panel builders ────────────────────────────────────────────────────────────
-
-def _error_panel(data_name: str, data, title: str, border="magenta"):
-    """Create a panel showing granular error info for failed data sources.
-
-    Args:
-        data_name: Short identifier for the data source (e.g., 'signals', 'portfolio')
-        data: The data dict that may contain _error field
-        title: Panel title to display
-        border: Border color
-
-    Returns a Panel with specific error message, or falls back to safe display if data is malformed.
-    """
-    if not data:
-        return Panel(
-            Text(f"{data_name}: no data", style="dim"),
-            title=f"[bold]{title}[/]",
-            border_style=border,
-            padding=(0, 1)
-        )
-
-    if isinstance(data, dict) and data.get("_error"):
-        error_msg = data.get("_error", "Unknown error")
         return Panel(
             Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
             title=f"[bold]{title}[/]",
