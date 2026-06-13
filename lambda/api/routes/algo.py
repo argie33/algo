@@ -1689,9 +1689,37 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores history'}, exc_info=True)
             return error_response(500, 'internal_error', f'Failed to fetch swing scores history: {type(e).__name__}')
+def _get_rejection_reason_description(reason: str) -> str:
+    """Generate human-readable description for rejection reason."""
+    reason_lower = (reason or "").lower()
+    descriptions = {
+        "52w low": "Price within 5% of 52-week low (weak signal near lows)",
+        "52-week low proximity": "Price within 5% of 52-week low (weak signal near lows)",
+        "sector cap": "Already maximum sector exposure (sector limit reached)",
+        "sector concentration": "Already maximum sector exposure (sector limit reached)",
+        "industry cap": "Already maximum industry exposure (industry limit reached)",
+        "industry concentration": "Already maximum industry exposure (industry limit reached)",
+        "stage filter": "Does not meet technical stage requirements",
+        "volume": "Insufficient volume (liquidity concern)",
+        "relative strength": "Weak relative strength compared to peers",
+        "rs": "Weak relative strength compared to peers",
+        "market regime": "Market conditions unfavorable (not in confirmed uptrend)",
+        "halt": "Position in halted/restricted status",
+        "sqs": "Signal quality score below threshold (SQS < 60)",
+        "signal quality": "Signal quality score below threshold",
+    }
+
+    for key, desc in descriptions.items():
+        if key in reason_lower:
+            return desc
+
+    return reason or "Unknown rejection reason"
+
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
+            today = date.today()
+
             # Get total initial signals
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as total_signals
@@ -1758,6 +1786,29 @@ def _get_rejection_funnel(cur) -> Dict:
                         'rejection_pct': round((hq_rejection / scored_count * 100), 2) if scored_count else 0
                     })
 
+            # Get detailed rejection reasons grouped by reason type (top reasons across all tiers)
+            rejected_list = []
+            try:
+                cur.execute("""
+                    SELECT rejection_reason, COUNT(*) as count
+                    FROM filter_rejection_log
+                    WHERE eval_date = %s AND rejection_reason IS NOT NULL AND rejection_reason != ''
+                    GROUP BY rejection_reason
+                    ORDER BY count DESC
+                    LIMIT 10
+                """, (today,))
+
+                for row in cur.fetchall():
+                    reason_text = row[0] or ""
+                    count = row[1] or 0
+                    rejected_list.append({
+                        "evaluation_reason": reason_text,
+                        "description": _get_rejection_reason_description(reason_text),
+                        "n": count
+                    })
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                rejected_list = []
+
             return json_response(200, {
                 'funnel': funnel,
                 'summary': {
@@ -1765,12 +1816,17 @@ def _get_rejection_funnel(cur) -> Dict:
                     'total_passed': high_quality_count,
                     'total_rejected': initial_count - high_quality_count,
                     'pass_rate_pct': round((high_quality_count / initial_count * 100), 2) if initial_count else 0
-                }
+                },
+                'rejected': rejected_list,
+                'total': initial_count,
+                't1': initial_count - scored_count if initial_count > 0 else 0,
+                't5': high_quality_count,
+                'avg_score': 0
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch rejection funnel: {type(e).__name__}: {e}', extra={'operation': 'get rejection funnel'})
-            return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}})
+            return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}, 'rejected': []})
 _TIER_CONFIG = {
     'confirmed_uptrend': {
         'description': 'Confirmed uptrend — full deployment',

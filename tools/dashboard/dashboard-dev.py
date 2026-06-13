@@ -1354,11 +1354,18 @@ def panel_signals_compact(sig, sig_eval=None):
         ev_avg = sig_eval.get("avg_score", 0)
         ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         rejected   = sig_eval.get("rejected") or []
-        block_parts = ["  ".join(
-            f"[dim]{_shorten_reason(rj['evaluation_reason'])}:{rj['n']}[/]"
-            for rj in rejected[:3]
-        )]
-        blocks_s = "  [dim]blocked:[/]  " + block_parts[0] if rejected else ""
+        if rejected:
+            block_parts = []
+            for rj in rejected[:3]:
+                reason_abbr = _shorten_reason(rj['evaluation_reason'])
+                description = rj.get('description', '')
+                if description:
+                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]")
+                else:
+                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/]")
+            blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
+        else:
+            blocks_s = ""
         rows.append(Text.from_markup(
             f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
             f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
@@ -2454,7 +2461,15 @@ def panel_signals_expanded(sig, sig_eval=None):
                   f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}")
         rejected = sig_eval.get("rejected") or []
         if rejected:
-            blocks = "  ".join(f"[dim]{rj['evaluation_reason'][:32]}:{rj['n']}[/]" for rj in rejected)
+            block_items = []
+            for rj in rejected:
+                reason_full = rj['evaluation_reason'][:32]
+                description = rj.get('description', '')
+                if description:
+                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]")
+                else:
+                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/]")
+            blocks = "  ".join(block_items)
             funnel += f"  [dim]blocked:[/] {blocks}"
         rows.append(Text.from_markup(funnel))
 
