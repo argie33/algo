@@ -51,6 +51,19 @@ from panels import (
 from formatters import mkt_hours_str, next_run_str
 
 
+def _validate_watch_interval(value):
+    """Validate watch interval is between 5 and 600 seconds."""
+    try:
+        int_value = int(value)
+        if int_value < 5:
+            raise argparse.ArgumentTypeError(f"Watch interval must be at least 5 seconds (got {int_value})")
+        if int_value > 600:
+            raise argparse.ArgumentTypeError(f"Watch interval must be at most 600 seconds (got {int_value})")
+        return int_value
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})")
+
+
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
                      last_load_time: Optional[float] = None,
@@ -415,8 +428,8 @@ def main():
         epilog=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    pa.add_argument("-w", "--watch", nargs="?", const=30, type=int, metavar="SECS",
-                    help="Watch mode, auto-refresh interval (default 30s)")
+    pa.add_argument("-w", "--watch", nargs="?", const=30, type=_validate_watch_interval, metavar="SECS",
+                    help="Watch mode, auto-refresh interval in seconds (5-600, default 30s)")
     pa.add_argument("--compact", "-c", action="store_true",
                     help="Omit T1 and Sector columns from positions table")
     pa.add_argument("--local", action="store_true",
@@ -433,6 +446,16 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
+        # AWS mode: require DASHBOARD_API_URL
+        import os
+        aws_url = os.environ.get("DASHBOARD_API_URL")
+        if not aws_url:
+            CONSOLE.print("[bold red]ERROR:[/] AWS mode requires DASHBOARD_API_URL environment variable")
+            CONSOLE.print("[dim]Set it to your AWS API endpoint, e.g.:[/]")
+            CONSOLE.print("[cyan]  export DASHBOARD_API_URL=https://api.example.com[/]")
+            CONSOLE.print("[dim]Or use:[/] [cyan]--local[/] [dim]for localhost:3001[/]")
+            sys.exit(1)
+        set_api_url(aws_url)
         data_source = "AWS"
 
     if args.watch is not None:

@@ -6,6 +6,10 @@ from utilities import (
     TIER_COLOR, SPARKLINE_CHARS, ET,
     G, R, Y, CY, DIM,
 )
+import time
+
+_schedule_cache = {'result': None, 'timestamp': 0}
+_SCHEDULE_CACHE_TTL = 300
 
 
 def fmt_age(ts):
@@ -121,16 +125,27 @@ def mkt_hours_str() -> tuple:
 
 def next_run_str() -> str:
     """Return next orchestrator run time. Fetches schedule from API if available, falls back to hardcoded."""
+    now = time.time()
+    if _schedule_cache['result'] is not None and (now - _schedule_cache['timestamp']) < _SCHEDULE_CACHE_TTL:
+        return _schedule_cache['result']
+
     try:
         from utilities import api_call
         resp = api_call('/api/algo/schedule')
         if not resp.get('_error') and 'schedule' in resp:
             schedule = resp.get('schedule', [])
             if schedule and isinstance(schedule, list):
-                return _next_run_from_schedule(schedule)
+                result = _next_run_from_schedule(schedule)
+                _schedule_cache['result'] = result
+                _schedule_cache['timestamp'] = now
+                return result
     except Exception:
         pass
-    return _next_run_hardcoded()
+
+    result = _next_run_hardcoded()
+    _schedule_cache['result'] = result
+    _schedule_cache['timestamp'] = now
+    return result
 
 def _next_run_from_schedule(schedule: list) -> str:
     """Calculate next run from dynamic schedule (list of {hour, minute} dicts)."""
