@@ -2,15 +2,15 @@
 """Algo Ops Terminal Dashboard
 
 Usage:
-  python tools/dashboard/dashboard.py            # live view (AWS endpoints, q or Ctrl+C to exit)
-  python tools/dashboard/dashboard.py -w         # watch mode, auto-refresh every 30s
-  python tools/dashboard/dashboard.py -w 60      # watch mode, refresh every 60s
-  python tools/dashboard/dashboard.py --compact  # narrow positions table
-  python tools/dashboard/dashboard.py --local    # use local API (localhost:3001) instead of AWS
+  python tools/dashboard/main.py                 # live view (AWS endpoints, q or Ctrl+C to exit)
+  python tools/dashboard/main.py -w              # watch mode, auto-refresh every 30s
+  python tools/dashboard/main.py -w 60           # watch mode, refresh every 60s
+  python tools/dashboard/main.py --compact       # narrow positions table
+  python tools/dashboard/main.py --local         # use local API (localhost:3001) instead of AWS
 
 Modes:
-  AWS (default): Requires AWS credentials (AWS_PROFILE env var), reads data from AWS Secrets Manager
-  Local: Requires local API service running on http://localhost:3001
+  AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
+  Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
 import argparse
