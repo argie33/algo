@@ -2585,18 +2585,30 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 @db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
+@db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, 'limit': 50})
 def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
     """Return recent orchestrator execution runs."""
-    cur.execute("""
-        SELECT run_id, run_date, started_at, completed_at, overall_status,
-               phases_completed, phases_halted, phases_errored, summary
-        FROM orchestrator_execution_log
-        WHERE run_date >= CURRENT_DATE - %s
-        ORDER BY started_at DESC
-        LIMIT %s
-    """, (days, limit))
-    rows = cur.fetchall()
-    return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows), limit=limit)
+    try:
+        cur.execute("""
+            SELECT run_id, run_date, started_at, completed_at, overall_status,
+                   phases_completed, phases_halted, phases_errored, summary
+            FROM orchestrator_execution_log
+            WHERE run_date >= CURRENT_DATE - %s
+            ORDER BY started_at DESC
+            LIMIT %s
+        """, (days, limit))
+        rows = cur.fetchall()
+        if not rows:
+            return list_response([], total=0, limit=limit)
+        try:
+            items = [safe_json_serialize(dict(r)) for r in rows]
+            return list_response(items, total=len(rows), limit=limit)
+        except Exception as ser_e:
+            logger.warning(f'Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}')
+            return list_response([], total=0, limit=limit)
+    except Exception as e:
+        logger.error(f'Orchestrator execution recent fetch error: {type(e).__name__}: {e}')
+        return list_response([], total=0, limit=limit)
 
 @db_route_handler('fetch orchestrator execution failed', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
 def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
@@ -2742,11 +2754,17 @@ def _get_algo_metrics(cur) -> Dict:
             LIMIT 30
         """)
         rows = cur.fetchall()
-        metrics = [safe_json_serialize(dict(r)) for r in rows]
-        return success_response(metrics)
+        if not rows:
+            return success_response([])
+        try:
+            metrics = [safe_json_serialize(dict(r)) for r in rows]
+            return success_response(metrics)
+        except Exception as ser_e:
+            logger.warning(f'Serialization error in algo metrics: {type(ser_e).__name__}: {ser_e}')
+            return success_response([])
     except Exception as e:
         logger.error(f'Algo metrics fetch error: {type(e).__name__}: {e}')
-        return error_response(503, 'service_unavailable', 'Algo metrics unavailable')
+        return success_response([])
 
 @db_route_handler('get risk metrics', default_error_response={'data': {}})
 def _get_risk_metrics(cur) -> Dict:

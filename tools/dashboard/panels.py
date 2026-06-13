@@ -324,9 +324,10 @@ def panel_circuit(cb, risk=None):
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
 
 
-def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None):
+def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"):
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
-    rows = [Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}")]
+    source_color = "cyan" if data_source == "LOCAL" else "dim"
+    rows = [Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")]
     if mkt and not mkt.get("_error"):
         tier    = mkt.get("tier", "unknown")
         tc      = TIER_COLOR.get(tier, "dim")
@@ -1834,7 +1835,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
 
 # ── loading layout âE" mascot compact in top-right ──────────────────────────────
 
-def loading_layout(frame: int) -> Layout:
+def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
     fi   = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]   # 4fps loading animation
     mc   = MASCOT_COLORS[fi]
@@ -1855,8 +1856,9 @@ def loading_layout(frame: int) -> Layout:
         padding=(0, 0),
     )
 
+    source_color = "cyan" if data_source == "LOCAL" else "dim"
     hdr_text = Text.from_markup(
-        f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]"
+        f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]  [{source_color}]{data_source}[/]"
     )
     hdr_panel = Panel(
         Align(hdr_text, vertical="middle"),

@@ -4,7 +4,9 @@ Single-pane-of-glass terminal dashboard for morning briefing and monitoring.
 
 ## Usage
 
-`dashboard.py` connects directly to AWS RDS via AWS Secrets Manager.
+### AWS Mode (Default)
+
+Connects directly to AWS RDS via AWS Secrets Manager.
 
 ```bash
 # Requires: AWS credentials (AWS_PROFILE env var)
@@ -13,7 +15,17 @@ python tools/dashboard/dashboard.py -w         # watch mode (30s refresh)
 python tools/dashboard/dashboard.py --compact  # narrow positions table
 ```
 
-**Data sources:** AWS RDS (direct database queries)
+### Local Mode
+
+Connects to local API endpoint (localhost:3001).
+
+```bash
+# Requires: Local API service running on http://localhost:3001
+python tools/dashboard/dashboard.py --local
+python tools/dashboard/dashboard.py -w 60 --local
+```
+
+The data source mode (AWS or LOCAL) is displayed in the header while loading and in the top-right of the dashboard.
 
 ## Options
 

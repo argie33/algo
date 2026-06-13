@@ -373,13 +373,18 @@ def run(
         f"(>={effective_min_swing:.0f}), {swing_errors} errors"
     )
 
-    # If >80% of swing scores errored, fall back to quality-ranked liquidity-passed candidates
-    # rather than blocking all trades on an infrastructure failure.
-    if swing_error_rate > 0.8 and swing_checked >= 5:
-        logger.warning(
-            f"[PHASE 5] SwingScore error rate {swing_error_rate:.0%} — "
-            "falling back to quality-scored candidates"
-        )
+    # If swing scoring is disabled (_SWING_SCORE_LIMIT=0), or >80% of swing scores errored,
+    # fall back to quality-ranked liquidity-passed candidates rather than blocking trades.
+    if _SWING_SCORE_LIMIT == 0 or (swing_error_rate > 0.8 and swing_checked >= 5):
+        if _SWING_SCORE_LIMIT == 0:
+            logger.info("[PHASE 5] SwingScore disabled (_SWING_SCORE_LIMIT=0) — using liquidity-passed candidates")
+        else:
+            logger.warning(
+                f"[PHASE 5] SwingScore error rate {swing_error_rate:.0%} — "
+                "falling back to quality-scored candidates"
+            )
+        # Sort by quality score for consistent ranking
+        liq_passed.sort(key=lambda c: c.get('quality_score', 0), reverse=True)
         final_candidates = liq_passed
     else:
         swing_scored.sort(key=lambda s: s.get('swing_score', 0), reverse=True)

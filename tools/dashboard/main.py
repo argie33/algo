@@ -55,7 +55,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
                      last_load_time: Optional[float] = None,
                      refreshing: bool = False,
-                     view_mode: str = "normal") -> Layout:
+                     view_mode: str = "normal",
+                     data_source: str = "AWS") -> Layout:
     run      = data.get("run")         or {}
     cfg      = data.get("cfg")         or {}
     mkt      = data.get("mkt")         or {}
@@ -95,7 +96,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
         refresh_s = f"  [dim]↻{secs}s[/]"
 
-    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg)
+    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
     exp_panel = panel_exposure_compact(exp_f)
     mascot_panel = mascot_compact(data, frame)
 
@@ -161,7 +162,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     return outer
 
 
-def run_once(compact: bool) -> None:
+def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single Live session: mascot stays in upper right through loading and live view."""
     result:  list = [None]
     elapsed: list = [0.0]
@@ -189,17 +190,17 @@ def run_once(compact: bool) -> None:
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame += 1
                 if not done.is_set():
-                    live.update(loading_layout(frame))
+                    live.update(loading_layout(frame, data_source=data_source))
                 else:
                     live.update(render_dashboard(
                         result[0], compact=compact, elapsed=elapsed[0], frame=frame,
-                        view_mode=view_mode[0]))
+                        view_mode=view_mode[0], data_source=data_source))
                 time.sleep(0.125)
         except KeyboardInterrupt:
             pass
 
 
-def run_watch(interval: int, compact: bool) -> None:
+def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode: auto-refresh data every `interval` seconds, mascot dances continuously."""
     result:    list = [None]
     elapsed:   list = [0.0]
@@ -230,13 +231,13 @@ def run_watch(interval: int, compact: bool) -> None:
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame[0] += 1
                 if result[0] is None:
-                    live.update(loading_layout(frame[0]))
+                    live.update(loading_layout(frame[0], data_source=data_source))
                 else:
                     live.update(render_dashboard(
                         result[0], compact=compact, elapsed=elapsed[0],
                         frame=frame[0], watch_interval=interval,
                         last_load_time=last_load[0], refreshing=loading[0],
-                        view_mode=view_mode[0]))
+                        view_mode=view_mode[0], data_source=data_source))
                     if not loading[0] and (time.monotonic() - last_load[0]) >= interval:
                         threading.Thread(target=reload, daemon=True).start()
                 time.sleep(0.125)
@@ -418,6 +419,8 @@ def main():
                     help="Watch mode, auto-refresh interval (default 30s)")
     pa.add_argument("--compact", "-c", action="store_true",
                     help="Omit T1 and Sector columns from positions table")
+    pa.add_argument("--local", action="store_true",
+                    help="Use local API (localhost:3001) instead of AWS endpoints")
     pa.add_argument("--legend", "-l", action="store_true",
                     help="Print a guide explaining every term and panel, then exit")
     args = pa.parse_args()
@@ -426,10 +429,16 @@ def main():
         print_legend()
         return
 
-    if args.watch is not None:
-        run_watch(max(10, args.watch), args.compact)
+    if args.local:
+        set_api_url("http://localhost:3001")
+        data_source = "LOCAL"
     else:
-        run_once(args.compact)
+        data_source = "AWS"
+
+    if args.watch is not None:
+        run_watch(max(10, args.watch), args.compact, data_source)
+    else:
+        run_once(args.compact, data_source)
 
 
 if __name__ == "__main__":
