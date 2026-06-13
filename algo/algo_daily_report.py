@@ -335,8 +335,8 @@ class DailyFinanceReport:
         portfolio = report.get('portfolio', {})
         daily_pnl = portfolio.get('daily_pnl_pct')
         if daily_pnl is None:
-            daily_pnl = 0
-        if daily_pnl < -2.0:
+            warnings.append("🔴 CRITICAL: Daily P&L missing - cannot assess halt threshold. Manually verify before trading.")
+        elif daily_pnl < -2.0:
             warnings.append(f"⚠️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
 
         return warnings
