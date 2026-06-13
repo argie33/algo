@@ -1406,15 +1406,3 @@ class TradeExecutor:
         return {'success': False, 'order_id': None, 'filled_price': None,
                 'message': f'Exit order failed after {max_attempts} attempts: {last_error}'}
 
-if __name__ == "__main__":
-    from algo.algo_config import get_config
-    config = get_config()
-    executor = TradeExecutor(config)
-    result = executor.execute_trade(
-        symbol='AAPL', entry_price=150.00, shares=100, stop_loss_price=142.50,
-    )
-    logger.info(f"Trade Execution Test:")
-    logger.info(f"  Success: {result['success']}")
-    logger.info(f"  Trade ID: {result['trade_id']}")
-    logger.info(f"  Status: {result['status']}")
-    logger.info(f"  Message: {result['message']}")

@@ -504,20 +504,3 @@ class PositionSizer:
         except (ValueError, AttributeError):
             return [0.50, 0.33, 0.17]
 
-if __name__ == "__main__":
-    from algo.algo_config import get_config
-
-    config = get_config()
-    sizer = PositionSizer(config)
-
-    result = sizer.calculate_position_size(
-        symbol='AAPL',
-        entry_price=150.00,
-        stop_loss_price=142.50
-    )
-
-    logger.info(f"Position Size Calculation Test: {result['status']}")
-    logger.info(f"  Shares: {result['shares']}")
-    logger.info(f"  Position Value: ${result.get('position_value', 0):.2f}")
-    logger.info(f"  Risk %: {result['position_size_pct']:.2f}%")
-    logger.info(f"  Reason: {result['reason']}")
