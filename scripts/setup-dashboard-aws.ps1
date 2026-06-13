@@ -1,53 +1,97 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-Setup dashboard to access AWS data via Lambda API endpoint.
+    Fetch AWS credentials from Terraform and set environment variables for dashboard.
 
 .DESCRIPTION
-Configures DASHBOARD_API_URL environment variable to point to the algo-api-dev
-Lambda API endpoint, allowing the dashboard to access AWS data from a local machine.
+    Automatically initializes Terraform (if needed), fetches api_url, cognito_user_pool_id,
+    and cognito_user_pool_client_id, then runs the dashboard in AWS mode.
 
-The Lambda API is deployed in VPC with access to RDS, so it can fetch data
-and return it via HTTP, eliminating the need for direct RDS connectivity.
+.PARAMETER Watch
+    Enable watch mode (auto-refresh). Pass a number for interval in seconds (5-600).
+
+.PARAMETER Local
+    Use local mode (localhost:3001) instead of AWS.
+
+.PARAMETER Compact
+    Use compact positions table (omit T1 and Sector columns).
 
 .EXAMPLE
-.\scripts\setup-dashboard-aws.ps1
+    .\setup-dashboard-aws.ps1                    # Run once
+    .\setup-dashboard-aws.ps1 -Watch             # Watch mode (30s refresh)
+    .\setup-dashboard-aws.ps1 -Watch 60          # Watch mode (60s refresh)
+    .\setup-dashboard-aws.ps1 -Local             # Use local API
+    .\setup-dashboard-aws.ps1 -Compact           # Compact mode
 #>
 
 param(
-    [string]$ApiEndpoint,
-    [switch]$ShowConfig,
-    [switch]$ForceInteractive
+    [switch]$Watch,
+    [int]$WatchInterval = 30,
+    [switch]$Local,
+    [switch]$Compact
 )
 
-# Try to get API endpoint from Terraform first
-function Get-ApiEndpointFromTerraform {
-    try {
-        Push-Location terraform
-        $output = terraform output api_url -raw 2>$null
-        Pop-Location
-        if ($output -and $output.StartsWith("https://")) {
-            return $output
+$ErrorActionPreference = "Stop"
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptDir
+$terraformDir = Join-Path $repoRoot "terraform"
+$dashboardScript = Join-Path $repoRoot "tools" "dashboard" "dashboard.py"
+
+Write-Host "🚀 Dashboard AWS Setup" -ForegroundColor Cyan
+
+if ($Local) {
+    Write-Host "Location: Using local mode (localhost:3001)" -ForegroundColor Yellow
+    $dashboardArgs = @("--local")
+    if ($Watch) {
+        $dashboardArgs += "-w"
+        if ($WatchInterval -ne 30) {
+            $dashboardArgs += [string]$WatchInterval
         }
     }
-    catch {
-        Pop-Location
+    if ($Compact) {
+        $dashboardArgs += "--compact"
     }
-    return $null
+    & python $dashboardScript @dashboardArgs
+    exit $LASTEXITCODE
 }
 
-# Try to get API endpoint from AWS CLI
-function Get-ApiEndpointFromAws {
-    try {
-        $output = aws apigatewayv2 get-apis `
-            --region us-east-1 `
-            --query "Items[?contains(Name, 'algo-api')].ApiEndpoint" `
-            --output text 2>$null
+# AWS Mode: Fetch credentials from Terraform
+Write-Host "Setup: Fetching AWS credentials from Terraform..." -ForegroundColor Cyan
 
-        if ($output -and $output.StartsWith("https://")) {
-            return $output
+# Set AWS profile to use the algo-developer credentials
+$env:AWS_PROFILE = "algo-developer"
+$env:AWS_DEFAULT_REGION = "us-east-1"
+
+# Verify AWS credentials are available
+try {
+    $identity = aws sts get-caller-identity 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Status: AWS credentials not available" -ForegroundColor Yellow
+        Write-Host "" -ForegroundColor Yellow
+        Write-Host "Action: Refreshing AWS credentials from Secrets Manager..." -ForegroundColor Cyan
+        & "$scriptDir\refresh-aws-credentials.ps1"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to refresh AWS credentials" -ForegroundColor Red
+            exit 1
         }
     }
+    else {
+        Write-Host "Status: AWS credentials available" -ForegroundColor Green
+    }
+}
+catch {
+    Write-Host "Status: AWS credentials not available" -ForegroundColor Yellow
+    Write-Host "" -ForegroundColor Yellow
+    Write-Host "Action: Refreshing AWS credentials from Secrets Manager..." -ForegroundColor Cyan
+    & "$scriptDir\refresh-aws-credentials.ps1"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Failed to refresh AWS credentials" -ForegroundColor Red
+        exit 1
+    }
+}
     catch {
     }
     return $null
