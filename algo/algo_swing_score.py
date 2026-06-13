@@ -179,7 +179,19 @@ class SwingTraderScore:
 
                 total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
-                grade = GradeClassifier.classify_swing_score(total)
+                # Classify grade based on score: A+ (85+), A (75+), B (65+), C (55+), D (45+), F (<45)
+                if total >= 85:
+                    grade = 'A+'
+                elif total >= 75:
+                    grade = 'A'
+                elif total >= 65:
+                    grade = 'B'
+                elif total >= 55:
+                    grade = 'C'
+                elif total >= 45:
+                    grade = 'D'
+                else:
+                    grade = 'F'
 
                 result = {
                     'symbol': symbol,
