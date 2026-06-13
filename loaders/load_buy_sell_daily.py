@@ -315,15 +315,17 @@ class SignalsDailyLoader(OptimalLoader):
             swing_high_sma50 = None
             last_swing_high_idx = -1
             for j in range(max(0, i-20), i):
-                lookback_ok = all(rows[k].get("high", 0) is not None and
-                                 (rows[k].get("high", 0) < rows[j].get("high", 0) or k >= j)
-                                 for k in range(max(0, j-3), j))
-                lookforward_ok = all(rows[k].get("high", 0) is not None and
-                                    rows[k].get("high", 0) < rows[j].get("high", 0)
-                                    for k in range(j+1, min(len(rows), j+4)))
-                if lookback_ok and lookforward_ok:
-                    candidate = rows[j].get("high")
-                    if candidate and (recent_swing_high is None or candidate > recent_swing_high):
+                candidate = rows[j].get("high")
+                if not candidate:
+                    continue
+                # Require complete data: all lookback and lookforward bars must have valid highs
+                lookback_bars = [rows[k].get("high") for k in range(max(0, j-3), j)]
+                lookforward_bars = [rows[k].get("high") for k in range(j+1, min(len(rows), j+4))]
+                if not all(lookback_bars) or not all(lookforward_bars):
+                    continue
+                # Validate pivot: candidate must be higher than all lookback and lookforward bars
+                if all(candidate > b for b in lookback_bars) and all(candidate > b for b in lookforward_bars):
+                    if recent_swing_high is None or candidate > recent_swing_high:
                         recent_swing_high = candidate
                         swing_high_sma50 = rows[j].get("sma_50")  # SMA50 at the time swing high formed
                         last_swing_high_idx = j
@@ -332,15 +334,17 @@ class SignalsDailyLoader(OptimalLoader):
             # Use 10-bar lookback for swing lows (more reactive stop loss, not stale entries)
             recent_swing_low = None
             for j in range(max(0, i-10), i):
-                lookback_ok = all(rows[k].get("low", 999999) is not None and
-                                 (rows[k].get("low", 999999) > rows[j].get("low", 999999) or k >= j)
-                                 for k in range(max(0, j-3), j))
-                lookforward_ok = all(rows[k].get("low", 999999) is not None and
-                                    rows[k].get("low", 999999) > rows[j].get("low", 999999)
-                                    for k in range(j+1, min(len(rows), j+4)))
-                if lookback_ok and lookforward_ok:
-                    candidate = rows[j].get("low")
-                    if candidate and (recent_swing_low is None or candidate < recent_swing_low):
+                candidate = rows[j].get("low")
+                if not candidate:
+                    continue
+                # Require complete data: all lookback and lookforward bars must have valid lows
+                lookback_bars = [rows[k].get("low") for k in range(max(0, j-3), j)]
+                lookforward_bars = [rows[k].get("low") for k in range(j+1, min(len(rows), j+4))]
+                if not all(lookback_bars) or not all(lookforward_bars):
+                    continue
+                # Validate pivot: candidate must be lower than all lookback and lookforward bars
+                if all(candidate < b for b in lookback_bars) and all(candidate < b for b in lookforward_bars):
+                    if recent_swing_low is None or candidate < recent_swing_low:
                         recent_swing_low = candidate
 
             # BUY: Breakout above swing high where swing_high > SMA50 (trend filter on pivot level, not current bar)
@@ -364,12 +368,15 @@ class SignalsDailyLoader(OptimalLoader):
             if signal_type:
                 # Compute volume surge: compare to 20-bar average volume
                 vol_surge = None
+                vol_surge_capped = False
                 if volume is not None and i >= 5:
                     recent_vols = [rows[j].get("volume") for j in range(max(0, i-20), i) if rows[j].get("volume")]
                     if recent_vols:
                         avg_vol = sum(recent_vols) / len(recent_vols)
                         if avg_vol > 0:
                             raw_surge = (volume / avg_vol - 1) * 100
+                            if raw_surge > 9999.0:
+                                vol_surge_capped = True
                             vol_surge = round(min(raw_surge, 9999.0), 2)
 
                 # Compute 50-bar average volume
@@ -446,6 +453,7 @@ class SignalsDailyLoader(OptimalLoader):
                     "entry_quality_score": None,
                     "signal_quality_score": None,
                     "volume_surge_pct": vol_surge,
+                    "volume_surge_capped": vol_surge_capped,
                     "risk_reward_ratio": rr,
                     "risk_pct": risk_pct,
                     "rsi": float(rsi) if rsi is not None else None,
@@ -502,10 +510,17 @@ class SignalsDailyLoader(OptimalLoader):
     def transform(self, rows):
         """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks."""
         for row in rows:
+            capped_cols = []
             for col in self._DECIMAL84_COLS:
                 v = row.get(col)
                 if v is not None and isinstance(v, (int, float)) and abs(v) > self._DECIMAL84_MAX:
+                    capped_cols.append(col)
                     row[col] = self._DECIMAL84_MAX if v > 0 else -self._DECIMAL84_MAX
+            if capped_cols:
+                row["_metrics_capped_at_db_limit"] = capped_cols
+                logger.warning(
+                    f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self._DECIMAL84_MAX}: {capped_cols}"
+                )
         return rows
 
 def main():

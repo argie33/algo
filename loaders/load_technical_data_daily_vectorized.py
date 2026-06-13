@@ -176,8 +176,13 @@ class VectorizedTechnicalLoader:
                 symbol_df['roc_252d'] = symbol_df['close'].pct_change(252) * 100
 
                 # Clamp ROC
+                _DECIMAL84_MAX = 9999.9999
                 for col in ['roc', 'roc_10d', 'roc_20d', 'roc_60d', 'roc_120d', 'roc_252d']:
-                    symbol_df[col] = symbol_df[col].clip(-9999.9999, 9999.9999)
+                    before = symbol_df[col].copy()
+                    symbol_df[col] = symbol_df[col].clip(-_DECIMAL84_MAX, _DECIMAL84_MAX)
+                    capped_count = ((before.abs() > _DECIMAL84_MAX) & (symbol_df[col].notna())).sum()
+                    if capped_count > 0:
+                        logger.warning(f"{symbol}: {capped_count} {col} values capped to ±{_DECIMAL84_MAX} (extreme market conditions)")
 
                 # Moving averages
                 mas = compute_moving_averages(symbol_df['close'])

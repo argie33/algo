@@ -463,7 +463,11 @@ function PortfolioDashboardPage() {
           <Kpi
             label="Profit Factor"
             value={<span className="mono tnum">{perf?.profit_factor == null ? '—' : num(perf.profit_factor)}</span>}
-            sub={`${perf?.win_rate_pct ?? 0}% win rate`}
+            sub={
+              perf?.win_rate_pct_adjusted !== undefined && perf.win_rate_pct_adjusted !== perf.win_rate_pct
+                ? `${perf?.win_rate_pct ?? 0}% (closed) · ${perf?.win_rate_pct_adjusted ?? 0}% true`
+                : `${perf?.win_rate_pct ?? 0}% win rate`
+            }
             icon={Zap}
             tone={perf?.profit_factor > 1.5 ? 'up' : perf?.profit_factor < 1 ? 'down' : ''}
           />
@@ -588,6 +592,18 @@ function PortfolioDashboardPage() {
                   <Stile label="Gross Losses" value={<span className="mono tnum down">{fmtMoneyShort(perf?.gross_loss_dollars)}</span>} />
                 </div>
               </div>
+              {perf?.win_rate_pct_adjusted !== undefined && perf.win_rate_pct_adjusted !== perf.win_rate_pct && (
+                <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-soft)', background: 'rgba(255, 152, 0, 0.05)', padding: 'var(--space-3)', borderRadius: 'var(--r-sm)' }}>
+                  <div className="t-xs" style={{ marginBottom: 'var(--space-2)', fontWeight: 'var(--w-bold)', color: 'var(--amber)' }}>
+                    ⚠️ TRUE WIN RATE (Including Open Losses)
+                  </div>
+                  <div className="grid grid-3">
+                    <Stile label="True Win Rate" value={<span className="mono tnum" style={{ color: 'var(--amber)' }}>{perf?.win_rate_pct_adjusted ?? 0}%</span>} />
+                    <Stile label="Open Losses" value={<span className="mono tnum down">{perf?.open_losses_count ?? 0}</span>} />
+                    <Stile label="Unrealized Loss" value={<span className="mono tnum down">{fmtMoneyShort(perf?.total_open_losses_dollars ?? 0)}</span>} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

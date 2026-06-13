@@ -145,7 +145,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         """Calculate age of most recent data in source table (in trading days).
 
         Returns:
-            Trading days since most recent row in source table. Returns 999 if no data found.
+            Trading days since most recent row in source table. Returns -1 if no data found or error.
         """
         try:
             with DatabaseContext('read') as cur:
@@ -171,9 +171,10 @@ class TechnicalDataDailyLoader(OptimalLoader):
                         check_date -= timedelta(days=1)
 
                     return trading_days
+                return -1
         except Exception as e:
             logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
-        return 999
+        return -1
 
     def _compute_all_indicators(self, symbol: str, rows: List[dict], spy_rows: List[dict] = None) -> List[dict]:
         if not rows or len(rows) < 50:
@@ -212,9 +213,14 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["roc_252d"] = df["close"].pct_change(252) * 100
 
         # Clamp ROC values to database field limits to prevent overflow
+        _DECIMAL84_MAX = 9999.9999
         roc_cols = ["roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d"]
         for col in roc_cols:
-            df[col] = df[col].clip(-9999.9999, 9999.9999)
+            before = df[col].copy()
+            df[col] = df[col].clip(-_DECIMAL84_MAX, _DECIMAL84_MAX)
+            capped_count = ((before.abs() > _DECIMAL84_MAX) & (df[col].notna())).sum()
+            if capped_count > 0:
+                logger.warning(f"{symbol}: {capped_count} {col} values capped to ±{_DECIMAL84_MAX} (extreme market conditions)")
 
         mas = compute_moving_averages(df["close"])
         for name, values in mas.items():

@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "financial-dashboard-lambda",
   "version": "1.0.0",
   "description": "Serverless Lambda function for Financial Data Dashboard API",
