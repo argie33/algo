@@ -92,6 +92,8 @@ def _get_connection_pool():
                     raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}")
 
                 try:
+                    # RDS Proxy doesn't support command-line options, so don't pass them during connection
+                    # Statement timeout is set at RDS parameter group level instead
                     _connection_pool = psycopg2.pool.SimpleConnectionPool(
                         minconn=2,
                         maxconn=10,
@@ -100,8 +102,10 @@ def _get_connection_pool():
                         database=db_config['database'],
                         user=db_config['user'],
                         password=db_config['password'],
-                        connect_timeout=10,
-                        options="-c statement_timeout=30000"  # 30s statement timeout
+                        connect_timeout=10
+                        # Note: Do NOT pass options= parameter to RDS Proxy
+                        # RDS Proxy doesn't support command-line options like -c statement_timeout
+                        # Statement timeout is configured at the RDS parameter group level instead
                     )
                     logger.info("[DB_POOL] Connection pool initialized (minconn=2, maxconn=10)")
                 except psycopg2.Error as e:
