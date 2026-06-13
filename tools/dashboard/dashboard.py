@@ -1458,9 +1458,6 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     if err_panel:
         return err_panel
 
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = port.get("_is_placeholder") or port.get("_is_fallback_data")
-
     pv    = safe_float(port.get("total_portfolio_value"), default=None)
     dr    = safe_float(port.get("daily_return_pct"), default=None)
     urp   = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -1526,13 +1523,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             f"[dim]Conc5:[/][white]{risk['conc5']:.0f}%[/]"
         ))
 
-    # Warn if placeholder data is being displayed
-    border = "red" if is_placeholder else "green"
-    title = "[bold red]PORTFOLIO ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold green]PORTFOLIO[/]"
-    if is_placeholder:
-        rows.insert(0, Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Values may not be accurate[/]"))
-
-    return Panel(Group(*rows), title=title, border_style=border, padding=(0, 1))
+    return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
 def panel_performance_spark(perf, rec, perf_anl=None):
@@ -1540,9 +1531,6 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
     if err_panel:
         return err_panel
-
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = perf.get("_is_placeholder") or perf.get("_is_fallback_data")
 
     streak  = perf.get("streak") or 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
@@ -3002,7 +2990,15 @@ def panel_signals_expanded(sig, sig_eval=None):
                   f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}")
         rejected = sig_eval.get("rejected") or []
         if rejected:
-            blocks = "  ".join(f"[dim]{rj['evaluation_reason'][:32]}:{rj['n']}[/]" for rj in rejected)
+            block_items = []
+            for rj in rejected:
+                reason_full = rj['evaluation_reason'][:32]
+                description = rj.get('description', '')
+                if description:
+                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]")
+                else:
+                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/]")
+            blocks = "  ".join(block_items)
             funnel += f"  [dim]blocked:[/] {blocks}"
         rows.append(Text.from_markup(funnel))
 
