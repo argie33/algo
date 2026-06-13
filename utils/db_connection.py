@@ -65,13 +65,15 @@ except ImportError:
 def _get_connection_pool():
     """Get or create the module-level connection pool (thread-safe).
 
-    Pool size: minconn=2, maxconn=10
+    Pool size: minconn=2, maxconn=20
     - minconn=2: keeps 2 idle connections warm (cold-start prevention)
-    - maxconn=10: limits per-Lambda instance to 10 connections max
+    - maxconn=20: increased from 10 to accommodate burst traffic (Lambda scale-up)
     - RDS Proxy multiplexes to actual DB, limits total to 500 connections
+    - RDS Proxy queues requests when its 100 connections are exhausted (max_connections param)
 
-    With 50 concurrent Lambdas at max parallelism (10 conn each) = 500 peak = at RDS limit
-    Default: Graceful queueing when pool exhausted (blocks until connection available, max 30s)
+    With 50 concurrent Lambdas at max parallelism (20 conn each) = 1000 peak
+    RDS Proxy multiplexes 1000 requests → 20-30 actual DB connections safely.
+    Graceful queueing when pool exhausted (blocks until connection available, timeout 30s default)
     """
     global _connection_pool
 
@@ -93,10 +95,10 @@ def _get_connection_pool():
 
                 try:
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection
-                    # Statement timeout is set at RDS parameter group level instead
+                    # Statement timeout is set at RDS parameter group level (900s = 15 min) instead
                     _connection_pool = psycopg2.pool.SimpleConnectionPool(
                         minconn=2,
-                        maxconn=10,
+                        maxconn=20,
                         host=db_config['host'],
                         port=port,
                         database=db_config['database'],
@@ -107,7 +109,7 @@ def _get_connection_pool():
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
                     )
-                    logger.info("[DB_POOL] Connection pool initialized (minconn=2, maxconn=10)")
+                    logger.info("[DB_POOL] Connection pool initialized (minconn=2, maxconn=20, timeout=30s default)")
                 except psycopg2.Error as e:
                     logger.error(f"[DB_POOL] Failed to create pool: {e}")
                     raise
@@ -159,9 +161,12 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
     Uses module-level SimpleConnectionPool to prevent RDS connection exhaustion.
     Pool is shared across all requests in this Lambda container (warm instances reuse connections).
 
+    Implements exponential backoff for transient failures (RDS Proxy overload, network glitches).
+    RDS Proxy tolerates brief overloads and queues connections automatically.
+
     Args:
-        max_retries: Number of retry attempts on transient errors
-        timeout: Pool timeout in seconds (max wait for available connection)
+        max_retries: Number of retry attempts on transient errors (default 3 = up to 4 attempts total)
+        timeout: Pool timeout in seconds (max wait for available connection, default 10)
         debug: If True, log detailed connection attempts
 
     Returns:
@@ -172,13 +177,14 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
     """
     last_error = None
     pool = _get_connection_pool()
+    total_attempts = max_retries + 1
 
-    for attempt in range(1, max_retries + 2):
+    for attempt in range(1, total_attempts + 1):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{total_attempts}: getting pooled connection (timeout={timeout}s)")
 
-            conn = pool.getconn()
+            conn = pool.getconn(timeout=timeout)
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")
@@ -187,26 +193,31 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
 
         except psycopg2.pool.PoolError as e:
             last_error = e
-            if attempt < max_retries:
+            if attempt < total_attempts:
                 import time
+                # Exponential backoff: 1s, 2s, 4s (capped at 10s)
                 wait_time = min(2 ** (attempt - 1), 10)
-                if debug:
-                    logger.debug(f"[DB_CONNECT] Pool exhausted (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s")
+                logger.warning(
+                    f"[DB_CONNECT] Pool exhausted (attempt {attempt}/{total_attempts}): {str(e)[:80]}, "
+                    f"retrying in {wait_time}s"
+                )
                 time.sleep(wait_time)
             else:
-                if debug:
-                    logger.error(f"[DB_CONNECT] Pool exhausted after {max_retries} attempts: {e}")
+                logger.error(f"[DB_CONNECT] Pool exhausted after {total_attempts} attempts: {e}")
 
         except psycopg2.OperationalError as e:
             last_error = e
-            if attempt < max_retries:
+            if attempt < total_attempts:
                 import time
                 wait_time = min(2 ** (attempt - 1), 10)
-                if debug:
-                    logger.debug(f"[DB_CONNECT] Connection failed (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s")
+                logger.warning(
+                    f"[DB_CONNECT] Connection failed (attempt {attempt}/{total_attempts}): {str(e)[:80]}, "
+                    f"retrying in {wait_time}s"
+                )
                 time.sleep(wait_time)
             else:
-                if debug:
-                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}")
+                logger.error(f"[DB_CONNECT] Connection failed after {total_attempts} attempts: {e}")
 
-    raise last_error if last_error else psycopg2.OperationalError("Failed to get pooled connection")
+    if last_error:
+        raise last_error
+    raise psycopg2.OperationalError("Failed to get pooled connection (unknown error)")

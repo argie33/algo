@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, uuid
 from datetime import datetime, timedelta, date, timezone
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize, safe_serialize_row
 
 logger = logging.getLogger(__name__)
 

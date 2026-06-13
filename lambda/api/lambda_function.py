@@ -134,21 +134,25 @@ def validate_environment():
                 errors.append('COGNITO_REGION missing: Required in Lambda (e.g., us-east-1)')
 
     # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
-    # IMPROVEMENT: Try to fetch CloudFront domain from Secrets Manager if not set
+    # Issue #10 FIX: Always try to fetch CloudFront domain from Secrets Manager,
+    # even if FRONTEND_URL is already set (in case domain changed)
     is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
     if is_lambda:
         frontend_url = os.getenv('FRONTEND_URL', '').strip()
         allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
 
-        # If FRONTEND_URL not set, try to fetch CloudFront domain from Secrets Manager
-        if not frontend_url:
-            cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
-            if cf_domain:
-                frontend_url = f'https://{cf_domain}' if not cf_domain.startswith(('http://', 'https://')) else cf_domain
+        # Always try to fetch CloudFront domain (may be newer/different than FRONTEND_URL)
+        # This handles case where domain is rotated but FRONTEND_URL env var not yet updated
+        cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
+        if cf_domain:
+            cf_url = f'https://{cf_domain}' if not cf_domain.startswith(('http://', 'https://')) else cf_domain
+            if cf_url != frontend_url:
+                logger.info(f"[CloudFront] Updating FRONTEND_URL from {frontend_url or 'NOT_SET'} to {cf_url}")
+                frontend_url = cf_url
                 os.environ['FRONTEND_URL'] = frontend_url
-                logger.info(f"[CloudFront] Set FRONTEND_URL from Secrets Manager: {frontend_url}")
-            elif cf_error != "Secret not found":
-                logger.warning(f"[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}")
+        elif not frontend_url and cf_error != "Secret not found":
+            # CloudFront fetch failed and FRONTEND_URL not set - this is a config problem
+            logger.error(f"[CloudFront] Failed to fetch domain and FRONTEND_URL not set: {cf_error}")
 
         # Validation: FRONTEND_URL or localhost must be available
         if not frontend_url and not allow_localhost:
@@ -364,8 +368,10 @@ def _build_allowed_origins() -> set:
 def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (strict whitelist only).
 
-    SECURITY FIX: Rejects any origin not explicitly whitelisted.
-    No wildcard localhost matching - all origins must be configured.
+    SECURITY FIX: Explicitly whitelists origins from FRONTEND_URL and ALLOWED_ORIGINS.
+    Dev mode: Allows localhost/127.0.0.1 if ALLOW_LOCALHOST_CORS=true.
+
+    Issue #10 FIX: Improved diagnostics when CORS fails.
     """
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
@@ -379,8 +385,19 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
             'Vary': 'Origin',
         }
 
+    # Enhanced diagnostics for CORS failures (helps debug Issue #10)
+    frontend_url = os.getenv('FRONTEND_URL', '').strip()
+    allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
+
+    # Log CORS rejection with context for debugging
+    if origin:
+        logger.warning(
+            f"[CORS_REJECTED] origin={origin} frontend_url={frontend_url if frontend_url else 'NOT_SET'} "
+            f"allow_localhost={allow_localhost} allowed_origins={allowed_origins}"
+        )
+
     # Reject cross-origin requests from unknown sources
-    # Return null origin so browser blocks the response
+    # Return minimal headers so browser blocks the response as a security measure
     return {
         'Vary': 'Origin',
     }

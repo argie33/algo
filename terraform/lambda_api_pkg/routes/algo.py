@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize, safe_dict_convert
+    check_data_freshness, safe_json_serialize, safe_dict_convert, safe_serialize_row
 )
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
@@ -665,7 +665,7 @@ def _get_algo_performance(cur) -> Dict:
                 ORDER BY exit_date DESC
                 LIMIT 1000
             """)
-            trades = [safe_dict_convert(row) for row in cur.fetchall()]
+            trades = [safe_serialize_row(row) for row in cur.fetchall()]
 
             if not trades:
                 return json_response(200, {
@@ -718,7 +718,7 @@ def _get_algo_performance(cur) -> Dict:
                   ON at.symbol = pd.symbol
                 WHERE at.exit_price IS NULL
             """)
-            open_trades = [safe_dict_convert(row) for row in cur.fetchall()]
+            open_trades = [safe_serialize_row(row) for row in cur.fetchall()]
 
             open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
             open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
@@ -746,7 +746,7 @@ def _get_algo_performance(cur) -> Dict:
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date ASC
             """)
-            snapshots = [safe_dict_convert(row) for row in cur.fetchall()]
+            snapshots = [safe_serialize_row(row) for row in cur.fetchall()]
             snapshot_count = len(snapshots)
 
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
@@ -1144,6 +1144,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     raise ValueError("Insufficient price history")
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"intraday_health computation: {str(e)}")
                 breakers.append({'id': 'intraday_health', 'label': 'Prior-Day Market Health',
                     'triggered': False, 'current': 0, 'threshold': -2.0, 'unit': '%',
                     'description': 'No price history yet'})
