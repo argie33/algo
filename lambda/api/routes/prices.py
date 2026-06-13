@@ -83,11 +83,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         sym = row['symbol']
                         result[sym].append(safe_json_serialize(dict(row)))
 
-                return {
-                    'statusCode': 200,
+                return json_response(200, {
                     'symbols': result,
                     'limit': limit
-                }
+                })
             else:
                 return error_response(400, 'bad_request', 'symbols parameter required')
 
@@ -206,11 +205,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     sym = row['symbol']
                     result[sym].append(safe_json_serialize(dict(row)))
 
-            return {
-                'statusCode': 200,
+            return json_response(200, {
                 'symbols': result,
                 'limit': limit
-            }
+            })
 
         return error_response(404, 'not_found', f'No prices handler for {path}')
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

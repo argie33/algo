@@ -303,7 +303,7 @@ def json_response(code, data, data_freshness=None):
 
     Returns consistent format:
     - Success (200): {statusCode: 200, data: {...}, data_freshness?: {...}}
-    - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
+    - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "...", _error: "..."}
 
     Supports metadata parameter to maintain consistency with list_response().
     """
@@ -313,8 +313,11 @@ def json_response(code, data, data_freshness=None):
             response["data_freshness"] = data_freshness
         return response
     else:
-        # For non-200 codes, data should have 'errorType' and 'message'
-        return {"statusCode": code, **data}
+        # For non-200 codes, ensure _error field is present for consistency
+        response = {"statusCode": code, **data}
+        if "_error" not in response and "message" in response:
+            response["_error"] = response["message"]
+        return response
 
 def safe_dict_convert(row):
     """Safely convert DictCursor row to dictionary, handling schema mismatches.
