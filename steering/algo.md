@@ -151,7 +151,7 @@ If you need to rebuild the schema:
 **Loaders:** 6 core via Step Functions pipelines + 28 supporting via EventBridge.
 - **EOD Pipeline (4:05 PM ET):** stock_symbols → stock_prices_daily → (market_health_daily + trend_template_data) → algo_metrics_daily → swing_trader_scores → sector_ranking
 - **Morning Pipeline (2:15 AM ET):** stock_prices_daily (1d only) → (market_health_daily + trend_template_data) → swing_trader_scores
-  - **FIXED (2026-06-13):** Added market_health_daily + trend_template_data to morning pipeline. If EOD pipeline fails, market health metrics are now refreshed at 3:30 AM instead of going stale for 5+ days. Both enrichment tasks run in parallel (fail-open); orchestrator continues with available data if either fails.
+  - Market health and trend enrichment tasks run in parallel (fail-open). If EOD pipeline fails, metrics refresh at 3:30 AM, preventing stale data (5+ days old). Orchestrator continues with available data if either task fails.
 - **Why simplified:** Orchestrator Phase 5 computes signals on-the-fly from price_daily (Minervini, Weinstein, VCP, base detection, power trend). No dependency on pre-computed technical_data_daily, buy_sell_daily, or signal_quality_scores. These tables can be populated separately for reporting if needed, but are not critical for trading.
 
 **LOADER_PARALLELISM (FIXED ISSUE #7: Adaptive Per-Loader Parallelism):** Loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)`, which implements RDS-aware adaptive parallelism. No manual tuning required.

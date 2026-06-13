@@ -22,7 +22,7 @@ Use for: **Full daily loads, intraday updates, production pipelines**
 python3 loaders/load_technical_data_daily_vectorized.py
 
 # Incremental load (just today): 3-8 min
-python3 loaders/load_technical_data_daily_vectorized.py --since 2026-06-12
+python3 loaders/load_technical_data_daily_vectorized.py --since YYYY-MM-DD
 ```
 
 Why it's fast:
@@ -330,7 +330,7 @@ terraform apply
 
 **What about incremental loading with vectorization?**
 - Use `--since DATE` flag to load only new data
-- E.g., `load_technical_data_daily_vectorized.py --since 2026-06-10` loads 2 days
+- E.g., `load_technical_data_daily_vectorized.py --since 2026-01-01` to load data from January onward
 - Perfect for backfill or catching up after errors
 
 **Can I go back to per-symbol loaders if vectorized fails?**
