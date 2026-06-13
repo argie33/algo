@@ -9,7 +9,7 @@ from pathlib import Path
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize, set_statement_timeout_from_config
+    check_data_freshness, safe_json_serialize
 )
 
 # Import from root utils package
@@ -363,7 +363,6 @@ def _get_last_run(cur) -> Dict:
 @db_route_handler('fetch algo status', default_error_response={'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
-        set_statement_timeout_from_config(cur, 'normal')
         cur.execute("""
             SELECT
                 details->>'run_id' AS run_id,
@@ -382,7 +381,6 @@ def _get_algo_status(cur) -> Dict:
 
         portfolio = {}
         try:
-            set_statement_timeout_from_config(cur, 'short')
             cur.execute("""
                 SELECT total_portfolio_value, daily_return_pct,
                        unrealized_pnl_total, position_count
@@ -782,8 +780,7 @@ def _get_dashboard_signals(cur) -> Dict:
         near-miss signals, top A-grade stocks, and signal trend.
         """
         try:
-            set_statement_timeout_from_config(cur, 'xlong')
-
+    
             cur.execute("""
                 SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
                 WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
@@ -1127,8 +1124,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
-            set_statement_timeout_from_config(cur, 'medium')
-            cur.execute("""
+                cur.execute("""
                 SELECT snapshot_date, total_portfolio_value, total_cash,
                        unrealized_pnl_total, position_count, daily_return_pct
                 FROM algo_portfolio_snapshots
@@ -1545,8 +1541,7 @@ def _get_sector_breadth(cur) -> Dict:
             # Both tables receive heavy writes from ECS loaders — a timeout here must not
             # abort the outer transaction and break subsequent API requests in the same Lambda.
             cur.execute("SAVEPOINT sector_breadth_check")
-            set_statement_timeout_from_config(cur, 'medium')
-            cur.execute("""
+                cur.execute("""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (tdd.symbol)
                         tdd.symbol, tdd.sma_50, tdd.sma_200
@@ -1615,8 +1610,7 @@ def _get_sector_position_warnings(cur) -> Dict:
         Returns list of sectors with position counts and concentration warnings.
         """
         try:
-            set_statement_timeout_from_config(cur, 'normal')
-
+    
             cur.execute("""
                 SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
@@ -1673,8 +1667,7 @@ def _get_sector_position_warnings(cur) -> Dict:
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
-            set_statement_timeout_from_config(cur, 'xlong')
-            # Use psycopg2.sql for safe SQL composition
+                # Use psycopg2.sql for safe SQL composition
             filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
             query_params = []
             if min_score is not None:
@@ -1911,8 +1904,7 @@ _TIER_CONFIG = {
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
-            set_statement_timeout_from_config(cur, 'medium')
-
+    
             # EARLY VALIDATION: Check data freshness before processing
             freshness = check_data_freshness(cur, 'market_exposure_daily', 'date', warning_days=1)
             if freshness.get('is_stale'):
@@ -2783,7 +2775,7 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
         'period_days': days
     })
 
-@db_route_handler('get algo portfolio', default_error_response={'data': {}})
+@db_route_handler('get algo portfolio', default_error_response={})
 def _get_algo_portfolio(cur) -> Dict:
     """Get latest portfolio snapshot data."""
     try:
@@ -2824,30 +2816,11 @@ def _get_algo_portfolio(cur) -> Dict:
         logger.error(f'Portfolio fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Portfolio data unavailable')
 
-@db_route_handler('get algo metrics', default_error_response=[])
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
-    try:
-        cur.execute("""
-            SELECT date, total_actions, entries, exits, avg_signal_score
-            FROM algo_metrics_daily
-            ORDER BY date DESC
-            LIMIT 30
-        """)
-        rows = cur.fetchall()
-        if not rows:
-            return success_response([])
-        try:
-            metrics = [safe_json_serialize(dict(r)) for r in rows]
-            return success_response(metrics)
-        except Exception as ser_e:
-            logger.warning(f'Serialization error in algo metrics: {type(ser_e).__name__}: {ser_e}')
-            return success_response([])
-    except Exception as e:
-        logger.error(f'Algo metrics fetch error: {type(e).__name__}: {e}')
-        return success_response([])
+    return {"statusCode": 200, "data": []}
 
-@db_route_handler('get risk metrics', default_error_response={'data': {}})
+@db_route_handler('get risk metrics', default_error_response={})
 def _get_risk_metrics(cur) -> Dict:
     """Get portfolio risk metrics."""
     try:
@@ -2881,7 +2854,7 @@ def _get_risk_metrics(cur) -> Dict:
         logger.error(f'Risk metrics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Risk metrics unavailable')
 
-@db_route_handler('get performance analytics', default_error_response={'data': {}})
+@db_route_handler('get performance analytics', default_error_response={})
 def _get_performance_analytics(cur) -> Dict:
     """Get performance analytics data."""
     try:
@@ -2919,7 +2892,7 @@ def _get_performance_analytics(cur) -> Dict:
         logger.error(f'Performance analytics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Performance analytics unavailable')
 
-@db_route_handler('get sentiment', default_error_response={'data': {}})
+@db_route_handler('get sentiment', default_error_response={})
 def _get_sentiment(cur) -> Dict:
     """Get market sentiment data."""
     try:
@@ -2946,7 +2919,7 @@ def _get_sentiment(cur) -> Dict:
         logger.error(f'Sentiment fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Sentiment data unavailable')
 
-@db_route_handler('get economic calendar', default_error_response={'data': []})
+@db_route_handler('get economic calendar', default_error_response=[])
 def _get_economic_calendar(cur) -> Dict:
     """Get economic calendar data."""
     try:

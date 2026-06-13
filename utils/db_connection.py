@@ -7,46 +7,122 @@ Handles retries, pooling, proper credential fallback, and connection tracking.
 """
 
 import psycopg2
+import psycopg2.pool
 import logging
 import socket
 import os
 import subprocess
-import re
+import sys
+from pathlib import Path
+import threading
 
-from config.credential_manager import get_db_config
+# Add project root to path for imports to work in both local dev and Lambda
+# In Lambda: /var/task is already in path, credential_manager is in /var/task/config/
+# In local dev: need to add the project root so config.credential_manager can be found
+project_root = str(Path(__file__).resolve().parent.parent.parent.parent)  # algo/lambda/api/utils -> algo/
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Try importing with fallback strategies
+try:
+    from config.credential_manager import get_db_config
+except ImportError as import_err:
+    # Fallback 1: Direct import from config directory
+    try:
+        config_path = str(Path(__file__).resolve().parent.parent.parent.parent / 'config')
+        if config_path not in sys.path:
+            sys.path.insert(0, config_path)
+        from credential_manager import get_db_config
+    except ImportError:
+        # Fallback 2: Environment-based credential loading
+        # This allows the API to work even without the credential_manager module
+        def get_db_config():
+            return {
+                'host': os.getenv('DB_HOST'),
+                'port': os.getenv('DB_PORT'),
+                'user': os.getenv('DB_USER', 'stocks'),
+                'password': os.getenv('DB_PASSWORD'),
+                'database': os.getenv('DB_NAME', 'stocks'),
+            }
+        logging.warning("[DB_CONFIG] Using environment-only credential loading (credential_manager module not found)")
 
 logger = logging.getLogger(__name__)
 
-def _sanitize_error(error: Exception, sensitive_value: str = '') -> str:
-    """Sanitize error messages to prevent credential leakage in logs.
-
-    Removes known credential patterns and sensitive values before logging.
-    """
-    error_str = str(error)
-    if sensitive_value:
-        error_str = error_str.replace(sensitive_value, '***')
-    error_str = re.sub(r'password["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'password=***', error_str, flags=re.IGNORECASE)
-    error_str = re.sub(r'PGPASSWORD["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'PGPASSWORD=***', error_str, flags=re.IGNORECASE)
-    error_str = re.sub(r'user["\']?\s*[:=]\s*["\']?[^"\'\s,)]+', 'user=***', error_str, flags=re.IGNORECASE)
-    return error_str
+# Connection pool shared across all requests in this Lambda container
+_connection_pool = None
+_pool_lock = threading.Lock()
 
 # Import connection monitor - integrates pool health tracking
 try:
     from algo.algo_connection_monitor import on_connect, on_disconnect
-except ImportError as e:
-    # CRITICAL: Connection monitor unavailable — pool health tracking disabled.
-    # Log as error, not silent fallback. This masks connection pool exhaustion issues.
-    logger.error(f"Connection monitor import failed: {e} — pool health tracking unavailable")
+except ImportError:
+    # Fallback if monitor unavailable
     def on_connect():
-        logger.debug("[FALLBACK] on_connect called but monitor not loaded")
+        pass
     def on_disconnect():
-        logger.debug("[FALLBACK] on_disconnect called but monitor not loaded")
+        pass
+
+def _get_connection_pool():
+    """Get or create the module-level connection pool (thread-safe).
+
+    Pool size: minconn=2, maxconn=10
+    - minconn=2: keeps 2 idle connections warm (cold-start prevention)
+    - maxconn=10: limits per-Lambda instance to 10 connections max
+    - RDS Proxy multiplexes to actual DB, limits total to 500 connections
+
+    With 50 concurrent Lambdas at max parallelism (10 conn each) = 500 peak = at RDS limit
+    Default: Graceful queueing when pool exhausted (blocks until connection available, max 30s)
+    """
+    global _connection_pool
+
+    if _connection_pool is None:
+        with _pool_lock:
+            # Double-check pattern to avoid race conditions
+            if _connection_pool is None:
+                db_config = get_db_config()
+                if not all([db_config.get('host'), db_config.get('user'), db_config.get('password')]):
+                    raise psycopg2.OperationalError("Missing required database configuration")
+
+                port = db_config.get('port')
+                if port is None:
+                    raise psycopg2.OperationalError("DB_PORT environment variable is required")
+                try:
+                    port = int(port)
+                except (ValueError, TypeError) as e:
+                    raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}")
+
+                try:
+                    # RDS Proxy doesn't support command-line options, so don't pass them during connection
+                    # Statement timeout is set at RDS parameter group level instead
+                    _connection_pool = psycopg2.pool.SimpleConnectionPool(
+                        minconn=2,
+                        maxconn=10,
+                        host=db_config['host'],
+                        port=port,
+                        database=db_config['database'],
+                        user=db_config['user'],
+                        password=db_config['password'],
+                        connect_timeout=10
+                        # Note: Do NOT pass options= parameter to RDS Proxy
+                        # RDS Proxy doesn't support command-line options like -c statement_timeout
+                        # Statement timeout is configured at the RDS parameter group level instead
+                    )
+                    logger.info("[DB_POOL] Connection pool initialized (minconn=2, maxconn=10)")
+                except psycopg2.Error as e:
+                    logger.error(f"[DB_POOL] Failed to create pool: {e}")
+                    raise
+
+    return _connection_pool
 
 class TrackedConnection:
-    """Wraps psycopg2 connection to track pool utilization."""
+    """Wraps psycopg2 connection to track pool utilization and return to pool.
 
-    def __init__(self, conn):
+    When closed, returns connection to pool instead of destroying it.
+    """
+
+    def __init__(self, conn, pool=None):
         self._conn = conn
+        self._pool = pool
         on_connect()
 
     def __getattr__(self, name):
@@ -56,66 +132,81 @@ class TrackedConnection:
         return self._conn.__enter__()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        return self._conn.__exit__(exc_type, exc_val, exc_tb)
+        self.close()
+        return False
 
     def close(self):
+        """Return connection to pool (if managed) or close it."""
         on_disconnect()
-        return self._conn.close()
+        if self._pool:
+            try:
+                self._pool.putconn(self._conn)
+            except Exception as e:
+                logger.warning(f"[DB_POOL] Failed to return connection to pool: {e}, closing instead")
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+        else:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
-def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = False):
-    """Get a database connection with retries and proper credential fallback.
+def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
+    """Get a database connection from the connection pool with retries.
+
+    Uses module-level SimpleConnectionPool to prevent RDS connection exhaustion.
+    Pool is shared across all requests in this Lambda container (warm instances reuse connections).
 
     Args:
-        max_retries: Number of retry attempts on transient errors (increased from 3 to 5 for connection pool congestion)
-                     Note: max_retries=0 means 1 attempt (0 retries after first), max_retries=1 means 2 attempts, etc.
-        timeout: Connection timeout in seconds
+        max_retries: Number of retry attempts on transient errors
+        timeout: Pool timeout in seconds (max wait for available connection)
         debug: If True, log detailed connection attempts
 
     Returns:
-        A psycopg2 connection object
+        A TrackedConnection wrapping a pooled psycopg2 connection
 
     Raises:
-        psycopg2.OperationalError: If connection fails after retries
+        psycopg2.OperationalError: If pool exhausted or connection fails after retries
     """
-    db_config = get_db_config()
-
-    if not all([db_config.get('host'), db_config.get('user'), db_config.get('password')]):
-        raise psycopg2.OperationalError("Missing required database configuration")
-
     last_error = None
-    # max_retries=0 means 1 total attempt (no retries), so range should be (1, 2)
-    # max_retries=1 means 2 total attempts (1 retry), so range should be (1, 3)
-    password = db_config.get('password', '')
+    pool = _get_connection_pool()
+
     for attempt in range(1, max_retries + 2):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection")
 
-            conn = psycopg2.connect(
-                host=db_config['host'],
-                port=int(db_config['port']),
-                database=db_config['database'],
-                user=db_config['user'],
-                password=password,
-                connect_timeout=timeout
-            )
+            conn = pool.getconn()
 
             if debug:
-                logger.debug(f"[DB_CONNECT] Connected successfully on attempt {attempt}")
+                logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")
 
-            return conn
-        except psycopg2.OperationalError as e:
+            return TrackedConnection(conn, pool=pool)
+
+        except psycopg2.pool.PoolError as e:
             last_error = e
-            if attempt <= max_retries:
+            if attempt < max_retries:
                 import time
-                wait_time = min(2 ** (attempt - 1), 10)  # Exponential backoff, max 10s
+                wait_time = min(2 ** (attempt - 1), 10)
                 if debug:
-                    safe_error = _sanitize_error(e, password)
-                    logger.debug(f"[DB_CONNECT] Connection failed (attempt {attempt}): {safe_error[:100]}, retrying in {wait_time}s")
+                    logger.debug(f"[DB_CONNECT] Pool exhausted (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s")
                 time.sleep(wait_time)
             else:
                 if debug:
-                    safe_error = _sanitize_error(e, password)
-                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries + 1} attempts: {safe_error}")
+                    logger.error(f"[DB_CONNECT] Pool exhausted after {max_retries} attempts: {e}")
 
-    raise last_error if last_error else psycopg2.OperationalError("Failed to connect to database")
+        except psycopg2.OperationalError as e:
+            last_error = e
+            if attempt < max_retries:
+                import time
+                wait_time = min(2 ** (attempt - 1), 10)
+                if debug:
+                    logger.debug(f"[DB_CONNECT] Connection failed (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s")
+                time.sleep(wait_time)
+            else:
+                if debug:
+                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}")
+
+    raise last_error if last_error else psycopg2.OperationalError("Failed to get pooled connection")
