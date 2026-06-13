@@ -417,10 +417,19 @@ class DailyReconciliation:
                         continue
 
                     trade_id, entry_price, stop_loss_price, entry_qty = row
-                    entry_price = float(entry_price or 0)
-                    stop_loss_price = float(stop_loss_price or 0)
-                    entry_qty = int(entry_qty or 0)
-                    if entry_price <= 0:
+                    if not entry_price or not stop_loss_price or not entry_qty:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        continue
+
+                    try:
+                        entry_price = float(entry_price)
+                        stop_loss_price = float(stop_loss_price)
+                        entry_qty = int(entry_qty)
+                    except (ValueError, TypeError):
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        continue
+
+                    if entry_price <= 0 or stop_loss_price <= 0 or entry_qty <= 0:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         continue
 
@@ -612,17 +621,31 @@ class DailyReconciliation:
 
                 # Validate entry price (critical)
                 avg_entry_raw = getattr(ap, 'avg_entry_price', None)
-                if avg_entry_raw is None or float(avg_entry_raw or 0) <= 0:
+                if avg_entry_raw is None:
                     logger.warning(f"[import_alpaca] {sym}: Alpaca position missing or invalid entry price — skipping")
                     continue
-                avg_entry = float(avg_entry_raw)
+                try:
+                    avg_entry = float(avg_entry_raw)
+                except (ValueError, TypeError):
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position entry price not numeric — skipping")
+                    continue
+                if avg_entry <= 0:
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position entry price <= 0 — skipping")
+                    continue
 
                 # Validate current price
                 cur_price_raw = getattr(ap, 'current_price', None)
-                if cur_price_raw is None or float(cur_price_raw or 0) <= 0:
+                if cur_price_raw is None:
                     logger.warning(f"[import_alpaca] {sym}: Alpaca position missing or invalid current price — skipping")
                     continue
-                cur_price = float(cur_price_raw)
+                try:
+                    cur_price = float(cur_price_raw)
+                except (ValueError, TypeError):
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position current price not numeric — skipping")
+                    continue
+                if cur_price <= 0:
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position current price <= 0 — skipping")
+                    continue
 
                 # Validate market value if provided
                 pos_value_raw = getattr(ap, 'market_value', None)
@@ -1024,7 +1047,15 @@ class DailyReconciliation:
 
             pending_list = []
             for trade_id, symbol, exit_date, exit_price, est_price, recon_at, note in pending:
-                variance_pct = ((float(exit_price or 0) - float(est_price or 0)) / float(est_price or 1) * 100) if est_price else 0
+                variance_pct = None
+                if exit_price is not None and est_price is not None:
+                    try:
+                        exit_price_f = float(exit_price)
+                        est_price_f = float(est_price)
+                        if est_price_f > 0:
+                            variance_pct = ((exit_price_f - est_price_f) / est_price_f * 100)
+                    except (ValueError, TypeError):
+                        variance_pct = None
                 pending_list.append({
                     'trade_id': trade_id,
                     'symbol': symbol,
