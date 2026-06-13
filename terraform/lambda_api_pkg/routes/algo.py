@@ -161,6 +161,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
     elif path == '/api/algo/sector-position-warnings':
             return _get_sector_position_warnings(cur)
     elif path == '/api/algo/swing-scores':
+            # FIX S2: Add rate limiting to prevent DoS on public endpoint
+            is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=100, window_seconds=60)
+            if not is_allowed:
+                return error_response(429, 'too_many_requests', error_msg)
             # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
@@ -182,6 +186,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             # Rejection funnel accessible to authenticated users
             return _get_rejection_funnel(cur)
     elif path == '/api/algo/markets':
+            # FIX S2: Add rate limiting to prevent DoS on public endpoint
+            is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=100, window_seconds=60)
+            if not is_allowed:
+                return error_response(429, 'too_many_requests', error_msg)
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
     elif path == '/api/algo/market':
@@ -956,6 +964,7 @@ def _get_circuit_breakers(cur) -> Dict:
         try:
             today = date.today()
             breakers = []
+            errors = []
 
             # CRITICAL: Validate required circuit breaker configuration tables exist
             required_tables = ['algo_portfolio_snapshots', 'algo_trades', 'market_health_daily', 'algo_positions']
