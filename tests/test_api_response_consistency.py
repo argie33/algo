@@ -6,6 +6,8 @@ and that all data fetchers can work with the unwrapped responses.
 """
 
 import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'tools', 'dashboard'))
 from api_data_layer import _unwrap_api_response
 
 def test_unwrap_single_object_response():
