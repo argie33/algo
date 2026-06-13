@@ -1,19 +1,16 @@
 """Route: admin"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, os, boto3, sys
+import logging, re, os, boto3
 from datetime import datetime, timedelta, date, timezone
-from pathlib import Path
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, handle_db_error, db_route_handler, check_data_freshness, safe_json_serialize,
     normalize_to_utc_datetime
 )
 
-# Import from root utils package
-_root_dir = str(Path(__file__).parent.parent.parent.parent)
-if _root_dir not in sys.path:
-    sys.path.insert(0, _root_dir)
+# setup_imports is imported by parent module (lambda_function or api_router),
+# so utils is already available in sys.path
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
