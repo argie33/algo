@@ -224,6 +224,12 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/markets':
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
+        elif path == '/api/algo/market':
+            # Simplified market data for dashboard display - public endpoint
+            return _get_market(cur)
+        elif path == '/api/algo/market-factors':
+            # Market exposure factors for dashboard display - public endpoint
+            return _get_market_factors(cur)
         elif path == '/api/algo/evaluate':
             # Evaluate accessible to authenticated users (AlgoTradingDashboard)
             return _get_algo_evaluate(cur)
@@ -1858,6 +1864,122 @@ def _get_markets(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
             return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
+
+def _get_market(cur) -> Dict:
+    """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
+    try:
+        cur.execute("SET LOCAL statement_timeout = '8000ms'")
+
+        # Fetch market health: 12 fields from market_health_daily
+        cur.execute("""
+            SELECT market_trend, market_stage, vix_level, spy_change_pct,
+                   up_volume_percent, advance_decline_ratio, new_highs_count,
+                   new_lows_count, breadth_momentum_10d, put_call_ratio,
+                   yield_curve_slope, fed_rate_environment
+            FROM market_health_daily
+            ORDER BY date DESC LIMIT 1
+        """)
+        mh = cur.fetchone()
+        market_health = safe_json_serialize(dict(mh)) if mh else {}
+
+        # Fetch exposure data and distribution days from market_exposure_daily
+        cur.execute("""
+            SELECT exposure_pct, regime, halt_reasons, distribution_days
+            FROM market_exposure_daily
+            ORDER BY date DESC LIMIT 1
+        """)
+        exp = cur.fetchone()
+        exposure = safe_json_serialize(dict(exp)) if exp else {}
+
+        # Fetch SPY close price
+        spy_close = None
+        try:
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC LIMIT 1
+            """)
+            spy_row = cur.fetchone()
+            if spy_row:
+                spy_close = safe_float(spy_row[0]) if spy_row[0] else None
+        except Exception as e:
+            logger.warning(f"[MARKET] SPY price unavailable: {e}")
+
+        # Combine all data in the format the dashboard expects
+        data = {
+            'exposure_pct': safe_float(exposure.get('exposure_pct')),
+            'regime': exposure.get('regime'),
+            'halt_reasons': exposure.get('halt_reasons') or [],
+            'vix_level': safe_float(market_health.get('vix_level')),
+            'market_stage': safe_int(market_health.get('market_stage')),
+            'market_trend': market_health.get('market_trend'),
+            'distribution_days_4w': safe_int(exposure.get('distribution_days')),
+            'spy_close': spy_close,
+            'spy_change_pct': safe_float(market_health.get('spy_change_pct')),
+            'up_volume_percent': safe_float(market_health.get('up_volume_percent')),
+            'advance_decline_ratio': safe_float(market_health.get('advance_decline_ratio')),
+            'new_highs_count': safe_int(market_health.get('new_highs_count')),
+            'new_lows_count': safe_int(market_health.get('new_lows_count')),
+            'put_call_ratio': safe_float(market_health.get('put_call_ratio')),
+            'breadth_momentum_10d': safe_float(market_health.get('breadth_momentum_10d')),
+            'yield_curve_slope': safe_float(market_health.get('yield_curve_slope')),
+            'fed_rate_environment': market_health.get('fed_rate_environment'),
+        }
+
+        return json_response(200, {'data': data})
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
+        return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market data'})
+
+def _get_market_factors(cur) -> Dict:
+    """Get market exposure factors for dashboard display."""
+    try:
+        cur.execute("SET LOCAL statement_timeout = '8000ms'")
+
+        # Fetch exposure factors from market_exposure_daily
+        cur.execute("""
+            SELECT exposure_pct, raw_score, regime, factors
+            FROM market_exposure_daily
+            ORDER BY date DESC LIMIT 1
+        """)
+        row = cur.fetchone()
+
+        if not row:
+            return json_response(200, {'data': {
+                'exposure_pct': None,
+                'raw_score': None,
+                'regime': None,
+                'factors': {}
+            }})
+
+        data_dict = safe_json_serialize(dict(row))
+
+        # Parse factors if it's a JSON string
+        factors = {}
+        if data_dict.get('factors'):
+            try:
+                factors_val = data_dict.get('factors')
+                if isinstance(factors_val, str):
+                    factors = json.loads(factors_val)
+                else:
+                    factors = factors_val if isinstance(factors_val, dict) else {}
+            except Exception as e:
+                logger.warning(f"[MARKET_FACTORS] Failed to parse factors: {e}")
+                factors = {}
+
+        data = {
+            'exposure_pct': safe_float(data_dict.get('exposure_pct')),
+            'raw_score': safe_float(data_dict.get('raw_score')),
+            'regime': data_dict.get('regime'),
+            'factors': factors,
+        }
+
+        return json_response(200, {'data': data})
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
+        return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market factors'})
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
