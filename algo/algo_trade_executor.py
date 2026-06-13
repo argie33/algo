@@ -864,8 +864,8 @@ class TradeExecutor:
             final_exit_price = actual_fill_price if actual_fill_price else exit_price
 
             if final_exit_price <= 0:
-                logger.warning(f"Negative exit price {final_exit_price} for {symbol}")
-                final_exit_price = max(0.01, final_exit_price)
+                logger.warning(f"Invalid exit price {final_exit_price} for {symbol}")
+                return {'success': False, 'message': f'Invalid exit price for {trade_id}'}
             if entry_price <= 0:
                 logger.warning(f"Invalid entry price {entry_price} for {symbol}")
                 return {'success': False, 'message': f'Invalid entry price for {trade_id}'}
