@@ -26,8 +26,6 @@ SECTOR_ETF_MAP = {
 
 def _load_sector_performance(today: date) -> int:
     """Compute and upsert sector performance for `today`.
-from loaders.loader_helper import setup_imports
-setup_imports()
 
     return_pct = cumulative YTD return for each sector ETF,
     expressed as a percentage indexed to the first trading day of the year.

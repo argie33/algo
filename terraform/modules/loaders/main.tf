@@ -405,6 +405,7 @@ locals {
 
     # Market health & economic data
     "market_health_daily"   = "load_market_health_daily.py"
+    "market_exposure_daily" = "load_market_exposure_daily.py"
     "fred_economic_data"    = "load_fred_economic_data.py"
     "economic_metrics_daily" = "load_economic_metrics_daily.py"
     "trend_template_data"   = "load_trend_criteria_data.py"
@@ -696,6 +697,10 @@ locals {
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+
+    # Market exposure daily — computes market regime + 0-100 risk allocation score from 12 quantitative factors
+    # Lightweight: ~2-5 seconds (vectorized computation, minimal DB load). Runs EOD to guarantee availability.
+    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Algo metrics — compute metrics on 5000+ symbols
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }

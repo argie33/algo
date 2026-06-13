@@ -10,10 +10,15 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+try:
+    from loaders.loader_helper import setup_imports
+    setup_imports()
+except ImportError:
+    pass
+
+
 class SectorRankingLoader(OptimalLoader):
     """Rank sectors by composite score from stock_scores + company_profile."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
     table_name = "sector_ranking"
     primary_key = ("sector_name", "date")
