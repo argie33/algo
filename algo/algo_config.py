@@ -428,6 +428,10 @@ class AlgoConfig:
             logger.error(f"Error setting config {key}: {e}")
             return False
 
+    def to_dict(self) -> dict:
+        """Convert config to dictionary for compatibility with code expecting dict."""
+        return dict(self._config)
+
     def initialize_defaults(self):
         """Initialize all default configs in database."""
         try:
