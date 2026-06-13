@@ -1087,6 +1087,8 @@ INDEX_NAMES = {
 
 @db_route_handler('get market indices')
 def _get_markets(cur) -> Dict:
+    from datetime import date
+
     cur.execute("""
         WITH latest_date AS (
             SELECT date AS d FROM price_daily WHERE symbol = ANY(%s) ORDER BY date DESC LIMIT 1
@@ -1135,11 +1137,29 @@ def _get_markets(cur) -> Dict:
         history[sym].append({'date': str(row['date']), 'close': float(row['close']) if row['close'] else None})
 
     indices = []
+    stale_alerts = []
+    fallback_symbols = []
+
     for row in latest:
         price = float(row['close']) if row['close'] else 0
         prev_price = float(row['prev_close']) if row['prev_close'] else price
         change = price - prev_price if prev_price > 0 else 0
         change_pct = (change / prev_price * 100) if prev_price > 0 else 0
+
+        # Track fallback prices (using previous day price when current day unavailable)
+        is_fallback = bool(row.get('_is_fallback', False))
+        if is_fallback:
+            fallback_symbols.append(row['symbol'])
+
+        # Check data age and add to stale alerts
+        if row.get('date'):
+            row_date = row['date']
+            if isinstance(row_date, str):
+                from datetime import datetime
+                row_date = datetime.fromisoformat(row_date).date()
+            data_age = (date.today() - row_date).days
+            if data_age > 1:
+                stale_alerts.append(f"{row['symbol']} {data_age}d old")
 
         indices.append({
             'symbol': row['symbol'],
@@ -1148,12 +1168,15 @@ def _get_markets(cur) -> Dict:
             'price': round(price, 2),
             'change': round(change, 2),
             'changePercent': round(change_pct, 2),
-            'pe': None
+            'pe': None,
+            'price_is_fallback': is_fallback,
         })
 
     result = {
         'indices': indices,
         'history': history,
+        'stale_alerts': stale_alerts,
+        'fallback_symbols': fallback_symbols if fallback_symbols else None,
     }
     return json_response(200, result)
 

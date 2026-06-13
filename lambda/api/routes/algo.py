@@ -1,4 +1,4 @@
-"""Route: algo"""
+﻿"""Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, json, os, sys
@@ -34,18 +34,18 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     return 'admin' in groups
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/algo/* endpoints."""
-        try:
-            return _dispatch(cur, path, method, params, body, jwt_claims)
-        except Exception as e:
-            logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
-            return error_response(500, 'internal_error', 'An error occurred while processing your request')
+    """Handle /api/algo/* endpoints."""
+    try:
+        return _dispatch(cur, path, method, params, body, jwt_claims)
+    except Exception as e:
+        logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
+        return error_response(500, 'internal_error', 'An error occurred while processing your request')
 
 def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        # User identity from verified JWT claims (sub is the Cognito user ID)
-        user_id = (jwt_claims or {}).get('sub', '')
+    # User identity from verified JWT claims (sub is the Cognito user ID)
+    user_id = (jwt_claims or {}).get('sub', '')
 
-        if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
+    if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}")
@@ -69,7 +69,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 code, error_type, message = handle_db_error(e, 'mark notification as read')
                 logger.error(f'Failed to mark notification as read: {error_type} - {message}')
                 return json_response(code, {'errorType': error_type, 'message': message})
-        if method == 'DELETE' and '/notifications/' in path:
+    if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}")
@@ -91,7 +91,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 code, error_type, message = handle_db_error(e, 'delete notification')
                 logger.error(f'Failed to delete notification: {error_type} - {message}')
                 return json_response(code, {'errorType': error_type, 'message': message})
-        if method == 'POST' and path == '/api/algo/patrol':
+    if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -102,7 +102,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not is_allowed:
                     return error_response(429, 'too_many_requests', error_msg)
             return _trigger_data_patrol()
-        if method == 'POST' and path == '/api/algo/pre-trade-impact':
+    if method == 'POST' and path == '/api/algo/pre-trade-impact':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -112,42 +112,42 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not is_allowed:
                     return error_response(429, 'too_many_requests', error_msg)
             return _analyze_pre_trade_impact(cur, body)
-        if path == '/api/algo/status':
+    if path == '/api/algo/status':
             # Status is accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_status(cur)
-        elif path == '/api/algo/trades':
+    elif path == '/api/algo/trades':
             # Trades accessible to authenticated users (Portfolio Dashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             return _get_algo_trades(cur, limit, user_id=user_id)
-        elif path == '/api/algo/positions':
+    elif path == '/api/algo/positions':
             # Positions accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_positions(cur, user_id=user_id)
-        elif path == '/api/algo/dashboard-signals':
+    elif path == '/api/algo/dashboard-signals':
             # Dashboard signals with aggregations for the Ops Terminal
             return _get_dashboard_signals(cur)
-        elif path == '/api/algo/performance':
+    elif path == '/api/algo/performance':
             # Performance accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_performance(cur)
-        elif path == '/api/algo/circuit-breakers':
+    elif path == '/api/algo/circuit-breakers':
             # Circuit breakers accessible to authenticated users (Portfolio Dashboard)
             return _get_circuit_breakers(cur)
-        elif path == '/api/algo/equity-curve':
+    elif path == '/api/algo/equity-curve':
             # Equity curve accessible to authenticated users (Portfolio Dashboard)
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_equity_curve(cur, days)
-        elif path == '/api/algo/data-status':
+    elif path == '/api/algo/data-status':
             # Data status accessible to authenticated users
             return _get_data_status(cur)
-        elif path == '/api/algo/notifications':
+    elif path == '/api/algo/notifications':
             # Admin-only: GET returns circuit breaker alerts, halt flags, position alerts, trade execution failures
             # Dev mode: Allow access for testing
             if os.environ.get('DEV_BYPASS_AUTH') != 'true' and not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_notifications(cur, params, jwt_claims)
-        elif path == '/api/algo/patrol-log':
+    elif path == '/api/algo/patrol-log':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -156,15 +156,15 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             return _get_patrol_log(cur, limit, offset)
-        elif path == '/api/algo/sector-rotation':
+    elif path == '/api/algo/sector-rotation':
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_sector_rotation(cur, days)
-        elif path == '/api/algo/sector-breadth':
+    elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
-        elif path == '/api/algo/sector-position-warnings':
+    elif path == '/api/algo/sector-position-warnings':
             return _get_sector_position_warnings(cur)
-        elif path == '/api/algo/swing-scores':
+    elif path == '/api/algo/swing-scores':
             # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
@@ -178,55 +178,55 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):
                     return error_response(400, 'bad_request', 'Invalid symbol format')
             return _get_swing_scores(cur, limit, min_score, symbol_filter)
-        elif path == '/api/algo/swing-scores-history':
+    elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
-        elif path == '/api/algo/rejection-funnel':
+    elif path == '/api/algo/rejection-funnel':
             # Rejection funnel accessible to authenticated users
             return _get_rejection_funnel(cur)
-        elif path == '/api/algo/markets':
+    elif path == '/api/algo/markets':
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
-        elif path == '/api/algo/market':
+    elif path == '/api/algo/market':
             # Simplified market data for dashboard display - public endpoint
             return _get_market(cur)
-        elif path == '/api/algo/market-factors':
+    elif path == '/api/algo/market-factors':
             # Market exposure factors for dashboard display - public endpoint
             return _get_market_factors(cur)
-        elif path == '/api/algo/portfolio':
+    elif path == '/api/algo/portfolio':
             # Portfolio snapshot accessible to authenticated users
             return _get_algo_portfolio(cur)
-        elif path == '/api/algo/metrics':
+    elif path == '/api/algo/metrics':
             # Algo metrics accessible to authenticated users
             return _get_algo_metrics(cur)
-        elif path == '/api/algo/risk-metrics':
+    elif path == '/api/algo/risk-metrics':
             # Risk metrics accessible to authenticated users
             return _get_risk_metrics(cur)
-        elif path == '/api/algo/performance-analytics':
+    elif path == '/api/algo/performance-analytics':
             # Performance analytics accessible to authenticated users
             return _get_performance_analytics(cur)
-        elif path == '/api/algo/sentiment':
+    elif path == '/api/algo/sentiment':
             # Sentiment data accessible to authenticated users
             return _get_sentiment(cur)
-        elif path == '/api/algo/economic-calendar':
+    elif path == '/api/algo/economic-calendar':
             # Economic calendar accessible to authenticated users
             return _get_economic_calendar(cur)
-        elif path == '/api/algo/evaluate':
+    elif path == '/api/algo/evaluate':
             # Evaluate accessible to authenticated users (AlgoTradingDashboard)
             return _get_algo_evaluate(cur)
-        elif path == '/api/algo/data-quality':
+    elif path == '/api/algo/data-quality':
             # Data quality accessible to authenticated users
             return _get_data_quality(cur)
-        elif path == '/api/algo/exposure-policy':
+    elif path == '/api/algo/exposure-policy':
             # Exposure policy accessible to authenticated users
             return _get_exposure_policy(cur)
-        elif path == '/api/algo/sector-stage2':
+    elif path == '/api/algo/sector-stage2':
             return _get_sector_stage2(cur)
-        elif path == '/api/algo/config':
+    elif path == '/api/algo/config':
             # Config accessible to authenticated users
             return _get_algo_config(cur)
-        elif path.startswith('/api/algo/config/'):
+    elif path.startswith('/api/algo/config/'):
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -239,10 +239,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             elif method == 'DELETE':
                 actor = (jwt_claims or {}).get('sub', 'unknown')
                 return _reset_algo_config_key(cur, key, actor)
-        elif path == '/api/algo/last-run':
+    elif path == '/api/algo/last-run':
             # Last run accessible to authenticated users
             return _get_last_run(cur)
-        elif path == '/api/algo/audit-log':
+    elif path == '/api/algo/audit-log':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
@@ -276,7 +276,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if action_type not in VALID_ACTION_TYPES:
                     return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
-        elif path == '/api/algo/execution/recent':
+    elif path == '/api/algo/execution/recent':
             # FIXED Issue #6: View recent orchestrator execution history
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -286,7 +286,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=1000, default=50)
             return _get_orchestrator_execution_recent(cur, days, limit)
-        elif path == '/api/algo/execution/failed':
+    elif path == '/api/algo/execution/failed':
             # View failed/halted runs for diagnostics
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -294,14 +294,14 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=30, max_val=90)
             return _get_orchestrator_execution_failed(cur, days)
-        elif path.startswith('/api/algo/execution/details/'):
+    elif path.startswith('/api/algo/execution/details/'):
             # View details of a specific orchestrator run
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             run_id = path.split('/api/algo/execution/details/')[-1]
             return _get_orchestrator_execution_details(cur, run_id)
-        elif path == '/api/algo/execution/patterns':
+    elif path == '/api/algo/execution/patterns':
             # Analyze halt patterns - which phases halt most often
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -309,7 +309,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=30, max_val=90)
             return _get_orchestrator_execution_patterns(cur, days)
-        elif path == '/api/algo/execution/stats':
+    elif path == '/api/algo/execution/stats':
             # View execution statistics
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
@@ -317,7 +317,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, default=7, max_val=90)
             return _get_orchestrator_execution_stats(cur, days)
-        else:
+    else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
 @db_route_handler('get last run')
@@ -574,11 +574,15 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         ]
 
         freshness = check_data_freshness(cur, 'algo_trades', 'trade_date', warning_days=1)
+        stale_alerts = []
+        if freshness.get('is_stale'):
+            stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
 
         return json_response(200, {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
+            'stale_alerts': stale_alerts,
             'data_freshness': freshness
         })
 
@@ -704,6 +708,9 @@ def _get_algo_performance(cur) -> Dict:
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
             if snapshot_count > 1:
                 vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
+                missing_snapshot_count = snapshot_count - len(vals)
+                if missing_snapshot_count > 0:
+                    logger.warning(f'[PERFORMANCE] Skipped {missing_snapshot_count} snapshots with missing portfolio value from {snapshot_count} total')
                 returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
 
                 if returns:
@@ -743,6 +750,16 @@ def _get_algo_performance(cur) -> Dict:
             sharpe_confidence = 'high' if snapshot_count >= 20 else ('medium' if snapshot_count >= 5 else 'low')
             win_rate_confidence = 'high' if win_loss_total >= 30 else ('medium' if win_loss_total >= 10 else 'low')
 
+            # Check data freshness for multiple sources
+            stale_alerts = []
+            trades_freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1) if trades else {}
+            snapshots_freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1) if snapshots else {}
+
+            if trades_freshness.get('is_stale'):
+                stale_alerts.append(f"Trade data {trades_freshness.get('data_age_days', '?')}d old")
+            if snapshots_freshness.get('is_stale'):
+                stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
+
             return json_response(200, {
                 'total_trades': total,
                 'winning_trades': winning,
@@ -775,7 +792,8 @@ def _get_algo_performance(cur) -> Dict:
                 'current_streak': 0,
                 'equity_vals': equity_vals,
                 'recent_rets': recent_rets,
-                'data_freshness': {},
+                'stale_alerts': stale_alerts,
+                'data_freshness': {**trades_freshness, **snapshots_freshness},
                 'confidence_metadata': {
                     'sharpe_confidence': sharpe_confidence,
                     'win_rate_confidence': win_rate_confidence,
@@ -851,7 +869,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 ORDER BY s.score DESC LIMIT 15""")
             near = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
 
-            # Top A-grade stocks by name (radar display — score ≥ 80)
+            # Top A-grade stocks by name (radar display â€” score â‰¥ 80)
             cur.execute("""
                 SELECT s.symbol, s.score
                 FROM swing_trader_scores s
@@ -948,7 +966,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'drawdown', 'label': 'Portfolio Drawdown',
                     'triggered': dd >= threshold_dd,
                     'current': dd, 'threshold': threshold_dd, 'unit': '%',
-                    'description': f'Halt when drawdown from peak ≥ {threshold_dd:.0f}%',
+                    'description': f'Halt when drawdown from peak â‰¥ {threshold_dd:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -964,7 +982,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'daily_loss', 'label': 'Daily Loss',
                     'triggered': daily_loss >= threshold_dl,
                     'current': daily_loss, 'threshold': threshold_dl, 'unit': '%',
-                    'description': f'Halt when today\'s loss ≥ {threshold_dl:.0f}%',
+                    'description': f'Halt when today\'s loss â‰¥ {threshold_dl:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -999,7 +1017,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'vix_spike', 'label': 'VIX Spike',
                     'triggered': vix is not None and vix >= threshold_vix,
                     'current': vix, 'threshold': threshold_vix, 'unit': '',
-                    'description': f'Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)',
+                    'description': f'Halt when VIX â‰¥ {threshold_vix:.0f} (extreme fear)',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1015,7 +1033,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'weekly_loss', 'label': 'Weekly Loss',
                     'triggered': weekly_loss >= threshold_wl,
                     'current': weekly_loss, 'threshold': threshold_wl, 'unit': '%',
-                    'description': f'Halt when 7-day loss ≥ {threshold_wl:.0f}%',
+                    'description': f'Halt when 7-day loss â‰¥ {threshold_wl:.0f}%',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1048,7 +1066,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'id': 'total_risk', 'label': 'Total Open Risk',
                     'triggered': risk_pct >= threshold_risk,
                     'current': risk_pct, 'threshold': threshold_risk, 'unit': '%',
-                    'description': f'Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio',
+                    'description': f'Halt when total open risk â‰¥ {threshold_risk:.0f}% of portfolio',
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
@@ -1551,11 +1569,11 @@ def _get_sector_breadth(cur) -> Dict:
 
         Uses pre-computed sma_50/sma_200 from technical_data_daily (fast indexed lookup)
         instead of recomputing window functions over 290 days of price_daily (too slow on
-        t4g.micro — caused 20s timeout). Joins latest tech row per symbol with company_profile.
+        t4g.micro â€” caused 20s timeout). Joins latest tech row per symbol with company_profile.
         """
         try:
             # SAVEPOINT isolation: sector breadth joins price_daily + technical_data_daily.
-            # Both tables receive heavy writes from ECS loaders — a timeout here must not
+            # Both tables receive heavy writes from ECS loaders â€” a timeout here must not
             # abort the outer transaction and break subsequent API requests in the same Lambda.
             cur.execute("SAVEPOINT sector_breadth_check")
                 cur.execute("""
@@ -1830,7 +1848,7 @@ def _get_rejection_funnel(cur) -> Dict:
                     hq_pct = round((high_quality_count / scored_count * 100), 2) if scored_count else 0
 
                     funnel.append({
-                        'stage': 'High-Quality Candidates (SQS ≥ 60)',
+                        'stage': 'High-Quality Candidates (SQS â‰¥ 60)',
                         'count': high_quality_count,
                         'pct': hq_pct,
                         'rejection_reason': 'Low signal quality score (SQS < 60)',
@@ -1851,8 +1869,8 @@ def _get_rejection_funnel(cur) -> Dict:
                 """, (today,))
 
                 for row in cur.fetchall():
-                    reason_text = row[0] or ""
-                    count = row[1] or 0
+                    reason_text = row['rejection_reason'] or ""
+                    count = row['count'] or 0
                     rejected_list.append({
                         "evaluation_reason": reason_text,
                         "description": _get_rejection_reason_description(reason_text),
@@ -1881,7 +1899,7 @@ def _get_rejection_funnel(cur) -> Dict:
             return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}, 'rejected': []})
 _TIER_CONFIG = {
     'confirmed_uptrend': {
-        'description': 'Confirmed uptrend — full deployment',
+        'description': 'Confirmed uptrend â€” full deployment',
         'min_pct': 70, 'max_pct': 100,
         'risk_mult': 1.0,  'risk_multiplier': 1.0,
         'max_new': 5,      'max_new_positions_today': 5,
@@ -1890,7 +1908,7 @@ _TIER_CONFIG = {
         'min_swing_score': 60.0,
     },
     'uptrend_under_pressure': {
-        'description': 'Uptrend under pressure — reduced exposure',
+        'description': 'Uptrend under pressure â€” reduced exposure',
         'min_pct': 45, 'max_pct': 70,
         'risk_mult': 0.6,  'risk_multiplier': 0.6,
         'max_new': 3,      'max_new_positions_today': 3,
@@ -1899,7 +1917,7 @@ _TIER_CONFIG = {
         'min_swing_score': 65.0,
     },
     'caution': {
-        'description': 'Caution — entries halted unless exceptional',
+        'description': 'Caution â€” entries halted unless exceptional',
         'min_pct': 25, 'max_pct': 45,
         'risk_mult': 0.3,  'risk_multiplier': 0.3,
         'max_new': 1,      'max_new_positions_today': 1,
@@ -1908,7 +1926,7 @@ _TIER_CONFIG = {
         'min_swing_score': 75.0,
     },
     'correction': {
-        'description': 'Market correction — preserve capital',
+        'description': 'Market correction â€” preserve capital',
         'min_pct': 0,  'max_pct': 25,
         'risk_mult': 0.2,  'risk_multiplier': 0.2,
         'max_new': 0,      'max_new_positions_today': 0,
@@ -1990,7 +2008,7 @@ def _get_markets(cur) -> Dict:
                 """)
                 spy_row = cur.fetchone()
                 if spy_row:
-                    spy_price = float(spy_row[0])
+                    spy_price = float(spy_row['close'])
             except Exception as e:
                 logger.warning(f"[MARKETS] SPY price unavailable: {type(e).__name__}: {e}")
 
@@ -2060,7 +2078,7 @@ def _get_market(cur) -> Dict:
             """)
             spy_row = cur.fetchone()
             if spy_row:
-                spy_close = safe_float(spy_row[0]) if spy_row[0] else None
+                spy_close = safe_float(spy_row['close']) if spy_row['close'] else None
         except Exception as e:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
