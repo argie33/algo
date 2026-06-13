@@ -575,10 +575,22 @@ def fetch_perf(c):
     try:
         data = api_call('/api/algo/performance')
         if data.get('_error'):
-            return {}
+            return {
+                "_error": data.get('_error'),
+                "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
+                "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
+                "profit_factor": 0, "expectancy": 0, "avg_r": 0,
+                "equity_vals": [], "recent_rets": []
+            }
         perf = data.get('data', {})
         if "_error" in perf or not perf:
-            return {}
+            return {
+                "_error": "Performance data unavailable",
+                "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
+                "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
+                "profit_factor": 0, "expectancy": 0, "avg_r": 0,
+                "equity_vals": [], "recent_rets": []
+            }
         return {
             "n": safe_int(perf.get("total_trades")),
             "w": safe_int(perf.get("winning_trades")),
@@ -598,18 +610,26 @@ def fetch_perf(c):
         }
     except Exception as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
-        return {}
+        return {
+            "_error": str(e),
+            "n": 0, "w": 0, "l": 0, "wr": 0, "pnl": 0, "streak": 0,
+            "sharpe": 0, "maxdd": 0, "avg_win": 0, "avg_loss": 0,
+            "profit_factor": 0, "expectancy": 0, "avg_r": 0,
+            "equity_vals": [], "recent_rets": []
+        }
 
 def fetch_positions(c):
     """Fetch positions via AWS API only (no local database fallback)."""
     try:
         data = api_call('/api/algo/positions')
         if data.get('_error'):
-            return []
-        return data.get('data', [])
+            return {"_error": data.get('_error'), "positions": []}
+        result = data.get('data', {})
+        positions = result.get('items', []) if isinstance(result, dict) else result if isinstance(result, list) else []
+        return {"positions": positions}
     except Exception as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
-        return []
+        return {"_error": str(e), "positions": []}
 
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
