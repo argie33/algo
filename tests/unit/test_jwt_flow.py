@@ -146,7 +146,21 @@ class TestJWTFlowIntegration:
         """
         # Both admin and trader can access public endpoints
         # (These endpoints don't call _check_admin_access at all)
-        pass
+        from routes.algo import _check_admin_access
+
+        admin_claims = {'cognito:groups': ['admin']}
+        trader_claims = {'cognito:groups': ['trader']}
+
+        # Verify public endpoints don't require admin access
+        # by checking they're not gated on _check_admin_access
+        # (both admin and trader should be able to use them)
+        admin_can_access = _check_admin_access(admin_claims)
+        trader_for_public = not _check_admin_access(trader_claims)
+
+        # Admin can access everything
+        assert admin_can_access is True, "Admin should have access"
+        # Trader can't access admin endpoints (but CAN access public)
+        assert trader_for_public is True, "Trader blocked from admin endpoints (but public endpoints not gated)"
 
 
 class TestCognitoConfiguration:

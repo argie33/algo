@@ -1727,6 +1727,9 @@ def panel_signals_compact(sig, sig_eval=None):
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
 
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
+
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
     d     = sig.get("date")
@@ -1854,7 +1857,13 @@ def panel_signals_compact(sig, sig_eval=None):
         parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
-    return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]  [dim][s] expand[/]", border_style="magenta", padding=(0, 1))
+    # Add placeholder warning if needed
+    if is_placeholder:
+        rows.insert(0, Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"))
+
+    border = "red" if is_placeholder else "magenta"
+    title = "[bold red]BUY SIGNALS ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold magenta]BUY SIGNALS & SCREENING[/]"
+    return Panel(Group(*rows), title=f"{title}  [dim][s] expand[/]", border_style=border, padding=(0, 1))
 
 
 def panel_recent_trades(trades):
@@ -1862,6 +1871,10 @@ def panel_recent_trades(trades):
     if not trades or not isinstance(trades, list):
         return Panel(Text('no recent trades', style='dim'),
                      title='[bold cyan]RECENT TRADES[/]', border_style='cyan', padding=(0, 1))
+
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = isinstance(trades, list) and any(t.get("_is_placeholder") or t.get("_is_fallback_data") for t in trades if isinstance(t, dict))
+
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)
     t.add_column("Sym",  style="bold white", no_wrap=True, min_width=4)
@@ -1880,7 +1893,7 @@ def panel_recent_trades(trades):
         status = (tr.get("status") or "")
         is_closed = status == "closed"
         pc  = G if pnl_d > 0 else (R if is_closed else Y)
-        si  = f"[{G}]OK[/]" if pnl_d > 0 else (f"[{R}]X[/]" if is_closed else f"[{Y}]â-·[/]")
+        si  = f"[{G}]OK[/]" if pnl_d > 0 else (f"[{R}]X[/]" if is_closed else f"[{Y}]◌[/]")
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
@@ -1889,7 +1902,18 @@ def panel_recent_trades(trades):
             Text(f"{float(rmul):.2f}R" if rmul is not None else "--",       style=pc),
             status[:4],
         )
-    return Panel(t, title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 0))
+
+    # Build content with optional placeholder warning
+    content_items = []
+    if is_placeholder:
+        content_items.append(Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Trades may not be accurate[/]"))
+    content_items.append(t)
+
+    content = Group(*content_items) if len(content_items) > 1 else t
+
+    border = "red" if is_placeholder else "cyan"
+    title = "[bold red]RECENT TRADES ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold cyan]RECENT TRADES[/]"
+    return Panel(content, title=title, border_style=border, padding=(0, 0))
 
 
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
@@ -2870,6 +2894,10 @@ def panel_signals_expanded(sig, sig_eval=None):
     """Full-screen buy signals - all signals, full text, breakout quality, base type."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
+
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
+
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
     d     = sig.get("date")
@@ -2944,7 +2972,13 @@ def panel_signals_expanded(sig, sig_eval=None):
         for i in range(0, len(parts), 4):
             rows.append(Text.from_markup("  " + "    ".join(parts[i:i+4])))
 
-    return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS - EXPANDED[/]  [dim][s] return[/]", border_style="magenta", padding=(0, 1))
+    # Add placeholder warning if needed
+    if is_placeholder:
+        rows.insert(0, Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"))
+
+    border = "red" if is_placeholder else "magenta"
+    title = "[bold red]BUY SIGNALS ⚠ PLACEHOLDER DATA[/]" if is_placeholder else "[bold magenta]BUY SIGNALS - EXPANDED[/]"
+    return Panel(Group(*rows), title=f"{title}  [dim][s] return[/]", border_style=border, padding=(0, 1))
 
 
 def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
