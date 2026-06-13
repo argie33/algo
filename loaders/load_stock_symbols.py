@@ -28,11 +28,11 @@ EXCLUSION_PATTERNS = [
 def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
 
-class StockSymbolsLoader(OptimalLoader):
-    """Load stock symbols from NASDAQ and NYSE."""
 from loaders.loader_helper import setup_imports
 setup_imports()
 
+class StockSymbolsLoader(OptimalLoader):
+    """Load stock symbols from NASDAQ and NYSE."""
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"

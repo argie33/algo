@@ -115,6 +115,8 @@ class TestCriticalLoaderDailyExecution:
             if last_updated:
                 if isinstance(last_updated, str):
                     last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                elif last_updated.tzinfo is None:
+                    last_updated = last_updated.replace(tzinfo=timezone.utc)
                 if last_updated < cutoff_time:
                     stale[loader_name] = "STALE (>24h)"
         

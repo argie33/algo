@@ -24,8 +24,9 @@ def test_unwrap_single_object_response():
     }
     unwrapped = _unwrap_api_response(response)
     assert "statusCode" not in unwrapped, "statusCode should be removed"
-    assert "data" in unwrapped, "data field should remain"
-    assert unwrapped["data"]["portfolio"]["total_value"] == 100000
+    assert "data" not in unwrapped, "data wrapper should be extracted"
+    assert unwrapped["portfolio"]["total_value"] == 100000
+    assert unwrapped["run_id"] == "test-123"
     print("[OK] Single object response unwrapping works")
 
 def test_unwrap_list_response():
