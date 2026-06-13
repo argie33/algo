@@ -1014,6 +1014,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"drawdown computation: {str(e)}")
                 breakers.append({'id': 'drawdown', 'label': 'Portfolio Drawdown',
                     'triggered': False, 'current': 0, 'threshold': 20, 'unit': '%',
                     'description': 'No portfolio data yet'})
@@ -1030,6 +1031,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"daily_loss computation: {str(e)}")
                 breakers.append({'id': 'daily_loss', 'label': 'Daily Loss',
                     'triggered': False, 'current': 0, 'threshold': 2, 'unit': '%',
                     'description': 'No today snapshot yet'})
@@ -1046,6 +1048,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"consecutive_losses computation: {str(e)}")
                 breakers.append({'id': 'consecutive_losses', 'label': 'Consecutive Losses',
                     'triggered': False, 'current': 0, 'threshold': 3, 'unit': '',
                     'description': 'No closed trades yet'})
@@ -1065,6 +1068,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"vix_spike computation: {str(e)}")
                 breakers.append({'id': 'vix_spike', 'label': 'VIX Spike',
                     'triggered': False, 'current': 0, 'threshold': 35, 'unit': '',
                     'description': 'No market data yet'})
@@ -1081,6 +1085,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"weekly_loss computation: {str(e)}")
                 breakers.append({'id': 'weekly_loss', 'label': 'Weekly Loss',
                     'triggered': False, 'current': 0, 'threshold': 5, 'unit': '%',
                     'description': 'No weekly data yet'})
@@ -1098,6 +1103,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"market_stage computation: {str(e)}")
                 breakers.append({'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
                     'description': 'No market data yet'})
@@ -1114,6 +1120,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 })
             except Exception as e:
                 logger.warning(f"API exception: {e}")
+                errors.append(f"total_risk computation: {str(e)}")
                 breakers.append({'id': 'total_risk', 'label': 'Total Open Risk',
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '%',
                     'description': 'No positions data yet'})
@@ -1232,6 +1239,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             logger.error(f'Unexpected error (equity curve): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch equity curve'}, exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
+@db_route_handler('fetch data status', default_error_response={'ready_to_trade': False, 'summary': {'ok': 0, 'stale': 0, 'empty': 0, 'error': 0}, 'sources': [], 'critical_stale': [], '_error': 'Data unavailable'})
 def _get_data_status(cur) -> Dict:
         """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -1834,6 +1842,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
     return reason or "Unknown rejection reason"
 
+@db_route_handler('fetch rejection funnel', default_error_response={'total_candidates': 0, 'filters': {}, '_error': 'Data unavailable'})
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
@@ -1985,6 +1994,7 @@ _TIER_CONFIG = {
     },
 }
 
+@db_route_handler('fetch markets', default_error_response={'regime': 'unknown', 'exposure_pct': None, '_error': 'Data unavailable'})
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
@@ -2114,6 +2124,7 @@ def _get_markets(cur) -> Dict:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
             return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
 
+@db_route_handler('fetch market', default_error_response={'stage': None, 'trend': None, 'vix': None, '_error': 'Data unavailable'})
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -2192,6 +2203,7 @@ def _get_market(cur) -> Dict:
         logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market data'})
 
+@db_route_handler('fetch market factors', default_error_response={'factors': {}, '_error': 'Data unavailable'})
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
     try:

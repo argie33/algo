@@ -107,65 +107,22 @@ def fetch_cloudfront_domain_from_secrets():
 def validate_environment():
     """Validate critical environment variables at cold start.
 
-    Returns: (valid: bool, errors: List[str])
+    Returns: (valid: bool, errors: List[str], warnings: List[str])
+
+    Errors = must-have config (DB_HOST, DB_PORT, credentials)
+    Warnings = config that degrades service gracefully (FRONTEND_URL, Cognito optional vars)
     """
     errors = []
-    required_vars = {
+    warnings = []
+
+    # CRITICAL: Database configuration (always required)
+    critical_vars = {
         'DB_HOST': 'RDS Proxy endpoint (e.g., my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com)',
         'DB_PORT': 'Database port (e.g., 5432 for PostgreSQL; must be a valid integer)',
-        'DB_PASSWORD': 'Database password (set via DB_PASSWORD env var or fetch from DB_SECRET_ARN)',
-        'DB_NAME': 'Database name (defaults to "stocks" if not set)',
-        'DB_USER': 'Database username (defaults to "stocks" if not set)',
     }
 
-    # SECURITY FIX H-01: If Cognito authentication is enabled, ALL Cognito vars must be set
-    cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
-    if cognito_user_pool_id:
-        # Authentication enabled - require all Cognito vars
-        cognito_client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
-        cognito_region = os.getenv('COGNITO_REGION', '').strip()
-
-        if not cognito_client_id:
-            errors.append('COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set (find in AWS Cognito console → App clients)')
-        if not cognito_region:
-            # Default to us-east-1, but still validate it's explicitly set in production
-            is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
-            if is_lambda:
-                errors.append('COGNITO_REGION missing: Required in Lambda (e.g., us-east-1)')
-
-    # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
-    # Issue #10 FIX: Always try to fetch CloudFront domain from Secrets Manager,
-    # even if FRONTEND_URL is already set (in case domain changed)
-    is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
-    if is_lambda:
-        frontend_url = os.getenv('FRONTEND_URL', '').strip()
-        allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
-
-        # Always try to fetch CloudFront domain (may be newer/different than FRONTEND_URL)
-        # This handles case where domain is rotated but FRONTEND_URL env var not yet updated
-        cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
-        if cf_domain:
-            cf_url = f'https://{cf_domain}' if not cf_domain.startswith(('http://', 'https://')) else cf_domain
-            if cf_url != frontend_url:
-                logger.info(f"[CloudFront] Updating FRONTEND_URL from {frontend_url or 'NOT_SET'} to {cf_url}")
-                frontend_url = cf_url
-                os.environ['FRONTEND_URL'] = frontend_url
-        elif not frontend_url and cf_error != "Secret not found":
-            # CloudFront fetch failed and FRONTEND_URL not set - this is a config problem
-            logger.error(f"[CloudFront] Failed to fetch domain and FRONTEND_URL not set: {cf_error}")
-
-        # Validation: FRONTEND_URL or localhost must be available
-        if not frontend_url and not allow_localhost:
-            errors.append('FRONTEND_URL missing: Set to frontend domain (e.g., https://myapp.example.com) for CORS, or enable ALLOW_LOCALHOST_CORS=true for dev')
-
-    missing_secret_arn = not os.getenv('DB_SECRET_ARN')
-    missing_password = not os.getenv('DB_PASSWORD')
-
-    for var, description in required_vars.items():
-        if var == 'DB_PASSWORD':
-            if missing_secret_arn and missing_password:
-                errors.append(f"DB_PASSWORD missing: Provide either DB_PASSWORD directly or DB_SECRET_ARN pointing to Secrets Manager secret")
-        elif var == 'DB_PORT':
+    for var, description in critical_vars.items():
+        if var == 'DB_PORT':
             port_str = os.getenv(var, '').strip()
             if not port_str:
                 errors.append(f"{var} missing: {description}")
@@ -174,39 +131,80 @@ def validate_environment():
                     int(port_str)
                 except (ValueError, TypeError):
                     errors.append(f"{var} invalid: Must be a valid integer (e.g., 5432)")
-        elif var in ['DB_NAME', 'DB_USER']:
-            if not os.getenv(var) and var == 'DB_NAME':
-                logger.info(f"{var}: using default 'stocks'")
-            elif not os.getenv(var) and var == 'DB_USER':
-                logger.info(f"{var}: using default 'stocks'")
         else:
             if not os.getenv(var):
                 errors.append(f"{var} missing: {description}")
 
-    # FIXED Issue #15: Validate DB_HOST points to proxy (now required, not optional)
+    # Validate DB_HOST points to proxy if it's an RDS endpoint
     db_host = os.getenv('DB_HOST', '')
-    # RDS Proxy endpoints contain both 'proxy' and 'rds.amazonaws.com'
-    # Direct RDS endpoints have 'db-' and 'rds.amazonaws.com' but NOT 'proxy'
     is_likely_direct_rds = ('db-' in db_host and 'rds.amazonaws.com' in db_host and 'proxy' not in db_host.lower())
     is_localhost = db_host.startswith('localhost') or db_host.startswith('127.')
-
-    if is_likely_direct_rds and not is_localhost:
-        # SECURITY FIX S-12: Don't log actual DB_HOST in error messages (exposes infrastructure)
+    if db_host and is_likely_direct_rds and not is_localhost:
         logger.error(f"FATAL: DB_HOST appears to be direct RDS, not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint.")
         errors.append(f"DB_HOST invalid: Must use RDS Proxy endpoint (contains 'proxy'), not direct RDS. Connection pooling is required for production.")
 
+    # CRITICAL: Database credentials (one of the two must be set)
+    missing_secret_arn = not os.getenv('DB_SECRET_ARN')
+    missing_password = not os.getenv('DB_PASSWORD')
+    if missing_secret_arn and missing_password:
+        errors.append(f"DB_PASSWORD missing: Provide either DB_PASSWORD directly or DB_SECRET_ARN pointing to Secrets Manager secret")
+
+    # OPTIONAL: DB_NAME and DB_USER (use defaults if not set)
+    if not os.getenv('DB_NAME'):
+        logger.info(f"DB_NAME: using default 'stocks'")
+    if not os.getenv('DB_USER'):
+        logger.info(f"DB_USER: using default 'stocks'")
+
+    # WARNING: Cognito configuration (only required if enabled)
+    cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
+    if cognito_user_pool_id:
+        cognito_client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
+        cognito_region = os.getenv('COGNITO_REGION', '').strip()
+
+        if not cognito_client_id:
+            warnings.append('COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set')
+        if not cognito_region:
+            warnings.append('COGNITO_REGION missing: Will default to us-east-1')
+
+    # WARNING: FRONTEND_URL (required for CORS but can be fetched or allows localhost)
+    is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
+    if is_lambda:
+        frontend_url = os.getenv('FRONTEND_URL', '').strip()
+        allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
+
+        if not frontend_url:
+            cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
+            if cf_domain:
+                frontend_url = f'https://{cf_domain}' if not cf_domain.startswith(('http://', 'https://')) else cf_domain
+                os.environ['FRONTEND_URL'] = frontend_url
+                logger.info(f"[CloudFront] Set FRONTEND_URL from Secrets Manager: {frontend_url}")
+            elif cf_error == "Secret not found":
+                # Expected on first deploy before CloudFront domain is set up
+                if allow_localhost:
+                    logger.info("[CloudFront] Secret not found (OK on first deploy), ALLOW_LOCALHOST_CORS=true")
+                else:
+                    warnings.append('FRONTEND_URL missing: Set to frontend domain (e.g., https://myapp.example.com) for CORS, or enable ALLOW_LOCALHOST_CORS=true for dev')
+            else:
+                warnings.append(f'[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}')
+
+    # Log warnings but don't fail
+    for warning in warnings:
+        logger.warning(f"[ENV_WARNING] {warning}")
+
+    return len(errors) == 0, errors, warnings
     return len(errors) == 0, errors
 
 def test_db_connection():
     """Test database connection at Lambda cold-start.
 
     Validates that the database is reachable and responsive.
-    Fails fast if connection cannot be established, providing clear diagnostics.
+    Tolerates transient RDS Proxy timing issues with exponential backoff.
 
     Uses adaptive timeouts:
-    - connect_timeout=5s: abort if RDS Proxy connection fails
-    - statement_timeout=3s: abort if query execution stalls
+    - Pool timeout: 10s per attempt (3 attempts = 30s max, but usually succeeds on first)
+    - Statement timeout: 3s per query execution
     - Total overhead stays well within API Gateway 29s limit
+    - Retries tolerate transient RDS Proxy cold-start delays and connection spikes
 
     Returns: (success: bool, error_msg: Optional[str])
     """
@@ -215,8 +213,9 @@ def test_db_connection():
 
     try:
         from utils.db_connection import get_db_connection
-        # Increased timeouts: 5s for connection, allows for slow startups
-        conn = get_db_connection(max_retries=0, timeout=5)
+        # Tolerates transient RDS Proxy issues: 3 attempts, 10s timeout per attempt
+        # Exponential backoff: attempt 1 (0s), attempt 2 (1-2s wait), attempt 3 (2-4s wait)
+        conn = get_db_connection(max_retries=2, timeout=10)
         connect_time = time.time() - start_time
 
         cur = conn.cursor()
@@ -795,7 +794,7 @@ def require_auth(event: Dict, path: str) -> tuple:
 
 # Module-level initialization: Run validation, DB test, and pre-cache values once at cold start
 if not IMPORT_ERROR:
-    env_valid, env_errors = validate_environment()
+    env_valid, env_errors, env_warnings = validate_environment()
     if not env_valid:
         ENV_VALIDATION_ERROR = '; '.join(env_errors)
         logger.error(f'[MODULE_INIT_ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}')

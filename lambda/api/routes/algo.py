@@ -2453,6 +2453,8 @@ def _get_data_quality(cur) -> Dict:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
             return json_response(code, {'errorType': error_type, 'message': message})
+
+@db_route_handler('fetch exposure policy', default_error_response={'current_exposure_pct': None, 'regime': 'unknown', 'factors': {}, '_error': 'Data unavailable'})
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
