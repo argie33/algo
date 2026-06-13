@@ -1,11 +1,11 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Fetch AWS credentials from Terraform and set environment variables for dashboard.
+    Fetch AWS credentials from Terraform and run dashboard in AWS mode.
 
 .DESCRIPTION
-    Automatically initializes Terraform (if needed), fetches api_url, cognito_user_pool_id,
-    and cognito_user_pool_client_id, then runs the dashboard in AWS mode.
+    Automatically sets up environment variables by fetching credentials from Terraform,
+    refreshing AWS credentials if needed, then running the dashboard.
 
 .PARAMETER Watch
     Enable watch mode (auto-refresh). Pass a number for interval in seconds (5-600).
@@ -36,12 +36,10 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $terraformDir = Join-Path $repoRoot "terraform"
-$dashboardScript = Join-Path $repoRoot "tools" "dashboard" "dashboard.py"
-
-Write-Host "🚀 Dashboard AWS Setup" -ForegroundColor Cyan
+$dashboardScript = Join-Path (Join-Path (Join-Path $repoRoot "tools") "dashboard") "dashboard.py"
 
 if ($Local) {
-    Write-Host "Location: Using local mode (localhost:3001)" -ForegroundColor Yellow
+    Write-Host "Using local mode (localhost:3001)" -ForegroundColor Yellow
     $dashboardArgs = @("--local")
     if ($Watch) {
         $dashboardArgs += "-w"
@@ -56,112 +54,98 @@ if ($Local) {
     exit $LASTEXITCODE
 }
 
-# AWS Mode: Fetch credentials from Terraform
-Write-Host "Setup: Fetching AWS credentials from Terraform..." -ForegroundColor Cyan
+# AWS Mode: Setup credentials and fetch from Terraform
+Write-Host "Dashboard AWS Setup" -ForegroundColor Cyan
+Write-Host ""
 
-# Set AWS profile to use the algo-developer credentials
+# Set AWS profile
 $env:AWS_PROFILE = "algo-developer"
 $env:AWS_DEFAULT_REGION = "us-east-1"
 
-# Verify AWS credentials are available
-try {
-    $identity = aws sts get-caller-identity 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Status: AWS credentials not available" -ForegroundColor Yellow
-        Write-Host "" -ForegroundColor Yellow
-        Write-Host "Action: Refreshing AWS credentials from Secrets Manager..." -ForegroundColor Cyan
-        & "$scriptDir\refresh-aws-credentials.ps1"
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to refresh AWS credentials" -ForegroundColor Red
-            exit 1
-        }
-    }
-    else {
-        Write-Host "Status: AWS credentials available" -ForegroundColor Green
-    }
+# Check if AWS credentials exist
+$credentialsFile = "$HOME\.aws\credentials"
+$credsExist = Test-Path $credentialsFile
+if ($credsExist) {
+    $credsContent = Get-Content $credentialsFile -Raw
+    $credsExist = $credsContent -match "\[algo-developer\]"
 }
-catch {
-    Write-Host "Status: AWS credentials not available" -ForegroundColor Yellow
-    Write-Host "" -ForegroundColor Yellow
-    Write-Host "Action: Refreshing AWS credentials from Secrets Manager..." -ForegroundColor Cyan
+
+if (-not $credsExist) {
+    Write-Host "AWS credentials not found locally" -ForegroundColor Yellow
+    Write-Host "Refreshing from Secrets Manager..." -ForegroundColor Cyan
+    Write-Host ""
+
     & "$scriptDir\refresh-aws-credentials.ps1"
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to refresh AWS credentials" -ForegroundColor Red
+        Write-Host "Failed to refresh AWS credentials" -ForegroundColor Red
         exit 1
     }
-}
-    catch {
-    }
-    return $null
-}
-
-# Show current configuration
-if ($ShowConfig) {
-    Write-Host "Current Dashboard Configuration:" -ForegroundColor Cyan
-    Write-Host "  DASHBOARD_API_URL: $($env:DASHBOARD_API_URL)" -ForegroundColor Yellow
-    Write-Host "  DB_HOST: $($env:DB_HOST)" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
 }
 
-# If endpoint not provided, try to auto-detect
-if (-not $ApiEndpoint) {
-    Write-Host "Detecting Lambda API endpoint..." -ForegroundColor Cyan
+# Fetch Terraform outputs
+Write-Host "Fetching Terraform outputs..." -ForegroundColor Cyan
+try {
+    Push-Location $terraformDir
 
-    $ApiEndpoint = Get-ApiEndpointFromTerraform
-    if ($ApiEndpoint) {
-        Write-Host "  Found via Terraform: $ApiEndpoint" -ForegroundColor Green
-    }
-    else {
-        $ApiEndpoint = Get-ApiEndpointFromAws
-        if ($ApiEndpoint) {
-            Write-Host "  Found via AWS CLI: $ApiEndpoint" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  Could not auto-detect API endpoint" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "Options:" -ForegroundColor Cyan
-            Write-Host "  1. Run: terraform -chdir=terraform output api_url" -ForegroundColor Gray
-            Write-Host "  2. Check AWS console: API Gateway > algo-api-dev" -ForegroundColor Gray
-            Write-Host "  3. Then run: .\scripts\setup-dashboard-aws.ps1 -ApiEndpoint https://your-endpoint" -ForegroundColor Gray
-            Write-Host ""
+    # Initialize Terraform if needed
+    if (-not (Test-Path ".terraform")) {
+        Write-Host "Initializing Terraform..." -ForegroundColor Yellow
+        & terraform init `
+            -backend-config=bucket=stocks-terraform-state `
+            -backend-config=key=stocks/terraform.tfstate `
+            -backend-config=region=us-east-1 `
+            -backend-config=encrypt=true
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Terraform init failed" -ForegroundColor Red
             exit 1
         }
     }
+
+    # Get outputs as JSON
+    $outputs = & terraform output -json 2>$null | ConvertFrom-Json
+
+    $apiUrl = $outputs.api_url.value
+    $poolId = $outputs.cognito_user_pool_id.value
+    $clientId = $outputs.cognito_user_pool_client_id.value
+
+    if (-not $apiUrl -or -not $poolId -or -not $clientId) {
+        Write-Host "Failed to fetch required Terraform outputs" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Credentials fetched successfully" -ForegroundColor Green
+
+}
+finally {
+    Pop-Location
 }
 
-# Validate endpoint format
-if ($ApiEndpoint -notmatch "^https://") {
-    Write-Host "ERROR: Invalid API endpoint format" -ForegroundColor Red
-    Write-Host "Must start with https://, got: $ApiEndpoint" -ForegroundColor Red
-    exit 1
+# Set environment variables
+Write-Host "Setting environment variables..." -ForegroundColor Cyan
+$env:DASHBOARD_API_URL = $apiUrl
+$env:COGNITO_USER_POOL_ID = $poolId
+$env:COGNITO_CLIENT_ID = $clientId
+
+Write-Host "Environment ready" -ForegroundColor Green
+Write-Host ""
+
+# Run dashboard
+Write-Host "Starting dashboard..." -ForegroundColor Cyan
+$dashboardArgs = @()
+
+if ($Watch) {
+    $dashboardArgs += "-w"
+    if ($WatchInterval -ne 30) {
+        $dashboardArgs += [string]$WatchInterval
+    }
 }
 
-# Set environment variable
-$env:DASHBOARD_API_URL = $ApiEndpoint
-
-# Show confirmation
-Write-Host ""
-Write-Host "Dashboard AWS configuration:" -ForegroundColor Green
-Write-Host "  DASHBOARD_API_URL = $ApiEndpoint" -ForegroundColor Yellow
-Write-Host ""
-
-# Test connectivity (optional)
-Write-Host "Testing connectivity..." -ForegroundColor Cyan
-try {
-    $response = Invoke-WebRequest -Uri "$ApiEndpoint/health" -TimeoutSec 5 -ErrorAction Stop
-    Write-Host "  API is reachable: $($response.StatusCode)" -ForegroundColor Green
-}
-catch {
-    Write-Host "  Warning: Could not reach API endpoint" -ForegroundColor Yellow
-    Write-Host "    (This may be normal if API requires authentication)" -ForegroundColor Gray
+if ($Compact) {
+    $dashboardArgs += "--compact"
 }
 
-Write-Host ""
-Write-Host "You can now run the dashboard:" -ForegroundColor Cyan
-Write-Host "  python tools/dashboard/dashboard.py" -ForegroundColor Gray
-Write-Host ""
-Write-Host "To persist this configuration, add to your PowerShell profile:" -ForegroundColor Cyan
-Write-Host '  $env:DASHBOARD_API_URL = "' + $ApiEndpoint + '"' -ForegroundColor Gray
+& python $dashboardScript @dashboardArgs
+exit $LASTEXITCODE

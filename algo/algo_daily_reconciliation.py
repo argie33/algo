@@ -172,10 +172,10 @@ class DailyReconciliation:
                 # 3. Calculate metrics
                 cash_val = alpaca_data.get('cash')
                 cash = float(cash_val) if cash_val is not None else None
-                if cash is None or cash == 0:
+                if cash is None:
                     cur.execute("SELECT total_cash FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
                     prev_cash_row = cur.fetchone()
-                    if prev_cash_row and prev_cash_row[0]:
+                    if prev_cash_row is not None and prev_cash_row[0] is not None:
                         cash = float(prev_cash_row[0])
                         logger.info(f"   Cash (from prior snapshot): ${cash:,.2f}")
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
@@ -255,7 +255,7 @@ class DailyReconciliation:
                     FROM algo_portfolio_snapshots
                 """)
                 peak_row = cur.fetchone()
-                if peak_row and peak_row[0] and peak_row[1]:
+                if peak_row is not None and peak_row[0] is not None and peak_row[1] is not None:
                     peak_val = float(peak_row[0])
                     trough_val = float(peak_row[1])
                     if peak_val > 0:
@@ -444,7 +444,7 @@ class DailyReconciliation:
                         (trade_id,)
                     )
                     est_row = cur.fetchone()
-                    estimated_price = float(est_row[0]) if est_row and est_row[0] else None
+                    estimated_price = float(est_row[0]) if est_row is not None and est_row[0] is not None else None
 
                     # Calculate reconciliation note with variance if estimated price exists
                     reconciliation_note = None
@@ -578,7 +578,7 @@ class DailyReconciliation:
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
         _pv_row = cur.fetchone()
-        _portfolio_value_for_pct = float(_pv_row[0]) if _pv_row and _pv_row[0] else 0.0
+        _portfolio_value_for_pct = float(_pv_row[0]) if _pv_row is not None and _pv_row[0] is not None else 0.0
 
         alpaca_symbols = {}  # symbol -> qty for drift detection
         imported = 0
@@ -685,7 +685,7 @@ class DailyReconciliation:
                         ORDER BY date DESC LIMIT 1
                     """, (sym,))
                     atr_row = cur.fetchone()
-                    if atr_row and atr_row[0]:
+                    if atr_row is not None and atr_row[0] is not None:
                         atr = float(atr_row[0])
                         # Stop = 2 * ATR below entry (standard risk management)
                         stop_loss_price = max(0.01, avg_entry - (2 * atr))
@@ -1132,7 +1132,7 @@ class DailyReconciliation:
                     ORDER BY snapshot_date ASC LIMIT 1
                 """)
                 row = cur.fetchone()
-                if row and row[0]:
+                if row is not None and row[0] is not None:
                     val = float(row[0])
                     if val > 0:
                         logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
@@ -1169,7 +1169,7 @@ class DailyReconciliation:
                 ORDER BY snapshot_date ASC LIMIT 1
             """)
             row = cur.fetchone()
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 val = float(row[0])
                 if val > 0:
                     logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")

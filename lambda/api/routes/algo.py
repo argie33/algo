@@ -1576,7 +1576,7 @@ def _get_sector_breadth(cur) -> Dict:
             # Both tables receive heavy writes from ECS loaders â€” a timeout here must not
             # abort the outer transaction and break subsequent API requests in the same Lambda.
             cur.execute("SAVEPOINT sector_breadth_check")
-                cur.execute("""
+            cur.execute("""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (tdd.symbol)
                         tdd.symbol, tdd.sma_50, tdd.sma_200

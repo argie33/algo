@@ -245,7 +245,7 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         )
         result = cur.fetchone()
 
-        if not result or not result[0]:
+        if not result or not result.get('max'):
             return {
                 "data_age_days": None,
                 "is_stale": True,
@@ -253,7 +253,7 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
             }
 
         from datetime import datetime, date
-        max_date = result[0]
+        max_date = result['max']
 
         # Handle both date and datetime objects
         if hasattr(max_date, 'date'):

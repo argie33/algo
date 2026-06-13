@@ -592,7 +592,7 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if row and row[0]:
+        if row is not None and row[0] is not None:
             earnings_date = row[0]
             return (earnings_date - signal_date).days
 
@@ -606,7 +606,7 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if row and row[0]:
+        if row is not None and row[0] is not None:
             earnings_date = row[0]
             return (earnings_date - signal_date).days
 
