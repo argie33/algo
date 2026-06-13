@@ -134,7 +134,7 @@ MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
     "bright_yellow", "white", "yellow", "bright_red",
 ]
-LOAD_SEQ = [0, 1, 4, 3]  # groove â†' step R â†' JUMP â†' step L
+LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 # Configure logging for stability monitoring
 _log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
@@ -371,7 +371,7 @@ def mkt_hours_str() -> tuple:
         open_dt = (n + timedelta(days=days_ahead)).replace(
             hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-        return "[dim]â-- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+        return "[dim]- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
     PRE_OPEN  = 4 * 60       # 4:00 AM
     OPEN      = 9 * 60 + 30  # 9:30 AM
@@ -380,24 +380,24 @@ def mkt_hours_str() -> tuple:
 
     if t < PRE_OPEN:
         diff_m = OPEN - t
-        return "[dim]â-- CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
+        return "[dim]- CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
     if t < OPEN:
         diff_m = OPEN - t
-        return "[yellow]â-- PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
+        return "[yellow]- PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
     if t < CLOSE:
         diff_m = CLOSE - t
-        return "[bold bright_green]â-- OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
+        return "[bold bright_green]- OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
     if t < AH_END:
         next_days = 3 if wd == 4 else 1
         open_dt = (n + timedelta(days=next_days)).replace(
             hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-        return "[dim]â-- AFTER-HRS[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+        return "[dim]- AFTER-HRS[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
     next_days = 3 if wd == 4 else 1
     open_dt = (n + timedelta(days=next_days)).replace(
         hour=9, minute=30, second=0, microsecond=0)
     diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-    return "[dim]â-- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+    return "[dim]- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
 def next_run_str() -> str:
     from datetime import timedelta
@@ -2410,7 +2410,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             tl    = raw_t.lower()
             title = next((v for k, v in _SHORT.items() if k in tl), raw_t[:24])
             age   = fmt_age(n.get("created_at"))
-            unread = "â--" if not n.get("seen", True) else " "
+            unread = "-" if not n.get("seen", True) else " "
             rows.append(Text.from_markup(
                 f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"
             ))
@@ -2708,7 +2708,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             raw_t = n.get("title") or ""
             title = next((v for k, v in _SHORT.items() if k in raw_t.lower()), raw_t[:20])
             age   = fmt_age(n.get("created_at"))
-            unread = "â--" if not n.get("seen", True) else "Â·"
+            unread = "-" if not n.get("seen", True) else "Â·"
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
@@ -3021,7 +3021,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             sc     = SEV_C.get(n.get("severity", "info"), DIM)
             title  = n.get("title") or ""
             age    = fmt_age(n.get("created_at"))
-            unread = "â--" if not n.get("seen", True) else "Â·"
+            unread = "-" if not n.get("seen", True) else "Â·"
             rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
@@ -3483,7 +3483,7 @@ SIDEBAR:
     Win rate %        All-time trade win rate
     P&L $             Total realized profit/loss
     Last run status   ✓=completed ✗=error ~=halted, and time since
-    â-- N alerts        Unread notifications needing attention
+    - N alerts        Unread notifications needing attention
 """
 
 
