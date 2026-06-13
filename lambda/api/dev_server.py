@@ -27,13 +27,15 @@ os.environ['DB_USER'] = os.getenv('DB_USER', 'stocks')
 os.environ['DB_PASSWORD'] = os.getenv('DB_PASSWORD', 'stocks')
 
 # Add lambda/api and parent directories to path so we can import all modules
-# IMPORTANT: api_dir must come FIRST so that /lambda/api/utils is found before /utils
+# NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly
+# (In production Lambda, api_router.py handles the ordering differently)
 api_dir = os.path.dirname(os.path.abspath(__file__))
 lambda_dir = os.path.dirname(api_dir)
 root_dir = os.path.dirname(lambda_dir)
+# Add root_dir first so imports like "from utils.timezone_utils" find /root/utils
 sys.path.insert(0, root_dir)
-sys.path.insert(0, lambda_dir)
-sys.path.insert(0, api_dir)
+sys.path.insert(1, lambda_dir)
+sys.path.insert(2, api_dir)
 
 print(f"[DEV_SERVER_INIT] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}", flush=True)
 

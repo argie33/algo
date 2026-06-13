@@ -393,7 +393,8 @@ def db_route_handler(operation_name: str, default_error_response=None):
                 code, error_type, message = handle_db_error(e, operation_name)
                 logger.error(f'Failed to {operation_name}: {error_type} - {message}')
                 if default_error_response is not None:
-                    return default_error_response
+                    # Wrap default error response with success status (graceful degradation)
+                    return success_response(default_error_response)
                 return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
         return wrapper
     return decorator
