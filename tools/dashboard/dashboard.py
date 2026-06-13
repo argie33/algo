@@ -1442,9 +1442,11 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     ))
 
     # Line 3: daily return + unrealized P&L
+    dr_s  = f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     rows.append(Text.from_markup(
-        f"[dim]Day:[/] [{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]  "
-        f"[dim]Unrlzd:[/] [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
+        f"[dim]Day:[/] {dr_s}  "
+        f"[dim]Unrlzd:[/] {urp_s}"
     ))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)

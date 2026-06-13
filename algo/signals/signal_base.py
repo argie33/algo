@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, date as _date
 import logging
 from typing import Dict, List, Tuple, Optional, Any
 from utils.database_context import DatabaseContext
+from utils.query_cache import QueryCache, CacheStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,12 @@ class SignalBase:
     """Base class for all signal computations -- connection, cache, helpers."""
 
     def __init__(self):
-        self._price_cache = {}  # Cache for N+1 query optimization
-        self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
+        self._rs_percentile_cache = QueryCache(
+            'rs_percentile',
+            ttl_seconds=3600,  # 1 hour TTL
+            max_entries=1000,  # Limit cache size
+            strategy=CacheStrategy.LRU,  # Auto-evict oldest when full
+        )
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
@@ -33,8 +38,8 @@ class SignalBase:
             return None
 
     def clear_cache(self):
-        """Clear price cache to prevent stale data."""
-        self._price_cache = {}
+        """Clear RS percentile cache to prevent stale data."""
+        self._rs_percentile_cache.invalidate()
 
     def _rs_percentile_vs_spy(self, cur, symbol: str, eval_date, lookback: int = 60) -> Optional[float]:
         """
@@ -45,71 +50,77 @@ class SignalBase:
 
         Batch-cached per (eval_date, lookback): first call computes the full universe
         in one query; subsequent calls within the same run are O(1) dict lookups.
+        TTL = 1 hour; LRU evicts oldest entries when cache exceeds 1000 entries.
         """
         cache_key = (str(eval_date), lookback)
-        if cache_key in self._rs_percentile_cache:
-            return self._rs_percentile_cache[cache_key].get(symbol)
 
-        # Batch-compute RS percentiles for the full investable universe at once.
-        # Uses all non-ETF stocks so non-SP500 stocks get proper percentile rankings
-        # instead of returning None (which gave them 0 momentum points and dropped swing scores).
-        # Uses LATERAL JOINs instead of correlated subqueries to avoid N*2 round-trips.
-        # idx_price_daily_symbol_date covers the DISTINCT ON efficiently for 5000+ symbols.
-        cur.execute(
-            """
-            WITH
-            universe AS (
-                SELECT DISTINCT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y'
-            ),
-            end_prices AS (
-                SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS end_close
-                FROM price_daily pd
-                JOIN universe u ON u.symbol = pd.symbol
-                WHERE pd.date <= %s
-                ORDER BY pd.symbol, pd.date DESC
-            ),
-            start_prices AS (
-                SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS start_close
-                FROM price_daily pd
-                JOIN universe u ON u.symbol = pd.symbol
-                WHERE pd.date <= %s::date - make_interval(days => %s)
-                ORDER BY pd.symbol, pd.date DESC
-            ),
-            spy_end AS (
-                SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC LIMIT 1
-            ),
-            spy_start AS (
-                SELECT close FROM price_daily WHERE symbol = 'SPY'
-                    AND date <= %s::date - make_interval(days => %s)
-                ORDER BY date DESC LIMIT 1
-            ),
-            spy_ret AS (
-                SELECT (spy_end.close / NULLIF(spy_start.close, 0) - 1) AS r
-                FROM spy_end CROSS JOIN spy_start
-            ),
-            all_returns AS (
-                SELECT
-                    ep.symbol,
-                    (ep.end_close / NULLIF(sp.start_close, 0) - 1) - (SELECT r FROM spy_ret) AS excess_return
-                FROM end_prices ep
-                JOIN start_prices sp ON sp.symbol = ep.symbol
-            ),
-            ranked AS (
-                SELECT
-                    symbol,
-                    PERCENT_RANK() OVER (ORDER BY excess_return) * 100 AS percentile_rank
-                FROM all_returns
-                WHERE excess_return IS NOT NULL
+        def compute_percentiles():
+            # Batch-compute RS percentiles for the full investable universe at once.
+            # Uses all non-ETF stocks so non-SP500 stocks get proper percentile rankings
+            # instead of returning None (which gave them 0 momentum points and dropped swing scores).
+            # Uses LATERAL JOINs instead of correlated subqueries to avoid N*2 round-trips.
+            # idx_price_daily_symbol_date covers the DISTINCT ON efficiently for 5000+ symbols.
+            cur.execute(
+                """
+                WITH
+                universe AS (
+                    SELECT DISTINCT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y'
+                ),
+                end_prices AS (
+                    SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS end_close
+                    FROM price_daily pd
+                    JOIN universe u ON u.symbol = pd.symbol
+                    WHERE pd.date <= %s
+                    ORDER BY pd.symbol, pd.date DESC
+                ),
+                start_prices AS (
+                    SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS start_close
+                    FROM price_daily pd
+                    JOIN universe u ON u.symbol = pd.symbol
+                    WHERE pd.date <= %s::date - make_interval(days => %s)
+                    ORDER BY pd.symbol, pd.date DESC
+                ),
+                spy_end AS (
+                    SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                ),
+                spy_start AS (
+                    SELECT close FROM price_daily WHERE symbol = 'SPY'
+                        AND date <= %s::date - make_interval(days => %s)
+                    ORDER BY date DESC LIMIT 1
+                ),
+                spy_ret AS (
+                    SELECT (spy_end.close / NULLIF(spy_start.close, 0) - 1) AS r
+                    FROM spy_end CROSS JOIN spy_start
+                ),
+                all_returns AS (
+                    SELECT
+                        ep.symbol,
+                        (ep.end_close / NULLIF(sp.start_close, 0) - 1) - (SELECT r FROM spy_ret) AS excess_return
+                    FROM end_prices ep
+                    JOIN start_prices sp ON sp.symbol = ep.symbol
+                ),
+                ranked AS (
+                    SELECT
+                        symbol,
+                        PERCENT_RANK() OVER (ORDER BY excess_return) * 100 AS percentile_rank
+                    FROM all_returns
+                    WHERE excess_return IS NOT NULL
+                )
+                SELECT symbol, percentile_rank FROM ranked
+                """,
+                (eval_date, eval_date, lookback, eval_date, eval_date, lookback),
             )
-            SELECT symbol, percentile_rank FROM ranked
-            """,
-            (eval_date, eval_date, lookback, eval_date, eval_date, lookback),
+            rows = cur.fetchall()
+            return {r[0]: float(r[1]) for r in rows if r[1] is not None}
+
+        percentile_dict = self._rs_percentile_cache.get_or_compute(
+            cache_key,
+            compute_percentiles,
+            context=f"RS percentile {eval_date} {lookback}d",
+            allow_stale=True,  # Return stale data if DB is down
         )
-        rows = cur.fetchall()
-        cache = {r[0]: float(r[1]) for r in rows if r[1] is not None}
-        self._rs_percentile_cache[cache_key] = cache
-        return cache.get(symbol)
+        return percentile_dict.get(symbol)
 
     def _period_return(self, cur, symbol, end_date, lookback_days):
         """Compute simple return over a lookback period."""
