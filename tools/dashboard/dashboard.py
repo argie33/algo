@@ -431,7 +431,7 @@ def hbar(cur, thr, w=6):
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
     c = R if r >= 1 else (Y if r >= 0.75 else G)
-    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
+    return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
 
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
