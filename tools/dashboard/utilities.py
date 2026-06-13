@@ -163,17 +163,14 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
     Returns dict with 'data' key on success, '_error' on failure.
     Implements exponential backoff with maximum cap to prevent runaway delays.
-    Falls back to cached response on API error (Issue 11 FIX).
-    Implements circuit breaker pattern to prevent hammering downed API (Issue 16 FIX).
+    E1 FIX: Removed silent fallback to cache; failures are now visible to detect API issues.
+    Circuit breaker pattern prevents hammering downed API (Issue 16 FIX).
     """
     if not API_BASE_URL:
         logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
         return {"_error": "API_BASE_URL not configured - set DASHBOARD_API_URL environment variable"}
 
     if _check_circuit_breaker():
-        cached = get_cached_response(endpoint)
-        if cached:
-            return {**cached, "_circuit_open": True}
         return {"_error": "API unavailable - circuit breaker open", "_circuit_open": True}
 
     url = f"{API_BASE_URL}{endpoint}"
@@ -193,17 +190,11 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
             if resp.status_code >= 400:
                 logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
-                cached = get_cached_response(endpoint)
-                if cached:
-                    return cached
                 return {"_error": f"API error {resp.status_code}"}
 
             data = resp.json()
             if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
                 logger.warning(f"API {endpoint}: error in JSON response")
-                cached = get_cached_response(endpoint)
-                if cached:
-                    return cached
                 return {"_error": data.get("message", "Unknown API error")}
 
             cache_response(endpoint, data)
@@ -217,9 +208,6 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
             _record_api_failure()
-            cached = get_cached_response(endpoint)
-            if cached:
-                return cached
             return {"_error": "API timeout"}
         except requests.exceptions.ConnectionError:
             if attempt < API_MAX_RETRIES:
@@ -229,9 +217,6 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
                 continue
             logger.error(f"API {endpoint}: connection unavailable after {API_MAX_RETRIES+1} attempts")
             _record_api_failure()
-            cached = get_cached_response(endpoint)
-            if cached:
-                return cached
             return {"_error": "API unavailable"}
         except Exception as e:
             if attempt < API_MAX_RETRIES:
@@ -241,9 +226,6 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
                 continue
             logger.error(f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts")
             _record_api_failure()
-            cached = get_cached_response(endpoint)
-            if cached:
-                return cached
             return {"_error": str(e)}
 
 
