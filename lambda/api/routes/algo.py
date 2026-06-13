@@ -9,7 +9,7 @@ from pathlib import Path
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize
+    check_data_freshness, safe_json_serialize, safe_dict_convert
 )
 
 # Import from root utils package
@@ -346,7 +346,7 @@ def _get_last_run(cur) -> Dict:
         WHERE details->>'run_id' = %s
         ORDER BY created_at ASC
     """, (run_id,))
-    phases = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+    phases = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
     halted = any(p.get('status') == 'halt' for p in phases)
     errored = any(p.get('status') == 'error' for p in phases)
@@ -433,7 +433,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
             LIMIT %s
         """, params)
         trades = cur.fetchall()
-        items = [safe_json_serialize(dict(t)) for t in trades]
+        items = [safe_json_serialize(safe_dict_convert(t)) for t in trades]
         freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
         return json_response(200, {
             'items': items,
@@ -495,7 +495,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         sector_risk = {}  # For aggregating sector allocation
 
         for p in positions:
-            d = safe_json_serialize(dict(p))
+            d = safe_json_serialize(safe_dict_convert(p))
 
             # Compute ladder_pct_* fields for visualization (Issue #2)
             entry = safe_float(d.get('avg_entry_price'))
@@ -621,7 +621,7 @@ def _get_algo_performance(cur) -> Dict:
                 ORDER BY exit_date DESC
                 LIMIT 1000
             """)
-            trades = [dict(row) for row in cur.fetchall()]
+            trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             if not trades:
                 return json_response(200, {
@@ -674,7 +674,7 @@ def _get_algo_performance(cur) -> Dict:
                   ON at.symbol = pd.symbol
                 WHERE at.exit_price IS NULL
             """)
-            open_trades = [dict(row) for row in cur.fetchall()]
+            open_trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
             open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
@@ -702,7 +702,7 @@ def _get_algo_performance(cur) -> Dict:
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date ASC
             """)
-            snapshots = [dict(row) for row in cur.fetchall()]
+            snapshots = [safe_dict_convert(row) for row in cur.fetchall()]
             snapshot_count = len(snapshots)
 
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
@@ -845,7 +845,7 @@ def _get_dashboard_signals(cur) -> Dict:
                   AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
                 ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
                 LIMIT 30""")
-            buy_sigs = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Grade distribution (A/B/C/D by swing score)
             cur.execute("""
@@ -857,7 +857,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 FROM swing_trader_scores
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
             grades_r = cur.fetchone()
-            grades = dict(grades_r) if grades_r else {}
+            grades = safe_dict_convert(grades_r) if grades_r else {}
 
             # Near-misses: scored stocks close to BUY threshold
             cur.execute("""
@@ -867,7 +867,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                   AND s.score BETWEEN 55 AND 69
                 ORDER BY s.score DESC LIMIT 15""")
-            near = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Top A-grade stocks by name (radar display â€” score â‰¥ 80)
             cur.execute("""
@@ -876,7 +876,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                   AND s.score >= 80
                 ORDER BY s.score DESC LIMIT 20""")
-            top_a = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Signal count trend: last 7 trading days
             cur.execute("""
@@ -886,7 +886,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 FROM buy_sell_daily
                 WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
                 GROUP BY date ORDER BY date DESC LIMIT 7""")
-            trend = [safe_json_serialize(dict(row)) for row in cur.fetchall()]
+            trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
 
@@ -1169,7 +1169,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             """, (cutoff_date,))
             curve = cur.fetchall()
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
-            return list_response([safe_json_serialize(dict(c)) for c in reversed(curve) if c], data_freshness=freshness)
+            return list_response([safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c], data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable (equity curve): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch equity curve'}, exc_info=True)
             return error_response(503, 'service_unavailable', 'Data unavailable')
@@ -1322,7 +1322,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
             cur.execute(query, tuple(where_params))
             notifs = cur.fetchall()
-            return list_response([safe_json_serialize(dict(n)) for n in notifs])
+            return list_response([safe_json_serialize(safe_dict_convert(n)) for n in notifs])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch notifications: {type(e).__name__}: {str(e)}', extra={'operation': 'fetch notifications'}, exc_info=True)
@@ -1353,7 +1353,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         if not impact_row:
             return error_response(500, 'internal_error', f'Unable to calculate impact for {symbol}')
 
-        impact = safe_json_serialize(dict(impact_row))
+        impact = safe_json_serialize(safe_dict_convert(impact_row))
 
         allOk = (impact.get('meets_position_limit', False) and
                 impact.get('meets_size_limit', False) and
@@ -1481,7 +1481,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
             LIMIT %s OFFSET %s
         """, (limit, offset))
         findings = cur.fetchall()
-        return list_response([safe_json_serialize(dict(f)) for f in findings], total=total)
+        return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 @db_route_handler('get sector rotation')
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
@@ -1563,7 +1563,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
             ORDER BY date DESC
         """, (cutoff_date,))
         rotation = cur.fetchall()
-        return list_response([safe_json_serialize(dict(r)) for r in rotation])
+        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -1621,7 +1621,7 @@ def _get_sector_breadth(cur) -> Dict:
             """)
             breadth = cur.fetchall()
             cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            return list_response([safe_json_serialize(dict(b)) for b in breadth])
+            return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
@@ -1654,7 +1654,7 @@ def _get_sector_position_warnings(cur) -> Dict:
                 GROUP BY cp.sector
                 ORDER BY position_count DESC
             """)
-            sector_counts = [(dict(row).get('sector'), dict(row).get('position_count')) for row in cur.fetchall()]
+            sector_counts = [(safe_dict_convert(row).get('sector'), safe_dict_convert(row).get('position_count')) for row in cur.fetchall()]
 
             cur.execute("SELECT value FROM algo_config WHERE key = %s LIMIT 1", ('max_positions_per_sector',))
             max_per_sector_row = cur.fetchone()
@@ -1732,7 +1732,7 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
             """).format(where_clause=where_clause)
             cur.execute(query, query_params)
             scores = cur.fetchall()
-            return list_response([safe_json_serialize(dict(s)) for s in scores])
+            return list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores'}, exc_info=True)
@@ -1754,7 +1754,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
                 ORDER BY date ASC
             """, (cutoff_date,))
             history = cur.fetchall()
-            return list_response([safe_json_serialize(dict(h)) for h in history])
+            return list_response([safe_json_serialize(safe_dict_convert(h)) for h in history])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores history'}, exc_info=True)
@@ -1797,7 +1797,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
-            initial_count = safe_json_serialize(dict(row)).get('total_signals', 0) if row else 0
+            initial_count = safe_json_serialize(safe_dict_convert(row)).get('total_signals', 0) if row else 0
 
             # Get scored candidates
             cur.execute("""
@@ -1806,7 +1806,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
-            scored_count = safe_json_serialize(dict(row)).get('scored', 0) if row else 0
+            scored_count = safe_json_serialize(safe_dict_convert(row)).get('scored', 0) if row else 0
 
             # Get high-quality candidates (SQS > 60)
             cur.execute("""
@@ -1816,7 +1816,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 AND score >= 60
             """)
             row = cur.fetchone()
-            high_quality_count = safe_json_serialize(dict(row)).get('high_quality', 0) if row else 0
+            high_quality_count = safe_json_serialize(safe_dict_convert(row)).get('high_quality', 0) if row else 0
 
             # Build funnel stages with rejection reasons
             funnel = [
@@ -1952,7 +1952,25 @@ def _get_markets(cur) -> Dict:
                 LIMIT 1
             """)
             latest = cur.fetchone()
-            current = safe_json_serialize(dict(latest)) if latest else None
+            current = safe_json_serialize(safe_dict_convert(latest)) if latest else None
+
+            # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
+            if current:
+                if current.get('halt_reasons'):
+                    try:
+                        current['halt_reasons'] = json.loads(current['halt_reasons']) if isinstance(current['halt_reasons'], str) else current['halt_reasons']
+                    except (json.JSONDecodeError, TypeError):
+                        current['halt_reasons'] = []
+                else:
+                    current['halt_reasons'] = []
+
+                if current.get('factors'):
+                    try:
+                        current['factors'] = json.loads(current['factors']) if isinstance(current['factors'], str) else current['factors']
+                    except (json.JSONDecodeError, TypeError):
+                        current['factors'] = {}
+                else:
+                    current['factors'] = {}
 
             active_tier = {}
             if current:
@@ -1968,7 +1986,7 @@ def _get_markets(cur) -> Dict:
                 ORDER BY date ASC
                 LIMIT 250
             """)
-            history = [safe_json_serialize(dict(h)) for h in cur.fetchall()]
+            history = [safe_json_serialize(safe_dict_convert(h)) for h in cur.fetchall()]
 
             try:
                 cur.execute("""
@@ -1978,7 +1996,7 @@ def _get_markets(cur) -> Dict:
                     ORDER BY current_rank
                     LIMIT 20
                 """)
-                sectors = [safe_json_serialize(dict(s)) for s in cur.fetchall()]
+                sectors = [safe_json_serialize(safe_dict_convert(s)) for s in cur.fetchall()]
             except Exception as e:
                 logger.warning(f"[MARKETS] sector_ranking query failed: {e}")
                 sectors = []
@@ -1996,7 +2014,7 @@ def _get_markets(cur) -> Dict:
                 """)
                 mh = cur.fetchone()
                 if mh:
-                    market_health = safe_json_serialize(dict(mh))
+                    market_health = safe_json_serialize(safe_dict_convert(mh))
                 cur.execute("RELEASE SAVEPOINT market_health_check")
             except Exception as e:
                 logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
@@ -2062,7 +2080,7 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
-        market_health = safe_json_serialize(dict(mh)) if mh else {}
+        market_health = safe_json_serialize(safe_dict_convert(mh)) if mh else {}
 
         # Fetch exposure data and distribution days from market_exposure_daily
         cur.execute("""
@@ -2071,7 +2089,7 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         exp = cur.fetchone()
-        exposure = safe_json_serialize(dict(exp)) if exp else {}
+        exposure = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
 
         # Fetch SPY close price
         spy_close = None
@@ -2135,7 +2153,7 @@ def _get_market_factors(cur) -> Dict:
                 'factors': {}
             }})
 
-        data_dict = safe_json_serialize(dict(row))
+        data_dict = safe_json_serialize(safe_dict_convert(row))
 
         # Parse factors if it's a JSON string
         factors = {}
@@ -2216,7 +2234,7 @@ def _get_algo_evaluate(cur) -> Dict:
                 GROUP BY sector
                 ORDER BY count DESC
             """)
-            sector_exposure = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+            sector_exposure = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
             # Risk metrics
             cur.execute("""
@@ -2229,7 +2247,7 @@ def _get_algo_evaluate(cur) -> Dict:
             today_return = risk_row.get('today_return_pct', 0) if risk_row else 0
             unrealized_pnl = risk_row.get('unrealized_pnl', 0) if risk_row else 0
 
-            sig_dict = safe_json_serialize(dict(sig_row))
+            sig_dict = safe_json_serialize(safe_dict_convert(sig_row))
             return json_response(200, {
                 'stage': 'evaluated',
                 'candidates': {
@@ -2288,7 +2306,7 @@ def _get_data_quality(cur) -> Dict:
             # Organize by table, keeping latest status per table
             tables_dict = {}
             for row in patrol_rows:
-                row_dict = safe_json_serialize(dict(row))
+                row_dict = safe_json_serialize(safe_dict_convert(row))
                 if row_dict.get('rn') == 1:  # Latest entry per table
                     table_name = row_dict.get('table_name', 'unknown')
                     tables_dict[table_name] = row_dict
@@ -2367,7 +2385,7 @@ def _get_exposure_policy(cur) -> Dict:
                     'regime_factors': {}
                 })
 
-            row = safe_json_serialize(dict(row))
+            row = safe_json_serialize(safe_dict_convert(row))
             tier_key = str(row.get('regime') or '').lower()
             tier_conf = _TIER_CONFIG.get(tier_key, {})
             active_tier = {'name': tier_key, **tier_conf}
@@ -2413,7 +2431,7 @@ def _get_exposure_policy(cur) -> Dict:
                 """)
                 mh_row = cur.fetchone()
                 if mh_row:
-                    market_health = safe_json_serialize(dict(mh_row))
+                    market_health = safe_json_serialize(safe_dict_convert(mh_row))
             except psycopg2.Error as e:
                 logger.warning(f"Failed to fetch market health: {e}")
 
@@ -2475,7 +2493,7 @@ def _get_sector_stage2(cur) -> Dict:
                 ORDER BY pct_stage_2 DESC
             """)
             rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows])
+            return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f'Sector stage2 data unavailable: {e}')
             return error_response(503, 'service_unavailable', 'Data unavailable')
@@ -2542,7 +2560,7 @@ def _get_algo_config(cur) -> Dict:
     # Build config with defaults and categorization
     config_items = []
     for row in rows:
-        config_dict = safe_json_serialize(dict(row))
+        config_dict = safe_json_serialize(safe_dict_convert(row))
         key = config_dict['key']
 
         # Get default value and metadata from AlgoConfig.DEFAULTS
@@ -2565,7 +2583,7 @@ def _get_algo_config_key(cur, key: str) -> Dict:
     """Return a single algo config key."""
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
     row = cur.fetchone()
-    return json_response(200, safe_json_serialize(dict(row)) if row else {})
+    return json_response(200, safe_json_serialize(safe_dict_convert(row)) if row else {})
 
 @db_route_handler('update algo config key')
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
@@ -2694,7 +2712,7 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
                 LIMIT %s OFFSET %s
             """, (limit, offset))
         rows = cur.fetchall()
-        return list_response([safe_json_serialize(dict(r)) for r in rows], total=total, limit=limit, offset=offset)
+        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=total, limit=limit, offset=offset)
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 @db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
@@ -2714,7 +2732,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
         if not rows:
             return list_response([], total=0, limit=limit)
         try:
-            items = [safe_json_serialize(dict(r)) for r in rows]
+            items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
         except Exception as ser_e:
             logger.warning(f'Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}')
@@ -2734,7 +2752,7 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
         ORDER BY started_at DESC
     """, (days,))
     rows = cur.fetchall()
-    return list_response([safe_json_serialize(dict(r)) for r in rows], total=len(rows))
+    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))
 
 @db_route_handler('fetch orchestrator execution details', default_error_response={'data': {}, '_error': 'Data unavailable'})
 def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
@@ -2750,7 +2768,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
     if not row:
         return error_response(404, 'not_found', f'Run {run_id} not found')
 
-    result = safe_json_serialize(dict(row))
+    result = safe_json_serialize(safe_dict_convert(row))
     # Parse phase_results JSONB
     if result.get('phase_results'):
         try:
@@ -2840,7 +2858,7 @@ def _get_algo_portfolio(cur) -> Dict:
                 'largest_position_pct': None,
                 'last_run': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'total_portfolio_value': safe_float(data.get('total_portfolio_value')),
             'total_cash': safe_float(data.get('total_cash')),
@@ -2881,7 +2899,7 @@ def _get_risk_metrics(cur) -> Dict:
                 'portfolio_beta': None,
                 'top_5_concentration': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'report_date': data.get('report_date'),
             'var_pct_95': safe_float(data.get('var_pct_95')),
@@ -2917,7 +2935,7 @@ def _get_performance_analytics(cur) -> Dict:
                 'expectancy': None,
                 'max_drawdown_pct': None
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'rolling_sharpe_252d': safe_float(data.get('rolling_sharpe_252d')),
             'rolling_sortino_252d': safe_float(data.get('rolling_sortino_252d')),
@@ -2949,7 +2967,7 @@ def _get_sentiment(cur) -> Dict:
                 'fear_greed_index': 50.0,
                 'label': 'Neutral'
             })
-        data = dict(row)
+        data = safe_dict_convert(row)
         return success_response({
             'date': data.get('date'),
             'fear_greed_index': safe_float(data.get('fear_greed_index'), default=50.0),
@@ -2971,7 +2989,7 @@ def _get_economic_calendar(cur) -> Dict:
             LIMIT 100
         """)
         rows = cur.fetchall()
-        events = [safe_json_serialize(dict(r)) for r in rows]
+        events = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
         return success_response(events)
     except Exception as e:
         logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
