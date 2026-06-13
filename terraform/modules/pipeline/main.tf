@@ -297,8 +297,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
-      # ── Step 2: Market health + trend template (parallel enrichment) ─
+      # ── Step 2: Market health + trend template + market exposure (parallel enrichment) ─
       # REFACTORED: Removed technical_data_daily (90 min) — orchestrator Phase 5 computes signals on-the-fly.
+      # FIXED: Added market_exposure_daily to EOD pipeline to guarantee availability regardless of orchestrator halt.
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -347,6 +348,29 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 End = true
               }
             }
+          },
+          {
+            StartAt = "MarketExposureDaily"
+            States = {
+              MarketExposureDaily = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 600
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
           }
         ]
         ResultPath = null
@@ -358,7 +382,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "AlgoMetrics"
       }
 
-      # Log enrichment (market health + trend template) failures
+      # Log enrichment (market health + trend template + market exposure) failures
       LogEnrichmentFailure = {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn

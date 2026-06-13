@@ -46,13 +46,22 @@ scripts/refresh-aws-credentials.ps1
 
 **Data flow:** Orchestrator Phase 6 updates position state → Phase 7 calls `compute_position_metrics()` → Dashboard queries enriched view
 
+## Data Architecture: Market Exposure
+
+**Guaranteed availability:** `market_exposure_daily` table
+- Computed daily in EOD pipeline (4:05 PM ET) — independent of orchestrator halt status
+- Fallback: If orchestrator Phase 3b would compute it but halts first, EOD loader ensures it's populated
+- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator)
+
+**Data flow:** EOD pipeline computes at 4:05 PM → Orchestrator Phase 3b updates if recompute flagged (evening runs) → Dashboard queries for regime
+
 ## Schedule (Daily, Mon-Fri)
 
 **2:00 AM ET:** morning-prep-pipeline (Step Functions) — loads prices + market health + swing_trader_scores (5-5.5h) before 9:30 AM deadline
 
 **2:40 AM ET:** Load SP500/Russell constituents (EventBridge)
 
-**4:05 PM ET:** EOD pipeline (Step Functions) — loads prices, market health, algo metrics, swing scores (3-4h)
+**4:05 PM ET:** EOD pipeline (Step Functions) — loads prices, market health, market exposure, algo metrics, swing scores (3-4h)
 
 **4:30 PM ET:** Compute circuit breaker metrics (EventBridge)
 
@@ -131,13 +140,14 @@ scripts/refresh-aws-credentials.ps1
 ## Pre-Computed Metrics
 
 **circuit_breaker_status table:** Daily snapshot of 9 circuit breaker metrics (portfolio drawdown, daily loss, consecutive losses, open risk, VIX, market stage, SPY change, win rate, trigger count)
-- Updated: 4:30 PM ET (2-5 seconds)
-- Used by: `/api/algo/circuit-breakers` (now 30ms vs 800ms)
+- Computed by: `loaders/compute_circuit_breakers.py` (EventBridge rule: 4:30 PM ET Mon-Fri)
+- Computation time: 2-5 seconds (pure SQL aggregation)
+- API response: `/api/algo/circuit-breakers` returns pre-computed data in 20-30ms (was 800ms on-the-fly)
 
-**algo_performance_metrics table:** Daily snapshot of 14 performance stats (win rate, profit factor, Sharpe, Sortino, max drawdown, avg holding days, cagr, streaks)
-- Updated: 4:45 PM ET (10-15 seconds)
-- Used by: `/api/algo/performance` (now 20ms vs 1200ms)
-
+**algo_performance_metrics table:** Daily snapshot of 14 performance stats (win rate, profit factor, Sharpe, Sortino, max drawdown, avg holding days, CAGR, Calmar, streaks)
+- Computed by: `loaders/compute_performance_metrics.py` (EventBridge rule: 4:45 PM ET Mon-Fri)
+- Computation time: 10-15 seconds (bulk trade analysis + portfolio snapshots)
+- API response: `/api/algo/performance` returns pre-computed data in 20-30ms (was 1200ms on-the-fly)
 ## Data Freshness Configuration
 
 **Configurable thresholds (algo_config table):**
