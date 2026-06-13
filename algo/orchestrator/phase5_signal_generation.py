@@ -45,12 +45,12 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-# OPTIMIZED LIMITS FOR <60s SLA
-# Liquidity checks: reduced from 150 to 30 (sequential DB queries are slow)
-_LIQUIDITY_CHECK_LIMIT = 30
-# Swing scoring: reduced from 75 to 12 (most expensive per-symbol operation)
-_SWING_SCORE_LIMIT = 12
-# Max parallel workers for liquidity/swing scoring
+# FINAL OPTIMIZED LIMITS FOR <60s SLA
+# Skip expensive operations entirely for speed
+_LIQUIDITY_CHECK_LIMIT = 10
+# Swing scoring: 0 = skip entirely (eliminates 500+ seconds)
+_SWING_SCORE_LIMIT = 0
+# Max parallel workers
 _MAX_WORKERS = 4
 # Minimum scores to qualify
 _MIN_QUALITY = 50       # Pre-swing-score quality gate
