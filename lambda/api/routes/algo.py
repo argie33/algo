@@ -623,6 +623,8 @@ def _get_algo_performance(cur) -> Dict:
             # Add metadata indicating these are placeholder/fallback values
             fallback_response.update({
                 '_is_fallback_data': True,
+                '_is_placeholder': True,
+                '_error': perf.get('_error'),
                 '_fallback_reason': 'Performance data unavailable - using all-zero placeholder metrics',
                 'data_freshness': {
                     'is_stale': True,
