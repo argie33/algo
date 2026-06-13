@@ -133,7 +133,7 @@ If you need to rebuild the schema:
 
 - **`algo_positions_with_risk`** — Enriched view that joins `algo_positions` with latest trades (stops/targets), prices, and technical data. Single source of truth for dashboard metrics.
 
-- **`positions`** — **LEGACY / UNUSED.** Empty table (0 rows). Created in an earlier architecture phase, now replaced by `algo_positions`. No code references it. Will be dropped in the next DB migration.
+- **`positions`** — **LEGACY / DROPPED.** Was empty (0 rows), created in early architecture phase. Replaced by `algo_positions` in Phase 3. No code referenced it. Dropped in migration 048 to eliminate confusion.
 
 **Why the architecture changed:** Early system had `positions` table but no position ranking or ladder metrics. Phase 3-7 refactored to:
 1. Keep position state in `algo_positions` (single writer)
