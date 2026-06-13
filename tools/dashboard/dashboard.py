@@ -669,36 +669,36 @@ def fetch_positions(c):
     try:
         data = api_call('/api/algo/positions')
         if data.get('_error'):
-            return {"_error": data.get('_error'), "items": []}
+            return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
         items = result.get('items', []) if isinstance(result, dict) else result if isinstance(result, list) else []
-        return {"items": items}
+        return {"items": items, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        return {"_error": str(e), "items": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
     try:
         data = api_call('/api/algo/trades', params={'limit': 100})
         if data.get('_error'):
-            return {"_error": data.get('_error'), "items": []}
+            return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
         trades = result.get('items', []) if isinstance(result, dict) else result if isinstance(result, list) else []
         closed = [t for t in trades if t.get("status") == "closed"]
-        return {"items": closed[:10]}
+        return {"items": closed[:10], "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        return {"_error": str(e), "items": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_signals(c):
     """Fetch dashboard signals from API."""
     try:
         data = api_call('/api/signals/stocks')
         if data.get('_error'):
-            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
         if not data.get('data'):
-            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
 
         result = data['data']
         signals = result.get('signals', [])
@@ -709,11 +709,12 @@ def fetch_signals(c):
             "grades": result.get('grades', {}),
             "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
             "top_a": signals[:3] if signals else [],
-            "trend": result.get('trend', [])
+            "trend": result.get('trend', []),
+            "fetched_at": datetime.now(timezone.utc)
         }
     except Exception as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
-        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "fetched_at": datetime.now(timezone.utc)}
 
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
@@ -1712,9 +1713,11 @@ def panel_positions(pos, compact=False, trades=None):
         t.add_column("Stg",    justify="center",no_wrap=True, min_width=3)
         t.add_column("Swg",    justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim",     no_wrap=True, max_width=12)
+    invalid_count = 0
     for p in pos_items:
         if not isinstance(p, dict):
-            logger.warning(f"panel_positions: skipping non-dict position: {type(p).__name__}")
+            invalid_count += 1
+            logger.error(f"panel_positions: invalid position (not a dict): {type(p).__name__}")
             continue
         entry = safe_float(p.get("avg_entry_price"), default=None)
         price = safe_float(p.get("current_price"), default=None)
@@ -1779,8 +1782,15 @@ def panel_positions(pos, compact=False, trades=None):
     content = Group(*content_items) if len(content_items) > 1 else (content_items[0] if content_items else t)
 
     border = "red" if is_placeholder else "cyan"
-    title = "[bold red]POSITIONS ⚠ PLACEHOLDER DATA[/]" if is_placeholder else f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
-    return Panel(content, title=f"{title}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
+    if invalid_count > 0:
+        logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
+        border = "red"
+        title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({invalid_count} invalid)[/]"
+    elif is_placeholder:
+        title_str = "[bold red]POSITIONS ⚠ PLACEHOLDER DATA[/]"
+    else:
+        title_str = f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
+    return Panel(content, title=f"{title_str}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
 
 
 def panel_signals_compact(sig, sig_eval=None):
@@ -1978,22 +1988,24 @@ def panel_recent_trades(trades):
     return Panel(content, title=title, border_style=border, padding=(0, 0))
 
 
+def _rdelta(r, wk="rank_1w_ago", wk4=None):
+    """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding."""
+    cur, old = r.get("current_rank", 0), r.get(wk)
+    if old is None: return ""
+    d = int(old) - int(cur)
+    s1 = (f"[{G}]↑{d}[/]" if d > 0 else (f"[{R}]↓{abs(d)}[/]" if d < 0 else "[dim]=[/]"))
+    if wk4:
+        old4 = r.get(wk4)
+        if old4 is not None:
+            d4 = int(old4) - int(cur)
+            s4 = (f"[{G}]↑{d4}[/]" if d4 > 0 else (f"[{R}]↓{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]"))
+            return f"{s1}[dim]/[/]{s4}"
+    return s1
+
+
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
     rows = []
-
-    def rdelta(r, wk="rank_1w_ago", wk4=None):
-        cur, old = r.get("current_rank", 0), r.get(wk)
-        if old is None: return ""
-        d = int(old) - int(cur)
-        s1 = (f"[{G}]â-²{d}[/]" if d > 0 else (f"[{R}]â-¼{abs(d)}[/]" if d < 0 else "[dim]=[/]"))
-        if wk4:
-            old4 = r.get(wk4)
-            if old4 is not None:
-                d4 = int(old4) - int(cur)
-                s4 = (f"[{G}]â-²{d4}[/]" if d4 > 0 else (f"[{R}]â-¼{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]"))
-                return f"{s1}[dim]/[/]{s4}"
-        return s1
 
     # Row 1: Rotation signal
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
@@ -2044,12 +2056,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             na  = (a.get("sector_name") or "")[:10]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
-            la  = f"[{G}]#{a['current_rank']}[/] [dim]{na}[/]{ms_a}{rdelta(a, wk4='rank_4w_ago')}"
+            la  = f"[{G}]#{a['current_rank']}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
                 nb  = (b.get("sector_name") or "")[:10]
                 mmb = b.get("momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
-                rows.append(Text.from_markup(f" {la}    [{G}]#{b['current_rank']}[/] [dim]{nb}[/]{ms_b}{rdelta(b, wk4='rank_4w_ago')}"))
+                rows.append(Text.from_markup(f" {la}    [{G}]#{b['current_rank']}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"))
             else:
                 rows.append(Text.from_markup(f" {la}"))
 
@@ -2062,12 +2074,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             na  = (a.get("industry") or "")[:12]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
-            la  = f"[{CY}]#{a['current_rank']}[/] [white]{na}[/]{ms_a}{rdelta(a)}"
+            la  = f"[{CY}]#{a['current_rank']}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
             if b:
                 nb  = (b.get("industry") or "")[:12]
                 mmb = b.get("momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
-                rows.append(Text.from_markup(f" {la}    [{CY}]#{b['current_rank']}[/] [white]{nb}[/]{ms_b}{rdelta(b)}"))
+                rows.append(Text.from_markup(f" {la}    [{CY}]#{b['current_rank']}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"))
             else:
                 rows.append(Text.from_markup(f" {la}"))
 
@@ -3174,19 +3186,6 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
-    def rdelta(r, wk="rank_1w_ago", wk4=None):
-        cur, old = r.get("current_rank", 0), r.get(wk)
-        if old is None: return ""
-        d  = int(old) - int(cur)
-        s1 = f"[{G}]â-²{d}[/]" if d > 0 else (f"[{R}]â-¼{abs(d)}[/]" if d < 0 else "[dim]=[/]")
-        if wk4:
-            old4 = r.get(wk4)
-            if old4 is not None:
-                d4 = int(old4) - int(cur)
-                s4 = f"[{G}]â-²{d4}[/]" if d4 > 0 else (f"[{R}]â-¼{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]")
-                return f"{s1}[dim]/[/]{s4}"
-        return s1
-
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
         wks      = sec_rot.get("weeks", 1)
@@ -3206,9 +3205,11 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if pos_list:
         pv = float(port.get("total_portfolio_value") or 0)
         sd: dict = {}
+        invalid_count = 0
         for p in pos_list:
             if not isinstance(p, dict):
-                logger.warning(f"panel_sectors_expanded: skipping non-dict position: {type(p).__name__}")
+                invalid_count += 1
+                logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
             sec = p.get("sector") or "Unknown"
             val = float(p.get("position_value") or 0)
@@ -3216,6 +3217,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             sd[sec]["val"] += val; sd[sec]["n"] += 1; sd[sec]["pnls"].append(pnl)
+
+        if invalid_count > 0:
+            logger.error(f"panel_sectors_expanded: encountered {invalid_count} invalid position(s); sector totals may be incomplete")
         sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
         rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
         for sec, dv in sorted_secs:
@@ -3238,7 +3242,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             mm  = r.get("momentum_score")
             ms  = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
             rows.append(Text.from_markup(
-                f"  [{G}]#{r['current_rank']:<2}[/]  [white]{nm:<28}[/]{ms}  {rdelta(r, wk4='rank_4w_ago')}"
+                f"  [{G}]#{r['current_rank']:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}"
             ))
         rows.append(Rule(style="dim"))
 
@@ -3251,7 +3255,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             mm  = r.get("momentum_score")
             ms  = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
             rows.append(Text.from_markup(
-                f"  [{CY}]#{r['current_rank']:<2}[/]  [white]{nm:<32}[/]{ms}  {rdelta(r)}"
+                f"  [{CY}]#{r['current_rank']:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"
             ))
 
     if not rows:

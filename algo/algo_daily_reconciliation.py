@@ -942,7 +942,11 @@ class DailyReconciliation:
                 try:
                     cur.execute("SAVEPOINT mae_mfe_update")
                     entry_price = float(entry_price)
-                    exit_price = float(exit_price or entry_price)
+                    if not exit_price or float(exit_price) <= 0:
+                        logger.warning(f"Trade {trade_id} ({symbol}): invalid exit_price {exit_price}, skipping MAE/MFE")
+                        cur.execute("RELEASE SAVEPOINT mae_mfe_update")
+                        continue
+                    exit_price = float(exit_price)
 
                     cur.execute("""
                         SELECT high, low FROM price_daily
