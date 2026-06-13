@@ -2699,7 +2699,7 @@ def _get_risk_metrics(cur) -> Dict:
         cur.execute("""
             SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
                    portfolio_beta, top_5_concentration
-            FROM algo_risk_metrics
+            FROM algo_risk_daily
             ORDER BY report_date DESC
             LIMIT 1
         """)
