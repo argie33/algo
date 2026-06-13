@@ -22,9 +22,10 @@ import statistics
 import sys
 import threading
 import time
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -73,6 +74,10 @@ except ImportError:
 # ── globals ───────────────────────────────────────────────────────────────────
 ET      = ZoneInfo("America/New_York")
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
+
+# Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
+_data_status_lock = threading.Lock()
+_data_status_cache = {}
 
 G   = "bright_green"
 R   = "bright_red"
@@ -165,33 +170,8 @@ def mascot_pose(data: dict, frame: int) -> int:
 
 # ── Sector aggregation cache (E5 optimization: avoid O(n) recomputation on every refresh) ──
 
-_sector_agg_cache = {}  # {"pos_id": {"sorted_secs": [...], "total_secs": N}}
-# Issue #4 FIX: Bounded sector cache to prevent memory leak
-from functools import lru_cache
-
-@lru_cache(maxsize=100)
-def compute_sector_agg_cached(pos_hash: str, pos_json: str, port_json: str):
-    """Cached version of sector aggregation."""
-    import json
-    pos = json.loads(pos_json) if pos_json else []
-    port = json.loads(port_json) if port_json else {}
-    
-    pv = float(port.get("total_portfolio_value", 0))
-    sd = {}
-    for p in pos:
-        if not isinstance(p, dict):
-            continue
-        sec = p.get("sector") or "Unknown"
-        val = float(p.get("position_value", 0))
-        pnl = float(p.get("unrealized_pnl_pct", 0))
-        if sec not in sd:
-            sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
-        sd[sec]["val"] += val
-        sd[sec]["n"] += 1
-        sd[sec]["pnls"].append(pnl)
-    
-    sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
-    return (sorted_secs, len(sorted_secs), pv)
+_sector_agg_cache = OrderedDict()  # Bounded LRU-style cache; max 100 entries
+_sector_cache_maxsize = 100
 
 
 def compute_sector_agg(pos, port):
@@ -202,11 +182,10 @@ def compute_sector_agg(pos, port):
     E5 optimization: Sector aggregation from 100+ positions was O(n) Ã-- 2,880 times/day.
     Now computes only when positions change (typically 2-5 times/day).
     """
-    # Extract positions from dict format if needed (with error handling)
-    if isinstance(pos, dict):
-        if pos.get("_error"):
-            return None, None, 0
-        pos = pos.get("items", [])
+    # Issue 3.1 FIX: Use unified normalization function
+    pos, _, has_error = normalize_positions_data(pos)
+    if has_error:
+        return None, None, 0
 
     if not pos:
         return None, None, 0
@@ -235,6 +214,9 @@ def compute_sector_agg(pos, port):
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)
+
+    if len(_sector_agg_cache) >= _sector_cache_maxsize:
+        _sector_agg_cache.popitem(last=False)
 
     _sector_agg_cache[pos_hash] = {
         "sorted_secs": sorted_secs,
@@ -738,10 +720,35 @@ def fetch_activity(c):
         logger.error(f"fetch_activity: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
+def _get_data_status_cached():
+    """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
+
+    Both fetch_health and fetch_loader_status need the same endpoint. This
+    caches the result to avoid duplicate API calls when both are fetched
+    in parallel. Thread-safe with lock to ensure single API call.
+    """
+    global _data_status_cache, _data_status_lock
+
+    if 'result' in _data_status_cache:
+        return _data_status_cache['result']
+
+    with _data_status_lock:
+        if 'result' in _data_status_cache:
+            return _data_status_cache['result']
+
+        try:
+            data = api_call('/api/algo/data-status')
+            _data_status_cache['result'] = data
+            return data
+        except Exception as e:
+            error_result = {"_error": str(e)}
+            _data_status_cache['result'] = error_result
+            return error_result
+
 def fetch_health(c):
-    """Fetch data loader health status from API."""
+    """Fetch data loader health status from API. Uses cached data-status."""
     try:
-        data = api_call('/api/algo/data-status')
+        data = _get_data_status_cached()
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         health = data.get('data', [])
@@ -916,9 +923,9 @@ def fetch_industry_ranking(c):
         return {"_error": str(e), "items": []}
 
 def fetch_loader_status(c):
-    """Fetch data loader status from API."""
+    """Fetch data loader status from API. Uses cached data-status."""
     try:
-        data = api_call('/api/algo/data-status')
+        data = _get_data_status_cached()
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         loaders = data.get('data', [])
@@ -1124,6 +1131,37 @@ def _fmt_phases_halted(phases_halted) -> str:
 
 
 # ── panel builders ────────────────────────────────────────────────────────────
+
+def _error_panel(data_name: str, data, title: str, border="magenta"):
+    """Create a panel showing granular error info for failed data sources.
+
+    Args:
+        data_name: Short identifier for the data source (e.g., 'signals', 'portfolio')
+        data: The data dict that may contain _error field
+        title: Panel title to display
+        border: Border color
+
+    Returns a Panel with specific error message, or falls back to safe display if data is malformed.
+    """
+    if not data:
+        return Panel(
+            Text(f"{data_name}: no data", style="dim"),
+            title=f"[bold]{title}[/]",
+            border_style=border,
+            padding=(0, 1)
+        )
+
+    if isinstance(data, dict) and data.get("_error"):
+        error_msg = data.get("_error", "Unknown error")
+        return Panel(
+            Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
+            title=f"[bold]{title}[/]",
+            border_style=border,
+            padding=(0, 1)
+        )
+
+    return None
+
 
 def panel_orch(run, cfg, risk=None):
     next_run  = next_run_str()
@@ -1716,8 +1754,9 @@ def panel_positions(pos, compact=False, trades=None):
 
 def panel_signals_compact(sig, sig_eval=None):
     """Signals & screening - actual BUY signals from buy_sell_daily with setup detail."""
-    if not sig or sig.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
+    err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
+    if err_panel:
+        return err_panel
 
     # Check if placeholder/fallback data is being displayed
     is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
@@ -2884,8 +2923,9 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
 
 def panel_signals_expanded(sig, sig_eval=None):
     """Full-screen buy signals - all signals, full text, breakout quality, base type."""
-    if not sig or sig.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
+    err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
+    if err_panel:
+        return err_panel
 
     # Check if placeholder/fallback data is being displayed
     is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
@@ -3130,8 +3170,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         rows.append(Rule(style="dim"))
 
     # Full portfolio by sector
-    # Extract positions from dict format if needed
-    pos_list = pos.get("items", []) if isinstance(pos, dict) and "items" in pos and not pos.get("_error") else (pos if isinstance(pos, list) else [])
+    # Issue 3.1 FIX: Use unified normalization function
+    pos_list, _, _ = normalize_positions_data(pos)
     if pos_list:
         pv = float(port.get("total_portfolio_value") or 0)
         sd: dict = {}
@@ -3188,6 +3228,21 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]  [dim][r] return[/]", border_style="cyan", padding=(0, 1))
 
 
+def _extract_items(data: Any) -> list:
+    """Normalize data structure by extracting items list.
+
+    Handles both formats:
+    - {"items": [...]} → [...]
+    - [...] → [...]
+    - {} or None → []
+    """
+    if isinstance(data, dict):
+        return data.get("items", []) if "items" in data else []
+    if isinstance(data, list):
+        return data
+    return []
+
+
 # ── dashboard layout ──────────────────────────────────────────────────────────
 
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
@@ -3202,34 +3257,25 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     perf     = data.get("perf")        or {}
     pos      = data.get("pos")         # Keep as-is to detect errors
     sig      = data.get("sig")         or {}
-    hlth_data = data.get("health")     or {}
-    hlth     = hlth_data.get("items", []) if isinstance(hlth_data, dict) and "items" in hlth_data else (hlth_data if isinstance(hlth_data, list) else [])
+    hlth     = _extract_items(data.get("health") or {})
     cb       = data.get("cb")          or {}
-    rec_data = data.get("trades")      # Extract raw data
-    rec      = rec_data.get("items", []) if isinstance(rec_data, dict) and "items" in rec_data else (rec_data if isinstance(rec_data, list) else [])
-    srank_data = data.get("srank")     or {}
-    srank    = srank_data.get("items", []) if isinstance(srank_data, dict) and "items" in srank_data else (srank_data if isinstance(srank_data, list) else [])
+    rec      = _extract_items(data.get("trades") or {})
+    srank    = _extract_items(data.get("srank") or {})
     act      = data.get("activity")    or {}
     exp_f    = data.get("exp_factors") or {}
     eco      = data.get("eco")         or {}
     notifs   = data.get("notifs")      or []
     sentiment = data.get("sentiment")  or {}
-    econ_cal_data = data.get("econ_cal") or {}
-    econ_cal = econ_cal_data.get("items", []) if isinstance(econ_cal_data, dict) and "items" in econ_cal_data else (econ_cal_data if isinstance(econ_cal_data, list) else [])
+    econ_cal = _extract_items(data.get("econ_cal") or {})
     risk      = data.get("risk")       or {}
     perf_anl  = data.get("perf_anl")   or {}
     sig_eval  = data.get("sig_eval")   or {}
     sec_rot      = data.get("sec_rot")       or {}
-    algo_metrics_data = data.get("algo_metrics") or {}
-    algo_metrics = algo_metrics_data.get("items", []) if isinstance(algo_metrics_data, dict) and "items" in algo_metrics_data else (algo_metrics_data if isinstance(algo_metrics_data, list) else [])
-    irank_data        = data.get("irank")         or {}
-    irank        = irank_data.get("items", []) if isinstance(irank_data, dict) and "items" in irank_data else (irank_data if isinstance(irank_data, list) else [])
-    loader_data       = data.get("loader")        or {}
-    loader       = loader_data.get("items", []) if isinstance(loader_data, dict) and "items" in loader_data else (loader_data if isinstance(loader_data, list) else [])
-    audit_data        = data.get("audit")         or {}
-    audit        = audit_data.get("items", []) if isinstance(audit_data, dict) and "items" in audit_data else (audit_data if isinstance(audit_data, list) else [])
-    exec_hist_data    = data.get("exec_hist")     or {}
-    exec_hist    = exec_hist_data.get("items", []) if isinstance(exec_hist_data, dict) and "items" in exec_hist_data else (exec_hist_data if isinstance(exec_hist_data, list) else [])
+    algo_metrics = _extract_items(data.get("algo_metrics") or {})
+    irank        = _extract_items(data.get("irank") or {})
+    loader       = _extract_items(data.get("loader") or {})
+    audit        = _extract_items(data.get("audit") or {})
+    exec_hist    = _extract_items(data.get("exec_hist") or {})
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
