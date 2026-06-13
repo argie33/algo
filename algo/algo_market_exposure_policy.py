@@ -120,7 +120,7 @@ class ExposurePolicy:
                     (eval_date,),
                 )
                 row = cur.fetchone()
-                if not row:
+                if row is None:
                     return None
                 exposure = float(row[1])
                 tier = tier_for_exposure(exposure)

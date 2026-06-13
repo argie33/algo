@@ -348,8 +348,9 @@ def fetch_activity(c):
             "recent_actions": result.get("recent_actions", [])
         }
     except Exception as e:
-        logger.error(f"fetch_activity: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        error_msg = _format_fetcher_error("activity", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 def _get_data_status_cached():
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
@@ -385,8 +386,9 @@ def fetch_health(c):
         health = data.get('data', [])
         return {"items": health if isinstance(health, list) else []}
     except Exception as e:
-        logger.error(f"fetch_health: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("health", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_economic_pulse(c):
     try:
@@ -409,7 +411,9 @@ def fetch_economic_pulse(c):
             'umcsent':   econ.get('umcsent'),
         }
     except Exception as e:
-        return {"_error": str(e), 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
+        error_msg = _format_fetcher_error("eco", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
 
 def fetch_algo_metrics(c):
     """Issue 3 FIX: API-only algo metrics."""
@@ -419,8 +423,9 @@ def fetch_algo_metrics(c):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
     except Exception as e:
-        logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("algo_metrics", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_notifications(c):
     try:
@@ -429,7 +434,9 @@ def fetch_notifications(c):
             return {"_error": data.get('_error')}
         return data.get('data', [])
     except Exception as e:
-        return {"_error": str(e)}
+        error_msg = _format_fetcher_error("notifs", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 def fetch_sentiment(c):
     """Issue 3 FIX: API-only sentiment data."""
@@ -443,8 +450,9 @@ def fetch_sentiment(c):
         c_fg = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
         return {"fg": round(fg, 1), "label": label, "date": d.get("date"), "color": c_fg}
     except Exception as e:
-        logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
-        return {"_error": str(e), "fg": 50, "label": "Unknown", "date": None, "color": CY}
+        error_msg = _format_fetcher_error("sentiment", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "fg": 50, "label": "Unknown", "date": None, "color": CY}
 
 def fetch_economic_calendar(c):
     """Issue 3 FIX: API-only economic calendar."""
@@ -454,8 +462,9 @@ def fetch_economic_calendar(c):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
     except Exception as e:
-        logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("econ_cal", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_risk_metrics(c):
     """Issue 3 FIX: API-only risk metrics."""

@@ -147,6 +147,10 @@ class DailyReconciliation:
                 unrealized_pnl = 0.0
                 unrealized_pnl_pct = 0.0
                 positions_with_prices = 0
+                # Track unrealized PnL breakdown: winning, losing, breakeven positions
+                unrealized_pnl_winning_count = 0
+                unrealized_pnl_losing_count = 0
+                unrealized_pnl_breakeven_count = 0
 
                 for symbol, qty, entry, current, pos_value in positions:
                     # Validate critical fields before processing
@@ -160,6 +164,8 @@ class DailyReconciliation:
                         continue
 
                     # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
+                    entry_f = float(entry)
+                    current_f = float(current)
                     qty_f = float(qty or 0)
                     pos_value_f = float(pos_value or 0)
                     pnl = (current_f - entry_f) * qty_f
@@ -167,6 +173,14 @@ class DailyReconciliation:
                     total_position_value += pos_value_f
                     unrealized_pnl += pnl
                     positions_with_prices += 1
+
+                    # Track winning/losing/breakeven status for unrealized P&L breakdown
+                    if pnl > 0:
+                        unrealized_pnl_winning_count += 1
+                    elif pnl < 0:
+                        unrealized_pnl_losing_count += 1
+                    else:
+                        unrealized_pnl_breakeven_count += 1
 
                     logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
@@ -288,11 +302,13 @@ class DailyReconciliation:
                         position_count, largest_position_pct, average_position_size_pct,
                         concentration_risk_pct,
                         realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                        unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
+                        unrealized_pnl_source,
                         win_count_today, loss_count_today,
                         daily_return_pct, cumulative_return_pct, max_drawdown_pct,
                         sharpe_ratio, market_health_status, created_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                     )
                     ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -305,6 +321,10 @@ class DailyReconciliation:
                         realized_pnl_today = EXCLUDED.realized_pnl_today,
                         unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
                         unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
+                        unrealized_pnl_winning_count = EXCLUDED.unrealized_pnl_winning_count,
+                        unrealized_pnl_losing_count = EXCLUDED.unrealized_pnl_losing_count,
+                        unrealized_pnl_breakeven_count = EXCLUDED.unrealized_pnl_breakeven_count,
+                        unrealized_pnl_source = EXCLUDED.unrealized_pnl_source,
                         win_count_today = EXCLUDED.win_count_today,
                         loss_count_today = EXCLUDED.loss_count_today,
                         daily_return_pct = EXCLUDED.daily_return_pct,
@@ -324,6 +344,10 @@ class DailyReconciliation:
                     realized_pnl_today,
                     unrealized_pnl,
                     unrealized_pnl_pct,
+                    unrealized_pnl_winning_count,
+                    unrealized_pnl_losing_count,
+                    unrealized_pnl_breakeven_count,
+                    'open_positions_only',
                     win_count,
                     loss_count,
                     daily_return_pct,
@@ -337,7 +361,10 @@ class DailyReconciliation:
             logger.info(f"   Total Value: ${total_equity:,.2f}")
             logger.info(f"   Position Value: ${total_position_value:,.2f}")
             logger.info(f"   Cash: ${cash:,.2f}")
-            logger.info(f"   Unrealized P&L: {unrealized_pnl:+,.2f} ({unrealized_pnl_pct:+.2f}%)")
+            logger.info(f"   Unrealized P&L (OPEN POSITIONS ONLY): {unrealized_pnl:+,.2f} ({unrealized_pnl_pct:+.2f}%)")
+            logger.info(f"     - Winning positions: {unrealized_pnl_winning_count}")
+            logger.info(f"     - Losing positions: {unrealized_pnl_losing_count}")
+            logger.info(f"     - Breakeven positions: {unrealized_pnl_breakeven_count}")
             logger.info(f"   Daily Return: {daily_return_pct:+.2f}%")
             logger.info(f"   Concentration: {max_concentration:.1f}%")
 
