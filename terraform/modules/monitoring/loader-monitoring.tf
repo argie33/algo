@@ -321,8 +321,8 @@ resource "aws_cloudwatch_dashboard" "pipeline_monitoring" {
         height = 6
         properties = {
           metrics = [
-            ["AlgoTrading/Operations", "OperationDuration", { stat = "Maximum", label = "Max Duration (sec)" }, { dimensions = { Operation = "load_prices_daily" } }],
-            [".", ".", { stat = "Average", label = "Avg Duration (sec)" }, { dimensions = { Operation = "load_prices_daily" } }],
+            ["AlgoTrading/Operations", "OperationDuration", { stat = "Maximum", label = "Max Duration (sec)", dimensions = { Operation = "load_prices_daily" } }],
+            [".", ".", { stat = "Average", label = "Avg Duration (sec)", dimensions = { Operation = "load_prices_daily" } }],
           ]
           period = 300
           stat   = "Average"
@@ -348,8 +348,8 @@ resource "aws_cloudwatch_dashboard" "pipeline_monitoring" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/RDS", "DatabaseConnections", { stat = "Maximum", label = "Peak Connections" }],
-            [".", ".", { stat = "Average", label = "Avg Connections" }],
+            ["AWS/RDS", "DatabaseConnections", { stat = "Maximum", label = "Peak Connections", dimensions = {} }],
+            [".", ".", { stat = "Average", label = "Avg Connections", dimensions = {} }],
           ]
           period = 300
           stat   = "Average"
