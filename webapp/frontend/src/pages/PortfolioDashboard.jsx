@@ -97,13 +97,13 @@ const extractArray = (data, defaultKey = 'items') => {
   return [];
 };
 
-const extractNestedValue = (obj, path, defaultValue = null) => {
+const extractNestedValue = (obj, path, defaultValue = {}) => {
   if (!obj || typeof obj !== 'object') return defaultValue;
   const keys = path.split('.');
   let val = obj;
   for (const key of keys) {
-    val = val?.[key];
-    if (val === undefined) return defaultValue;
+    if (val == null) return defaultValue;
+    val = val[key];
   }
   return val ?? defaultValue;
 };
@@ -205,7 +205,7 @@ function PortfolioDashboardPage() {
   // Apply null safety and domain-specific filtering
   const safePositionsList = positionsList.length > 0 ? positionsList : [];
   const safeTradesList = tradesList.length > 0
-    ? tradesList.filter(t => t.status === 'closed')
+    ? tradesList.filter(t => t && t.status === 'closed')
     : [];
   const safeEquityCurve = equityCurve.length > 0
     ? equityCurve.filter(item => item && typeof item === 'object' && item.date && (item.value != null || item.equity != null))
