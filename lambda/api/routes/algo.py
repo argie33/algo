@@ -825,8 +825,9 @@ def _get_circuit_breakers(cur) -> Dict:
                     )
                 except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
                     missing_tables.append(table)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Unexpected error checking table {table}: {type(e).__name__}: {e}")
+                    missing_tables.append(table)
 
             if missing_tables:
                 logger.error(f'ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}')
