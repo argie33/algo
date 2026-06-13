@@ -135,12 +135,12 @@ If you need to rebuild the schema:
 ## Schedule
 
 **Daily runs (Mon-Fri):**
-- 2:15 AM ET: morning-prep-pipeline (Step Functions) — loads 1d prices + swing_trader_scores (60-90 min). Ensures fresh prices for orchestrator's on-demand signal computation before 9:30 AM market open.
+- 2:15 AM ET: morning-prep-pipeline (Step Functions) — loads 1d prices + market health + trend template + swing_trader_scores (60-120 min). Ensures fresh prices and market metrics for orchestrator's on-demand signal computation before 9:30 AM market open.
   - **TIMING CONSTRAINT:** 2:15 AM start → 9:30 AM deadline = 7 hours 15 minutes (435 min) available
-    - **Loader execution time:** stock_prices_daily (60-90 min) + swing_trader_scores (30 min) = **90-120 min (1.5-2 h)**
+    - **Loader execution time:** stock_prices_daily (60-90 min) + [market_health_daily (20 min) + trend_template_data (30 min) in parallel] + swing_trader_scores (30 min) = **110-150 min (1.8-2.5 h)**
     - **Overhead** (ECS cold-start, RDS warm-up): ~20-40 min
-    - **Total realistic time**: 110-160 min (1.8-2.7 h)
-    - **Safety buffer**: 435 - 160 = 275 min (4.6 h) — ample buffer for slowness
+    - **Total realistic time**: 130-190 min (2.2-3.2 h)
+    - **Safety buffer**: 435 - 190 = 245 min (4.1 h) — ample buffer for slowness
 - 2:40 AM ET: sp500/russell constituents (EventBridge) — load stock universe reference data
 - 4:05 PM ET: EOD pipeline (Step Functions) — stock_symbols → prices → (market_health + trend_template) → algo_metrics → swing_trader_scores → sector_ranking (3-4 h total)
   - **Why prices-only?** Orchestrator Phase 5 computes signals on-the-fly (Minervini, Weinstein, VCP, power trend). No pre-computed technical_data_daily, buy_sell_daily, signal_quality_scores needed for trading.
@@ -150,7 +150,8 @@ If you need to rebuild the schema:
 
 **Loaders:** 6 core via Step Functions pipelines + 28 supporting via EventBridge.
 - **EOD Pipeline (4:05 PM ET):** stock_symbols → stock_prices_daily → (market_health_daily + trend_template_data) → algo_metrics_daily → swing_trader_scores → sector_ranking
-- **Morning Pipeline (2:15 AM ET):** stock_prices_daily (1d only) → swing_trader_scores
+- **Morning Pipeline (2:15 AM ET):** stock_prices_daily (1d only) → (market_health_daily + trend_template_data) → swing_trader_scores
+  - **FIXED (2026-06-13):** Added market_health_daily + trend_template_data to morning pipeline. If EOD pipeline fails, market health metrics are now refreshed at 3:30 AM instead of going stale for 5+ days. Both enrichment tasks run in parallel (fail-open); orchestrator continues with available data if either fails.
 - **Why simplified:** Orchestrator Phase 5 computes signals on-the-fly from price_daily (Minervini, Weinstein, VCP, base detection, power trend). No dependency on pre-computed technical_data_daily, buy_sell_daily, or signal_quality_scores. These tables can be populated separately for reporting if needed, but are not critical for trading.
 
 **LOADER_PARALLELISM (FIXED ISSUE #7: Adaptive Per-Loader Parallelism):** Loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)`, which implements RDS-aware adaptive parallelism. No manual tuning required.
