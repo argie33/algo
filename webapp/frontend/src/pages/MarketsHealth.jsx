@@ -582,12 +582,13 @@ function MarketPulse({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function ExposureHistory({ markets }) {
-  const history = (markets?.history || []).slice().reverse();
-  if (!history.length) return <Empty title="Exposure history" desc="Builds over time as exposure runs daily" wrap />;
+  const historyArray = Array.isArray(markets?.history) ? markets.history : [];
+  if (historyArray.length === 0) return <Empty title="Exposure history" desc="Builds over time as exposure runs daily" wrap />;
+  const history = historyArray.slice().reverse();
   const data = history.map(h => ({
-    date: h.date, exposure: parseFloat(h.exposure_pct),
-    regime: h.regime, dd: h.distribution_days,
-  }));
+    date: h?.date, exposure: h?.exposure_pct != null ? parseFloat(h.exposure_pct) : null,
+    regime: h?.regime, dd: h?.distribution_days,
+  })).filter(d => d.exposure != null);
   return (
     <div className="card">
       <div className="card-head">

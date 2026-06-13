@@ -192,7 +192,6 @@ def validate_environment():
         logger.warning(f"[ENV_WARNING] {warning}")
 
     return len(errors) == 0, errors, warnings
-    return len(errors) == 0, errors
 
 def test_db_connection():
     """Test database connection at Lambda cold-start.

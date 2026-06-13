@@ -63,7 +63,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'mark notification as read')
                 logger.error(f'Failed to mark notification as read: {error_type} - {message}')
-                return json_response(code, {'errorType': error_type, 'message': message})
+                return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
     if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
@@ -85,7 +85,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'delete notification')
                 logger.error(f'Failed to delete notification: {error_type} - {message}')
-                return json_response(code, {'errorType': error_type, 'message': message})
+                return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
     if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
@@ -2367,6 +2367,8 @@ def _get_algo_evaluate(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}', extra={'operation': 'get algo evaluate'})
             return json_response(200, {'signals': {'total_candidates': 0}, 'constraints': {}, 'sector_exposure': {}, 'portfolio_health': {}})
+
+@db_route_handler('fetch data quality', default_error_response={'tables': [], '_error': 'Data unavailable'})
 def _get_data_quality(cur) -> Dict:
         """Get detailed data quality summary by table from latest data_patrol_log run."""
         try:
@@ -2456,6 +2458,8 @@ def _get_data_quality(cur) -> Dict:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
             return json_response(code, {'errorType': error_type, 'message': message})
+
+@db_route_handler('fetch exposure policy', default_error_response={'current_exposure_pct': None, 'regime': 'unknown', 'factors': {}, '_error': 'Data unavailable'})
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
