@@ -632,48 +632,9 @@ def _get_algo_performance(cur) -> Dict:
 
         if "_error" in perf:
             logger.error(f"Performance metrics fetch failed: {perf['_error']}")
-
-            # Try fallback: get last known good metrics from database
-            try:
-                cur.execute("""
-                    SELECT total_trades, win_rate_pct, profit_factor, sharpe_ratio,
-                           max_drawdown_pct, avg_trade_return_pct, largest_win_pct,
-                           largest_loss_pct, date
-                    FROM algo_performance_daily
-                    WHERE date <= CURRENT_DATE
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-                last_good = cur.fetchone()
-
-                if last_good:
-                    log_fallback_usage('performance_metrics', 'stale_cache', FallbackTrigger.PRIMARY_UNAVAILABLE, error=perf.get('_error'))
-                    last_good_dict = dict(last_good)
-                    last_good_dict.update({
-                        '_is_fallback_data': True,
-                        '_fallback_reason': f"Metrics fetch failed ({perf.get('_error')}). Using last known good from {last_good_dict.get('date')}",
-                        'data_freshness': {
-                            'is_stale': True,
-                            'warning': 'Data stale - using cached values',
-                            'message': f"Performance metrics unavailable. Showing last known good from {last_good_dict.get('date')}. Check system logs."
-                        },
-                        'confidence_metadata': {
-                            'sharpe_confidence': 'stale_cache',
-                            'win_rate_confidence': 'stale_cache',
-                            'return_confidence': 'stale_cache',
-                        }
-                    })
-                    return json_response(200, last_good_dict)
-            except Exception as cache_error:
-                logger.warning(f"Fallback cache lookup also failed: {cache_error}")
-
-            # Final fallback: return empty but honest response
-            logger.error(f"CRITICAL: Performance metrics unavailable and no cache found. Original error: {perf.get('_error')}")
-            log_fallback_usage('performance_metrics', 'hardcoded_defaults', FallbackTrigger.PRIMARY_UNAVAILABLE, error=perf.get('_error'))
-
             return json_response(503, {
                 '_error': 'Metrics Unavailable',
-                'message': f"Unable to fetch performance metrics: {perf.get('_error')}. No cached data available.",
+                'message': f"Unable to fetch performance metrics: {perf.get('_error')}",
                 'data_freshness': {
                     'is_stale': True,
                     'warning': 'Data unavailable',
