@@ -1,81 +1,68 @@
 #!/usr/bin/env python3
 """
-Unified Database Connection Context Manager
+REST API Database Context (Re-export from utils)
 
-THE RIGHT WAY: All database access goes through this context manager.
-- Automatic connection pooling and cleanup
-- Proper error classification and retry logic
-- Connection tracking and monitoring
-- Thread-safe cursor factory
+DO NOT CONSOLIDATE WITH utils/database_context.py without understanding the split:
+
+LOADER VERSION (utils/database_context.py):
+- Auto-tracks correlation_id in SQL comments for audit trails
+- Used by: all load_*.py, orchestrator/*.py, algo/*.py (batch operations)
+- Timeout: 30s (longer batch tasks)
+- Correlation tracking: ENABLED by default
+
+API VERSION (THIS FILE - api_utils/database_context.py):
+- No correlation tracking (per-request context)
+- Used by: lambda/api/lambda_function.py (REST API only)
+- Timeout: 20s (API Gateway hard limit is 29s)
+- Correlation tracking: DISABLED (enable_correlation_tracking=False)
+
+Why separate behavior?
+- Loaders need audit trails (correlation_id in SQL comments for end-to-end tracing)
+- API requests are stateless (no batch context to trace)
+- Different timeout reflects operational pattern (batch vs. per-request)
+
+This file re-exports utils.DatabaseContext with API-appropriate defaults.
 """
 
-import logging
-from typing import Optional, Dict, Any
-from contextlib import contextmanager
-import psycopg2
-from psycopg2.extras import DictCursor, RealDictCursor
+from typing import Optional
+from psycopg2.extras import DictCursor
 
-from utils.db_connection import get_db_connection
+# Import the unified implementation from utils
+import sys
+sys.path.insert(0, '/'.join(__file__.split('/')[:-4]))  # Navigate to root
+from utils.database_context import DatabaseContext as _DatabaseContext
 
-logger = logging.getLogger(__name__)
 __all__ = ['DatabaseContext']
 
-class DatabaseContext:
-    """Thread-safe database context with automatic resource cleanup.
 
-    For role='write': automatically commits on success, rolls back on exception.
-    For role='read': no commit (read-only).
+class DatabaseContext(_DatabaseContext):
+    """REST API database context with disabled correlation tracking.
 
-    Usage:
+    Re-exports utils.DatabaseContext but:
+    - Sets timeout=20 (API Gateway limit)
+    - Disables correlation_id tracking (enable_correlation_tracking=False)
+
+    Usage (REST API):
         with DatabaseContext('read') as cur:
             cur.execute("SELECT * FROM table")
             rows = cur.fetchall()
-        # Connection automatically closed
-
-        with DatabaseContext('write') as cur:
-            cur.execute("INSERT INTO table VALUES ...")
-            # Auto-commits on exit if no exception
-        # Connection automatically closed
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor):
-        """Initialize context.
+    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor, correlation_id: Optional[str] = None):
+        """Initialize REST API context with disabled correlation tracking.
 
         Args:
-            role: 'read' or 'write' (controls timeout, retry behavior)
-            timeout: Connection timeout in seconds (20s for API Gateway limit of 29s; RDS Proxy handles pooling)
-            cursor_factory: psycopg2 cursor factory (default DictCursor for dict rows)
+            role: 'read' or 'write'
+            timeout: Connection timeout in seconds (default 20s for API Gateway)
+            cursor_factory: psycopg2 cursor factory
+            correlation_id: Not used for API (always disabled)
         """
-        self.role = role
-        self.timeout = timeout
-        self.cursor_factory = cursor_factory
-        self.conn = None
-        self.cur = None
-
-    def __enter__(self):
-        """Enter context - get database connection."""
-        try:
-            self.conn = get_db_connection(timeout=self.timeout)
-            self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
-            return self.cur
-        except Exception as e:
-            logger.error(f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}", exc_info=True)
-            raise
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context - cleanup connection."""
-        try:
-            if self.cur:
-                self.cur.close()
-            if self.conn:
-                if exc_type is None and self.role == 'write':
-                    self.conn.commit()
-                elif exc_type is not None:
-                    self.conn.rollback()
-                self.conn.close()
-        except Exception as e:
-            logger.warning(f"[DB_CLEANUP_WARNING] Error closing database connection: {e}")
-        finally:
-            self.cur = None
-            self.conn = None
+        # Always disable correlation tracking for API calls
+        super().__init__(
+            role=role,
+            timeout=timeout,
+            cursor_factory=cursor_factory,
+            correlation_id=None,
+            enable_correlation_tracking=False
+        )
 

@@ -7,14 +7,13 @@ THE RIGHT WAY: All database access goes through this context manager.
 - Proper error classification and retry logic
 - Connection tracking and monitoring
 - Thread-safe cursor factory
-- ISSUE #13 FIX: Automatic correlation_id tracking for end-to-end tracing
+- Optional correlation_id tracking for end-to-end audit trails (loaders only)
 """
 
 import logging
-from typing import Optional, Dict, Any
-from contextlib import contextmanager
+from typing import Optional
 import psycopg2
-from psycopg2.extras import DictCursor, RealDictCursor
+from psycopg2.extras import DictCursor
 
 from utils.db_connection import get_db_connection
 
@@ -23,11 +22,10 @@ __all__ = ['DatabaseContext']
 
 
 class _CorrelationIdCursor:
-    """Wrapper around psycopg2 cursor that auto-includes correlation_id in SQL comments.
+    """Wraps cursor to auto-include correlation_id in SQL comments for audit trails.
 
-    This enables end-to-end tracing of database changes back to specific loader runs.
-    Example SQL becomes:
-        INSERT INTO table VALUES (...) /* correlation_id: abc123 */
+    Only used when correlation_id is provided. Enables tracing database changes
+    back to specific loader runs.
     """
 
     def __init__(self, cursor, correlation_id: str):
@@ -35,41 +33,18 @@ class _CorrelationIdCursor:
         self.correlation_id = correlation_id
 
     def execute(self, query: str, args=None):
-        """Execute query with correlation_id comment appended."""
-        # Handle psycopg2.sql.Composed objects by compiling to string
-        if hasattr(query, 'as_string'):
-            # psycopg2 SQL Composed object - compile it
-            query_str = query.as_string(self.cursor)
-        else:
-            # Regular string query
-            query_str = str(query) if query is not None else ""
-
+        """Execute with correlation_id comment appended."""
+        query_str = query.as_string(self.cursor) if hasattr(query, 'as_string') else str(query or "")
         if query_str and not query_str.strip().startswith('--'):
-            sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
-        else:
-            sql_with_comment = query_str
-
-        # If we compiled from Composed, just pass the compiled string without further wrapping
-        if hasattr(query, 'as_string'):
-            return self.cursor.execute(sql_with_comment)
-        elif args is not None:
-            return self.cursor.execute(sql_with_comment, args)
-        else:
-            return self.cursor.execute(sql_with_comment)
+            query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
+        return self.cursor.execute(query_str) if not hasattr(query, 'as_string') and args is None else self.cursor.execute(query_str, args)
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
-        # Handle psycopg2.sql.Composed objects
-        if hasattr(query, 'as_string'):
-            query_str = query.as_string(self.cursor)
-        else:
-            query_str = str(query) if query is not None else ""
-
+        query_str = query.as_string(self.cursor) if hasattr(query, 'as_string') else str(query or "")
         if query_str and not query_str.strip().startswith('--'):
-            sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
-        else:
-            sql_with_comment = query_str
-        return self.cursor.executemany(sql_with_comment, args)
+            query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
+        return self.cursor.executemany(query_str, args)
 
     def fetchone(self):
         return self.cursor.fetchone()
@@ -108,63 +83,69 @@ class _CorrelationIdCursor:
         return getattr(self.cursor, name)
 
 class DatabaseContext:
-    """Thread-safe database context with automatic resource cleanup.
+    """Thread-safe database context with optional correlation_id tracking.
 
-    For role='write': automatically commits on success, rolls back on exception.
-    For role='read': no commit (read-only).
+    SPLIT USAGE (DO NOT CONSOLIDATE INCORRECTLY):
 
-    ISSUE #13 FIX: Automatically includes correlation_id from context in all operations
-    via SQL comments. This enables tracing all database changes back to a specific loader run.
+    1. LOADERS (utils imports):
+       - Use: from utils.database_context import DatabaseContext
+       - Needs: correlation_id tracking for audit trails via SQL comments
+       - Timeout: 30s (longer-running batch operations)
+       - Example: load_prices.py, load_technical_data_daily.py, etc.
 
-    Usage:
-        with DatabaseContext('read') as cur:
-            cur.execute("SELECT * FROM table")
-            rows = cur.fetchall()
-        # Connection automatically closed
+    2. REST API (api_utils re-exports):
+       - Use: from api_utils.database_context import DatabaseContext
+       - Needs: No correlation_id tracking (per-request context, not batch)
+       - Timeout: 20s (API Gateway limit)
+       - Example: lambda/api/lambda_function.py
 
+    Why separate exports?
+    - Loaders auto-retrieve correlation_id from context and inject into SQL comments
+    - API calls explicitly pass None to skip tracing (no batch context)
+    - Different timeout defaults reflect operational patterns
+
+    Usage (loaders - auto correlation_id from context):
         with DatabaseContext('write') as cur:
-            cur.execute("INSERT INTO table VALUES ...")
+            cur.execute("INSERT ...")  # SQL includes correlation_id comment
             # Auto-commits on exit if no exception
-        # Connection automatically closed
 
-        # Correlation ID is automatically included:
-        with correlation_context("loader-run-123"):
-            with DatabaseContext('write') as cur:
-                cur.execute("INSERT INTO table VALUES ...")
-                # SQL comment includes correlation_id for audit trail
+    Usage (API - no correlation_id):
+        with DatabaseContext('read', timeout=20) as cur:
+            cur.execute("SELECT ...")  # No tracing overhead
+            rows = cur.fetchall()
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 30, cursor_factory=DictCursor, correlation_id: Optional[str] = None):
+    def __init__(self, role: str = 'read', timeout: int = 30, cursor_factory=DictCursor, correlation_id: Optional[str] = None, enable_correlation_tracking: bool = True):
         """Initialize context.
 
         Args:
-            role: 'read' or 'write' (controls timeout, retry behavior)
-            timeout: Connection timeout in seconds (30s for loader tasks; API Gateway uses shorter timeout)
-            cursor_factory: psycopg2 cursor factory (default DictCursor for dict rows)
-            correlation_id: Optional explicit correlation_id (auto-retrieves from context if not provided)
+            role: 'read' or 'write' (controls commit/rollback behavior)
+            timeout: Connection timeout in seconds
+            cursor_factory: psycopg2 cursor factory
+            correlation_id: Explicit correlation_id. If None and enable_correlation_tracking=True,
+                           tries to auto-retrieve from context (loaders only).
+            enable_correlation_tracking: If True, attempts to auto-retrieve correlation_id from context
+                                        if not explicitly provided. Set to False for API calls.
         """
         self.role = role
         self.timeout = timeout
         self.cursor_factory = cursor_factory
-        # ISSUE #13 FIX: correlation_id for tracing (loaders should provide this)
-        # If not provided, attempt to get from the load_prices module's contextvars
-        self.correlation_id = correlation_id or self._get_loader_correlation_id()
+        self.enable_correlation_tracking = enable_correlation_tracking
+        self.correlation_id = correlation_id
+        if correlation_id is None and enable_correlation_tracking:
+            self.correlation_id = self._get_loader_correlation_id()
         self.conn = None
         self.cur = None
 
     @staticmethod
-    def _get_loader_correlation_id() -> str:
-        """Get correlation_id from utils.correlation_context (thread-safe).
-
-        This avoids circular import with load_prices by using the dedicated
-        correlation context module that both load_prices and database_context use.
-        """
+    def _get_loader_correlation_id() -> Optional[str]:
+        """Auto-retrieve correlation_id from context (loaders only)."""
         try:
             from utils.correlation_context import get_correlation_id
-            return get_correlation_id()
-        except (ImportError, Exception):
-            # Fallback if correlation_context is not available
-            return "NO_CID"
+            cid = get_correlation_id()
+            return cid if cid else None
+        except Exception:
+            return None
 
     def __enter__(self):
         """Enter context - get database connection."""
@@ -172,14 +153,17 @@ class DatabaseContext:
             self.conn = get_db_connection(timeout=self.timeout)
             self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
 
-            # ISSUE #13 FIX: Set session-level variable with correlation_id for PostgreSQL audit trail
-            try:
-                self.cur.execute(f"SET application_name = %s", (f"algo_loader[{self.correlation_id}]",))
-            except Exception as set_var_err:
-                logger.debug(f"[DB_CONTEXT] Could not set application_name for tracing: {set_var_err}")
+            # Set application_name for PostgreSQL audit log (loaders only)
+            if self.correlation_id:
+                try:
+                    self.cur.execute("SET application_name = %s", (f"algo_loader[{self.correlation_id}]",))
+                except Exception:
+                    pass  # Non-critical; continue without session-level tracking
 
-            # Wrap cursor to auto-include correlation_id in SQL comments for audit trail
-            return _CorrelationIdCursor(self.cur, self.correlation_id)
+            # Wrap cursor to auto-inject correlation_id into SQL comments (loaders only)
+            if self.correlation_id:
+                return _CorrelationIdCursor(self.cur, self.correlation_id)
+            return self.cur
         except Exception as e:
             logger.error(f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}", exc_info=True)
             raise
