@@ -93,8 +93,10 @@ def get_alpaca_trades():
     """Get Alpaca trades (paper account)."""
     try:
         import alpaca_trade_api as tradeapi
-    except ImportError:
-        return {'error': 'alpaca_trade_api not installed', 'status': 'skipped'}
+    except ImportError as e:
+        error_msg = f'FATAL: alpaca_trade_api not installed in Lambda layer. Install via requirements.txt. Error: {e}'
+        logger.error(error_msg)
+        return {'error': error_msg, 'status': 'failed'}
 
     try:
         # FIXED Issue #21: Use credential_manager pattern for Alpaca credentials
@@ -104,7 +106,9 @@ def get_alpaca_trades():
         base_url = creds.get('base_url')
 
         if not api_key or not secret_key:
-            return {'error': 'Alpaca credentials not configured (check Secrets Manager)', 'status': 'skipped'}
+            error_msg = 'Alpaca credentials not configured (check AWS Secrets Manager and ALPACA_SECRET_ARN env var)'
+            logger.error(error_msg)
+            return {'error': error_msg, 'status': 'failed'}
 
         api = tradeapi.REST(api_key, secret_key, base_url=base_url)
 

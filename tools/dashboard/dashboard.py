@@ -174,6 +174,24 @@ _sector_agg_cache = OrderedDict()  # Bounded LRU-style cache; max 100 entries
 _sector_cache_maxsize = 100
 
 
+def normalize_positions_data(data):
+    """Unified normalization of positions data structure.
+
+    Returns:
+        (positions_list, timestamp, has_error)
+    """
+    if isinstance(data, dict):
+        if data.get("_error"):
+            return [], None, True
+        if "items" in data:
+            return data.get("items", []), data.get("timestamp"), False
+        return [], None, False
+    elif isinstance(data, list):
+        return data, None, False
+    else:
+        return [], None, False
+
+
 def compute_sector_agg(pos, port):
     """
     Compute sector aggregation with caching to avoid recomputation on every 30-sec refresh.
@@ -1196,8 +1214,11 @@ def panel_orch(run, cfg, risk=None):
                     + svar_s)
 
     if not run or run.get("_error"):
+        error_msg = (f"[{R}]run fetch failed[/]: {run.get('_error')}"
+                     if isinstance(run, dict) and run.get("_error")
+                     else "[dim]run: no data[/]")
         body = Text.from_markup(
-            f"[dim]no run data[/]\n"
+            f"{error_msg}\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
             f"[dim]{config_line}[/]\n"
             f"[dim]Next run:[/] [white]{next_run}[/]"
@@ -1259,8 +1280,9 @@ def panel_orch(run, cfg, risk=None):
 
 def panel_market_full(mkt, sentiment=None):
     """Market regime + internals combined."""
-    if not mkt or mkt.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]MARKET[/]", border_style="blue", padding=(0, 1))
+    err_panel = _error_panel("market", mkt, "MARKET", border="blue")
+    if err_panel:
+        return err_panel
     tier  = mkt.get("tier", "unknown")
     tc    = TIER_COLOR.get(tier, "dim")
     lbl   = TIER_SHORT.get(tier, "LOADING")
@@ -1333,8 +1355,9 @@ def panel_market_full(mkt, sentiment=None):
 
 
 def panel_circuit(cb, risk=None):
-    if not cb or cb.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
+    err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
+    if err_panel:
+        return err_panel
     n_f   = cb.get("n", 0)
     any_f = cb.get("any", False)
     hc    = R if any_f else G
@@ -1442,8 +1465,9 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 
 
 def panel_portfolio(port, cfg, risk=None, perf=None):
-    if not port or port.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
+    err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
+    if err_panel:
+        return err_panel
 
     # Check if placeholder/fallback data is being displayed
     is_placeholder = port.get("_is_placeholder") or port.get("_is_fallback_data")
@@ -1524,8 +1548,9 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
 def panel_performance_spark(perf, rec, perf_anl=None):
     """Performance metrics + equity sparkline + rolling analytics."""
-    if not perf or perf.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
+    err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
+    if err_panel:
+        return err_panel
 
     # Check if placeholder/fallback data is being displayed
     is_placeholder = perf.get("_is_placeholder") or perf.get("_is_fallback_data")
@@ -2047,9 +2072,9 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
 def panel_economic_pulse(eco, econ_cal=None):
     """Economic factors the algo uses to calculate market exposure score."""
-    if not eco or eco.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]ECONOMIC INPUTS[/]",
-                     border_style="bright_magenta", padding=(0, 1))
+    err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
+    if err_panel:
+        return err_panel
     rows: list = []
 
     t10 = eco.get("t10"); t2 = eco.get("t2"); t3m = eco.get("t3m"); t6m = eco.get("t6m")
@@ -2180,9 +2205,9 @@ def panel_economic_pulse(eco, econ_cal=None):
 
 def panel_exposure_compact(exp_f):
     """12-factor exposure score - compact 2-col layout."""
-    if not exp_f or exp_f.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]EXPOSURE FACTORS[/]",
-                     border_style="blue", padding=(0, 1))
+    err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
+    if err_panel:
+        return err_panel
     raw     = safe_float(exp_f.get("raw_score"), default=0)
     epct    = safe_float(exp_f.get("exposure_pct"), default=0)
     regime  = exp_f.get("regime") or ""

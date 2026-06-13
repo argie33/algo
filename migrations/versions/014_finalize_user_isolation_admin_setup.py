@@ -1,7 +1,10 @@
-"""Finalize user isolation setup - migrate admin to real Cognito sub
+"""Finalize user isolation setup - ensure admin user is properly configured.
 
-Note: Admin's real Cognito sub will be populated via setup script during deployment.
-For now, this migration serves as a no-op to maintain version continuity.
+This migration verifies that the admin user isolation is properly set up.
+The actual migration from 'admin-user' placeholder to real Cognito sub
+happens in migration 015_replace_admin_placeholder_with_real_cognito_sub.py
+
+This migration verifies preconditions and documents the setup process.
 """
 
 import sys
@@ -10,21 +13,47 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.database_context import DatabaseContext
 
-DESCRIPTION = "Finalize user isolation admin setup"
+DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
 
 
 def up():
-    """Update admin-user placeholder to real Cognito sub in all tables (if available)"""
+    """Verify admin user isolation preconditions."""
     with DatabaseContext('write') as cur:
-        # Admin's real Cognito sub - will be populated via setup script
-        # For now, keep the 'admin-user' placeholder
-        # The setup script (scripts/setup-user-isolation.ps1) will populate this after Cognito setup
-        # Tables already have 'admin-user' placeholder from previous migrations
-        pass
+        # Verify that 'admin-user' placeholder is in place
+        tables_to_check = [
+            'algo_portfolio_snapshots',
+            'algo_trade_adds',
+        ]
+
+        for table_name in tables_to_check:
+            try:
+                # Check if table exists and has cognito_sub column
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as count FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = 'cognito_sub'
+                    """,
+                    (table_name,)
+                )
+                if cur.fetchone()[0] > 0:
+                    # Verify 'admin-user' entries exist
+                    cur.execute(
+                        f"SELECT COUNT(*) as count FROM {table_name} WHERE cognito_sub = 'admin-user'"
+                    )
+                    count = cur.fetchone()[0]
+                    if count > 0:
+                        print(f"  ✓ {table_name}: {count} rows with 'admin-user' placeholder found")
+            except Exception as e:
+                # Table may not exist yet, that's OK
+                pass
+
+        print("\nNextstep: Run migration 015 to replace 'admin-user' with real Cognito sub:")
+        print("  1. Get admin Cognito sub from AWS Cognito console")
+        print("  2. Set ADMIN_COGNITO_SUB environment variable")
+        print("  3. Run: python -m alembic upgrade head")
 
 
 def down():
-    """Revert admin to placeholder (for rollback only)"""
-    with DatabaseContext('write') as cur:
-        # Nothing to revert - admin is already at 'admin-user' placeholder
-        pass
+    """Revert precondition check (no-op)."""
+    # This migration only checks preconditions, nothing to revert
+    pass

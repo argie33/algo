@@ -163,11 +163,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'recentUpgrades': [],
                 })
             elif path.startswith('/api/sentiment/social/insights/'):
-                # Social sentiment not yet implemented
-                return json_response(501, {
-                    'status': 'not_implemented',
-                    'message': 'Social sentiment feature coming soon. Requires external API integration (not yet configured).'
-                })
+                # Social sentiment endpoint not implemented
+                # To implement: integrate external social sentiment API (e.g., Twitter API, Seeking Alpha)
+                # See: lambda/api/routes/sentiment.py for pattern
+                return error_response(404, 'not_found', 'Social sentiment endpoint not implemented. Use /api/sentiment/analyst/insights/ instead.')
             elif path == '/api/sentiment/vix':
                 return _get_vix_data(cur)
             elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):

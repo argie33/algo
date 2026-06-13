@@ -111,6 +111,31 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
+def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
+    """Convert value to int safely, returning None on failure (strict mode).
+
+    For use in optional fields where None is appropriate.
+
+    Args:
+        value: Value to convert (can be str, int, float, None)
+        context: Context string for logging
+
+    Returns:
+        Int value or None if conversion fails
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return None
+
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
+        return None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # DATE/DATETIME PARSING
 # ──────────────────────────────────────────────────────────────────────────────

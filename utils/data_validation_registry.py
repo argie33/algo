@@ -15,7 +15,7 @@ PRINCIPLES:
 VALIDATION DECISION TREE:
 ├─ NUMERIC VALUES
 │  ├─ float: safe_float() [default=0.0] or safe_float_strict() [default=None]
-│  └─ int: safe_int() [default=0] (strict variant not yet implemented)
+│  └─ int: safe_int() [default=0] or safe_int_strict() [default=None]
 ├─ DATES/TIMES
 │  ├─ date: safe_parse_date()
 │  └─ datetime: safe_parse_datetime_et()
@@ -52,7 +52,7 @@ DO NOT:
 import logging
 from typing import Any, Callable, Dict, Optional, Type
 from utils.safe_data_conversion import (
-    safe_float, safe_float_strict, safe_int,
+    safe_float, safe_float_strict, safe_int, safe_int_strict,
     safe_parse_date, safe_parse_datetime_et,
     safe_json_loads
 )
@@ -67,6 +67,7 @@ VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {
     'float': safe_float,
     'float_strict': safe_float_strict,
     'int': safe_int,
+    'int_strict': safe_int_strict,
     'date': safe_parse_date,
     'datetime_et': safe_parse_datetime_et,
     'json': safe_json_loads,
