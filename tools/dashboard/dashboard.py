@@ -1629,7 +1629,7 @@ def panel_positions(pos, compact=False, trades=None):
         sec   = (p.get("sector") or "--")[:12]
         rmul  = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
         dist  = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
-        t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price != 0) else None
+        t1pct = float(p.get("distance_to_t1_pct")) if p.get("distance_to_t1_pct") is not None else None
         pc    = G if (pnl is not None and pnl >= 0) else R
         rc    = G if (rmul is not None and rmul >= 0) else R
         dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
