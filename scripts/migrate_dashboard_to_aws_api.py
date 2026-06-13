@@ -8,7 +8,7 @@ import re
 import sys
 
 # Read the file
-with open("tools/dashboard/dashboard.py", "r") as f:
+with open("tools/dashboard/dashboard.py", "r", encoding="utf-8") as f:
     content = f.read()
 
 original = content
@@ -53,8 +53,8 @@ changes = sum(1 for c1, c2 in zip(original, content) if c1 != c2)
 print(f"Database code removed: {(len(original) - len(content)) / 1000:.1f}KB")
 
 # Write the file
-with open("tools/dashboard/dashboard.py", "w") as f:
+with open("tools/dashboard/dashboard.py", "w", encoding="utf-8") as f:
     f.write(content)
 
-print("✓ Migration script executed")
+print("[OK] Migration script executed")
 print("Next: Convert fetch_* functions to API calls (see DASHBOARD_API_MIGRATION.md)")

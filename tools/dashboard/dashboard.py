@@ -29,11 +29,6 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-try:
-    from api_data_layer import DashboardDataAPI
-except ImportError:
-    DashboardDataAPI = None
-
 import requests
 import requests.exceptions
 
@@ -41,11 +36,6 @@ from data_validation import (
     safe_float, safe_int, safe_json_parse, safe_bool, safe_str,
     validate_required_fields, validate_field_types, log_data_issue
 )
-
-try:
-    import boto3
-except ImportError:
-    sys.exit("pip install boto3")
 
 try:
     import msvcrt
@@ -65,11 +55,6 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except AttributeError:
         pass
-
-try:
-    import psycopg2, psycopg2.extras, psycopg2.pool
-except ImportError:
-    sys.exit("pip install psycopg2-binary")
 
 try:
     from rich import box
@@ -160,68 +145,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Connection pool for dashboard (prevents exhaustion with 27 concurrent fetchers)
-_dashboard_pool = None
-_dashboard_pool_lock = threading.Lock()
-_db_creds_loaded = False
-
-def _load_db_credentials_from_secrets():
-    """Load DB credentials from AWS Secrets Manager and set as env vars."""
-    global _db_creds_loaded
-    if _db_creds_loaded:
-        return True
-
-    try:
-        client = boto3.client('secretsmanager', region_name='us-east-1')
-        secret = client.get_secret_value(SecretId='algo/database')
-        creds = json.loads(secret['SecretString'])
-
-        os.environ['DB_HOST'] = creds.get('host', 'localhost')
-        os.environ['DB_PORT'] = str(creds.get('port', 5432))
-        os.environ['DB_USER'] = creds.get('username', 'postgres')
-        os.environ['DB_PASSWORD'] = creds.get('password', '')
-        os.environ['DB_NAME'] = creds.get('dbname', 'algo')
-
-        logger.info("DB credentials loaded from AWS Secrets Manager")
-        _db_creds_loaded = True
-        return True
-    except Exception as e:
-        logger.error(f"Failed to load DB credentials from Secrets Manager: {e}")
-        return False
-
-def _init_dashboard_pool():
-    """Initialize the dashboard connection pool (thread-safe with double-checked locking)."""
-    global _dashboard_pool
-    if _dashboard_pool is not None:
-        return
-
-    with _dashboard_pool_lock:
-        # Double-check pattern to avoid race conditions
-        if _dashboard_pool is not None:
-            return
-
-        miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-        if miss:
-            if not _load_db_credentials_from_secrets():
-                return None  # Can't initialize pool without credentials
-
-        try:
-            _dashboard_pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=2,
-                maxconn=15,
-                host=os.environ["DB_HOST"],
-                port=int(os.environ.get("DB_PORT", 5432)),
-                user=os.environ["DB_USER"],
-                password=os.environ["DB_PASSWORD"],
-                database=os.environ["DB_NAME"],
-                connect_timeout=10,
-                cursor_factory=psycopg2.extras.RealDictCursor,
-                options="-c statement_timeout=8000"
-            )
-            logger.info("Dashboard connection pool initialized (minconn=2, maxconn=15)")
-        except Exception as e:
-            logger.warning(f"Failed to initialize dashboard pool: {e}, falling back to direct connections")
-            _dashboard_pool = None
+# Note: All data now comes from AWS APIs - no local database fallbacks.
 
 
 # API configuration
@@ -695,8 +619,8 @@ def fetch_exposure_factors(c):
             try: factors = json.loads(factors)
             except: factors = {}
         return {
-            "raw_score":    float(row.get("raw_score") or 0),
-            "exposure_pct": float(row.get("exposure_pct") or 0),
+            "raw_score":    safe_float(row.get("raw_score"), default=None),
+            "exposure_pct": safe_float(row.get("exposure_pct"), default=None),
             "regime":       row.get("regime"),
             "factors":      factors,
         }
@@ -2188,8 +2112,8 @@ def panel_exposure_compact(exp_f):
     if not exp_f or exp_f.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]EXPOSURE FACTORS[/]",
                      border_style="blue", padding=(0, 1))
-    raw     = float(exp_f.get("raw_score") or 0)
-    epct    = float(exp_f.get("exposure_pct") or 0)
+    raw     = safe_float(exp_f.get("raw_score"), default=0)
+    epct    = safe_float(exp_f.get("exposure_pct"), default=0)
     regime  = exp_f.get("regime") or ""
     factors = exp_f.get("factors") or {}
     tier    = tier_from_pct(epct)
