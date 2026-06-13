@@ -33,7 +33,8 @@ import logging
 import os
 import time
 from datetime import date as _date
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.database_context import DatabaseContext
 from algo.algo_signals import SignalComputer
@@ -44,10 +45,13 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-# Run liquidity checks on at most this many candidates (performance guard)
-_LIQUIDITY_CHECK_LIMIT = 150
-# Run full SwingScore on top N liquidity-passed candidates (~1-2s each)
-_SWING_SCORE_LIMIT = 75
+# OPTIMIZED LIMITS FOR <60s SLA
+# Liquidity checks: reduced from 150 to 30 (sequential DB queries are slow)
+_LIQUIDITY_CHECK_LIMIT = 30
+# Swing scoring: reduced from 75 to 12 (most expensive per-symbol operation)
+_SWING_SCORE_LIMIT = 12
+# Max parallel workers for liquidity/swing scoring
+_MAX_WORKERS = 4
 # Minimum scores to qualify
 _MIN_QUALITY = 50       # Pre-swing-score quality gate
 _MIN_SWING_SCORE = 35   # Grade D+ minimum (A+=85, A=75, B=65, C=55, D=45, D+=35)
@@ -89,6 +93,34 @@ def _check_market_regime(run_date: _date) -> Dict:
     except Exception as e:
         logger.warning(f"[PHASE 5] Could not read market regime: {e} — proceeding permissively")
         return {'is_entry_allowed': True, 'exposure_pct': 50, 'regime': 'unknown', 'halt_reasons': []}
+
+
+def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, bool]:
+    """Check liquidity for a single candidate. Returns (candidate, passed)."""
+    try:
+        liquidity = LiquidityChecks(config={})
+        liq_ok, liq_reason = liquidity.run_all(candidate['symbol'], 0, run_date)
+        if not liq_ok:
+            logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
+        return candidate, liq_ok
+    except Exception as e:
+        logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity check error — {str(e)[:50]}")
+        return candidate, False
+
+
+def _compute_swing_score_parallel(candidate: Dict, run_date: _date, min_swing: int) -> Tuple[Dict, bool]:
+    """Compute swing score for a single candidate. Returns (candidate_with_score, passed)."""
+    try:
+        swing_scorer = SwingTraderScore()
+        result = swing_scorer.compute(candidate['symbol'], run_date)
+        if result and result.get('pass') and result.get('swing_score', 0) >= min_swing:
+            candidate['swing_score'] = result['swing_score']
+            candidate['swing_grade'] = result.get('grade', 'F')
+            return candidate, True
+        return candidate, False
+    except Exception as e:
+        logger.debug(f"[PHASE 5] {candidate['symbol']}: swing score error — {str(e)[:50]}")
+        return candidate, False
 
 
 def _score_signal(minervini: Dict, weinstein: Dict, vcp: Dict, base: Dict, power: Dict) -> int:
@@ -284,24 +316,30 @@ def run(
     # Sort by quality before liquidity checks
     candidates.sort(key=lambda s: s['quality_score'], reverse=True)
 
-    # Liquidity checks on top candidates only (DB query per symbol — limit for performance)
-    liquidity = LiquidityChecks(config={})
+    # Liquidity checks on top candidates — PARALLELIZED for speed
     liq_passed = []
     liq_checked = 0
-    for candidate in candidates[:_LIQUIDITY_CHECK_LIMIT]:
-        liq_ok, liq_reason = liquidity.run_all(candidate['symbol'], 0, run_date)
-        liq_checked += 1
-        if liq_ok:
-            liq_passed.append(candidate)
-        else:
-            logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
+    to_check = candidates[:_LIQUIDITY_CHECK_LIMIT]
+
+    if to_check:
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(_check_liquidity_parallel, cand, run_date): cand
+                for cand in to_check
+            }
+
+            for future in as_completed(futures):
+                liq_checked += 1
+                candidate, passed = future.result()
+                if passed:
+                    liq_passed.append(candidate)
 
     logger.info(
         f"[PHASE 5] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
         f"{len(candidates) - liq_checked} unchecked candidates dropped."
     )
 
-    # SwingScore: 7-component deep-quality ranking. Run on top liquidity-passed candidates only.
+    # SwingScore: 7-component deep-quality ranking — PARALLELIZED
     # Respects tier's min_swing_score when regime requires a stricter threshold.
     tier_min_swing = (
         exposure_constraints.get('min_swing_score', _MIN_SWING_SCORE)
@@ -309,22 +347,25 @@ def run(
     )
     effective_min_swing = max(_MIN_SWING_SCORE, tier_min_swing)
 
-    swing_scorer = SwingTraderScore()
     swing_scored = []
     swing_errors = 0
+    to_score = liq_passed[:_SWING_SCORE_LIMIT]
 
-    for candidate in liq_passed[:_SWING_SCORE_LIMIT]:
-        try:
-            result = swing_scorer.compute(candidate['symbol'], run_date)
-            if result and result.get('pass') and result.get('swing_score', 0) >= effective_min_swing:
-                candidate['swing_score'] = result['swing_score']
-                candidate['swing_grade'] = result.get('grade', 'F')
-                swing_scored.append(candidate)
-        except Exception as e:
-            swing_errors += 1
-            logger.debug(f"[PHASE 5] SwingScore error {candidate['symbol']}: {e}")
+    if to_score:
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(_compute_swing_score_parallel, cand, run_date, effective_min_swing): cand
+                for cand in to_score
+            }
 
-    swing_checked = min(len(liq_passed), _SWING_SCORE_LIMIT)
+            for future in as_completed(futures):
+                candidate, passed = future.result()
+                if passed:
+                    swing_scored.append(candidate)
+                elif not candidate.get('swing_score'):
+                    swing_errors += 1
+
+    swing_checked = len(to_score)
     swing_error_rate = swing_errors / swing_checked if swing_checked > 0 else 0
 
     logger.info(

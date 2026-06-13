@@ -3035,10 +3035,17 @@ router.get('/stage-distribution', authenticateToken, async (req, res) => {
 
 router.get('/metrics', async (req, res) => {
   try {
+    ensureConnection();
+    const pool = getPool();
+
+    const [circuitResult, perfResult] = await Promise.all([
+      pool.query(`SELECT * FROM circuit_breaker_status ORDER BY date DESC LIMIT 1`),
+      pool.query(`SELECT * FROM algo_performance_metrics WHERE metric_date = CURRENT_DATE LIMIT 1`)
+    ]);
+
     return sendSuccess(res, {
-      algo_health: {},
-      system_status: 'unknown',
-      data_freshness: {}
+      circuit_breakers: circuitResult.rows[0] || {},
+      performance: perfResult.rows[0] || {}
     });
   } catch (error) {
     logger.error('Error in /algo/metrics:', { error: error.message });
@@ -3074,10 +3081,14 @@ router.get('/performance-analytics', async (req, res) => {
 
 router.get('/sentiment', async (req, res) => {
   try {
+    ensureConnection();
+    const pool = getPool();
+
+    const fgiResult = await pool.query(`SELECT * FROM fear_greed_index ORDER BY date DESC LIMIT 1`);
+
     return sendSuccess(res, {
-      fear_greed: null,
-      market_sentiment: null,
-      social_sentiment: null
+      fear_greed_index: fgiResult.rows[0] || null,
+      current_sentiment: fgiResult.rows[0]?.value || null
     });
   } catch (error) {
     logger.error('Error in /algo/sentiment:', { error: error.message });
@@ -3099,13 +3110,52 @@ router.get('/economic-calendar', async (req, res) => {
 
 router.get('/execution/recent', async (req, res) => {
   try {
+    ensureConnection();
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT * FROM order_execution_log
+      ORDER BY execution_time DESC LIMIT 20
+    `);
+
     return sendSuccess(res, {
-      executions: [],
-      total: 0
+      executions: result.rows || [],
+      total: result.rows.length || 0
     });
   } catch (error) {
     logger.error('Error in /algo/execution/recent:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while fetching recent executions');
+  }
+});
+
+// Signals endpoint - required by dashboard
+router.get('/signals/stocks', async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT symbol, final_signal_quality_score, final_risk_score, raw_signal, signal_date
+      FROM algo_signals_evaluated
+      ORDER BY signal_date DESC, final_signal_quality_score DESC LIMIT 20
+    `);
+
+    const signals = (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      score: row.final_signal_quality_score,
+      risk: row.final_risk_score,
+      signal: row.raw_signal
+    }));
+
+    return sendSuccess(res, {
+      signals: signals,
+      total: signals.length,
+      grades: {},
+      trend: []
+    });
+  } catch (error) {
+    logger.error('Error in /algo/signals/stocks:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching signals');
   }
 });
 
