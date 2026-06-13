@@ -216,7 +216,7 @@ def test_db_connection():
     start_time = time.time()
 
     try:
-        from api_utils.db_connection import get_db_connection
+        from utils.db_connection import get_db_connection
         # Increased timeouts: 5s for connection, allows for slow startups
         conn = get_db_connection(max_retries=0, timeout=5)
         connect_time = time.time() - start_time
