@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize, safe_dict_convert, safe_serialize_row
+    check_data_freshness, safe_json_serialize, safe_dict_convert, safe_serialize_row, normalize_to_utc_datetime
 )
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
@@ -901,7 +901,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 FROM swing_trader_scores
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
             grades_r = cur.fetchone()
-            grades = safe_dict_convert(grades_r) if grades_r else {}
+            grades = safe_serialize_row(grades_r) if grades_r else {}
 
             # Near-misses: scored stocks close to BUY threshold
             cur.execute("""
@@ -2950,7 +2950,7 @@ def _get_algo_portfolio(cur) -> Dict:
                 'largest_position_pct': None,
                 'last_run': None
             })
-        data = safe_dict_convert(row)
+        data = safe_serialize_row(row)
         pv = safe_float(data.get('total_portfolio_value'))
         return success_response({
             'total_portfolio_value': pv,
@@ -2993,7 +2993,7 @@ def _get_algo_metrics(cur) -> Dict:
                 'exits': None,
                 'avg_signal_score': None
             })
-        data = safe_dict_convert(row)
+        data = safe_serialize_row(row)
         return success_response({
             'date': data.get('date'),
             'total_actions': safe_int(data.get('total_actions')),
@@ -3026,7 +3026,7 @@ def _get_risk_metrics(cur) -> Dict:
                 'portfolio_beta': None,
                 'top_5_concentration': None
             })
-        data = safe_dict_convert(row)
+        data = safe_serialize_row(row)
         return success_response({
             'report_date': data.get('report_date'),
             'var_pct_95': safe_float(data.get('var_pct_95')),

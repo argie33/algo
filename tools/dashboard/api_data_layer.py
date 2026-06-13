@@ -101,28 +101,27 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 def _unwrap_api_response(response: Dict) -> Dict:
     """Unwrap standardized API response wrapper.
 
-    Removes the statusCode and dataFreshness metadata wrapper, leaving only
-    the actual payload. Handles both single-object responses (with 'data' field)
-    and list responses (with 'items' field) and direct field responses.
+    All API responses follow the format: {statusCode: 200, data: {...}, ...metadata}
+    This function extracts and returns ONLY the payload, removing all metadata.
 
     Args:
-        response: Full API response dict (may include statusCode, data_freshness, etc)
+        response: Full API response dict with format {statusCode: X, data: {...}, ...}
 
     Returns:
-        Unwrapped payload with only the actual data fields
+        Unwrapped payload (contents of the 'data' field) ready for use by callers
     """
     if not isinstance(response, dict):
         return response
 
-    # Remove metadata fields that should not be in the unpacked response
-    # Keep everything except statusCode (the metadata wrapper marker)
-    unwrapped = {k: v for k, v in response.items() if k != "statusCode"}
+    # Extract the data field (all endpoints wrap payloads in 'data' via _wrap_response in api_router)
+    # This is the only field that contains actual application data; everything else is metadata
+    if "data" in response:
+        return response["data"]
 
-    # If response only had statusCode, return empty dict
-    if not unwrapped:
-        return {}
-
-    return unwrapped
+    # Fallback for error responses that have no 'data' field
+    # Remove only metadata markers (statusCode, headers) and return rest
+    unwrapped = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
+    return unwrapped if unwrapped else {}
 
 
 class DashboardDataAPI:
@@ -135,16 +134,15 @@ class DashboardDataAPI:
         if "_error" in resp:
             return {"_error": resp["_error"]}
 
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        payload = resp.get("data", resp)
-        portfolio = payload.get("portfolio", {})
+        # Response is already unwrapped (data field extracted), use directly
+        portfolio = resp.get("portfolio", {})
         return {
             "total_portfolio_value": portfolio.get("total_value"),
             "total_cash": portfolio.get("total_cash"),
             "open_positions": portfolio.get("open_positions"),
             "daily_return_pct": portfolio.get("daily_return_pct"),
             "unrealized_pnl_pct": portfolio.get("unrealized_pnl_pct"),
-            "last_run": payload.get("last_run"),
+            "last_run": resp.get("last_run"),
         }
 
     @staticmethod
@@ -170,8 +168,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_performance failed: {resp['_error']}")
             return {}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_trades(limit: int = 100) -> List[Dict]:
@@ -189,8 +186,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_signals failed: {resp['_error']}")
             return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_health() -> Dict[str, Any]:
@@ -199,8 +195,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_health failed: {resp['_error']}")
             return {"ready_to_trade": False, "summary": {}, "sources": []}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_config() -> Dict[str, Any]:
@@ -209,8 +204,7 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_config failed: {resp['_error']}")
             return {}
-        # Unwrap data field if present (Issue 1.1: consistent response handling)
-        return resp.get("data", resp)
+        return resp
 
     @staticmethod
     def get_notifications(limit: int = 10) -> List[Dict]:

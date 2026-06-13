@@ -300,7 +300,7 @@ def fetch_signals(c):
         if data.get('_error'):
             return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
         if not data.get('data'):
-            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
+            return {"_error": "No data returned from /api/algo/dashboard-signals", "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
 
         result = data['data']
         buy_sigs = result.get('buy_sigs', [])
@@ -339,7 +339,7 @@ def fetch_activity(c):
     try:
         data = api_call('/api/algo/audit-log')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "run_id": None, "run_at": None, "phases": [], "recent_actions": []}
         result = data.get('data', {})
         return {
             "run_id": result.get("run_id"),
@@ -350,7 +350,7 @@ def fetch_activity(c):
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        return {"_error": error_msg, "run_id": None, "run_at": None, "phases": [], "recent_actions": []}
 
 def _get_data_status_cached():
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
@@ -431,12 +431,12 @@ def fetch_notifications(c):
     try:
         data = api_call('/api/algo/notifications')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
-        return data.get('data', [])
+            return {"_error": data.get('_error'), "items": []}
+        return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        return {"_error": error_msg, "items": []}
 
 def fetch_sentiment(c):
     """Issue 3 FIX: API-only sentiment data."""
@@ -539,7 +539,7 @@ def fetch_sector_rotation(c):
             return {"_error": data.get('_error'), "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
         row = data.get('data', {})
         if not row:
-            return {"date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
+            return {"_error": "No sector rotation data available", "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
         details = safe_json_parse(row.get("details"), default={}, field_name="fetch_sector_rotation.details")
         return {
             "date":     row.get("date"),
@@ -598,7 +598,7 @@ def fetch_circuit(c):
     try:
         data = api_call('/api/algo/circuit-breakers')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "bs": [], "any": False, "n": 0}
         result = data.get('data', {})
         bs = result.get('breakers', [])
         formatted_bs = []
@@ -618,7 +618,7 @@ def fetch_circuit(c):
     except Exception as e:
         error_msg = _format_fetcher_error("cb", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        return {"_error": error_msg, "bs": [], "any": False, "n": 0}
 
 
 FETCHERS = {

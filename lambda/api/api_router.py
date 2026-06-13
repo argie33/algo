@@ -167,9 +167,17 @@ def _add_cors_headers(response):
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
+    # Issue #11 FIX: Use strict path matching to distinguish /api/algo from /api/algorithm
+    def matches_route(request_path, route_prefix):
+        if request_path == route_prefix:
+            return True
+        if request_path.startswith(route_prefix + '/'):
+            return True
+        return False
+
     # Check public handlers first (health, etc.) - these don't require JWT
     for prefix, handler in PUBLIC_HANDLERS.items():
-        if path.startswith(prefix):
+        if matches_route(path, prefix):
             try:
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 return _add_cors_headers(_wrap_response(response))
@@ -179,7 +187,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
 
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
-        if path.startswith(prefix):
+        if matches_route(path, prefix):
             try:
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 return _add_cors_headers(_wrap_response(response))
@@ -189,31 +197,31 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
 
     # Check if the path matches a route module that failed to import
     # More specific routes are checked first (they appear first in _HANDLER_CONFIG)
-    # IMPORTANT: Use exact path matching to distinguish /api/algo from /api/algorithm
+    # This properly distinguishes between:
+    # - Routes that should exist but failed to load (e.g., /api/algo) → 503
+    # - Truly missing endpoints (e.g., /api/algorithm when no /api/algo* route) → 404
     for route_path, module_name in _HANDLER_CONFIG:
-        if module_name in _ROUTE_IMPORT_ERRORS:
-            # Match: exact route (/api/algo) or subpath (/api/algo/something)
-            if path == route_path or path.startswith(route_path + '/'):
-                error = _ROUTE_IMPORT_ERRORS[module_name]
-                import_status = get_import_status()
-                logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
-                # Include diagnostic information for dashboard/clients
-                msg = f"Route handler unavailable: {module_name} module failed to load"
-                response = {
-                    "statusCode": 503,
-                    "errorType": "route_load_error",
-                    "message": msg,
-                    "error": msg,
-                    "_error": msg,
-                    "_diagnostic": {
-                        "failed_module": module_name,
-                        "module_error": error,
-                        "failed_route_count": import_status['failed_routes'],
-                        "critical_failures": import_status['critical_failures'],
-                        "all_failed_modules": import_status['failed_modules'],
-                    }
+        if module_name in _ROUTE_IMPORT_ERRORS and matches_route(path, route_path):
+            error = _ROUTE_IMPORT_ERRORS[module_name]
+            import_status = get_import_status()
+            logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
+            # Include diagnostic information for dashboard/clients
+            msg = f"Route handler unavailable: {module_name} module failed to load"
+            response = {
+                "statusCode": 503,
+                "errorType": "route_load_error",
+                "message": msg,
+                "error": msg,
+                "_error": msg,
+                "_diagnostic": {
+                    "failed_module": module_name,
+                    "module_error": error,
+                    "failed_route_count": import_status['failed_routes'],
+                    "critical_failures": import_status['critical_failures'],
+                    "all_failed_modules": import_status['failed_modules'],
                 }
-                return _add_cors_headers(_wrap_response(response))
+            }
+            return _add_cors_headers(_wrap_response(response))
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
