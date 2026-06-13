@@ -182,9 +182,9 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
     for attempt in range(1, total_attempts + 1):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{total_attempts}: getting pooled connection (timeout={timeout}s)")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{total_attempts}: getting pooled connection")
 
-            conn = pool.getconn(timeout=timeout)
+            conn = pool.getconn()
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")

@@ -10,12 +10,11 @@ from botocore.exceptions import ClientError
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
-    check_data_freshness, safe_json_serialize, safe_dict_convert, normalize_to_utc_datetime
+    check_data_freshness, safe_json_serialize, safe_dict_convert
 )
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
-from utils.validation import APIResponseValidator
 import math
 
 logger = logging.getLogger(__name__)
@@ -162,10 +161,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
     elif path == '/api/algo/sector-position-warnings':
             return _get_sector_position_warnings(cur)
     elif path == '/api/algo/swing-scores':
-            # FIX S2: Add rate limiting to prevent DoS on public endpoint
-            is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=100, window_seconds=60)
-            if not is_allowed:
-                return error_response(429, 'too_many_requests', error_msg)
             # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
@@ -187,10 +182,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             # Rejection funnel accessible to authenticated users
             return _get_rejection_funnel(cur)
     elif path == '/api/algo/markets':
-            # FIX S2: Add rate limiting to prevent DoS on public endpoint
-            is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=100, window_seconds=60)
-            if not is_allowed:
-                return error_response(429, 'too_many_requests', error_msg)
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
     elif path == '/api/algo/market':
@@ -484,13 +475,11 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = N
         trades = cur.fetchall()
         items = [safe_json_serialize(safe_dict_convert(t)) for t in trades]
         freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-        response_data = {
+        return json_response(200, {
             'items': items,
             'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
             'data_freshness': freshness
-        }
-        sanitized = APIResponseValidator.sanitize_response(response_data)
-        return json_response(200, sanitized)
+        })
 
 @db_route_handler('fetch algo positions', default_error_response={'items': [], 'sector_allocation': [], 'pagination': {'total': 0, 'limit': 10000, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
@@ -633,15 +622,13 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         if freshness.get('is_stale'):
             stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
 
-        response_data = {
+        return json_response(200, {
             'items': items,
             'sector_allocation': sector_allocation,
             'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
             'stale_alerts': stale_alerts,
             'data_freshness': freshness
-        }
-        sanitized = APIResponseValidator.sanitize_response(response_data)
-        return json_response(200, sanitized)
+        })
 
 @db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
@@ -649,11 +636,6 @@ def _get_algo_performance(cur) -> Dict:
 
         Calculates performance from closed trades and portfolio snapshots.
         Returns None for metrics without sufficient data, not 0.
-        
-        NOTE (P2): FIX PERFORMANCE - This endpoint currently recomputes Sharpe/Sortino
-        ratios on every call (800-1200ms latency). Goal latency: 20ms.
-        TODO: Implement pre-computation via EventBridge task at 4:45 PM ET to populate
-        algo_performance_metrics table, then update this endpoint to SELECT from cache.
         """
         def mean(xs):
             return sum(xs) / len(xs) if xs else None
@@ -686,7 +668,7 @@ def _get_algo_performance(cur) -> Dict:
             trades = [safe_dict_convert(row) for row in cur.fetchall()]
 
             if not trades:
-                empty_response = {
+                return json_response(200, {
                     'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                     'breakeven_trades': 0, 'win_rate': None, 'profit_factor': None,
                     'total_pnl_dollars': None, 'total_pnl_pct': None,
@@ -698,9 +680,7 @@ def _get_algo_performance(cur) -> Dict:
                         'sharpe_confidence': 'low', 'win_rate_confidence': 'low',
                         'return_confidence': 'low', 'snapshot_count': 0, 'total_trades': 0
                     }
-                }
-                sanitized = APIResponseValidator.sanitize_response(empty_response)
-                return json_response(200, sanitized)
+                })
 
             # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
             pnl_dollars = []
@@ -824,8 +804,8 @@ def _get_algo_performance(cur) -> Dict:
             if snapshots_freshness.get('is_stale'):
                 stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
 
-            response_data = {
-                \'total_trades\': total,'
+            return json_response(200, {
+                'total_trades': total,
                 'winning_trades': winning,
                 'losing_trades': losing,
                 'breakeven_trades': breakeven,
@@ -865,9 +845,7 @@ def _get_algo_performance(cur) -> Dict:
                     'snapshot_count': snapshot_count,
                     'total_trades': total,
                 }
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}')
@@ -966,9 +944,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 'grades': grades,
                 'trend': trend,
                 'data_freshness': freshness
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch dashboard signals')
@@ -1251,7 +1227,6 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             logger.error(f'Unexpected error (equity curve): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch equity curve'}, exc_info=True)
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
-@db_route_handler('fetch data status', default_error_response={'ready_to_trade': False, 'summary': {'ok': 0, 'stale': 0, 'empty': 0, 'error': 0}, 'sources': [], 'critical_stale': [], '_error': 'Data unavailable'})
 def _get_data_status(cur) -> Dict:
         """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -1399,13 +1374,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
 @db_route_handler('analyze trade impact')
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
-        """Analyze impact of a potential trade on portfolio constraints.
-        
-        NOTE (F1): PRE-TRADE IMPACT - Backend is fully functional. This endpoint
-        needs frontend integration to display results in trading UI.
-        TODO: Wire endpoint to TradingSignals.jsx and PreTradeSimulator.jsx to show
-        traders position constraints before entering trades.
-        """
+        """Analyze impact of a potential trade on portfolio constraints."""
         symbol = body.get('symbol', '').upper()
         entry_price = body.get('entry_price')
         position_dollars = body.get('position_dollars')
@@ -1695,12 +1664,12 @@ def _get_sector_breadth(cur) -> Dict:
                 ORDER BY pct_above_50d DESC
             """)
             breadth = cur.fetchall()
-            # Query executed successfully
+            cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
-                # Query executed successfully
+                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.error(f'Sector breadth data unavailable: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
@@ -1708,7 +1677,7 @@ def _get_sector_breadth(cur) -> Dict:
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
-                # Query executed successfully
+                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.error(f'Sector breadth query failed: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
@@ -1860,7 +1829,6 @@ def _get_rejection_reason_description(reason: str) -> str:
 
     return reason or "Unknown rejection reason"
 
-@db_route_handler('fetch rejection funnel', default_error_response={'total_candidates': 0, 'filters': {}, '_error': 'Data unavailable'})
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
@@ -1968,9 +1936,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 't1': initial_count - scored_count if initial_count > 0 else 0,
                 't5': high_quality_count,
                 'avg_score': 0
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch rejection funnel: {type(e).__name__}: {e}', extra={'operation': 'get rejection funnel'})
@@ -2014,7 +1980,6 @@ _TIER_CONFIG = {
     },
 }
 
-@db_route_handler('fetch markets', default_error_response={'regime': 'unknown', 'exposure_pct': None, '_error': 'Data unavailable'})
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
@@ -2138,15 +2103,12 @@ def _get_markets(cur) -> Dict:
                 'breadth_momentum_10d': market_health.get('breadth_momentum_10d') if market_health else None,
                 'fed_rate_environment': market_health.get('fed_rate_environment') if market_health else None,
                 'data_freshness': freshness,
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
             return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
 
-@db_route_handler('fetch market', default_error_response={'stage': None, 'trend': None, 'vix': None, '_error': 'Data unavailable'})
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -2225,7 +2187,6 @@ def _get_market(cur) -> Dict:
         logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market data'})
 
-@db_route_handler('fetch market factors', default_error_response={'factors': {}, '_error': 'Data unavailable'})
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
     try:
@@ -2275,7 +2236,6 @@ def _get_market_factors(cur) -> Dict:
         logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
         return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market factors'})
 
-@db_route_handler('fetch algo evaluate', default_error_response={'signals': {}, 'constraints': {}, '_error': 'Data unavailable'})
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
         try:
@@ -2384,15 +2344,11 @@ def _get_algo_evaluate(cur) -> Dict:
                         'note': 'Includes only open positions (no closed trades, no dividends)'
                     }
                 }
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}', extra={'operation': 'get algo evaluate'})
             return json_response(200, {'signals': {'total_candidates': 0}, 'constraints': {}, 'sector_exposure': {}, 'portfolio_health': {}})
-
-@db_route_handler('fetch data quality', default_error_response={'tables': [], '_error': 'Data unavailable'})
 def _get_data_quality(cur) -> Dict:
         """Get detailed data quality summary by table from latest data_patrol_log run."""
         try:
@@ -2476,16 +2432,12 @@ def _get_data_quality(cur) -> Dict:
                     'healthy': severity_counts['healthy'],
                     'total_tables_checked': len(tables_dict)
                 }
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
             return json_response(code, {'errorType': error_type, 'message': message})
-
-@db_route_handler('fetch exposure policy', default_error_response={'current_exposure_pct': None, 'regime': 'unknown', 'factors': {}, '_error': 'Data unavailable'})
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
@@ -2584,9 +2536,7 @@ def _get_exposure_policy(cur) -> Dict:
                 'factor_quality': factor_quality,
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
-            }
-            sanitized = APIResponseValidator.sanitize_response(response_data)
-            return json_response(200, sanitized)
+            })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}', extra={'operation': 'get exposure policy'})
