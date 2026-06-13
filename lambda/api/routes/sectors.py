@@ -164,12 +164,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                             AVG(ss.stability_score) as stability_score,
                             COALESCE(sp.perf_1d, 0) as perf_1d,
                             COALESCE(sp.perf_5d, 0) as perf_5d,
-                            COALESCE(sp.perf_20d, 0) as perf_20d
+                            COALESCE(sp.perf_20d, 0) as perf_20d,
+                            (sp.sector IS NULL) as _is_fallback
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         LEFT JOIN sector_perf sp ON sp.sector = cp.sector
                         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
-                        GROUP BY cp.sector, sp.perf_1d, sp.perf_5d, sp.perf_20d
+                        GROUP BY cp.sector, sp.perf_1d, sp.perf_5d, sp.perf_20d, sp.sector
                     ),
                     ranked AS (
                         SELECT *,

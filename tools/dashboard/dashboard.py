@@ -1612,6 +1612,11 @@ def panel_performance_spark(perf, rec, perf_anl=None):
 
 def panel_positions(pos, compact=False, trades=None):
     """Display open positions table. Normalizes input from {"items": [...]} format."""
+    # Check if placeholder/fallback data is being displayed
+    is_placeholder = False
+    if isinstance(pos, dict):
+        is_placeholder = pos.get("_is_placeholder") or pos.get("_is_fallback_data")
+
     # Normalize positions data structure
     if isinstance(pos, dict) and "items" in pos:
         pos_items = pos.get("items", [])
@@ -1625,7 +1630,7 @@ def panel_positions(pos, compact=False, trades=None):
     else:
         pos_items = []
         pos_timestamp = None
-    
+
     if not pos_items:
         return Panel(Text("  No open positions - algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
@@ -1691,6 +1696,12 @@ def panel_positions(pos, compact=False, trades=None):
     # Pending/queued trades below open positions
     pending = [tr for tr in (trades or [])
                if isinstance(tr, dict) and tr.get("status") in ("pending", "pending_new", "rejected")] if trades else []
+
+    # Build content with optional placeholder warning and pending trades
+    content_items = []
+    if is_placeholder:
+        content_items.append(Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Positions may not be accurate[/]"))
+    content_items.append(t)
     if pending:
         pend_rows = [Text.from_markup("[dim]Queued / Recent:[/]")]
         for tr in pending[:4]:
@@ -1699,14 +1710,16 @@ def panel_positions(pos, compact=False, trades=None):
             td  = tr.get("trade_date")
             age_s = fmt_age(td) if td else "--"
             if st == "rejected":
-                pend_rows.append(Text.from_markup(f"  [{R}]âœ-- {sym}[/] [dim]{age_s} rejected[/]"))
+                pend_rows.append(Text.from_markup(f"  [{R}]✗ {sym}[/] [dim]{age_s} rejected[/]"))
             else:
-                pend_rows.append(Text.from_markup(f"  [{Y}]â-· {sym}[/] [dim]{age_s} {st}[/]"))
-        content = Group(t, *pend_rows)
-    else:
-        content = t
+                pend_rows.append(Text.from_markup(f"  [{Y}]◌ {sym}[/] [dim]{age_s} {st}[/]"))
+        content_items.extend(pend_rows)
 
-    return Panel(content, title=f"[bold cyan]POSITIONS ({len(pos_items)})[/]  [dim][p] expand[/]", border_style="cyan", padding=(0, 0))
+    content = Group(*content_items) if len(content_items) > 1 else (content_items[0] if content_items else t)
+
+    border = "red" if is_placeholder else "cyan"
+    title = "[bold red]POSITIONS ⚠ PLACEHOLDER DATA[/]" if is_placeholder else f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
+    return Panel(content, title=f"{title}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
 
 
 def panel_signals_compact(sig, sig_eval=None):

@@ -1054,6 +1054,12 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     if not perf or perf.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
+
+    # Check if this is fallback/placeholder data
+    is_placeholder = perf.get("_is_placeholder") or perf.get("_is_fallback_data")
+    is_stale = perf.get("_stale_alerts")
+    fallback_reason = perf.get("_fallback_reason")
+
     streak  = perf.get("streak") or 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
@@ -1171,7 +1177,17 @@ def panel_performance_spark(perf, rec, perf_anl=None):
                 f"  [{c}]{sym}[/] [{c}]{pct_s}  {pv_s}{rv_s}[/]"
             ))
 
-    return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
+    # If data is fallback/placeholder, warn user and use red border
+    if is_placeholder:
+        title = "[bold red]PERFORMANCE ⚠️ FALLBACK DATA[/]"
+        border = "red"
+        warning_note = fallback_reason or "Performance data unavailable — using cached/fallback metrics"
+        rows.insert(0, Text(f"⚠️  {warning_note}", style="bold red"))
+    else:
+        title = "[bold green]PERFORMANCE[/]"
+        border = "green"
+
+    return Panel(Group(*rows), title=title, border_style=border, padding=(0, 1))
 
 
 def panel_positions(pos, compact=False, trades=None):

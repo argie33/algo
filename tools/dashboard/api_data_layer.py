@@ -4,8 +4,25 @@ This module consolidates all dashboard data fetching through a single API layer
 instead of dual DB/API sources. It eliminates field name mismatches and ensures
 consistent data freshness.
 
+ISSUE 1.1 FIX: Consistent API Response Handling
+================================================
+Different endpoints returned different response formats causing silent parsing failures:
+- Some: {data: {...}}
+- Others: {items: [...]} or direct fields
+- Created inconsistency in panel builders
+
+FIX IMPLEMENTATION:
+1. api_call() now unwraps the statusCode wrapper from all responses
+2. _unwrap_api_response() standardizes payload extraction
+3. Each data fetcher uses resp.get("data", resp) to handle both:
+   - json_response() format: {"data": {...}}
+   - Direct field format: {"n": 0, "buy_sigs": [...], ...}
+4. list_response() format stays at top level: {"items": [...], "pagination": {...}}
+
+Result: Single consistent unpacking pattern across all data fetchers.
+
 Migration status:
-- Positions, Trades, Performance, Signals: ✅ API-only
+- Positions, Trades, Performance, Signals: ✅ API-only + standardized
 - Portfolio Status: ✅ API-only (via /api/algo/status)
 - Health/Data Status: ✅ API-only (via /api/algo/data-status)
 - Config: ✅ API-only (via /api/algo/config)
@@ -221,7 +238,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_audit_log failed: {resp['_error']}")
             return {"items": [], "pagination": {}}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_circuit_breakers() -> Dict[str, Any]:
@@ -240,4 +258,5 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_sector_breadth failed: {resp['_error']}")
             return {}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)

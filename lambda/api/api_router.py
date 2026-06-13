@@ -115,6 +115,42 @@ for path, module_name in _HANDLER_CONFIG:
 if _SKIPPED_ROUTES:
     logger.error(f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}")
 
+def _wrap_response(response):
+    """Standardize response format for consistent client handling.
+
+    Issue 2.1 FIX: Wrap all responses in 'data' field so dashboard can consistently:
+    1. Access response payload via response['data']
+    2. Extract errors via response['_error'] (always at top level)
+
+    Formats handled:
+    - list_response: {"statusCode": 200, "items": [...]} → {"statusCode": 200, "data": {"items": [...]}}
+    - json_response: {"statusCode": 200, "data": {...}} → unchanged (already wrapped)
+    - error_response: {"statusCode": 4xx, "errorType": "...", "message": "..."} → unchanged (no data field)
+    """
+    if not isinstance(response, dict):
+        return response
+
+    # Errors don't need wrapping - they're returned as-is
+    if response.get('errorType') or response.get('statusCode', 200) >= 400:
+        return response
+
+    # Already wrapped in 'data' field (json_response format)
+    if 'data' in response:
+        return response
+
+    # Wrap other successful responses (list_response format: {items: [...], total: N})
+    if response.get('statusCode') == 200 and not response.get('_error'):
+        # Extract all top-level fields except statusCode/headers
+        payload = {k: v for k, v in response.items() if k not in ('statusCode', 'headers')}
+        response = {
+            'statusCode': 200,
+            'data': payload
+        }
+        if 'headers' in response:
+            response['headers'] = response['headers']
+
+    return response
+
 def _add_cors_headers(response):
     """Add CORS headers to response."""
     if not isinstance(response, dict):
@@ -134,20 +170,20 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
         if path.startswith(prefix):
             try:
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
-                return _add_cors_headers(response)
+                return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
-                return _add_cors_headers(_format_handler_error(e))
+                return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
-                return _add_cors_headers(response)
+                return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
-                return _add_cors_headers(_format_handler_error(e))
+                return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check if the path matches a route module that failed to import
     # More specific routes are checked first (they appear first in _HANDLER_CONFIG)
@@ -171,12 +207,12 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                     "all_failed_modules": import_status['failed_modules'],
                 }
             }
-            return _add_cors_headers(response)
+            return _add_cors_headers(_wrap_response(response))
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
     msg = "Endpoint not found"
-    return _add_cors_headers({"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg})
+    return _add_cors_headers(_wrap_response({"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg}))
 
 
 def get_import_status():
