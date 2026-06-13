@@ -1985,8 +1985,9 @@ def _get_markets(cur) -> Dict:
 
             market_health = {}
             try:
+                cur.execute("SAVEPOINT market_health_check")
                 cur.execute("""
-                    SELECT market_trend, market_stage, vix_level, spy_change_pct,
+                    SELECT market_trend, market_stage, vix_level,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
@@ -1996,8 +1997,13 @@ def _get_markets(cur) -> Dict:
                 mh = cur.fetchone()
                 if mh:
                     market_health = safe_json_serialize(dict(mh))
+                cur.execute("RELEASE SAVEPOINT market_health_check")
             except Exception as e:
                 logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT market_health_check")
+                except:
+                    pass
 
             spy_price = None
             try:
@@ -2047,9 +2053,9 @@ def _get_market(cur) -> Dict:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
-        # Fetch market health: 12 fields from market_health_daily
+        # Fetch market health: 11 fields from market_health_daily
         cur.execute("""
-            SELECT market_trend, market_stage, vix_level, spy_change_pct,
+            SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
                    yield_curve_slope, fed_rate_environment
