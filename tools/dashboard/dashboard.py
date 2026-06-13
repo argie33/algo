@@ -859,55 +859,55 @@ def fetch_sentiment(c):
         return {}
 
 def fetch_economic_calendar(c):
+    """Issue 3 FIX: API-only economic calendar."""
     try:
-        rows = q(c, """SELECT event_name, event_date, event_time, importance,
-                              forecast_value, actual_value, previous_value
-                       FROM economic_calendar
-                       WHERE event_date >= CURRENT_DATE - 1
-                         AND country='US'
-                       ORDER BY event_date ASC, importance DESC, event_time ASC
-                       LIMIT 8""")
-        return rows
+        data = api_call('/api/algo/economic-calendar')
+        if data.get('_error'):
+            return []
+        return data.get('data', []) if isinstance(data.get('data'), list) else []
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
+        return []
 
 def fetch_risk_metrics(c):
+    """Issue 3 FIX: API-only risk metrics."""
     try:
-        row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
-                              portfolio_beta, top_5_concentration
-                       FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
+        data = api_call('/api/algo/risk-metrics')
+        if data.get('_error'):
+            return {}
+        d = data.get('data', {})
         return {
-            "date":      row.get("report_date"),
-            "var95":     float(row.get("var_pct_95")         or 0),
-            "cvar95":    float(row.get("cvar_pct_95")        or 0),
-            "svar":      float(row.get("stressed_var_pct")   or 0),
-            "beta":      float(row.get("portfolio_beta")     or 0),
-            "conc5":     float(row.get("top_5_concentration") or 0),
+            "date": d.get("report_date"),
+            "var95": safe_float(d.get("var_pct_95")),
+            "cvar95": safe_float(d.get("cvar_pct_95")),
+            "svar": safe_float(d.get("stressed_var_pct")),
+            "beta": safe_float(d.get("portfolio_beta")),
+            "conc5": safe_float(d.get("top_5_concentration")),
         }
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_perf_analytics(c):
+    """Issue 3 FIX: API-only performance analytics."""
     try:
-        row = q1(c, """SELECT report_date, rolling_sharpe_252d, rolling_sortino_252d,
-                              calmar_ratio, win_rate_50t, avg_win_r_50t, avg_loss_r_50t,
-                              expectancy, max_drawdown_pct
-                       FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
-        def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
+        data = api_call('/api/algo/performance-analytics')
+        if data.get('_error'):
+            return {}
+        d = data.get('data', {})
         return {
-            "sharpe252": _f("rolling_sharpe_252d"),
-            "sortino":   _f("rolling_sortino_252d"),
-            "calmar":    _f("calmar_ratio"),
-            "wr50":      _f("win_rate_50t"),
-            "avg_w_r":   _f("avg_win_r_50t"),
-            "avg_l_r":   _f("avg_loss_r_50t"),
-            "expectancy": _f("expectancy"),
-            "maxdd":     _f("max_drawdown_pct"),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
+            "sortino": safe_float(d.get("rolling_sortino_252d")),
+            "calmar": safe_float(d.get("calmar_ratio")),
+            "wr50": safe_float(d.get("win_rate_50t")),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t")),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t")),
+            "expectancy": safe_float(d.get("expectancy")),
+            "maxdd": safe_float(d.get("max_drawdown_pct")),
         }
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
@@ -1698,7 +1698,7 @@ def panel_positions(pos, compact=False, trades=None):
 
     # Pending/queued trades below open positions
     pending = [tr for tr in (trades or [])
-               if tr.get("status") in ("pending", "pending_new", "rejected")] if trades else []
+               if isinstance(tr, dict) and tr.get("status") in ("pending", "pending_new", "rejected")] if trades else []
     if pending:
         pend_rows = [Text.from_markup("[dim]Queued / Recent:[/]")]
         for tr in pending[:4]:
