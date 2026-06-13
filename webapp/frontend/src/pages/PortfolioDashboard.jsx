@@ -1145,20 +1145,9 @@ function RLadderPanel({ positions, loading, onSelect }) {
                     Stop {fmtMoney(l.stop)} · Entry {fmtMoney(l.entry)} · Now {fmtMoney(l.cur)}
                   </div>
                 </div>
-                <div style={{ position: 'relative', height: 28, background: 'var(--surface-2)',
-                              borderRadius: 'var(--r-pill)', overflow: 'visible',
-                              border: '1px solid var(--border-soft)' }}>
+                <div style={LADDER_TRACK_STYLE}>
                   {/* Filled track from stop to current (or stop to entry if underwater) */}
-                  <div style={{
-                    position: 'absolute', top: 0, bottom: 0,
-                    left: `${Math.min(l.pStop, l.pCur)}%`,
-                    width: `${Math.max(0, Math.abs(l.pCur - l.pStop))}%`,
-                    background: l.pCur >= l.pEntry
-                      ? 'linear-gradient(90deg, var(--danger) 0%, var(--amber) 50%, var(--success) 100%)'
-                      : 'linear-gradient(90deg, var(--danger) 0%, var(--amber) 100%)',
-                    opacity: 0.35,
-                    borderRadius: 'var(--r-pill)',
-                  }} />
+                  <div style={LADDER_FILL_STYLE(l.pStop, l.pCur, l.pEntry)} />
                   <Marker pct={l.pStop} color="var(--danger)" label="S" />
                   <Marker pct={l.pEntry} color="var(--text-2)" label="E" />
                   {l.pT1 != null && <Marker pct={l.pT1} color="var(--cyan)" label="T1" />}
@@ -1177,21 +1166,9 @@ function RLadderPanel({ positions, loading, onSelect }) {
 
 function Marker({ pct, color, label, big = false }) {
   return (
-    <div style={{
-      position: 'absolute', top: -4, bottom: -4,
-      left: `${pct}%`, transform: 'translateX(-50%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      pointerEvents: 'none',
-    }}>
-      <div style={{
-        width: big ? 4 : 2, flex: 1, background: color,
-        borderRadius: 'var(--r-pill)',
-        boxShadow: big ? `0 0 4px ${color}` : 'none',
-      }} />
-      <div className="mono tnum" style={{
-        fontSize: 'var(--t-2xs)', color, fontWeight: 'var(--w-bold)',
-        marginTop: 2, lineHeight: 1, whiteSpace: 'nowrap',
-      }}>{label}</div>
+    <div style={{...MARKER_STYLE_BASE, left: `${pct}%`, transform: 'translateX(-50%)'}}>
+      <div style={MARKER_LINE_STYLE(big, color)} />
+      <div className="mono tnum" style={MARKER_LABEL_STYLE(color)}>{label}</div>
     </div>
   );
 }
