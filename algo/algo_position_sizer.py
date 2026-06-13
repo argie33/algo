@@ -333,7 +333,7 @@ class PositionSizer:
                     SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
                 result = cur.fetchone()
-                total_value = float(result[0]) if result and result[0] else 0
+                total_value = float(result[0]) if result is not None and result[0] is not None else 0
                 return (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
 
             result = self._with_cursor(fetch_capital_pct)
