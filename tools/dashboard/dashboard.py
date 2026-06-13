@@ -237,68 +237,6 @@ def compute_sector_agg(pos, port):
 
 # â”€â”€ DB helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def get_conn():
-    """Get connection from pool; tries pool â†’ fallback â†’ Secrets Manager â†’ error."""
-    global _dashboard_pool
-    
-    # Try to get from pool
-    if _dashboard_pool is None:
-        _init_dashboard_pool()
-    
-    if _dashboard_pool is not None:
-        try:
-            return _dashboard_pool.getconn()
-        except psycopg2.pool.PoolError:
-            logger.warning("Dashboard pool exhausted, falling back to direct connection")
-    
-    # Fallback: direct connection
-    miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-    if miss:
-        if not _load_db_credentials_from_secrets():
-            sys.exit(f"Missing env vars: {', '.join(miss)}")
-    return psycopg2.connect(
-        host=os.environ["DB_HOST"], port=int(os.environ.get("DB_PORT", 5432)),
-        user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
-        dbname=os.environ["DB_NAME"], connect_timeout=10,
-        cursor_factory=psycopg2.extras.RealDictCursor,
-        options="-c statement_timeout=8000",
-    )
-
-def return_conn(conn):
-    """Return a connection to the pool."""
-    global _dashboard_pool
-    if _dashboard_pool is not None and conn is not None:
-        try:
-            _dashboard_pool.putconn(conn)
-            return
-        except (psycopg2.pool.PoolError, TypeError):
-            pass
-    # Fallback: close the connection if not pooled
-    if conn is not None:
-        try:
-            conn.close()
-        except:
-            pass
-
-def q(c, sql, p=None):
-    """Deprecated: Direct DB queries removed. Use DashboardDataAPI instead.
-
-    Returns empty list to allow dashboard to continue with API-only data.
-    See DASHBOARD_API_MIGRATION.md for endpoint mappings.
-    """
-    logger.warning(f"DB query called (deprecated): {sql[:50]}... — using API-only mode")
-    return []
-
-def q1(c, sql, p=None):
-    """Deprecated: Direct DB queries removed. Use DashboardDataAPI instead.
-
-    Returns None to allow dashboard to continue with API-only data.
-    See DASHBOARD_API_MIGRATION.md for endpoint mappings.
-    """
-    logger.warning(f"DB query called (deprecated): {sql[:50]}... — using API-only mode")
-    return None
-
-
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
 
@@ -1028,17 +966,13 @@ def load_all() -> dict:
     BATCH_TIMEOUT = 100
 
     def one(name, fn):
-        """Execute fetcher with exponential backoff retry on connection errors."""
-        conn = None
+        """Execute fetcher with exponential backoff retry on API errors."""
         for attempt in range(MAX_RETRIES + 1):
             try:
-                conn = get_conn()
-                conn.autocommit = True
-                return name, fn(conn)
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                return name, fn(None)
+            except Exception as e:
                 if attempt < MAX_RETRIES:
                     # Issue 10 FIX: Exponential backoff capped at 30 seconds
-                    # Formula: (2^attempt) + random jitter, but never exceed API_MAX_BACKOFF
                     base_backoff = (2 ** attempt) + random.random() * (2 ** attempt)
                     backoff = min(base_backoff, API_MAX_BACKOFF)
                     logger.warning(f"Fetcher {name} retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}")
@@ -1046,15 +980,6 @@ def load_all() -> dict:
                     continue
                 logger.error(f"Fetcher {name} failed after {MAX_RETRIES+1} attempts: {e}")
                 return name, {"_error": str(e)}
-            except Exception as e:
-                logger.error(f"Fetcher {name}: {type(e).__name__}: {e}")
-                return name, {"_error": str(e)}
-            finally:
-                if conn:
-                    try:
-                        return_conn(conn)
-                    except Exception:
-                        pass
 
     with ThreadPoolExecutor(max_workers=min(len(FETCHERS), 8)) as pool:
         futures = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
