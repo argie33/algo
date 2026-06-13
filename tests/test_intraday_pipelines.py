@@ -30,7 +30,6 @@ def test_morning_pipeline_timing():
     print(f"Expected: Pipeline starts at {expected_start} ET, completes by {expected_complete} ET")
     print(f"Check CloudWatch logs for /ecs/algo-*-loader timestamps")
     print(f"Requirement: Ready 7.5 hours before 9:30 AM market open [OK]")
-    return True
 
 
 def test_afternoon_update_pipeline():
@@ -45,7 +44,6 @@ def test_afternoon_update_pipeline():
     print("1. Check CloudWatch: /ecs/algo-swing_trader_scores_vectorized-loader")
     print("2. Look for INTRADAY_MODE=true in logs at 12:50 PM")
     print("3. Confirm 'computed_at' timestamp in swing_trader_scores is ~1 PM")
-    return True
 
 
 def test_preclose_update_pipeline():
@@ -63,7 +61,6 @@ def test_preclose_update_pipeline():
     print("2. Look for INTRADAY_MODE=true in logs at 2:50 PM")
     print("3. Confirm completion BEFORE 3:15 PM")
     print("4. Verify 'computed_at' timestamp in swing_trader_scores is ~3 PM")
-    return True
 
 
 def test_fresh_scores_used_by_orchestrator():
@@ -79,7 +76,6 @@ def test_fresh_scores_used_by_orchestrator():
     print("  - Should query swing_trader_scores with computed_at ~ 2:50 PM")
     print("  - NOT morning's 2:00 AM scores")
     print("  - Check orchestrator Phase 5 logs for score lookup timestamp")
-    return True
 
 
 def test_no_database_conflicts():
@@ -95,7 +91,6 @@ def test_no_database_conflicts():
     print("1. No lock timeouts in CloudWatch logs")
     print("2. No 'database connection pool exhausted' errors")
     print("3. All loaders complete successfully")
-    return True
 
 
 def test_failure_scenarios():
@@ -115,7 +110,6 @@ def test_failure_scenarios():
     print("  Expected: 9:30 AM orchestrator uses previous day's scores (or halts)")
     print("  Expected: Afternoon/pre-close orchestrators fail or use fallback")
     print("  Check: Phase 1 halt detection in orchestrator logs")
-    return True
 
 
 def validate_intraday_mode_support():
