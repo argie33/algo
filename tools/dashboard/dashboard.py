@@ -134,7 +134,7 @@ MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
     "bright_yellow", "white", "yellow", "bright_red",
 ]
-LOAD_SEQ = [0, 1, 4, 3]  # groove â†’ step R â†’ JUMP â†’ step L
+LOAD_SEQ = [0, 1, 4, 3]  # groove â†' step R â†' JUMP â†' step L
 
 # Configure logging for stability monitoring
 _log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dashboard.log")
@@ -367,7 +367,7 @@ def mkt_hours_str() -> tuple:
         return f"{h}h{mm:02d}m" if h > 0 else f"{mm}m"
 
     if wd >= 5:
-        days_ahead = 7 - wd  # satâ†’2, sunâ†’1
+        days_ahead = 7 - wd  # satâ†'2, sunâ†'1
         open_dt = (n + timedelta(days=days_ahead)).replace(
             hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
@@ -431,18 +431,18 @@ def hbar(cur, thr, w=6):
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
     c = R if r >= 1 else (Y if r >= 0.75 else G)
-    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-‘' * (w - f)}[/]"
+    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
 
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
-    return f"[{tc}]{'â-ˆ' * f}[/][dim]{'â-‘' * (w - f)}[/]"
+    return f"[{tc}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
 
 def mini_bar(pts, max_pts, w=5):
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
     f = int(r * w)
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
-    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-‘' * (w - f)}[/]"
+    return f"[{c}]{'â-ˆ' * f}[/][dim]{'â-'' * (w - f)}[/]"
 
 def sign(v) -> str:
     return "+" if float(v) >= 0 else ""
@@ -1271,7 +1271,7 @@ def panel_market_full(mkt, sentiment=None):
         fg_lbl = (sentiment.get("label") or "")[:16]
         fg_c   = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
-        fg_bar_s = f"[{fg_c}]{‘█’ * fg_bar}[/][dim]{‘░’ * (8 - fg_bar)}[/]"
+        fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
         lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
@@ -1361,7 +1361,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             fg_lbl = (sentiment.get("label") or "")[:14]
             fg_c   = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
-            fg_bar_s = f"[{fg_c}]{‘█’ * fg_bar}[/][dim]{‘░’ * (6 - fg_bar)}[/]"
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
             line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
@@ -1749,7 +1749,7 @@ def panel_signals_compact(sig, sig_eval=None):
         )]
         blocks_s = "  [dim]blocked:[/]  " + block_parts[0] if rejected else ""
         rows.append(Text.from_markup(
-            f"[dim]{ev_tot} â†’[/] [{ev_c}]{ev_t5} qualified[/]"
+            f"[dim]{ev_tot} â†'[/] [{ev_c}]{ev_t5} qualified[/]"
             f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
         ))
 
@@ -1889,7 +1889,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
             bar_f   = int(min(pct, 30) / 30 * 3)
-            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-‘' * (3 - bar_f)}[/]"
+            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-'' * (3 - bar_f)}[/]"
             return (f"[white]{sec[:11]:<11}[/]{bar_s}"
                     f"[dim]{pct:.0f}%[/] [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}%[/]")
 
@@ -2073,7 +2073,7 @@ def panel_economic_pulse(eco, econ_cal=None):
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
-    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS â†’ Exposure Score[/]",
+    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS â†' Exposure Score[/]",
                  border_style="bright_magenta", padding=(0, 1))
 
 
@@ -2175,7 +2175,7 @@ def panel_exposure_compact(exp_f):
 
     raw_bar = mini_bar(raw, 100, w=8)
     header  = Text.from_markup(
-        f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]â†’ allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
+        f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]â†' allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
     )
     return Panel(Group(header, tbl), title="[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts)[/]",
                  border_style="blue", padding=(0, 1))
@@ -2485,7 +2485,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 
 def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
-    """Focused ‘did the algo work?’ panel: run outcome â†’ what it did â†’ system health."""
+    """Focused 'did the algo work?' panel: run outcome â†' what it did â†' system health."""
     rows: list = []
 
     # Extract items from data dicts and check for errors
@@ -3080,7 +3080,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
             bar_f   = int(min(pct, 25) / 25 * 8)
-            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-‘' * (8 - bar_f)}[/]"
+            bar_s   = f"[{pc}]{'â-ˆ' * bar_f}[/][dim]{'â-'' * (8 - bar_f)}[/]"
             rows.append(Text.from_markup(
                 f"  [white]{sec:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
             ))
@@ -3329,7 +3329,7 @@ def run_watch(interval: int, compact: bool) -> None:
 
 LEGEND = """
 â•"â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•--
-â•‘                     ALGO DASHBOARD – TERM GUIDE                            â•‘
+â•'                     ALGO DASHBOARD – TERM GUIDE                            â•'
 â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 PANELS:
@@ -3350,7 +3350,7 @@ PANELS:
     Top-5 Conc      % of portfolio in top 5 positions (concentration risk)
 
   MARKET – market regime inputs to the algo
-    CONF UP etc     Market tier: Confirmed Uptrend â†’ Correction (5 levels)
+    CONF UP etc     Market tier: Confirmed Uptrend â†' Correction (5 levels)
     exposure %      How much of the portfolio the algo is deploying (0–100%)
     VIX             Volatility Index (>20 = caution, >30 = algo reduces)
     Dist Days       Distribution days in 4 weeks (heavy selling by institutions)
@@ -3412,7 +3412,7 @@ PANELS:
     R-Mult          How many R (risk units) this position has moved
     Stop            Current stop-loss price
     Dist%           Distance from current price to stop (buffer remaining)
-    T1â†’             % gain needed to hit first profit target
+    T1â†'             % gain needed to hit first profit target
     Days            Days since position was entered
     Stage           Weinstein stage of the stock (2 = uptrend)
     Swing Score     Algo's composite score for this stock (0–100)
@@ -3420,12 +3420,12 @@ PANELS:
   SIGNALS – today's buy signal analysis
     A/B/C/D grades  Score grade distribution of all stocks screened today
     buy signals / N scored  How many stocks got a BUY signal today
-    Screened â†’ Selected   Signal filter funnel (how many pass each gate)
-      â†’Mkt:          Market condition gate (is market healthy enough?)
-      â†’Score:        Minimum swing score gate
-      â†’Risk:         Position sizing / risk gate
-      â†’Sector:       Sector concentration gate
-      â†’Selected:     Final candidates the algo can trade
+    Screened â†' Selected   Signal filter funnel (how many pass each gate)
+      â†'Mkt:          Market condition gate (is market healthy enough?)
+      â†'Score:        Minimum swing score gate
+      â†'Risk:         Position sizing / risk gate
+      â†'Sector:       Sector concentration gate
+      â†'Selected:     Final candidates the algo can trade
     avg score       Average quality score of signals passing all filters
     Top rejection reasons   Why most signals were filtered out
 
@@ -3436,7 +3436,7 @@ PANELS:
     #2 Industry â-²1    Top industry sub-groups within sectors
 
   EXPOSURE SCORE BREAKDOWN – what drives the algo's allocation %
-    Score N/100       Raw points scored â†’ converted to exposure % (0–100%)
+    Score N/100       Raw points scored â†' converted to exposure % (0–100%)
     30wk Trend        Is SPY above its 30-week moving average?
     Breadth 50MA      % of S&P 500 stocks above their 50-day MA
     IBD State         IBD market status (Confirmed Uptrend/Under Pressure/etc)
@@ -3449,11 +3449,11 @@ PANELS:
     AAII Sentiment    Weekly survey: retail investor bullish vs bearish %
     NAAIM Exposure    Active manager equity exposure level
 
-  ECONOMIC INPUTS â†’ Exposure Score – macro factors the algo monitors
+  ECONOMIC INPUTS â†' Exposure Score – macro factors the algo monitors
     3M/6M/2Y/10Y Tsy  Treasury yield curve (used in yield curve slope factor)
     10Y-2Y spread     Yield curve inversion (algo reduces exposure when inverted)
     Fed Rate          Federal Funds Rate (algo's fed_rate_environment filter)
-    HY/IG OAS         Credit spreads – widening = risk-off â†’ algo reduces exposure
+    HY/IG OAS         Credit spreads – widening = risk-off â†' algo reduces exposure
     CPI YoY           Inflation rate (algo's economic overlay factor)
     Unemployment      Labor market health (economic overlay)
     WTI Crude Oil     Oil price (energy cost / inflation proxy)

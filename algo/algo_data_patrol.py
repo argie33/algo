@@ -67,6 +67,29 @@ class DataPatrol:
         """Load patrol configuration from algo_config table with defaults.
 
         Reads from database first, falls back to hardcoded defaults if not configured.
+
+        Fallback Defaults (used if algo_config record not found):
+        - staleness_windows (days since last update):
+          * price_daily: 7 days
+          * technical_data_daily: 7 days
+          * buy_sell_daily: 7 days
+          * signal_quality_scores: 7 days
+          * stock_scores: 14 days
+          * earnings_history: 120 days
+        - coverage_thresholds:
+          * min_universe_pct: 75% of universe must have data
+          * min_coverage_ratio: 0.75 (75% of records must have values)
+        - price_sanity:
+          * max_daily_move_pct: 50% (flag moves > 50% in one day)
+          * max_daily_move_count: 10 (flag if >10 moves > 50% in lookback window)
+        - volume_sanity:
+          * low_volume_threshold: 1,000,000 shares
+          * high_volume_threshold: 100,000,000 shares
+          * new_low_volume_alert: 50 (flag stocks with volume < 50% of 20d avg)
+        - loader_contracts (minimum acceptable data volumes):
+          * price_daily_14d_min: 40,000 OHLCV records in last 14 days
+          * buy_sell_daily_14d_min: 800 records in last 14 days
+          * coverage_ratio_min: 0.80 (80% of contracts must return data)
         """
         config = {
             'staleness_windows': {
