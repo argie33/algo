@@ -521,59 +521,34 @@ def sparkline(values: list, width: int = 24) -> str:
 # â”€â”€ fetchers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def fetch_run(c):
-    # Primary: orchestrator_execution_log has structured named phase data
     try:
-        row = q1(c, """
-            SELECT run_id, started_at, completed_at, overall_status,
-                   phase_results, summary, halt_reason,
-                   phases_completed, phases_halted, phases_errored
-            FROM orchestrator_execution_log
-            ORDER BY started_at DESC LIMIT 1""")
-        if row:
-            pr = safe_json_parse(row.get("phase_results"), default=[], field_name="fetch_run.phase_results")
-            overall = (row.get("overall_status") or "").lower()
-            return {
-                "run_id":    row.get("run_id"),
-                "run_at":    row.get("completed_at") or row.get("started_at"),
-                "success":   overall in ("success", "completed"),
-                "halted":    overall == "halted",
-                "errored":   overall in ("error", "failed"),
-                "summary":   row.get("summary"),
-                "halt_reason": row.get("halt_reason"),
-                "phases_completed": row.get("phases_completed") or [],
-                "phases_halted":    row.get("phases_halted") or [],
-                "phases_errored":   row.get("phases_errored") or [],
-                "phase_results":    pr,
-                "_source": "exec_log",
-            }
+        data = api_call('/api/algo/last-run')
+        if data.get('_error'):
+            return data
+        return {
+            "run_id":    data.get("run_id"),
+            "run_at":    data.get("completed_at") or data.get("started_at"),
+            "success":   data.get("success", False),
+            "halted":    data.get("halted", False),
+            "errored":   data.get("errored", False),
+            "summary":   data.get("summary"),
+            "halt_reason": data.get("halt_reason"),
+            "phases_completed": data.get("phases_completed") or [],
+            "phases_halted":    data.get("phases_halted") or [],
+            "phases_errored":   data.get("phases_errored") or [],
+            "phase_results":    safe_json_parse(data.get("phase_results"), default=[], field_name="fetch_run.phase_results"),
+        }
     except Exception as e:
         logger.error(f"fetch_run: {type(e).__name__}: {e}")
-
-    # Fallback: reconstruct from algo_audit_log
-    try:
-        latest = q1(c, """
-            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-            FROM algo_audit_log WHERE details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"):
-            logger.warning("fetch_run: No data in algo_audit_log")
-            return {}
-        rid = latest["run_id"]
-        phases = q(c, """SELECT action_type, status FROM algo_audit_log
-                         WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        halted  = any(p.get("status") == "halt"  for p in phases)
-        errored = any(p.get("status") == "error" for p in phases)
-        return {"run_id": rid, "run_at": latest["run_at"],
-                "success": bool(phases) and not errored, "halted": halted,
-                "phases": phases, "_source": "audit_log"}
-    except Exception as e:
-        logger.error(f"fetch_run fallback: {type(e).__name__}: {e}")
         return {"_error": str(e)}
 
 def fetch_algo_config(c):
-    """Issue 3 FIX: API-only algo configuration."""
+    """AWS-only algo configuration (no local fallback)."""
     try:
-        cfg = DashboardDataAPI.get_config() if DashboardDataAPI else {}
+        data = api_call('/api/algo/config')
+        if data.get('_error'):
+            return {}
+        cfg = data.get('data', {})
         if "_error" in cfg:
             return {"_error": cfg["_error"]}
         return {
@@ -639,9 +614,12 @@ def fetch_exposure_factors(c):
         return {}
 
 def fetch_portfolio(c):
-    """Issue 3 FIX: API-only portfolio snapshot."""
+    """AWS-only portfolio snapshot (no local fallback)."""
     try:
-        port = DashboardDataAPI.get_portfolio() if DashboardDataAPI else {}
+        data = api_call('/api/algo/portfolio')
+        if data.get('_error'):
+            return {}
+        port = data.get('data', {})
         if "_error" in port:
             return {}
         return {
@@ -660,9 +638,12 @@ def fetch_portfolio(c):
         return {}
 
 def fetch_perf(c):
-    """Issue 3 FIX: API-only performance data."""
+    """AWS-only performance data (no local fallback)."""
     try:
-        perf = DashboardDataAPI.get_performance() if DashboardDataAPI else {}
+        data = api_call('/api/algo/performance')
+        if data.get('_error'):
+            return {}
+        perf = data.get('data', {})
         if "_error" in perf or not perf:
             return {}
         return {
@@ -687,27 +668,23 @@ def fetch_perf(c):
         return {}
 
 def fetch_positions(c):
-    """Issue 3 FIX: Fetch positions via API instead of direct DB access (dual data source elimination)."""
+    """Fetch positions via AWS API only (no local database fallback)."""
     try:
-        if DashboardDataAPI:
-            positions = DashboardDataAPI.get_positions()
-            if positions:
-                return positions
-        # Fallback to DB if API unavailable or disabled
-        return q(c, """SELECT position_id, symbol, quantity, avg_entry_price, current_price,
-                              position_value, stop_loss_price, unrealized_pnl_dollars,
-                              unrealized_pnl_pct, sector, stage_in_lifecycle, r_multiple,
-                              weinstein_stage, days_since_entry, distance_to_stop_pct
-                       FROM algo_positions WHERE status='open'
-                       ORDER BY position_value DESC""")
+        data = api_call('/api/algo/positions')
+        if data.get('_error'):
+            return []
+        return data.get('data', [])
     except Exception as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         return []
 
 def fetch_recent_trades(c):
-    """Issue 3 FIX: API-only trades data."""
+    """AWS-only trades data (no local fallback)."""
     try:
-        trades = DashboardDataAPI.get_trades(limit=100) if DashboardDataAPI else []
+        data = api_call('/api/algo/trades', params={'limit': 100})
+        if data.get('_error'):
+            return []
+        trades = data.get('data', [])
         closed = [t for t in trades if t.get("status") == "closed"]
         return closed[:10]
     except Exception as e:
@@ -781,44 +758,23 @@ def fetch_health(c):
 
 def fetch_economic_pulse(c):
     try:
-        KEY = ['DGS10', 'DGS2', 'DGS3MO', 'DGS6MO',
-               'BAMLH0A0HYM2', 'BAMLC0A0CM',
-               'DCOILWTICO', 'ANFCI',
-               'FEDFUNDS', 'CPIAUCSL', 'UNRATE',
-               'T10YIE', 'T5YIE', 'DTWEXBGS', 'MORTGAGE30US', 'UMCSENT']
-        rows = q(c, """
-            SELECT DISTINCT ON (series_id) series_id, date, value
-            FROM economic_data WHERE series_id = ANY(%s)
-            ORDER BY series_id, date DESC""", (KEY,))
-        d = {r['series_id']: float(r['value']) for r in rows if r.get('value') is not None}
-        t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-        yc_10_2  = round(t10 - t2,  2) if t10 is not None and t2  is not None else None
-        yc_10_3m = round(t10 - t3m, 2) if t10 is not None and t3m is not None else None
-
-        # CPI YoY: need 12-month-old value
-        cpi_yoy = None
-        cpi_rows = q(c, """
-            SELECT value FROM economic_data WHERE series_id='CPIAUCSL'
-            ORDER BY date DESC LIMIT 14""")
-        if len(cpi_rows) >= 13:
-            cur_cpi  = float(cpi_rows[0]['value'])  if cpi_rows[0].get('value')  else None
-            prev_cpi = float(cpi_rows[12]['value']) if cpi_rows[12].get('value') else None
-            if cur_cpi and prev_cpi and prev_cpi > 0:
-                cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
-
+        data = api_call('/api/economic')
+        if data.get('_error'):
+            return {"_error": data.get('_error')}
+        econ = data.get('data', {})
         return {
-            't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
-            'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
-            'hy':  d.get('BAMLH0A0HYM2'), 'ig': d.get('BAMLC0A0CM'),
-            'oil': d.get('DCOILWTICO'),    'nfci': d.get('ANFCI'),
-            'fed_funds': d.get('FEDFUNDS'),
-            'cpi_yoy':   cpi_yoy,
-            'unrate':    d.get('UNRATE'),
-            'be10':      d.get('T10YIE'),
-            'be5':       d.get('T5YIE'),
-            'dxy':       d.get('DTWEXBGS'),
-            'mortgage':  d.get('MORTGAGE30US'),
-            'umcsent':   d.get('UMCSENT'),
+            't10': econ.get('t10'), 't2': econ.get('t2'), 't3m': econ.get('t3m'), 't6m': econ.get('t6m'),
+            'yc_10_2':  econ.get('yc_10_2'), 'yc_10_3m': econ.get('yc_10_3m'),
+            'hy':  econ.get('hy'), 'ig': econ.get('ig'),
+            'oil': econ.get('oil'),    'nfci': econ.get('nfci'),
+            'fed_funds': econ.get('fed_funds'),
+            'cpi_yoy':   econ.get('cpi_yoy'),
+            'unrate':    econ.get('unrate'),
+            'be10':      econ.get('be10'),
+            'be5':       econ.get('be5'),
+            'dxy':       econ.get('dxy'),
+            'mortgage':  econ.get('mortgage'),
+            'umcsent':   econ.get('umcsent'),
         }
     except Exception as e:
         return {"_error": str(e)}
@@ -836,10 +792,10 @@ def fetch_algo_metrics(c):
 
 def fetch_notifications(c):
     try:
-        return q(c, """
-            SELECT kind, severity, title, seen, created_at, details
-            FROM algo_notifications
-            ORDER BY created_at DESC LIMIT 8""")
+        data = api_call('/api/algo/notifications')
+        if data.get('_error'):
+            return {"_error": data.get('_error')}
+        return data.get('data', [])
     except Exception as e:
         return {"_error": str(e)}
 
