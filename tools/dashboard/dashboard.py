@@ -64,6 +64,62 @@ def _validate_watch_interval(value):
         raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})")
 
 
+def _fetch_terraform_credentials():
+    """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
+    import subprocess
+    import json
+    import os
+
+    try:
+        # Find terraform directory
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        tf_dir = os.path.join(repo_root, "terraform")
+
+        if not os.path.isdir(tf_dir):
+            return (None, None, None)
+
+        # Set AWS profile if credentials available
+        if os.path.exists(os.path.expanduser("~/.aws/credentials")):
+            creds = open(os.path.expanduser("~/.aws/credentials")).read()
+            if "[algo-developer]" in creds:
+                os.environ["AWS_PROFILE"] = "algo-developer"
+                os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+        # Initialize if needed
+        if not os.path.exists(os.path.join(tf_dir, ".terraform")):
+            subprocess.run(
+                ["terraform", "init",
+                 "-backend-config=bucket=stocks-terraform-state",
+                 "-backend-config=key=stocks/terraform.tfstate",
+                 "-backend-config=region=us-east-1",
+                 "-backend-config=encrypt=true"],
+                cwd=tf_dir,
+                capture_output=True,
+                timeout=60
+            )
+
+        # Fetch outputs
+        result = subprocess.run(
+            ["terraform", "output", "-json"],
+            cwd=tf_dir,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            return (None, None, None)
+
+        outputs = json.loads(result.stdout)
+        return (
+            outputs.get("api_url", {}).get("value"),
+            outputs.get("cognito_user_pool_id", {}).get("value"),
+            outputs.get("cognito_user_pool_client_id", {}).get("value")
+        )
+    except Exception:
+        return (None, None, None)
+
+
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
                      last_load_time: Optional[float] = None,
@@ -282,9 +338,25 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
-        # AWS mode: require DASHBOARD_API_URL
+        # AWS mode: try to fetch credentials dynamically
         import os
         aws_url = os.environ.get("DASHBOARD_API_URL")
+        pool_id = os.environ.get("COGNITO_USER_POOL_ID")
+        client_id = os.environ.get("COGNITO_CLIENT_ID")
+
+        # If not set, try to fetch from Terraform
+        if not aws_url:
+            logger.info("DASHBOARD_API_URL not set, fetching from Terraform...")
+            tf_url, tf_pool, tf_client = _fetch_terraform_credentials()
+            if tf_url:
+                aws_url = tf_url
+                pool_id = tf_pool
+                client_id = tf_client
+                os.environ["DASHBOARD_API_URL"] = aws_url
+                os.environ["COGNITO_USER_POOL_ID"] = pool_id
+                os.environ["COGNITO_CLIENT_ID"] = client_id
+                logger.info("Credentials fetched from Terraform")
+
         if not aws_url:
             CONSOLE.print("[bold red]ERROR:[/] AWS mode requires DASHBOARD_API_URL environment variable")
             CONSOLE.print("")
