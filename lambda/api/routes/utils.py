@@ -307,6 +307,35 @@ def json_response(code, data, data_freshness=None):
         # For non-200 codes, data should have 'errorType' and 'message'
         return {"statusCode": code, **data}
 
+def safe_dict_convert(row):
+    """Safely convert DictCursor row to dictionary, handling schema mismatches.
+
+    DictCursor rows support dict() conversion, but this can fail if:
+    - Database schema has changed (missing/extra columns)
+    - Column names don't exist in the row
+    - Row is None or invalid
+
+    Args:
+        row: DictCursor row from database query, or None
+
+    Returns:
+        Dict of row data, or empty dict if conversion fails.
+        Logs KeyError/ValueError for debugging schema issues.
+    """
+    if row is None:
+        return {}
+
+    try:
+        return dict(row)
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error(f"Failed to convert row to dict: {type(e).__name__}: {e}")
+        try:
+            if hasattr(row, 'keys'):
+                return {k: row[k] for k in row.keys() if k is not None}
+        except Exception as fallback_err:
+            logger.error(f"Fallback dict conversion also failed: {fallback_err}")
+        return {}
+
 def safe_json_serialize(obj):
     """Convert database objects to JSON-serializable format.
 

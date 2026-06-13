@@ -18,7 +18,7 @@ if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
-from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int
+from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
 from utils.fallback_registry import get_hardcoded_fallback_values, log_fallback_usage, FallbackTrigger
 import math
 
@@ -2091,6 +2091,15 @@ def _get_market(cur) -> Dict:
         exp = cur.fetchone()
         exposure = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
 
+        # Parse JSON strings from database (halt_reasons is stored as JSON text)
+        if exposure and exposure.get('halt_reasons'):
+            try:
+                exposure['halt_reasons'] = json.loads(exposure['halt_reasons']) if isinstance(exposure['halt_reasons'], str) else exposure['halt_reasons']
+            except (json.JSONDecodeError, TypeError):
+                exposure['halt_reasons'] = []
+        else:
+            exposure['halt_reasons'] = []
+
         # Fetch SPY close price
         spy_close = None
         try:
@@ -2106,23 +2115,27 @@ def _get_market(cur) -> Dict:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
         # Combine all data in the format the dashboard expects
+        # Use safe_float_strict/safe_int_strict for optional numeric fields so the dashboard
+        # can distinguish between NULL (data not available) and 0 (actual zero value)
+        from utils.safe_data_conversion import safe_float_strict, safe_int_strict
+
         data = {
             'exposure_pct': safe_float(exposure.get('exposure_pct')),
             'regime': exposure.get('regime'),
             'halt_reasons': exposure.get('halt_reasons') or [],
-            'vix_level': safe_float(market_health.get('vix_level')),
-            'market_stage': safe_int(market_health.get('market_stage')),
+            'vix_level': safe_float_strict(market_health.get('vix_level'), context='market_health.vix_level'),
+            'market_stage': safe_int_strict(market_health.get('market_stage'), context='market_health.market_stage'),
             'market_trend': market_health.get('market_trend'),
-            'distribution_days_4w': safe_int(exposure.get('distribution_days')),
+            'distribution_days_4w': safe_int_strict(exposure.get('distribution_days'), context='exposure.distribution_days'),
             'spy_close': spy_close,
-            'spy_change_pct': safe_float(market_health.get('spy_change_pct')),
-            'up_volume_percent': safe_float(market_health.get('up_volume_percent')),
-            'advance_decline_ratio': safe_float(market_health.get('advance_decline_ratio')),
-            'new_highs_count': safe_int(market_health.get('new_highs_count')),
-            'new_lows_count': safe_int(market_health.get('new_lows_count')),
-            'put_call_ratio': safe_float(market_health.get('put_call_ratio')),
-            'breadth_momentum_10d': safe_float(market_health.get('breadth_momentum_10d')),
-            'yield_curve_slope': safe_float(market_health.get('yield_curve_slope')),
+            'spy_change_pct': safe_float_strict(market_health.get('spy_change_pct'), context='market_health.spy_change_pct'),
+            'up_volume_percent': safe_float_strict(market_health.get('up_volume_percent'), context='market_health.up_volume_percent'),
+            'advance_decline_ratio': safe_float_strict(market_health.get('advance_decline_ratio'), context='market_health.advance_decline_ratio'),
+            'new_highs_count': safe_int_strict(market_health.get('new_highs_count'), context='market_health.new_highs_count'),
+            'new_lows_count': safe_int_strict(market_health.get('new_lows_count'), context='market_health.new_lows_count'),
+            'put_call_ratio': safe_float_strict(market_health.get('put_call_ratio'), context='market_health.put_call_ratio'),
+            'breadth_momentum_10d': safe_float_strict(market_health.get('breadth_momentum_10d'), context='market_health.breadth_momentum_10d'),
+            'yield_curve_slope': safe_float_strict(market_health.get('yield_curve_slope'), context='market_health.yield_curve_slope'),
             'fed_rate_environment': market_health.get('fed_rate_environment'),
         }
 
@@ -2386,6 +2399,16 @@ def _get_exposure_policy(cur) -> Dict:
                 })
 
             row = safe_json_serialize(safe_dict_convert(row))
+
+            # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
+            if row.get('halt_reasons'):
+                try:
+                    row['halt_reasons'] = json.loads(row['halt_reasons']) if isinstance(row['halt_reasons'], str) else row['halt_reasons']
+                except (json.JSONDecodeError, TypeError):
+                    row['halt_reasons'] = []
+            else:
+                row['halt_reasons'] = []
+
             tier_key = str(row.get('regime') or '').lower()
             tier_conf = _TIER_CONFIG.get(tier_key, {})
             active_tier = {'name': tier_key, **tier_conf}
