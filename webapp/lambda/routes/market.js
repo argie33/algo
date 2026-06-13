@@ -2460,7 +2460,7 @@ router.get("/technicals", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return {};
+            return { _is_placeholder: true, _error: 'Distribution days data not available', items: [] };
           }
 
           // Format response with index names
@@ -2493,7 +2493,7 @@ router.get("/technicals", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return {};
+          return { _is_placeholder: true, _error: 'Distribution days fetch failed' };
         }
       })(),
 
@@ -2509,7 +2509,10 @@ router.get("/technicals", async (req, res) => {
             AND date >= NOW() - INTERVAL '60 days'
             AND close IS NOT NULL AND open IS NOT NULL
         `);
-        return result.rows[0] || {};
+        if (!result.rows || result.rows.length === 0) {
+          return { _is_placeholder: true, _error: 'Volatility data not available' };
+        }
+        return result.rows[0];
       })(),
 
       // 5. Internals - stocks above SMA20/50/200 from technical_data_daily latest date
@@ -2534,10 +2537,13 @@ router.get("/technicals", async (req, res) => {
             FROM latest_tech lt
             JOIN latest_price lp ON lt.symbol = lp.symbol
           `, [latestTechDate || latestPriceDate, latestPriceDate]);
-          return result.rows[0] || {};
+          if (!result.rows || result.rows.length === 0) {
+            return { _is_placeholder: true, _error: 'Internals data not available' };
+          }
+          return result.rows[0];
         } catch (e) {
           console.warn("Internals SMA query failed:", e.message);
-          return {};
+          return { _is_placeholder: true, _error: 'Internals data query failed' };
         }
       })()
     ]);
@@ -2844,7 +2850,7 @@ router.get("/technicals-fresh", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return {};
+            return { _is_placeholder: true, _error: 'Distribution days data not available' };
           }
 
           // Format response with index names
@@ -2877,7 +2883,7 @@ router.get("/technicals-fresh", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return {};
+          return { _is_placeholder: true, _error: 'Distribution days fetch failed' };
         }
       })(),
 
@@ -3014,10 +3020,13 @@ router.get("/cap-distribution", async (req, res) => {
       SELECT * FROM distribution ORDER BY total_cap DESC;
     `);
 
-    return sendSuccess(res, result.rows || []);
+    if (!result.rows || result.rows.length === 0) {
+      return sendPlaceholder(res, 'Market distribution data not available', 200, 'items');
+    }
+    return sendSuccess(res, result.rows);
   } catch (error) {
     logger.error('Error in /market/distribution:', { error: error.message, stack: error.stack });
-    return sendSuccess(res, []);
+    return sendPlaceholder(res, `Failed to fetch market distribution: ${error.message}`, 500, 'items');
   }
 });
 
@@ -3025,7 +3034,7 @@ router.get("/cap-distribution", async (req, res) => {
 // GET /api/market/naaim — NAAIM Exposure Index, current + history
 router.get("/naaim", async (req, res) => {
   try {
-    if (!query) return sendSuccess(res, null);
+    if (!query) return sendPlaceholder(res, 'Database connection unavailable', 503, 'data');
 
     const result = await query(`
       SELECT date, naaim_number_mean, bearish, bullish, deviation
@@ -3034,7 +3043,7 @@ router.get("/naaim", async (req, res) => {
       LIMIT 52
     `);
 
-    if (!result.rows.length) return sendSuccess(res, null);
+    if (!result.rows.length) return sendPlaceholder(res, 'NAAIM data not available', 200, 'data');
 
     const latest = result.rows[0];
     const history = result.rows.slice().reverse().map(r => ({
@@ -3054,7 +3063,7 @@ router.get("/naaim", async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /market/naaim:', { error: error.message, stack: error.stack });
-    return sendSuccess(res, null);
+    return sendPlaceholder(res, `Failed to fetch NAAIM data: ${error.message}`, 500, 'data');
   }
 });
 

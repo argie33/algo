@@ -285,10 +285,13 @@ router.get("/divergence", async (req, res) => {
 
     const result = await query(queryStr, params);
 
-    return sendSuccess(res, result.rows || []);
+    if (!result.rows || result.rows.length === 0) {
+      return sendPlaceholder(res, 'Sentiment divergence data not available', 200, 'items');
+    }
+    return sendSuccess(res, result.rows);
   } catch (error) {
     console.error("Sentiment divergence error:", error);
-    return sendError(res, "Failed to fetch sentiment divergence", 500);
+    return sendPlaceholder(res, `Failed to fetch sentiment divergence: ${error.message}`, 500, 'items');
   }
 });
 
@@ -310,10 +313,13 @@ router.get("/aaii", async (req, res) => {
       console.warn("aaii_sentiment table not available:", e.message);
     }
 
+    if (!aaii) {
+      return sendPlaceholder(res, 'AAII sentiment data not available', 200, 'data');
+    }
     return sendSuccess(res, aaii);
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return sendSuccess(res, null);
+    return sendPlaceholder(res, `Failed to fetch AAII sentiment: ${error.message}`, 500, 'data');
   }
 });
 

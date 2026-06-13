@@ -146,7 +146,7 @@ class VectorizedSwingScoresLoader:
             with DatabaseContext('read') as cur:
                 placeholders = ','.join(['%s'] * len(symbols))
                 cur.execute(f"""
-                    SELECT symbol, date, trend_stage, weinstein_score
+                    SELECT symbol, date, weinstein_stage, minervini_trend_score, trend_direction
                     FROM trend_template_data
                     WHERE symbol IN ({placeholders})
                     AND date >= %s AND date <= %s
@@ -155,7 +155,7 @@ class VectorizedSwingScoresLoader:
 
                 return pd.DataFrame(
                     cur.fetchall(),
-                    columns=['symbol', 'date', 'trend_stage', 'weinstein_score']
+                    columns=['symbol', 'date', 'weinstein_stage', 'minervini_trend_score', 'trend_direction']
                 )
         except Exception as e:
             logger.error(f"Failed to fetch trend data: {e}")
@@ -178,8 +178,8 @@ class VectorizedSwingScoresLoader:
                     continue
 
                 # Compute component scores
-                setup_score = 75.0  # Minervini template score (simplified)
-                trend_score = float(trend.get('weinstein_score', 50))
+                setup_score = float(trend.get('minervini_trend_score', 75))  # Minervini template score
+                trend_score = float(trend.get('weinstein_stage', 2)) * 25.0  # Weinstein stage (1-4) to 0-100 scale
                 momentum_score = self._calculate_momentum_score(float(tech.get('rsi', 50)))
                 volume_score = 70.0  # From price ROC
                 fundamentals_score = float(sig.get('composite_sqs', 50))
@@ -231,30 +231,46 @@ class VectorizedSwingScoresLoader:
             return 50 + ((rsi - 40) / 30) * 50
 
     def _bulk_insert(self, df: pd.DataFrame) -> int:
-        """Bulk insert all scores at once."""
+        """Bulk insert all scores at once using INSERT statements."""
         if df.empty:
             return 0
 
         try:
             with DatabaseContext('write') as cur:
-                # Use COPY for bulk insert
-                import psycopg2.sql
+                import json
+                inserted = 0
 
-                columns = ['symbol', 'date', 'setup_score', 'trend_score', 'momentum_score',
-                          'volume_score', 'fundamentals_score', 'sector_score', 'multi_tf_score',
-                          'total_score', 'grade']
+                for _, row in df.iterrows():
+                    # Prepare components as JSONB
+                    components = {
+                        'setup': float(row.get('setup_score', 50)),
+                        'trend': float(row.get('trend_score', 50)),
+                        'momentum': float(row.get('momentum_score', 50)),
+                        'volume': float(row.get('volume_score', 50)),
+                        'fundamentals': float(row.get('fundamentals_score', 50)),
+                        'sector': float(row.get('sector_score', 50)),
+                        'multi_tf': float(row.get('multi_tf_score', 50)),
+                    }
 
-                sql = psycopg2.sql.SQL(
-                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, NULL '')"
-                ).format(
-                    table=psycopg2.sql.Identifier('swing_trader_scores'),
-                    fields=psycopg2.sql.SQL(', ').join(map(psycopg2.sql.Identifier, columns))
-                )
+                    # Get grade_id (A=1, B=2, C=3, D=4, F=5)
+                    grade = row.get('grade', 'C')
+                    grade_map = {'A+': 1, 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'F': 5}
+                    grade_id = grade_map.get(grade, 3)
 
-                csv_buffer = df[columns].to_csv(index=False, header=False, na_rep='')
-                cur.copy_expert(sql, csv_buffer)
+                    cur.execute(
+                        """INSERT INTO swing_trader_scores
+                           (symbol, date, score, components, grade_id, created_at, updated_at)
+                           VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                           ON CONFLICT (symbol, date) DO UPDATE
+                           SET score = EXCLUDED.score, components = EXCLUDED.components,
+                               grade_id = EXCLUDED.grade_id, updated_at = NOW()
+                        """,
+                        (row['symbol'], row['date'], float(row.get('total_score', 50)),
+                         json.dumps(components), grade_id)
+                    )
+                    inserted += cur.rowcount if hasattr(cur, 'rowcount') else 1
 
-                return cur.rowcount
+                return inserted
 
         except Exception as e:
             logger.error(f"Bulk insert failed: {e}")
