@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 004: Add idempotency_key column to algo_trades table.
 
@@ -7,14 +7,9 @@ at runtime with ALTER TABLE inside a transaction, which caused AccessExclusiveLo
 blocking all reads/writes during trade execution. Moving to a one-time migration.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add idempotency_key column to algo_trades table"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -29,7 +24,6 @@ def up():
             ON algo_trades(idempotency_key)
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute("DROP INDEX IF EXISTS idx_algo_trades_idempotency_key")
@@ -37,3 +31,4 @@ def down():
             ALTER TABLE algo_trades
                 DROP COLUMN IF EXISTS idempotency_key
         """)
+

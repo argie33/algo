@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Migration: Add avg_r column to algo_performance_daily.
 
 HIGH-SEVERITY ISSUE FIX: Ensures avg_r (average R-multiple) is pre-computed in the database
@@ -9,14 +9,9 @@ The loader (load_algo_performance_daily.py) computes and stores avg_r, but if th
 doesn't exist, the dashboard falls back to expensive per-request recalculation.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add avg_r column to algo_performance_daily"
-
 
 def up():
     """Add avg_r column if it doesn't exist."""
@@ -26,7 +21,6 @@ def up():
             ADD COLUMN IF NOT EXISTS avg_r NUMERIC(6, 3)
         """)
 
-
 def down():
     """Remove avg_r column (not recommended in production)."""
     with DatabaseContext('write') as cur:
@@ -34,3 +28,4 @@ def down():
             ALTER TABLE algo_performance_daily
             DROP COLUMN IF EXISTS avg_r
         """)
+

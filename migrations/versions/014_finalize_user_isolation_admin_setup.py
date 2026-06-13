@@ -1,4 +1,4 @@
-"""Finalize user isolation setup - ensure admin user is properly configured.
+﻿"""Finalize user isolation setup - ensure admin user is properly configured.
 
 This migration verifies that the admin user isolation is properly set up.
 The actual migration from 'admin-user' placeholder to real Cognito sub
@@ -7,14 +7,9 @@ happens in migration 015_replace_admin_placeholder_with_real_cognito_sub.py
 This migration verifies preconditions and documents the setup process.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
-
 
 def up():
     """Verify admin user isolation preconditions."""
@@ -42,7 +37,7 @@ def up():
                     )
                     count = cur.fetchone()[0]
                     if count > 0:
-                        print(f"  ✓ {table_name}: {count} rows with 'admin-user' placeholder found")
+                        print(f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found")
             except Exception as e:
                 # Table may not exist yet, that's OK
                 pass
@@ -52,8 +47,8 @@ def up():
         print("  2. Set ADMIN_COGNITO_SUB environment variable")
         print("  3. Run: python -m alembic upgrade head")
 
-
 def down():
     """Revert precondition check (no-op)."""
     # This migration only checks preconditions, nothing to revert
     pass
+

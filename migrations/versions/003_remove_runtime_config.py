@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 003: Remove algo_runtime_config and algo_runtime_config_audit tables.
 
@@ -10,14 +10,9 @@ correct pattern. This migration removes the orphaned tables.
 Reversible: down() recreates both tables with original seed data.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Remove unused algo_runtime_config and algo_runtime_config_audit tables"
-
 
 def up():
     """Drop the runtime config tables."""
@@ -26,7 +21,6 @@ def up():
         cur.execute("DROP TABLE IF EXISTS algo_runtime_config_audit CASCADE")
         # Main config table
         cur.execute("DROP TABLE IF EXISTS algo_runtime_config CASCADE")
-
 
 def down():
     """Recreate the runtime config tables with original schema and seed data."""
@@ -87,3 +81,4 @@ def down():
         # Grant permissions
         cur.execute("GRANT SELECT ON algo_runtime_config TO stocks")
         cur.execute("GRANT SELECT ON algo_runtime_config_audit TO stocks")
+

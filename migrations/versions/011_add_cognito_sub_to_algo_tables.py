@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 011: Add cognito_sub column to algo_trades and algo_positions tables.
 
@@ -6,14 +6,9 @@ These columns enable user isolation and row-level access control, allowing the A
 to scope trade history and position data to authenticated users.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add cognito_sub column to algo_trades and algo_positions for user isolation"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -41,7 +36,6 @@ def up():
             ON algo_positions(cognito_sub) WHERE cognito_sub IS NOT NULL
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         # Drop indexes first
@@ -63,3 +57,4 @@ def down():
             ALTER TABLE algo_positions
             DROP COLUMN IF EXISTS cognito_sub
         """)
+

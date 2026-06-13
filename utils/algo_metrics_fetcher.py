@@ -440,8 +440,12 @@ class AlgoMetricsFetcher:
                 LIMIT %s
             """, (limit,))
             rows = [dict(row) for row in self.cursor.fetchall()]
-            values = [float(r.get('total_portfolio_value') or 0) for r in rows]
-            logger.debug(f"fetch_equity_curve: {len(values)} snapshots found")
+            values = []
+            for r in rows:
+                pv = r.get('total_portfolio_value')
+                if pv is not None:
+                    values.append(float(pv))
+            logger.debug(f"fetch_equity_curve: {len(values)} snapshots found (skipped {len(rows)-len(values)} with missing values)")
             return {'equity_vals': values, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
@@ -471,8 +475,13 @@ class AlgoMetricsFetcher:
 
             returns = []
             for i in range(1, len(rows)):
-                prev_val = float(rows[i-1].get('total_portfolio_value') or 0)
-                curr_val = float(rows[i].get('total_portfolio_value') or 0)
+                prev_pv = rows[i-1].get('total_portfolio_value')
+                curr_pv = rows[i].get('total_portfolio_value')
+                if prev_pv is None or curr_pv is None:
+                    logger.warning(f"Skipping return calculation: missing portfolio value at index {i-1} or {i}")
+                    continue
+                prev_val = float(prev_pv)
+                curr_val = float(curr_pv)
                 if prev_val != 0:
                     ret_pct = ((curr_val - prev_val) / prev_val) * 100
                     date = rows[i].get('snapshot_date')

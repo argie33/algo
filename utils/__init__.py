@@ -8,7 +8,6 @@ from utils.structured_logger import get_logger
 from utils.trade_status import TradeStatus, PositionStatus
 from utils.metrics_calculator import MetricsCalculator
 from utils.optimal_loader import OptimalLoader
-from utils.validation_framework import ValidationFramework
 from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
 from utils.market_timing_constants import (
     MARKET_OPEN_HOUR,
@@ -28,7 +27,6 @@ __all__ = [
     # Data conversion & validation
     'safe_int',
     'safe_float',
-    'ValidationFramework',
     # Business logic
     'TradeStatus',
     'PositionStatus',

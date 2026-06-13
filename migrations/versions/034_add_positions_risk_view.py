@@ -1,18 +1,13 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Migration 034: Move position-level risk calculations from API to database.
 
 Creates a materialized view that pre-computes all risk metrics.
 Allows API layer to be a pure display layer (not calculation engine).
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add positions with risk materialized view"
-
 
 def up():
     """Create the materialized view with all risk calculations."""
@@ -151,10 +146,10 @@ def up():
               ON algo_positions_with_risk(position_id)
         """)
 
-
 def down():
     """Drop the materialized view."""
     with DatabaseContext('write') as cur:
         cur.execute("""
             DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE
         """)
+

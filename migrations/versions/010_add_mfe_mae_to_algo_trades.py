@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 010: Add mfe_pct and mae_pct columns to algo_trades table.
 
@@ -8,14 +8,9 @@ They are computed by algo_daily_reconciliation.py and used by the API to
 display trade analysis and performance metrics.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add mfe_pct and mae_pct columns to algo_trades table"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -37,7 +32,6 @@ def up():
             ON algo_trades(mfe_pct, mae_pct) WHERE mfe_pct IS NOT NULL AND mae_pct IS NOT NULL
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         # Drop index first
@@ -51,3 +45,4 @@ def down():
             DROP COLUMN IF EXISTS mfe_pct,
             DROP COLUMN IF EXISTS mae_pct
         """)
+

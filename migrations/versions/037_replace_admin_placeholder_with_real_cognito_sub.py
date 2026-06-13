@@ -1,4 +1,4 @@
-"""Replace admin-user placeholder with real Cognito sub.
+﻿"""Replace admin-user placeholder with real Cognito sub.
 
 This migration updates all database records from the hardcoded 'admin-user'
 placeholder to the real admin user's Cognito sub.
@@ -7,7 +7,7 @@ IMPORTANT: Set ADMIN_COGNITO_SUB environment variable before running:
     $env:ADMIN_COGNITO_SUB = "us-east-1_XXXXX:12345678-1234-1234-1234-123456789abc"
 
 Get the real admin Cognito sub from AWS Cognito console:
-1. Go to AWS Cognito → User pools → algo-trading
+1. Go to AWS Cognito â†’ User pools â†’ algo-trading
 2. Find the admin user (email: edgebrookecapital@gmail.com)
 3. Copy the "Sub" value
 4. Set it as ADMIN_COGNITO_SUB environment variable
@@ -21,15 +21,9 @@ Tables affected:
 """
 
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"
-
 
 def up():
     """Update all 'admin-user' references to real admin Cognito sub."""
@@ -47,7 +41,7 @@ def up():
     if admin_cognito_sub == 'admin-user':
         raise ValueError(
             "ADMIN_COGNITO_SUB should be the REAL Cognito sub, not the placeholder 'admin-user'\n"
-            "Get the real sub from AWS Cognito console → User pools → algo-trading → admin user\n"
+            "Get the real sub from AWS Cognito console â†’ User pools â†’ algo-trading â†’ admin user\n"
             "Copy the 'Sub' value and set it as the environment variable"
         )
 
@@ -77,13 +71,12 @@ def up():
                 )
                 rows_updated = cur.rowcount
                 if rows_updated > 0:
-                    print(f"  ✓ {table_name}: {rows_updated} rows updated")
+                    print(f"  âœ“ {table_name}: {rows_updated} rows updated")
             except Exception as e:
-                print(f"  ✗ {table_name}: {e}")
+                print(f"  âœ— {table_name}: {e}")
                 raise
 
         print(f"\nAdmin Cognito sub replaced in all tables: {admin_cognito_sub}")
-
 
 def down():
     """Revert back to 'admin-user' placeholder (for rollback only)."""
@@ -117,9 +110,10 @@ def down():
                 )
                 rows_reverted = cur.rowcount
                 if rows_reverted > 0:
-                    print(f"  ✓ {table_name}: {rows_reverted} rows reverted to placeholder")
+                    print(f"  âœ“ {table_name}: {rows_reverted} rows reverted to placeholder")
             except Exception as e:
-                print(f"  ✗ {table_name}: {e}")
+                print(f"  âœ— {table_name}: {e}")
                 raise
 
         print("\nReverted to 'admin-user' placeholder (rollback complete)")
+

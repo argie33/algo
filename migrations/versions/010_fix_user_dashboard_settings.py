@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 010: Fix user_dashboard_settings for Cognito authentication.
 
@@ -16,14 +16,9 @@ Safe to run: the old table was non-functional (settings always returned 503),
 so there are no valid rows to preserve.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -40,7 +35,6 @@ def up():
             )
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute("DROP TABLE IF EXISTS user_dashboard_settings CASCADE")
@@ -53,3 +47,4 @@ def down():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+

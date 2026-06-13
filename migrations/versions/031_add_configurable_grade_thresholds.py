@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Migration: Add configurable grade thresholds to algo_config.
 
 ISSUE #31 FIX: Make hardcoded grade thresholds configurable via the algo_config database table.
@@ -15,14 +15,9 @@ This migration adds configurable thresholds to algo_config:
 All code has been updated to load these values dynamically from the database.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add configurable grade thresholds to algo_config"
-
 
 def up():
     """Add configurable grade thresholds to algo_config."""
@@ -43,7 +38,6 @@ def up():
             ON CONFLICT (key) DO NOTHING
         """)
 
-
 def down():
     """Remove configurable grade thresholds from algo_config."""
     with DatabaseContext('write') as cur:
@@ -57,3 +51,4 @@ def down():
                 'advanced_filters_grade_threshold_d'
             )
         """)
+

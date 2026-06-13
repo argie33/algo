@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 033: Add NOT NULL constraint to company_profile.sector
 
@@ -9,14 +9,9 @@ but allow NULL values, causing missing sectors in results. This migration:
 2. Adds NOT NULL constraint to company_profile.sector column
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add NOT NULL constraint to company_profile.sector"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -38,7 +33,6 @@ def up():
             ALTER COLUMN sector SET NOT NULL
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         # Remove NOT NULL constraint
@@ -46,3 +40,4 @@ def down():
             ALTER TABLE company_profile
             ALTER COLUMN sector DROP NOT NULL
         """)
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 012: Add date-leading indexes on high-traffic tables.
 
@@ -8,15 +8,13 @@ that filter by date first (e.g. "latest prices for all symbols",
 "all BUY signals today") cannot use those indexes efficiently and
 fall back to sequential scans on multi-million-row tables.
 
-CREATE INDEX IF NOT EXISTS is idempotent — safe to re-run.
+CREATE INDEX IF NOT EXISTS is idempotent â€” safe to re-run.
 CREATE INDEX CONCURRENTLY does not lock the table; it requires autocommit
 so we open our own connection outside the runner's transaction context.
 """
 
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add date-leading indexes on price_daily, buy_sell_daily, technical_data_daily, market_health_daily"
 
@@ -30,7 +28,6 @@ _INDEXES = [
     # market_health_daily: ORDER BY date DESC LIMIT 1 benefits from a single-column index
     "CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date DESC)",
 ]
-
 
 def _connect_autocommit():
     """Open an autocommit connection using the same env vars as the migration runner.
@@ -55,7 +52,6 @@ def _connect_autocommit():
     conn.autocommit = True  # required for CREATE INDEX CONCURRENTLY
     return conn
 
-
 def up():
     conn = _connect_autocommit()
     cur = conn.cursor()
@@ -64,7 +60,6 @@ def up():
         cur.execute(sql)
     cur.close()
     conn.close()
-
 
 def down():
     conn = _connect_autocommit()
@@ -79,3 +74,4 @@ def down():
         cur.execute(sql)
     cur.close()
     conn.close()
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 015: Fix sector_ranking schema - rename date_recorded to date.
 
@@ -13,14 +13,9 @@ This migration:
 4. Drops the old date_recorded column
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -73,7 +68,6 @@ def up():
                 ON sector_ranking(date DESC)
             """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         # Check if date_recorded column exists in down migration
@@ -112,3 +106,4 @@ def down():
                 ALTER TABLE sector_ranking
                 DROP COLUMN date
             """)
+

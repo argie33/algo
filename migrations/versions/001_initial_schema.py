@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 001: Initialize Schema Version Tracking
 
@@ -6,14 +6,9 @@ This is the first migration and serves as a baseline.
 It creates the schema_version table to track all future migrations.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Initialize schema version tracking table"
-
 
 def up():
     """Create schema_version table."""
@@ -35,7 +30,6 @@ def up():
     with DatabaseContext('write') as cur:
         cur.execute(sql)
 
-
 def down():
     """Drop schema_version table."""
     sql = """
@@ -44,3 +38,4 @@ def down():
 
     with DatabaseContext('write') as cur:
         cur.execute(sql)
+

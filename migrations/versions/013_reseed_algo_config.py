@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 013: Re-seed algo_config table for deployments where migration 005 ran but
 the ON CONFLICT DO NOTHING clause left rows missing (e.g., if the table was empty at
@@ -8,13 +8,9 @@ Uses ON CONFLICT DO NOTHING so existing custom values are always preserved.
 Safe to re-run on an already-populated table.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from migrations.migration_helper import DatabaseContext
 
-from utils.database_context import DatabaseContext
-
-DESCRIPTION = "Re-seed algo_config table — idempotent, preserves existing custom values"
+DESCRIPTION = "Re-seed algo_config table â€” idempotent, preserves existing custom values"
 
 # Mirrors AlgoConfig.DEFAULTS. ON CONFLICT DO NOTHING keeps any existing custom value.
 _DEFAULTS = [
@@ -147,7 +143,6 @@ _DEFAULTS = [
     ('failsafe_grace_period_minutes', '240', 'int', 'Grace period before triggering second failsafe (issue #10)'),
 ]
 
-
 def up():
     with DatabaseContext('write') as cur:
         for key, value, value_type, description in _DEFAULTS:
@@ -160,9 +155,9 @@ def up():
                 (key, value, value_type, description),
             )
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute(
             "DELETE FROM algo_config WHERE updated_by = 'migration-013'"
         )
+

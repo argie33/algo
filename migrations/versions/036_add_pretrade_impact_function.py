@@ -1,18 +1,13 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Migration 036: Move pre-trade impact calculations from JavaScript to database.
 
 Creates a function to calculate all pre-trade constraint impacts.
 Eliminates multiple calculations in /pre-trade-impact endpoint.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add pre-trade impact calculation function"
-
 
 def up():
     """Create the pre-trade impact calculation function."""
@@ -140,7 +135,6 @@ def up():
               ON company_profile(ticker, sector)
         """)
 
-
 def down():
     """Remove the pre-trade impact calculation function."""
     with DatabaseContext('write') as cur:
@@ -153,3 +147,4 @@ def down():
         cur.execute("""
             DROP INDEX IF EXISTS idx_company_profile_ticker_sector
         """)
+

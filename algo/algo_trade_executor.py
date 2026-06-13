@@ -475,10 +475,14 @@ class TradeExecutor:
                     target_3_price = round(executed_price + (actual_risk_per_share * t3_r), 2)
 
             # Compute initial position size pct using live or snapshot portfolio value
-            _pv_for_pct = self._get_portfolio_value() or 0.0
-            # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
-            price_for_pct = executed_price if executed_price else entry_price
-            position_size_pct = (shares * price_for_pct / _pv_for_pct * 100) if _pv_for_pct > 0 else 0
+            _pv_for_pct = self._get_portfolio_value()
+            if _pv_for_pct is None:
+                logger.warning(f"Portfolio value unavailable for position size pct calculation")
+                position_size_pct = None
+            else:
+                # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
+                price_for_pct = executed_price if executed_price else entry_price
+                position_size_pct = (shares * price_for_pct / _pv_for_pct * 100) if _pv_for_pct > 0 else 0
 
             # Build comprehensive entry reason
             entry_reason_parts = ['Algo signal — all tiers passed']

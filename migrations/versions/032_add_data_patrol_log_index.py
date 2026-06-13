@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 032: Add index on data_patrol_log(created_at DESC) to fix COUNT(*) timeouts.
 
@@ -20,9 +20,7 @@ Related:
 """
 
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add index on data_patrol_log(created_at DESC) to fix COUNT(*) query timeouts"
 
@@ -84,3 +82,4 @@ def down():
 
     cur.close()
     conn.close()
+

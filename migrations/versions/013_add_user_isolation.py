@@ -1,4 +1,4 @@
-"""Add user isolation (cognito_sub) to portfolio and trading tables.
+﻿"""Add user isolation (cognito_sub) to portfolio and trading tables.
 
 Enables per-user portfolio isolation so each authenticated user only sees/trades their own account.
 
@@ -8,14 +8,9 @@ Schema changes:
 - Add unique constraints on (cognito_sub, symbol, date) where applicable
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"
-
 
 def up():
     """Add user isolation columns to remaining trading tables."""
@@ -58,7 +53,6 @@ def up():
             WHERE cognito_sub IS NULL
         """, (admin_cognito_sub,))
 
-
 def down():
     """Remove user isolation columns."""
     with DatabaseContext('write') as cur:
@@ -69,3 +63,4 @@ def down():
         # Drop columns
         cur.execute("ALTER TABLE algo_trade_adds DROP COLUMN IF EXISTS cognito_sub")
         cur.execute("ALTER TABLE algo_portfolio_snapshots DROP COLUMN IF EXISTS cognito_sub")
+

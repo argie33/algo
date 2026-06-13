@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 009: Seed T3 configurable gate flags into algo_config.
 
@@ -8,11 +8,7 @@ without a code deploy. Default: both True (gates on, same behavior as before).
 ON CONFLICT DO NOTHING keeps any manually-set DB value.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Seed rs_slope_gate_enabled and volume_decay_gate_enabled into algo_config"
 
@@ -20,7 +16,6 @@ _NEW_KEYS = [
     ('rs_slope_gate_enabled', 'true', 'bool', 'Hard-gate T3 on RS line trending up (set false during strong SPY runs)'),
     ('volume_decay_gate_enabled', 'true', 'bool', 'Hard-gate T3 on volume decay into breakout (set false to soften)'),
 ]
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -34,9 +29,9 @@ def up():
                 (key, value, value_type, description),
             )
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute(
             "DELETE FROM algo_config WHERE updated_by = 'migration-009'"
         )
+

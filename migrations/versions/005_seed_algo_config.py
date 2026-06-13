@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 005: Seed algo_config table with all default values.
 
@@ -9,11 +9,7 @@ rows). This migration populates all DEFAULTS as the initial DB state using
 ON CONFLICT DO NOTHING so it is safe to run on an already-populated table.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Seed algo_config table with all default configuration values"
 
@@ -148,7 +144,6 @@ _DEFAULTS = [
     ('failsafe_grace_period_minutes', '240', 'int', 'Grace period before triggering second failsafe (issue #10)'),
 ]
 
-
 def up():
     with DatabaseContext('write') as cur:
         for key, value, value_type, description in _DEFAULTS:
@@ -161,9 +156,9 @@ def up():
                 (key, value, value_type, description),
             )
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute(
             "DELETE FROM algo_config WHERE updated_by = 'migration-005'"
         )
+

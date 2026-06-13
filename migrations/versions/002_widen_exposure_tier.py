@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 002: Widen market_exposure_daily.exposure_tier VARCHAR(20) -> VARCHAR(50)
 
@@ -7,14 +7,9 @@ VARCHAR(20) limit set by the ADD COLUMN migration. This widens the column to
 VARCHAR(50) so all tier values fit without truncation errors.
 """
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from utils.database_context import DatabaseContext
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Widen market_exposure_daily.exposure_tier to VARCHAR(50)"
-
 
 def up():
     with DatabaseContext('write') as cur:
@@ -23,10 +18,10 @@ def up():
                 ALTER COLUMN exposure_tier TYPE VARCHAR(50)
         """)
 
-
 def down():
     with DatabaseContext('write') as cur:
         cur.execute("""
             ALTER TABLE market_exposure_daily
                 ALTER COLUMN exposure_tier TYPE VARCHAR(20)
         """)
+

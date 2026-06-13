@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Migration 027: Optimize extremely slow API endpoints (23-26 seconds each).
 
@@ -15,9 +15,7 @@ This migration:
 """
 
 import os
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Optimize slow API endpoints: add indexes and refactor queries"
 
@@ -94,3 +92,4 @@ def down():
 
     cur.close()
     conn.close()
+
