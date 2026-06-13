@@ -1879,17 +1879,36 @@ router.get('/performance', async (req, res) => {
       ORDER BY metric_date DESC LIMIT 1
     `);
 
+    // E10 FIX: Include open positions in win rate calculation
+    const openPosResult = await pool.query(`
+      SELECT
+        COUNT(*) as open_count,
+        COUNT(*) FILTER (WHERE unrealized_pnl > 0) as open_wins,
+        COUNT(*) FILTER (WHERE unrealized_pnl < 0) as open_losses,
+        SUM(unrealized_pnl) as total_unrealized_pnl
+      FROM algo_positions
+      WHERE status IN ('open', 'partially_closed')
+    `);
+
     // Validate result
     validateQueryResult(perfResult, { requireRows: false });
+
+    // Extract open position stats
+    const openStats = openPosResult.rows[0] || {
+      open_count: 0,
+      open_wins: 0,
+      open_losses: 0,
+      total_unrealized_pnl: 0
+    };
 
     if (perfResult.rows.length === 0) {
       // Fallback: data not yet computed for today, return empty metrics
       logger.warn('No performance data computed for today; returning default metrics');
       return sendSuccess(res, {
-        total_trades: 0,
-        winning_trades: 0,
-        losing_trades: 0,
-        win_rate_pct: 0,
+        total_trades: openStats.open_count,
+        winning_trades: openStats.open_wins,
+        losing_trades: openStats.open_losses,
+        win_rate_pct: openStats.open_count > 0 ? (openStats.open_wins / openStats.open_count * 100).toFixed(2) : 0,
         avg_win_pct: 0,
         avg_loss_pct: 0,
         avg_win_r: 0,
@@ -1909,6 +1928,8 @@ router.get('/performance', async (req, res) => {
         worst_loss_streak: 0,
         avg_hold_days: 0,
         portfolio_snapshots: 0,
+        open_positions: openStats.open_count,
+        unrealized_pnl: openStats.total_unrealized_pnl || 0
       });
     }
 
