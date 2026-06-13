@@ -1,4 +1,9 @@
 """Shared route utilities."""
+try:
+    import setup_imports  # noqa: F401
+except ImportError:
+    pass
+
 import psycopg2.errors
 import psycopg2
 import logging
