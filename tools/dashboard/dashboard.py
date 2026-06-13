@@ -32,7 +32,7 @@ from fetchers import (
     fetch_health, fetch_economic_pulse, fetch_algo_metrics,
     fetch_notifications, fetch_sentiment, fetch_economic_calendar,
     fetch_risk_metrics, fetch_perf_analytics, fetch_signal_eval,
-    fetch_sector_rotation, fetch_industry_ranking, fetch_loader_status,
+    fetch_sector_rotation, fetch_industry_ranking,
     fetch_exec_history, fetch_audit_log, fetch_circuit,
     _get_data_status_cached, FETCHERS, load_all,
 )
