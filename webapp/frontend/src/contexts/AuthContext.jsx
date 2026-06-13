@@ -242,13 +242,17 @@ export function AuthProvider({ children }) {
       // Check if we're in a real production environment
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
-      const isDevelopment = !isProductionBuild;
 
-      // FALLBACK AUTHENTICATION: Use dev tokens if Cognito not configured
-      // This applies to both dev mode AND production deployments without Cognito
       if (!cognitoConfigured) {
-        const mode = isDevelopment ? 'Dev mode' : 'Production fallback';
-        console.log(`[AUTH] 🔧 ${mode}: Cognito not configured — using dev auto-authentication`);
+        if (isProductionBuild) {
+          console.error('[AUTH] ✗ Production build requires Cognito configuration');
+          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
+          dispatch({ type: AUTH_ACTIONS.LOGOUT });
+          return;
+        }
+
+        // Development fallback: allow dev tokens only in dev mode
+        console.log('[AUTH] 🔧 Dev mode: Cognito not configured — using dev auto-authentication');
         const devToken = localStorage.getItem('devToken') || 'dev-admin';
         tokenManager.setTokens({
           access: devToken,
