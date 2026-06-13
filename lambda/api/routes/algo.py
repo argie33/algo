@@ -2732,17 +2732,35 @@ def _get_risk_metrics(cur) -> Dict:
 def _get_performance_analytics(cur) -> Dict:
     """Get performance analytics data."""
     try:
-        fetcher = AlgoMetricsFetcher(cur)
-        perf = fetcher.fetch_performance_metrics()
+        cur.execute("""
+            SELECT rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
+                   win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy, max_drawdown_pct
+            FROM algo_performance_daily
+            ORDER BY report_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return success_response({
+                'rolling_sharpe_252d': None,
+                'rolling_sortino_252d': None,
+                'calmar_ratio': None,
+                'win_rate_50t': None,
+                'avg_win_r_50t': None,
+                'avg_loss_r_50t': None,
+                'expectancy': None,
+                'max_drawdown_pct': None
+            })
+        data = dict(row)
         return success_response({
-            'rolling_sharpe_252d': perf.get('sharpe_ratio'),
-            'rolling_sortino_252d': perf.get('sortino_ratio'),
-            'calmar_ratio': perf.get('sharpe_ratio'),
-            'win_rate_50t': perf.get('win_rate_pct'),
-            'avg_win_r_50t': perf.get('avg_win_pct'),
-            'avg_loss_r_50t': perf.get('avg_loss_pct'),
-            'expectancy': perf.get('expectancy_r'),
-            'max_drawdown_pct': perf.get('max_drawdown_pct')
+            'rolling_sharpe_252d': safe_float(data.get('rolling_sharpe_252d')),
+            'rolling_sortino_252d': safe_float(data.get('rolling_sortino_252d')),
+            'calmar_ratio': safe_float(data.get('calmar_ratio')),
+            'win_rate_50t': safe_float(data.get('win_rate_50t')),
+            'avg_win_r_50t': safe_float(data.get('avg_win_r_50t')),
+            'avg_loss_r_50t': safe_float(data.get('avg_loss_r_50t')),
+            'expectancy': safe_float(data.get('expectancy')),
+            'max_drawdown_pct': safe_float(data.get('max_drawdown_pct'))
         })
     except Exception as e:
         logger.error(f'Performance analytics fetch error: {type(e).__name__}: {e}')
