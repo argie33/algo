@@ -235,3 +235,155 @@ resource "aws_sns_topic_policy" "loader_alerts_eventbridge" {
     }]
   })
 }
+
+# ============================================================
+# 7. CloudWatch Alarms for Pipeline Monitoring (Production SLAs)
+# ============================================================
+
+# Pipeline Timing Alarm: stock_prices_daily > 120 minutes (yfinance bottleneck)
+resource "aws_cloudwatch_metric_alarm" "stock_prices_daily_slow" {
+  count               = var.ecs_log_group_name != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-loader-stock-prices-slow-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "OperationDuration"
+  namespace           = "AlgoTrading/Operations"
+  period              = "300" # 5 minutes
+  statistic           = "Maximum"
+  threshold           = "7200" # 120 minutes in seconds
+  alarm_description   = "stock_prices_daily loader exceeded 120 min — yfinance rate limiting likely bottleneck"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Operation = "load_prices_daily"
+  }
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
+# Pipeline Timing Alarm: morning prep pipeline > 300 minutes (5 hours)
+# Alert before the 9:30 AM deadline (prep starts at 2:00 AM, runs 7.5h window)
+resource "aws_cloudwatch_metric_alarm" "morning_prep_slow" {
+  count               = var.ecs_log_group_name != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-morning-prep-slow-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "OperationDuration"
+  namespace           = "AlgoTrading/Operations"
+  period              = "300" # 5 minutes
+  statistic           = "Maximum"
+  threshold           = "18000" # 300 minutes in seconds
+  alarm_description   = "Morning prep pipeline (Step Functions) exceeded 300 min — approaching 9:30 AM deadline"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Operation = "morning_prep_pipeline"
+  }
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
+# RDS Connection Pool Alarm: > 40 connections (warn threshold before 100 limit)
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high_warning" {
+  count               = var.ecs_log_group_name != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-connections-warning-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  period              = "300"
+  statistic           = "Maximum"
+  threshold           = "40" # Warn at 40, allow 20-30 normal, critical at 100
+  alarm_description   = "RDS connections elevated (>40) — monitor for slow queries; expected 20-30 during peak"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
+# CloudWatch Dashboard: Pipeline Performance Monitoring
+resource "aws_cloudwatch_dashboard" "pipeline_monitoring" {
+  count          = var.ecs_log_group_name != "" ? 1 : 0
+  dashboard_name = "${var.project_name}-pipeline-monitoring-${var.environment}"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AlgoTrading/Operations", "OperationDuration", { stat = "Maximum", label = "Max Duration (sec)" }, { dimensions = { Operation = "load_prices_daily" } }],
+            [".", ".", { stat = "Average", label = "Avg Duration (sec)" }, { dimensions = { Operation = "load_prices_daily" } }],
+          ]
+          period = 300
+          stat   = "Average"
+          region = var.aws_region
+          title  = "stock_prices_daily Loader Timing (SLA: <120 min)"
+          yAxis  = { left = { min = 0, max = 14400 } } # 240 min = 14400 sec
+          annotations = {
+            horizontal = [
+              {
+                value = 7200
+                label = "SLA Threshold (120 min)"
+                fill  = "above"
+              }
+            ]
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/RDS", "DatabaseConnections", { stat = "Maximum", label = "Peak Connections" }],
+            [".", ".", { stat = "Average", label = "Avg Connections" }],
+          ]
+          period = 300
+          stat   = "Average"
+          region = var.aws_region
+          title  = "RDS Connection Pool Usage (Alert: >40)"
+          yAxis  = { left = { min = 0, max = 100 } }
+          annotations = {
+            horizontal = [
+              {
+                value = 40
+                label = "Warning (40 connections)"
+                fill  = "above"
+              },
+              {
+                value = 100
+                label = "Critical (100 connections)"
+                fill  = "above"
+              }
+            ]
+          }
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 6
+        width  = 24
+        height = 8
+        properties = {
+          query  = "fields @timestamp, @duration, @operation | filter @operation like /(load_prices|morning_prep|stock_prices)/ | stats max(@duration) as max_duration, avg(@duration) as avg_duration, count() as run_count by @operation | sort max_duration desc"
+          region = var.aws_region
+          title  = "Pipeline Timing Summary (Last 7 days)"
+        }
+      }
+    ]
+  })
+}

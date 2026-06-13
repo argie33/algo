@@ -1091,6 +1091,21 @@ class Orchestrator:
             total_elapsed = time.time() - run_start
             logger.info(f"\n[TOTAL] Orchestrator run completed in {total_elapsed:.2f}s")
             logger.info(f"[END TIME] {datetime.now(timezone.utc).isoformat()}")
+
+            # Emit pipeline timing to CloudWatch for monitoring
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                with MetricsPublisher() as metrics:
+                    metrics.put_loader_duration("orchestrator_run", total_elapsed)
+                    # Determine pipeline context (morning prep vs EOD based on run time)
+                    run_hour = datetime.now(EASTERN_TZ).hour
+                    if run_hour < 10:  # Before 10 AM = morning prep
+                        metrics.add_metric("morning_prep_pipeline_seconds", total_elapsed, unit="Seconds")
+                    else:  # After 10 AM = EOD pipeline
+                        metrics.add_metric("eod_pipeline_seconds", total_elapsed, unit="Seconds")
+            except Exception as e:
+                logger.debug(f"Could not emit pipeline timing metrics: {e}")
+
             return self._final_report()
         finally:
             self._release_run_lock()

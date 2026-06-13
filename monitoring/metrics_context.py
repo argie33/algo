@@ -13,6 +13,7 @@ The context manager tracks duration and logs to logger. Integration points:
 """
 
 import logging
+import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -22,6 +23,24 @@ logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
 _metrics_buffer: Dict[str, list] = {}
+
+def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> None:
+    """Emit duration metric to CloudWatch if AWS SDK available."""
+    try:
+        import boto3
+        cw = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        cw.put_metric_data(
+            Namespace="AlgoTrading/Operations",
+            MetricData=[{
+                "MetricName": "OperationDuration",
+                "Value": duration_seconds,
+                "Unit": "Seconds",
+                "Dimensions": [{"Name": "Operation", "Value": operation_name}],
+                "Timestamp": datetime.now(timezone.utc),
+            }]
+        )
+    except Exception as e:
+        logger.debug(f"Could not emit CloudWatch metric for {operation_name}: {e}")
 
 class TimeBlock:
     """Context manager for operation timing and alerting on slow operations."""
@@ -59,6 +78,7 @@ class TimeBlock:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
+        duration_seconds = self.duration_ms / 1000.0
 
         # Determine if operation was slow
         threshold_ms = self.SLOW_THRESHOLDS.get(self.operation_name, self.SLOW_THRESHOLDS["default"]) * 1000
@@ -71,6 +91,9 @@ class TimeBlock:
             log_level,
             f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms"
         )
+
+        # Emit to CloudWatch
+        _emit_cloudwatch_metric(self.operation_name, duration_seconds)
 
         # Record metric
         if self.operation_name not in _metrics_buffer:

@@ -87,6 +87,47 @@ scripts/refresh-aws-credentials.ps1
 - EOD pipeline (4:05-5:30 PM): expect 20-30 RDS connections (well below 500 max)
 - Alert threshold: >80% of max (>400 connections) → investigate slow queries
 
+## Production Monitoring (SLA Tracking)
+
+**Pipeline Timing Alarms:**
+
+| Metric | Threshold | Pipeline | Action |
+|--------|-----------|----------|--------|
+| `stock_prices_daily` | >120 min | Morning + EOD | Alert: yfinance rate limiting likely; check adaptive batching config |
+| `morning_prep_pipeline` | >300 min | Morning (2-9:30 AM) | Alert: approaching 9:30 AM deadline; investigate loader health |
+| RDS Connections | >40 | Any time | Warning: monitor for slow queries; check if parallelism needs reduction |
+
+**CloudWatch Metrics Emitted:**
+
+- `AlgoTrading/Operations:OperationDuration` — Each operation (loader, phase) emits duration in seconds with Operation dimension
+  - Source: `TimeBlock` context manager in `monitoring/metrics_context.py`
+  - Used for: SLA tracking, slow operation detection, rate limit diagnosis
+- `AlgoTrading:LoaderDurationSeconds` — Detailed per-loader timing (price_daily, scores, health, etc.)
+  - Emitted by: Orchestrator Phase 1 (data freshness check)
+  - Period: Every orchestrator run (9:30 AM, 1 PM, 3 PM, 5:30 PM ET + morning/EOD pipelines)
+
+**Dashboard Access:**
+- `algo-pipeline-monitoring-dev`: Timeline of stock_prices_daily, RDS connections, and recent loader errors
+- `algo-rds-monitoring-dev`: RDS CPU, connections, disk queue depth
+- `algo-loader-monitoring-dev`: Supporting loader failures (28 loaders) consolidated alarm
+
+**Dashboards auto-refresh every 5 minutes. View real-time to diagnose slow pipelines.**
+
+**Manual Monitoring Checklist (SLA Validation):**
+
+*Morning Preparation Pipeline (2:00 AM - 9:30 AM ET):*
+1. At 2:30 AM: Monitor stock_prices_daily load time — should complete by 4:00 AM (~2h window)
+2. At 7:00 AM: Confirm market_health_daily + swing_trader_scores loaded (separate fast path, ~10-30 min total)
+3. At 9:00 AM: Verify Phase 1 passes (if not, halt flag triggers and orchestrator skips Phase 5/6)
+4. If morning prep >90 min: Check CloudWatch for yfinance rate limiting (adaptive batching may have reduced batch_size)
+
+*EOD Pipeline (4:05 PM - 6:00 PM ET):*
+1. At 4:15 PM: stock_prices_daily should complete by 5:15 PM (1h limit for EOD SLA)
+2. At 5:00 PM: Verify Phase 1 passes (circuit breakers computed, Phase 2+ scheduled)
+3. If EOD >85 min: Investigate yfinance lag or RDS slow queries (disk queue depth)
+
+**Alerting:** SNS topic `algo-loader-alerts-dev` receives alarms. Configure email subscription in Terraform variables.
+
 ## Pre-Computed Metrics
 
 **circuit_breaker_status table:** Daily snapshot of 9 circuit breaker metrics (portfolio drawdown, daily loss, consecutive losses, open risk, VIX, market stage, SPY change, win rate, trigger count)
