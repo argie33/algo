@@ -34,3 +34,4 @@ const mockDataCache = {
 };
 
 export default mockDataCache;
+export { mockDataCache };

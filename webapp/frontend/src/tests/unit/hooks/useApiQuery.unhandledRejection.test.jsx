@@ -7,6 +7,15 @@ import React from 'react';
 
 // Mock the dataCache module
 vi.mock('../../../services/dataCache', () => ({
+  default: {
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn(),
+    clear: vi.fn(),
+    getMarketData: vi.fn(),
+    setMarketData: vi.fn(),
+    cleanup: vi.fn(),
+  },
   get: vi.fn(),
   set: vi.fn(),
 }));

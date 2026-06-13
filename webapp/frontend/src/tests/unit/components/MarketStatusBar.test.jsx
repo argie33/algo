@@ -42,6 +42,9 @@ vi.mock("../../../services/api.js", () => ({
 vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
+    set: vi.fn(),
+    clear: vi.fn(),
+    size: vi.fn(() => 5),
     cache: { size: 5 },
     getStats: vi.fn(() => ({ hits: 10, misses: 2, size: 5 })),
   },
