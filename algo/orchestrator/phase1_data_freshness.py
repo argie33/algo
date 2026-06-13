@@ -49,7 +49,14 @@ def run(
     min_coverage_pct = config.get('phase1_min_coverage_pct', 75) if config else 75
     min_symbol_count = config.get('phase1_min_symbol_count', 2000) if config else 2000
 
-    logger.info("[PHASE 1] Starting price data freshness check")
+    # SLA: Morning prep pipeline must complete by 9:30 AM ET (7.5 hours from 2 AM start)
+    # Current time check for SLA monitoring
+    from datetime import datetime as dt
+    from zoneinfo import ZoneInfo
+    now_et = dt.now(ZoneInfo('America/New_York'))
+    pipeline_context = "EOD" if now_et.hour >= 16 else "MORNING" if now_et.hour < 10 else "INTRADAY"
+
+    logger.info(f"[PHASE 1] Starting price data freshness check (Pipeline: {pipeline_context}, Time: {now_et.strftime('%H:%M:%S ET')})")
 
     try:
         with DatabaseContext('read') as cur:
@@ -138,7 +145,31 @@ def run(
             elapsed = time.time() - phase_start
 
             # SUCCESS
-            logger.info(f"[PHASE 1] PASS")
+            # SLA Check: Verify we're still within SLA window
+            from datetime import datetime as dt
+            from zoneinfo import ZoneInfo
+            phase1_end_et = dt.now(ZoneInfo('America/New_York'))
+
+            sla_status = ""
+            if pipeline_context == "MORNING":
+                sla_deadline = phase1_end_et.replace(hour=9, minute=30, second=0, microsecond=0)
+                if phase1_end_et < sla_deadline:
+                    minutes_until_sla = ((sla_deadline - phase1_end_et).total_seconds() / 60)
+                    sla_status = f" [SLA OK: {minutes_until_sla:.0f}m buffer until 9:30 AM]"
+                else:
+                    sla_status = f" [SLA WARNING: Past 9:30 AM deadline]"
+            elif pipeline_context == "INTRADAY":
+                if now_et.hour == 14:  # 2 PM - afternoon update
+                    sla_deadline = phase1_end_et.replace(hour=13, minute=5, second=0, microsecond=0)  # 1:05 PM target
+                elif now_et.hour == 15:  # 3 PM - pre-close update
+                    sla_deadline = phase1_end_et.replace(hour=15, minute=15, second=0, microsecond=0)  # 3:15 PM deadline
+                else:
+                    sla_deadline = None
+                if sla_deadline and phase1_end_et < sla_deadline:
+                    minutes_until_sla = ((sla_deadline - phase1_end_et).total_seconds() / 60)
+                    sla_status = f" [SLA OK: {minutes_until_sla:.0f}m buffer]"
+
+            logger.info(f"[PHASE 1] PASS{sla_status}")
             logger.info(f"  - Most recent prices: {max_date} ({symbols_loaded} symbols, {coverage_vs_prior:.1f}% vs prior day)")
             logger.info(f"  - Last trading day: {last_trading_day}")
             logger.info(f"  - Thresholds: >={min_symbol_count} symbols, >={min_coverage_pct}% coverage")
