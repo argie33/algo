@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Market Sentiment Loader - Load market sentiment from available sources (Market-wide compute)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -13,9 +10,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SentimentLoader(OptimalLoader):
     """Load market sentiment from available sources."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "sentiment"
     primary_key = ("symbol", "date")
@@ -60,7 +58,6 @@ class SentimentLoader(OptimalLoader):
             logger.error(f"Failed to fetch sentiment: {e}")
             return None
 
-
 def main():
     loader = SentimentLoader()
     result = loader.load_global()
@@ -71,7 +68,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No sentiment loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

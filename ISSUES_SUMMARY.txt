@@ -1,0 +1,339 @@
+================================================================================
+ALGO DASHBOARD: COMPLETE ISSUES AUDIT
+Date: 2026-06-13
+Status: CRITICAL - Not ready for market open without fixes
+================================================================================
+
+EXECUTIVE SUMMARY
+─────────────────────────────────────────────────────────────────────────────
+
+The algo dashboard has 13 identified issues across architecture, data sources,
+performance, and security. The 4 CRITICAL missing endpoints will cause complete
+dashboard failure at market open.
+
+Total estimated fix time: 30-35 hours (full stabilization)
+Critical path (must do): 4-6 hours (make dashboard functional)
+
+================================================================================
+
+CRITICAL ISSUES (Block Market Open) — 4-6 hours to fix
+─────────────────────────────────────────────────────────────────────────────
+
+#1  Missing 4 API Endpoints (BLOCKS DASHBOARD)
+    ✗ GET /api/algo/daily-return-histogram      (called by PortfolioDashboard)
+    ✗ GET /api/algo/trade-distribution          (called by PortfolioDashboard)
+    ✗ GET /api/algo/holding-period-distribution (called by PortfolioDashboard)
+    ✗ GET /api/algo/stage-distribution          (called by PortfolioDashboard)
+
+    Action: Implement 4 route handlers (~100 lines of code)
+    Time: 2-3 hours
+    Risk: Low (isolated feature)
+
+#2  Test Files in Production Source (Blocks CI/CD)
+    ✗ lambda/api/routes/test_critical_endpoints.py
+    ✗ lambda/api/routes/test_endpoints_verification.py
+    ✗ lambda/api/routes/TEST_ERROR_HANDLING.md
+
+    Action: Delete immediately
+    Time: 2 minutes
+    Risk: Low (cleanup only)
+
+#3  Data Source Dependencies Not Validated
+    Problem: Endpoints return empty arrays without warning if data missing
+    Example: /api/algo/daily-return-histogram needs algo_portfolio_snapshots
+
+    Action: Add freshness checks, return 202 status + warning if stale
+    Time: 1-2 hours
+    Risk: Medium (affects data quality)
+
+#4  Loaders Don't Populate All Required Columns
+    Problem: algo_signals missing entry_stage, algo_trades missing stage info
+
+    Action: Add columns to schema, modify loaders to populate
+    Time: 1-2 hours
+    Risk: Low (schema migration)
+
+================================================================================
+
+HIGH-PRIORITY ISSUES (Do ASAP) — 4-5 hours to fix
+─────────────────────────────────────────────────────────────────────────────
+
+#5  Response Format Inconsistency
+    Problem: Different endpoints return different JSON structures
+    - Some: { statusCode, items, total, limit, offset }
+    - Some: { statusCode, data: {...} }
+    - Some: { statusCode, ...fields }
+
+    Action: Standardize to single format
+    Time: 2-3 hours
+    Risk: Medium (requires coordination)
+
+#6  Missing Input Validation on New Endpoints
+    Problem: No limits on histogram size, date ranges, result counts
+    Risk: DoS vulnerability (could request years of data)
+
+    Action: Use safe_limit(), safe_days() on all new endpoints
+    Time: 1-2 hours
+    Risk: Low (follows existing patterns)
+
+#7  Query Performance: No Optimization for Distribution Endpoints
+    Problem: New endpoints will do expensive aggregations without caching
+    Examples:
+    - daily-return-histogram: scan 10,000+ rows, group by bucket
+    - trade-distribution: join trades + positions for each row
+    - stage-distribution: aggregate signals without index
+
+    Action: Pre-compute histograms nightly, add indexes, cache results
+    Time: 3-4 hours
+    Risk: Medium (database tuning)
+
+#8  Silent Fallbacks Still Exist in Endpoints
+    Problem: Some endpoints use "or 0" fallbacks, hiding missing data
+
+    Action: Audit for fallback patterns, add _is_fallback_data flag
+    Time: 1-2 hours
+    Risk: Low (audit only)
+
+================================================================================
+
+MEDIUM-PRIORITY ISSUES (Do this week) — 6-8 hours to fix
+─────────────────────────────────────────────────────────────────────────────
+
+#9  No Monitoring for Dashboard Endpoints
+    Problem: Operations can't detect when endpoints fail or data is stale
+
+    Action: Add CloudWatch metrics, alarms, frontend freshness indicators
+    Time: 2-3 hours
+    Risk: Low (observability)
+
+#10 Frontend Component Too Monolithic
+    Problem: PortfolioDashboard is >500 lines, fetches 11 endpoints sequentially
+
+    Action: Break into sub-components, implement progressive loading
+    Time: 6-8 hours
+    Risk: Medium (refactoring)
+
+#11 Missing Database Columns for Distribution Endpoints
+    Problem: algo_signals missing entry_stage, algo_trades missing stage
+
+    Action: Add columns, backfill from trade history, add indexes
+    Time: 2-3 hours
+    Risk: Low (schema change)
+
+#12 No Performance Baseline Documentation
+    Problem: No SLAs for endpoint latency, no regression detection
+
+    Action: Document SLAs, set CloudWatch alarms, add synthetic tests
+    Time: 2 hours
+    Risk: Low (documentation)
+
+#13 No Data Freshness Indicators for Users
+    Problem: Users don't know if displayed data is stale
+
+    Action: Show last-update timestamp, staleness badge, warning if >24h old
+    Time: 2-3 hours
+    Risk: Low (UI only)
+
+================================================================================
+
+ISSUE CATEGORIES BY IMPACT
+─────────────────────────────────────────────────────────────────────────────
+
+ARCHITECTURE (4 issues)
+- Missing endpoints (#1) - causes complete failure
+- Frontend monolithic design (#10) - causes performance issues
+- Data dependency validation (#3) - causes data gaps
+- Response format inconsistency (#5) - causes parsing errors
+
+DATA SOURCES (3 issues)
+- Missing columns (#4, #11) - blocks calculations
+- Silent fallbacks (#8) - hides data problems
+- Loader population gaps (#4) - incomplete data
+
+PERFORMANCE (2 issues)
+- Query optimization (#7) - will cause slow loads
+- No monitoring (#9) - can't detect problems
+- No baseline (#12) - can't track regressions
+
+SECURITY (2 issues)
+- Missing input validation (#6) - DoS vulnerability
+- Test files in source (#2) - code bloat
+
+OPERATIONS (2 issues)
+- No freshness indicators (#13) - user confusion
+- No monitoring (#9) - ops blindness
+
+================================================================================
+
+CRITICAL PATH TO MARKET OPEN
+─────────────────────────────────────────────────────────────────────────────
+
+MUST COMPLETE (4-6 hours):
+  1. Delete test files (2 min)
+  2. Implement 4 missing endpoints (2-3 hours)
+  3. Verify schema has required columns (30 min)
+  4. Test in browser (30 min)
+  5. Verify data displays correctly (1-2 hours)
+
+SHOULD COMPLETE TODAY (additional 3-4 hours):
+  1. Add data validation checks (#3)
+  2. Populate missing columns (#4)
+  3. Test end-to-end with real data
+
+CAN DEFER UNTIL THIS WEEK:
+  1. Query optimization (#7)
+  2. Response standardization (#5)
+  3. Input validation (#6)
+  4. Frontend refactoring (#10)
+  5. Monitoring setup (#9)
+  6. Performance baseline (#12)
+  7. User indicators (#13)
+
+================================================================================
+
+FILES REQUIRING CHANGES
+─────────────────────────────────────────────────────────────────────────────
+
+CRITICAL (must change):
+  ✓ lambda/api/routes/algo.py (add 4 endpoint handlers)
+  ✓ lambda/db-init/schema.sql (add missing columns if needed)
+  ✓ DELETE: lambda/api/routes/test_critical_endpoints.py
+  ✓ DELETE: lambda/api/routes/test_endpoints_verification.py
+  ✓ DELETE: lambda/api/routes/TEST_ERROR_HANDLING.md
+
+HIGH PRIORITY (should change):
+  • loaders/load_algo_signals.py (populate entry_stage)
+  • loaders/load_algo_trades.py (capture entry_stage at entry)
+  • loaders/compute_performance_metrics.py (pre-compute histograms)
+  • lambda/api/routes/algo.py (add validation checks)
+
+MEDIUM PRIORITY (can refactor):
+  • webapp/frontend/src/pages/PortfolioDashboard.jsx (split components)
+  • lambda/api/routes/utils.py (standardize response format)
+  • steering/algo.md (document SLAs)
+
+================================================================================
+
+QUICK VERIFICATION CHECKLIST
+─────────────────────────────────────────────────────────────────────────────
+
+Before declaring "ready for market open":
+  ✓ Dashboard loads in browser without 404 errors
+  ✓ All 11 endpoints return HTTP 200 (not 404, not 500)
+  ✓ Dashboard displays all charts (not empty)
+  ✓ Data values are numeric (no NaN, undefined, or null)
+  ✓ Timestamps show recent data (not placeholder)
+  ✓ No console errors in browser DevTools
+  ✓ No test files in lambda/api/routes/
+  ✓ CloudWatch shows healthy metrics
+  ✓ 5-minute manual test: dashboard refreshes, data updates
+
+================================================================================
+
+SEVERITY LEVELS
+─────────────────────────────────────────────────────────────────────────────
+
+CRITICAL (blocks market open):
+  #1: Missing endpoints - 404 errors prevent dashboard load
+  #2: Test files - blocks CI/CD pipeline
+
+HIGH (causes data/functionality problems):
+  #3: Data validation - silent empty results
+  #4: Column gaps - endpoint failures
+  #5: Format inconsistency - client parsing errors
+  #6: Input validation - security vulnerability
+  #7: Query performance - slow dashboard
+  #8: Silent fallbacks - hidden data problems
+
+MEDIUM (operational/tech debt):
+  #9: No monitoring - can't diagnose issues
+  #10: Frontend design - maintenance burden
+  #11: Schema gaps - incomplete data
+  #12: No baseline - regression blindness
+  #13: No freshness UI - user confusion
+
+================================================================================
+
+ESTIMATED EFFORT BREAKDOWN
+─────────────────────────────────────────────────────────────────────────────
+
+Critical path (must do):          4-6 hours
+  • Delete files                  0.5 hours
+  • Implement endpoints           2-3 hours
+  • Schema verification           0.5 hours
+  • Test verification             1-2 hours
+
+High priority (do today):         4-5 hours
+  • Data validation               1-2 hours
+  • Column population             1-2 hours
+  • Test end-to-end               1-1.5 hours
+
+Medium priority (this week):      8-10 hours
+  • Query optimization            3-4 hours
+  • Response standardization      2-3 hours
+  • Frontend refactoring          6-8 hours
+  • Monitoring & docs             3-4 hours
+
+Total full stabilization:         30-35 hours
+
+================================================================================
+
+RECOMMENDED ACTION ITEMS
+─────────────────────────────────────────────────────────────────────────────
+
+IMMEDIATE (Next 30 minutes):
+  [ ] Delete 3 test files
+  [ ] Review CRITICAL_ACTION_PLAN.md
+  [ ] Start implementing 4 endpoint stubs
+
+NEXT 2-3 HOURS:
+  [ ] Complete endpoint implementations
+  [ ] Test endpoints locally
+  [ ] Verify response formats
+  [ ] Test in browser
+
+TODAY (Before market close):
+  [ ] Add data validation checks
+  [ ] Verify schema columns exist
+  [ ] Test with real data
+  [ ] Manual end-to-end test
+
+THIS WEEK:
+  [ ] Query optimization & caching
+  [ ] Response format standardization
+  [ ] Input validation hardening
+  [ ] Monitoring setup
+
+================================================================================
+
+DOCUMENTS PROVIDED
+─────────────────────────────────────────────────────────────────────────────
+
+1. DASHBOARD_ISSUES_AUDIT.md (detailed audit)
+   - Full description of each issue
+   - Impact analysis
+   - Required actions
+   - Database schema issues
+   - Performance bottlenecks
+
+2. CRITICAL_ACTION_PLAN.md (quick start)
+   - Step-by-step implementation guide
+   - Code snippets for 4 endpoints
+   - Testing instructions
+   - Success criteria
+
+3. ISSUES_SUMMARY.txt (this file)
+   - Executive overview
+   - Quick reference
+   - Effort estimates
+   - Checklist
+
+================================================================================
+
+STATUS: Ready to begin implementation
+Time remaining before market open: ~14 hours
+Confidence level: High (issues well-defined, solutions clear)
+
+Start with CRITICAL_ACTION_PLAN.md for immediate next steps.
+
+================================================================================

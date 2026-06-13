@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """R-Ladder Distribution Daily Loader - Pre-compute R-multiple risk distribution."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional, List
@@ -14,9 +11,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class RLadderDistributionDailyLoader(OptimalLoader):
     """Pre-compute daily R-ladder distribution across 6 risk buckets."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "r_ladder_distribution_daily"
     primary_key = ("date", "r_multiple_bucket")
@@ -136,7 +134,6 @@ class RLadderDistributionDailyLoader(OptimalLoader):
         else:
             return '> 2R'
 
-
 def main():
     loader = RLadderDistributionDailyLoader()
     result = loader.load_global()
@@ -147,7 +144,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No buckets computed")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

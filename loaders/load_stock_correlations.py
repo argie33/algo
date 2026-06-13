@@ -15,9 +15,8 @@ Computes:
 
 Run: python3 load_stock_correlations.py [--symbols "AAPL,MSFT,SPY" --parallelism 1]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 import argparse
 from datetime import date, datetime, timedelta
@@ -30,7 +29,6 @@ from utils.loader_helpers import get_active_symbols
 from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
-
 
 def calculate_pearson_correlation(returns1: List[float], returns2: List[float]) -> Optional[float]:
     """Calculate Pearson correlation from two aligned return series."""
@@ -49,7 +47,6 @@ def calculate_pearson_correlation(returns1: List[float], returns2: List[float]) 
         return 0.0
 
     return covariance / (math.sqrt(sd1_sq * sd2_sq))
-
 
 def fetch_price_data(symbols: List[str], days: int) -> Dict[str, List[Tuple[date, float]]]:
     """Fetch price data for symbols over the last N days."""
@@ -73,7 +70,6 @@ def fetch_price_data(symbols: List[str], days: int) -> Dict[str, List[Tuple[date
 
     return prices_by_symbol
 
-
 def calculate_returns(prices: List[Tuple[date, float]]) -> Tuple[List[float], List[date]]:
     """Calculate daily returns from price series."""
     if len(prices) < 2:
@@ -90,7 +86,6 @@ def calculate_returns(prices: List[Tuple[date, float]]) -> Tuple[List[float], Li
             dates.append(prices[i][0])
 
     return returns, dates
-
 
 def load_correlations(
     symbols: List[str],
@@ -155,7 +150,6 @@ def load_correlations(
 
     return correlations
 
-
 def upsert_correlations(
     correlations_1m: List[Dict],
     correlations_3m: List[Dict],
@@ -205,7 +199,6 @@ def upsert_correlations(
 
     return rows_inserted
 
-
 def main():
     parser = argparse.ArgumentParser(description="Load stock correlations")
     parser.add_argument("--symbols", default=None, help="Comma-separated symbols (default: active symbols)")
@@ -246,7 +239,6 @@ def main():
     except Exception as e:
         logger.error(f"Error loading correlations: {e}", exc_info=True)
         raise
-
 
 if __name__ == "__main__":
     main()

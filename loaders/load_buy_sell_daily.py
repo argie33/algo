@@ -4,10 +4,10 @@
 Generates daily trading signals from technical indicators and quality scores.
 Populates the buy_sell_daily table.
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import logging
 import os

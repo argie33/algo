@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Value Metrics Loader - PE, PB, PS, dividend yield from yfinance."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import argparse
 import logging
 import os
@@ -18,9 +15,10 @@ from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
-
 class ValueMetricsLoader(OptimalLoader):
     """Load value metrics (PE, PB, PS, etc) from yfinance."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "value_metrics"
     primary_key = ("symbol",)
@@ -83,7 +81,6 @@ class ValueMetricsLoader(OptimalLoader):
 
         return None
 
-
 def _apply_schema_migrations():
     """Add columns that were missing from initial schema deployment."""
     from utils.database_context import DatabaseContext
@@ -100,7 +97,6 @@ def _apply_schema_migrations():
                 cur.execute(sql)
     except Exception as e:
         logger.warning(f"Schema migration failed (non-fatal): {e}")
-
 
 def main():
     parser = argparse.ArgumentParser(description='Value Metrics Loader')
@@ -125,7 +121,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No metrics loaded (rows_fetched={result['rows_fetched']})")
         return 0
-
 
 if __name__ == '__main__':
     sys.exit(main())

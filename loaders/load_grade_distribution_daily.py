@@ -14,10 +14,10 @@ Grade thresholds:
 
 Runs after swing_trader_scores is loaded (end of day pipeline).
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 from datetime import date, datetime
 from typing import Optional, List
@@ -28,7 +28,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
-
 
 class GradeDistributionDailyLoader(OptimalLoader):
     """Compute grade distribution from swing_trader_scores."""
@@ -100,7 +99,6 @@ class GradeDistributionDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute grade distribution: {e}")
             return None
 
-
 def main():
     loader = GradeDistributionDailyLoader()
     result = loader.load_global()
@@ -111,7 +109,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No grade distribution computed (insufficient data)")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

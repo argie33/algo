@@ -12,10 +12,10 @@ Performance: 5000 symbols in 15-25 minutes vs 60-90 minutes with per-symbol appr
 
 Run: python3 loaders/load_technical_data_daily_vectorized.py [--limit 100]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import logging
 import os
@@ -301,7 +301,6 @@ class VectorizedTechnicalLoader:
         except Exception as e:
             logger.error(f"Bulk insert failed: {e}")
             return 0
-
 
 def main():
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")

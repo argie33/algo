@@ -6,10 +6,10 @@ Populates all required market_health_daily columns.
 
 Run: python3 load_market_health_daily.py [--parallelism 1]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -338,7 +338,6 @@ INDEX_SYMBOLS_FOR_PRICE_DAILY = [
     '^GSPC', '^IXIC', '^NYA', '^DJI', '^RUT',
 ]
 
-
 def _write_vix_family_prices(start: date, end: date) -> int:
     """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
 
@@ -423,7 +422,6 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     except Exception as e:
         logger.error(f"VIX family price write failed: {e}")
         return 0
-
 
 def main():
     from utils.loader_history_tracker import LoaderHistoryTracker

@@ -6,10 +6,10 @@ Required by Phase 1 data freshness check as tier-2 gate for filtering.
 
 Run: python3 load_signal_quality_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import os
 from datetime import date, timedelta

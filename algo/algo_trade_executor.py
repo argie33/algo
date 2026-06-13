@@ -587,16 +587,27 @@ class TradeExecutor:
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, status,
                         trade_ids_arr, current_stop_price, target_levels_hit,
+                        stop_loss_price, target_1_price, target_2_price, target_3_price,
+                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                        r_multiple, initial_risk_per_share,
                         created_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, 'open',
-                        %s, %s, 0, CURRENT_TIMESTAMP
+                        %s, %s, 0, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s,
+                        CURRENT_TIMESTAMP
                     )
                     """,
                     (
                         position_id, symbol, actual_shares, executed_price,
                         executed_price, position_value,
                         [trade_id], stop_loss_price,
+                        stop_loss_price, target_1_price, target_2_price, target_3_price,
+                        float(self.config.get('t1_target_r_multiple', 1.5)),
+                        float(self.config.get('t2_target_r_multiple', 3.0)),
+                        float(self.config.get('t3_target_r_multiple', 4.0)),
+                        (executed_price - stop_loss_price) / float(stop_loss_price) if stop_loss_price > 0 else None,
+                        executed_price - stop_loss_price if stop_loss_price > 0 else None,
                     ),
                 )
 

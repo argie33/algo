@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 """
 Growth Metrics Loader - Computes multi-year growth metrics from annual financials.
 
 Metrics: Revenue Growth (1Y, 3Y, 5Y), EPS Growth (1Y, 3Y, 5Y), Growth Score (0-100).
 Requires: annual_income_statement populated.
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 import argparse
 import logging

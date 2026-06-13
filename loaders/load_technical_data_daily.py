@@ -6,10 +6,10 @@ Required by Phase 1 data freshness check.
 
 Run: python3 load_technical_data_daily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import logging
 import os

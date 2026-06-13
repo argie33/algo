@@ -18,10 +18,10 @@ Inherits from OptimalLoader: watermarks, dedup, parallelism, bulk COPY.
 Run:
     python3 loaders/load_swing_trader_scores.py [--parallelism 8]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 import argparse
 logger = logging.getLogger(__name__)

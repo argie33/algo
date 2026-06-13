@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Equity Curve Daily Loader - Pre-compute rolling Sharpe, Sortino, max drawdown, Calmar."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 import statistics
 from datetime import date, timedelta, datetime, timezone
@@ -15,9 +12,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class EquityCurveDailyLoader(OptimalLoader):
     """Pre-compute daily equity curve metrics (Sharpe, Sortino, max drawdown, Calmar)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "equity_curve_daily"
     primary_key = ("date",)
@@ -157,7 +155,6 @@ class EquityCurveDailyLoader(OptimalLoader):
             'equity_curve_sparkline': None,  # Computed separately if needed
         }
 
-
 def main():
     loader = EquityCurveDailyLoader()
     result = loader.load_global()
@@ -168,7 +165,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No metrics computed")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

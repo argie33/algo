@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """S&P 500 Constituents Loader - Mark S&P 500 membership (Market-wide)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -17,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
-
 class SP500ConstituentsLoader(OptimalLoader):
     """Load and mark S&P 500 constituent symbols."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "stock_symbols"
     primary_key = ("symbol",)
@@ -55,7 +53,6 @@ class SP500ConstituentsLoader(OptimalLoader):
             logger.error(f"Failed to fetch S&P 500 list: {e}")
             return None
 
-
 def main():
     loader = SP500ConstituentsLoader()
     result = loader.load_global()
@@ -66,7 +63,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No symbols marked")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

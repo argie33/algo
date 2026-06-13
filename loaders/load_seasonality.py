@@ -7,10 +7,10 @@ Reads SPY historical prices from price_daily and computes:
 
 Run: python3 load_seasonality.py
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 from utils.database_context import DatabaseContext
 
@@ -22,7 +22,6 @@ MONTH_NAMES = {
     9: 'September', 10: 'October', 11: 'November', 12: 'December',
 }
 DAY_NAMES = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday'}
-
 
 def load_seasonality() -> int:
     """Compute and upsert seasonality stats from SPY price_daily history."""
@@ -161,7 +160,6 @@ def load_seasonality() -> int:
 
         return total
 
-
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     try:
@@ -171,7 +169,6 @@ def main():
     except Exception as e:
         logger.error(f"Seasonality load failed: {e}")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

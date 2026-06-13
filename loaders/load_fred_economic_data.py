@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """FRED Economic Data Loader — Market-wide macroeconomic indicators."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 import os
 from datetime import date, timedelta
@@ -87,9 +84,11 @@ SERIES = [
     "DSPIC96",    # Real Disposable Personal Income (level; displayed as YoY %)
 ]
 
-
 def get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager, fall back to env var."""
+from loaders.loader_helper import setup_imports
+setup_imports()
+
     return get_api_key('algo/fred', 'FRED_API_KEY') or ""
 
 class FredEconomicDataLoader(OptimalLoader):
@@ -191,7 +190,6 @@ class FredEconomicDataLoader(OptimalLoader):
 
         return all_rows if all_rows else None
 
-
 def main():
     loader = FredEconomicDataLoader()
     result = loader.load_global()
@@ -202,7 +200,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No records loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

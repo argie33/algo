@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Sentiment Aggregate Loader - Combines AAII + NAAIM sentiment into unified metric (Market-wide)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -12,9 +9,10 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-
 class SentimentAggregateLoader(OptimalLoader):
     """Aggregate AAII and NAAIM sentiment into unified metric."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "sentiment"
     primary_key = ("date",)
@@ -67,7 +65,6 @@ class SentimentAggregateLoader(OptimalLoader):
             logger.error(f"Sentiment aggregation failed: {e}")
             return None
 
-
 def main():
     loader = SentimentAggregateLoader()
     result = loader.load_global()
@@ -78,7 +75,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No sentiment aggregated")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

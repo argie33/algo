@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Sector Allocation Daily Loader - Pre-compute sector exposures and aggregations."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional, List
@@ -14,9 +11,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SectorAllocationDailyLoader(OptimalLoader):
     """Pre-compute daily sector allocations from current positions."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "sector_allocation_daily"
     primary_key = ("date", "sector_name")
@@ -83,7 +81,6 @@ class SectorAllocationDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute sector allocations: {e}", exc_info=True)
             return None
 
-
 def main():
     loader = SectorAllocationDailyLoader()
     result = loader.load_global()
@@ -94,7 +91,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No allocations computed")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

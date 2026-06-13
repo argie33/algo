@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Signal Themes Loader - Identify thematic groups among high-scoring signals."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -13,9 +10,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SignalThemesLoader(OptimalLoader):
     """Load signal themes from signal quality scores (market-wide aggregate)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "signal_themes"
     primary_key = ("symbol", "date")
@@ -72,7 +70,6 @@ class SignalThemesLoader(OptimalLoader):
             logger.error(f"Error fetching signal themes: {e}")
             return None
 
-
 def main():
     loader = SignalThemesLoader()
     result = loader.load_global()
@@ -83,7 +80,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No themes loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

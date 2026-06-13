@@ -1,14 +1,14 @@
 ﻿#!/usr/bin/env python3
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 """
 Income Statement Loader -â€ annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_PERIOD env var (financials_annual_income / financials_quarterly_income)
 or --period CLI flag for manual runs.
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import logging
 import argparse
 logger = logging.getLogger(__name__)

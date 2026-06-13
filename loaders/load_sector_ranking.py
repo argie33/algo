@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Sector Ranking Loader - Rank sectors by composite stock scores."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -13,9 +10,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SectorRankingLoader(OptimalLoader):
     """Rank sectors by composite score from stock_scores + company_profile."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "sector_ranking"
     primary_key = ("sector_name", "date")
@@ -118,7 +116,6 @@ class SectorRankingLoader(OptimalLoader):
             logger.error(f"Failed to compute sector rankings: {e}")
             return None
 
-
 def main():
     loader = SectorRankingLoader()
     result = loader.load_global()
@@ -129,7 +126,6 @@ def main():
     else:
         logger.warning("COMPLETED: No sector rankings computed")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

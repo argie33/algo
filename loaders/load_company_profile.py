@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Company Profile Loader - populate from yfinance with sector/industry enrichment."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -15,9 +12,10 @@ from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
-
 class CompanyProfileLoader(OptimalLoader):
     """Load company profiles with sector and industry from yfinance."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "company_profile"
     primary_key = ("symbol",)
@@ -48,7 +46,6 @@ class CompanyProfileLoader(OptimalLoader):
             logger.debug(f"Could not fetch yfinance data for {symbol}: {e}")
             return None
 
-
 def main():
     import argparse
     import os
@@ -73,7 +70,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No profiles loaded (rows_fetched={result['rows_fetched']})")
         return 0
-
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Russell 2000 Constituents Loader - Mark Russell 2000 membership (Market-wide)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -13,9 +10,10 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-
 class Russell2000ConstituentsLoader(OptimalLoader):
     """Load and mark Russell 2000 constituent symbols."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "stock_symbols"
     primary_key = ("symbol",)
@@ -63,7 +61,6 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             logger.error(f"Failed to fetch Russell 2000: {e}")
             return None
 
-
 def main():
     loader = Russell2000ConstituentsLoader()
     result = loader.load_global()
@@ -74,7 +71,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No symbols marked")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Economic Calendar Loader — Upcoming macro release dates from FRED."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 import os
 import json
@@ -66,11 +63,12 @@ FOMC_DATES_2027 = [
     ("2027-12-15", "FOMC Meeting Decision"),
 ]
 
-
 def _get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager, fall back to env var."""
-    return get_api_key('algo/fred', 'FRED_API_KEY') or ""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+    return get_api_key('algo/fred', 'FRED_API_KEY') or ""
 
 def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -> List[date]:
     """Fetch upcoming release dates for a FRED series via the releases endpoint."""
@@ -121,7 +119,6 @@ def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -
     except Exception as e:
         logger.debug(f"FRED release dates fetch failed for {series_id}: {e}")
         return []
-
 
 def _load_economic_calendar(today: date) -> int:
     api_key = _get_fred_api_key()
@@ -211,7 +208,6 @@ def _load_economic_calendar(today: date) -> int:
 
     return count
 
-
 def main():
     today = date.today()
     try:
@@ -225,7 +221,6 @@ def main():
     except Exception as e:
         logger.error(f"Economic calendar load failed: {e}")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

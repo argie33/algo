@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """NAAIM Exposure Index Loader - Fund Manager Positioning (Market-wide)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -15,9 +12,10 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-
 class NAAIMExposureLoader(OptimalLoader):
     """Load NAAIM fund manager exposure index."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "naaim"
     primary_key = ("date",)
@@ -81,7 +79,6 @@ class NAAIMExposureLoader(OptimalLoader):
             logger.error(f"Failed to fetch NAAIM data: {e}")
             return None
 
-
 def main():
     loader = NAAIMExposureLoader()
     result = loader.load_global()
@@ -92,7 +89,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No NAAIM data loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

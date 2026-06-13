@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Sector Performance Loader - Daily return_pct for each sector via SPDR ETFs."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -27,9 +24,10 @@ SECTOR_ETF_MAP = {
     'XLB':  'Basic Materials',
 }
 
-
 def _load_sector_performance(today: date) -> int:
     """Compute and upsert sector performance for `today`.
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     return_pct = cumulative YTD return for each sector ETF,
     expressed as a percentage indexed to the first trading day of the year.
@@ -141,7 +139,6 @@ def _load_sector_performance(today: date) -> int:
 
         return inserted
 
-
 def main():
     today = date.today()
     try:
@@ -155,7 +152,6 @@ def main():
     except Exception as e:
         logger.error(f"Sector performance load failed: {e}")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -9,10 +9,10 @@ Calculates all-time rolling metrics for the current trading day based on:
 CRITICAL: Uses central MetricsCalculator for all calculations to ensure consistency
 across loaders, API, and dashboard. Never recalculate metrics locally.
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional, List
@@ -24,7 +24,6 @@ from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
-
 
 class AlgoPerformanceDailyLoader(OptimalLoader):
     """Compute rolling performance metrics hourly during market hours."""
@@ -352,7 +351,6 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             'updated_at': datetime.now(ET),
         }
 
-
 def main():
     loader = AlgoPerformanceDailyLoader()
     result = loader.load_global()
@@ -363,7 +361,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No metrics computed (insufficient data)")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

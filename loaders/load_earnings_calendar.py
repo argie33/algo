@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Earnings Calendar Loader - Fetches upcoming earnings dates."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import argparse
 import logging
 import os
@@ -16,9 +13,10 @@ from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
-
 class EarningsCalendarLoader(OptimalLoader):
     """Load upcoming earnings dates for all symbols."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "earnings_calendar"
     primary_key = ("symbol", "earnings_date")
@@ -58,7 +56,6 @@ class EarningsCalendarLoader(OptimalLoader):
             logger.debug(f"yfinance fetch failed for {symbol}: {e}")
             return None
 
-
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols, or blank for all active")
@@ -80,7 +77,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No earnings loaded (rows_fetched={result['rows_fetched']})")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

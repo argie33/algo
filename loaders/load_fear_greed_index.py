@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Fear & Greed Index Loader - Market Sentiment Indicators (Market-wide)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -14,9 +11,10 @@ from utils.url_validator import validate_url
 
 logger = logging.getLogger(__name__)
 
-
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "fear_greed_index"
     primary_key = ("date",)
@@ -116,7 +114,6 @@ class FearGreedIndexLoader(OptimalLoader):
         logger.error("Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block)")
         return None
 
-
 def main():
     loader = FearGreedIndexLoader()
     result = loader.load_global()
@@ -127,7 +124,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No data loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

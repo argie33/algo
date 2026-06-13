@@ -13,24 +13,23 @@ Metrics computed:
 - CB8: SPY prior-day change %
 - CB9: Win rate (last 30 trades)
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 import psycopg2
 import psycopg2.extras
 from datetime import date, timedelta
 import logging
-import sys
 import os
 import json
 from decimal import Decimal
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.database import get_db_connection
 from utils.safe_data_conversion import safe_float, safe_int
 
 logger = logging.getLogger(__name__)
-
 
 def compute_circuit_breaker_metrics(cur, today: date = None):
     """Compute all circuit breaker metrics for today and store in database."""
@@ -84,7 +83,6 @@ def compute_circuit_breaker_metrics(cur, today: date = None):
         logger.error(f'Failed to compute circuit breaker metrics: {e}', exc_info=True)
         raise
 
-
 def _compute_drawdown(cur) -> float:
     """Calculate portfolio drawdown from peak."""
     try:
@@ -107,7 +105,6 @@ def _compute_drawdown(cur) -> float:
         logger.warning(f'Failed to compute drawdown: {e}')
         return 0.0
 
-
 def _compute_daily_loss(cur, today: date) -> float:
     """Calculate today's loss %."""
     try:
@@ -125,7 +122,6 @@ def _compute_daily_loss(cur, today: date) -> float:
     except Exception as e:
         logger.warning(f'Failed to compute daily loss: {e}')
         return 0.0
-
 
 def _compute_consecutive_losses(cur) -> int:
     """Calculate consecutive losing trades from last 10 closed trades."""
@@ -149,7 +145,6 @@ def _compute_consecutive_losses(cur) -> int:
         logger.warning(f'Failed to compute consecutive losses: {e}')
         return 0
 
-
 def _compute_vix_level(cur) -> float:
     """Get latest VIX level from market_health_daily."""
     try:
@@ -165,7 +160,6 @@ def _compute_vix_level(cur) -> float:
     except Exception as e:
         logger.warning(f'Failed to compute VIX level: {e}')
         return None
-
 
 def _compute_weekly_loss(cur, today: date) -> float:
     """Calculate 7-day portfolio loss %."""
@@ -202,7 +196,6 @@ def _compute_weekly_loss(cur, today: date) -> float:
         logger.warning(f'Failed to compute weekly loss: {e}')
         return 0.0
 
-
 def _compute_market_stage(cur) -> int:
     """Get latest market stage from market_health_daily."""
     try:
@@ -218,7 +211,6 @@ def _compute_market_stage(cur) -> int:
     except Exception as e:
         logger.warning(f'Failed to compute market stage: {e}')
         return 0
-
 
 def _compute_open_risk(cur) -> float:
     """Calculate total open risk % of portfolio."""
@@ -250,7 +242,6 @@ def _compute_open_risk(cur) -> float:
         logger.warning(f'Failed to compute open risk: {e}')
         return 0.0
 
-
 def _compute_spy_change(cur, today: date) -> float:
     """Calculate SPY prior-day change %."""
     try:
@@ -275,7 +266,6 @@ def _compute_spy_change(cur, today: date) -> float:
     except Exception as e:
         logger.warning(f'Failed to compute SPY change: {e}')
         return 0.0
-
 
 def _compute_win_rate(cur) -> float:
     """Calculate win rate from last 30 closed trades."""
@@ -306,7 +296,6 @@ def _compute_win_rate(cur) -> float:
     except Exception as e:
         logger.warning(f'Failed to compute win rate: {e}')
         return 0.0
-
 
 def _check_any_triggered(metrics: dict) -> bool:
     """Check if any circuit breaker is triggered based on thresholds."""
@@ -363,7 +352,6 @@ def _check_any_triggered(metrics: dict) -> bool:
 
     return False
 
-
 def _count_triggered(metrics: dict) -> int:
     """Count how many circuit breakers are triggered."""
     count = 0
@@ -402,7 +390,6 @@ def _count_triggered(metrics: dict) -> int:
         count += 1
 
     return count
-
 
 def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
     """Insert or update circuit breaker status in database."""
@@ -445,7 +432,6 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
         logger.error(f'Failed to insert circuit breaker status: {e}', exc_info=True)
         raise
 
-
 def main():
     """Main entry point for the loader."""
     try:
@@ -466,7 +452,6 @@ def main():
             cur.close()
         if conn:
             conn.close()
-
 
 if __name__ == '__main__':
     logging.basicConfig(

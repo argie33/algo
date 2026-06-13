@@ -10,10 +10,10 @@ Calculates from:
 
 Risk metrics updated hourly during market hours.
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 import statistics
 from datetime import date, datetime, timezone
@@ -25,7 +25,6 @@ from utils.timezone_utils import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
-
 
 class AlgoRiskDailyLoader(OptimalLoader):
     """Compute daily risk metrics from portfolio and positions."""
@@ -194,7 +193,6 @@ class AlgoRiskDailyLoader(OptimalLoader):
             'updated_at': datetime.now(ET),
         }
 
-
 def main():
     loader = AlgoRiskDailyLoader()
     result = loader.load_global()
@@ -205,7 +203,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No risk metrics computed (insufficient data)")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

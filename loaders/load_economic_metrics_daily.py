@@ -8,10 +8,10 @@ Pre-computes daily economic metrics for dashboard consumption:
 - spy_price_change_pct: SPY daily price change percentage
 - yield_curve_slope: 10Y - 2Y yield spread
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import logging
 from datetime import date, datetime, timedelta
 from typing import Optional, List
@@ -22,7 +22,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
-
 
 class EconomicMetricsDailyLoader(OptimalLoader):
     """Compute derived economic metrics daily."""
@@ -153,7 +152,6 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute economic metrics: {e}")
             return None
 
-
 def main():
     loader = EconomicMetricsDailyLoader()
     result = loader.load_global()
@@ -164,7 +162,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No economic metrics computed (insufficient data)")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

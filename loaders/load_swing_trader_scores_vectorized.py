@@ -12,10 +12,10 @@ Use:
 
 Run: python3 loaders/load_swing_trader_scores_vectorized.py [--today]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import logging
 import time
@@ -278,7 +278,6 @@ class VectorizedSwingScoresLoader:
         except Exception as e:
             logger.error(f"Bulk insert failed: {e}")
             return 0
-
 
 def main():
     import os

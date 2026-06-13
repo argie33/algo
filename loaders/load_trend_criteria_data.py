@@ -6,10 +6,10 @@ Required by Phase 1 data freshness check.
 
 Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from loaders.loader_helper import setup_imports
+setup_imports()
 
+import sys
 import argparse
 import os
 from datetime import date, timedelta

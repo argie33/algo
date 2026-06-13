@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Stock Symbols Loader - Load all tradable symbols from NASDAQ/NYSE."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -28,13 +25,13 @@ EXCLUSION_PATTERNS = [
     r"\bclosed[- ]end\b", r"\b2x\b", r"\b3x\b", r"\binverse\b",
 ]
 
-
 def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
 
-
 class StockSymbolsLoader(OptimalLoader):
     """Load stock symbols from NASDAQ and NYSE."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "stock_symbols"
     primary_key = ("symbol",)
@@ -117,7 +114,6 @@ class StockSymbolsLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Failed to refresh etf_symbols: {e}")
 
-
 def main():
     loader = StockSymbolsLoader()
     result = loader.load_global()
@@ -128,7 +124,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No symbols loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

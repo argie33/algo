@@ -775,19 +775,28 @@ class DailyReconciliation:
                 ))
 
                 # Insert position (use same stop as calculated in trade above)
+                risk_per_share = avg_entry - stop_loss_price if stop_loss_price > 0 else None
                 cur.execute("""
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, unrealized_pnl,
                         unrealized_pnl_pct, status, trade_ids_arr,
-                        current_stop_price, target_levels_hit, created_at
+                        current_stop_price, target_levels_hit, created_at,
+                        stop_loss_price, target_1_price, target_2_price, target_3_price,
+                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                        r_multiple, initial_risk_per_share
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
-                              %s, %s, %s, 0, CURRENT_TIMESTAMP)
+                              %s, %s, %s, 0, CURRENT_TIMESTAMP,
+                              %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (position_id) DO NOTHING
                 """, (
                     position_id, sym, int(qty), avg_entry, cur_price,
                     pos_value, pnl, pnl_pct, PositionStatus.OPEN.value, [trade_id],
                     stop_loss_price,  # use calculated stop, not hardcoded 8%
+                    stop_loss_price, target_1, target_2, target_3,
+                    1.5, 3.0, 4.0,  # default target r-multiples
+                    (cur_price - avg_entry) / risk_per_share if risk_per_share and risk_per_share > 0 else None,
+                    risk_per_share
                 ))
                 imported += 1
             except Exception as e:

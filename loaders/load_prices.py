@@ -1,8 +1,5 @@
 ﻿#!/usr/bin/env python3
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 """
 UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
 
@@ -15,6 +12,8 @@ Environment variables (set by Terraform/ECS task definition):
 Runs each interval+asset_class combination sequentially, parallelizing symbol fetches within.
 Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_weekly, etf_price_monthly
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 import argparse
 import contextvars

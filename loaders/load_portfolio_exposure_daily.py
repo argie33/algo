@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Portfolio Exposure Daily Loader - Pre-compute portfolio metrics and risk indicators."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 import statistics
 from datetime import date, datetime, timezone
@@ -15,9 +12,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class PortfolioExposureDailyLoader(OptimalLoader):
     """Pre-compute daily portfolio exposure metrics (heat, concentration, metrics)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "portfolio_exposure_daily"
     primary_key = ("date",)
@@ -162,7 +160,6 @@ class PortfolioExposureDailyLoader(OptimalLoader):
             logger.warning(f"Failed to calculate avg stop distance: {e}")
             return 0
 
-
 def main():
     loader = PortfolioExposureDailyLoader()
     result = loader.load_global()
@@ -173,7 +170,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No metrics computed")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

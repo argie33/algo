@@ -1,8 +1,5 @@
 ﻿#!/usr/bin/env python3
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 """
 Quality Metrics Loader - Optimal Pattern (Refactored)
 
@@ -16,6 +13,9 @@ Computes fundamental quality metrics from annual financials:
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import logging
 
 import argparse

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """AAII Sentiment Survey Loader - Investor Sentiment Indicators (Market-wide data)."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import logging
 from datetime import date
 from typing import Optional, List
@@ -20,9 +17,10 @@ from config.api_endpoints import get_aaii_sentiment_url
 
 logger = logging.getLogger(__name__)
 
-
 class AAIISentimentLoader(OptimalLoader):
     """Load AAII investor sentiment survey data (market-wide, non-symbol based)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
 
     table_name = "aaii_sentiment"
     primary_key = ("date",)
@@ -139,7 +137,6 @@ class AAIISentimentLoader(OptimalLoader):
 
         return None
 
-
 def main():
     loader = AAIISentimentLoader()
     result = loader.load_global()
@@ -150,7 +147,6 @@ def main():
     else:
         logger.warning(f"COMPLETED: No records loaded")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

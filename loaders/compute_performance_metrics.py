@@ -17,24 +17,23 @@ Metrics computed:
 - Avg holding days
 - Best/worst streaks
 """
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 import psycopg2
 import psycopg2.extras
 from datetime import date, timedelta
 import logging
-import sys
 import os
 import math
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.database import get_db_connection
 from utils.safe_data_conversion import safe_float, safe_int
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
-
 
 def compute_performance_metrics(cur, metric_date: date = None):
     """Compute all performance metrics for today and store in database."""
@@ -143,7 +142,6 @@ def compute_performance_metrics(cur, metric_date: date = None):
         logger.error(f'Failed to compute performance metrics: {e}', exc_info=True)
         raise
 
-
 def _compute_advanced_metrics(cur, metric_date: date):
     """Compute Sharpe, Sortino, max drawdown, CAGR, and Calmar ratios using MetricsCalculator."""
     try:
@@ -201,7 +199,6 @@ def _compute_advanced_metrics(cur, metric_date: date):
         logger.warning(f'Failed to compute advanced metrics: {e}')
         return 0.0, 0.0, 0.0, 0.0, 0.0
 
-
 def _compute_streaks(pnl_dollars):
     """Compute best win streak and worst loss streak."""
     best_win_streak = 0
@@ -227,7 +224,6 @@ def _compute_streaks(pnl_dollars):
 
     return best_win_streak, worst_loss_streak
 
-
 def _insert_default_metrics(cur, metric_date: date):
     """Insert default metrics when there are no trades."""
     cur.execute("""
@@ -241,7 +237,6 @@ def _insert_default_metrics(cur, metric_date: date):
                   0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
         ON CONFLICT (metric_date) DO NOTHING
     """, (metric_date,))
-
 
 def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
     """Insert or update performance metrics in database."""
@@ -301,7 +296,6 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
         logger.error(f'Failed to insert performance metrics: {e}', exc_info=True)
         raise
 
-
 def main():
     """Main entry point for the loader."""
     try:
@@ -322,7 +316,6 @@ def main():
             cur.close()
         if conn:
             conn.close()
-
 
 if __name__ == '__main__':
     logging.basicConfig(
