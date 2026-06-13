@@ -25,8 +25,12 @@ from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
-def safe_float(value, default=0.0):
-    """Safely convert value to float, returning default if conversion fails."""
+def safe_float(value, default=None):
+    """Safely convert value to float, returning default if conversion fails.
+
+    Uses None as default to distinguish between "missing" and "zero".
+    Callers can explicitly pass default=0.0 if zero is appropriate.
+    """
     if value is None:
         return default
     try:

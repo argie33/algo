@@ -35,8 +35,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _safe_float(value, default=0.0, context=""):
-    """Convert to float safely, rejecting NaN/Infinity."""
+def _safe_float(value, default=None, context=""):
+    """Convert to float safely, rejecting NaN/Infinity.
+
+    Uses None as default to distinguish between "missing" and "zero".
+    Callers can explicitly pass default=0.0 if zero is appropriate for their context.
+    """
     if value is None:
         return default
     try:
