@@ -2032,7 +2032,6 @@ def _get_markets(cur) -> Dict:
                 'market_stage': market_health.get('market_stage') if market_health else None,
                 'market_trend': market_health.get('market_trend') if market_health else None,
                 'spy_price': spy_price,
-                'spy_change_pct': market_health.get('spy_change_pct') if market_health else None,
                 'up_volume_percent': market_health.get('up_volume_percent') if market_health else None,
                 'advance_decline_ratio': market_health.get('advance_decline_ratio') if market_health else None,
                 'new_highs_count': market_health.get('new_highs_count') if market_health else None,
