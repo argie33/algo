@@ -1,2 +1,9 @@
 #!/usr/bin/env python3
-# Empty init to allow imports from submodules
+
+from .orchestrator import Orchestrator
+from .regime_manager import RegimeManager
+
+__all__ = [
+    'Orchestrator',
+    'RegimeManager',
+]
