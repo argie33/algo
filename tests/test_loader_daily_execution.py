@@ -115,8 +115,15 @@ class TestCriticalLoaderDailyExecution:
             if last_updated:
                 if isinstance(last_updated, str):
                     last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
-                elif last_updated.tzinfo is None:
-                    last_updated = last_updated.replace(tzinfo=timezone.utc)
+
+                # Ensure timezone-aware datetime in Eastern TZ for comparison
+                if last_updated.tzinfo is None:
+                    # Naive datetime from DB - assume it's in Eastern TZ
+                    last_updated = last_updated.replace(tzinfo=EASTERN_TZ)
+                elif last_updated.tzinfo != EASTERN_TZ:
+                    # Convert to Eastern TZ if in different timezone
+                    last_updated = last_updated.astimezone(EASTERN_TZ)
+
                 if last_updated < cutoff_time:
                     stale[loader_name] = "STALE (>24h)"
         
