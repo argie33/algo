@@ -119,7 +119,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             # Trades accessible to authenticated users (Portfolio Dashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
-            return _get_algo_trades(cur, limit, user_id=user_id)
+            status_filter = params.get('status', [None])[0] if params else None
+            return _get_algo_trades(cur, limit, user_id=user_id, status=status_filter)
     elif path == '/api/algo/positions':
             # Positions accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_positions(cur, user_id=user_id)
@@ -376,7 +377,7 @@ def _get_algo_status(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
 
         portfolio = {}
@@ -412,14 +413,26 @@ def _get_algo_status(cur) -> Dict:
         })
 
 @db_route_handler('fetch algo trades', default_error_response={'items': [], 'pagination': {'total': 0, 'limit': 200, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
-def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
-        """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
+def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = None) -> Dict:
+        """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
+        where_parts = []
+        params = []
+
         if user_id:
-            where_clause = "WHERE cognito_sub = %s"
-            params = (user_id, limit)
-        else:
-            where_clause = ""
-            params = (limit,)
+            where_parts.append("cognito_sub = %s")
+            params.append(user_id)
+
+        if status:
+            # Validate status parameter to prevent SQL injection
+            valid_statuses = ['open', 'closed', 'halted', 'cancelled']
+            if status not in valid_statuses:
+                status = None
+            else:
+                where_parts.append("status = %s")
+                params.append(status)
+
+        where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
+        params.append(limit)
 
         cur.execute(f"""
             SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
@@ -894,10 +907,10 @@ def _get_dashboard_signals(cur) -> Dict:
                 'n': int(sig["n"] or 0) if sig else 0,
                 'total': total_n,
                 'date': sig["d"] if sig else None,
-                'buy_sigs': buy_sigs,
+                'buy_sigs': buy_sigs[:5] if buy_sigs else [],
+                'near': near[0:5] if len(near) > 0 else [],
+                'top_a': top_a[:3] if top_a else [],
                 'grades': grades,
-                'near': near,
-                'top_a': top_a,
                 'trend': trend,
                 'data_freshness': freshness
             })
@@ -2617,7 +2630,7 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         # Validate the key exists and get its type
         cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return error_response(404, 'not_found', f'Config key not found: {key}')
 
         value_type = row['value_type']
@@ -2867,7 +2880,7 @@ def _get_algo_portfolio(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'total_portfolio_value': None,
                 'total_cash': None,
@@ -2905,7 +2918,7 @@ def _get_algo_metrics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'date': None,
                 'total_actions': None,
@@ -2937,7 +2950,7 @@ def _get_risk_metrics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'report_date': None,
                 'var_pct_95': None,
@@ -2971,7 +2984,7 @@ def _get_performance_analytics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'rolling_sharpe_252d': None,
                 'rolling_sortino_252d': None,
@@ -3008,7 +3021,7 @@ def _get_sentiment(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'date': None,
                 'fear_greed_index': 50.0,

@@ -377,7 +377,7 @@ def _get_algo_status(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
 
         portfolio = {}
@@ -2546,7 +2546,7 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         # Validate the key exists and get its type
         cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return error_response(404, 'not_found', f'Config key not found: {key}')
 
         value_type = row['value_type']
@@ -2796,7 +2796,7 @@ def _get_algo_portfolio(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'total_portfolio_value': None,
                 'total_cash': None,
@@ -2859,7 +2859,7 @@ def _get_risk_metrics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'report_date': None,
                 'var_pct_95': None,
@@ -2893,7 +2893,7 @@ def _get_performance_analytics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'rolling_sharpe_252d': None,
                 'rolling_sortino_252d': None,
@@ -2930,7 +2930,7 @@ def _get_sentiment(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return success_response({
                 'date': None,
                 'fear_greed_index': 50.0,

@@ -149,17 +149,18 @@ class DailyReconciliation:
                 positions_with_prices = 0
 
                 for symbol, qty, entry, current, pos_value in positions:
-                    # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
-                    qty_f = float(qty or 0)
-                    entry_f = float(entry or 0)
-
-                    # CRITICAL: Do NOT fall back to entry_f when current is None.
-                    # If current is None, it means price data is missing. Skip position value calculation.
+                    # Validate critical fields before processing
+                    if entry is None:
+                        logger.warning(f"   {symbol}: ENTRY PRICE MISSING (cannot compute P&L)")
+                        continue
                     if current is None:
-                        logger.warning(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> PRICE MISSING (cannot compute P&L)")
+                        entry_f = float(entry)
+                        qty_f = float(qty or 0)
+                        logger.warning(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> CURRENT PRICE MISSING (cannot compute P&L)")
                         continue
 
-                    current_f = float(current)
+                    # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
+                    qty_f = float(qty or 0)
                     pos_value_f = float(pos_value or 0)
                     pnl = (current_f - entry_f) * qty_f
                     pnl_pct = ((current_f - entry_f) / entry_f * 100.0) if entry_f > 0 else 0.0
@@ -231,11 +232,13 @@ class DailyReconciliation:
                     FROM algo_trades
                     WHERE status = %s
                 """, (str(reconcile_date), 'closed'))
-                win_count, loss_count, realized_pnl_today, cumulative_pnl = cur.fetchone() or (0, 0, 0.0, 0.0)
-                win_count = int(win_count or 0)
-                loss_count = int(loss_count or 0)
-                realized_pnl_today = float(realized_pnl_today or 0)
-                cumulative_pnl = float(cumulative_pnl or 0)
+                result = cur.fetchone()
+                if result is None:
+                    raise ValueError("No trades data returned from database")
+                win_count = int(result[0]) if result[0] is not None else 0
+                loss_count = int(result[1]) if result[1] is not None else 0
+                realized_pnl_today = float(result[2]) if result[2] is not None else 0.0
+                cumulative_pnl = float(result[3]) if result[3] is not None else 0.0
 
                 # Get cumulative return (normalize to actual initial capital from Alpaca account history)
                 try:
@@ -412,12 +415,12 @@ class DailyReconciliation:
                     """, (symbol, two_days_ago, reconcile_date))
 
                     row = cur.fetchone()
-                    if not row:
+                    if row is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         continue
 
                     trade_id, entry_price, stop_loss_price, entry_qty = row
-                    if not entry_price or not stop_loss_price or not entry_qty:
+                    if entry_price is None or stop_loss_price is None or entry_qty is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         continue
 
@@ -594,7 +597,7 @@ class DailyReconciliation:
                     (sym, PositionStatus.OPEN.value)
                 )
                 row = cur.fetchone()
-                if row:
+                if row is not None:
                     db_qty = int(row[0] or 0)
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
                     qty_int = int(round(qty))
@@ -657,11 +660,11 @@ class DailyReconciliation:
                 else:
                     pos_value = qty * cur_price
 
-                # Get PnL (may be missing for very new positions)
+                # Get PnL (may be missing for very new positions — don't mask with fallback to 0)
                 pnl_raw = getattr(ap, 'unrealized_pl', None)
-                pnl = float(pnl_raw or 0) if pnl_raw is not None else 0.0
+                pnl = float(pnl_raw) if pnl_raw is not None else 0.0
                 pnl_pct_raw = getattr(ap, 'unrealized_plpc', None)
-                pnl_pct = (float(pnl_pct_raw or 0) * 100) if pnl_pct_raw is not None else 0.0
+                pnl_pct = (float(pnl_pct_raw) * 100) if pnl_pct_raw is not None else 0.0
 
                 position_id = f'EXT-{sym}-{datetime.now(timezone.utc).strftime("%Y%m%d")}'
                 trade_id = f'EXT-{sym}'
@@ -895,8 +898,8 @@ class DailyReconciliation:
 
             if stats and stats[0] >= 30:  # Need 30+ trades
                 total_trades = stats[0]
-                total_pct = float(stats[1] or 0)
-                avg_return = float(stats[2] or 0)
+                total_pct = float(stats[1]) if stats[1] is not None else 0.0
+                avg_return = float(stats[2]) if stats[2] is not None else 0.0
 
                 # Count wins and losses
                 cur.execute("""
@@ -909,10 +912,10 @@ class DailyReconciliation:
                 """, (TradeStatus.CLOSED.value,))
 
                 wr = cur.fetchone()
-                wins = int(wr[0] or 0)
-                losses = int(wr[1] or 0)
-                avg_win = float(wr[2] or 0) if wr[2] else 1.0
-                avg_loss = float(wr[3] or 0) if wr[3] else -1.0
+                wins = int(wr[0]) if wr[0] is not None else 0
+                losses = int(wr[1]) if wr[1] is not None else 0
+                avg_win = float(wr[2]) if wr[2] is not None else 1.0
+                avg_loss = float(wr[3]) if wr[3] is not None else -1.0
 
                 win_rate = wins / total_trades if total_trades > 0 else 0
                 expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
