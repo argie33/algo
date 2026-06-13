@@ -78,6 +78,19 @@ class DailyReconciliation:
                 logger.info(f"\n1b2. Exit Fill Reconciliation:")
                 logger.info(f"   {fill_result['message']}")
 
+                # 1b3. Check for trades pending Phase 7 price reconciliation
+                pending_result = self.check_pending_reconciliations(cur)
+                if pending_result.get('pending_count', 0) > 0:
+                    logger.info(f"\n1b3. Pending Reconciliations:")
+                    logger.info(f"   {pending_result['message']}")
+                    if pending_result.get('stuck_count', 0) > 0:
+                        for p in pending_result.get('pending', [])[:5]:
+                            logger.warning(
+                                f"   STUCK: {p['symbol']} {p['trade_id']} "
+                                f"(Est: ${p['estimated_price']:.2f} vs ${p['current_exit_price']:.2f}, "
+                                f"{p['days_pending']}d pending)"
+                            )
+
                 # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
                 mae_result = self.compute_closed_trade_metrics(cur)
                 logger.info(f"\n1c. MAE/MFE Metrics:")
@@ -212,9 +225,14 @@ class DailyReconciliation:
                 realized_pnl_today = float(realized_pnl_today or 0)
                 cumulative_pnl = float(cumulative_pnl or 0)
 
-                # Get cumulative return (normalize to initial capital)
-                initial_capital = 100000.0
-                cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+                # Get cumulative return (normalize to actual initial capital from Alpaca account history)
+                try:
+                    initial_capital = self._fetch_initial_capital(cur)
+                    cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+                    logger.info(f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})")
+                except ValueError as e:
+                    logger.error(f"CRITICAL: {e} — cannot calculate cumulative return")
+                    raise
 
                 # Calculate max drawdown from historical snapshots
                 max_drawdown_pct = 0.0
@@ -399,13 +417,29 @@ class DailyReconciliation:
                     risk = entry_price - stop_loss_price
                     exit_r_multiple = ((filled_price - entry_price) / risk) if risk > 0 else 0.0
 
+                    # Check if this trade had an estimated exit price (Phase 4 pre-market exit)
+                    cur.execute(
+                        "SELECT estimated_exit_price FROM algo_trades WHERE trade_id = %s",
+                        (trade_id,)
+                    )
+                    est_row = cur.fetchone()
+                    estimated_price = float(est_row[0]) if est_row and est_row[0] else None
+
+                    # Calculate reconciliation note with variance if estimated price exists
+                    reconciliation_note = None
+                    if estimated_price and estimated_price > 0:
+                        variance_pct = ((filled_price - estimated_price) / estimated_price * 100.0)
+                        reconciliation_note = f"Actual: ${filled_price:.2f} vs Estimated: ${estimated_price:.2f} ({variance_pct:+.2f}%)"
+
                     cur.execute("""
                         UPDATE algo_trades
                         SET exit_price = %s, profit_loss_pct = %s,
                             profit_loss_dollars = %s, exit_r_multiple = %s,
+                            exit_price_reconciled_at = CURRENT_TIMESTAMP,
+                            reconciliation_note = %s,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE trade_id = %s
-                    """, (filled_price, pnl_pct, pnl_dollars, exit_r_multiple, trade_id))
+                    """, (filled_price, pnl_pct, pnl_dollars, exit_r_multiple, reconciliation_note, trade_id))
 
                     cur.execute("RELEASE SAVEPOINT reconcile_fill")
                     updated += 1
@@ -875,6 +909,60 @@ class DailyReconciliation:
             logger.error(f"Error in compute_closed_trade_metrics: {e}")
             return {'updated': 0, 'reason': f'Error: {e}'}
 
+    def check_pending_reconciliations(self, cur) -> dict:
+        """Identify and report on trades pending Phase 7 price reconciliation.
+
+        Trades with estimated exit prices (Phase 4 pre-market exits) that haven't
+        been reconciled with actual Alpaca fill prices. Helps diagnose Phase 7
+        failures or delays that leave estimated prices permanent.
+        """
+        try:
+            cur.execute("""
+                SELECT trade_id, symbol, exit_date, exit_price, estimated_exit_price,
+                       exit_price_reconciled_at, reconciliation_note
+                FROM algo_trades
+                WHERE estimated_exit_price IS NOT NULL
+                  AND exit_price_reconciled_at IS NULL
+                ORDER BY exit_date DESC
+            """)
+            pending = cur.fetchall()
+
+            if not pending:
+                return {'pending_count': 0, 'message': 'No pending reconciliations'}
+
+            pending_list = []
+            for trade_id, symbol, exit_date, exit_price, est_price, recon_at, note in pending:
+                variance_pct = ((float(exit_price or 0) - float(est_price or 0)) / float(est_price or 1) * 100) if est_price else 0
+                pending_list.append({
+                    'trade_id': trade_id,
+                    'symbol': symbol,
+                    'exit_date': exit_date,
+                    'estimated_price': float(est_price) if est_price else None,
+                    'current_exit_price': float(exit_price) if exit_price else None,
+                    'variance_pct': variance_pct,
+                    'note': note,
+                    'days_pending': (datetime.now(timezone.utc).date() - exit_date).days if exit_date else None
+                })
+
+            # Log critical alert if any reconciliations are stuck (> 1 day old)
+            stuck = [p for p in pending_list if p['days_pending'] and p['days_pending'] > 1]
+            if stuck:
+                logger.critical(
+                    f"RECONCILIATION STUCK: {len(stuck)} trades with estimated exit prices "
+                    f"stuck > 1 day without Alpaca price reconciliation. "
+                    f"Examples: {[f\"{p['symbol']} {p['trade_id']}\" for p in stuck[:3]]}"
+                )
+
+            return {
+                'pending_count': len(pending_list),
+                'stuck_count': len(stuck),
+                'pending': pending_list,
+                'message': f'{len(pending_list)} trades pending reconciliation ({len(stuck)} stuck > 1d)'
+            }
+        except Exception as e:
+            logger.warning(f"Failed to check pending reconciliations: {e}")
+            return {'pending_count': 0, 'message': f'Error: {e}'}
+
     def _fetch_alpaca_account(self):
         """Fetch account data from Alpaca via direct HTTP REST call."""
         if not self._alpaca_key or not self._alpaca_secret:
@@ -904,6 +992,68 @@ class DailyReconciliation:
         except Exception as e:
             logger.warning(f"Could not fetch Alpaca account (skipping): {e}")
             return None
+
+    def _fetch_initial_capital(self, cur):
+        """Get the actual initial capital from Alpaca account history.
+
+        Returns the oldest portfolio value from Alpaca portfolio history.
+        Falls back to the oldest algo_portfolio_snapshots entry if Alpaca history unavailable.
+        Raises ValueError if initial capital cannot be determined.
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            logger.warning("No Alpaca credentials; checking database for initial capital")
+            try:
+                cur.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date ASC LIMIT 1
+                """)
+                row = cur.fetchone()
+                if row and row[0]:
+                    val = float(row[0])
+                    if val > 0:
+                        logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
+                        return val
+            except Exception as e:
+                logger.warning(f"Could not query database for initial capital: {e}")
+            raise ValueError("Cannot determine initial capital: no Alpaca credentials and no database history")
+
+        try:
+            import requests
+            resp = requests.get(
+                f'{self._alpaca_base_url}/v2/account/portfolio/history',
+                params={'period': 'all'},
+                headers={'APCA-API-KEY-ID': self._alpaca_key,
+                         'APCA-API-SECRET-KEY': self._alpaca_secret},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict) and 'equity' in data:
+                    equity_list = data.get('equity', [])
+                    if equity_list and len(equity_list) > 0:
+                        initial_val = float(equity_list[0])
+                        if initial_val > 0:
+                            logger.info(f"Initial capital from Alpaca history: ${initial_val:,.2f}")
+                            return initial_val
+            logger.warning(f"Alpaca portfolio history unavailable (HTTP {resp.status_code}); checking database")
+        except Exception as e:
+            logger.warning(f"Could not fetch Alpaca portfolio history: {e}; checking database")
+
+        try:
+            cur.execute("""
+                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date ASC LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row and row[0]:
+                val = float(row[0])
+                if val > 0:
+                    logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
+                    return val
+        except Exception as e:
+            logger.warning(f"Could not query database for initial capital: {e}")
+
+        raise ValueError("Cannot determine initial capital: Alpaca history unavailable and no database snapshots found")
 
 if __name__ == "__main__":
 

@@ -19,12 +19,44 @@ import psycopg2.extras
 os.environ['DEV_BYPASS_AUTH'] = 'true'
 os.environ['ENVIRONMENT'] = 'development'
 
-# Configure database connection for local development
-os.environ['DB_HOST'] = os.getenv('DB_HOST', 'localhost')
-os.environ['DB_PORT'] = os.getenv('DB_PORT', '5432')
-os.environ['DB_NAME'] = os.getenv('DB_NAME', 'stocks')
-os.environ['DB_USER'] = os.getenv('DB_USER', 'stocks')
-os.environ['DB_PASSWORD'] = os.getenv('DB_PASSWORD', 'stocks')
+# Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
+def _load_db_credentials():
+    """Load DB credentials from AWS Secrets Manager if available, else environment variables."""
+    # Try to load from Secrets Manager first
+    try:
+        import boto3
+        import json
+        sm = boto3.client('secretsmanager')
+        secret_arn = os.getenv('DB_SECRET_ARN', 'algo/database')
+        secret = sm.get_secret_value(SecretId=secret_arn)
+        creds = json.loads(secret.get('SecretString', '{}'))
+        return {
+            'host': creds.get('host'),
+            'port': creds.get('port', 5432),
+            'user': creds.get('username'),
+            'password': creds.get('password'),
+            'database': creds.get('dbname', 'stocks')
+        }
+    except Exception as e:
+        print(f"[DEV_SERVER] Could not load from Secrets Manager: {e}. Using environment variables.", flush=True)
+
+    # Fall back to environment variables
+    return {
+        'host': os.getenv('DB_HOST'),
+        'port': int(os.getenv('DB_PORT', 5432)),
+        'user': os.getenv('DB_USER'),
+        'password': os.getenv('DB_PASSWORD'),
+        'database': os.getenv('DB_NAME', 'stocks')
+    }
+
+creds = _load_db_credentials()
+os.environ['DB_HOST'] = creds['host'] or 'localhost'
+os.environ['DB_PORT'] = str(creds['port'])
+os.environ['DB_NAME'] = creds['database']
+os.environ['DB_USER'] = creds['user'] or 'stocks'
+os.environ['DB_PASSWORD'] = creds['password'] or 'stocks'
+
+print(f"[DEV_SERVER] Connecting to DB_HOST={os.environ['DB_HOST']} DB_NAME={os.environ['DB_NAME']}", flush=True)
 
 # Add lambda/api and parent directories to path so we can import all modules
 # NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly

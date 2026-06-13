@@ -41,10 +41,14 @@ class PositionSizer:
         Priority:
         1. Live Alpaca account (most accurate)
         2. Latest portfolio snapshot (up to 2 days old)
-        3. Configurable default (bootstrap path — Phase 7 will create a real snapshot)
+
+        CRITICAL: Does NOT fall back to default $100k. If neither is available,
+        raises RuntimeError to fail-closed. Position sizing requires accurate
+        portfolio value — guessing is worse than not trading.
         """
         alpaca_value = self._fetch_live_alpaca_equity()
         if alpaca_value is not None:
+            logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
             return alpaca_value
 
         try:
@@ -61,24 +65,27 @@ class PositionSizer:
                 snapshot_date = result[1]
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days <= 2:
+                    logger.info(f"[PORTFOLIO] Using snapshot from {age_days}d ago: ${snapshot_value:,.2f}")
                     return snapshot_value
-                logger.warning(
-                    f"Portfolio snapshot is {age_days} days old — falling back to default. "
-                    "Ensure Phase 7 runs to refresh the snapshot."
+                logger.error(
+                    f"Portfolio snapshot is {age_days} days old (threshold: 2 days). "
+                    "Cannot use stale snapshot for position sizing. "
+                    "Phase 7 must run daily to maintain fresh snapshots."
                 )
         except Exception as e:
-            logger.debug(f"Error fetching portfolio snapshot: {e}")
+            logger.error(f"Error fetching portfolio snapshot: {e}")
 
-        # Bootstrap path: Alpaca unreachable and no recent snapshot (first run or credential issue).
-        # Use a configurable default so Phase 5 can proceed and Phase 7 can create a real snapshot.
-        # Alpaca paper accounts start at $100,000; live accounts vary. Configure via default_portfolio_value.
-        default_pv = float(self.config.get('default_portfolio_value', 100000.0))
-        logger.warning(
-            f"[BOOTSTRAP] Portfolio value unavailable (Alpaca unreachable, no recent snapshot). "
-            f"Using default ${default_pv:,.0f}. Positions will be sized conservatively. "
-            "Phase 7 reconciliation will create a real snapshot after this run."
+        # CRITICAL: No valid portfolio value available. Fail-closed.
+        # Better to skip trading than risk wrong position sizing.
+        error_msg = (
+            "CRITICAL: Portfolio value unavailable. "
+            "Cannot execute trades without knowing account size. "
+            "Check: (1) Is Alpaca API reachable? (2) Did Phase 7 run yesterday? "
+            "(3) Is there a recent portfolio snapshot in the database? "
+            "Phase 6 entry execution will be halted."
         )
-        return default_pv
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
 
     def _fetch_live_alpaca_equity(self):
         """Fetch live portfolio equity from Alpaca with retries. Returns None on failure."""

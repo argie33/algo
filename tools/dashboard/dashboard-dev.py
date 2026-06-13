@@ -596,171 +596,31 @@ def fetch_sentiment(c):
         return {"_error": str(e)}
 
 def fetch_economic_calendar(c):
-    try:
-        rows = q(c, """SELECT event_name, event_date, event_time, importance,
-                              forecast_value, actual_value, previous_value
-                       FROM economic_calendar
-                       WHERE event_date >= CURRENT_DATE - 1
-                         AND country='US'
-                       ORDER BY event_date ASC, importance DESC, event_time ASC
-                       LIMIT 8""")
-        return rows
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_risk_metrics(c):
-    try:
-        row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
-                              portfolio_beta, top_5_concentration
-                       FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
-        return {
-            "date":      row.get("report_date"),
-            "var95":     float(row.get("var_pct_95")         or 0),
-            "cvar95":    float(row.get("cvar_pct_95")        or 0),
-            "svar":      float(row.get("stressed_var_pct")   or 0),
-            "beta":      float(row.get("portfolio_beta")     or 0),
-            "conc5":     float(row.get("top_5_concentration") or 0),
-        }
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_perf_analytics(c):
-    try:
-        row = q1(c, """SELECT report_date, rolling_sharpe_252d, rolling_sortino_252d,
-                              calmar_ratio, win_rate_50t, avg_win_r_50t, avg_loss_r_50t,
-                              expectancy, max_drawdown_pct
-                       FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
-        def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
-        return {
-            "sharpe252": _f("rolling_sharpe_252d"),
-            "sortino":   _f("rolling_sortino_252d"),
-            "calmar":    _f("calmar_ratio"),
-            "wr50":      _f("win_rate_50t"),
-            "avg_w_r":   _f("avg_win_r_50t"),
-            "avg_l_r":   _f("avg_loss_r_50t"),
-            "expectancy": _f("expectancy"),
-            "maxdd":     _f("max_drawdown_pct"),
-        }
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_signal_eval(c):
-    try:
-        stats = q1(c, """SELECT
-            COUNT(*) total,
-            COUNT(*) FILTER (WHERE filter_tier_1_pass) t1,
-            COUNT(*) FILTER (WHERE filter_tier_2_pass) t2,
-            COUNT(*) FILTER (WHERE filter_tier_3_pass) t3,
-            COUNT(*) FILTER (WHERE filter_tier_4_pass) t4,
-            COUNT(*) FILTER (WHERE filter_tier_5_pass) t5,
-            AVG(final_signal_quality_score) avg_score,
-            MAX(signal_date) as signal_date
-            FROM algo_signals_evaluated
-            WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
-        rejected = q(c, """SELECT evaluation_reason, COUNT(*) n
-                           FROM algo_signals_evaluated
-                           WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
-                             AND filter_tier_5_pass = false
-                           GROUP BY evaluation_reason
-                           ORDER BY n DESC LIMIT 3""")
-        def _i(k): return int(stats.get(k) or 0) if stats else 0
-        return {
-            "total":    _i("total"),
-            "t1": _i("t1"), "t2": _i("t2"), "t3": _i("t3"),
-            "t4": _i("t4"), "t5": _i("t5"),
-            "avg_score": round(float(stats.get("avg_score") or 0), 1) if stats else 0,
-            "date":     stats.get("signal_date") if stats else None,
-            "rejected": rejected,
-        }
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_sector_rotation(c):
-    try:
-        row = q1(c, """SELECT date, signal, strength, details
-                       FROM sector_rotation_signal
-                       ORDER BY date DESC LIMIT 1""")
-        if not row: return {}
-        d = row.get("details") or {}
-        if isinstance(d, str):
-            import json as _j
-            try: d = _j.loads(d)
-            except: d = {}
-        return {
-            "date":     row.get("date"),
-            "signal":   row.get("signal") or "",
-            "strength": float(row.get("strength") or 0),
-            "weeks":    d.get("weeks_persistent", 1),
-            "def_score": d.get("defensive_lead_score", 0),
-            "cyc_score": d.get("cyclical_weak_score", 0),
-        }
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_industry_ranking(c):
-    try:
-        return q(c, """SELECT industry, current_rank, momentum_score, rank_1w_ago
-                       FROM industry_ranking
-                       WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
-                       ORDER BY current_rank LIMIT 10""")
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_loader_status(c):
-    try:
-        return q(c, """SELECT table_name, status, latest_date, age_days,
-                              completion_pct, error_message
-                       FROM data_loader_status
-                       ORDER BY CASE status
-                           WHEN 'error'   THEN 1
-                           WHEN 'failed'  THEN 2
-                           WHEN 'stale'   THEN 3
-                           WHEN 'loading' THEN 4
-                           ELSE 5
-                       END, age_days DESC NULLS LAST
-                       LIMIT 8""")
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_exec_history(c):
-    try:
-        # Try with phase array columns first; fall back if they don't exist yet
-        try:
-            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
-                                  phases_completed, phases_halted, phases_errored, halt_reason
-                           FROM orchestrator_execution_log
-                           ORDER BY started_at DESC LIMIT 10""")
-        except Exception:
-            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
-                                  halt_reason
-                           FROM orchestrator_execution_log
-                           ORDER BY started_at DESC LIMIT 10""")
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_audit_log(c):
-    try:
-        rows = q(c, """SELECT action_type, symbol, status, created_at,
-                              details
-                       FROM algo_audit_log
-                       ORDER BY created_at DESC LIMIT 8""")
-        result = []
-        for r in rows:
-            det = r.get("details") or {}
-            if isinstance(det, str):
-                try: import json as _j; det = _j.loads(det)
-                except: det = {}
-            result.append({
-                "action_type": r.get("action_type", ""),
-                "symbol":      r.get("symbol") or det.get("symbol", ""),
-                "status":      r.get("status", ""),
-                "created_at":  r.get("created_at"),
-            })
-        return result
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_circuit(c):
     try:
@@ -830,33 +690,12 @@ def load_all() -> dict:
     BATCH_TIMEOUT = 100
 
     def one(name, fn):
-        """Execute fetcher with exponential backoff retry on connection errors."""
-        conn = None
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                conn = get_conn()
-                conn.autocommit = True
-                return name, fn(conn)
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt < MAX_RETRIES:
-                    # Issue 10 FIX: Exponential backoff capped at 30 seconds
-                    # Formula: (2^attempt) + random jitter, but never exceed API_MAX_BACKOFF
-                    base_backoff = (2 ** attempt) + random.random() * (2 ** attempt)
-                    backoff = min(base_backoff, API_MAX_BACKOFF)
-                    logger.warning(f"Fetcher {name} retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}")
-                    time.sleep(backoff)
-                    continue
-                logger.error(f"Fetcher {name} failed after {MAX_RETRIES+1} attempts: {e}")
-                return name, {"_error": str(e)}
-            except Exception as e:
-                logger.error(f"Fetcher {name}: {type(e).__name__}: {e}")
-                return name, {"_error": str(e)}
-            finally:
-                if conn:
-                    try:
-                        return_conn(conn)
-                    except Exception:
-                        pass
+        """Execute fetcher."""
+        try:
+            return name, fn(None)
+        except Exception as e:
+            logger.error(f"Fetcher {name}: {type(e).__name__}: {e}")
+            return name, {"_error": str(e)}
 
     with ThreadPoolExecutor(max_workers=min(len(FETCHERS), 8)) as pool:
         futures = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}

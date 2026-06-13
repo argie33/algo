@@ -149,8 +149,16 @@ def run(
     liquidity = LiquidityChecks(config=config)
 
     # Fetch portfolio value once — avoids one Alpaca API call per symbol
-    portfolio_value = sizer.get_portfolio_value()
-    logger.info(f"[PHASE 6] Portfolio value: ${portfolio_value:,.0f}")
+    # CRITICAL: Must succeed. No fallback to default values.
+    try:
+        portfolio_value = sizer.get_portfolio_value()
+        logger.info(f"[PHASE 6] Portfolio value: ${portfolio_value:,.0f}")
+    except RuntimeError as e:
+        # Portfolio value unavailable — fail-closed, halt all entries
+        error_msg = f"[PHASE 6 HALT] Cannot determine portfolio value: {e}"
+        logger.critical(error_msg)
+        log_phase_result_fn(6, 'entry_execution', 'halt', error_msg)
+        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, error_msg)
 
     try:
         from config.credential_manager import get_credential_manager

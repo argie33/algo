@@ -1597,11 +1597,19 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     last_partial_exit_date DATE,
     mfe_pct DECIMAL(8, 4),
     mae_pct DECIMAL(8, 4),
+    estimated_exit_price DECIMAL(12, 4),
+    exit_price_reconciled_at TIMESTAMP,
+    reconciliation_note TEXT,
     cognito_sub VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, signal_date, entry_price)
 );
+
+-- Index to identify trades pending reconciliation (Phase 7)
+CREATE INDEX IF NOT EXISTS idx_algo_trades_pending_reconciliation
+ON algo_trades(symbol, exit_date)
+WHERE estimated_exit_price IS NOT NULL AND exit_price_reconciled_at IS NULL;
 
 -- Active positions tracking
 CREATE TABLE IF NOT EXISTS algo_positions (

@@ -840,11 +840,13 @@ class TradeExecutor:
             execution_mode = self.config.get('execution_mode', 'paper')
             actual_fill_price = None
             exit_order_result = {'success': False, 'message': 'No order sent'}
+            is_estimated_price = True
 
             if execution_mode == 'auto':
                 exit_order_result = self._send_alpaca_exit(symbol, shares_to_exit)
                 if exit_order_result.get('success'):
                     actual_fill_price = exit_order_result.get('filled_price')
+                    is_estimated_price = False
                 else:
                     try:
                         notify(
@@ -880,6 +882,8 @@ class TradeExecutor:
                 pnl_pct = 0.0
 
             if full_exit:
+                # If this is an estimated price, store it in estimated_exit_price for Phase 7 reconciliation
+                estimated_price = exit_price if is_estimated_price else None
                 cur.execute(
                     """UPDATE algo_trades
                     SET exit_date = CURRENT_DATE,
@@ -889,9 +893,10 @@ class TradeExecutor:
                         exit_r_multiple = %s,
                         profit_loss_dollars = %s,
                         profit_loss_pct = %s,
+                        estimated_exit_price = %s,
                         status = 'closed'
                     WHERE trade_id = %s""",
-                    (final_exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, trade_id),
+                    (final_exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, estimated_price, trade_id),
                 )
             else:
                 cur.execute(
@@ -1053,16 +1058,15 @@ class TradeExecutor:
         except Exception as e:
             logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
 
-        # Bootstrap fallback: use configurable default so Phase 6 can proceed on first run.
-        # PositionSizer uses the same default — position sizes will be consistent.
-        if not self.config or 'default_portfolio_value' not in self.config:
-            raise RuntimeError("CRITICAL: default_portfolio_value not configured - cannot execute trades without defined portfolio size")
-        default_pv = float(self.config.get('default_portfolio_value'))
-        logger.warning(
-            f"[PORTFOLIO] Using default ${default_pv:,.0f} (Alpaca unreachable, no snapshot). "
-            "Phase 7 will create a real snapshot after this run."
+        # CRITICAL: No valid portfolio value. Must fail-closed.
+        # Position sizing requires accurate account equity. Using a guess is worse than not trading.
+        error_msg = (
+            "Portfolio value unavailable: cannot fetch from Alpaca API and no recent snapshot in database. "
+            "Cannot execute trades without knowing account size. "
+            "Phase 6 entry execution will be halted."
         )
-        return default_pv
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
 
     def _send_alpaca_order(self, symbol: str, shares: float, entry_price: float, stop_loss_price: Optional[float] = None,
                            take_profit_price: Optional[float] = None, order_class: str = 'bracket') -> Optional[Dict[str, Any]]:

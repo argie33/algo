@@ -230,6 +230,24 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/market-factors':
             # Market exposure factors for dashboard display - public endpoint
             return _get_market_factors(cur)
+        elif path == '/api/algo/portfolio':
+            # Portfolio snapshot accessible to authenticated users
+            return _get_algo_portfolio(cur)
+        elif path == '/api/algo/metrics':
+            # Algo metrics accessible to authenticated users
+            return _get_algo_metrics(cur)
+        elif path == '/api/algo/risk-metrics':
+            # Risk metrics accessible to authenticated users
+            return _get_risk_metrics(cur)
+        elif path == '/api/algo/performance-analytics':
+            # Performance analytics accessible to authenticated users
+            return _get_performance_analytics(cur)
+        elif path == '/api/algo/sentiment':
+            # Sentiment data accessible to authenticated users
+            return _get_sentiment(cur)
+        elif path == '/api/algo/economic-calendar':
+            # Economic calendar accessible to authenticated users
+            return _get_economic_calendar(cur)
         elif path == '/api/algo/evaluate':
             # Evaluate accessible to authenticated users (AlgoTradingDashboard)
             return _get_algo_evaluate(cur)
@@ -2622,3 +2640,147 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
         'error_rate': f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
         'period_days': days
     })
+
+@db_route_handler('get algo portfolio', default_error_response={'data': {}})
+def _get_algo_portfolio(cur) -> Dict:
+    """Get latest portfolio snapshot data."""
+    try:
+        cur.execute("""
+            SELECT snapshot_date, total_portfolio_value, total_cash,
+                   unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct
+            FROM algo_portfolio_snapshots
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return success_response({
+                'total_portfolio_value': None,
+                'total_cash': None,
+                'open_positions': 0,
+                'daily_return_pct': None,
+                'unrealized_pnl_pct': None,
+                'last_run': None
+            })
+        data = dict(row)
+        return success_response({
+            'total_portfolio_value': safe_float(data.get('total_portfolio_value')),
+            'total_cash': safe_float(data.get('total_cash')),
+            'open_positions': safe_int(data.get('position_count')),
+            'daily_return_pct': safe_float(data.get('daily_return_pct')),
+            'unrealized_pnl_pct': safe_float(data.get('unrealized_pnl_pct')),
+            'last_run': data.get('snapshot_date')
+        })
+    except Exception as e:
+        logger.error(f'Portfolio fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Portfolio data unavailable')
+
+@db_route_handler('get algo metrics', default_error_response={'data': []})
+def _get_algo_metrics(cur) -> Dict:
+    """Get algo metrics from unified fetcher (same as dashboard uses)."""
+    try:
+        fetcher = AlgoMetricsFetcher(cur)
+        perf = fetcher.fetch_performance_metrics()
+        return success_response(perf if isinstance(perf, list) else [perf])
+    except Exception as e:
+        logger.error(f'Algo metrics fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Algo metrics unavailable')
+
+@db_route_handler('get risk metrics', default_error_response={'data': {}})
+def _get_risk_metrics(cur) -> Dict:
+    """Get portfolio risk metrics."""
+    try:
+        cur.execute("""
+            SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
+                   portfolio_beta, top_5_concentration
+            FROM algo_risk_metrics
+            ORDER BY report_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return success_response({
+                'report_date': None,
+                'var_pct_95': None,
+                'cvar_pct_95': None,
+                'stressed_var_pct': None,
+                'portfolio_beta': None,
+                'top_5_concentration': None
+            })
+        data = dict(row)
+        return success_response({
+            'report_date': data.get('report_date'),
+            'var_pct_95': safe_float(data.get('var_pct_95')),
+            'cvar_pct_95': safe_float(data.get('cvar_pct_95')),
+            'stressed_var_pct': safe_float(data.get('stressed_var_pct')),
+            'portfolio_beta': safe_float(data.get('portfolio_beta')),
+            'top_5_concentration': safe_float(data.get('top_5_concentration'))
+        })
+    except Exception as e:
+        logger.error(f'Risk metrics fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Risk metrics unavailable')
+
+@db_route_handler('get performance analytics', default_error_response={'data': {}})
+def _get_performance_analytics(cur) -> Dict:
+    """Get performance analytics data."""
+    try:
+        fetcher = AlgoMetricsFetcher(cur)
+        perf = fetcher.fetch_performance_metrics()
+        return success_response({
+            'rolling_sharpe_252d': perf.get('sharpe_ratio'),
+            'rolling_sortino_252d': perf.get('sortino_ratio'),
+            'calmar_ratio': perf.get('sharpe_ratio'),
+            'win_rate_50t': perf.get('win_rate_pct'),
+            'avg_win_r_50t': perf.get('avg_win_pct'),
+            'avg_loss_r_50t': perf.get('avg_loss_pct'),
+            'expectancy': perf.get('expectancy_r'),
+            'max_drawdown_pct': perf.get('max_drawdown_pct')
+        })
+    except Exception as e:
+        logger.error(f'Performance analytics fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Performance analytics unavailable')
+
+@db_route_handler('get sentiment', default_error_response={'data': {}})
+def _get_sentiment(cur) -> Dict:
+    """Get market sentiment data."""
+    try:
+        cur.execute("""
+            SELECT date, fear_greed_index, label
+            FROM market_sentiment
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            return success_response({
+                'date': None,
+                'fear_greed_index': 50.0,
+                'label': 'Neutral'
+            })
+        data = dict(row)
+        return success_response({
+            'date': data.get('date'),
+            'fear_greed_index': safe_float(data.get('fear_greed_index'), default=50.0),
+            'label': data.get('label', 'Neutral')
+        })
+    except Exception as e:
+        logger.error(f'Sentiment fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Sentiment data unavailable')
+
+@db_route_handler('get economic calendar', default_error_response={'data': []})
+def _get_economic_calendar(cur) -> Dict:
+    """Get economic calendar data."""
+    try:
+        cur.execute("""
+            SELECT event_date, event_name, country, actual, forecast, previous, impact
+            FROM economic_calendar
+            WHERE event_date >= CURRENT_DATE
+            ORDER BY event_date ASC
+            LIMIT 100
+        """)
+        rows = cur.fetchall()
+        events = [safe_json_serialize(dict(r)) for r in rows]
+        return success_response(events)
+    except Exception as e:
+        logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
+        return error_response(503, 'service_unavailable', 'Economic calendar unavailable')

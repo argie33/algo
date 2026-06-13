@@ -40,7 +40,7 @@ import {
   RefreshCw, ShieldCheck, TrendingUp, TrendingDown, AlertTriangle, Inbox,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { num, fmtMoney, fmtPct, fmtDate } from '../components/dashboard/shared/utils/dashboardFormatters';
+import { num, fmtMoney, fmtPct, fmtDate, fmtAgo } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
