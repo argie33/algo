@@ -5,6 +5,7 @@ import statistics
 from datetime import datetime, timezone
 from typing import Any
 
+from rich import box
 from rich.align import Align
 from rich.columns import Columns
 from rich.console import Group
