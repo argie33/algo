@@ -124,7 +124,7 @@ def fetch_portfolio(c):
             return {
                 "_error": data.get('_error'),
                 "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
-                "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
+                "total_buying_power": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
                 "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
                 "data_age_seconds": None
             }
@@ -140,6 +140,7 @@ def fetch_portfolio(c):
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
             "total_cash": safe_float(port.get("total_cash")),
+            "total_buying_power": safe_float(port.get("total_buying_power")),
             "position_count": safe_int(port.get("open_positions")),
             "daily_return_pct": safe_float(port.get("daily_return_pct")),
             "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct")),

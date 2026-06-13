@@ -1,23 +1,24 @@
-"""Cognito authentication for AWS API access."""
+"""Cognito authentication for AWS API access.
+
+Handles dynamic token lifecycle: authentication, refresh, caching, and expiry.
+"""
 
 import json
+import logging
 import os
-from typing import Optional, Dict
+import sys
+import time
+from typing import Optional, Dict, Tuple
+from datetime import datetime, timedelta
 import boto3
 from botocore.exceptions import ClientError
 
+logger = logging.getLogger(__name__)
+
 class CognitoAuth:
-    """Handle Cognito authentication and token management."""
+    """Handle Cognito authentication and token lifecycle."""
 
     def __init__(self, user_pool_id: str, client_id: str, region: str = "us-east-1"):
-        """
-        Initialize Cognito authentication.
-
-        Args:
-            user_pool_id: Cognito User Pool ID (e.g., us-east-1_xxxxxxxxx)
-            client_id: Cognito App Client ID
-            region: AWS region
-        """
         self.user_pool_id = user_pool_id
         self.client_id = client_id
         self.region = region
@@ -25,144 +26,222 @@ class CognitoAuth:
         self.access_token: Optional[str] = None
         self.id_token: Optional[str] = None
         self.refresh_token: Optional[str] = None
+        self.token_expires_at: Optional[float] = None
+        self.username: Optional[str] = None
+
+    def _parse_jwt_expiry(self, token: str) -> Optional[float]:
+        """Parse JWT expiry time. Returns Unix timestamp or None if invalid."""
+        try:
+            import base64
+            parts = token.split('.')
+            if len(parts) != 3:
+                return None
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+            return payload.get('exp')
+        except Exception:
+            return None
 
     def authenticate(self, username: str, password: str) -> bool:
-        """
-        Authenticate user with Cognito using username and password.
-
-        Args:
-            username: Cognito username (usually email)
-            password: Cognito password
-
-        Returns:
-            True if authentication successful, False otherwise
-        """
+        """Authenticate user with Cognito. Returns True if successful."""
         try:
             response = self.cognito_client.initiate_auth(
                 ClientId=self.client_id,
                 AuthFlow="USER_PASSWORD_AUTH",
-                AuthParameters={
-                    "USERNAME": username,
-                    "PASSWORD": password,
-                }
+                AuthParameters={"USERNAME": username, "PASSWORD": password}
             )
-
-            # Extract tokens from authentication result
             auth_result = response.get("AuthenticationResult", {})
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
-
-            if self.access_token:
-                return True
-            return False
-
+            self.username = username
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
+            return bool(self.access_token)
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code")
             if error_code == "NotAuthorizedException":
-                print("Invalid username or password")
+                logger.error(f"Invalid credentials for user: {username}")
             elif error_code == "UserNotFoundException":
-                print("User not found")
+                logger.error(f"User not found: {username}")
             else:
-                print(f"Authentication error: {e}")
+                logger.error(f"Authentication error: {e}")
             return False
 
     def refresh_access_token(self) -> bool:
-        """
-        Refresh the access token using the refresh token.
-
-        Returns:
-            True if refresh successful, False otherwise
-        """
+        """Refresh the access token. Returns True if successful."""
         if not self.refresh_token:
             return False
-
         try:
             response = self.cognito_client.initiate_auth(
                 ClientId=self.client_id,
                 AuthFlow="REFRESH_TOKEN_AUTH",
-                AuthParameters={
-                    "REFRESH_TOKEN": self.refresh_token,
-                }
+                AuthParameters={"REFRESH_TOKEN": self.refresh_token}
             )
-
             auth_result = response.get("AuthenticationResult", {})
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
-
-            return self.access_token is not None
-
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
+            return bool(self.access_token)
         except ClientError as e:
-            print(f"Token refresh error: {e}")
+            logger.error(f"Token refresh failed: {e}")
             return False
 
-    def get_authorization_header(self) -> Dict[str, str]:
-        """
-        Get the Authorization header with current access token.
+    def is_token_expired(self) -> bool:
+        """Check if access token is expired or about to expire (5 min buffer)."""
+        if not self.token_expires_at:
+            return True
+        now = time.time()
+        buffer = 300  # 5 minute buffer
+        return now > (self.token_expires_at - buffer)
 
-        Returns:
-            Dictionary with Authorization header if token exists, empty dict otherwise
-        """
-        if self.access_token:
-            return {"Authorization": f"Bearer {self.access_token}"}
-        return {}
+    def get_authorization_header(self) -> Dict[str, str]:
+        """Get Authorization header, refreshing if needed."""
+        if not self.access_token:
+            return {}
+        if self.is_token_expired() and self.refresh_token:
+            self.refresh_access_token()
+        return {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
 
     def is_authenticated(self) -> bool:
-        """Check if user is currently authenticated."""
-        return self.access_token is not None
+        """Check if user has valid credentials."""
+        return bool(self.access_token) and not self.is_token_expired()
 
 
-def get_cognito_auth(require_auth: bool = True) -> Optional[CognitoAuth]:
+def _get_or_create_test_user() -> Tuple[str, str]:
+    """Try to get test user credentials from various sources."""
+    # Try environment variables
+    username = os.environ.get("COGNITO_TEST_USER_EMAIL")
+    password = os.environ.get("COGNITO_TEST_USER_PASSWORD")
+    if username and password:
+        return username, password
+
+    # Try loading from cache
+    token_file = os.path.expanduser("~/.algo/cognito_credentials.json")
+    if os.path.exists(token_file):
+        try:
+            with open(token_file, "r") as f:
+                creds = json.load(f)
+                return creds.get("username", ""), creds.get("password", "")
+        except Exception:
+            pass
+
+    # Return defaults (user will be prompted for real values)
+    return "edgebrookecapital@gmail.com", ""
+
+
+def _get_aws_cfn_output(key: str) -> Optional[str]:
+    """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
+    try:
+        cfn_client = boto3.client('cloudformation', region_name='us-east-1')
+        stacks = cfn_client.list_stacks(StackStatusFilter=['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
+        for stack in stacks.get('StackSummaries', []):
+            if 'algo' in stack['StackName'].lower():
+                response = cfn_client.describe_stacks(StackName=stack['StackName'])
+                outputs = response['Stacks'][0].get('Outputs', [])
+                for output in outputs:
+                    if output['OutputKey'] == key:
+                        return output['OutputValue']
+    except Exception as e:
+        logger.debug(f"Failed to get CFN output: {e}")
+    return None
+
+
+def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Optional[CognitoAuth]:
     """
-    Get Cognito authentication instance with credentials from environment.
+    Dynamically get authenticated Cognito instance.
 
-    Args:
-        require_auth: If True, will try to authenticate using credentials
+    Tries (in order):
+    1. COGNITO_USERNAME + COGNITO_PASSWORD env vars
+    2. Cached token from ~/.algo/cognito_token.json
+    3. Interactive prompt (if interactive=True)
+    4. AWS CloudFormation outputs as fallback
 
-    Returns:
-        CognitoAuth instance if configured, None otherwise
+    Returns authenticated CognitoAuth or None if all methods fail.
     """
     user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
     client_id = os.environ.get("COGNITO_CLIENT_ID")
 
     if not (user_pool_id and client_id):
+        logger.debug("Cognito not configured (COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID missing)")
         return None
 
     auth = CognitoAuth(user_pool_id, client_id)
 
-    if require_auth:
-        # Try to get credentials
-        username = os.environ.get("COGNITO_USERNAME")
-        password = os.environ.get("COGNITO_PASSWORD")
+    if not require_auth:
+        return auth
 
-        if username and password:
-            auth.authenticate(username, password)
+    # 1. Try environment variables
+    username = os.environ.get("COGNITO_USERNAME")
+    password = os.environ.get("COGNITO_PASSWORD")
+    if username and password:
+        if auth.authenticate(username, password):
+            logger.info(f"[Cognito] Authenticated as {username}")
+            return auth
         else:
-            # Try to load cached token if available
-            token_file = os.path.expanduser("~/.algo/cognito_token.json")
-            if os.path.exists(token_file):
-                try:
-                    with open(token_file, "r") as f:
-                        tokens = json.load(f)
-                        auth.access_token = tokens.get("access_token")
-                        auth.refresh_token = tokens.get("refresh_token")
-                        auth.id_token = tokens.get("id_token")
-                except Exception as e:
-                    print(f"Failed to load cached token: {e}")
+            logger.warning(f"[Cognito] Failed to authenticate {username} from env vars")
+            return None
 
+    # 2. Try cached token
+    token_file = os.path.expanduser("~/.algo/cognito_token.json")
+    if os.path.exists(token_file):
+        try:
+            with open(token_file, "r") as f:
+                tokens = json.load(f)
+                auth.access_token = tokens.get("access_token")
+                auth.refresh_token = tokens.get("refresh_token")
+                auth.id_token = tokens.get("id_token")
+                auth.username = tokens.get("username")
+                auth.token_expires_at = tokens.get("expires_at")
+
+                if auth.is_authenticated():
+                    logger.info(f"[Cognito] Loaded cached token for {auth.username}")
+                    return auth
+                elif auth.refresh_token and auth.refresh_access_token():
+                    logger.info(f"[Cognito] Refreshed expired token for {auth.username}")
+                    return auth
+                else:
+                    os.remove(token_file)
+                    logger.debug("[Cognito] Cached token invalid, removed")
+        except Exception as e:
+            logger.warning(f"[Cognito] Failed to load cached token: {e}")
+
+    # 3. Try interactive authentication
+    if interactive and sys.stdin.isatty():
+        try:
+            default_user, _ = _get_or_create_test_user()
+            print("\n" + "="*60)
+            print("Cognito Authentication Required")
+            print("="*60)
+            username = input(f"Email [{default_user}]: ").strip() or default_user
+            password = input("Password: ").strip()
+            if auth.authenticate(username, password):
+                logger.info(f"[Cognito] Authenticated as {username}")
+                return auth
+            else:
+                print("[ERROR] Authentication failed")
+                return None
+        except (KeyboardInterrupt, EOFError):
+            logger.info("[Cognito] Authentication cancelled")
+            return None
+
+    # 4. Fallback: return unauthenticated instance (will fail on protected endpoints)
+    logger.warning("[Cognito] No credentials available - public endpoints only")
     return auth
 
 
 def save_tokens(auth: CognitoAuth) -> None:
-    """Save tokens to file for later use."""
+    """Save tokens and credentials for future use."""
+    if not auth.is_authenticated():
+        return
     token_file = os.path.expanduser("~/.algo/cognito_token.json")
     os.makedirs(os.path.dirname(token_file), exist_ok=True)
-
     tokens = {
         "access_token": auth.access_token,
         "refresh_token": auth.refresh_token,
         "id_token": auth.id_token,
+        "username": auth.username,
+        "expires_at": auth.token_expires_at,
+        "saved_at": datetime.utcnow().isoformat()
     }
-
     with open(token_file, "w") as f:
         json.dump(tokens, f)
+    logger.debug(f"[Cognito] Saved tokens for {auth.username}")

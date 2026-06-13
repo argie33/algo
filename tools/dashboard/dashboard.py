@@ -138,7 +138,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos),        name="perf"),
+        Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
@@ -313,12 +313,15 @@ def main():
         set_api_url(aws_url)
         data_source = "AWS"
 
-        # Setup Cognito authentication for AWS mode
+        # Cognito authentication - dynamic with fallback
         from cognito_auth import get_cognito_auth, save_tokens
         auth = get_cognito_auth(require_auth=True)
         if auth and auth.is_authenticated():
             set_cognito_auth(auth)
             save_tokens(auth)
+        elif auth:
+            logger.warning("[AUTH] Running with limited permissions - Cognito not available")
+            set_cognito_auth(auth)  # Still set it, will fail on protected endpoints
 
     if args.watch is not None:
         run_watch(max(10, args.watch), args.compact, data_source)
