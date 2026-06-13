@@ -262,6 +262,15 @@ const waitForConfig = async () => {
 // Wait for both explicit fetch and config loading before rendering app
 const configPromise = configFetchPromise.then(() => waitForConfig());
 
+// Add global timeout for initial app load (30 seconds)
+const APP_INIT_TIMEOUT = 30000;
+const initTimeoutPromise = new Promise((_, reject) =>
+  setTimeout(
+    () => reject(new Error('Application initialization timeout - API server may be down')),
+    APP_INIT_TIMEOUT
+  )
+);
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -288,8 +297,8 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   logger.info("React root created successfully");
 
-  // Ensure config is loaded before rendering app, or fail loudly
-  configPromise
+  // Ensure config is loaded before rendering app with timeout, or fail loudly
+  Promise.race([configPromise, initTimeoutPromise])
     .then(async () => {
       // Initialize API config after main config loads
       // This ensures window.__CONFIG__.API_URL is injected into axios baseURL
@@ -345,15 +354,24 @@ try {
       logger.error("ConfigLoadFailed", error);
       const rootElement = document.getElementById("root");
       if (rootElement) {
+        const isTimeout = error.message && error.message.includes('timeout');
+        const title = isTimeout ? 'Loading Timeout' : 'Configuration Error';
+        const message = isTimeout
+          ? 'The application took too long to start. This usually means the API server is down or unreachable.'
+          : (error.message || 'Failed to load application configuration');
+
         rootElement.innerHTML = `
           <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #f87171; background: #1f2937;">
             <div style="text-align: center; max-width: 500px;">
-              <h1 style="font-size: 24px; margin: 0 0 12px 0;">Configuration Error</h1>
+              <h1 style="font-size: 24px; margin: 0 0 12px 0;">${title}</h1>
               <p style="margin: 0; line-height: 1.6; color: #d1d5db;">
-                ${error.message || 'Failed to load application configuration'}
+                ${message}
               </p>
+              <button onclick="location.reload()" style="margin: 20px 0 0 0; padding: 10px 16px; background: #6366f1; color: white; border: none; border-radius: 4px; font-weight: 500; cursor: pointer; font-size: 14px;">
+                Retry
+              </button>
               <p style="margin: 20px 0 0 0; font-size: 12px; color: #9ca3af;">
-                Please try refreshing the page. If the problem persists, contact support.
+                ${isTimeout ? 'Please try refreshing the page.' : 'If the problem persists, contact support.'}
               </p>
             </div>
           </div>
