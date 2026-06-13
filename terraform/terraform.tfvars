@@ -125,3 +125,8 @@ api_gateway_log_retention_days = 3 # Increased from 1: enough to debug API issue
 # ============================================================
 enable_rds_proxy = true # CRITICAL: Enables connection pooling for 24+ concurrent loaders (multiplexes to 20-30 RDS connections). Essential for EOD and morning prep pipelines.
 
+# ============================================================
+# Development Machine Access
+# ============================================================
+dev_machine_cidr = "75.250.183.199/32" # Allow local dev_server.py to connect to RDS directly
+

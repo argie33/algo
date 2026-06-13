@@ -20,15 +20,27 @@ sys.path[:] = _path_list
 
 logger = logging.getLogger(__name__)
 
+# Static imports for critical routes - import errors fail fast at startup
+try:
+    from routes import health
+except ImportError as e:
+    raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
+
+try:
+    from routes import algo
+except ImportError as e:
+    raise RuntimeError(f"CRITICAL: Failed to import routes.algo (required for API to function): {e}") from e
+
 # Import routes gracefully - if a single module fails, others still work
 _ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
 _CRITICAL_ROUTES = {'health', 'algo'}  # Routes that must load for API to function
 
-_ROUTE_MODULES = [
-    'algo', 'financials', 'earnings', 'signals', 'prices', 'stocks',
+# Critical routes are imported statically above; these are optional routes with graceful fallback
+_OPTIONAL_ROUTE_MODULES = [
+    'financials', 'earnings', 'signals', 'prices', 'stocks',
     'sectors', 'industries', 'market', 'economic', 'sentiment',
-    'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'health', 'risk_dashboard',
+    'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'risk_dashboard',
     'data_coverage'
 ]
 
@@ -37,15 +49,19 @@ _STARTUP_TIME = None
 _IMPORT_DURATION = None
 _STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration updates
 
-for module_name in _ROUTE_MODULES:
+# Populate available routes with statically imported critical routes
+_AVAILABLE_ROUTES['health'] = health
+_AVAILABLE_ROUTES['algo'] = algo
+
+# Dynamically import optional routes with error handling
+for module_name in _OPTIONAL_ROUTE_MODULES:
     try:
         module = __import__(f'routes.{module_name}', fromlist=[module_name])
         _AVAILABLE_ROUTES[module_name] = module
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         _ROUTE_IMPORT_ERRORS[module_name] = error_msg
-        severity = "CRITICAL" if module_name in _CRITICAL_ROUTES else "WARNING"
-        logger.error(f"[{severity}] Failed to import routes.{module_name}: {error_msg}", exc_info=True)
+        logger.warning(f"Failed to import optional routes.{module_name}: {error_msg}", exc_info=True)
 
 # Report startup status: log all failures with clear visibility
 if _ROUTE_IMPORT_ERRORS:

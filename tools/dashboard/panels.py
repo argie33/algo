@@ -2224,8 +2224,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
             sec = p.get("sector") or "Unknown"
-            val = float(p.get("position_value") or 0)
-            pnl = float(p.get("unrealized_pnl_pct") or 0)
+            val = safe_float(p.get("position_value"), default=0.0)
+            pnl = safe_float(p.get("unrealized_pnl_pct"), default=0.0)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             sd[sec]["val"] += val; sd[sec]["n"] += 1; sd[sec]["pnls"].append(pnl)

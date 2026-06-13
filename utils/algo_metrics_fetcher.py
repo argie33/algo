@@ -376,8 +376,8 @@ class AlgoMetricsFetcher:
                 stop_loss = d.get('stop_loss_price')
                 current = d.get('current_price')
 
-                if (current is not None and avg_entry and stop_loss and
-                    float(avg_entry) > float(stop_loss or 0)):
+                if (current is not None and avg_entry is not None and stop_loss is not None and
+                    float(avg_entry) > float(stop_loss)):
                     d['r_multiple'] = round(
                         (float(current) - float(avg_entry)) /
                         (float(avg_entry) - float(stop_loss)),
