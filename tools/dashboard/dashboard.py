@@ -71,24 +71,44 @@ def _fetch_terraform_credentials():
     import os
 
     try:
-        # Find terraform directory
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        tf_dir = os.path.join(repo_root, "terraform")
+        # Find terraform directory - try multiple paths
+        possible_roots = [
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),  # From tools/dashboard/
+            os.getcwd(),  # Current working directory
+            os.path.dirname(os.getcwd()),  # Parent of cwd
+        ]
 
-        if not os.path.isdir(tf_dir):
-            logger.warning("Terraform directory not found at %s", tf_dir)
+        tf_dir = None
+        for root in possible_roots:
+            candidate = os.path.join(root, "terraform")
+            if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
+                tf_dir = candidate
+                logger.debug("Found terraform directory at %s", tf_dir)
+                break
+
+        if not tf_dir:
+            logger.warning("Terraform directory not found - cannot auto-fetch credentials")
             return (None, None, None)
 
-        # Initialize if needed (terraform init handles AWS profile from environment)
+        # Check if terraform is available
+        try:
+            subprocess.run(["terraform", "--version"], capture_output=True, timeout=5, check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            logger.warning("Terraform not available - use launcher script or set env vars manually")
+            return (None, None, None)
+
+        # Initialize if needed
         if not os.path.exists(os.path.join(tf_dir, ".terraform")):
+            logger.debug("Initializing Terraform...")
             result = subprocess.run(
                 ["terraform", "init", "-backend=true"],
                 cwd=tf_dir,
                 capture_output=True,
+                text=True,
                 timeout=60
             )
             if result.returncode != 0:
-                logger.error("Terraform init failed: %s", result.stderr.decode()[:200])
+                logger.warning("Terraform init failed - may need manual setup")
                 return (None, None, None)
 
         # Fetch outputs
@@ -101,7 +121,7 @@ def _fetch_terraform_credentials():
         )
 
         if result.returncode != 0:
-            logger.warning("Terraform output failed: %s", result.stderr[:200])
+            logger.warning("Terraform output failed: %s", result.stderr[:100])
             return (None, None, None)
 
         try:
@@ -370,29 +390,17 @@ def main():
                 logger.info("Credentials fetched from Terraform")
 
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] AWS mode requires DASHBOARD_API_URL environment variable")
+            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials automatically")
             CONSOLE.print("")
-            CONSOLE.print("[bold cyan]Setup Instructions:[/]")
-            CONSOLE.print("1. Get credentials from Terraform:")
-            CONSOLE.print("[cyan]   cd terraform[/]")
-            CONSOLE.print("[cyan]   terraform init -backend-config=bucket=stocks-terraform-state \\[/]")
-            CONSOLE.print("[cyan]     -backend-config=key=stocks/terraform.tfstate \\[/]")
-            CONSOLE.print("[cyan]     -backend-config=region=us-east-1 -backend-config=encrypt=true[/]")
-            CONSOLE.print("[cyan]   $apiUrl = terraform output -raw api_url[/]")
-            CONSOLE.print("[cyan]   $poolId = terraform output -raw cognito_user_pool_id[/]")
-            CONSOLE.print("[cyan]   $clientId = terraform output -raw cognito_user_pool_client_id[/]")
+            CONSOLE.print("[bold cyan]Quick fix:[/]")
+            CONSOLE.print("[cyan]   scripts/run-dashboard.ps1[/]")
             CONSOLE.print("")
-            CONSOLE.print("2. Set environment variables in PowerShell:")
-            CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = $apiUrl[/]")
-            CONSOLE.print("[cyan]   $env:COGNITO_USER_POOL_ID = $poolId[/]")
-            CONSOLE.print("[cyan]   $env:COGNITO_CLIENT_ID = $clientId[/]")
+            CONSOLE.print("[dim]This launcher will automatically set up all credentials and start the dashboard.[/]")
             CONSOLE.print("")
-            CONSOLE.print("3. Run dashboard:")
-            CONSOLE.print("[cyan]   python tools/dashboard/dashboard.py[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[dim]Or use:[/] [cyan]--local[/] [dim]for localhost:3001[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[dim]See: tools/dashboard/COGNITO_SETUP.md for full setup guide[/]")
+            CONSOLE.print("[dim]Or manually set environment variables:[/]")
+            CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = \"<api_url>\"[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_USER_POOL_ID = \"<pool_id>\"[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_CLIENT_ID = \"<client_id>\"[/]")
             sys.exit(1)
         set_api_url(aws_url)
         data_source = "AWS"
