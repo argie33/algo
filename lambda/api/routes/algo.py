@@ -15,6 +15,9 @@ from routes.utils import (
 # Import from root utils package using importlib to avoid package shadowing issues
 # (there's both /lambda/api/utils/ and /utils/ which causes conflicts)
 _root_dir = str(Path(__file__).parent.parent.parent.parent)
+# Ensure root utils is in sys.path for importlib modules to find it
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 import importlib.util
 _admin_spec = importlib.util.spec_from_file_location(
     "admin_rate_limiter",
