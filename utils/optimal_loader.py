@@ -69,6 +69,7 @@ class OptimalLoader(ABC):
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
         self._heartbeat_interval = 60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
+        self._execution_start_time = None  # Track execution start for execution history logging
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -799,6 +800,40 @@ class OptimalLoader(ABC):
             logger.warning(f"[UPSTREAM] Could not check upstream completeness: {e}, proceeding anyway")
             return True  # Don't abort if we can't check
 
+    def _log_execution_history(self, status: str, error_message: Optional[str] = None):
+        """Log loader execution to database for auditing.
+
+        Records execution metadata to loader_execution_history table.
+
+        Args:
+            status: 'success' or 'failed'
+            error_message: Error message if status is 'failed', else None
+        """
+        if not self._execution_start_time:
+            logger.warning(f"[{self.table_name}] No execution start time recorded, skipping history log")
+            return
+
+        execution_end = datetime.now(timezone.utc)
+        execution_start = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
+
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO loader_execution_history
+                    (loader_name, execution_start, execution_end, status, rows_processed, error_message)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    self.table_name,
+                    execution_start,
+                    execution_end,
+                    status,
+                    self._stats.get('rows_inserted', 0),
+                    error_message,
+                ))
+            logger.info(f"[{self.table_name}] Logged execution history: status={status}, rows={self._stats.get('rows_inserted', 0)}")
+        except Exception as e:
+            logger.error(f"[{self.table_name}] Failed to log execution history: {e}", exc_info=True)
+
     def run(
         self,
         symbols: Iterable[str],
@@ -860,6 +895,7 @@ class OptimalLoader(ABC):
                 return self._stats
 
             start = time.time()
+            self._execution_start_time = start  # Track for execution history logging
             mode = (
                 f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
             )
@@ -1004,10 +1040,23 @@ class OptimalLoader(ABC):
             except Exception as cache_setup_err:
                 logger.debug(f"[CACHE] Cache invalidation unavailable: {cache_setup_err}")
 
+            # Log execution to loader_execution_history table
+            try:
+                self._log_execution_history(status='success', error_message=None)
+            except Exception as e:
+                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
+
             # Stop heartbeat thread before returning
             self._stop_heartbeat()
 
             return self._stats
+        except Exception as e:
+            # Log failed execution to history
+            try:
+                self._log_execution_history(status='failed', error_message=str(e)[:500])
+            except Exception as history_err:
+                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
+            raise
         finally:
             # Ensure heartbeat stops even on error
             self._stop_heartbeat()
@@ -1065,6 +1114,7 @@ class OptimalLoader(ABC):
             self._update_loader_status("RUNNING")
 
             start = time.time()
+            self._execution_start_time = start  # Track for execution history logging
             logger.info("[%s] Starting global load", self.table_name)
 
             # Get current watermark from DB so fetch_global can do incremental loads
@@ -1154,7 +1204,21 @@ class OptimalLoader(ABC):
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
 
+            # Log execution to loader_execution_history table
+            try:
+                self._stats['rows_inserted'] = inserted
+                self._log_execution_history(status='success', error_message=None)
+            except Exception as e:
+                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
+
             return inserted
+        except Exception as e:
+            # Log failed execution to history
+            try:
+                self._log_execution_history(status='failed', error_message=str(e)[:500])
+            except Exception as history_err:
+                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
+            raise
         finally:
             if lock_manager:
                 try:
