@@ -1462,7 +1462,8 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                 ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
                 ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
                 signal,
-                ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent
+                ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent,
+                (defensive_strength IS NULL OR cyclical_strength IS NULL) AS _is_fallback
             FROM signal_groups
             ORDER BY date DESC
         """, (cutoff_date,))
@@ -1519,7 +1520,8 @@ def _get_sector_breadth(cur) -> Dict:
                 SELECT
                     sector,
                     ROUND(COALESCE(pct_above_50d, 0)::NUMERIC, 2) AS pct_above_50d,
-                    ROUND(COALESCE(pct_above_200d, 0)::NUMERIC, 2) AS pct_above_200d
+                    ROUND(COALESCE(pct_above_200d, 0)::NUMERIC, 2) AS pct_above_200d,
+                    (pct_above_50d IS NULL OR pct_above_200d IS NULL) AS _is_fallback
                 FROM sector_breadth
                 ORDER BY pct_above_50d DESC
             """)

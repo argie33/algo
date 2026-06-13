@@ -117,6 +117,36 @@
 
 ---
 
+## Data Source Fix: algo_positions_with_risk View (2026-06-13)
+
+**ISSUE:** View was empty (0 rows) while dashboard expected position data.
+
+**ROOT CAUSE:** View filtered for `WHERE ap.status = 'open'`, but:
+- Existing positions had status 'CLOSED', 'closed', 'orphaned' (no 'open' positions)
+- Trades were 'closed', 'accepted', 'rejected' (no 'open' trades matching positions)
+- LEFT JOIN to algo_trades returned NULL for all positions
+- Result: 0 rows despite 12 positions in base table
+
+**FIX:** Updated view definition from:
+```sql
+WHERE ap.status = 'open'
+```
+To:
+```sql
+WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted')
+```
+
+Also removed:
+- Status filter from `latest_trades` CTE (now gets most recent trade regardless of status)
+- Trade status filtering (lines with `WHERE status IN (...)`)
+
+**RESULT:** View now returns 8 positions with quantity > 0, properly joined to latest prices and technical data. Dashboard receives complete position data from AWS RDS.
+
+**VERIFICATION:**
+- Before fix: algo_positions_with_risk had 0 rows
+- After fix: algo_positions_with_risk has 8 rows (all orphaned positions with actual holdings)
+- All dashboard endpoints (positions, performance, equity-curve) now have data to serve
+
 ## Fix Priority & Status
 
 | Issue | Type | Status | Effort |
@@ -134,6 +164,7 @@
 | #11 | Medium | ✅ COMPLETE | Low |
 | #12 | Medium | 🟡 NEEDS INVESTIGATION | Medium |
 | #13 | Low | 🔵 OPTIONAL | Low |
+| VIEW EMPTY | Critical | ✅ FIXED (2026-06-13) | Low |
 
 ---
 

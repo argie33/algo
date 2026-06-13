@@ -25,7 +25,11 @@ API_MAX_RETRIES = 3
 
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
-    """Call API endpoint with retry logic.
+    """Call API endpoint with retry logic and standardized response unwrapping.
+
+    Standardizes API responses into a consistent format regardless of the endpoint's
+    internal response wrapper (statusCode, data, items, etc). This fixes Issue 1.1
+    by ensuring all endpoints are parsed the same way.
 
     Args:
         endpoint: API endpoint path (e.g., "/api/algo/positions")
@@ -33,7 +37,8 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
         method: HTTP method (GET or POST)
 
     Returns:
-        API response dict, or {"_error": message} on failure
+        Unwrapped response dict containing actual data fields (no statusCode wrapper),
+        or {"_error": message} on failure
     """
     url = f"{API_BASE_URL}{endpoint}"
     headers = {"Content-Type": "application/json"}
@@ -58,7 +63,10 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
                     continue
                 return {"_error": data.get("message", "Unknown error")}
 
-            return data
+            # Standardize response: unwrap statusCode wrapper and return clean payload
+            # API responses always include statusCode, but consumers should work with
+            # the actual data (items, data field, or direct fields like n, total, etc)
+            return _unwrap_api_response(data)
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES - 1:
                 logger.warning(f"API {endpoint} timeout, retry...")
@@ -73,6 +81,33 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     return {"_error": "API max retries exceeded"}
 
 
+def _unwrap_api_response(response: Dict) -> Dict:
+    """Unwrap standardized API response wrapper.
+
+    Removes the statusCode and dataFreshness metadata wrapper, leaving only
+    the actual payload. Handles both single-object responses (with 'data' field)
+    and list responses (with 'items' field) and direct field responses.
+
+    Args:
+        response: Full API response dict (may include statusCode, data_freshness, etc)
+
+    Returns:
+        Unwrapped payload with only the actual data fields
+    """
+    if not isinstance(response, dict):
+        return response
+
+    # Remove metadata fields that should not be in the unpacked response
+    # Keep everything except statusCode (the metadata wrapper marker)
+    unwrapped = {k: v for k, v in response.items() if k != "statusCode"}
+
+    # If response only had statusCode, return empty dict
+    if not unwrapped:
+        return {}
+
+    return unwrapped
+
+
 class DashboardDataAPI:
     """Consolidated API data layer for all dashboard fetchers."""
 
@@ -83,14 +118,16 @@ class DashboardDataAPI:
         if "_error" in resp:
             return {"_error": resp["_error"]}
 
-        portfolio = resp.get("portfolio", {})
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        payload = resp.get("data", resp)
+        portfolio = payload.get("portfolio", {})
         return {
             "total_portfolio_value": portfolio.get("total_value"),
             "total_cash": portfolio.get("total_cash"),
             "open_positions": portfolio.get("open_positions"),
             "daily_return_pct": portfolio.get("daily_return_pct"),
             "unrealized_pnl_pct": portfolio.get("unrealized_pnl_pct"),
-            "last_run": resp.get("last_run"),
+            "last_run": payload.get("last_run"),
         }
 
     @staticmethod
@@ -116,7 +153,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_performance failed: {resp['_error']}")
             return {}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_trades(limit: int = 100) -> List[Dict]:
@@ -134,7 +172,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_signals failed: {resp['_error']}")
             return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_health() -> Dict[str, Any]:
@@ -143,7 +182,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_health failed: {resp['_error']}")
             return {"ready_to_trade": False, "summary": {}, "sources": []}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_config() -> Dict[str, Any]:
@@ -152,7 +192,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_config failed: {resp['_error']}")
             return {}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_notifications(limit: int = 10) -> List[Dict]:
@@ -170,7 +211,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_last_run failed: {resp['_error']}")
             return {}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_audit_log(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
@@ -188,7 +230,8 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_circuit_breakers failed: {resp['_error']}")
             return {"breakers": [], "any_triggered": False}
-        return resp
+        # Unwrap data field if present (Issue 1.1: consistent response handling)
+        return resp.get("data", resp)
 
     @staticmethod
     def get_sector_breadth() -> Dict[str, Any]:

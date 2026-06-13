@@ -80,7 +80,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                             ROUND((COALESCE(ma_10, 0) - COALESCE(ma_20, 0)) / NULLIF(ma_20, 0) * 100, 2) AS "momentumScore",
                             'momentum' AS momentum,
                             ROUND(COALESCE(ma_10, 0), 2) AS ma_10,
-                            ROUND(COALESCE(ma_20, 0), 2) AS ma_20
+                            ROUND(COALESCE(ma_20, 0), 2) AS ma_20,
+                            (ma_10 IS NULL OR ma_20 IS NULL) AS _is_fallback
                         FROM sector_with_ma
                         ORDER BY date DESC
                     """, (sector_name, days))

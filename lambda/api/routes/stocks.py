@@ -134,7 +134,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     COALESCE(cp.industry, 'Unknown') AS industry,
                     cp.market_cap,
                     COALESCE(lp.current_price, 0) AS current_price,
-                    (lp.current_price IS NULL) AS _is_fallback,
+                    (lp.current_price IS NULL OR s52.high_52w IS NULL OR s52.low_52w IS NULL) AS _is_fallback,
                     ROUND((
                         COALESCE(sc.value_score, 0) * 0.5 +
                         COALESCE(sc.quality_score, 0) * 0.3 +

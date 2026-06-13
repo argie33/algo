@@ -121,7 +121,16 @@ class TradeRecorder:
                     ORDER BY entry_time DESC LIMIT 1
                 """, (symbol,))
                 entry_row = cursor.fetchone()
-                entry_price = float(entry_row[0]) if entry_row else exit_price
+                if not entry_row or entry_row[0] is None:
+                    logger.error(f"Cannot record exit for {symbol}: no open entry found in database")
+                    return False
+
+                entry_price = float(entry_row[0])
+
+                # Validate entry price
+                if entry_price <= 0:
+                    logger.error(f"Cannot record exit for {symbol}: invalid entry price {entry_price}")
+                    return False
 
                 # Calculate P&L
                 pnl = (exit_price - entry_price) * quantity

@@ -72,7 +72,8 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
                     bsd.avg_volume_50d,
                     COALESCE(cp.sector, 'Unknown') as sector,
-                    COALESCE(cp.industry, 'Unknown') as industry
+                    COALESCE(cp.industry, 'Unknown') as industry,
+                    (bsd.mansfield_rs IS NULL OR sqs.composite_sqs IS NULL) AS _is_fallback
                 FROM buy_sell_daily bsd
                 LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                 LEFT JOIN LATERAL (
