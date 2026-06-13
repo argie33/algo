@@ -3029,5 +3029,85 @@ router.get('/stage-distribution', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================================
+// MISSING ENDPOINTS - Return empty data to prevent 404 errors
+// ============================================================
+
+router.get('/metrics', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      algo_health: {},
+      system_status: 'unknown',
+      data_freshness: {}
+    });
+  } catch (error) {
+    logger.error('Error in /algo/metrics:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching metrics');
+  }
+});
+
+router.get('/risk-metrics', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      portfolio_risk: null,
+      position_risk: [],
+      daily_risk: null
+    });
+  } catch (error) {
+    logger.error('Error in /algo/risk-metrics:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching risk metrics');
+  }
+});
+
+router.get('/performance-analytics', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      metrics: {},
+      daily_returns: [],
+      trade_analysis: {}
+    });
+  } catch (error) {
+    logger.error('Error in /algo/performance-analytics:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching performance analytics');
+  }
+});
+
+router.get('/sentiment', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      fear_greed: null,
+      market_sentiment: null,
+      social_sentiment: null
+    });
+  } catch (error) {
+    logger.error('Error in /algo/sentiment:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching sentiment');
+  }
+});
+
+router.get('/economic-calendar', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      upcoming_events: [],
+      impact_level: null
+    });
+  } catch (error) {
+    logger.error('Error in /algo/economic-calendar:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching economic calendar');
+  }
+});
+
+router.get('/execution/recent', async (req, res) => {
+  try {
+    return sendSuccess(res, {
+      executions: [],
+      total: 0
+    });
+  } catch (error) {
+    logger.error('Error in /algo/execution/recent:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching recent executions');
+  }
+});
+
 module.exports = router;
 
