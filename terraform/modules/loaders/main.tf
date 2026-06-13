@@ -409,6 +409,10 @@ locals {
     "fred_economic_data"    = "load_fred_economic_data.py"
     "economic_metrics_daily" = "load_economic_metrics_daily.py"
     "trend_template_data"   = "load_trend_criteria_data.py"
+    # Pre-computed metrics (used by API instead of on-the-fly computation)
+    "compute_circuit_breakers"    = "compute_circuit_breakers.py"
+    "compute_performance_metrics" = "compute_performance_metrics.py"
+
   }
 
   scheduled_loaders = {
@@ -522,6 +526,18 @@ locals {
 
     # sector_ranking is now part of the EOD Step Functions pipeline (runs after swing_trader_scores)
     # Removed from EventBridge to ensure it completes BEFORE the orchestrator runs
+    # Pre-computed metrics loaders — run nightly after orchestrator (Phase 7 reconciliation)
+    # These metrics are used by API endpoints instead of on-the-fly computation
+    # circuit_breaker_status: 4:30 PM ET (20:30 UTC) — stores 9 circuit breaker metrics for API
+    # algo_performance_metrics: 4:45 PM ET (20:45 UTC) — stores performance stats for API
+    "compute_circuit_breakers" = {
+      schedule    = "cron(30 20 ? * MON-FRI *)"
+      description = "Pre-compute circuit breaker metrics - Daily 4:30pm ET"
+    }
+    "compute_performance_metrics" = {
+      schedule    = "cron(45 20 ? * MON-FRI *)"
+      description = "Pre-compute performance metrics - Daily 4:45pm ET"
+    }
 
     # Earnings â€” run Sunday night only (data changes quarterly)
     "earnings_history" = {
@@ -729,6 +745,12 @@ locals {
 
     # Trend template â€” compute-heavy scoring
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
+    # Pre-computed metrics for API endpoints — pure SQL aggregation, no external APIs
+    # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
+    # Runs after Phase 7 reconciliation to capture latest position/trade state
+    "compute_circuit_breakers" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "compute_performance_metrics" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
   }
 
   # For backward compatibility
