@@ -151,6 +151,13 @@ _sector_cache_maxsize = 100
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
+_cognito_auth = None
+
+def set_cognito_auth(auth):
+    """Set the Cognito authentication instance for API calls."""
+    global _cognito_auth
+    _cognito_auth = auth
+
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
 
@@ -171,6 +178,11 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
     url = f"{API_BASE_URL}{endpoint}"
     headers = {"Content-Type": "application/json"}
+
+    # Add Cognito authorization if available
+    if _cognito_auth:
+        auth_headers = _cognito_auth.get_authorization_header()
+        headers.update(auth_headers)
 
     for attempt in range(API_MAX_RETRIES + 1):
         try:

@@ -38,7 +38,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url
+from utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
 from fetchers import load_all
 from panels import (
     _extract_items, mascot_compact, loading_layout, _expanded_layout,
@@ -451,12 +451,37 @@ def main():
         aws_url = os.environ.get("DASHBOARD_API_URL")
         if not aws_url:
             CONSOLE.print("[bold red]ERROR:[/] AWS mode requires DASHBOARD_API_URL environment variable")
-            CONSOLE.print("[dim]Set it to your AWS API endpoint, e.g.:[/]")
-            CONSOLE.print("[cyan]  export DASHBOARD_API_URL=https://api.example.com[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[bold cyan]Setup Instructions:[/]")
+            CONSOLE.print("1. Get credentials from Terraform:")
+            CONSOLE.print("[cyan]   cd terraform[/]")
+            CONSOLE.print("[cyan]   terraform init -backend-config=bucket=stocks-terraform-state \\[/]")
+            CONSOLE.print("[cyan]     -backend-config=key=stocks/terraform.tfstate \\[/]")
+            CONSOLE.print("[cyan]     -backend-config=region=us-east-1 -backend-config=encrypt=true[/]")
+            CONSOLE.print("[cyan]   $apiUrl = terraform output -raw api_url[/]")
+            CONSOLE.print("[cyan]   $poolId = terraform output -raw cognito_user_pool_id[/]")
+            CONSOLE.print("[cyan]   $clientId = terraform output -raw cognito_user_pool_client_id[/]")
+            CONSOLE.print("")
+            CONSOLE.print("2. Set environment variables in PowerShell:")
+            CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = $apiUrl[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_USER_POOL_ID = $poolId[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_CLIENT_ID = $clientId[/]")
+            CONSOLE.print("")
+            CONSOLE.print("3. Run dashboard:")
+            CONSOLE.print("[cyan]   python tools/dashboard/main.py[/]")
+            CONSOLE.print("")
             CONSOLE.print("[dim]Or use:[/] [cyan]--local[/] [dim]for localhost:3001[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[dim]See: tools/dashboard/COGNITO_SETUP.md for full setup guide[/]")
             sys.exit(1)
         set_api_url(aws_url)
         data_source = "AWS"
+
+        # Setup Cognito authentication for AWS mode
+        from cognito_auth import get_cognito_auth, save_tokens
+        auth = get_cognito_auth(require_auth=False)
+        if auth:
+            set_cognito_auth(auth)
 
     if args.watch is not None:
         run_watch(max(10, args.watch), args.compact, data_source)
