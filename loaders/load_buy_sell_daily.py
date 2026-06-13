@@ -143,16 +143,19 @@ class SignalsDailyLoader(OptimalLoader):
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
 
-                # Block if technical data covers < 70% of price symbols (normal is 80-83%)
+                # Warn if technical data covers < 70% of price symbols (normal is 80-83%)
+                # RESILIENCE FIX: Allow signal generation to proceed even with incomplete technical data.
+                # Technical columns will be backfilled by enrich_buy_sell_daily_technical.py after loader completes.
+                # This prevents rejection of all signals when upstream loader is slow or partially failed.
                 if tech_coverage < 70:
                     logger.warning(
                         f"{symbol}: technical_data_daily incomplete for {end}: "
                         f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols "
                         f"({tech_coverage:.1f}%, expected >= 70%). "
-                        f"buy_sell_daily must not run until technical_data_daily completes. Rejecting all signals."
+                        f"Proceeding with signal generation - technical data will be backfilled later."
                     )
-                    self._log_rejection_if_available(symbol, end, "technical_data_incomplete_coverage")
-                    return []
+                    # Do NOT return [] — allow signals to be generated even without complete technical data
+                    # The enrichment script will populate technical columns afterward
         except Exception as e:
             logger.warning(f"{symbol}: Technical data check failed: {e}")
             return []
