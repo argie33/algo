@@ -630,11 +630,11 @@ function ExposureHistory({ markets }) {
 
 function BreadthCard({ markets }) {
   const cur = markets?.current?.factors || {};
-  const b50 = cur.breadth_50dma || {};
-  const b200 = cur.breadth_200dma || {};
+  const b50 = (cur?.breadth_50dma && typeof cur.breadth_50dma === 'object') ? cur.breadth_50dma : {};
+  const b200 = (cur?.breadth_200dma && typeof cur.breadth_200dma === 'object') ? cur.breadth_200dma : {};
   const data = [
-    { name: '> 50-DMA',  value: b50.value || 0,  count: `${b50.above || 0}/${b50.total || 0}` },
-    { name: '> 200-DMA', value: b200.value || 0, count: `${b200.above || 0}/${b200.total || 0}` },
+    { name: '> 50-DMA',  value: b50?.value ?? 0,  count: `${b50?.above ?? 0}/${b50?.total ?? 0}` },
+    { name: '> 200-DMA', value: b200?.value ?? 0, count: `${b200?.above ?? 0}/${b200?.total ?? 0}` },
   ];
   return (
     <div className="card">
@@ -691,10 +691,10 @@ function BreadthCard({ markets }) {
 function NewHighsLowsCard({ markets }) {
   const nhnl = markets?.current?.factors?.new_highs_lows || {};
   const data = [
-    { name: 'New Highs', value: nhnl.new_highs || 0, fill: C.success },
-    { name: 'New Lows',  value: -(nhnl.new_lows || 0), fill: C.danger },
+    { name: 'New Highs', value: nhnl?.new_highs ?? 0, fill: C.success },
+    { name: 'New Lows',  value: -(nhnl?.new_lows ?? 0), fill: C.danger },
   ];
-  const net = nhnl.net || 0;
+  const net = nhnl?.net ?? 0;
   return (
     <div className="card">
       <div className="card-head">
@@ -734,18 +734,19 @@ function NewHighsLowsCard({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SentimentCard({ markets, sentiment, loading }) {
-  const aaiiHistory = sentiment?.aaii?.history || sentiment?.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const aaiiHistoryRaw = sentiment?.aaii?.history || sentiment?.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const aaiiHistory = Array.isArray(aaiiHistoryRaw) ? aaiiHistoryRaw : [];
   const naaim = sentiment?.naaim?.current ?? null;
   const fearGreed = sentiment?.fearGreed?.current?.value ?? null;
   if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
-  if (!aaiiHistory || !Array.isArray(aaiiHistory) || !aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
+  if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
-    date: s.date,
-    bull: parseFloat(s.bullish || 0),
-    bear: parseFloat(s.bearish || 0),
-    neutral: parseFloat(s.neutral || 0),
+    date: s?.date,
+    bull: s?.bullish != null ? parseFloat(s.bullish) : 0,
+    bear: s?.bearish != null ? parseFloat(s.bearish) : 0,
+    neutral: s?.neutral != null ? parseFloat(s.neutral) : 0,
   }));
-  const latest = data[data.length - 1] || {};
+  const latest = data[data.length - 1] || { bull: 0, bear: 0, neutral: 0 };
   const spread = (latest.bull || 0) - (latest.bear || 0);
   return (
     <div className="card">
@@ -852,17 +853,17 @@ function VixCard({ markets }) {
 function InternalsCard({ data, loading }) {
   if (loading || !data) return <Empty title="Market Internals" desc={loading ? "Loading…" : "No data"} wrap />;
   const breadth = (data && typeof data === 'object' && data.breadth) ? data.breadth : {};
-  const advancing = parseInt(breadth?.advancing) || 0;
-  const declining = parseInt(breadth?.declining) || 0;
-  const unchanged = parseInt(breadth?.unchanged) || 0;
-  const total = parseInt(breadth?.total_stocks) || (advancing + declining + unchanged);
-  const advPct = total ? (advancing / total) * 100 : 0;
-  const decPct = total ? (declining / total) * 100 : 0;
+  const advancing = breadth?.advancing != null ? parseInt(breadth.advancing) : 0;
+  const declining = breadth?.declining != null ? parseInt(breadth.declining) : 0;
+  const unchanged = breadth?.unchanged != null ? parseInt(breadth.unchanged) : 0;
+  const total = breadth?.total_stocks != null ? parseInt(breadth.total_stocks) : (advancing + declining + unchanged || 0);
+  const advPct = total > 0 ? (advancing / total) * 100 : 0;
+  const decPct = total > 0 ? (declining / total) * 100 : 0;
   const adRatio = declining > 0 ? (advancing / declining) : 0;
-  const mcData = Array.isArray(data?.mcclellan_oscillator) ? data.mcclellan_oscillator : [];
-  const mcclellan = mcData.reverse().map(d => ({
-    date: d?.date, value: parseFloat(d?.advance_decline_line || 0),
-  }));
+  const mcDataRaw = Array.isArray(data?.mcclellan_oscillator) ? data.mcclellan_oscillator : [];
+  const mcclellan = mcDataRaw.length > 0 ? mcDataRaw.slice().reverse().map(d => ({
+    date: d?.date, value: d?.advance_decline_line != null ? parseFloat(d.advance_decline_line) : 0,
+  })) : [];
   return (
     <div className="card">
       <div className="card-head">

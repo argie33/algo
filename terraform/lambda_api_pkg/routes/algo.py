@@ -363,7 +363,7 @@ def _get_last_run(cur) -> Dict:
         SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
         FROM algo_audit_log
         WHERE details->>'run_id' IS NOT NULL
-        GROUP BY details->>'run_id'
+        GROUP BY details->>'run_id
         ORDER BY MAX(created_at) DESC
         LIMIT 1
     """)
@@ -580,19 +580,19 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             trend_score = safe_float(d.get('minervini_trend_score'))
             if stage == 2:
                 if trend_score and trend_score < 4:
-                    d['stage_label'] = 'Early Stage-2'
+                    d['stage_label'] = 'Early Stage-2
                 elif trend_score and trend_score >= 6:
-                    d['stage_label'] = 'Late Stage-2'
+                    d['stage_label'] = 'Late Stage-2
                 else:
-                    d['stage_label'] = 'Mid Stage-2'
+                    d['stage_label'] = 'Mid Stage-2
             elif stage == 1:
-                d['stage_label'] = 'Stage 1 (base)'
+                d['stage_label'] = 'Stage 1 (base)
             elif stage == 3:
-                d['stage_label'] = 'Stage 3 (top)'
+                d['stage_label'] = 'Stage 3 (top)
             elif stage == 4:
-                d['stage_label'] = 'Stage 4 (down)'
+                d['stage_label'] = 'Stage 4 (down)
             else:
-                d['stage_label'] = 'Unknown'
+                d['stage_label'] = 'Unknown
 
             # Normalize field names for frontend compatibility
             if 'percent_from_52w_low' in d:
@@ -992,7 +992,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered_count': 0,
                     'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'},
                     'error': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.',
-                    'error_type': 'missing_critical_tables'
+                    'error_type': 'missing_critical_tables
                 })
 
             # Fetch pre-computed circuit breaker metrics from database
@@ -1205,7 +1205,7 @@ def _get_circuit_breakers(cur) -> Dict:
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
             response = {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness}
             if errors:
-                response['_error'] = f'One or more circuit breakers failed to compute: {"; ".join(errors)}'
+                response['_error'] = f'One or more circuit breakers failed to compute: {"; ".join(errors)}
             return json_response(200, response)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable (circuit breakers): {type(e).__name__}: {str(e)}', extra={'operation': 'fetch circuit breakers'}, exc_info=True)
@@ -1290,18 +1290,18 @@ def _get_data_status(cur) -> Dict:
                 row_count = row.get('row_count')
 
                 if row_count is None or row_count == 0:
-                    status = 'empty'
+                    status = 'empty
                 elif last_updated is None:
-                    status = 'empty'
+                    status = 'empty
                 else:
                     # Convert to date if datetime
                     data_date = last_updated.date() if hasattr(last_updated, 'date') else last_updated
 
                     # Use Phase 1 logic: stale if data_date < expected_date
                     if data_date < expected_date:
-                        status = 'stale'
+                        status = 'stale
                     else:
-                        status = 'ok'
+                        status = 'ok
 
                 # Calculate age in hours for reference
                 last_updated_utc = normalize_to_utc_datetime(last_updated)
@@ -1493,7 +1493,7 @@ def _trigger_data_patrol() -> Dict:
                     'awsvpcConfiguration': {
                         'subnets': subnet_ids,
                         'securityGroups': [sg_id] if sg_id else [],
-                        'assignPublicIp': 'DISABLED'
+                        'assignPublicIp': 'DISABLED
                     }
                 } if subnet_ids and sg_id else None
             )
@@ -1557,13 +1557,13 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                 SELECT 'Consumer Defensive' AS sector UNION ALL
                 SELECT 'Utilities' UNION ALL
                 SELECT 'Healthcare' UNION ALL
-                SELECT 'Real Estate'
+                SELECT 'Real Estate
             ),
             cyclical_sectors AS (
                 SELECT 'Consumer Cyclical' AS sector UNION ALL
                 SELECT 'Industrials' UNION ALL
                 SELECT 'Basic Materials' UNION ALL
-                SELECT 'Technology'
+                SELECT 'Technology
             ),
             sector_perf AS (
                 SELECT
@@ -1593,9 +1593,9 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                     defensive_strength,
                     cyclical_strength,
                     CASE
-                        WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE'
-                        WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL'
-                        ELSE 'NEUTRAL'
+                        WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE
+                        WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL
+                        ELSE 'NEUTRAL
                     END AS signal
                 FROM rotation_stats
             ),
@@ -1647,15 +1647,15 @@ def _get_sector_breadth(cur) -> Dict:
                     SELECT DISTINCT ON (tdd.symbol)
                         tdd.symbol, tdd.sma_50, tdd.sma_200
                     FROM technical_data_daily tdd
-                    WHERE tdd.date >= CURRENT_DATE - INTERVAL '7 days'
+                    WHERE tdd.date >= CURRENT_DATE - INTERVAL '7 days
                     ORDER BY tdd.symbol, tdd.date DESC
                 ),
                 latest_price AS (
                     SELECT DISTINCT ON (pd.symbol)
                         pd.symbol, pd.close
                     FROM price_daily pd
-                    WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-                      AND pd.symbol NOT LIKE '^%%'
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days
+                      AND pd.symbol NOT LIKE '^%%
                     ORDER BY pd.symbol, pd.date DESC
                 ),
                 distinct_symbols AS (
@@ -1686,24 +1686,20 @@ def _get_sector_breadth(cur) -> Dict:
                 ORDER BY pct_above_50d DESC
             """)
             breadth = cur.fetchall()
-            cur.execute("RELEASE SAVEPOINT sector_breadth_check")
+            # SAVEPOINT removed - using timeout instead
             return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
-                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            except Exception as sp_err:
-                logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.error(f'Sector breadth data unavailable: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
-        except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
-                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            except Exception as sp_err:
-                logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
+            return error_response(500, 'internal_error', 'Sector breadth data unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Sector breadth query timeout: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
+            return error_response(503, 'service_unavailable', 'Sector breadth query timed out')
+        except psycopg2.DatabaseError as e:
             logger.error(f'Sector breadth query failed: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
+            return error_response(500, 'internal_error', 'Sector breadth query failed')
+        except Exception as e:
+            logger.error(f'Unexpected error in sector breadth: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
 
 def _get_sector_position_warnings(cur) -> Dict:
         """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
@@ -1861,7 +1857,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as total_signals
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days
             """)
             row = cur.fetchone()
             initial_count = safe_json_serialize(safe_dict_convert(row)).get('total_signals', 0) if row else 0
@@ -1870,7 +1866,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as scored
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days
             """)
             row = cur.fetchone()
             scored_count = safe_json_serialize(safe_dict_convert(row)).get('scored', 0) if row else 0
@@ -1879,7 +1875,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as high_quality
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days
                 AND score >= 60
             """)
             row = cur.fetchone()
@@ -1929,7 +1925,7 @@ def _get_rejection_funnel(cur) -> Dict:
                 cur.execute("""
                     SELECT rejection_reason, COUNT(*) as count
                     FROM filter_rejection_log
-                    WHERE eval_date = %s AND rejection_reason IS NOT NULL AND rejection_reason != ''
+                    WHERE eval_date = %s AND rejection_reason IS NOT NULL AND rejection_reason != '
                     GROUP BY rejection_reason
                     ORDER BY count DESC
                     LIMIT 10
@@ -2050,7 +2046,7 @@ def _get_markets(cur) -> Dict:
             cur.execute("""
                 SELECT date, exposure_pct, regime
                 FROM market_exposure_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '30 days
                 ORDER BY date ASC
                 LIMIT 250
             """)
@@ -2095,7 +2091,7 @@ def _get_markets(cur) -> Dict:
             try:
                 cur.execute("""
                     SELECT close FROM price_daily
-                    WHERE symbol = 'SPY'
+                    WHERE symbol = 'SPY
                     ORDER BY date DESC LIMIT 1
                 """)
                 spy_row = cur.fetchone()
@@ -2174,7 +2170,7 @@ def _get_market(cur) -> Dict:
         try:
             cur.execute("""
                 SELECT close FROM price_daily
-                WHERE symbol = 'SPY'
+                WHERE symbol = 'SPY
                 ORDER BY date DESC LIMIT 1
             """)
             spy_row = cur.fetchone()
@@ -2278,7 +2274,7 @@ def _get_algo_evaluate(cur) -> Dict:
                     AVG(score) AS avg_score,
                     MIN(score) AS min_score
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days
             """)
             sig_row = cur.fetchone()
             if not sig_row or not sig_row.get('candidates_screened'):
@@ -2293,7 +2289,7 @@ def _get_algo_evaluate(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(*) as open_positions
                 FROM algo_positions
-                WHERE LOWER(status) = 'open'
+                WHERE LOWER(status) = 'open
             """)
             pos_row = cur.fetchone()
             open_positions = pos_row['open_positions'] if pos_row else 0
@@ -2308,7 +2304,7 @@ def _get_algo_evaluate(cur) -> Dict:
                         at.symbol, cp.sector
                     FROM algo_trades at
                     JOIN company_profile cp ON at.symbol = cp.ticker
-                    WHERE at.status = 'open'
+                    WHERE at.status = 'open
                     ORDER BY at.symbol
                 )
                 SELECT sector, COUNT(symbol) as count
@@ -2368,7 +2364,7 @@ def _get_algo_evaluate(cur) -> Dict:
                         'losing_positions': safe_int(losing_count),
                         'breakeven_positions': safe_int(breakeven_count),
                         'source': 'open_positions_only',
-                        'note': 'Includes only open positions (no closed trades, no dividends)'
+                        'note': 'Includes only open positions (no closed trades, no dividends)
                     }
                 }
             })
@@ -2391,7 +2387,7 @@ def _get_data_quality(cur) -> Dict:
                     created_at,
                     ROW_NUMBER() OVER (PARTITION BY target_table ORDER BY created_at DESC) as rn
                 FROM data_patrol_log
-                WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+                WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours
             """)
             patrol_rows = cur.fetchall()
 
@@ -2421,11 +2417,11 @@ def _get_data_quality(cur) -> Dict:
                 severity = entry.get('severity', 'healthy')
                 severity_counts[severity if severity in severity_counts else 'warn'] += 1
                 if severity == 'critical':
-                    status_label = 'failed'
+                    status_label = 'failed
                 elif severity in ('error', 'warn'):
-                    status_label = 'warning'
+                    status_label = 'warning
                 else:
-                    status_label = 'passed'
+                    status_label = 'passed
 
                 table_statuses.append({
                     'table': table_name,
@@ -2438,13 +2434,13 @@ def _get_data_quality(cur) -> Dict:
 
             # Determine overall accuracy
             if severity_counts['critical'] > 0:
-                accuracy = 'failed'
+                accuracy = 'failed
             elif severity_counts['error'] > 0:
-                accuracy = 'error'
+                accuracy = 'error
             elif severity_counts['warn'] > 0:
-                accuracy = 'warning'
+                accuracy = 'warning
             else:
-                accuracy = 'passed'
+                accuracy = 'passed
 
             # Sort tables by status severity
             status_order = {'failed': 0, 'error': 1, 'warning': 2, 'passed': 3}
@@ -2466,7 +2462,7 @@ def _get_data_quality(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
-            return json_response(code, {'errorType': error_type, 'message': message})
+            return error_response(code, error_type, message)
 
 @db_route_handler('fetch exposure policy', default_error_response={'current_exposure_pct': None, 'regime': 'unknown', 'factors': {}, '_error': 'Data unavailable'})
 def _get_exposure_policy(cur) -> Dict:
@@ -2505,7 +2501,7 @@ def _get_exposure_policy(cur) -> Dict:
 
             # Parse factors from JSON if available
             factors = {}
-            factor_quality = 'ok'
+            factor_quality = 'ok
             if row.get('factors'):
                 try:
                     if isinstance(row['factors'], str):
@@ -2515,19 +2511,19 @@ def _get_exposure_policy(cur) -> Dict:
                 except (json.JSONDecodeError, KeyError, TypeError) as e:
                     logger.warning(f"Failed to parse factors: {e}")
                     factors = {}
-                    factor_quality = 'parse_error'
+                    factor_quality = 'parse_error
 
             # Validate expected factor keys are present
             expected_factor_keys = {'stage_number', 'ad_ratio', 'vix', 'breadth_momentum', 'mcclellan'}
             if factors and not isinstance(factors, dict):
                 logger.error(f"Factors not a dict: {type(factors)}")
-                factor_quality = 'invalid_structure'
+                factor_quality = 'invalid_structure
             elif factors:
                 found_keys = set(factors.keys())
                 missing_keys = expected_factor_keys - found_keys
                 if missing_keys:
                     logger.warning(f"Market exposure factors missing keys: {missing_keys} (found: {found_keys})")
-                    factor_quality = 'degraded' if missing_keys else 'ok'
+                    factor_quality = 'degraded' if missing_keys else 'ok
 
             # Get latest market health for additional context
             market_health = {}
@@ -2621,45 +2617,45 @@ def _get_sector_stage2(cur) -> Dict:
 def _categorize_config_key(key: str) -> str:
         """Categorize configuration key for TIER 3 visibility grouping."""
         if 'drawdown' in key or 'halt' in key or 'risk_reduction' in key:
-            return 'Drawdown Defense'
+            return 'Drawdown Defense
         elif 'circuit' in key or 'max_daily_loss' in key or 'max_consecutive' in key or 'min_win_rate' in key or 'max_total_risk' in key or 'max_weekly' in key or 'daily_profit_cap' in key or 'sector_drawdown' in key:
-            return 'Circuit Breakers'
+            return 'Circuit Breakers
         elif 'swing' in key or 'swing_weight' in key or 'swing_grade' in key or 'swing_min' in key or 'swing_days' in key:
-            return 'Swing Trader Scoring'
+            return 'Swing Trader Scoring
         elif 'vix' in key or 'put_call' in key or 'upvol' in key or 'breadth' in key or 'yield_curve' in key or 'beta' in key or 'max_distribution' in key or 'require_stage' in key:
-            return 'Market Conditions'
+            return 'Market Conditions
         elif 'min_completeness' in key or 'min_stock_price' in key or 'min_signal' in key or 'min_volume' in key or 'min_avg_daily' in key or 'require_stock_stage' in key or 'max_stop_distance' in key or 'max_positions_per' in key or 'min_swing_score' in key or 'max_total_invested' in key or 'advanced_filters_grade' in key:
-            return 'Filter Thresholds'
+            return 'Filter Thresholds
         elif 'require_sma50' in key or 'min_percent_from' in key or 'max_percent_from' in key or 'min_trend_template' in key:
-            return 'Entry Rules (Minervini)'
+            return 'Entry Rules (Minervini)
         elif 'max_signal_age' in key or 'min_close_quality' in key or 'min_breakout_volume' in key or 'require_weekly_stage' in key or 'min_rs_line' in key or 'max_rs_pct' in key or 'rs_slope_gate' in key or 'volume_decay_gate' in key:
-            return 'Entry Quality Gates'
+            return 'Entry Quality Gates
         elif 'require_target_pullback' in key or 't1_target' in key or 't2_target' in key or 't3_target' in key or 'imported_position' in key or 'min_hold' in key or 'max_hold' in key or 'exit_on' in key or 'use_chandelier' in key or 'switch_to_21ema' in key or 'eight_week_rule' in key or 'chandelier_atr' in key or 'move_be' in key:
-            return 'Exit Rules'
+            return 'Exit Rules
         elif 'pyramid' in key or 're_engage' in key:
-            return 'Pyramid & Re-engagement'
+            return 'Pyramid & Re-engagement
         elif 'position_halt_flag' in key or 'max_reentries' in key or 'min_days_before_reentry' in key:
-            return 'Position Monitoring'
+            return 'Position Monitoring
         elif 'earnings' in key or 'halt_entries_before' in key or 'block_days_before' in key:
-            return 'Economic & Earnings'
+            return 'Economic & Earnings
         elif 'min_price_history' in key or 'min_daily_volume' in key or 'max_spread' in key or 'min_market_cap' in key or 'min_float' in key or 'max_short_interest' in key:
-            return 'Fundamental Filters'
+            return 'Fundamental Filters
         elif 'max_extension' in key or 'strong_sector' in key:
-            return 'Advanced Filters'
+            return 'Advanced Filters
         elif 'var_percentile' in key or 'cvar_percentile' in key or 'stressed_var' in key or 'dashboard_grade' in key:
-            return 'Risk Metrics'
+            return 'Risk Metrics
         elif 'execution_mode' in key or 'alpaca_paper' in key or 'max_trades_per_day' in key or 'default_portfolio' in key:
-            return 'Execution Mode'
+            return 'Execution Mode
         elif 'enable_' in key or 'verbose_' in key:
-            return 'Feature Flags'
+            return 'Feature Flags
         elif 'api_request' in key or 'db_connection' in key:
-            return 'Network Configuration'
+            return 'Network Configuration
         elif 'failsafe' in key:
-            return 'Failsafe Configuration'
+            return 'Failsafe Configuration
         elif 'base_risk' in key or 'max_position_size' in key or 'max_concentration' in key:
-            return 'Risk Management'
+            return 'Risk Management
         else:
-            return 'Other'
+            return 'Other
 
 @db_route_handler('fetch algo config', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
 def _get_algo_config(cur) -> Dict:
@@ -2901,8 +2897,8 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
         FROM orchestrator_execution_log,
              jsonb_array_elements(phase_results) as phase_results
         WHERE run_date >= CURRENT_DATE - %s
-          AND phase_results->>'status' = 'halt'
-        GROUP BY phase_results->>'name'
+          AND phase_results->>'status' = 'halt
+        GROUP BY phase_results->>'name
         ORDER BY halt_count DESC
     """, (days,))
     rows = cur.fetchall()
@@ -2973,7 +2969,7 @@ def _get_algo_portfolio(cur) -> Dict:
                     'losing_positions': 0,
                     'breakeven_positions': 0,
                     'source': 'open_positions_only',
-                    'note': 'Includes only open positions (no closed trades, no dividends)'
+                    'note': 'Includes only open positions (no closed trades, no dividends)
                 },
                 'cumulative_return_pct': None,
                 'max_drawdown_pct': None,
@@ -2994,7 +2990,7 @@ def _get_algo_portfolio(cur) -> Dict:
                 'losing_positions': safe_int(data.get('unrealized_pnl_losing_count')),
                 'breakeven_positions': safe_int(data.get('unrealized_pnl_breakeven_count')),
                 'source': data.get('unrealized_pnl_source', 'open_positions_only'),
-                'note': 'Includes only open positions (no closed trades, no dividends)'
+                'note': 'Includes only open positions (no closed trades, no dividends)
             },
             'cumulative_return_pct': safe_float(data.get('cumulative_return_pct')),
             'max_drawdown_pct': safe_float(data.get('max_drawdown_pct')),
@@ -3252,7 +3248,7 @@ def _get_trade_distribution(cur) -> Dict:
         cur.execute("""
             SELECT exit_r_multiple
             FROM algo_trades
-            WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
+            WHERE exit_r_multiple IS NOT NULL AND status = 'closed
             ORDER BY exit_date DESC
             LIMIT 500
         """)
@@ -3354,16 +3350,16 @@ def _get_stage_distribution(cur) -> Dict:
             SELECT
                 COUNT(*) as count,
                 CASE
-                    WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
+                    WHEN weinstein_stage = 1 THEN 'Stage 1 (base)
                     WHEN weinstein_stage = 2 THEN
                         CASE
-                            WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
-                            WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
-                            ELSE 'Mid Stage-2'
+                            WHEN minervini_trend_score < 4 THEN 'Early Stage-2
+                            WHEN minervini_trend_score >= 6 THEN 'Late Stage-2
+                            ELSE 'Mid Stage-2
                         END
-                    WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
-                    WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
-                    ELSE 'Unknown'
+                    WHEN weinstein_stage = 3 THEN 'Stage 3 (top)
+                    WHEN weinstein_stage = 4 THEN 'Stage 4 (down)
+                    ELSE 'Unknown
                 END as phase
             FROM algo_positions_with_risk
             GROUP BY phase, weinstein_stage

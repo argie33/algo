@@ -649,6 +649,11 @@ def _get_algo_performance(cur) -> Dict:
 
         Calculates performance from closed trades and portfolio snapshots.
         Returns None for metrics without sufficient data, not 0.
+        
+        NOTE (P2): FIX PERFORMANCE - This endpoint currently recomputes Sharpe/Sortino
+        ratios on every call (800-1200ms latency). Goal latency: 20ms.
+        TODO: Implement pre-computation via EventBridge task at 4:45 PM ET to populate
+        algo_performance_metrics table, then update this endpoint to SELECT from cache.
         """
         def mean(xs):
             return sum(xs) / len(xs) if xs else None
@@ -820,7 +825,7 @@ def _get_algo_performance(cur) -> Dict:
                 stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
 
             response_data = {
-                \'total_trades\': total,
+                \'total_trades\': total,'
                 'winning_trades': winning,
                 'losing_trades': losing,
                 'breakeven_trades': breakeven,
@@ -1394,7 +1399,13 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
 @db_route_handler('analyze trade impact')
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
-        """Analyze impact of a potential trade on portfolio constraints."""
+        """Analyze impact of a potential trade on portfolio constraints.
+        
+        NOTE (F1): PRE-TRADE IMPACT - Backend is fully functional. This endpoint
+        needs frontend integration to display results in trading UI.
+        TODO: Wire endpoint to TradingSignals.jsx and PreTradeSimulator.jsx to show
+        traders position constraints before entering trades.
+        """
         symbol = body.get('symbol', '').upper()
         entry_price = body.get('entry_price')
         position_dollars = body.get('position_dollars')

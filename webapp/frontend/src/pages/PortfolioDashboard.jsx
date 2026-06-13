@@ -747,8 +747,8 @@ export default function PortfolioDashboard() {
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data, loading }) {
-  const breakers = Array.isArray(data) ? data : data?.breakers || [];
-  const error = data?._error;
+  const breakers = Array.isArray(data) ? data : (data && typeof data === 'object' && Array.isArray(data.breakers) ? data.breakers : []);
+  const error = data && typeof data === 'object' ? data._error : null;
 
   if (loading) {
     return <SkeletonCircuitBreaker />;
@@ -1066,8 +1066,8 @@ function TradeDistribution({ distribution_data, loading }) {
 // ─── Holding period histogram ──────────────────────────────────────────────
 function HoldingPeriodHistogram({ holding_data }) {
   const { buckets, isPlaceholder } = useMemo(() => {
-    if (!holding_data) return { buckets: [], isPlaceholder: false };
-    const data = holding_data.buckets || [];
+    if (!holding_data || typeof holding_data !== 'object') return { buckets: [], isPlaceholder: false };
+    const data = Array.isArray(holding_data.buckets) ? holding_data.buckets : [];
     const placeholder = holding_data._is_placeholder === true;
     return { buckets: data, isPlaceholder: placeholder };
   }, [holding_data]);
@@ -1106,11 +1106,11 @@ function HoldingPeriodHistogram({ holding_data }) {
 
 // ─── R-multiple ladder per position ────────────────────────────────────────
 function RLadderPanel({ positions, loading, onSelect }) {
-  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []).filter(p => p && typeof p === 'object');
   const ladders = useMemo(() => {
-    if (!posArray) return [];
+    if (!Array.isArray(posArray) || posArray.length === 0) return [];
     return posArray
-      .filter(p => p.ladder_pct_stop != null && p.ladder_pct_entry != null && p.ladder_pct_current != null)
+      .filter(p => p && p.ladder_pct_stop != null && p.ladder_pct_entry != null && p.ladder_pct_current != null)
       .map(p => ({
         symbol: p.symbol,
         r_multiple: p.r_multiple,
@@ -1204,15 +1204,15 @@ function RChip({ r }) {
 function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
   const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
   const data = useMemo(() => {
-    if (!posArray) return [];
+    if (!Array.isArray(posArray) || posArray.length === 0) return [];
     return posArray
-      .filter(p => (p.open_risk_dollars || 0) > 0)
+      .filter(p => p && (p.open_risk_dollars || 0) > 0)
       .map(p => ({
-        symbol: p.symbol,
-        risk: Number(p.open_risk_dollars) || 0,
-        risk_pct: Number(p.risk_pct) || 0,
+        symbol: p?.symbol,
+        risk: Number(p?.open_risk_dollars) || 0,
+        risk_pct: Number(p?.risk_pct) || 0,
       }))
-      .sort((a, b) => b.risk - a.risk);
+      .sort((a, b) => (b.risk || 0) - (a.risk || 0));
   }, [posArray]);
   // Risk percentage is pre-computed per-position; aggregate using backend-computed total
   const totalRisk = data.reduce((s, d) => s + d.risk, 0);
@@ -1261,8 +1261,8 @@ function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
 
 // ─── Sector concentration bar chart ────────────────────────────────────────
 function SectorConcentration({ sector_allocation, loading }) {
-  const data = sector_allocation || [];
-  const overweight = data.find(d => d.allocation_pct > 30);
+  const data = Array.isArray(sector_allocation) ? sector_allocation : [];
+  const overweight = data.length > 0 ? data.find(d => d && d.allocation_pct > 30) : undefined;
 
   return (
     <div className="card">
@@ -1309,8 +1309,9 @@ function SectorConcentration({ sector_allocation, loading }) {
 // ─── Stage phase donut ─────────────────────────────────────────────────────
 function StagePhaseDonut({ distribution, loading }) {
   const data = useMemo(() => {
-    if (!distribution || !distribution.distribution) return [];
-    return distribution.distribution || [];
+    if (!distribution || typeof distribution !== 'object') return [];
+    const distArray = Array.isArray(distribution.distribution) ? distribution.distribution : [];
+    return distArray.length > 0 ? distArray : [];
   }, [distribution]);
 
   const colorFor = (p) => {
@@ -1359,7 +1360,7 @@ function StagePhaseDonut({ distribution, loading }) {
 
 // ─── Position health table ─────────────────────────────────────────────────
 function PositionHealthTable({ positions, loading, onSelect }) {
-  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []).filter(p => p && typeof p === 'object');
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
       <div className="card-head">
