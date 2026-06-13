@@ -15,7 +15,6 @@ from routes.utils import (
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
-from utils.fallback_registry import get_hardcoded_fallback_values, log_fallback_usage, FallbackTrigger
 import math
 
 logger = logging.getLogger(__name__)
@@ -215,18 +214,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
     elif path == '/api/algo/data-quality':
             # Data quality accessible to authenticated users
             return _get_data_quality(cur)
-    elif path == '/api/algo/daily-return-histogram':
-            # Daily return histogram accessible to authenticated users
-            return _get_daily_return_histogram(cur)
-    elif path == '/api/algo/trade-distribution':
-            # Trade distribution accessible to authenticated users
-            return _get_trade_distribution(cur)
-    elif path == '/api/algo/holding-period-distribution':
-            # Holding period distribution accessible to authenticated users
-            return _get_holding_period_distribution(cur)
-    elif path == '/api/algo/stage-distribution':
-            # Stage distribution accessible to authenticated users
-            return _get_stage_distribution(cur)
     elif path == '/api/algo/exposure-policy':
             # Exposure policy accessible to authenticated users
             return _get_exposure_policy(cur)
@@ -3087,8 +3074,15 @@ def _get_performance_analytics(cur) -> Dict:
 
 @db_route_handler('get sentiment', default_error_response={})
 def _get_sentiment(cur) -> Dict:
-    """Get market sentiment data."""
+    """Get market sentiment data with explicit fallback flagging.
+
+    Removed silent fallback to neutral sentiment (50.0). Returns explicit
+    _is_fallback_data flag when data is missing, enabling clients to detect
+    and handle incomplete data rather than displaying stale defaults.
+    """
     try:
+        freshness = check_data_freshness(cur, 'market_sentiment', 'date', warning_days=1)
+
         cur.execute("""
             SELECT date, fear_greed_index, label
             FROM market_sentiment
@@ -3096,17 +3090,39 @@ def _get_sentiment(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+
         if row is None:
+            logger.warning('Sentiment data missing: market_sentiment table is empty')
             return success_response({
                 'date': None,
-                'fear_greed_index': 50.0,
-                'label': 'Neutral'
+                'fear_greed_index': None,
+                'label': None,
+                '_is_fallback_data': True,
+                '_warning': 'Sentiment data unavailable',
+                'data_freshness': freshness
             })
+
         data = safe_dict_convert(row)
+        fear_greed = data.get('fear_greed_index')
+        label = data.get('label')
+
+        if fear_greed is None or label is None:
+            logger.warning(f'Sentiment data incomplete: fear_greed={fear_greed}, label={label}')
+            return success_response({
+                'date': data.get('date'),
+                'fear_greed_index': fear_greed,
+                'label': label,
+                '_is_fallback_data': True,
+                '_warning': 'Sentiment data incomplete',
+                'data_freshness': freshness
+            })
+
         return success_response({
             'date': data.get('date'),
-            'fear_greed_index': safe_float(data.get('fear_greed_index'), default=50.0),
-            'label': data.get('label', 'Neutral')
+            'fear_greed_index': safe_float(fear_greed),
+            'label': label,
+            '_is_fallback_data': False,
+            'data_freshness': freshness
         })
     except Exception as e:
         logger.error(f'Sentiment fetch error: {type(e).__name__}: {e}')

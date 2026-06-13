@@ -154,4 +154,8 @@ ADMIN_RATE_LIMITS = {
     '/api/algo/positions': {'max_requests': 10, 'window': 60},        # Sensitive data
     '/api/algo/patrol': {'max_requests': 5, 'window': 300},           # Triggers expensive operation
     '/api/algo/pre-trade-impact': {'max_requests': 5, 'window': 300}, # Triggers expensive operation
+    '/api/algo/daily-return-histogram': {'max_requests': 20, 'window': 60},  # Dashboard histogram
+    '/api/algo/trade-distribution': {'max_requests': 20, 'window': 60},      # Dashboard histogram
+    '/api/algo/holding-period-distribution': {'max_requests': 20, 'window': 60},  # Dashboard histogram
+    '/api/algo/stage-distribution': {'max_requests': 20, 'window': 60},  # Dashboard histogram
 }

@@ -148,17 +148,10 @@ FALLBACK_CHAINS: Dict[str, FallbackChain] = {
                 conditions="Database also missing or incomplete",
                 logs_with="[VIX] computed estimate from SPY returns"
             ),
-            FallbackStep(
-                name="neutral_default",
-                priority=3,
-                description="Neutral VIX=20.0 (last resort)",
-                conditions="All sources exhausted (CRITICAL)",
-                logs_with="[VIX] CRITICAL - unavailable from all sources, halting trading"
-            ),
         ],
         metrics_tracked=["vix_fallback_uses", "vix_source_by_day", "vix_estimation_error"],
         recovery_condition="Next trading day or manual data refresh",
-        safety_notes="Never silently use default VIX - always halt trading if VIX unavailable. VIX is critical for drawdown protection.",
+        safety_notes="When all sources fail (API, database, SPY data), VIX check halts trading. Never return neutral default (20.0) — trading cannot proceed without volatility assessment.",
     ),
 
     "alpaca_credentials": FallbackChain(
@@ -211,49 +204,19 @@ FALLBACK_CHAINS: Dict[str, FallbackChain] = {
 
     "performance_metrics": FallbackChain(
         resource="Performance Metrics (Dashboard)",
-        primary_source="API endpoint (/api/algo/performance)",
+        primary_source="Database direct fetch (trades + portfolio snapshots)",
         fallbacks=[
             FallbackStep(
-                name="database_cache",
+                name="incomplete_data",
                 priority=1,
-                description="Last successful API response cached in memory",
-                conditions="API request fails",
-                logs_with="[METRICS] using database fallback — API unavailable"
-            ),
-            FallbackStep(
-                name="hardcoded_defaults",
-                priority=2,
-                description="All-zero placeholder metrics: total_trades=0, win_rate=0%, profit_factor=0, sharpe=0, max_drawdown=0%, etc.",
-                conditions="Neither API nor cache available (rare)",
-                logs_with="[METRICS] CRITICAL - using hardcoded defaults (all zeros)",
-                hardcoded_values={
-                    "total_trades": 0,
-                    "winning_trades": 0,
-                    "losing_trades": 0,
-                    "breakeven_trades": 0,
-                    "win_rate_pct": 0.0,
-                    "profit_factor": 0.0,
-                    "total_pnl_dollars": 0.0,
-                    "total_pnl_pct": 0.0,
-                    "total_return_pct": 0.0,
-                    "avg_win_pct": 0.0,
-                    "avg_loss_pct": 0.0,
-                    "best_trade_pct": 0.0,
-                    "worst_trade_pct": 0.0,
-                    "sharpe_ratio": 0.0,
-                    "sortino_ratio": 0.0,
-                    "max_drawdown_pct": 0.0,
-                    "avg_holding_days": 0.0,
-                    "expectancy_r": 0.0,
-                    "best_win_streak": 0,
-                    "worst_loss_streak": 0,
-                    "current_streak": 0,
-                }
+                description="Return None for metrics without sufficient data (no trades, no snapshots, missing values)",
+                conditions="Closed trades empty or portfolio snapshots insufficient (e.g., < 2 snapshots for Sharpe)",
+                logs_with="[METRICS] insufficient data — returning None for metrics without samples"
             ),
         ],
-        metrics_tracked=["performance_api_failures", "cache_fallback_uses", "cache_age_at_fallback"],
-        recovery_condition="Next API request succeeds and refreshes cache",
-        safety_notes="Users see 'stale_alerts' in dashboard when fallback is used. Cache age should be displayed. All-zero fallback is a CRITICAL state meaning no real performance data available.",
+        metrics_tracked=["performance_fetch_failures", "metrics_with_null_values"],
+        recovery_condition="When trades close or new portfolio snapshots available",
+        safety_notes="Never return hardcoded all-zero metrics. Instead return None for individual metrics without sufficient data. Dashboard displays '--' for unavailable metrics. Users know data is missing vs. showing fake zeros.",
     ),
 
     "price_data": FallbackChain(

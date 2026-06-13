@@ -200,6 +200,21 @@ scripts/refresh-aws-credentials.ps1
 
 **Environment Naming:** `environment = "dev"` (all AWS resources named `-dev`). Change to `prod` if staging provisioned in same account.
 
+## Data Integrity & Resilience
+
+**Technical Data Enrichment Pipeline:**
+- `load_technical_data_daily_vectorized.py` (async, optimized for 5000+ symbols)
+- `enrich_buy_sell_daily_technical.py` (post-processing backfill for incomplete loads)
+
+Technical indicators (RSI, SMA_50, SMA_200, EMA_21, ADX, ATR, Mansfield_RS) are computed daily by the vectorized loader and stored in `technical_data_daily`. When the loader completes with < 70% coverage (normal: 80-83%), `buy_sell_daily` signals may have NULL technical columns. The enrichment script automatically backfills these from `technical_data_daily` after the loader finishes.
+
+**Execution order:**
+1. Morning/EOD pipeline: `load_technical_data_daily_vectorized.py` (2:15 AM, 4:05 PM ET)
+2. Subsequent: `load_buy_sell_daily.py` (same pipeline, expects tech data to be available)
+3. Backfill (if needed): `enrich_buy_sell_daily_technical.py` (manual or automated post-load)
+
+This design tolerates incomplete upstream data and ensures signals always have technical data when available.
+
 ## Known Limitations & Mitigations
 
 **F-01 (Intraday pricing):** RealtimePricingEngine tries Alpaca Data API → IEX Cloud → YFinance → daily fallback. Market hours (9:30 AM - 4 PM ET): real-time prices. Outside hours or if APIs fail: daily prices from database.
