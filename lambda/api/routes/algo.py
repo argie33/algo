@@ -569,7 +569,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
 
             # Accumulate sector allocation for aggregation (Issue #1)
             sector = d.get('sector', 'Unknown')
-            pos_val = safe_float(d.get('position_value')) or 0
+            pos_val = safe_float(d.get('position_value'), default=0.0)
             if sector not in sector_risk:
                 sector_risk[sector] = 0
             sector_risk[sector] += pos_val
