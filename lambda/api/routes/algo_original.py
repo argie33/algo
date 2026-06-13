@@ -2824,7 +2824,7 @@ def _get_algo_portfolio(cur) -> Dict:
         logger.error(f'Portfolio fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Portfolio data unavailable')
 
-@db_route_handler('get algo metrics', default_error_response=[])
+@db_route_handler('get algo metrics', default_error_response={'data': []})
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
     try:

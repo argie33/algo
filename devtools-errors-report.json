@@ -1,0 +1,471 @@
+{
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "[AppLayout] Market fetch failed: {message: Request failed with status code 503, code: ERR_BAD_RESPONSE, status: 503, endpoint: /api/algo/markets}",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 2
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/notifications",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "[AppLayout] Notifications fetch failed: {message: Request failed with status code 503, code: ERR_BAD_RESPONSE, status: 503, endpoint: /api/algo/notifications}",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 2
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/sector-rotation?limit=90",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 ()",
+      "location": {
+        "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/sector-rotation?limit=90",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      },
+      "args": 0
+    },
+    {
+      "type": "error",
+      "text": "[API] Request failed with status 503 : Request failed with status code 503",
+      "location": {
+        "url": "http://localhost:5174/src/main.jsx",
+        "line": 30,
+        "column": 24,
+        "lineNumber": 30,
+        "columnNumber": 24
+      },
+      "args": 4
+    }
+  ],
+  "consoleWarnings": [],
+  "consoleMessages": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": {
+        "url": "http://localhost:5174/@vite/client",
+        "line": 732,
+        "column": 8,
+        "lineNumber": 732,
+        "columnNumber": 8
+      },
+      "args": 1
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": {
+        "url": "http://localhost:5174/@vite/client",
+        "line": 826,
+        "column": 11,
+        "lineNumber": 826,
+        "columnNumber": 11
+      },
+      "args": 1
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "location": {
+        "url": "http://localhost:5174/node_modules/.vite/deps/chunk-MNF4PNE3.js?v=818ee0a0",
+        "line": 21608,
+        "column": 24,
+        "lineNumber": 21608,
+        "columnNumber": 24
+      },
+      "args": 2
+    },
+    {
+      "type": "debug",
+      "text": "[API Config] Source: window.__CONFIG__, baseURL: \"https://d2u93283nn45h2.cloudfront.net\"",
+      "location": {
+        "url": "http://localhost:5174/src/services/api.js",
+        "line": 43,
+        "column": 12,
+        "lineNumber": 43,
+        "columnNumber": 12
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "[INFO] Main: React application initialization starting undefined",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 159,
+        "column": 12,
+        "lineNumber": 159,
+        "columnNumber": 12
+      },
+      "args": 3
+    },
+    {
+      "type": "log",
+      "text": "[INFO] Main: React root created successfully undefined",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 159,
+        "column": 12,
+        "lineNumber": 159,
+        "columnNumber": 12
+      },
+      "args": 3
+    },
+    {
+      "type": "log",
+      "text": "[INFO] Main: Explicit config.js fetch succeeded, using fresh config {apiUrl: https://d2u93283nn45h2.cloudfront.net, buildTime: 2026-06-13T01:19:19.453Z}",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 159,
+        "column": 12,
+        "lineNumber": 159,
+        "columnNumber": 12
+      },
+      "args": 3
+    },
+    {
+      "type": "log",
+      "text": "[INFO] Main: Config already loaded {apiUrl: https://d2u93283nn45h2.cloudfront.net, environment: development}",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 159,
+        "column": 12,
+        "lineNumber": 159,
+        "columnNumber": 12
+      },
+      "args": 3
+    },
+    {
+      "type": "log",
+      "text": "[AMPLIFY] ✅ Configured with real Cognito: us-east-1_XJ...",
+      "location": {
+        "url": "http://localhost:5174/src/config/amplify.js",
+        "line": 72,
+        "column": 14,
+        "lineNumber": 72,
+        "columnNumber": 14
+      },
+      "args": 2
+    },
+    {
+      "type": "debug",
+      "text": "[API Config] Source: window.__CONFIG__, baseURL: \"https://d2u93283nn45h2.cloudfront.net\"",
+      "location": {
+        "url": "http://localhost:5174/src/services/api.js",
+        "line": 43,
+        "column": 12,
+        "lineNumber": 43,
+        "columnNumber": 12
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "[OK] Main - React application render initiated succeeded {timestamp: 2026-06-13T17:03:46.117Z, component: Main, operation: React application render initiated, resultSize: N/A, context: Object}",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 140,
+        "column": 12,
+        "lineNumber": 140,
+        "columnNumber": 12
+      },
+      "args": 2
+    },
+    {
+      "type": "log",
+      "text": "[AUTH] ✅ Cognito configured, checking auth state",
+      "location": {
+        "url": "http://localhost:5174/src/contexts/AuthContext.jsx",
+        "line": 335,
+        "column": 16,
+        "lineNumber": 335,
+        "columnNumber": 16
+      },
+      "args": 1
+    },
+    {
+      "type": "info",
+      "text": "[AUTH] No active session — user not logged in",
+      "location": {
+        "url": "http://localhost:5174/src/contexts/AuthContext.jsx",
+        "line": 285,
+        "column": 20,
+        "lineNumber": 285,
+        "columnNumber": 20
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "[AUTH] 🔧 Dev mode: Cognito configured but no active session — using dev auto-authentication",
+      "location": {
+        "url": "http://localhost:5174/src/contexts/AuthContext.jsx",
+        "line": 290,
+        "column": 20,
+        "lineNumber": 290,
+        "columnNumber": 20
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "[AUTH] Starting session with rememberMe=false",
+      "location": {
+        "url": "http://localhost:5174/src/contexts/AuthContext.jsx",
+        "line": 379,
+        "column": 20,
+        "lineNumber": 379,
+        "columnNumber": 20
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "✅ Session started: 30 minutes timeout (0.0 days)",
+      "location": {
+        "url": "http://localhost:5174/src/services/sessionManager.js",
+        "line": 58,
+        "column": 12,
+        "lineNumber": 58,
+        "columnNumber": 12
+      },
+      "args": 1
+    },
+    {
+      "type": "log",
+      "text": "[OK] Main - React application rendered successfully succeeded {timestamp: 2026-06-13T17:03:48.130Z, component: Main, operation: React application rendered successfully, resultSize: 2, context: Object}",
+      "location": {
+        "url": "http://localhost:5174/src/utils/errorLogger.js",
+        "line": 140,
+        "column": 12,
+        "lineNumber": 140,
+        "columnNumber": 12
+      },
+      "args": 2
+    }
+  ],
+  "networkErrors": [
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/notifications",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/markets",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/sector-rotation?limit=90",
+      "statusText": ""
+    },
+    {
+      "status": 503,
+      "url": "https://d2u93283nn45h2.cloudfront.net/api/algo/sector-rotation?limit=90",
+      "statusText": ""
+    }
+  ],
+  "unhandledRejections": [],
+  "resourceErrors": []
+}
