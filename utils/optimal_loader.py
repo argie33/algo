@@ -885,6 +885,10 @@ class OptimalLoader(ABC):
             # Start heartbeat thread to signal loader is alive (for hung task detection)
             self._start_heartbeat()
 
+            # Capture execution start time early to track all execution attempts
+            start = time.time()
+            self._execution_start_time = start
+
             # ISSUE #5 FIX: Check upstream completeness before proceeding
             symbols = list(symbols)
             if not self._check_upstream_completeness(len(symbols)):
@@ -892,10 +896,12 @@ class OptimalLoader(ABC):
                 logger.error(f"[{self.table_name}] Aborting due to incomplete upstream data")
                 self._update_loader_status("FAILED")
                 self._stop_heartbeat()
+                # Log this as a failed execution attempt
+                try:
+                    self._log_execution_history(status='failed', error_message='Upstream data incomplete')
+                except Exception as e:
+                    logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
                 return self._stats
-
-            start = time.time()
-            self._execution_start_time = start  # Track for execution history logging
             mode = (
                 f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
             )
