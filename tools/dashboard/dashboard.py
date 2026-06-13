@@ -71,6 +71,11 @@ def _fetch_terraform_credentials():
     import os
 
     try:
+        # Ensure AWS_PROFILE is set for Terraform
+        if not os.environ.get("AWS_PROFILE"):
+            os.environ["AWS_PROFILE"] = "algo-developer"
+            logger.debug("Set AWS_PROFILE=algo-developer")
+
         # Find terraform directory - try multiple paths
         possible_roots = [
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),  # From tools/dashboard/
