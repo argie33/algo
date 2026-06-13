@@ -1,7 +1,7 @@
 """Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, json, os, sys, importlib.util
+import logging, re, json, os, sys
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
@@ -12,71 +12,15 @@ from routes.utils import (
     check_data_freshness, safe_json_serialize
 )
 
-# Import from root utils package using importlib to avoid package shadowing issues
-# (there's both /lambda/api/utils/ and /utils/ which causes conflicts)
+# Import from root utils package
 _root_dir = str(Path(__file__).parent.parent.parent.parent)
-# Ensure root utils is in sys.path for importlib modules to find it
 if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
-import importlib.util
 
-# Build path for admin_rate_limiter.py - handle both /var/task (Lambda) and local dev paths
-_admin_path = Path(_root_dir) / "utils" / "admin_rate_limiter.py"
-if not _admin_path.exists():
-    # Fallback: try /var/task/utils/ if root path doesn't exist (Lambda cold start)
-    _admin_path = Path("/var/task") / "utils" / "admin_rate_limiter.py"
-if not _admin_path.exists():
-    # Last resort: look for it in the lambda package's utils directory
-    _admin_path = Path(__file__).parent.parent / "utils" / "admin_rate_limiter.py"
-
-_admin_spec = importlib.util.spec_from_file_location(
-    "admin_rate_limiter",
-    str(_admin_path)
-)
-_admin_module = importlib.util.module_from_spec(_admin_spec)
-_admin_spec.loader.exec_module(_admin_module)
-check_admin_rate_limit = _admin_module.check_admin_rate_limit
-ADMIN_RATE_LIMITS = _admin_module.ADMIN_RATE_LIMITS
-
-_safe_path = Path(_root_dir) / "utils" / "safe_data_conversion.py"
-if not _safe_path.exists():
-    _safe_path = Path("/var/task") / "utils" / "safe_data_conversion.py"
-if not _safe_path.exists():
-    _safe_path = Path(__file__).parent.parent / "utils" / "safe_data_conversion.py"
-_safe_spec = importlib.util.spec_from_file_location(
-    "safe_data_conversion",
-    str(_safe_path)
-)
-_safe_module = importlib.util.module_from_spec(_safe_spec)
-_safe_spec.loader.exec_module(_safe_module)
-safe_float = _safe_module.safe_float
-safe_float_strict = _safe_module.safe_float_strict
-safe_int = _safe_module.safe_int
-
-# Import unified metrics fetcher (same source used by dashboard)
-_fetcher_path = Path(_root_dir) / "utils" / "algo_metrics_fetcher.py"
-if not _fetcher_path.exists():
-    _fetcher_path = Path("/var/task") / "utils" / "algo_metrics_fetcher.py"
-if not _fetcher_path.exists():
-    _fetcher_path = Path(__file__).parent.parent / "utils" / "algo_metrics_fetcher.py"
-_fetcher_spec = importlib.util.spec_from_file_location(
-    "algo_metrics_fetcher",
-    str(_fetcher_path)
-)
-_fetcher_module = importlib.util.module_from_spec(_fetcher_spec)
-_fetcher_spec.loader.exec_module(_fetcher_module)
-AlgoMetricsFetcher = _fetcher_module.AlgoMetricsFetcher
-
-# Import fallback registry to use documented fallback values
-_fallback_spec = importlib.util.spec_from_file_location(
-    "fallback_registry",
-    str(Path(_root_dir) / "utils" / "fallback_registry.py")
-)
-_fallback_module = importlib.util.module_from_spec(_fallback_spec)
-_fallback_spec.loader.exec_module(_fallback_module)
-get_hardcoded_fallback_values = _fallback_module.get_hardcoded_fallback_values
-log_fallback_usage = _fallback_module.log_fallback_usage
-FallbackTrigger = _fallback_module.FallbackTrigger
+from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
+from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int
+from utils.algo_metrics_fetcher import AlgoMetricsFetcher
+from utils.fallback_registry import get_hardcoded_fallback_values, log_fallback_usage, FallbackTrigger
 
 logger = logging.getLogger(__name__)
 

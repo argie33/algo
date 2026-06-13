@@ -16,15 +16,3 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 main_py = os.path.join(script_dir, "main.py")
 
 sys.exit(subprocess.call([sys.executable, main_py] + sys.argv[1:]))
-    panel_exposure_compact, panel_status, panel_algo_health,
-    mascot_compact, loading_layout, _expanded_layout,
-    panel_signals_expanded, panel_algo_health_expanded,
-    panel_sectors_expanded,
-)
-
-from main import (
-    render_dashboard, run_once, run_watch, print_legend, main,
-)
-
-if __name__ == "__main__":
-    main()

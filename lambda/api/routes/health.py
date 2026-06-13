@@ -6,15 +6,10 @@ from datetime import datetime, timezone
 from routes.utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error, safe_json_serialize
 import sys
 import os
-import importlib.util
 from pathlib import Path
 
-# Import get_config from lambda/api/utils/config.py
-config_path = Path(__file__).parent.parent / 'utils' / 'config.py'
-spec = importlib.util.spec_from_file_location("health_config", config_path)
-config_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(config_module)
-get_config = config_module.get_config
+# Import get_config from lambda/api/api_utils/config.py
+from api_utils.config import get_config
 
 # C-4 FIX: Import route status for health endpoint
 try:

@@ -13,15 +13,12 @@ import traceback
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-# Add lambda/api to path so routes module can be imported
-# IMPORTANT: /lambda/api must come FIRST so that /lambda/api/utils is found before /utils (avoids naming conflicts)
+# Ensure modules can be imported: lambda/api (routes, api_utils), root utils, and project modules.
+# In development: project root is needed so utils/ and other modules are importable.
+# In Lambda: /var/task is prepended by AWS; we add it explicitly for clarity.
 if not __file__.startswith('/var/task'):
-    # Local dev (Mac, Linux, Windows): add project root so utils/ is importable
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-# Utils are packaged in the same directory as lambda_function.py (/var/task)
-# Explicitly add /var/task to ensure utils module can be imported
 sys.path.insert(0, '/var/task')
-# Add lambda/api LAST so it comes FIRST in sys.path (insert(0) reverses order)
 sys.path.insert(0, str(Path(__file__).parent))
 
 IMPORT_ERROR = None
@@ -47,7 +44,7 @@ try:
     import jwt
     import requests
     import api_router
-    from utils.database_context import DatabaseContext
+    from api_utils.database_context import DatabaseContext
 except Exception as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 
@@ -219,7 +216,7 @@ def test_db_connection():
     start_time = time.time()
 
     try:
-        from utils.db_connection import get_db_connection
+        from api_utils.db_connection import get_db_connection
         # Increased timeouts: 5s for connection, allows for slow startups
         conn = get_db_connection(max_retries=0, timeout=5)
         connect_time = time.time() - start_time
@@ -580,7 +577,7 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         jti = payload.get('jti')
         if jti:
             try:
-                from utils.token_blocklist import is_revoked
+                from api_utils.token_blocklist import is_revoked
                 if is_revoked(jti):
                     return (False, None, "Token has been revoked")
             except Exception as e:
@@ -958,7 +955,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     exp = jwt_claims.get('exp')
                     if jti and exp:
                         try:
-                            from utils.token_blocklist import revoke_token
+                            from api_utils.token_blocklist import revoke_token
                             revoke_token(jti, int(exp))
                         except Exception as e:
                             logger.error(f"[LOGOUT] Blocklist write failed: {e}")
