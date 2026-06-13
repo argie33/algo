@@ -59,9 +59,9 @@ os.environ['DB_PASSWORD'] = creds['password'] or 'stocks'
 db_source = "AWS Secrets Manager" if creds['host'] != 'localhost' else "environment variables (localhost fallback)"
 print(f"[DEV_SERVER] DB_HOST={os.environ['DB_HOST']} ({db_source})", flush=True)
 if creds['host'] != 'localhost':
-    print(f"[DEV_SERVER] ✓ Using real AWS RDS Proxy", flush=True)
+    print(f"[DEV_SERVER] [OK] Using real AWS RDS Proxy", flush=True)
 else:
-    print(f"[DEV_SERVER] ⚠⚠⚠ ALERT: Using localhost - RDS Proxy is VPC-internal and NOT accessible from local machine", flush=True)
+    print(f"[DEV_SERVER] [WARN] Using localhost - RDS Proxy is VPC-internal and NOT accessible from local machine", flush=True)
     print(f"[DEV_SERVER] To see real AWS data:", flush=True)
     print(f"[DEV_SERVER]   1. Web Frontend: terraform output website_url  (open in browser)", flush=True)
     print(f"[DEV_SERVER]   2. EC2 Dashboard: ssh to instance in VPC then run python tools/dashboard/dashboard.py", flush=True)
