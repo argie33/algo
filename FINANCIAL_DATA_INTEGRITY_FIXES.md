@@ -406,3 +406,52 @@ If issues occur post-deployment:
 
 **Safety:** These changes RESTRICT signal generation (make it harder), so rollback is safe.
 
+---
+
+## IMPLEMENTATION STATUS (as of 2026-06-13)
+
+### ✅ COMPLETED IMMEDIATE FIXES
+
+1. **Fix 999999 placeholder in swing low/high detection**
+   - Commit: c440543d2
+   - Status: DEPLOYED
+   - Testing: Requires integration test with real data
+
+2. **Add volume surge capping flag**
+   - Commit: c440543d2 (code), b3d827b42 (migration)
+   - Status: DEPLOYED
+   - Migration: `migrations/versions/049_add_data_integrity_tracking.sql`
+   - Requires: `python migrations/run.py apply --all`
+
+3. **Fix consolidation range fake 999.0**
+   - Commit: c440543d2
+   - Status: DEPLOYED
+
+4. **Fix technical data age sentinel (999 → -1)**
+   - Commit: c440543d2
+   - Status: DEPLOYED
+
+5. **Add ROC capping warnings**
+   - Commit: c440543d2
+   - Status: DEPLOYED
+   - Logging added for visibility into metric truncation
+
+### ✅ COMPLETED DOCUMENTATION
+
+6. **Configuration defaults registry**
+   - File: `config/defaults_registry.md`
+   - Commit: c0470600a
+   - Status: DEPLOYED
+
+7. **Signal rejection categories taxonomy**
+   - File: `docs/SIGNAL_REJECTION_CATEGORIES.md`
+   - Commit: c0470600a
+   - Status: DEPLOYED
+
+### ⏳ PENDING WORK
+
+- Run migration 049 in database
+- Create fallback data integration test
+- Test volume_surge_capped display in dashboard
+- Implement data provenance tracking for API responses
+
