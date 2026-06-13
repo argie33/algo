@@ -29,6 +29,11 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+try:
+    from api_data_layer import DashboardDataAPI
+except ImportError:
+    DashboardDataAPI = None
+
 import requests
 import requests.exceptions
 
@@ -36,6 +41,24 @@ from data_validation import (
     safe_float, safe_int, safe_json_parse, safe_bool, safe_str,
     validate_required_fields, validate_field_types, log_data_issue
 )
+
+# Simple API call wrapper for dashboard-specific endpoints
+def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+    """Call Lambda API endpoint. Returns dict with '_error' key on failure."""
+    url = f"{os.environ.get('DASHBOARD_API_URL', 'http://localhost:3001')}{endpoint}"
+    try:
+        if method == "GET":
+            resp = requests.get(url, params=params, timeout=10)
+        else:
+            resp = requests.post(url, json=params, timeout=10)
+        if resp.status_code >= 400:
+            return {"_error": f"API error {resp.status_code}"}
+        data = resp.json()
+        if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
+            return {"_error": data.get("message", "Unknown error")}
+        return data
+    except Exception as e:
+        return {"_error": str(e)}
 
 try:
     import msvcrt
@@ -258,13 +281,22 @@ def return_conn(conn):
             pass
 
 def q(c, sql, p=None):
-    with c.cursor() as cur:
-        cur.execute(sql, p or ())
-        return [dict(r) for r in cur.fetchall()]
+    """Deprecated: Direct DB queries removed. Use DashboardDataAPI instead.
+
+    Returns empty list to allow dashboard to continue with API-only data.
+    See DASHBOARD_API_MIGRATION.md for endpoint mappings.
+    """
+    logger.warning(f"DB query called (deprecated): {sql[:50]}... — using API-only mode")
+    return []
 
 def q1(c, sql, p=None):
-    rows = q(c, sql, p)
-    return rows[0] if rows else None
+    """Deprecated: Direct DB queries removed. Use DashboardDataAPI instead.
+
+    Returns None to allow dashboard to continue with API-only data.
+    See DASHBOARD_API_MIGRATION.md for endpoint mappings.
+    """
+    logger.warning(f"DB query called (deprecated): {sql[:50]}... — using API-only mode")
+    return None
 
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
