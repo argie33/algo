@@ -50,7 +50,7 @@ class DataPatrol:
         try:
             cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
             result = cur.fetchone()
-            if result and result[0]:
+            if result is not None and result[0] is not None:
                 # Try to parse as number (int or float)
                 try:
                     if '.' in str(result[0]):
@@ -552,7 +552,7 @@ class DataPatrol:
                         WHERE date = (SELECT MAX(date) FROM {table_name})
                     """)
                     result = cur.fetchone()
-                    table_count = result[0] if result and result[0] else 0
+                    table_count = result[0] if result is not None and result[0] is not None else 0
                     coverage_pct = (table_count / expected_count * 100) if expected_count else 0
 
                     if coverage_pct < coverage_error_pct:

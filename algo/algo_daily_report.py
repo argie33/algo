@@ -68,8 +68,8 @@ class DailyFinanceReport:
             if not rows:
                 return {}
 
-            current_value = float(rows[0][0]) if rows[0][0] else 0
-            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] else current_value
+            current_value = float(rows[0][0]) if rows[0][0] is not None else 0
+            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else current_value
 
             daily_pnl_pct = ((current_value - prior_value) / prior_value * 100) if prior_value > 0 else 0
 
@@ -81,7 +81,7 @@ class DailyFinanceReport:
                 (report_date,),
             )
             ytd_row = cur.fetchone()
-            ytd_start = float(ytd_row[0]) if ytd_row and ytd_row[0] else current_value
+            ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else current_value
             ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
 
             return {
@@ -154,7 +154,7 @@ class DailyFinanceReport:
                 (report_date,),
             )
             hold_row = cur.fetchone()
-            if hold_row and hold_row[0]:
+            if hold_row is not None and hold_row[0] is not None:
                 avg_hold_days = round(float(hold_row[0]), 1)
 
             return {
