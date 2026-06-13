@@ -659,6 +659,10 @@ def _get_algo_performance(cur) -> Dict:
             })
             return json_response(200, fallback_response)
 
+        # Fetch equity curve and recent returns
+        equity_curve = fetcher.fetch_equity_curve(limit=252)
+        recent_returns = fetcher.fetch_recent_returns(limit=252)
+
         # Wrap fetched data in response format expected by frontend
         # Return None for metrics without sufficient data, not 0 (dashboard handles None gracefully)
         result = {
@@ -693,6 +697,8 @@ def _get_algo_performance(cur) -> Dict:
             'current_streak': perf.get('current_streak'),
             'gross_win_dollars': perf.get('gross_win_dollars'),
             'gross_loss_dollars': perf.get('gross_loss_dollars'),
+            'equity_vals': equity_curve.get('equity_vals', []),
+            'recent_rets': recent_returns.get('recent_rets', []),
             'data_freshness': {},
             'confidence_metadata': {
                 'sharpe_confidence': perf.get('sharpe_confidence', 'low'),

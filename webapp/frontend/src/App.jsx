@@ -25,6 +25,7 @@ const ConfigurationViewer = React.lazy(() => import("./pages/ConfigurationViewer
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { LoadingFallback } from "./components/LoadingFallback";
 
 // Marketing pages
 const Home = React.lazy(() => import("./pages/marketing/Home"));
@@ -44,7 +45,7 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 // Layout component
 import AppLayout from "./components/AppLayout";
 
-const LOADING = <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
+const LOADING = <LoadingFallback />;
 
 function App() {
   const location = useLocation();

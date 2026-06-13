@@ -98,7 +98,7 @@ TIER_SHORT = {
     "correction":        "CORRECT",
 }
 
-SPARKLINE_CHARS = "â-â-‚â-ƒâ-„â-...â-†â-‡â-ˆ"
+SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
 PHASE_NAMES = {
     "phase_0":  "Pre-flight",
@@ -629,8 +629,8 @@ def fetch_perf(c):
             "profit_factor": safe_float(perf.get("profit_factor")),
             "expectancy": safe_float(perf.get("expectancy")),
             "avg_r": 0,
-            "equity_vals": [],
-            "recent_rets": []
+            "equity_vals": perf.get("equity_vals", []),
+            "recent_rets": perf.get("recent_rets", [])
         }
     except Exception as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")

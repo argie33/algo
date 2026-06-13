@@ -365,3 +365,59 @@ class AlgoMetricsFetcher:
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_recent_trades failed: {type(e).__name__}: {e}")
             return {'_error': str(e), '_source': 'database_direct', 'items': []}
+
+    def fetch_equity_curve(self, limit: int = 252) -> Dict[str, Any]:
+        """Fetch equity curve (portfolio values over time).
+
+        Args:
+            limit: Maximum number of snapshots to return (default 252 = ~1 year)
+
+        Returns:
+            Dict with 'equity_vals' list on success, '_error' on failure
+        """
+        try:
+            self.cursor.execute("""
+                SELECT snapshot_date, total_portfolio_value
+                FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date ASC
+                LIMIT %s
+            """, (limit,))
+            rows = [dict(row) for row in self.cursor.fetchall()]
+            values = [float(r.get('total_portfolio_value') or 0) for r in rows]
+            logger.debug(f"fetch_equity_curve: {len(values)} snapshots found")
+            return {'equity_vals': values, '_source': 'database_direct'}
+
+        except (psycopg2.Error, Exception) as e:
+            logger.error(f"fetch_equity_curve failed: {type(e).__name__}: {e}")
+            return {'_error': str(e), '_source': 'database_direct', 'equity_vals': []}
+
+    def fetch_recent_returns(self, limit: int = 252) -> Dict[str, Any]:
+        """Fetch recent daily returns from portfolio snapshots.
+
+        Args:
+            limit: Maximum number of return periods to calculate (default 252 = ~1 year)
+
+        Returns:
+            Dict with 'recent_rets' list on success, '_error' on failure
+        """
+        try:
+            self.cursor.execute("""
+                SELECT snapshot_date, total_portfolio_value
+                FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date ASC
+                LIMIT %s
+            """, (limit,))
+            rows = [dict(row) for row in self.cursor.fetchall()]
+            vals = [float(r.get('total_portfolio_value') or 0) for r in rows]
+
+            if len(vals) < 2:
+                return {'recent_rets': [], '_source': 'database_direct'}
+
+            returns = [(vals[i] - vals[i-1]) / vals[i-1]
+                      for i in range(1, len(vals)) if vals[i-1] != 0]
+            logger.debug(f"fetch_recent_returns: {len(returns)} daily returns calculated")
+            return {'recent_rets': returns, '_source': 'database_direct'}
+
+        except (psycopg2.Error, Exception) as e:
+            logger.error(f"fetch_recent_returns failed: {type(e).__name__}: {e}")
+            return {'_error': str(e), '_source': 'database_direct', 'recent_rets': []}
