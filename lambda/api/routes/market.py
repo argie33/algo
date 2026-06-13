@@ -14,8 +14,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute("""
                 SELECT date, market_trend, market_stage, advance_decline_ratio,
-                           new_highs_count, new_lows_count, vix_level, put_call_ratio,
-                           distribution_days_4w
+                           new_highs_count, new_lows_count, vix_level, put_call_ratio
                 FROM market_health_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -98,7 +97,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             try:
                 rows = execute_with_timeout(cur, """
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
-                               up_volume_percent, distribution_days_4w, breadth_momentum_10d,
+                               up_volume_percent, breadth_momentum_10d,
                                vix_level, put_call_ratio, market_trend, market_stage
                     FROM market_health_daily
                     ORDER BY date DESC
@@ -748,7 +747,7 @@ def _get_market_latest(cur) -> Dict:
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
                    new_highs_count, new_lows_count, vix_level, put_call_ratio,
-                   distribution_days_4w, up_volume_percent, breadth_momentum_10d
+                   up_volume_percent, breadth_momentum_10d
         FROM market_health_daily
         ORDER BY date DESC
         LIMIT 1

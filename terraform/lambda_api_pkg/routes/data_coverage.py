@@ -118,13 +118,12 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
         cur.execute("""
             SELECT
                 MAX(date) as latest_date,
-                COUNT(*) as rows,
-                COUNT(CASE WHEN distribution_days_4w IS NULL THEN 1 END) as null_dist_days
+                COUNT(*) as rows
             FROM market_health_daily
             WHERE date > NOW() - INTERVAL '7 days'
         """)
 
-        mh_date, mh_rows, mh_nulls = cur.fetchone()
+        mh_date, mh_rows = cur.fetchone()
 
         # Economic data (FRED) — uses series_id not symbol
         cur.execute("""

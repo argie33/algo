@@ -2374,7 +2374,7 @@ def _get_exposure_policy(cur) -> Dict:
                     SELECT
                         market_stage, market_trend, vix_level,
                         advance_decline_ratio, new_highs_count, new_lows_count,
-                        distribution_days_4w, breadth_momentum_10d
+                        breadth_momentum_10d
                     FROM market_health_daily
                     ORDER BY date DESC
                     LIMIT 1
@@ -2397,7 +2397,7 @@ def _get_exposure_policy(cur) -> Dict:
                     'advance_decline_ratio': factors.get('ad_ratio') if factors.get('ad_ratio') is not None else market_health.get('advance_decline_ratio'),
                     'vix_level': factors.get('vix') if factors.get('vix') is not None else market_health.get('vix_level'),
                     'breadth_momentum': factors.get('breadth_momentum') if factors.get('breadth_momentum') is not None else market_health.get('breadth_momentum_10d'),
-                    'distribution_days': row.get('distribution_days') or market_health.get('distribution_days_4w'),
+                    'distribution_days': row.get('distribution_days'),
                     'market_stage': market_health.get('market_stage'),
                     'market_trend': market_health.get('market_trend'),
                     'mcclellan_oscillator': factors.get('mcclellan'),
