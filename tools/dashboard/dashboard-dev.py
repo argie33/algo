@@ -54,11 +54,6 @@ if sys.platform == "win32":
         pass
 
 try:
-    import psycopg2, psycopg2.extras, psycopg2.pool
-except ImportError:
-    sys.exit("pip install psycopg2-binary")
-
-try:
     from rich import box
     from rich.align import Align
     from rich.columns import Columns
@@ -147,69 +142,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Connection pool for dashboard (prevents exhaustion with 27 concurrent fetchers)
-_dashboard_pool = None
-_dashboard_pool_lock = threading.Lock()
-_db_creds_loaded = False
-
-def _load_db_credentials_from_secrets():
-    """Load DB credentials from AWS Secrets Manager and set as env vars."""
-    global _db_creds_loaded
-    if _db_creds_loaded:
-        return True
-
-    try:
-        client = boto3.client('secretsmanager', region_name='us-east-1')
-        secret = client.get_secret_value(SecretId='algo/database')
-        creds = json.loads(secret['SecretString'])
-
-        os.environ['DB_HOST'] = creds.get('host', 'localhost')
-        os.environ['DB_PORT'] = str(creds.get('port', 5432))
-        os.environ['DB_USER'] = creds.get('username', 'postgres')
-        os.environ['DB_PASSWORD'] = creds.get('password', '')
-        os.environ['DB_NAME'] = creds.get('dbname', 'algo')
-
-        logger.info("DB credentials loaded from AWS Secrets Manager")
-        _db_creds_loaded = True
-        return True
-    except Exception as e:
-        logger.error(f"Failed to load DB credentials from Secrets Manager: {e}")
-        return False
-
-def _init_dashboard_pool():
-    """Initialize the dashboard connection pool (thread-safe with double-checked locking)."""
-    global _dashboard_pool
-    if _dashboard_pool is not None:
-        return
-
-    with _dashboard_pool_lock:
-        # Double-check pattern to avoid race conditions
-        if _dashboard_pool is not None:
-            return
-
-        miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-        if miss:
-            if not _load_db_credentials_from_secrets():
-                return None  # Can't initialize pool without credentials
-
-        try:
-            _dashboard_pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=2,
-                maxconn=15,
-                host=os.environ["DB_HOST"],
-                port=int(os.environ.get("DB_PORT", 5432)),
-                user=os.environ["DB_USER"],
-                password=os.environ["DB_PASSWORD"],
-                database=os.environ["DB_NAME"],
-                connect_timeout=10,
-                cursor_factory=psycopg2.extras.RealDictCursor,
-                options="-c statement_timeout=8000"
-            )
-            logger.info("Dashboard connection pool initialized (minconn=2, maxconn=15)")
-        except Exception as e:
-            logger.warning(f"Failed to initialize dashboard pool: {e}, falling back to direct connections")
-            _dashboard_pool = None
-
 
 # API configuration
 API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
@@ -268,61 +200,6 @@ def compute_sector_agg(pos, port):
     }
 
     return sorted_secs, total_secs, pv
-
-
-# ── DB helpers ────────────────────────────────────────────────────────────────
-
-def get_conn():
-    """Get connection from pool; tries pool → fallback → Secrets Manager → error."""
-    global _dashboard_pool
-    
-    # Try to get from pool
-    if _dashboard_pool is None:
-        _init_dashboard_pool()
-    
-    if _dashboard_pool is not None:
-        try:
-            return _dashboard_pool.getconn()
-        except psycopg2.pool.PoolError:
-            logger.warning("Dashboard pool exhausted, falling back to direct connection")
-    
-    # Fallback: direct connection
-    miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-    if miss:
-        if not _load_db_credentials_from_secrets():
-            sys.exit(f"Missing env vars: {', '.join(miss)}")
-    return psycopg2.connect(
-        host=os.environ["DB_HOST"], port=int(os.environ.get("DB_PORT", 5432)),
-        user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
-        dbname=os.environ["DB_NAME"], connect_timeout=10,
-        cursor_factory=psycopg2.extras.RealDictCursor,
-        options="-c statement_timeout=8000",
-    )
-
-def return_conn(conn):
-    """Return a connection to the pool."""
-    global _dashboard_pool
-    if _dashboard_pool is not None and conn is not None:
-        try:
-            _dashboard_pool.putconn(conn)
-            return
-        except (psycopg2.pool.PoolError, TypeError):
-            pass
-    # Fallback: close the connection if not pooled
-    if conn is not None:
-        try:
-            conn.close()
-        except:
-            pass
-
-def q(c, sql, p=None):
-    with c.cursor() as cur:
-        cur.execute(sql, p or ())
-        return [dict(r) for r in cur.fetchall()]
-
-def q1(c, sql, p=None):
-    rows = q(c, sql, p)
-    return rows[0] if rows else None
 
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
@@ -547,54 +424,7 @@ def sparkline(values: list, width: int = 24) -> str:
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
 def fetch_run(c):
-    # Primary: orchestrator_execution_log has structured named phase data
-    try:
-        row = q1(c, """
-            SELECT run_id, started_at, completed_at, overall_status,
-                   phase_results, summary, halt_reason,
-                   phases_completed, phases_halted, phases_errored
-            FROM orchestrator_execution_log
-            ORDER BY started_at DESC LIMIT 1""")
-        if row:
-            pr = row.get("phase_results") or []
-            if isinstance(pr, str):
-                try: pr = json.loads(pr)
-                except: pr = []
-            overall = (row.get("overall_status") or "").lower()
-            return {
-                "run_id":    row.get("run_id"),
-                "run_at":    row.get("completed_at") or row.get("started_at"),
-                "success":   overall in ("success", "completed"),
-                "halted":    overall == "halted",
-                "errored":   overall in ("error", "failed"),
-                "summary":   row.get("summary"),
-                "halt_reason": row.get("halt_reason"),
-                "phases_completed": row.get("phases_completed") or [],
-                "phases_halted":    row.get("phases_halted") or [],
-                "phases_errored":   row.get("phases_errored") or [],
-                "phase_results":    pr,
-                "_source": "exec_log",
-            }
-    except Exception:
-        pass
-
-    # Fallback: reconstruct from algo_audit_log
-    try:
-        latest = q1(c, """
-            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-            FROM algo_audit_log WHERE details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
-        rid = latest["run_id"]
-        phases = q(c, """SELECT action_type, status FROM algo_audit_log
-                         WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        halted  = any(p["status"] == "halt"  for p in phases)
-        errored = any(p["status"] == "error" for p in phases)
-        return {"run_id": rid, "run_at": latest["run_at"],
-                "success": bool(phases) and not errored, "halted": halted,
-                "phases": phases, "_source": "audit_log"}
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_algo_config(c):
     try:
@@ -651,24 +481,7 @@ def fetch_market(c):
         return {"_error": str(e)}
 
 def fetch_exposure_factors(c):
-    try:
-        row = q1(c, """SELECT raw_score, exposure_pct, regime, factors
-                       FROM market_exposure_daily ORDER BY date DESC LIMIT 1""")
-        if not row: return {}
-        factors = row.get("factors") or {}
-        if isinstance(factors, str):
-            try: factors = json.loads(factors)
-            except: factors = {}
-        return {
-            "raw_score":    float(row.get("raw_score") or 0),
-            "exposure_pct": float(row.get("exposure_pct") or 0),
-            "regime":       row.get("regime"),
-            "factors":      factors,
-        }
-    except Exception as e:
-        return {"_error": str(e)}
-    finally:
-        pass
+    return {}
 
 def fetch_portfolio(c):
     # Issue 3 FIX: Use API instead of direct DB access
@@ -746,37 +559,10 @@ def fetch_signals(c):
         return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
 
 def fetch_sector_ranking(c):
-    try:
-        return q(c, """
-            SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
-            FROM sector_ranking
-            WHERE date=(SELECT MAX(date) FROM sector_ranking)
-            ORDER BY current_rank ASC""")
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_activity(c):
-    try:
-        latest = q1(c, """
-            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-            FROM algo_audit_log
-            WHERE details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
-        rid    = latest["run_id"]
-        run_at = latest.get("run_at")
-        phases = q(c, """
-            SELECT action_type, status, details, created_at
-            FROM algo_audit_log WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
-        recent_actions = q(c, """
-            SELECT action_type, status, details, created_at
-            FROM algo_audit_log
-            WHERE action_type IN ('entry_executed','exit_executed','entry_rejected',
-                                  'position_exited','order_placed','order_rejected')
-            ORDER BY created_at DESC LIMIT 6""")
-        return {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_health(c):
     try:
@@ -790,65 +576,13 @@ def fetch_health(c):
         return []
 
 def fetch_economic_pulse(c):
-    try:
-        KEY = ['DGS10', 'DGS2', 'DGS3MO', 'DGS6MO',
-               'BAMLH0A0HYM2', 'BAMLC0A0CM',
-               'DCOILWTICO', 'ANFCI',
-               'FEDFUNDS', 'CPIAUCSL', 'UNRATE',
-               'T10YIE', 'T5YIE', 'DTWEXBGS', 'MORTGAGE30US', 'UMCSENT']
-        rows = q(c, """
-            SELECT DISTINCT ON (series_id) series_id, date, value
-            FROM economic_data WHERE series_id = ANY(%s)
-            ORDER BY series_id, date DESC""", (KEY,))
-        d = {r['series_id']: float(r['value']) for r in rows if r.get('value') is not None}
-        t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-        yc_10_2  = round(t10 - t2,  2) if t10 is not None and t2  is not None else None
-        yc_10_3m = round(t10 - t3m, 2) if t10 is not None and t3m is not None else None
-
-        # CPI YoY: need 12-month-old value
-        cpi_yoy = None
-        cpi_rows = q(c, """
-            SELECT value FROM economic_data WHERE series_id='CPIAUCSL'
-            ORDER BY date DESC LIMIT 14""")
-        if len(cpi_rows) >= 13:
-            cur_cpi  = float(cpi_rows[0]['value'])  if cpi_rows[0].get('value')  else None
-            prev_cpi = float(cpi_rows[12]['value']) if cpi_rows[12].get('value') else None
-            if cur_cpi and prev_cpi and prev_cpi > 0:
-                cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
-
-        return {
-            't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
-            'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
-            'hy':  d.get('BAMLH0A0HYM2'), 'ig': d.get('BAMLC0A0CM'),
-            'oil': d.get('DCOILWTICO'),    'nfci': d.get('ANFCI'),
-            'fed_funds': d.get('FEDFUNDS'),
-            'cpi_yoy':   cpi_yoy,
-            'unrate':    d.get('UNRATE'),
-            'be10':      d.get('T10YIE'),
-            'be5':       d.get('T5YIE'),
-            'dxy':       d.get('DTWEXBGS'),
-            'mortgage':  d.get('MORTGAGE30US'),
-            'umcsent':   d.get('UMCSENT'),
-        }
-    except Exception as e:
-        return {"_error": str(e)}
+    return {}
 
 def fetch_algo_metrics(c):
-    try:
-        rows = q(c, """SELECT date, total_actions, entries, exits
-                       FROM algo_metrics_daily ORDER BY date DESC LIMIT 5""")
-        return rows
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_notifications(c):
-    try:
-        return q(c, """
-            SELECT kind, severity, title, seen, created_at, details
-            FROM algo_notifications
-            ORDER BY created_at DESC LIMIT 8""")
-    except Exception as e:
-        return {"_error": str(e)}
+    return []
 
 def fetch_sentiment(c):
     try:

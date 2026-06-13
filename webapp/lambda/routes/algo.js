@@ -2767,6 +2767,8 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
         buckets: [],
         stats: null,
         count: 0,
+        _error: 'Daily return histogram not available - algo still building trading history',
+        _is_placeholder: true,
       });
     }
 
@@ -2780,7 +2782,12 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching daily return histogram');
+    return sendSuccess(res, {
+      buckets: [],
+      stats: null,
+      _error: error.message,
+      _is_placeholder: true,
+    });
   }
 });
 
@@ -2806,6 +2813,8 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
       return sendSuccess(res, {
         buckets: [],
         total_trades: 0,
+        _error: 'Trade distribution not available - no closed trades yet',
+        _is_placeholder: true,
       });
     }
 
@@ -2819,7 +2828,12 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /api/algo/trade-distribution:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching trade distribution');
+    return sendSuccess(res, {
+      buckets: [],
+      total_trades: 0,
+      _error: error.message,
+      _is_placeholder: true,
+    });
   }
 });
 
@@ -2845,6 +2859,8 @@ router.get('/holding-period-distribution', authenticateToken, async (req, res) =
       return sendSuccess(res, {
         buckets: [],
         total_trades: 0,
+        _error: 'Holding period distribution not available - no closed trades yet',
+        _is_placeholder: true,
       });
     }
 
@@ -2858,7 +2874,12 @@ router.get('/holding-period-distribution', authenticateToken, async (req, res) =
     });
   } catch (error) {
     logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching holding period distribution');
+    return sendSuccess(res, {
+      buckets: [],
+      total_trades: 0,
+      _error: error.message,
+      _is_placeholder: true,
+    });
   }
 });
 

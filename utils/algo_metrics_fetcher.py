@@ -19,7 +19,7 @@ import logging
 import psycopg2
 import psycopg2.extras
 import math
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
@@ -261,12 +261,11 @@ class AlgoMetricsFetcher:
             '_source': 'database_direct',
         }
 
-    def fetch_open_positions(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def fetch_open_positions(self) -> Dict[str, Any]:
         """Fetch all open positions with current prices and calculated P&L.
 
         Returns:
-            Tuple of (positions_list, error_string)
-            positions_list is empty if error occurs
+            Dict with 'items' list on success, '_error' on failure
         """
         try:
             self.cursor.execute("""
@@ -333,20 +332,20 @@ class AlgoMetricsFetcher:
                 positions.append(d)
 
             logger.debug(f"fetch_open_positions: {len(positions)} open positions found")
-            return positions, None
+            return {'items': positions, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_open_positions failed: {type(e).__name__}: {e}")
-            return [], str(e)
+            return {'_error': str(e), '_source': 'database_direct', 'items': []}
 
-    def fetch_recent_trades(self, limit: int = 50) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def fetch_recent_trades(self, limit: int = 50) -> Dict[str, Any]:
         """Fetch recent closed trades.
 
         Args:
             limit: Maximum number of trades to return
 
         Returns:
-            Tuple of (trades_list, error_string)
+            Dict with 'items' list on success, '_error' on failure
         """
         try:
             self.cursor.execute("""
@@ -361,8 +360,8 @@ class AlgoMetricsFetcher:
             """, (limit,))
             trades = [dict(row) for row in self.cursor.fetchall()]
             logger.debug(f"fetch_recent_trades: {len(trades)} trades found")
-            return trades, None
+            return {'items': trades, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_recent_trades failed: {type(e).__name__}: {e}")
-            return [], str(e)
+            return {'_error': str(e), '_source': 'database_direct', 'items': []}
