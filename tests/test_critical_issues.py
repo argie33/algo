@@ -58,10 +58,10 @@ class TestLoaderParallelism:
 
         loader = PriceLoader()
 
-        # 5000 symbols / 200 per batch = 25 API calls
-        expected_batches = 25  # 5000 / 200
-        assert loader.batch_size == 200, \
-            f"Batch size {loader.batch_size}, expected 200"
+        # 5000 symbols / 300 per batch = ~17 API calls
+        expected_batches = 17  # 5000 / 300
+        assert loader.batch_size == 300, \
+            f"Batch size {loader.batch_size}, expected 300"
 
         # Rate limiter should be configured for 160 req/min
         assert hasattr(loader, '_rate_limit_tokens'), "Rate limiter not initialized"

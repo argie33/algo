@@ -1,22 +1,8 @@
 """API Router - dispatcher."""
 import logging, sys, os, json, threading
-from pathlib import Path
 
-# Ensure routes module and utils can be imported (needed for dev_server.py)
-api_dir = str(Path(__file__).parent)
-lambda_dir = str(Path(__file__).parent.parent)
-root_dir = str(Path(__file__).parent.parent.parent)
-
-# CRITICAL: Ensure /lambda/api comes BEFORE /utils root in sys.path
-# Remove and reorder paths to ensure correct import resolution
-_path_list = list(sys.path)
-for p in [api_dir, lambda_dir, root_dir]:
-    if p in _path_list:
-        _path_list.remove(p)
-_path_list.insert(0, api_dir)
-_path_list.insert(1, lambda_dir)
-_path_list.insert(2, root_dir)
-sys.path[:] = _path_list
+# Set up imports for Lambda API - ensures routes and api_utils are importable
+import setup_imports  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

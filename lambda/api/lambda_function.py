@@ -11,15 +11,9 @@ import sys
 import threading
 import traceback
 from typing import Dict, Any, Optional
-from pathlib import Path
 
-# Ensure modules can be imported: lambda/api (routes, api_utils), root utils, and project modules.
-# In development: project root is needed so utils/ and other modules are importable.
-# In Lambda: /var/task is prepended by AWS; we add it explicitly for clarity.
-if not __file__.startswith('/var/task'):
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, '/var/task')
-sys.path.insert(0, str(Path(__file__).parent))
+# Set up imports for Lambda API - ensures routes, api_utils, utils, and other packages are importable
+import setup_imports  # noqa: F401
 
 IMPORT_ERROR = None
 ENV_VALIDATION_ERROR = None

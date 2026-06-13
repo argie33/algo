@@ -159,15 +159,19 @@ class DailyReconciliation:
                         continue
                     if current is None:
                         entry_f = float(entry)
-                        qty_f = float(qty or 0)
+                        qty_f = float(qty) if qty is not None else 0
                         logger.warning(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> CURRENT PRICE MISSING (cannot compute P&L)")
+                        continue
+
+                    if qty is None or pos_value is None:
+                        logger.warning(f"   {symbol}: QUANTITY OR VALUE MISSING (cannot compute P&L)")
                         continue
 
                     # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
                     entry_f = float(entry)
                     current_f = float(current)
-                    qty_f = float(qty or 0)
-                    pos_value_f = float(pos_value or 0)
+                    qty_f = float(qty)
+                    pos_value_f = float(pos_value)
                     pnl = (current_f - entry_f) * qty_f
                     pnl_pct = ((current_f - entry_f) / entry_f * 100.0) if entry_f > 0 else 0.0
                     total_position_value += pos_value_f
@@ -210,7 +214,8 @@ class DailyReconciliation:
                 if total_equity > 0:
                     unrealized_pnl_pct = (unrealized_pnl / total_equity) * 100
 
-                largest_position = float(max([p[4] for p in positions], default=0) or 0)
+                position_values = [p[4] for p in positions if p[4] is not None]
+                largest_position = float(max(position_values)) if position_values else 0.0
                 max_concentration = (largest_position / total_equity * 100.0) if total_equity > 0 else 0.0
 
                 avg_position_size = (total_position_value / len(positions)) if positions else 0.0
