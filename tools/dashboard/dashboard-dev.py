@@ -423,9 +423,6 @@ def sparkline(values: list, width: int = 24) -> str:
 
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
-def fetch_run(c):
-    return {}
-
 def fetch_algo_config(c):
     try:
         resp = api_call("/api/algo/config")
@@ -479,9 +476,6 @@ def fetch_market(c):
     except Exception as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
         return {"_error": str(e)}
-
-def fetch_exposure_factors(c):
-    return {}
 
 def fetch_portfolio(c):
     # Issue 3 FIX: Use API instead of direct DB access
@@ -558,12 +552,6 @@ def fetch_signals(c):
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
 
-def fetch_sector_ranking(c):
-    return []
-
-def fetch_activity(c):
-    return {}
-
 def fetch_health(c):
     try:
         resp = api_call("/api/algo/data-status")
@@ -574,53 +562,6 @@ def fetch_health(c):
     except Exception as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         return []
-
-def fetch_economic_pulse(c):
-    return {}
-
-def fetch_algo_metrics(c):
-    return []
-
-def fetch_notifications(c):
-    return []
-
-def fetch_sentiment(c):
-    try:
-        row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
-        if not row: return {}
-        fg = float(row.get("fear_greed_index") or 0)
-        label = row.get("label") or ""
-        c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
-        return {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
-    except Exception as e:
-        return {"_error": str(e)}
-
-def fetch_economic_calendar(c):
-    return []
-
-def fetch_risk_metrics(c):
-    return {}
-
-def fetch_perf_analytics(c):
-    return {}
-
-def fetch_signal_eval(c):
-    return {}
-
-def fetch_sector_rotation(c):
-    return {}
-
-def fetch_industry_ranking(c):
-    return []
-
-def fetch_loader_status(c):
-    return []
-
-def fetch_exec_history(c):
-    return []
-
-def fetch_audit_log(c):
-    return []
 
 def fetch_circuit(c):
     try:
