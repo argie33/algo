@@ -534,6 +534,44 @@ User makes decisions on fake data
 
 ---
 
+## TIER 7: API ENDPOINTS RETURNING EMPTY DATA (NEW - 2026-06-12)
+
+### 7.1 JavaScript Routes Without Error Indicators (30+ instances)
+
+**Affected Files** (audit completed):
+- `diagnostics.js` - 1 instance (line 186)
+- `economic.js` - 2 instances (lines 85, 89)
+- `industries.js` - 1 instance (line 268)
+- `market.js` - 12 instances (lines 1917, 2065, 2098, 2131, 2227, 2252, 2276, 2279, 2292, 2295, 2308, 2311, 2426, 2578, 2593, 2609, 2798, 2989, 2992)
+- `sentiment.js` - 3 instances (lines 75, 163, 201)
+- `strategies.js` - 2 instances (lines 46, 104)
+- (+ others requiring audit in performance.js, sectors.js, industries.js)
+
+**Example Problem** (market.js:2279):
+```javascript
+// BEFORE (current)
+if (!result.rows) {
+  return [];  // ❌ No error indicator
+}
+
+// AFTER (needed)
+if (!result.rows) {
+  return {
+    _is_placeholder: true,
+    _error: 'Market data unavailable',
+    items: [],
+  };
+}
+```
+
+**Impact**:
+- Frontend receives empty array `[]`
+- Cannot distinguish between "no data" and "data not ready"
+- No warning in UI that data is unavailable
+- Charts/tables render empty without explanation
+
+---
+
 ## NEXT STEPS FOR DISCUSSION
 
 1. Should we REMOVE all hardcoded defaults and fail-fast instead?
@@ -544,3 +582,5 @@ User makes decisions on fake data
 6. Should we add explicit "Data Unavailable" UI state?
 7. Should we log CRITICAL severity whenever placeholders are used?
 8. Should we fail-fast if initial capital doesn't match account history?
+9. **NEW**: Standardize all 30+ endpoints to return `{_is_placeholder: true}` when data unavailable
+10. **NEW**: Add pre-commit hook to flag empty array returns without error metadata

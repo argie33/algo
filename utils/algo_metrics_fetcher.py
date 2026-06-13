@@ -128,7 +128,7 @@ class AlgoMetricsFetcher:
             avg_loss_pct = self._mean(losses_pcts) if losses_pcts else 0.0
 
             # Sharpe & Sortino from portfolio snapshots
-            sharpe_ratio, sortino_ratio, max_dd_pct = 0.0, 0.0, 0.0
+            sharpe_ratio, sortino_ratio, max_dd_pct = None, None, None
             snapshot_count = 0
             total_return_pct = None
 
@@ -209,17 +209,17 @@ class AlgoMetricsFetcher:
                 'total_return_pct': round(total_return_pct, 2) if total_return_pct else None,
                 'avg_win_pct': round(avg_win_pct, 2),
                 'avg_loss_pct': round(avg_loss_pct, 2),
-                'best_trade_pct': round(max(pnl_pcts), 2) if pnl_pcts else 0.0,
-                'worst_trade_pct': round(min(pnl_pcts), 2) if pnl_pcts else 0.0,
-                'sharpe_ratio': round(sharpe_ratio, 2),
+                'best_trade_pct': round(max(pnl_pcts), 2) if pnl_pcts else None,
+                'worst_trade_pct': round(min(pnl_pcts), 2) if pnl_pcts else None,
+                'sharpe_ratio': round(sharpe_ratio, 2) if sharpe_ratio is not None else None,
                 'sharpe_confidence': sharpe_confidence,
-                'sortino_ratio': round(sortino_ratio, 2),
-                'max_drawdown_pct': round(abs(max_dd_pct) * 100, 2),
-                'expectancy_r': round(self._mean(r_multiples), 2) if r_multiples else 0.0,
-                'avg_holding_days': round(self._mean(holding_days), 1),
-                'current_streak': current_streak,
-                'best_win_streak': best_win_streak,
-                'worst_loss_streak': worst_loss_streak,
+                'sortino_ratio': round(sortino_ratio, 2) if sortino_ratio is not None else None,
+                'max_drawdown_pct': round(abs(max_dd_pct) * 100, 2) if max_dd_pct is not None else None,
+                'expectancy_r': round(self._mean(r_multiples), 2) if r_multiples else None,
+                'avg_holding_days': round(self._mean(holding_days), 1) if holding_days else None,
+                'current_streak': current_streak if pnl_dollars else None,
+                'best_win_streak': best_win_streak if pnl_dollars else None,
+                'worst_loss_streak': worst_loss_streak if pnl_dollars else None,
                 'portfolio_snapshots': snapshot_count,
                 '_source': 'database_direct',
             }
@@ -232,31 +232,31 @@ class AlgoMetricsFetcher:
             }
 
     def _empty_performance_response(self) -> Dict[str, Any]:
-        """Return empty performance response when no trades exist."""
+        """Return empty performance response when no trades exist. Returns None for metrics without sufficient data."""
         return {
             'total_trades': 0,
             'winning_trades': 0,
             'losing_trades': 0,
             'breakeven_trades': 0,
-            'win_rate_pct': 0.0,
+            'win_rate_pct': None,
             'win_rate_confidence': 'low',
-            'profit_factor': 0.0,
-            'total_pnl_dollars': 0.0,
-            'total_pnl_pct': 0.0,
+            'profit_factor': None,
+            'total_pnl_dollars': None,
+            'total_pnl_pct': None,
             'total_return_pct': None,
-            'avg_win_pct': 0.0,
-            'avg_loss_pct': 0.0,
-            'best_trade_pct': 0.0,
-            'worst_trade_pct': 0.0,
-            'sharpe_ratio': 0.0,
+            'avg_win_pct': None,
+            'avg_loss_pct': None,
+            'best_trade_pct': None,
+            'worst_trade_pct': None,
+            'sharpe_ratio': None,
             'sharpe_confidence': 'low',
-            'sortino_ratio': 0.0,
-            'max_drawdown_pct': 0.0,
-            'expectancy_r': 0.0,
-            'avg_holding_days': 0.0,
-            'current_streak': 0,
-            'best_win_streak': 0,
-            'worst_loss_streak': 0,
+            'sortino_ratio': None,
+            'max_drawdown_pct': None,
+            'expectancy_r': None,
+            'avg_holding_days': None,
+            'current_streak': None,
+            'best_win_streak': None,
+            'worst_loss_streak': None,
             'portfolio_snapshots': 0,
             '_source': 'database_direct',
         }
