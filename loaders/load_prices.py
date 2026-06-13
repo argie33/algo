@@ -64,7 +64,7 @@ class PriceLoader(OptimalLoader):
         self.interval = interval
         self.asset_class = asset_class
         self._correlation_id = _correlation_id  # Instance variable for use in all methods
-        self.batch_size = 200  # Batch 200 symbols per API call: 5000 symbols = 25 calls (SLA OPT: 5000/200, was 150)
+        self.batch_size = 300  # Batch 300 symbols per API call: ~35 calls for 10,506 symbols (increased from 200 to improve throughput)
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -1328,8 +1328,9 @@ class PriceLoader(OptimalLoader):
                 # halt early instead of continuing to retry indefinitely.
                 # This prevents the scenario: batch 150→20 at 7 AM → execution time becomes 80min→400min → misses 9:30 AM deadline
                 current_batch_size = self._get_adaptive_batch_size()
-                # Context-aware threshold: EOD (85 min total) needs to fail fast (~30 min), morning (450 min total) can wait (~2 hours)
-                circuit_break_threshold_sec = 30 * 60 if self._is_eod_pipeline else 120 * 60
+                # Context-aware threshold: EOD (85 min total) can afford 45 min, morning (450 min total) can wait 3 hours
+                # INCREASED from 30m/120m to 45m/180m to allow full symbol coverage before circuit breaker
+                circuit_break_threshold_sec = 45 * 60 if self._is_eod_pipeline else 180 * 60
                 if current_batch_size < 100 and elapsed > circuit_break_threshold_sec:  # Batch reduced AND threshold exceeded
                     pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
                     projected_total_sec = (elapsed / completion_pct) if completion_pct > 0 else 0
