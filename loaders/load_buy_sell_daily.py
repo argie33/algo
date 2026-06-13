@@ -368,16 +368,17 @@ class SignalsDailyLoader(OptimalLoader):
             if signal_type:
                 # Compute volume surge: compare to 20-bar average volume
                 vol_surge = None
-                vol_surge_capped = False
+                volume_surge_capped = False
+                _DECIMAL84_MAX = 9999.9999
                 if volume is not None and i >= 5:
                     recent_vols = [rows[j].get("volume") for j in range(max(0, i-20), i) if rows[j].get("volume")]
                     if recent_vols:
                         avg_vol = sum(recent_vols) / len(recent_vols)
                         if avg_vol > 0:
                             raw_surge = (volume / avg_vol - 1) * 100
-                            if raw_surge > 9999.0:
-                                vol_surge_capped = True
-                            vol_surge = round(min(raw_surge, 9999.0), 2)
+                            if raw_surge > _DECIMAL84_MAX:
+                                volume_surge_capped = True
+                            vol_surge = round(min(raw_surge, _DECIMAL84_MAX), 2)
 
                 # Compute 50-bar average volume
                 avg_vol_50d = None
@@ -453,7 +454,7 @@ class SignalsDailyLoader(OptimalLoader):
                     "entry_quality_score": None,
                     "signal_quality_score": None,
                     "volume_surge_pct": vol_surge,
-                    "volume_surge_capped": vol_surge_capped,
+                    "volume_surge_capped": volume_surge_capped,
                     "risk_reward_ratio": rr,
                     "risk_pct": risk_pct,
                     "rsi": float(rsi) if rsi is not None else None,
