@@ -124,8 +124,8 @@ def _get_or_create_test_user() -> Tuple[str, str]:
         except Exception:
             pass
 
-    # Return defaults (user will be prompted for real values)
-    return "edgebrookecapital@gmail.com", ""
+    # Return empty defaults (user will be prompted for real values)
+    return "", ""
 
 
 def _get_aws_cfn_output(key: str) -> Optional[str]:
@@ -184,23 +184,30 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Opt
     token_file = os.path.expanduser("~/.algo/cognito_token.json")
     if os.path.exists(token_file):
         try:
-            with open(token_file, "r") as f:
-                tokens = json.load(f)
-                auth.access_token = tokens.get("access_token")
-                auth.refresh_token = tokens.get("refresh_token")
-                auth.id_token = tokens.get("id_token")
-                auth.username = tokens.get("username")
-                auth.token_expires_at = tokens.get("expires_at")
+            # Verify file permissions are restrictive (owner read/write only)
+            file_stat = os.stat(token_file)
+            file_mode = file_stat.st_mode & 0o777
+            if file_mode != 0o600:
+                logger.warning(f"[Cognito] Token file has overly permissive mode {oct(file_mode)}, removing")
+                os.remove(token_file)
+            else:
+                with open(token_file, "r") as f:
+                    tokens = json.load(f)
+                    auth.access_token = tokens.get("access_token")
+                    auth.refresh_token = tokens.get("refresh_token")
+                    auth.id_token = tokens.get("id_token")
+                    auth.username = tokens.get("username")
+                    auth.token_expires_at = tokens.get("expires_at")
 
-                if auth.is_authenticated():
-                    logger.info(f"[Cognito] Loaded cached token for {auth.username}")
-                    return auth
-                elif auth.refresh_token and auth.refresh_access_token():
-                    logger.info(f"[Cognito] Refreshed expired token for {auth.username}")
-                    return auth
-                else:
-                    os.remove(token_file)
-                    logger.debug("[Cognito] Cached token invalid, removed")
+                    if auth.is_authenticated():
+                        logger.info(f"[Cognito] Loaded cached token for {auth.username}")
+                        return auth
+                    elif auth.refresh_token and auth.refresh_access_token():
+                        logger.info(f"[Cognito] Refreshed expired token for {auth.username}")
+                        return auth
+                    else:
+                        os.remove(token_file)
+                        logger.debug("[Cognito] Cached token invalid, removed")
         except Exception as e:
             logger.warning(f"[Cognito] Failed to load cached token: {e}")
 
@@ -229,11 +236,13 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Opt
 
 
 def save_tokens(auth: CognitoAuth) -> None:
-    """Save tokens and credentials for future use."""
+    """Save tokens and credentials for future use with restricted file permissions."""
     if not auth.is_authenticated():
         return
     token_file = os.path.expanduser("~/.algo/cognito_token.json")
-    os.makedirs(os.path.dirname(token_file), exist_ok=True)
+    token_dir = os.path.dirname(token_file)
+    os.makedirs(token_dir, exist_ok=True)
+
     tokens = {
         "access_token": auth.access_token,
         "refresh_token": auth.refresh_token,
@@ -244,4 +253,11 @@ def save_tokens(auth: CognitoAuth) -> None:
     }
     with open(token_file, "w") as f:
         json.dump(tokens, f)
+
+    # Set restrictive file permissions (owner read/write only)
+    try:
+        os.chmod(token_file, 0o600)
+    except OSError as e:
+        logger.warning(f"[Cognito] Failed to set token file permissions: {e}")
+
     logger.debug(f"[Cognito] Saved tokens for {auth.username}")

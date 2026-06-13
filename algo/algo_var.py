@@ -244,7 +244,7 @@ class PortfolioRisk:
 
                 for symbol, qty, cur_price, entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or float(cur_price or 0) <= 0:
+                    if cur_price is None or float(cur_price) <= 0:
                         logger.warning(f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation")
                         continue
                     position_value = float(qty) * float(cur_price)
@@ -339,7 +339,7 @@ class PortfolioRisk:
 
                 for symbol, qty, cur_price, entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or float(cur_price or 0) <= 0:
+                    if cur_price is None or float(cur_price) <= 0:
                         logger.warning(f"[VAR exposure] {symbol}: missing or invalid current_price, excluding from exposure")
                         continue
                     position_value = float(qty) * float(cur_price)

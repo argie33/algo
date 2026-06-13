@@ -632,7 +632,7 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return {'score_factor': 0.5, 'value': None}
         new_hi = int(row['new_highs_count'] or 0)
         new_lo = int(row['new_lows_count'] or 0)

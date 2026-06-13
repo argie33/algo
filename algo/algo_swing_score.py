@@ -567,11 +567,13 @@ class SwingTraderScore:
             else:
                 rs_pts = 0
 
-        r1 = self._signals._period_return(cur, symbol, eval_date, 21) or 0
-        r3 = self._signals._period_return(cur, symbol, eval_date, 63) or 0
-        r6 = self._signals._period_return(cur, symbol, eval_date, 126) or 0
+        r1 = self._signals._period_return(cur, symbol, eval_date, 21)
+        r3 = self._signals._period_return(cur, symbol, eval_date, 63)
+        r6 = self._signals._period_return(cur, symbol, eval_date, 126)
         blend_pts = 0.0
         for ret, weight in [(r1, 3), (r3, 3), (r6, 2)]:
+            if ret is None:
+                continue
             if ret > 0.20:
                 blend_pts += weight
             elif ret > 0.10:

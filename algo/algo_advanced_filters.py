@@ -69,7 +69,7 @@ class AdvancedFilters:
             sectors = cur.fetchall()
             top_n = int(self.config.get('strong_sector_top_n', 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {row[0]: float(row[2] or 0) for row in sectors[:top_n]}
+            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None}
 
             # Graceful degradation: if no sector data, continue with empty dict
             if not self._strong_sectors:
@@ -101,11 +101,11 @@ class AdvancedFilters:
                 (eval_date,),
             )
             sent = cur.fetchone()
-            if sent:
+            if sent and sent[0] is not None and sent[1] is not None:
                 self._market_breadth = {
-                    'bullish': float(sent[0] or 0),
-                    'bearish': float(sent[1] or 0),
-                    'bull_bear_spread': float(sent[0] or 0) - float(sent[1] or 0),
+                    'bullish': float(sent[0]),
+                    'bearish': float(sent[1]),
+                    'bull_bear_spread': float(sent[0]) - float(sent[1]),
                 }
 
             return {
@@ -410,9 +410,9 @@ class AdvancedFilters:
         return pts, {
             'composite': round(composite, 1),
             'grade': grade,
-            'quality': round(float(row[1] or 0), 1),
-            'growth': round(float(row[2] or 0), 1),
-            'momentum': round(float(row[3] or 0), 1),
+            'quality': round(float(row[1]), 1) if row[1] is not None else None,
+            'growth': round(float(row[2]), 1) if row[2] is not None else None,
+            'momentum': round(float(row[3]), 1) if row[3] is not None else None,
         }
 
     def _financial_quality_score(self, symbol, cur):
@@ -426,7 +426,7 @@ class AdvancedFilters:
             (symbol,),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return 0.0, None
         q = float(row[0]) if row[0] is not None else 50.0
         # Linear scale: 50 = 0 pts (neutral quality), 100 = W_QUALITY_FIN pts (maximum)
@@ -467,7 +467,7 @@ class AdvancedFilters:
             (symbol,),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return 0.0, {}
         rev_3y = float(row[0]) if row[0] is not None else 0.0
         eps_3y = float(row[1]) if row[1] is not None else 0.0
@@ -498,9 +498,10 @@ class AdvancedFilters:
             (symbol, signal_date, signal_date),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return 0.0, 0
-        ups, downs = int(row[0] or 0), int(row[1] or 0)
+        ups = int(row[0]) if row[0] is not None else 0
+        downs = int(row[1]) if row[1] is not None else 0
         net = ups - downs
         # +5 net = full; -3 net = 0
         pts = max(0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0))
@@ -521,10 +522,10 @@ class AdvancedFilters:
             (symbol, signal_date, signal_date),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return 0.0, 0
-        buys = float(row[0] or 0)
-        sells = float(row[1] or 0)
+        buys = float(row[0]) if row[0] is not None else 0
+        sells = float(row[1]) if row[1] is not None else 0
         net = buys - sells
         if net <= 0:
             return 0.0, net

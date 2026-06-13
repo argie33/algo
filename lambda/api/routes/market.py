@@ -95,6 +95,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return list_response([safe_json_serialize(dict(b)) for b in breadth], data_freshness=freshness)
         elif path == '/api/market/technicals':
             try:
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 rows = execute_with_timeout(cur, """
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
                                up_volume_percent, breadth_momentum_10d,
@@ -102,7 +103,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     FROM market_health_daily
                     ORDER BY date DESC
                     LIMIT 1
-                """, timeout_sec=5)
+                """, timeout_sec=3)
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f'[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}')
                 return error_response(504, 'timeout', 'Market technicals data query exceeded timeout')
@@ -122,78 +123,75 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 base['mcclellan_oscillator'] = []
 
             # Compute today's advancing/declining counts from price_daily.
-            # SAVEPOINT isolation: a timeout here must not abort the outer transaction.
+            # OPTIMIZATION: Use date-based index for faster filtering
             try:
                 cur.execute("SAVEPOINT technicals_breadth")
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 breadth_query = """
                     WITH latest AS (
-                                 SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
-                             ),
-                             prev_day AS (
-                                 SELECT date AS d FROM price_daily
-                                 WHERE date < (SELECT d FROM latest)
-                                 ORDER BY date DESC LIMIT 1
-                             ),
-                             today AS (
-                                 SELECT symbol, close FROM price_daily
-                                 WHERE date = (SELECT d FROM latest)
-                                   AND symbol NOT LIKE '^%%'
-                             ),
-                             yesterday AS (
-                                 SELECT symbol, close FROM price_daily
-                                 WHERE date = (SELECT d FROM prev_day)
-                                   AND symbol NOT LIKE '^%%'
-                             )
+                        SELECT date AS d FROM price_daily
+                        WHERE close IS NOT NULL AND symbol NOT LIKE '^%'
+                        ORDER BY date DESC LIMIT 1
+                    ),
+                    prev_day AS (
+                        SELECT date AS d FROM price_daily
+                        WHERE date < (SELECT d FROM latest)
+                              AND close IS NOT NULL AND symbol NOT LIKE '^%'
+                        ORDER BY date DESC LIMIT 1
+                    )
                     SELECT
                         COUNT(*) FILTER (WHERE t.close > y.close) AS advancing,
                         COUNT(*) FILTER (WHERE t.close < y.close) AS declining,
                         COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
                         COUNT(t.symbol) AS total_stocks
-                    FROM today t
-                    JOIN yesterday y ON t.symbol = y.symbol
+                    FROM price_daily t
+                    JOIN price_daily y ON t.symbol = y.symbol
+                    WHERE t.date = (SELECT d FROM latest)
+                      AND y.date = (SELECT d FROM prev_day)
+                      AND t.close IS NOT NULL
+                      AND y.close IS NOT NULL
                 """
-                breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=5)
+                breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
                 cur.execute("RELEASE SAVEPOINT technicals_breadth")
                 base['breadth'] = dict(breadth_rows[0]) if breadth_rows else {}
             except psycopg2.errors.QueryCanceled as e:
-                logger.warning(f"[TECHNICALS_BREADTH] Query timeout — skipping. DB may be under write load: {type(e).__name__}")
+                logger.warning(f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 base['breadth'] = {}
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(f"[TECHNICALS_BREADTH] Database error — skipping: {type(e).__name__}: {e}")
+                logger.warning(f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 base['breadth'] = {}
             except Exception as e:
-                logger.warning(f"[TECHNICALS_BREADTH] Unexpected error — skipping: {type(e).__name__}: {e}")
+                logger.warning(f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 base['breadth'] = {}
-            # Build 30-day McClellan Oscillator history from market_exposure_daily.
-            # The factors JSONB column stores the true McClellan value (19-EMA minus
-            # 39-EMA of net advances) computed by algo_market_exposure._mcclellan().
+
+            # Build 30-day McClellan Oscillator history
             try:
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT date,
-                               (factors->'mcclellan'->>'value')::float AS advance_decline_line
+                           (factors->'mcclellan'->>'value')::float AS advance_decline_line
                     FROM market_exposure_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '35 days'
                           AND factors IS NOT NULL
@@ -205,12 +203,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 adrows = cur.fetchall()
                 base['mcclellan_oscillator'] = [safe_json_serialize(dict(r)) for r in adrows]
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}: {e}")
+                    psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.errors.QueryCanceled) as e:
+                logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
                 base['mcclellan_oscillator'] = []
             except Exception as e:
-                logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}: {e}")
+                logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
                 base['mcclellan_oscillator'] = []
+
             freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
             return json_response(200, base, data_freshness=freshness)
         elif path == '/api/market/top-movers':
@@ -219,65 +218,74 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             losers = []
             try:
                 cur.execute("SAVEPOINT top_movers")
-                cur.execute("SET LOCAL statement_timeout = '15s'")  # Complex join, allow more time
+                cur.execute("SET LOCAL statement_timeout = '8s'")
+                # OPTIMIZATION: Simplified query with better index usage
+                # Pre-filter at lower level to avoid joining all symbols
                 cur.execute("""
                     WITH latest_d AS (
-                        SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+                        SELECT date AS d FROM price_daily
+                        WHERE close IS NOT NULL
+                        ORDER BY date DESC LIMIT 1
+                    ),
+                    prev_d AS (
+                        SELECT date AS d FROM price_daily
+                        WHERE date < (SELECT d FROM latest_d)
+                              AND close IS NOT NULL
+                        ORDER BY date DESC LIMIT 1
                     ),
                     today AS (
                         SELECT symbol, close
                         FROM price_daily
                         WHERE date = (SELECT d FROM latest_d)
+                              AND symbol NOT LIKE '^%'
+                              AND close > 0
                     ),
                     yesterday AS (
                         SELECT symbol, close
                         FROM price_daily
-                        WHERE date = (
-                            SELECT date FROM price_daily WHERE date < (SELECT d FROM latest_d)
-                            ORDER BY date DESC LIMIT 1
-                        )
+                        WHERE date = (SELECT d FROM prev_d)
+                              AND symbol NOT LIKE '^%'
+                              AND close > 0
                     )
-                    SELECT t.symbol, ss.security_name,
-                               ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
+                    SELECT t.symbol, COALESCE(ss.security_name, t.symbol) AS security_name,
+                           ROUND(((t.close - y.close) / y.close * 100)::numeric, 2) as pct_change
                     FROM today t
-                    JOIN yesterday y ON t.symbol = y.symbol
-                    JOIN stock_symbols ss ON t.symbol = ss.symbol
-                    WHERE y.close > 0
-                          AND t.symbol NOT LIKE '^%%'
-                          AND COALESCE(ss.etf, 'N') != 'Y'
+                    INNER JOIN yesterday y ON t.symbol = y.symbol
+                    LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+                                                  AND (ss.etf IS NULL OR ss.etf != 'Y')
                     ORDER BY ABS(t.close - y.close) / y.close DESC
                     LIMIT 40
                 """)
                 movers = cur.fetchall()
                 cur.execute("RELEASE SAVEPOINT top_movers")
             except psycopg2.errors.QueryCanceled as e:
-                logger.warning(f"[TOP_MOVERS] Query timeout — returning empty. DB may be under write load: {type(e).__name__}")
+                logger.warning(f"[TOP_MOVERS] Query timeout: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                     cur.execute("RELEASE SAVEPOINT top_movers")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(f"[TOP_MOVERS] Database error — returning empty: {type(e).__name__}: {e}")
+                logger.warning(f"[TOP_MOVERS] Database error: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                     cur.execute("RELEASE SAVEPOINT top_movers")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
             except Exception as e:
-                logger.warning(f"[TOP_MOVERS] Unexpected error — returning empty: {type(e).__name__}: {e}")
+                logger.warning(f"[TOP_MOVERS] Unexpected error: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                     cur.execute("RELEASE SAVEPOINT top_movers")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
                 except Exception as sp_err:
-                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                    logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}")
             items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
             gainers = sorted([m for m in items if (m.get('pct_change')) >= 0],
                                  key=lambda x: -(x.get('pct_change')))[:10]
@@ -373,14 +381,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 code, error_type, message = handle_db_error(e, 'distribution days query')
                 return error_response(code, error_type, message)
         elif path == '/api/market/seasonality':
-            # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
+            # Seasonality tables are market-wide aggregates (SPY-based)
             monthly_data = []
             best_month = None
             worst_month = None
+            cur.execute("SET LOCAL statement_timeout = '2000ms'")
             try:
                 cur.execute("""
                     SELECT month, month_name, avg_return, best_return, worst_return,
-                               winning_years, losing_years, years_counted
+                           winning_years, losing_years, years_counted
                     FROM seasonality_monthly_stats
                     ORDER BY month
                 """)
@@ -392,6 +401,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         best_month = r_dict
                     if not worst_month or r_dict.get('avg_return', 0) < worst_month.get('avg_return', 0):
                         worst_month = r_dict
+            except psycopg2.errors.QueryCanceled as e:
+                logger.error(f'[SEASONALITY] Monthly query timeout: {type(e).__name__}')
+                return error_response(504, 'timeout', 'Seasonality data query exceeded timeout')
             except Exception as e:
                 code, error_type, message = handle_db_error(e, 'seasonality monthly query')
                 return error_response(code, error_type, message)
@@ -413,6 +425,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         best_dow = r_dict
                     if not worst_dow or r_dict.get('avg_return', 0) < worst_dow.get('avg_return', 0):
                         worst_dow = r_dict
+            except psycopg2.errors.QueryCanceled as e:
+                logger.error(f'[SEASONALITY] DOW query timeout: {type(e).__name__}')
+                return error_response(504, 'timeout', 'Seasonality data query exceeded timeout')
             except Exception as e:
                 code, error_type, message = handle_db_error(e, 'seasonality day of week query')
                 return error_response(code, error_type, message)
@@ -450,15 +465,20 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         elif path == '/api/market/sentiment':
             range_days = _parse_range_param(params) if params else 30
             sentiment_data = {}
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=range_days)).date()
+
+            # OPTIMIZATION: Set timeout to prevent slow queries from blocking
+            cur.execute("SET LOCAL statement_timeout = '4000ms'")
 
             # AAII investor sentiment
             try:
                 cur.execute("""
                     SELECT date, bullish, neutral, bearish
                     FROM aaii_sentiment
-                    WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    WHERE date >= %s
                     ORDER BY date ASC
-                """, (range_days,))
+                    LIMIT 100
+                """, (cutoff_date,))
                 aaii_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 aaii_current = aaii_rows[-1] if aaii_rows else None
 
@@ -493,10 +513,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("""
                     SELECT date, naaim_number_mean, bullish, bearish
                     FROM naaim
-                    WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    WHERE date >= %s
                     ORDER BY date ASC
                     LIMIT 52
-                """, (range_days,))
+                """, (cutoff_date,))
                 naaim_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 naaim_current = naaim_rows[-1] if naaim_rows else None
 
@@ -531,9 +551,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("""
                     SELECT date, fear_greed_value as value, fear_greed_label as label
                     FROM fear_greed_index
-                    WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    WHERE date >= %s
                     ORDER BY date ASC
-                """, (range_days,))
+                    LIMIT 100
+                """, (cutoff_date,))
                 fg_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
                 fg_current = fg_rows[-1] if fg_rows else None
 
@@ -565,7 +586,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 code, error_type, message = handle_db_error(e, 'fear/greed sentiment query')
                 return error_response(code, error_type, message)
 
-            return json_response(200, sentiment_data)
+            freshness = check_data_freshness(cur, 'aaii_sentiment', 'date', warning_days=1)
+            return json_response(200, sentiment_data, data_freshness=freshness)
         elif path == '/api/market/fear-greed':
             range_days = _parse_range_param(params) if params else 30
             return _get_fear_greed_history(cur, range_days)

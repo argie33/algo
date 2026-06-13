@@ -586,7 +586,7 @@ class ExitEngine:
             (symbol, current_date),
         )
         row = cur.fetchone()
-        if not row:
+        if row is None:
             return False
         sma_50, ema_21, vol, avg_vol_50 = row
         sma_50 = float(sma_50) if sma_50 is not None else None

@@ -182,15 +182,15 @@ class SwingTraderScoresLoader(OptimalLoader):
              minervini_score, weinstein_stage,
              rsi, roc_20d, mansfield_rs) = row
 
-            composite = float(composite_sqs or 0)
+            composite = float(composite_sqs) if composite_sqs is not None else 0.0
 
             # --- 7 component scores (0-100 each) ---
 
             # Setup: Minervini 8-point template completion (0-100)
-            setup = min(100.0, float(minervini_score or 0) / 8.0 * 100.0)
+            setup = min(100.0, float(minervini_score) / 8.0 * 100.0) if minervini_score is not None else 0.0
 
             # Trend: Weinstein stage quality
-            stage = int(weinstein_stage or 0)
+            stage = int(weinstein_stage) if weinstein_stage is not None else 0
             if stage == 2:
                 trend = 100.0
             elif stage == 1:

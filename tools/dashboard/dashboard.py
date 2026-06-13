@@ -76,27 +76,20 @@ def _fetch_terraform_credentials():
         tf_dir = os.path.join(repo_root, "terraform")
 
         if not os.path.isdir(tf_dir):
+            logger.warning("Terraform directory not found at %s", tf_dir)
             return (None, None, None)
 
-        # Set AWS profile if credentials available
-        if os.path.exists(os.path.expanduser("~/.aws/credentials")):
-            creds = open(os.path.expanduser("~/.aws/credentials")).read()
-            if "[algo-developer]" in creds:
-                os.environ["AWS_PROFILE"] = "algo-developer"
-                os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-
-        # Initialize if needed
+        # Initialize if needed (terraform init handles AWS profile from environment)
         if not os.path.exists(os.path.join(tf_dir, ".terraform")):
-            subprocess.run(
-                ["terraform", "init",
-                 "-backend-config=bucket=stocks-terraform-state",
-                 "-backend-config=key=stocks/terraform.tfstate",
-                 "-backend-config=region=us-east-1",
-                 "-backend-config=encrypt=true"],
+            result = subprocess.run(
+                ["terraform", "init", "-backend=true"],
                 cwd=tf_dir,
                 capture_output=True,
                 timeout=60
             )
+            if result.returncode != 0:
+                logger.error("Terraform init failed: %s", result.stderr.decode()[:200])
+                return (None, None, None)
 
         # Fetch outputs
         result = subprocess.run(
@@ -108,15 +101,34 @@ def _fetch_terraform_credentials():
         )
 
         if result.returncode != 0:
+            logger.warning("Terraform output failed: %s", result.stderr[:200])
             return (None, None, None)
 
-        outputs = json.loads(result.stdout)
-        return (
-            outputs.get("api_url", {}).get("value"),
-            outputs.get("cognito_user_pool_id", {}).get("value"),
-            outputs.get("cognito_user_pool_client_id", {}).get("value")
-        )
-    except Exception:
+        try:
+            outputs = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse terraform outputs: %s", e)
+            return (None, None, None)
+
+        # Validate outputs are present and non-empty
+        api_url = outputs.get("api_url", {}).get("value", "").strip()
+        pool_id = outputs.get("cognito_user_pool_id", {}).get("value", "").strip()
+        client_id = outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
+
+        if not all([api_url, pool_id, client_id]):
+            logger.warning("Terraform outputs incomplete: url=%s, pool=%s, client=%s",
+                         bool(api_url), bool(pool_id), bool(client_id))
+            return (None, None, None)
+
+        # Validate API URL format
+        if not api_url.startswith(("http://", "https://")):
+            logger.error("Invalid API URL format from terraform: %s", api_url[:50])
+            return (None, None, None)
+
+        logger.info("Successfully fetched credentials from Terraform")
+        return (api_url, pool_id, client_id)
+    except Exception as e:
+        logger.error("Failed to fetch terraform credentials: %s: %s", type(e).__name__, e)
         return (None, None, None)
 
 

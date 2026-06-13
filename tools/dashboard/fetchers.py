@@ -12,6 +12,57 @@ from utilities import (
     G, R, Y, CY,
 )
 
+# Fetcher metadata: endpoint and description for better error context
+FETCHER_METADATA = {
+    "run":          {"endpoint": "/api/algo/last-run", "desc": "Last algo run status"},
+    "cfg":          {"endpoint": "/api/algo/config", "desc": "Algo configuration"},
+    "mkt":          {"endpoint": "/api/algo/markets", "desc": "Market data"},
+    "port":         {"endpoint": "/api/algo/portfolio", "desc": "Portfolio snapshot"},
+    "perf":         {"endpoint": "/api/algo/performance", "desc": "Performance metrics"},
+    "pos":          {"endpoint": "/api/algo/positions", "desc": "Open positions"},
+    "trades":       {"endpoint": "/api/algo/trades", "desc": "Recent trades"},
+    "sig":          {"endpoint": "/api/algo/dashboard-signals", "desc": "Dashboard signals"},
+    "health":       {"endpoint": "/api/algo/data-status", "desc": "Data loader health"},
+    "cb":           {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},
+    "srank":        {"endpoint": "/api/algo/sector-rotation", "desc": "Sector rankings"},
+    "activity":     {"endpoint": "/api/algo/audit-log", "desc": "Activity log"},
+    "exp_factors":  {"endpoint": "/api/algo/exposure-policy", "desc": "Exposure factors"},
+    "eco":          {"endpoint": "/api/algo/economic-calendar", "desc": "Economic calendar"},
+    "notifs":       {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
+    "sentiment":    {"endpoint": "/api/algo/sentiment", "desc": "Market sentiment"},
+    "econ_cal":     {"endpoint": "/api/algo/economic-calendar", "desc": "Economic calendar"},
+    "risk":         {"endpoint": "/api/algo/risk-metrics", "desc": "Risk metrics"},
+    "perf_anl":     {"endpoint": "/api/algo/performance-analytics", "desc": "Performance analytics"},
+    "sig_eval":     {"endpoint": "/api/algo/rejection-funnel", "desc": "Signal evaluation"},
+    "sec_rot":      {"endpoint": "/api/algo/sector-rotation", "desc": "Sector rotation signal"},
+    "algo_metrics": {"endpoint": "/api/algo/metrics", "desc": "Algo metrics"},
+    "irank":        {"endpoint": "/api/industries", "desc": "Industry rankings"},
+    "audit":        {"endpoint": "/api/algo/audit-log", "desc": "Audit log"},
+    "exec_hist":    {"endpoint": "/api/algo/execution/recent", "desc": "Execution history"},
+}
+
+
+def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
+    """Format fetcher error with endpoint context for better troubleshooting.
+
+    Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
+    """
+    meta = FETCHER_METADATA.get(fetcher_name, {})
+    endpoint = meta.get("endpoint", "unknown endpoint")
+    desc = meta.get("desc", "")
+
+    error_type = type(error).__name__
+    error_msg = str(error)
+
+    context = f"{endpoint}"
+    if desc:
+        context += f": {desc}"
+
+    if error_msg:
+        return f"Fetcher {fetcher_name} ({context}) - {error_type}: {error_msg}"
+    else:
+        return f"Fetcher {fetcher_name} ({context}) - {error_type}"
+
 
 def fetch_run(c):
     try:
@@ -32,8 +83,9 @@ def fetch_run(c):
             "phase_results":    safe_json_parse(data.get("phase_results"), default=[], field_name="fetch_run.phase_results"),
         }
     except Exception as e:
-        logger.error(f"fetch_run: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        error_msg = _format_fetcher_error("run", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 def fetch_algo_config(c):
     """AWS-only algo configuration (no local fallback)."""
@@ -56,8 +108,9 @@ def fetch_algo_config(c):
             "pyramid": cfg.get("pyramid_enabled", "false").lower() == "true",
         }
     except Exception as e:
-        logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
-        return {"_error": str(e), "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
+        error_msg = _format_fetcher_error("cfg", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
 
 def fetch_market(c):
     """Issue 3 FIX: API-only market data."""
@@ -86,8 +139,9 @@ def fetch_market(c):
             "fed": data.get("fed_rate_environment"),
         }
     except Exception as e:
-        logger.error(f"fetch_market: {type(e).__name__}: {e}")
-        return {"_error": str(e), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
+        error_msg = _format_fetcher_error("mkt", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
 
 def fetch_exposure_factors(c):
     """Issue 3 FIX: API-only exposure factors."""
@@ -103,8 +157,9 @@ def fetch_exposure_factors(c):
             "factors": safe_json_parse(d.get("factors"), default={}, field_name="factors"),
         }
     except Exception as e:
-        logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
-        return {"_error": str(e), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
+        error_msg = _format_fetcher_error("exp_factors", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
 
 def _validate_required_fields(data_dict, required_fields, source_name):
     """Validate that all required fields exist in response dict. Return error dict if missing."""
@@ -150,9 +205,10 @@ def fetch_portfolio(c):
             "data_age_seconds": port.get("data_age_seconds")
         }
     except Exception as e:
-        logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
+        error_msg = _format_fetcher_error("port", e)
+        logger.error(error_msg)
         return {
-            "_error": str(e),
+            "_error": error_msg,
             "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
             "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
             "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
@@ -187,21 +243,22 @@ def fetch_perf(c):
             "open_count": safe_int(perf.get("open_positions")),
             "pnl": safe_float(perf.get("total_pnl_dollars")),
             "unrealized_pnl": safe_float(perf.get("unrealized_pnl")),
-            "streak": 0,
+            "streak": safe_int(perf.get("current_streak"), default=0),
             "sharpe": safe_float(perf.get("sharpe_annualized")),
             "maxdd": safe_float(perf.get("max_drawdown_pct")),
             "avg_win": safe_float(perf.get("avg_win_pct")),
             "avg_loss": safe_float(perf.get("avg_loss_pct")),
             "profit_factor": safe_float(perf.get("profit_factor")),
             "expectancy": safe_float(perf.get("expectancy_r")),
-            "avg_r": 0,
+            "avg_r": safe_float(perf.get("expectancy_r"), default=0),
             "equity_vals": perf.get("equity_vals", []),
             "recent_rets": perf.get("recent_rets", [])
         }
     except Exception as e:
-        logger.error(f"fetch_perf: {type(e).__name__}: {e}")
+        error_msg = _format_fetcher_error("perf", e)
+        logger.error(error_msg)
         return {
-            "_error": str(e),
+            "_error": error_msg,
             "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
             "sharpe": None, "maxdd": None, "avg_win": None, "avg_loss": None,
             "profit_factor": None, "expectancy": None, "avg_r": None,
@@ -218,59 +275,64 @@ def fetch_positions(c):
         items = result.get('items', []) if isinstance(result, dict) else result if isinstance(result, list) else []
         return {"items": items, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
-        logger.error(f"fetch_positions: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": [], "timestamp": datetime.now(timezone.utc)}
+        error_msg = _format_fetcher_error("pos", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
     try:
-        data = api_call('/api/algo/trades', params={'limit': 100})
+        data = api_call('/api/algo/trades', params={'limit': 10, 'status': 'closed'})
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
         trades = result.get('items', []) if isinstance(result, dict) else result if isinstance(result, list) else []
-        closed = [t for t in trades if t.get("status") == "closed"]
-        return {"items": closed[:10], "timestamp": datetime.now(timezone.utc)}
+        return {"items": trades, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
-        logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": [], "timestamp": datetime.now(timezone.utc)}
+        error_msg = _format_fetcher_error("trades", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_signals(c):
     """Fetch dashboard signals from API."""
     try:
-        data = api_call('/api/signals/stocks')
+        data = api_call('/api/algo/dashboard-signals')
         if data.get('_error'):
             return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
         if not data.get('data'):
             return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
 
         result = data['data']
-        signals = result.get('signals', [])
+        buy_sigs = result.get('buy_sigs', [])
+        near = result.get('near', [])
+        top_a = result.get('top_a', [])
         return {
-            "n": len(signals),
-            "total": result.get('total', len(signals)),
-            "buy_sigs": signals[:5] if signals else [],
+            "n": result.get('n', len(buy_sigs)),
+            "total": result.get('total', result.get('n', len(buy_sigs))),
+            "buy_sigs": buy_sigs,
             "grades": result.get('grades', {}),
-            "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
-            "top_a": signals[:3] if signals else [],
+            "near": near,
+            "top_a": top_a,
             "trend": result.get('trend', []),
             "timestamp": datetime.now(timezone.utc)
         }
     except Exception as e:
-        logger.error(f"fetch_signals: {type(e).__name__}: {e}")
-        return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
+        error_msg = _format_fetcher_error("sig", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
 
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
     try:
-        data = api_call('/api/sectors')
+        data = api_call('/api/algo/sector-rotation')
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         rankings = data.get('data', [])
         return {"items": rankings if isinstance(rankings, list) else []}
     except Exception as e:
-        logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
-        return {"_error": str(e), "items": []}
+        error_msg = _format_fetcher_error("srank", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "items": []}
 
 def fetch_activity(c):
     """Fetch activity and audit log from API."""
@@ -328,7 +390,7 @@ def fetch_health(c):
 
 def fetch_economic_pulse(c):
     try:
-        data = api_call('/api/economic')
+        data = api_call('/api/algo/economic-calendar')
         if data.get('_error'):
             return {"_error": data.get('_error'), 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
         econ = data.get('data', {})
@@ -526,17 +588,16 @@ def fetch_circuit(c):
         formatted_bs = []
         for r in bs:
             formatted_bs.append({
-                "lbl": r.get("breaker_name", ""),
-                "cur": safe_float(r.get("current_value")),
-                "thr": safe_float(r.get("threshold_value")),
+                "lbl": r.get("label", r.get("breaker_name", "")),
+                "cur": safe_float(r.get("current_value", r.get("current"))),
+                "thr": safe_float(r.get("threshold_value", r.get("threshold"))),
                 "u": r.get("unit", ""),
-                "fired": safe_bool(r.get("is_active"))
+                "fired": safe_bool(r.get("is_active", r.get("triggered")))
             })
-        any_fired = any(b["fired"] for b in formatted_bs)
         return {
             "bs": formatted_bs,
-            "any": any_fired,
-            "n": sum(1 for b in formatted_bs if b["fired"])
+            "any": result.get("any_triggered", False),
+            "n": result.get("triggered_count", 0)
         }
     except Exception as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
@@ -572,7 +633,7 @@ FETCHERS = {
 }
 
 def load_all() -> dict:
-    """Load all fetcher data in parallel with exponential backoff retry and timeout handling.
+    """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.
 
     FIXES APPLIED:
     - Issue #1: Removed duplicate api_call() stub
@@ -581,6 +642,7 @@ def load_all() -> dict:
     - Issue #4: Bounded sector cache with LRU (maxsize=100)
     - Issue #8: Increased thread pool from 8 to 16 workers
     - Issue #9: Increased batch timeout from 100s to 200s
+    - C5 FIX: Prioritized fetcher execution (critical first, optional second)
 
     Issue 10 FIX: Exponential backoff capped at API_MAX_BACKOFF (30s) to prevent runaway delays.
     Issue 11 FIX: Timeout handling ensures orphaned fetchers are marked incomplete and not lost.
@@ -590,6 +652,16 @@ def load_all() -> dict:
     out: dict = {}
     MAX_RETRIES = 3
     BATCH_TIMEOUT = 200
+
+    # Categorize fetchers by priority to reduce concurrent RDS connections
+    CRITICAL_FETCHERS = {
+        "run", "cfg", "mkt", "port", "perf", "pos", "trades", "sig", "health", "cb"
+    }
+    OPTIONAL_FETCHERS = {
+        "srank", "activity", "exp_factors", "eco", "notifs", "sentiment",
+        "econ_cal", "risk", "perf_anl", "sig_eval", "sec_rot", "algo_metrics",
+        "irank", "audit", "exec_hist"
+    }
 
     def one(name, fn):
         """Execute fetcher with exponential backoff retry on API errors."""
@@ -606,8 +678,10 @@ def load_all() -> dict:
                 logger.error(f"Fetcher {name} failed after {MAX_RETRIES+1} attempts: {e}")
                 return name, {"_error": str(e)}
 
-    with ThreadPoolExecutor(max_workers=min(len(FETCHERS), 16)) as pool:
-        futures = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
+    # Execute critical fetchers first (max 10 concurrent to reduce RDS load)
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        critical_items = {k: v for k, v in FETCHERS.items() if k in CRITICAL_FETCHERS}
+        futures = {pool.submit(one, k, v): k for k, v in critical_items.items()}
         pending_futures = set(futures.keys())
 
         try:
@@ -622,11 +696,36 @@ def load_all() -> dict:
                     out[k] = {"_error": str(e)}
                     pending_futures.discard(f)
         except TimeoutError:
-            logger.error(f"load_all timeout after {BATCH_TIMEOUT}s - marking incomplete fetchers")
+            logger.error(f"load_all critical timeout after {BATCH_TIMEOUT}s")
             for f in pending_futures:
                 k = futures.get(f)
                 if k and not f.done():
                     logger.warning(f"Fetcher {k} timed out - marking incomplete")
                     out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
+
+    # Execute optional fetchers with reduced concurrency
+    optional_timeout = BATCH_TIMEOUT - len(out) * 5
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        optional_items = {k: v for k, v in FETCHERS.items() if k in OPTIONAL_FETCHERS}
+        futures = {pool.submit(one, k, v): k for k, v in optional_items.items()}
+        pending_futures = set(futures.keys())
+
+        try:
+            for f in as_completed(futures, timeout=max(60, optional_timeout)):
+                try:
+                    n, d = f.result()
+                    out[n] = d
+                    pending_futures.discard(f)
+                except Exception as e:
+                    k = futures[f]
+                    logger.debug(f"Optional fetcher {k} failed: {type(e).__name__}")
+                    out[k] = {"_error": str(e)}
+                    pending_futures.discard(f)
+        except TimeoutError:
+            logger.debug(f"load_all optional timeout - {len(pending_futures)} fetchers incomplete")
+            for f in pending_futures:
+                k = futures.get(f)
+                if k and not f.done():
+                    out[k] = {"_error": f"Optional timeout (exceeded {max(60, optional_timeout)}s)"}
 
     return out

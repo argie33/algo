@@ -680,7 +680,7 @@ class DataPatrol:
                     (sym,),
                 )
                 row = cur.fetchone()
-                if not row or not row[0]:
+                if row is None or row[0] is None:
                     continue
                 our_close = float(row[0])
                 pct_diff = abs(our_close - yahoo_close) / yahoo_close * 100

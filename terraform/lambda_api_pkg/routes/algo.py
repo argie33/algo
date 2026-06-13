@@ -636,11 +636,19 @@ def _get_algo_performance(cur) -> Dict:
                     }
                 })
 
-            # Extract metrics from closed trades
-            pnl_dollars = [float(t.get('profit_loss_dollars') or 0) for t in trades]
-            pnl_pcts = [float(t.get('profit_loss_pct') or 0) for t in trades]
-            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple')]
-            holding_days = [float(t.get('holding_days') or 0) for t in trades if t.get('holding_days')]
+            # Extract metrics from closed trades (skip trades with missing P&L — don't mask with fallback to 0)
+            pnl_dollars = []
+            pnl_pcts = []
+            for t in trades:
+                pnl_d = t.get('profit_loss_dollars')
+                pnl_p = t.get('profit_loss_pct')
+                if pnl_d is None or pnl_p is None:
+                    continue
+                pnl_dollars.append(float(pnl_d))
+                pnl_pcts.append(float(pnl_p))
+
+            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
+            holding_days = [float(t.get('holding_days')) for t in trades if t.get('holding_days') is not None]
 
             closed_winning = sum(1 for p in pnl_dollars if p > 0)
             closed_losing = sum(1 for p in pnl_dollars if p < 0)
@@ -691,7 +699,13 @@ def _get_algo_performance(cur) -> Dict:
 
             sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
             if snapshot_count > 1:
-                vals = [float(s.get('total_portfolio_value') or 0) for s in snapshots]
+                # Skip snapshots with missing portfolio values (don't mask with fallback to 0)
+                vals = []
+                for s in snapshots:
+                    pv = s.get('total_portfolio_value')
+                    if pv is None:
+                        continue
+                    vals.append(float(pv))
                 returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
 
                 if returns:
@@ -710,13 +724,22 @@ def _get_algo_performance(cur) -> Dict:
                 if vals[0] > 0 and vals[-1] > 0:
                     total_return_pct = (vals[-1] / vals[0] - 1) * 100
 
-            # Equity curve and returns
-            equity_vals = [float(s.get('total_portfolio_value') or 0) for s in snapshots] if snapshots else []
+            # Equity curve and returns (skip snapshots with missing portfolio values)
+            equity_vals = []
+            for s in snapshots:
+                pv = s.get('total_portfolio_value')
+                if pv is not None:
+                    equity_vals.append(float(pv))
+
             recent_rets = []
             if len(snapshots) >= 2:
                 for i in range(1, len(snapshots)):
-                    prev = float(snapshots[i-1].get('total_portfolio_value') or 0)
-                    curr = float(snapshots[i].get('total_portfolio_value') or 0)
+                    prev = snapshots[i-1].get('total_portfolio_value')
+                    curr = snapshots[i].get('total_portfolio_value')
+                    if prev is None or curr is None:
+                        continue
+                    prev = float(prev)
+                    curr = float(curr)
                     if prev != 0:
                         ret_pct = ((curr - prev) / prev) * 100
                         date_str = snapshots[i].get('snapshot_date')

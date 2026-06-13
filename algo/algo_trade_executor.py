@@ -352,11 +352,12 @@ class TradeExecutor:
                 # If prior trade was a stop-out, we're attempting a re-entry
                 if exit_reason and ('STOP' in (exit_reason or '').upper() or 'TIME' in (exit_reason or '').upper()):
                     max_reentries = int(self.config.get('max_reentries_per_name', 2))
-                    if int(prior_reentry or 0) >= max_reentries:
+                    prior_reentry_count = int(prior_reentry) if prior_reentry is not None else 0
+                    if prior_reentry_count >= max_reentries:
                         return {
                             'success': False, 'trade_id': '', 'status': 'reentry_blocked',
                             'reentry_blocked': True,
-                            'message': f'{symbol}: {prior_reentry} prior re-entries within 30 days >= {max_reentries} max'
+                            'message': f'{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {max_reentries} max'
                         }
                     # NEW: Enforce minimum days between stop-out and re-entry (reset period for failed setup)
                     min_days_wait = int(self.config.get('min_days_before_reentry_same_symbol', 5))
@@ -369,7 +370,7 @@ class TradeExecutor:
                                 'success': False, 'trade_id': '', 'status': 'reentry_cooldown',
                                 'message': f'{symbol}: only {days_since_exit}d since stop-out; require {min_days_wait}d before re-entry (reset period)'
                             }
-                    reentry_count = int(prior_reentry or 0) + 1
+                    reentry_count = prior_reentry_count + 1
 
             execution_mode = self.config.get('execution_mode', 'paper')
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"

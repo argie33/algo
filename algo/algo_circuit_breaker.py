@@ -34,6 +34,23 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Human-readable labels for circuit breaker checks
+CHECK_LABELS = {
+    'daily_loss': 'Daily Loss Limit Exceeded',
+    'drawdown': 'Portfolio Drawdown Limit',
+    'drawdown_re_engagement': 'Drawdown Recovery Period',
+    'consecutive_losses': 'Consecutive Losses Limit',
+    'total_risk': 'Total Open Risk Limit',
+    'vix_spike': 'Market Volatility Spike',
+    'market_stage': 'Market Stage Break',
+    'weekly_loss': 'Weekly Loss Limit Exceeded',
+    'sector_concentration': 'Sector Concentration Warning',
+    'intraday_market_health': 'Market Instability (Prior-Day Drop)',
+    'win_rate_floor': 'Win Rate Floor Breached',
+    'daily_profit_cap': 'Daily Profit Target Reached',
+    'data_freshness': 'Data Staleness Check',
+}
+
 
 def _safe_float(value, default=None, context=""):
     """Convert to float safely, rejecting NaN/Infinity.
@@ -109,10 +126,11 @@ class CircuitBreaker:
                             # Real error: fail-closed, halt trading
                             logger.critical(f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}")
                             state = {'halted': True, 'reason': f'check error ({error_type}: {e})'}
+                    state['label'] = CHECK_LABELS.get(name, name)
                     results['checks'][name] = state
                     if state.get('halted'):
                         results['halted'] = True
-                        results['halt_reasons'].append(f"{name}: {state['reason']}")
+                        results['halt_reasons'].append(f"{state['label']}: {state['reason']}")
 
                 # Persist if halted
                 if results['halted']:
@@ -331,9 +349,9 @@ class CircuitBreaker:
         if row is None or row[3] is None or int(row[3]) < 10:
             return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
 
-        wins = int(row[0] or 0)
-        losses = int(row[1] or 0)
-        int(row[2] or 0)  # breakeven trades (excluded from win rate calculation)
+        wins = int(row[0]) if row[0] is not None else 0
+        losses = int(row[1]) if row[1] is not None else 0
+        breakeven = int(row[2]) if row[2] is not None else 0
         total = int(row[3])
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
@@ -765,7 +783,8 @@ if __name__ == "__main__":
     logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")
     for name, state in result['checks'].items():
         flag = '[HALT]' if state.get('halted') else '[OK]  '
-        logger.info(f"  {flag} {name:22s} : {state.get('reason', 'no detail')}")
+        label = state.get('label', name)
+        logger.info(f"  {flag} {label:40s} : {state.get('reason', 'no detail')}")
     if result['halted']:
         logger.info("\nHALT REASONS:")
         for r in result['halt_reasons']:

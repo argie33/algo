@@ -106,7 +106,7 @@ class DailyFinanceReport:
             )
             row = cur.fetchone()
 
-            if not row:
+            if row is None:
                 return {}
 
             return {
@@ -132,7 +132,7 @@ class DailyFinanceReport:
             )
             row = cur.fetchone()
 
-            if not row:
+            if row is None:
                 return {}
 
             win_rate = float(row[0]) if row[0] else 0
