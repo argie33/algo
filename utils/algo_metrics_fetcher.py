@@ -37,16 +37,26 @@ class AlgoMetricsFetcher:
         self.cursor = cursor
 
     @staticmethod
-    def _mean(xs: List[float]) -> float:
-        """Calculate mean of list."""
-        return sum(xs) / len(xs) if xs else 0.0
+    def _mean(xs: List[float]) -> Optional[float]:
+        """Calculate mean of list. Returns None if empty (not 0.0, which is misleading)."""
+        if not xs:
+            return None
+        return sum(xs) / len(xs)
 
     @staticmethod
-    def _std(xs: List[float]) -> float:
-        """Calculate sample standard deviation."""
-        if len(xs) < 2:
-            return 0.0
+    def _mean_rounded(xs: List[float], decimals: int = 2) -> Optional[float]:
+        """Calculate mean and round. Returns None if empty."""
         m = AlgoMetricsFetcher._mean(xs)
+        return round(m, decimals) if m is not None else None
+
+    @staticmethod
+    def _std(xs: List[float]) -> Optional[float]:
+        """Calculate sample standard deviation. Returns None if insufficient data."""
+        if len(xs) < 2:
+            return None
+        m = AlgoMetricsFetcher._mean(xs)
+        if m is None:  # Should never happen, but defensive
+            return None
         return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs))
 
     @staticmethod
@@ -124,8 +134,8 @@ class AlgoMetricsFetcher:
             # Win/loss averages
             wins_pcts = [p for p in pnl_pcts if p > 0]
             losses_pcts = [p for p in pnl_pcts if p < 0]
-            avg_win_pct = self._mean(wins_pcts) if wins_pcts else 0.0
-            avg_loss_pct = self._mean(losses_pcts) if losses_pcts else 0.0
+            avg_win_pct = self._mean(wins_pcts)  # Returns None if empty
+            avg_loss_pct = self._mean(losses_pcts)  # Returns None if empty
 
             # Sharpe & Sortino from portfolio snapshots
             sharpe_ratio, sortino_ratio, max_dd_pct = None, None, None
@@ -149,12 +159,12 @@ class AlgoMetricsFetcher:
                     if returns:
                         mean_r = self._mean(returns)
                         std_r = self._std(returns)
-                        if std_r > 0:
+                        if mean_r is not None and std_r is not None and std_r > 0:
                             sharpe_ratio = (mean_r / std_r) * math.sqrt(252)
 
                         downside = [r for r in returns if r < 0]
-                        dv = self._std(downside) if downside else 0.0
-                        if dv > 0:
+                        dv = self._std(downside)  # Returns None if < 2 items
+                        if mean_r is not None and dv is not None and dv > 0:
                             sortino_ratio = (mean_r / dv) * math.sqrt(252)
 
                         max_dd_pct = self._max_drawdown_pct(returns)
@@ -207,16 +217,16 @@ class AlgoMetricsFetcher:
                 'total_pnl_dollars': round(sum(pnl_dollars), 2),
                 'total_pnl_pct': round(sum(pnl_pcts), 2),
                 'total_return_pct': round(total_return_pct, 2) if total_return_pct else None,
-                'avg_win_pct': round(avg_win_pct, 2),
-                'avg_loss_pct': round(avg_loss_pct, 2),
+                'avg_win_pct': round(avg_win_pct, 2) if avg_win_pct is not None else None,
+                'avg_loss_pct': round(avg_loss_pct, 2) if avg_loss_pct is not None else None,
                 'best_trade_pct': round(max(pnl_pcts), 2) if pnl_pcts else None,
                 'worst_trade_pct': round(min(pnl_pcts), 2) if pnl_pcts else None,
                 'sharpe_ratio': round(sharpe_ratio, 2) if sharpe_ratio is not None else None,
                 'sharpe_confidence': sharpe_confidence,
                 'sortino_ratio': round(sortino_ratio, 2) if sortino_ratio is not None else None,
                 'max_drawdown_pct': round(abs(max_dd_pct) * 100, 2) if max_dd_pct is not None else None,
-                'expectancy_r': round(self._mean(r_multiples), 2) if r_multiples else None,
-                'avg_holding_days': round(self._mean(holding_days), 1) if holding_days else None,
+                'expectancy_r': self._mean_rounded(r_multiples, 2) if r_multiples else None,
+                'avg_holding_days': self._mean_rounded(holding_days, 1) if holding_days else None,
                 'current_streak': current_streak if pnl_dollars else None,
                 'best_win_streak': best_win_streak if pnl_dollars else None,
                 'worst_loss_streak': worst_loss_streak if pnl_dollars else None,

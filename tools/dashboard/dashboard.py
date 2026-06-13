@@ -215,9 +215,11 @@ def compute_sector_agg(pos, port):
 
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     sd = {}
+    invalid_count = 0
     for p in pos:
         if not isinstance(p, dict):
-            logger.warning(f"compute_sector_agg: skipping non-dict position: {type(p).__name__}")
+            invalid_count += 1
+            logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
             continue
         sec = p.get("sector") or "Unknown"
         val = safe_float(p.get("position_value"), default=None)
@@ -229,6 +231,10 @@ def compute_sector_agg(pos, port):
         sd[sec]["n"] += 1
         if pnl is not None:
             sd[sec]["pnls"].append(pnl)
+
+    if invalid_count > 0:
+        logger.error(f"compute_sector_agg: encountered {invalid_count} invalid position(s); sector totals may be incomplete")
+        return None, None, 0
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)
@@ -3315,6 +3321,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         refresh_s = f"  [dim]â†»{secs}s[/]"
 
     hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg)
+    exp_panel = panel_exposure_compact(exp_f)
+    mascot_panel = mascot_compact(data, frame)
 
     outer = Layout()
     outer.split_column(
@@ -3332,8 +3340,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(name="mascot",   size=MASCOT_W),
     )
     outer["top"]["hdr"].update(hdr_panel)
-    outer["top"]["exposure"].update(panel_exposure_compact(exp_f))
-    outer["top"]["mascot"].update(mascot_compact(data, frame))
+    outer["top"]["exposure"].update(exp_panel)
+    outer["top"]["mascot"].update(mascot_panel)
 
     # Row 1: Circuit Breakers (narrower left) | Algo Health (wider right) âE" side by side
     outer["r1"].split_row(
@@ -3360,7 +3368,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_recent_trades(rec),                   ratio=2, name="recent_trades"),
     )
 
-    _exp_top = (hdr_panel, panel_exposure_compact(exp_f), mascot_compact(data, frame))
+    _exp_top = (hdr_panel, exp_panel, mascot_panel)
 
     if view_mode == "positions":
         hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")

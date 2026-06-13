@@ -180,7 +180,12 @@ def compute_sector_agg(pos, port):
 
     pv = float(port.get("total_portfolio_value") or 0)
     sd = {}
+    invalid_count = 0
     for p in pos:
+        if not isinstance(p, dict):
+            invalid_count += 1
+            logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
+            continue
         sec = p.get("sector") or "Unknown"
         val = float(p.get("position_value") or 0)
         pnl = float(p.get("unrealized_pnl_pct") or 0)
@@ -189,6 +194,10 @@ def compute_sector_agg(pos, port):
         sd[sec]["val"] += val
         sd[sec]["n"] += 1
         sd[sec]["pnls"].append(pnl)
+
+    if invalid_count > 0:
+        logger.error(f"compute_sector_agg: encountered {invalid_count} invalid position(s); sector totals may be incomplete")
+        return None, None, 0
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)

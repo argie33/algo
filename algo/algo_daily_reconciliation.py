@@ -605,15 +605,40 @@ class DailyReconciliation:
 
             # Import this Alpaca position as a manual/external one
             try:
-                qty = float(getattr(ap, 'qty', 0) or 0)
-                avg_entry = float(getattr(ap, 'avg_entry_price', 0) or 0)
-                cur_price = float(getattr(ap, 'current_price', None) or avg_entry)
-                pos_value = float(getattr(ap, 'market_value', None) or qty * cur_price)
-                pnl = float(getattr(ap, 'unrealized_pl', 0) or 0)
-                pnl_pct = float(getattr(ap, 'unrealized_plpc', 0) or 0) * 100
+                qty_raw = getattr(ap, 'qty', None)
+                if qty_raw is None or qty_raw == 0:
+                    continue  # skip zero/missing quantities
+                qty = float(qty_raw)
 
-                if qty <= 0:
-                    continue  # short or zero — skip
+                # Validate entry price (critical)
+                avg_entry_raw = getattr(ap, 'avg_entry_price', None)
+                if avg_entry_raw is None or float(avg_entry_raw or 0) <= 0:
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position missing or invalid entry price — skipping")
+                    continue
+                avg_entry = float(avg_entry_raw)
+
+                # Validate current price
+                cur_price_raw = getattr(ap, 'current_price', None)
+                if cur_price_raw is None or float(cur_price_raw or 0) <= 0:
+                    logger.warning(f"[import_alpaca] {sym}: Alpaca position missing or invalid current price — skipping")
+                    continue
+                cur_price = float(cur_price_raw)
+
+                # Validate market value if provided
+                pos_value_raw = getattr(ap, 'market_value', None)
+                if pos_value_raw is not None:
+                    pos_value = float(pos_value_raw)
+                    if pos_value <= 0:
+                        logger.warning(f"[import_alpaca] {sym}: Market value invalid {pos_value} — recalculating")
+                        pos_value = qty * cur_price
+                else:
+                    pos_value = qty * cur_price
+
+                # Get PnL (may be missing for very new positions)
+                pnl_raw = getattr(ap, 'unrealized_pl', None)
+                pnl = float(pnl_raw or 0) if pnl_raw is not None else 0.0
+                pnl_pct_raw = getattr(ap, 'unrealized_plpc', None)
+                pnl_pct = (float(pnl_pct_raw or 0) * 100) if pnl_pct_raw is not None else 0.0
 
                 position_id = f'EXT-{sym}-{datetime.now(timezone.utc).strftime("%Y%m%d")}'
                 trade_id = f'EXT-{sym}'
