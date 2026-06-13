@@ -398,7 +398,7 @@ class AlgoMetricsFetcher:
             limit: Maximum number of return periods to calculate (default 252 = ~1 year)
 
         Returns:
-            Dict with 'recent_rets' list on success, '_error' on failure
+            Dict with 'recent_rets' list of [date_str, pct_return] lists on success, '_error' on failure
         """
         try:
             self.cursor.execute("""
@@ -408,13 +408,23 @@ class AlgoMetricsFetcher:
                 LIMIT %s
             """, (limit,))
             rows = [dict(row) for row in self.cursor.fetchall()]
-            vals = [float(r.get('total_portfolio_value') or 0) for r in rows]
 
-            if len(vals) < 2:
+            if len(rows) < 2:
                 return {'recent_rets': [], '_source': 'database_direct'}
 
-            returns = [(vals[i] - vals[i-1]) / vals[i-1]
-                      for i in range(1, len(vals)) if vals[i-1] != 0]
+            returns = []
+            for i in range(1, len(rows)):
+                prev_val = float(rows[i-1].get('total_portfolio_value') or 0)
+                curr_val = float(rows[i].get('total_portfolio_value') or 0)
+                if prev_val != 0:
+                    ret_pct = ((curr_val - prev_val) / prev_val) * 100
+                    date = rows[i].get('snapshot_date')
+                    if date:
+                        date_str = date.isoformat() if hasattr(date, 'isoformat') else str(date)
+                    else:
+                        date_str = None
+                    returns.append([date_str, round(ret_pct, 2)])
+
             logger.debug(f"fetch_recent_returns: {len(returns)} daily returns calculated")
             return {'recent_rets': returns, '_source': 'database_direct'}
 

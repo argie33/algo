@@ -511,8 +511,8 @@ def fetch_perf(c):
             "profit_factor": data.get("profit_factor"),
             "expectancy": data.get("expectancy"),
             "avg_r": 0,
-            "equity_vals": [],
-            "recent_rets": []
+            "equity_vals": data.get("equity_vals", []),
+            "recent_rets": data.get("recent_rets", [])
         }
     except Exception as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")

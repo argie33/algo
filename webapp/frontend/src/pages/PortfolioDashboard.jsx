@@ -55,6 +55,63 @@ const PIE_PALETTE = [
   '#FFC107', '#795548', '#607D8B', '#FF6B6B',
 ];
 
+// Reusable style objects to prevent recreation on every render
+const MARKER_STYLE_BASE = {
+  position: 'absolute', top: -4, bottom: -4,
+  display: 'flex', flexDirection: 'column', alignItems: 'center',
+  pointerEvents: 'none',
+};
+
+const MARKER_LINE_STYLE = (big, color) => ({
+  width: big ? 4 : 2, flex: 1, background: color,
+  borderRadius: 'var(--r-pill)',
+  boxShadow: big ? `0 0 4px ${color}` : 'none',
+});
+
+const MARKER_LABEL_STYLE = (color) => ({
+  fontSize: 'var(--t-2xs)', color, fontWeight: 'var(--w-bold)',
+  marginTop: 2, lineHeight: 1, whiteSpace: 'nowrap',
+});
+
+const LADDER_TRACK_STYLE = {
+  position: 'relative', height: 28, background: 'var(--surface-2)',
+  borderRadius: 'var(--r-pill)', overflow: 'visible',
+  border: '1px solid var(--border-soft)',
+};
+
+const LADDER_FILL_STYLE = (pStop, pCur, pEntry) => ({
+  position: 'absolute', top: 0, bottom: 0,
+  left: `${Math.min(pStop, pCur)}%`,
+  width: `${Math.max(0, Math.abs(pCur - pStop))}%`,
+  background: pCur >= pEntry
+    ? 'linear-gradient(90deg, var(--danger) 0%, var(--amber) 50%, var(--success) 100%)'
+    : 'linear-gradient(90deg, var(--danger) 0%, var(--amber) 100%)',
+  opacity: 0.35,
+  borderRadius: 'var(--r-pill)',
+});
+
+// Data extraction helpers — consistent patterns for normalizing API responses
+const extractArray = (data, defaultKey = 'items') => {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray(data[defaultKey])) return data[defaultKey];
+  return [];
+};
+
+const extractNestedValue = (obj, path, defaultValue = null) => {
+  if (!obj || typeof obj !== 'object') return defaultValue;
+  const keys = path.split('.');
+  let val = obj;
+  for (const key of keys) {
+    val = val?.[key];
+    if (val === undefined) return defaultValue;
+  }
+  return val ?? defaultValue;
+};
+
+const hasError = (data) => data?._error != null;
+const isCached = (data) => data?.fromCache === true;
+const isPlaceholder = (data) => data?._is_placeholder === true;
+
 const CachedDataBadge = () => (
   <span className="badge badge-amber" style={{ fontSize: 'var(--t-xs)', marginLeft: 'var(--space-1)' }}>
     🔄 Cached
@@ -139,64 +196,60 @@ function PortfolioDashboardPage() {
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
   const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading || holdingLoading || stageLoading;
 
-  // Normalize paginated responses to arrays - with null safety
-  const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
-  const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
-  const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
-  const sectorAllocation = (positions && typeof positions === 'object' && Array.isArray(positions.sector_allocation))
-    ? positions.sector_allocation
-    : [];
+  // Normalize paginated responses using consistent extraction pattern
+  const positionsList = extractArray(positions);
+  const tradesList = extractArray(trades);
+  const equityCurve = extractArray(equityItems);
+  const sectorAllocation = extractArray(positions, 'sector_allocation');
 
-  // Add null safety checks for arrays - ensure they're always valid arrays
-  const safePositionsList = (Array.isArray(positionsList) && positionsList.length > 0) ? positionsList : [];
-  const safeTradesList = (Array.isArray(tradesList) && tradesList.length > 0) ? tradesList : [];
-  // Equity curve needs special handling: ensure each item has required fields (date, value)
-  const safeEquityCurve = Array.isArray(equityCurve) && equityCurve.length > 0
+  // Apply null safety and domain-specific filtering
+  const safePositionsList = positionsList.length > 0 ? positionsList : [];
+  const safeTradesList = tradesList.length > 0
+    ? tradesList.filter(t => t.status === 'closed')
+    : [];
+  const safeEquityCurve = equityCurve.length > 0
     ? equityCurve.filter(item => item && typeof item === 'object' && item.date && (item.value != null || item.equity != null))
     : [];
 
-  // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
-  const portfolio = (status && typeof status === 'object' && status.portfolio) ? status.portfolio : {};
-  // markets returns {success, current: {regime, distribution_days...}, market_health: {market_trend, vix_level...}}
-  const currentExp = (markets && typeof markets === 'object' && markets.current) ? markets.current : {};
-  const currentHealth = (markets && typeof markets === 'object' && markets.market_health) ? markets.market_health : {};
+  // Extract portfolio data with consistent nested access
+  const portfolio = extractNestedValue(status, 'portfolio', {});
+  const currentExp = extractNestedValue(markets, 'current', {});
+  const currentHealth = extractNestedValue(markets, 'market_health', {});
   const market = {
-    trend: currentHealth?.market_trend || 'unknown',
-    stage: currentHealth?.market_stage ?? 0,
-    vix: currentHealth?.vix_level ?? 0,
-    distribution_days: currentExp?.distribution_days_4w ?? currentExp?.distribution_days ?? 0,
+    trend: currentHealth.market_trend || 'unknown',
+    stage: currentHealth.market_stage ?? 0,
+    vix: currentHealth.vix_level ?? 0,
+    distribution_days: currentExp.distribution_days_4w ?? currentExp.distribution_days ?? 0,
   };
-  // Use pre-computed unrealized PnL from status endpoint (Issue #10: Unrealized PnL sum)
-  const unrealizedPnl = portfolio?.unrealized_pnl_dollars ?? 0;
+
+  // Compute portfolio metrics
+  const unrealizedPnl = portfolio.unrealized_pnl_dollars ?? 0;
   const totalPositionValue = safePositionsList.reduce((s, p) => {
-    const val = p?.position_value ?? 0;
-    const numVal = Number(val);
-    return s + (isNaN(numVal) ? 0 : numVal);
+    const val = Number(p?.position_value ?? 0);
+    return s + (isNaN(val) ? 0 : val);
   }, 0);
-  const totalValue = (portfolio?.total_value != null && !isNaN(Number(portfolio.total_value)))
+  const totalValue = (portfolio.total_value != null && !isNaN(Number(portfolio.total_value)))
     ? parseFloat(portfolio.total_value)
     : (totalPositionValue || 0);
 
-  // Check for cached/stale data (graceful degradation)
-  const hasCachedPerf = perf?.fromCache;
-  const hasCachedTrades = trades?.fromCache;
-  const hasCachedEquity = equityItems?.fromCache;
+  // Unified error and cache detection using helper functions
+  const hasCachedPerf = isCached(perf);
+  const hasCachedTrades = isCached(trades);
+  const hasCachedEquity = isCached(equityItems);
 
-  // Check for _error keys in response data (fetcher-level errors)
-  const perfDataError = perf?._error;
-  const tradesDataError = trades?._error;
-  const posDataError = positions?._error;
-  const marketsDataError = markets?._error;
-  const equityDataError = equityItems?._error;
-  const statusDataError = status?._error;
+  const perfDataError = hasError(perf) ? perf._error : null;
+  const tradesDataError = hasError(trades) ? trades._error : null;
+  const posDataError = hasError(positions) ? positions._error : null;
+  const marketsDataError = hasError(markets) ? markets._error : null;
+  const equityDataError = hasError(equityItems) ? equityItems._error : null;
+  const statusDataError = hasError(status) ? status._error : null;
 
-  // Check for placeholder/fake data indicators
-  const isPerfPlaceholder = perf?._is_placeholder === true;
-  const isEquityPlaceholder = equityItems?._is_placeholder === true;
-  const isTradesPlaceholder = trades?._is_placeholder === true;
-  const isReturnHistogramPlaceholder = returnHistogram?._is_placeholder === true;
-  const isDistributionPlaceholder = tradeDistribution?._is_placeholder === true;
-  const isHoldingPlaceholder = holdingDistribution?._is_placeholder === true;
+  const isPerfPlaceholder = isPlaceholder(perf);
+  const isEquityPlaceholder = isPlaceholder(equityItems);
+  const isTradesPlaceholder = isPlaceholder(trades);
+  const isReturnHistogramPlaceholder = isPlaceholder(returnHistogram);
+  const isDistributionPlaceholder = isPlaceholder(tradeDistribution);
+  const isHoldingPlaceholder = isPlaceholder(holdingDistribution);
 
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
@@ -724,6 +777,7 @@ function CircuitBreakerPanel({ data, loading }) {
   }
 
   const tripped = breakers.filter(b => b.triggered).length;
+  const gridCols = breakers.length <= 2 ? 2 : breakers.length === 3 ? 3 : 4;
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
       <div className="card-head">
@@ -740,7 +794,7 @@ function CircuitBreakerPanel({ data, loading }) {
         </span>
       </div>
       <div className="card-body">
-        <div className="grid grid-4" style={{ gap: 'var(--space-3)' }}>
+        <div className={`grid grid-${gridCols}`} style={{ gap: 'var(--space-3)' }}>
           {breakers.map(b => {
             const utilPct = b.threshold > 0
               ? Math.min(100, Math.round((Number(b.current) / Number(b.threshold)) * 100))
