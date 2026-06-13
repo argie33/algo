@@ -29,11 +29,6 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-try:
-    from api_data_layer import DashboardDataAPI
-except ImportError:
-    DashboardDataAPI = None
-
 import requests
 import requests.exceptions
 
