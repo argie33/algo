@@ -526,7 +526,7 @@ def fetch_algo_config(c):
 def fetch_market(c):
     """Issue 3 FIX: API-only market data."""
     try:
-        mkt = api_call('/api/algo/market')
+        mkt = api_call('/api/algo/markets')
         if mkt.get('_error'):
             return {"_error": mkt.get('_error'), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
         data = mkt.get('data', {})
@@ -556,13 +556,13 @@ def fetch_market(c):
 def fetch_exposure_factors(c):
     """Issue 3 FIX: API-only exposure factors."""
     try:
-        data = api_call('/api/algo/market-factors')
+        data = api_call('/api/algo/exposure-policy')
         if data.get('_error'):
             return {"_error": data.get('_error'), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
         d = data.get('data', {})
         return {
-            "raw_score": safe_float(d.get("raw_score")),
-            "exposure_pct": safe_float(d.get("exposure_pct")),
+            "raw_score": safe_float(d.get("factor_quality")),
+            "exposure_pct": safe_float(d.get("current_exposure_pct")),
             "regime": d.get("regime"),
             "factors": safe_json_parse(d.get("factors"), default={}, field_name="factors"),
         }
@@ -573,8 +573,24 @@ def fetch_exposure_factors(c):
 def fetch_portfolio(c):
     """AWS-only portfolio snapshot (no local fallback)."""
     try:
+        # Try the portfolio endpoint first, then fall back to performance data
         data = api_call('/api/algo/portfolio')
         if data.get('_error'):
+            # Portfolio endpoint not available, try to get similar data from performance
+            perf = api_call('/api/algo/performance')
+            if not perf.get('_error'):
+                perf_data = perf.get('data', {})
+                return {
+                    "snapshot_date": perf_data.get("last_updated"),
+                    "total_portfolio_value": safe_float(perf_data.get("portfolio_value")),
+                    "total_cash": None,
+                    "position_count": safe_int(perf_data.get("open_positions", 0)),
+                    "daily_return_pct": safe_float(perf_data.get("daily_return_pct")),
+                    "unrealized_pnl_pct": None,
+                    "cumulative_return_pct": safe_float(perf_data.get("total_return_pct")),
+                    "max_drawdown_pct": safe_float(perf_data.get("max_drawdown_pct")),
+                    "largest_position_pct": None
+                }
             return {"_error": data.get('_error'), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
         port = data.get('data', {})
         if "_error" in port:
@@ -672,7 +688,7 @@ def fetch_recent_trades(c):
 def fetch_signals(c):
     """Fetch dashboard signals from API."""
     try:
-        data = api_call('/api/algo/dashboard-signals')
+        data = api_call('/api/signals/stocks')
         if data.get('_error'):
             return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
         if not data.get('data'):
@@ -1520,11 +1536,26 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     recent_rets = perf.get("recent_rets") or []
     if recent_rets:
         parts = []
-        for dt, ret in recent_rets[-5:]:
-            rc = G if ret >= 0 else R
-            d_s = dt.strftime("%a") if hasattr(dt, "strftime") else str(dt)[:3]
+        for item in recent_rets[-5:]:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                dt, ret = item[0], item[1]
+            else:
+                continue
+            rc = G if (ret or 0) >= 0 else R
+            if hasattr(dt, "strftime"):
+                d_s = dt.strftime("%a")
+            elif isinstance(dt, str):
+                try:
+                    from datetime import datetime
+                    dt_obj = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+                    d_s = dt_obj.strftime("%a")
+                except:
+                    d_s = str(dt)[:3]
+            else:
+                d_s = str(dt)[:3]
             parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
-        rows.append(Text.from_markup("  ".join(parts)))
+        if parts:
+            rows.append(Text.from_markup("  ".join(parts)))
 
     # Rolling analytics from algo_performance_daily (only show if populated)
     if perf_anl and not perf_anl.get("_error"):

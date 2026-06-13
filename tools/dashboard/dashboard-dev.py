@@ -1098,11 +1098,26 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     recent_rets = perf.get("recent_rets") or []
     if recent_rets:
         parts = []
-        for dt, ret in recent_rets[-5:]:
-            rc = G if ret >= 0 else R
-            d_s = dt.strftime("%a") if hasattr(dt, "strftime") else str(dt)[:3]
+        for item in recent_rets[-5:]:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                dt, ret = item[0], item[1]
+            else:
+                continue
+            rc = G if (ret or 0) >= 0 else R
+            if hasattr(dt, "strftime"):
+                d_s = dt.strftime("%a")
+            elif isinstance(dt, str):
+                try:
+                    from datetime import datetime
+                    dt_obj = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+                    d_s = dt_obj.strftime("%a")
+                except:
+                    d_s = str(dt)[:3]
+            else:
+                d_s = str(dt)[:3]
             parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
-        rows.append(Text.from_markup("  ".join(parts)))
+        if parts:
+            rows.append(Text.from_markup("  ".join(parts)))
 
     # Rolling analytics from algo_performance_daily (only show if populated)
     if perf_anl and not perf_anl.get("_error"):
