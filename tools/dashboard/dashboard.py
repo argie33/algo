@@ -138,7 +138,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
+        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos),        name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 

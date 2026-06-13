@@ -423,9 +423,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     mxdd  = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap  = port.get("snapshot_date")
+    bp    = safe_float(port.get("total_buying_power"), default=None)
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
-    pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
-    bp    = (pv * pct_c / 100 if (pv is not None and pct_c) else cash) if cash is not None else pv
     if max_n:
         _sb   = mini_bar(npos, max_n, w=5)
         pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
@@ -455,8 +454,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
     cum_v  = float(cum) if cum is not None else None
-    mxdd_v = float(mxdd) if mxdd is not None else (
-        float((perf or {}).get("maxdd") or 0) if perf and not perf.get("_error") else None)
+    mxdd_v = float(mxdd) if mxdd is not None else None
     cc     = G if (cum_v or 0) >= 0 else R
     cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
@@ -482,7 +480,36 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
-def panel_performance_spark(perf, rec, perf_anl=None):
+def _calculate_adjusted_win_rate(perf, pos):
+    """E10 Fix: Include losing open positions in win rate calculation.
+
+    Win rate should reflect all active positions (closed + open losses), not just closed trades.
+    Counts open positions with unrealized_pnl_pct < 0 as losses.
+    """
+    if not perf or perf.get("_error"):
+        return perf.get("wr") or 0, perf.get("w"), perf.get("l")
+
+    closed_wins = perf.get("w") or 0
+    closed_losses = perf.get("l") or 0
+    losing_open = 0
+
+    if pos and not pos.get("_error"):
+        pos_items, _, _ = normalize_positions_data(pos)
+        for p in pos_items:
+            if isinstance(p, dict):
+                pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+                if pnl is not None and pnl < 0:
+                    losing_open += 1
+
+    total_trades = closed_wins + closed_losses + losing_open
+    if total_trades == 0:
+        return 0, closed_wins, closed_losses + losing_open
+
+    adjusted_wr = (closed_wins / total_trades) * 100
+    return adjusted_wr, closed_wins, closed_losses + losing_open
+
+
+def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
     if err_panel:
@@ -500,15 +527,17 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     avg_r   = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
-    wr_v = perf.get('wr') or 0
+    wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
     dd_v = perf.get('maxdd') or 0
     dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
-    open_count = perf.get('open_count', 0)
+    closed_wins = perf.get('w', 0)
+    closed_losses = perf.get('l', 0)
+    losing_open = adj_l - closed_losses
     rows = [
         Text.from_markup(
-            f"[bold white]{perf.get('n', 0)} Trades[/]  "
-            f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
-            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v}%{f' ({open_count} open)' if open_count > 0 else ''}[/]  "
+            f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
+            f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
+            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v:.1f}%{f' (+{losing_open} open L)' if losing_open > 0 else ''}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
         ),
