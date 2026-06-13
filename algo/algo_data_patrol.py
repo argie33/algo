@@ -298,17 +298,29 @@ class DataPatrol:
 
             # Identical OHLC = high==low==open==close (often API-limit fallback)
             cur.execute("""
-                SELECT COUNT(*) FROM price_daily
+                SELECT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
                   AND open = high AND high = low AND low = close
                   AND volume > 0
+                ORDER BY symbol
             """)
-            result = cur.fetchone()
-            ident_count = int(result[0] or 0) if result else 0
+            ident_symbols = [row[0] for row in cur.fetchall()]
+            ident_count = len(ident_symbols)
+
+            # Mark identical OHLC symbols with metadata in database
+            if ident_count > 0:
+                for symbol in ident_symbols:
+                    cur.execute("""
+                        UPDATE price_daily
+                        SET data_quality_flags = COALESCE(data_quality_flags, '{}')::jsonb || '{"is_suspicious_ohlc": true}'::jsonb
+                        WHERE symbol = %s AND date = (SELECT MAX(date) FROM price_daily)
+                    """, (symbol,))
+
             if ident_count > ident_threshold:
                 self.log(cur, 'identical_ohlc', WARN, 'price_daily',
-                         f'{ident_count} symbols with identical OHLC (threshold {ident_threshold})',
-                         {'count': ident_count, 'threshold': ident_threshold})
+                         f'{ident_count} symbols with identical OHLC (threshold {ident_threshold}) — marked with is_suspicious_ohlc flag',
+                         {'count': ident_count, 'threshold': ident_threshold,
+                          'marked_symbols': ident_symbols[:20]})
             else:
                 self.log(cur, 'identical_ohlc', INFO, 'price_daily',
                          f'{ident_count} symbols with identical OHLC (threshold {ident_threshold})',

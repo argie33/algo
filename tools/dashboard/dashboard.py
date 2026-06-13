@@ -1375,7 +1375,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             base_risk = cfg.get("base_risk")
             t1r       = cfg.get("t1_r")
             parts6    = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
-            if pyr:       parts6.append(f"[{G}]pyr✓[/]")
+            if pyr:       parts6.append(f"[{G}]pyrOK[/]")
             if min_score: parts6.append(f"[dim]scoreâ‰¥[/][white]{min_score}[/]")
             if max_n:     parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
             if base_risk: parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
@@ -1834,7 +1834,7 @@ def panel_recent_trades(trades):
         status = (tr.get("status") or "")
         is_closed = status == "closed"
         pc  = G if pnl_d > 0 else (R if is_closed else Y)
-        si  = f"[{G}]✓[/]" if pnl_d > 0 else (f"[{R}]✗[/]" if is_closed else f"[{Y}]â-·[/]")
+        si  = f"[{G}]OK[/]" if pnl_d > 0 else (f"[{R}]X[/]" if is_closed else f"[{Y}]â-·[/]")
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
@@ -2192,7 +2192,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     run_at_top = (run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None))
     if run_id_top or run_at_top:
         sts = (
-            f"[bold bright_green]✓ COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
+            f"[bold bright_green]OK COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
             else (f"[bold yellow]~ HALTED[/]" if (run_valid and run.get("halted"))
             else (f"[bold bright_red]âœ˜ ERROR[/]" if (run_valid and run.get("errored"))
             else "[dim]RUN[/]"))
@@ -2215,7 +2215,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sectorâ‰¤4:[/][white]{cfg_v['max_sec_n']}[/]")
     if cfg_v.get("base_risk"):   cfg_parts.append(f"[dim]risk:[/][white]{cfg_v['base_risk']}%[/]")
     if cfg_v.get("t1_r"):        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v['t1_r']}R[/]")
-    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyr✓[/]")
+    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyrOK[/]")
     if cfg_parts:
         rows.append(Text.from_markup("  ".join(cfg_parts)))
     rows.append(Rule(style="dim"))
@@ -2237,9 +2237,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
-            if s in ("success", "completed"): badges.append(f"[{G}]✓[/]")
+            if s in ("success", "completed"): badges.append(f"[{G}]OK[/]")
             elif s == "halted":               badges.append(f"[{Y}]~[/]")
-            else:                             badges.append(f"[{R}]✗[/]")
+            else:                             badges.append(f"[{R}]X[/]")
         rows.append(Text.from_markup(
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
             f"  [{wc_h}]{n_ok}/{total_h} success[/]"
@@ -2266,9 +2266,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         age_s  = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         r_stat = ""
         if run and not run.get("_error"):
-            if run.get("success"):   r_stat = f"  [{G}]✓ COMPLETED[/]"
+            if run.get("success"):   r_stat = f"  [{G}]OK COMPLETED[/]"
             elif run.get("halted"):  r_stat = f"  [{Y}]~ HALTED[/]"
-            elif run.get("errored"): r_stat = f"  [{R}]✗ ERROR[/]"
+            elif run.get("errored"): r_stat = f"  [{R}]X ERROR[/]"
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
@@ -2277,7 +2277,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             n_hlt  = _pc(run.get("phases_halted"))
             n_err  = _pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
-                done_s = f"[{G}]{n_done} phases ✓[/]"
+                done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s  = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
                 err_s  = f"  [{R}]{n_err} errored[/]" if n_err else ""
                 rows.append(Text.from_markup(f"  {done_s}{hlt_s}{err_s}"))
@@ -2376,10 +2376,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         rows.append(Rule(style="dim"))
         stale = [r for r in hlth if r.get("st") != "ok"]
         if not stale:
-            rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth)} tables[/]"))
+            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth)} tables[/]"))
             crit = [r for r in hlth if r.get("role") == "CRIT"]
             if crit:
-                crit_parts = "  ".join(f"[{G}]✓[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
+                crit_parts = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
                 rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
@@ -2389,7 +2389,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 cc  = "bold white" if rc == "CRIT" else "white"
                 lat = r.get("latest")
                 lat_s = f" ({lat.strftime('%m/%d') if hasattr(lat, 'strftime') else str(lat)[:5]})" if lat else ""
-                rows.append(Text.from_markup(f"[{R}]✗[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
+                rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
 
     # Notifications (up to 4)
     valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
@@ -2459,7 +2459,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
         elif ok_count > 0:
             rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(f"[{G}]✓ Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
+            rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log âE" most recent notable actions
     valid_audit = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
@@ -2508,11 +2508,11 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
 
     if run_valid:
         if run.get("success") and not run.get("halted"):
-            sts = f"[bold {G}]✓ COMPLETED[/]"
+            sts = f"[bold {G}]OK COMPLETED[/]"
         elif run.get("halted"):
             sts = f"[bold {Y}]~ HALTED[/]"
         elif run.get("errored"):
-            sts = f"[bold {R}]✗ ERROR[/]"
+            sts = f"[bold {R}]X ERROR[/]"
         else:
             sts = "[dim]UNKNOWN[/]"
         rid = (run.get("run_id") or "")[:28]
@@ -2624,7 +2624,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         badges  = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
-            badges.append(f"[{G}]✓[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]✗[/]"))
+            badges.append(f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]"))
         wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
         rows.append(Text.from_markup(
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
@@ -2649,15 +2649,15 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         stale = [r for r in hlth_list if r.get("st") != "ok"]
         if not stale:
             crit  = [r for r in hlth_list if r.get("role") == "CRIT"]
-            ok_s  = "  ".join(f"[{G}]✓[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
-            rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth_list)} tables[/]  {ok_s}"))
+            ok_s  = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
+            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_list)} tables[/]  {ok_s}"))
         else:
             stale_parts = []
             for r in stale[:5]:
                 nm  = (r.get("tbl") or "--")[:9]
                 age = r.get("age") or "?"
                 cc  = "bold white" if r.get("role") == "CRIT" else "white"
-                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/][dim]{age}d[/]")
+                stale_parts.append(f"[{R}]X[/][{cc}]{nm}[/][dim]{age}d[/]")
             rows.append(Text.from_markup("[dim]Data stale:[/] " + "  ".join(stale_parts)))
 
     # Loader status (compact inline)
@@ -2672,7 +2672,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     elif running_loader:
         rows.append(Text.from_markup(f"[{CY}]Loading:[/] [dim]{running_loader[0].get('table_name','')[:16]}[/]"))
     else:
-        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]✓ {ok_count} healthy[/]"))
+        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]OK {ok_count} healthy[/]"))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
@@ -2911,9 +2911,9 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     age_s     = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
-        sts = (f"[bold {G}]✓ COMPLETED[/]" if run.get("success") and not run.get("halted")
+        sts = (f"[bold {G}]OK COMPLETED[/]" if run.get("success") and not run.get("halted")
                else (f"[bold {Y}]~ HALTED[/]" if run.get("halted")
-               else f"[bold {R}]✗ ERROR[/]"))
+               else f"[bold {R}]X ERROR[/]"))
         rid = (run.get("run_id") or "")
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r  = run.get("halt_reason") or ""
