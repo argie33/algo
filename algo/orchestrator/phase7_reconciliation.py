@@ -45,6 +45,18 @@ def run(
         ) if result.get('success') else result.get('error', 'unknown')
         log_phase_result_fn(7, 'reconciliation', status, summary)
 
+        # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
+        try:
+            with DatabaseContext('read') as audit_cur:
+                stale_audit = recon.audit_stale_estimated_prices(audit_cur)
+                if stale_audit['status'] != 'OK':
+                    logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {stale_audit['message']}")
+                    log_phase_result_fn(7, 'exit_reconciliation_audit', 'warn', stale_audit['message'])
+                else:
+                    logger.info("[PHASE 7 AUDIT] All exit prices reconciled properly")
+        except Exception as e:
+            logger.error(f"[PHASE 7] Exit price audit failed: {e}")
+
         # Record exits for recently closed positions
         try:
             recorder = TradeRecorder()
