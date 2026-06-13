@@ -7,19 +7,25 @@ import sys
 from pathlib import Path
 import importlib.util
 
-# Get the routes directory (parent of this algo/ package)
+# Get directories - add to sys.path ONLY api and root, NOT routes
+# (routes/utils.py would shadow root/utils package if routes is in path)
 _routes_dir = Path(__file__).parent.parent
+_api_dir = _routes_dir.parent
+_root_dir = _api_dir.parent.parent
 
-# Add routes directory to path
-_routes_path = str(_routes_dir)
-if _routes_path not in sys.path:
-    sys.path.insert(0, _routes_path)
+# Setup sys.path for proper import resolution
+for _path in [str(_root_dir), str(_api_dir)]:
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
-# Load the algo.py module from the routes directory using importlib
+# Load algo.py using importlib with proper import path
+# Use a synthetic module that won't conflict with the package name
 _algo_py_path = str(_routes_dir / "algo.py")
-_spec = importlib.util.spec_from_file_location("_algo_main", _algo_py_path)
+_spec = importlib.util.spec_from_file_location("algo_module_impl", _algo_py_path)
 if _spec and _spec.loader:
     _algo_module = importlib.util.module_from_spec(_spec)
+    # Set module attributes so imports within algo.py work correctly
+    _algo_module.__path__ = [str(_routes_dir)]
     _spec.loader.exec_module(_algo_module)
     handle = _algo_module.handle
 else:
