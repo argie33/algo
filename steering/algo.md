@@ -1048,6 +1048,32 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - `loaders/load_grade_distribution_daily.py` - New
 - `loaders/load_economic_metrics_daily.py` - New
 
+## Fallback Metrics and Placeholder Data
+
+**Critical:** When the dashboard displays "stale_alerts" or metrics appear unusually low (especially all zeros), the system is showing fallback data instead of real metrics. Users must be aware when they're viewing placeholder data.
+
+**Fallback Chain for Performance Metrics:**
+
+1. **Primary Source:** `/api/algo/performance` endpoint (fetches from `algo_performance_daily` table and live calculations)
+2. **First Fallback:** In-memory cache of last successful API response (if API temporarily fails)
+3. **Last Resort:** Hardcoded all-zero placeholder metrics (if both API and cache unavailable)
+   - All performance fields set to 0: total_trades=0, win_rate=0%, profit_factor=0, sharpe=0, max_drawdown=0%, all streak values=0, all dollar amounts=$0
+   - Indicates a **critical failure:** either database is unreachable, API crashed, or data loader never populated the table
+   - Users see `data_freshness.warning='Data unavailable'` in the response
+
+**How to Identify Fallback Data:**
+- Run `python utils/fallback_registry.py` to see all hardcoded fallback values by resource
+- Check API response for `data_freshness.is_stale=true` or warning messages
+- In dashboard logs, watch for `[METRICS] CRITICAL - using hardcoded defaults` messages
+- Helper function `is_hardcoded_fallback_data(resource, data)` in `utils/fallback_registry.py` detects if data matches fallback patterns
+
+**Troubleshooting Fallback Metrics:**
+1. Check if API endpoint is responding: `curl https://<api>/api/algo/performance`
+2. Verify `algo_performance_daily` table has recent data: Check `data_loader_status` for completion status
+3. Check Lambda logs for database connection errors
+4. If database is down, metrics will be all zeros until data loader restarts and populates fresh data
+5. See **Troubleshooting** section below for connection diagnostics
+
 ## Key Files
 
 - `algo/algo_orchestrator.py`: main 7-phase loop
@@ -1504,6 +1530,45 @@ Automated health checks run on schedule (morning and EOD) in `.github/workflows/
 **Halt flag stuck:** Use `python scripts/check_halt_flag.py` to check status. `--clear` flag resets it manually if needed. The auto-expiry logic should handle stale flags from prior trading days automatically.
 
 **Data patrol grace period & DynamoDB degradation:** Phase 1 uses a grace period to prevent redundant data patrol triggers when a patrol is already running. If DynamoDB is unavailable, the system gracefully falls back to checking the latest patrol timestamp directly from the database. This means data patrol monitoring continues even if DynamoDB is down, though with slightly less precision (uses database timestamps instead of DynamoDB tracking). Both mechanisms prevent rapid re-triggers within 60 minutes of the last successful patrol completion.
+
+**Dashboard shows all-zero metrics (win_rate=0%, profit_factor=0, sharpe=0):**
+
+This indicates the system is displaying hardcoded fallback placeholder data instead of real metrics. This is a CRITICAL state:
+
+1. **Verify API is responding:**
+   ```bash
+   curl -s https://<api-domain>/api/algo/performance | jq .data_freshness
+   # Expected: data_freshness.is_stale=false (real data) or is_stale=true (stale but real)
+   # Fallback: data_freshness.warning="Data unavailable"
+   ```
+
+2. **Check data loader status:**
+   ```bash
+   python scripts/check-loader-status.py
+   # Look for algo_performance_daily table status
+   # Should show COMPLETED with recent date
+   # If ERROR: loader failed; check logs in CloudWatch
+   ```
+
+3. **Check if database is reachable:**
+   - RDS Proxy connection: `aws rds describe-db-proxies`
+   - Target group: `aws rds describe-db-proxy-targets --db-proxy-name algo-rds-proxy-dev`
+   - If targets are missing/unavailable: RDS instance needs restart or recreation
+
+4. **Check Lambda logs for errors:**
+   - CloudWatch Logs: `/aws/lambda/algo-api-dev`
+   - Search for: `"error"` or `"database"` or `"timeout"`
+   - Common: `too many connections` (pool exhausted), `connection refused` (RDS down), timeout errors
+
+5. **Verify algo_performance_daily table is populated:**
+   ```bash
+   # Via database tunnel or RDS Proxy
+   SELECT COUNT(*), MAX(report_date) FROM algo_performance_daily;
+   # Should show rows with today's date (or recent date)
+   # If empty: data loader `load_algo_performance_daily.py` never ran successfully
+   ```
+
+**The all-zero fallback is NOT a visualization issue:** It means the backend genuinely has no data. Once the API/database recovers, refresh the dashboard and real data will appear. This is not a dashboard bug — it's the system correctly indicating data unavailability.
 
 ## Production Readiness: Monitoring & Infrastructure
 

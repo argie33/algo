@@ -100,7 +100,14 @@ class DashboardDataAPI:
         if "_error" in resp:
             logger.error(f"get_positions failed: {resp['_error']}")
             return []
-        return resp.get("items", [])
+        items = resp.get("items", [])
+        if not isinstance(items, list):
+            logger.error(f"get_positions: expected list, got {type(items).__name__}")
+            return []
+        valid_items = [item for item in items if isinstance(item, dict)]
+        if len(valid_items) < len(items):
+            logger.warning(f"get_positions: filtered {len(items) - len(valid_items)} non-dict items")
+        return valid_items
 
     @staticmethod
     def get_performance() -> Dict[str, Any]:

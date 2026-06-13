@@ -615,24 +615,25 @@ def fetch_run(c):
         return {"_error": str(e)}
 
 def fetch_algo_config(c):
+    """Issue 3 FIX: API-only algo configuration."""
     try:
-        rows = q(c, "SELECT key, value FROM algo_config")
-        cfg = {row["key"]: row["value"] for row in rows}
+        cfg = DashboardDataAPI.get_config() if DashboardDataAPI else {}
+        if "_error" in cfg:
+            return {"_error": cfg["_error"]}
         return {
-            "enabled":      cfg.get("algo_enabled", True),
-            "mode":         cfg.get("trade_mode", "unknown"),
-            "max_pos_pct":  float(cfg.get("max_position_size_pct", 0)) if cfg.get("max_position_size_pct") else None,
-            "max_pos_n":    int(cfg.get("max_positions", 0)) if cfg.get("max_positions") else None,
-            "max_sec_n":    int(cfg.get("max_positions_per_sector", 0)) if cfg.get("max_positions_per_sector") else None,
-            "min_score":    float(cfg.get("min_swing_score", 0)) if cfg.get("min_swing_score") else None,
-            "base_risk":    float(cfg.get("base_risk_pct", 0)) if cfg.get("base_risk_pct") else None,
-            "t1_r":         float(cfg.get("t1_target_r_multiple", 0)) if cfg.get("t1_target_r_multiple") else None,
-            "pyramid":      cfg.get("pyramid_enabled", "false").lower() == "true",
+            "enabled": cfg.get("algo_enabled", True),
+            "mode": cfg.get("trade_mode", "unknown"),
+            "max_pos_pct": float(cfg.get("max_position_size_pct", 0)) if cfg.get("max_position_size_pct") else None,
+            "max_pos_n": int(cfg.get("max_positions", 0)) if cfg.get("max_positions") else None,
+            "max_sec_n": int(cfg.get("max_positions_per_sector", 0)) if cfg.get("max_positions_per_sector") else None,
+            "min_score": float(cfg.get("min_swing_score", 0)) if cfg.get("min_swing_score") else None,
+            "base_risk": float(cfg.get("base_risk_pct", 0)) if cfg.get("base_risk_pct") else None,
+            "t1_r": float(cfg.get("t1_target_r_multiple", 0)) if cfg.get("t1_target_r_multiple") else None,
+            "pyramid": cfg.get("pyramid_enabled", "false").lower() == "true",
         }
     except Exception as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
         return {"_error": str(e)}
-
 def fetch_market(c):
     try:
         row = q1(c, """SELECT exposure_pct, halt_reasons, regime FROM market_exposure_daily
@@ -643,7 +644,9 @@ def fetch_market(c):
         halts = row.get("halt_reasons") or []
         if isinstance(halts, str):
             try: halts = json.loads(halts)
-            except: halts = []
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse halt_reasons JSON: {e}")
+                halts = []
 
         result = {
             "pct":   float(row.get("exposure_pct") or 0),
@@ -693,10 +696,12 @@ def fetch_exposure_factors(c):
         factors = row.get("factors") or {}
         if isinstance(factors, str):
             try: factors = json.loads(factors)
-            except: factors = {}
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse factors JSON: {e}")
+                factors = {}
         return {
-            "raw_score":    float(row.get("raw_score") or 0),
-            "exposure_pct": float(row.get("exposure_pct") or 0),
+            "raw_score":    safe_float(row.get("raw_score"), default=None),
+            "exposure_pct": safe_float(row.get("exposure_pct"), default=None),
             "regime":       row.get("regime"),
             "factors":      factors,
         }
@@ -706,50 +711,41 @@ def fetch_exposure_factors(c):
         pass
 
 def fetch_portfolio(c):
+    """Issue 3 FIX: API-only portfolio snapshot."""
     try:
-        row = q1(c, """SELECT snapshot_date, total_portfolio_value, total_cash, position_count,
-                              daily_return_pct, unrealized_pnl_pct, cumulative_return_pct,
-                              max_drawdown_pct, largest_position_pct
-                       FROM algo_portfolio_snapshots
-                       ORDER BY snapshot_date DESC LIMIT 1""")
-        if not row:
+        port = DashboardDataAPI.get_portfolio() if DashboardDataAPI else {}
+        if "_error" in port:
             return {}
         return {
-            "snapshot_date": row.get("snapshot_date"),
-            "total_portfolio_value": safe_float(row.get("total_portfolio_value"), default=None),
-            "total_cash": safe_float(row.get("total_cash"), default=None),
-            "position_count": int(row.get("position_count") or 0),
-            "daily_return_pct": safe_float(row.get("daily_return_pct"), default=None),
-            "unrealized_pnl_pct": safe_float(row.get("unrealized_pnl_pct"), default=None),
-            "cumulative_return_pct": safe_float(row.get("cumulative_return_pct"), default=None),
-            "max_drawdown_pct": safe_float(row.get("max_drawdown_pct"), default=None),
-            "largest_position_pct": safe_float(row.get("largest_position_pct"), default=None)
+            "snapshot_date": port.get("last_run"),
+            "total_portfolio_value": port.get("total_portfolio_value") or 0,
+            "total_cash": port.get("total_cash") or 0,
+            "position_count": port.get("open_positions") or 0,
+            "daily_return_pct": port.get("daily_return_pct") or 0,
+            "unrealized_pnl_pct": port.get("unrealized_pnl_pct") or 0,
         }
     except Exception as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
         return {"_error": str(e)}
-
 def fetch_perf(c):
+    """Issue 3 FIX: API-only performance data (eliminates dual-source inconsistency)."""
     try:
-        row = q1(c, """SELECT total_trades, winning_trades, losing_trades, win_rate,
-                              total_pnl_dollars, sharpe_ratio, max_drawdown_pct,
-                              avg_winning_trade, avg_losing_trade, profit_factor, expectancy
-                       FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row:
+        perf = DashboardDataAPI.get_performance() if DashboardDataAPI else {}
+        if "_error" in perf or not perf:
             return {}
         return {
-            "n": int(row.get("total_trades") or 0),
-            "w": int(row.get("winning_trades") or 0),
-            "l": int(row.get("losing_trades") or 0),
-            "wr": float(row.get("win_rate") or 0),
-            "pnl": float(row.get("total_pnl_dollars") or 0),
+            "n": int(perf.get("total_trades") or 0),
+            "w": int(perf.get("winning_trades") or 0),
+            "l": int(perf.get("losing_trades") or 0),
+            "wr": float(perf.get("win_rate") or 0),
+            "pnl": float(perf.get("total_pnl_dollars") or 0),
             "streak": 0,
-            "sharpe": float(row.get("sharpe_ratio") or 0) if row.get("sharpe_ratio") else None,
-            "maxdd": float(row.get("max_drawdown_pct") or 0),
-            "avg_win": float(row.get("avg_winning_trade") or 0) if row.get("avg_winning_trade") else 0,
-            "avg_loss": float(row.get("avg_losing_trade") or 0) if row.get("avg_losing_trade") else 0,
-            "profit_factor": float(row.get("profit_factor") or 0) if row.get("profit_factor") else None,
-            "expectancy": float(row.get("expectancy") or 0) if row.get("expectancy") else None,
+            "sharpe": perf.get("sharpe_ratio"),
+            "maxdd": float(perf.get("max_drawdown_pct") or 0),
+            "avg_win": float(perf.get("avg_win_pct") or 0),
+            "avg_loss": float(perf.get("avg_loss_pct") or 0),
+            "profit_factor": perf.get("profit_factor"),
+            "expectancy": perf.get("expectancy_r"),
             "avg_r": 0,
             "equity_vals": [],
             "recent_rets": []
@@ -757,59 +753,42 @@ def fetch_perf(c):
     except Exception as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         return {}
-
 def fetch_positions(c):
-    """Issue 3 FIX: Fetch positions via API instead of direct DB access (dual data source elimination)."""
+    """Issue 3 FIX: API-only positions data (eliminates field name mismatches)."""
     try:
-        if DashboardDataAPI:
-            positions = DashboardDataAPI.get_positions()
-            if positions:
-                return positions
-        # Fallback to DB if API unavailable or disabled
-        return q(c, """SELECT position_id, symbol, quantity, avg_entry_price, current_price,
-                              position_value, stop_loss_price, unrealized_pnl_dollars,
-                              unrealized_pnl_pct, sector, stage_in_lifecycle, r_multiple,
-                              weinstein_stage, days_since_entry, distance_to_stop_pct
-                       FROM algo_positions WHERE status='open'
-                       ORDER BY position_value DESC""")
+        positions = DashboardDataAPI.get_positions() if DashboardDataAPI else []
+        return positions if positions else []
     except Exception as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         return []
-
 def fetch_recent_trades(c):
+    """Issue 3 FIX: API-only trades data (includes exit_r_multiple)."""
     try:
-        return q(c, """SELECT trade_id, symbol, entry_date, entry_price, exit_date,
-                              exit_price, profit_loss_dollars, profit_loss_pct, exit_r_multiple
-                       FROM algo_trades WHERE status='closed'
-                       ORDER BY exit_date DESC LIMIT 10""")
+        trades = DashboardDataAPI.get_trades(limit=100) if DashboardDataAPI else []
+        # Filter to closed trades only
+        closed = [t for t in trades if t.get("status") == "closed"]
+        return closed[:10]  # Return last 10
     except Exception as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         return []
-
 def fetch_signals(c):
-    """Fetch dashboard signals from API."""
+    """Issue 3 FIX: API-only signals data."""
     try:
-        data = api_call('/api/algo/dashboard-signals')
-        if data.get('_error'):
-            return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
-        if not data.get('data'):
-            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
-
-        result = data['data']
-        signals = result.get('signals', [])
+        sig = DashboardDataAPI.get_signals() if DashboardDataAPI else {}
+        if "_error" in sig:
+            return {"_error": sig["_error"], "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
         return {
-            "n": len(signals),
-            "total": result.get('total', len(signals)),
-            "buy_sigs": signals[:5] if signals else [],
-            "grades": result.get('grades', {}),
-            "near": signals[5:10] if len(signals) > 10 else (signals[5:] if len(signals) > 5 else []),
-            "top_a": signals[:3] if signals else [],
-            "trend": result.get('trend', [])
+            "n": sig.get("n", 0),
+            "total": sig.get("total", 0),
+            "buy_sigs": sig.get("buy_sigs", [])[:5],
+            "grades": sig.get("grades", {}),
+            "near": sig.get("near", []),
+            "top_a": sig.get("top_a", []),
+            "trend": sig.get("trend", [])
         }
     except Exception as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         return {"_error": str(e), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
-
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
     try:
@@ -823,34 +802,52 @@ def fetch_sector_ranking(c):
         return {"_error": str(e)}
 
 def fetch_activity(c):
-    """Fetch activity and audit log from API."""
+    """Issue 3 FIX: API-only activity/audit log."""
     try:
-        data = api_call('/api/algo/audit-log')
-        if data.get('_error'):
-            return {"_error": data.get('_error')}
-        result = data.get('data', {})
+        last_run = DashboardDataAPI.get_last_run() if DashboardDataAPI else {}
+        if "_error" in last_run or not last_run.get("run_id"):
+            return {}
+
+        audit = DashboardDataAPI.get_audit_log(limit=100) if DashboardDataAPI else {}
+        audit_items = audit.get("items", [])
+
         return {
-            "run_id": result.get("run_id"),
-            "run_at": result.get("run_at"),
-            "phases": result.get("phases", []),
-            "recent_actions": result.get("recent_actions", [])
+            "run_id": last_run.get("run_id"),
+            "run_at": last_run.get("last_run"),
+            "phases": last_run.get("phases", []),
+            "recent_actions": [
+                a for a in audit_items
+                if a.get("action_type") in [
+                    "entry_executed", "exit_executed", "entry_rejected",
+                    "position_exited", "order_placed", "order_rejected"
+                ]
+            ][:6]
         }
     except Exception as e:
         logger.error(f"fetch_activity: {type(e).__name__}: {e}")
         return {"_error": str(e)}
-
 def fetch_health(c):
-    """Fetch data loader health status from API."""
+    """Issue 3 FIX: API-only data health status."""
     try:
-        data = api_call('/api/algo/data-status')
-        if data.get('_error'):
+        health = DashboardDataAPI.get_health() if DashboardDataAPI else {}
+        if "_error" in health:
             return []
-        health = data.get('data', [])
-        return health if isinstance(health, list) else []
+        sources = health.get("sources", [])
+        # Convert to format expected by dashboard
+        return [
+            {
+                "table_name": s.get("name"),
+                "status": s.get("status"),
+                "latest_date": s.get("last_updated"),
+                "age_days": s.get("age_hours", 0) / 24 if s.get("age_hours") else None,
+                "completion_pct": 100 if s.get("status") == "ok" else 0,
+                "error_message": None
+            }
+            for s in sources
+        ]
     except Exception as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         return []
-
 def fetch_economic_pulse(c):
     try:
         KEY = ['DGS10', 'DGS2', 'DGS3MO', 'DGS6MO',
@@ -944,11 +941,11 @@ def fetch_risk_metrics(c):
         if not row: return {}
         return {
             "date":      row.get("report_date"),
-            "var95":     float(row.get("var_pct_95")         or 0),
-            "cvar95":    float(row.get("cvar_pct_95")        or 0),
-            "svar":      float(row.get("stressed_var_pct")   or 0),
-            "beta":      float(row.get("portfolio_beta")     or 0),
-            "conc5":     float(row.get("top_5_concentration") or 0),
+            "var95":     safe_float(row.get("var_pct_95"), default=None),
+            "cvar95":    safe_float(row.get("cvar_pct_95"), default=None),
+            "svar":      safe_float(row.get("stressed_var_pct"), default=None),
+            "beta":      safe_float(row.get("portfolio_beta"), default=None),
+            "conc5":     safe_float(row.get("top_5_concentration"), default=None),
         }
     except Exception as e:
         return {"_error": str(e)}
@@ -1067,64 +1064,20 @@ def fetch_audit_log(c):
         return {"_error": str(e)}
 
 def fetch_circuit(c):
-    """Fetch circuit breakers from API."""
+    """Issue 3 FIX: API-only circuit breaker status."""
     try:
-        data = api_call('/api/algo/circuit-breakers')
-        if data.get('_error'):
-            return {"_error": data.get('_error')}
-        result = data.get('data', {})
-        bs = result.get('breakers', [])
-        formatted_bs = []
-        for r in bs:
-            formatted_bs.append({
-                "lbl": r.get("breaker_name", ""),
-                "cur": safe_float(r.get("current_value")),
-                "thr": safe_float(r.get("threshold_value")),
-                "u": r.get("unit", ""),
-                "fired": safe_bool(r.get("is_active"))
-            })
-        any_fired = any(b["fired"] for b in formatted_bs)
+        cb = DashboardDataAPI.get_circuit_breakers() if DashboardDataAPI else {}
+        if "_error" in cb:
+            return {"_error": cb["_error"], "bs": [], "any": False, "n": 0}
+        breakers = cb.get("breakers", [])
         return {
-            "bs": formatted_bs,
-            "any": any_fired,
-            "n": sum(1 for b in formatted_bs if b["fired"])
+            "bs": breakers,
+            "any": cb.get("any_triggered", False),
+            "n": cb.get("triggered_count", 0)
         }
     except Exception as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
-
-
-# â”€â”€ parallel data loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-FETCHERS = {
-    "run":          fetch_run,
-    "cfg":          fetch_algo_config,
-    "mkt":          fetch_market,
-    "port":         fetch_portfolio,
-    "perf":         fetch_perf,
-    "pos":          fetch_positions,
-    "trades":       fetch_recent_trades,
-    "sig":          fetch_signals,
-    "health":       fetch_health,
-    "cb":           fetch_circuit,
-    "srank":        fetch_sector_ranking,
-    "activity":     fetch_activity,
-    "exp_factors":  fetch_exposure_factors,
-    "eco":          fetch_economic_pulse,
-    "notifs":       fetch_notifications,
-    "sentiment":    fetch_sentiment,
-    "econ_cal":     fetch_economic_calendar,
-    "risk":         fetch_risk_metrics,
-    "perf_anl":     fetch_perf_analytics,
-    "sig_eval":     fetch_signal_eval,
-    "sec_rot":      fetch_sector_rotation,
-    "algo_metrics": fetch_algo_metrics,
-    "irank":        fetch_industry_ranking,
-    "loader":       fetch_loader_status,
-    "audit":        fetch_audit_log,
-    "exec_hist":    fetch_exec_history,
-}
-
+        return {"_error": str(e), "bs": [], "any": False, "n": 0}
 def load_all() -> dict:
     """Load all fetcher data in parallel with exponential backoff retry and timeout handling.
 
@@ -1210,7 +1163,9 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         pdata = p.get("data") or {}
         if isinstance(pdata, str):
             try:    pdata = json.loads(pdata)
-            except: pdata = {}
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse phase data JSON: {e}")
+                pdata = {}
         detail = next(
             (str(pdata[k]) for k in _FIELDS
              if pdata.get(k) and len(str(pdata.get(k))) > 3),
@@ -1267,14 +1222,19 @@ def panel_orch(run, cfg, risk=None):
     config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s, pyr_s] if x)
 
     # VaR line â€” only show if table is populated with real data
-    var_line = ""
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
-        var_line = (f"\n[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{risk['beta']:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]"
+    var_line = “”
+    if risk and not risk.get(“_error”) and risk.get(“var95”) is not None and risk['var95'] > 0:
+        beta_v = risk.get(“beta”)
+        beta_c = R if (beta_v is not None and beta_v >= 1.2) else (Y if (beta_v is not None and beta_v >= 0.8) else G)
+        beta_s = f”{beta_v:.2f}” if beta_v is not None else “--”
+        svar_v = risk.get(“svar”)
+        svar_s = f”\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]” if svar_v is not None and svar_v > 0 else “”
+        conc_v = risk.get(“conc5”)
+        conc_s = f”{conc_v:.0f}” if conc_v is not None else “--”
+        var_line = (f”\n[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]”
+                    f”  [dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]”
+                    f”  [dim]Portfolio Beta:[/][{beta_c}]{beta_s}[/]”
+                    f”  [dim]Top-5 Conc:[/][white]{conc_s}%[/]”
                     + svar_s)
 
     if not run or run.get("_error"):
@@ -1547,30 +1507,35 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     rows: list = []
 
-    # Line 1: portfolio value + snapshot age
-    rows.append(Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}"))
+    # Line 1: portfolio value + snapshot age (or "--" if missing)
+    pv_s = fmt_money(pv) if pv is not None else "--"
+    rows.append(Text.from_markup(f"[bold white]{pv_s}[/]{snap_s}"))
 
     # Line 2: cash + positions (slot bar) + buying power
+    cash_s = fmt_money(cash) if cash is not None else "--"
+    bp_s = fmt_money(bp) if bp is not None else "--"
     rows.append(Text.from_markup(
-        f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  "
+        f"[dim]Cash:[/] [white]{cash_s}[/]  "
         f"{pos_s}  "
-        f"[dim]BP:[/][white]{fmt_money(bp)}[/]"
+        f"[dim]BP:[/][white]{bp_s}[/]"
     ))
 
-    # Line 3: daily return + unrealized P&L
+    # Line 3: daily return + unrealized P&L (or "--" if missing)
+    dr_s = f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     rows.append(Text.from_markup(
-        f"[dim]Day:[/] [{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]  "
-        f"[dim]Unrlzd:[/] [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
+        f"[dim]Day:[/] {dr_s}  "
+        f"[dim]Unrlzd:[/] {urp_s}"
     ))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
     cum_v  = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else (
-        float((perf or {}).get("maxdd") or 0) if perf and not perf.get("_error") else None)
-    cc     = G if (cum_v or 0) >= 0 else R
-    cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
+        float((perf or {}).get("maxdd")) if perf and not perf.get("_error") and perf.get("maxdd") else None)
+    cc     = G if (cum_v is not None and cum_v >= 0) else R
+    cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c   = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
+    dd_c   = R if (dd_v is not None and dd_v >= 15) else (Y if (dd_v is not None and dd_v >= 5) else G)
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
     rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
 
@@ -1581,7 +1546,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # VaR metrics (compact one-liner)
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        beta_v = safe_float(risk.get("beta"), default=None)
+        beta_c = R if (beta_v is not None and beta_v >= 1.2) else (Y if (beta_v is not None and beta_v >= 0.8) else G)
         rows.append(Text.from_markup(
             f"[dim]VaR:[/][white]{risk['var95']:.2f}%[/]  "
             f"[dim]CVaR:[/][white]{risk['cvar95']:.2f}%[/]  "
@@ -1682,18 +1648,20 @@ def panel_performance_spark(perf, rec, perf_anl=None):
                 rows.append(Text.from_markup("  ".join(r_parts)))
 
     # Recent closed trades â€” last 3 exits with result
-    recent = [t for t in rec if t.get("status") == "closed" and t.get("exit_date")][:3]
+    recent = [t for t in rec if t.get(“status”) == “closed” and t.get(“exit_date”)][:3]
     if recent:
-        rows.append(Text.from_markup("[dim]Recent exits:[/]"))
+        rows.append(Text.from_markup(“[dim]Recent exits:[/]”))
         for t in recent:
-            pv2   = float(t.get("profit_loss_dollars") or 0)
-            pct_v = float(t.get("profit_loss_pct") or 0)
-            rv    = float(t.get("exit_r_multiple") or 0) if t.get("exit_r_multiple") else None
-            sym   = t.get("symbol") or "--"
-            c     = G if pv2 >= 0 else R
-            rv_s  = f" {sign(rv)}{rv:.1f}R" if rv is not None else ""
+            pv2   = safe_float(t.get(“profit_loss_dollars”), default=None)
+            pct_v = safe_float(t.get(“profit_loss_pct”), default=None)
+            rv    = safe_float(t.get(“exit_r_multiple”), default=None)
+            sym   = t.get(“symbol”) or “--”
+            c     = G if (pv2 is not None and pv2 >= 0) else R
+            rv_s  = f” {sign(rv)}{rv:.1f}R” if rv is not None else “”
+            pv2_s = fmt_money(pv2) if pv2 is not None else “--”
+            pct_s = f”{sign(pct_v)}{pct_v:.1f}%” if pct_v is not None else “--”
             rows.append(Text.from_markup(
-                f"  [{c}]{sym}[/] [{c}]{sign(pct_v)}{pct_v:.1f}%  {fmt_money(pv2)}{rv_s}[/]"
+                f”  [{c}]{sym}[/] [{c}]{pct_s}  {pv2_s}{rv_s}[/]”
             ))
 
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
@@ -2416,7 +2384,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse phase data JSON: {e}")
+                pdata = {}
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]â†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
@@ -2471,7 +2441,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         det = a.get("details") or {}
         if isinstance(det, str):
             try: det = json.loads(det)
-            except: det = {}
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON: {e}")
+                det = {}
         sym = det.get("symbol", "")
         ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
@@ -2648,7 +2620,9 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse phase data JSON: {e}")
+                pdata = {}
             sg = pdata.get("signals_generated")
             ee = pdata.get("entries_executed") or pdata.get("trades_executed")
             xe = pdata.get("exits_executed")
@@ -3153,28 +3127,37 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # Full portfolio by sector
     if pos:
-        pv = float(port.get("total_portfolio_value") or 0)
+        pv = safe_float(port.get("total_portfolio_value"), default=None)
         sd: dict = {}
         for p in pos:
             if not isinstance(p, dict):
                 logger.warning(f"panel_sectors_expanded: skipping non-dict position: {type(p).__name__}")
                 continue
             sec = p.get("sector") or "Unknown"
-            val = float(p.get("position_value") or 0)
-            pnl = float(p.get("unrealized_pnl_pct") or 0)
+            val = safe_float(p.get("position_value"), default=None)
+            pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
-            sd[sec]["val"] += val; sd[sec]["n"] += 1; sd[sec]["pnls"].append(pnl)
+            if val is not None:
+                sd[sec]["val"] += val
+            sd[sec]["n"] += 1
+            if pnl is not None:
+                sd[sec]["pnls"].append(pnl)
         sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
         rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
         for sec, dv in sorted_secs:
-            pct     = dv["val"] / pv * 100 if pv else 0
+            pct     = dv["val"] / pv * 100 if (pv is not None and pv != 0) else None
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
-            bar_f   = int(min(pct, 25) / 25 * 8)
-            bar_s   = f"[{pc}]{'â–ˆ' * bar_f}[/][dim]{'â–‘' * (8 - bar_f)}[/]"
+            if pct is not None:
+                bar_f   = int(min(pct, 25) / 25 * 8)
+                bar_s   = f"[{pc}]{‘â–ˆ’ * bar_f}[/][dim]{‘â–‘’ * (8 - bar_f)}[/]"
+                pct_s   = f"[dim]{pct:.1f}%[/]"
+            else:
+                bar_s   = f"[dim]{‘â–‘’ * 8}[/]"
+                pct_s   = "[dim]--[/]"
             rows.append(Text.from_markup(
-                f"  [white]{sec:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
+                f"  [white]{sec:<24}[/]{bar_s} {pct_s}  [dim]{dv[‘n’]} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
             ))
         rows.append(Rule(style="dim"))
 
