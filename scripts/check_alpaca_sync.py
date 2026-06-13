@@ -115,10 +115,16 @@ def check_alpaca_positions():
             for pos in positions:
                 symbol = pos.get('symbol', 'N/A')
                 qty = pos.get('qty', 0)
-                avg_fill = float(pos.get('avg_fill_price', 0))
+                avg_fill_raw = pos.get('avg_fill_price')
+                if avg_fill_raw is None:
+                    logger.warning(f"⚠️  {symbol}: Alpaca returned NO avg_fill_price — position data incomplete")
+                    avg_fill_display = "UNKNOWN"
+                else:
+                    avg_fill = float(avg_fill_raw)
+                    avg_fill_display = f"${avg_fill:.2f}"
                 current = float(pos.get('current_price', 0))
                 value = float(pos.get('market_value', 0))
-                logger.info(f"{symbol:<8} {qty:<8} ${avg_fill:<11.2f} ${current:<11.2f} ${value:<14,.0f}")
+                logger.info(f"{symbol:<8} {qty:<8} {avg_fill_display:<12} ${current:<11.2f} ${value:<14,.0f}")
         else:
             logger.warning("[WARN] Alpaca shows NO open positions")
 

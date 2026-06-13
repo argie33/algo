@@ -104,28 +104,41 @@ class AlpacaService {
 
       const positions = await this.client.getPositions();
 
-      return positions.map((position) => ({
-        symbol: position.symbol,
-        assetId: position.asset_id,
-        exchange: position.exchange,
-        assetClass: position.asset_class,
-        quantity: parseFloat(position.qty),
-        side: position.side,
-        marketValue: parseFloat(position.market_value),
-        costBasis: parseFloat(position.cost_basis),
-        unrealizedPL: parseFloat(position.unrealized_pl),
-        unrealizedPLPercent: parseFloat(position.unrealized_plpc),
-        unrealizedIntradayPL: parseFloat(position.unrealized_intraday_pl),
-        unrealizedIntradayPLPercent: parseFloat(
-          position.unrealized_intraday_plpc
-        ),
-        currentPrice: parseFloat(position.current_price),
-        lastDayPrice: parseFloat(position.lastday_price),
-        changeToday: parseFloat(position.change_today),
-        averageEntryPrice: parseFloat(position.avg_entry_price),
-        qtyAvailable: parseFloat(position.qty_available),
-        lastUpdated: new Date().toISOString(),
-      }));
+      return positions.map((position) => {
+        // CRITICAL: If Alpaca returns incomplete position data, averageEntryPrice may be null/undefined.
+        // Never default to 0 — that creates a fraudulent $0 cost basis and ruins P&L calculations.
+        // Use null instead so callers can detect and handle the incomplete data.
+        const avgEntryPrice = position.avg_entry_price !== null && position.avg_entry_price !== undefined
+          ? parseFloat(position.avg_entry_price)
+          : null;
+
+        if (avgEntryPrice === null) {
+          console.warn(`⚠️  Alpaca returned incomplete position data for ${position.symbol}: missing avg_entry_price`);
+        }
+
+        return {
+          symbol: position.symbol,
+          assetId: position.asset_id,
+          exchange: position.exchange,
+          assetClass: position.asset_class,
+          quantity: parseFloat(position.qty),
+          side: position.side,
+          marketValue: parseFloat(position.market_value),
+          costBasis: parseFloat(position.cost_basis),
+          unrealizedPL: parseFloat(position.unrealized_pl),
+          unrealizedPLPercent: parseFloat(position.unrealized_plpc),
+          unrealizedIntradayPL: parseFloat(position.unrealized_intraday_pl),
+          unrealizedIntradayPLPercent: parseFloat(
+            position.unrealized_intraday_plpc
+          ),
+          currentPrice: parseFloat(position.current_price),
+          lastDayPrice: parseFloat(position.lastday_price),
+          changeToday: parseFloat(position.change_today),
+          averageEntryPrice: avgEntryPrice,
+          qtyAvailable: parseFloat(position.qty_available),
+          lastUpdated: new Date().toISOString(),
+        };
+      });
     } catch (error) {
       console.error("Alpaca positions fetch error:", error.message);
       // Check if it's a 401 (authentication failure)
