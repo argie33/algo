@@ -595,8 +595,12 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             items.append(d)
 
             # Accumulate sector allocation for aggregation (Issue #1)
+            # Only include positions with valid position_value (don't silently use 0)
             sector = d.get('sector', 'Unknown')
-            pos_val = safe_float(d.get('position_value'), default=0.0)
+            pos_val = safe_float(d.get('position_value'))
+            if pos_val is None:
+                logger.warning(f"Position missing position_value: symbol={d.get('symbol')}, skipping from sector allocation")
+                continue
             if sector not in sector_risk:
                 sector_risk[sector] = 0
             sector_risk[sector] += pos_val
@@ -626,7 +630,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             'data_freshness': freshness
         })
 
-@db_route_handler('calculate performance', default_error_response={'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0, 'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0, 'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0, 'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics.
 

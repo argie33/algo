@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data Operations Integration - Unified API for freshness, validation, caching, fallbacks
+Data Operations Integration - Unified API for freshness, validation, caching
 """
 
 import logging
@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, Optional
 from datetime import date
 
 from utils.validation import check_freshness, is_fresh
-from utils.infrastructure import log_fallback_usage, FallbackTrigger
 from utils.validation import validate_record
 from utils.db import get_or_create_cache
 
@@ -37,32 +36,6 @@ def load_with_freshness(
         return None
 
     return (data, freshness)
-
-
-def try_with_fallback(
-    primary: Callable[[], Any],
-    fallback: Callable[[], Any],
-    resource: str,
-    fallback_step: str,
-    context: str = "",
-) -> Optional[Any]:
-    """Try primary source, use fallback on failure."""
-    try:
-        return primary()
-    except Exception as e:
-        logger.warning(f"Primary failed for {resource}: {e}")
-        log_fallback_usage(
-            resource=resource,
-            fallback_step=fallback_step,
-            trigger=FallbackTrigger.PRIMARY_UNAVAILABLE,
-            context=context,
-            error=e,
-        )
-        try:
-            return fallback()
-        except Exception as e2:
-            logger.error(f"Fallback also failed: {e2}")
-            return None
 
 
 def get_or_cache(
