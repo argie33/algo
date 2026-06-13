@@ -349,8 +349,24 @@ jobs:
           cp -r $SOURCE_LAMBDA/* $PKG_DIR/
 
           # Copy project config and utils directories (required for credential_manager and database_context)
-          cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
-          cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+          echo "[DEBUG] Copying config from $GITHUB_WORKSPACE/config"
+          if [ -d "$GITHUB_WORKSPACE/config" ]; then
+            cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
+            echo "[OK] Config copied"
+          else
+            echo "[WARN] Config directory not found"
+          fi
+
+          echo "[DEBUG] Copying utils from $GITHUB_WORKSPACE/utils"
+          if [ -d "$GITHUB_WORKSPACE/utils" ]; then
+            ls $GITHUB_WORKSPACE/utils | head -10
+            cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+            echo "[OK] Utils copied"
+            ls $PKG_DIR/utils | head -10
+          else
+            echo "[ERROR] Utils directory not found!"
+            exit 1
+          fi
 
           # Install dependencies into package directory
           if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
@@ -359,13 +375,35 @@ jobs:
               --no-cache-dir --quiet
           fi
 
+          # Verify utils/ files are present before zipping
+          if [ ! -f "$PKG_DIR/utils/safe_data_conversion.py" ]; then
+            echo "[ERROR] Missing utils/safe_data_conversion.py"
+            echo "Package directory contents:"
+            ls -la $PKG_DIR/ | head -20
+            echo "Files in utils directory:"
+            find $PKG_DIR -type d -name utils -exec ls -la {} \;
+            exit 1
+          fi
+
           # Create ZIP for deployment (name must match var.api_lambda_code_file default in Terraform)
           rm -f $GITHUB_WORKSPACE/terraform/lambda_api.zip
           cd $PKG_DIR
           zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
 
           echo "[OK] API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
-          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -15
+
+          # Verify utils files are in the ZIP
+          echo "Verifying utils/ in ZIP:"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | grep "utils/safe_data_conversion.py"
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] utils/safe_data_conversion.py NOT in ZIP!"
+            echo "ZIP contents (first 30 lines):"
+            unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -30
+            exit 1
+          fi
+          echo "[OK] utils/ files verified in ZIP"
+
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -20
 
       - name: Build Data Freshness Monitor Lambda
         run: |
