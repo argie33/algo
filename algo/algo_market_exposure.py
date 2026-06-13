@@ -408,7 +408,7 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        return int(row[0]) if row and row[0] else 0
+        return int(row[0]) if row is not None and row[0] is not None else 0
 
     def _has_follow_through_day(self, eval_date, cur):
         """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""

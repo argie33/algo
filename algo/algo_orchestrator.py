@@ -358,7 +358,7 @@ class Orchestrator:
                             )
                         )
                         row = cur.fetchone()
-                        latest_date = row[0] if row and row[0] else None
+                        latest_date = row[0] if row is not None and row[0] is not None else None
                         if latest_date:
                             from datetime import datetime as dt, date as date_type
                             if isinstance(latest_date, date_type) and not isinstance(latest_date, datetime):

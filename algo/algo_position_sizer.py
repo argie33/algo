@@ -60,7 +60,7 @@ class PositionSizer:
                 return cur.fetchone()
 
             result = self._with_cursor(fetch_snapshot)
-            if result and result[0]:
+            if result is not None and result[0] is not None:
                 snapshot_value = float(result[0])
                 snapshot_date = result[1]
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999

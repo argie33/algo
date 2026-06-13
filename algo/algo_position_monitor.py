@@ -143,7 +143,7 @@ class PositionMonitor:
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 eq_row = cur.fetchone()
-                if eq_row and eq_row[0]:
+                if eq_row is not None and eq_row[0] is not None:
                     total_equity = float(eq_row[0])
                     # Compute margin usage = (equity - buying_power) / equity
                     # Using proxy: if total open position value > 90% of equity, halt new entries
@@ -151,7 +151,7 @@ class PositionMonitor:
                         SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                     """)
                     pos_val_row = cur.fetchone()
-                    pos_value = float(pos_val_row[0]) if pos_val_row and pos_val_row[0] else 0
+                    pos_value = float(pos_val_row[0]) if pos_val_row is not None and pos_val_row[0] is not None else 0
                     margin_util_pct = (pos_value / total_equity * 100) if total_equity > 0 else 0
                     if margin_util_pct > 90:
                         logger.critical(f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity — liquidation risk imminent")
@@ -477,7 +477,7 @@ class PositionMonitor:
             (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
         )
         old_row = cur.fetchone()
-        old_rank = int(old_row[0]) if old_row and old_row[0] else cur_rank
+        old_rank = int(old_row[0]) if old_row is not None and old_row[0] is not None else cur_rank
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return 'weakening'
         if cur_rank < old_rank - 3:
@@ -513,7 +513,7 @@ class PositionMonitor:
                 (symbol, current_date),
             )
             row = cur.fetchone()
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 return (row[0] - current_date).days
 
             # Fallback: estimate from last reported quarter + 90-day cycle
