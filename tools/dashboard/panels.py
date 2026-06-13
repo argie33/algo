@@ -736,7 +736,7 @@ def panel_signals_compact(sig, sig_eval=None):
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
     g     = sig.get("grades") or {}
-    ga, gb, gc, gd = (int(g.get(k) or 0) for k in ("a", "b", "c", "d"))
+    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     top_a = sig.get("top_a") or []
     near  = sig.get("near")  or []
 
@@ -767,22 +767,33 @@ def panel_signals_compact(sig, sig_eval=None):
         spark_s = f"  [{CY}]{spark}[/]"
     n_near = len(near)
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
+    ga_s = f"{ga}" if ga is not None else "--"
+    gb_s = f"{gb}" if gb is not None else "--"
+    gc_s = f"{gc}" if gc is not None else "--"
+    gd_s = f"{gd}" if gd is not None else "--"
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY[/][/]{spark_s}  [dim]from {total} screened  {ds}[/]"
-        f"  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]{near_hint}"
+        f"  [{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]{near_hint}"
     )]
 
     # ── Row 2: A-grade radar (always; near-misses only when nothing better) ──
     if top_a:
         parts = []
         for s in top_a[:8]:
-            sc   = float(s.get("score") or 0)
-            sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-            parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
-        extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga > 8 else ""
+            sc   = float(s.get("score")) if s.get("score") is not None else None
+            if sc is not None:
+                sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
+                parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+            else:
+                parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
+        extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:
-        parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
+        parts = []
+        for a in near[:8]:
+            sc = float(a.get('score')) if a.get('score') is not None else None
+            sc_s = f"{sc:.0f}" if sc is not None else "--"
+            parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
     # ── Row 3: Funnel arrow chain  Â·  avg score  Â·  top blockers ─────────────
@@ -862,7 +873,11 @@ def panel_signals_compact(sig, sig_eval=None):
     # ── Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) ──
     if near and top_a:
         rows.append(Rule(style="dim"))
-        parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
+        parts = []
+        for a in near[:8]:
+            sc = float(a.get('score')) if a.get('score') is not None else None
+            sc_s = f"{sc:.0f}" if sc is not None else "--"
+            parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
     # Add placeholder warning if needed
@@ -1925,11 +1940,15 @@ def panel_signals_expanded(sig, sig_eval=None):
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
     g     = sig.get("grades") or {}
-    ga, gb, gc, gd = (int(g.get(k) or 0) for k in ("a", "b", "c", "d"))
+    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
+    ga_s = f"{ga}" if ga is not None else "--"
+    gb_s = f"{gb}" if gb is not None else "--"
+    gc_s = f"{gc}" if gc is not None else "--"
+    gd_s = f"{gd}" if gd is not None else "--"
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
-        f"[{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]  "
+        f"[{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]  "
         f"[dim]press [/][bold magenta]s[/][dim] to return[/]"
     )]
 
@@ -1937,8 +1956,12 @@ def panel_signals_expanded(sig, sig_eval=None):
     if top_a:
         parts = []
         for s in top_a:
-            sc_c = G if float(s.get("score") or 0) >= 90 else ("bright_green" if float(s.get("score") or 0) >= 85 else "green")
-            parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{float(s.get('score') or 0):.0f}[/]")
+            sc = float(s.get("score")) if s.get("score") is not None else None
+            if sc is not None:
+                sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
+                parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+            else:
+                parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not sig_eval.get("_error"):
@@ -1998,7 +2021,11 @@ def panel_signals_expanded(sig, sig_eval=None):
     if near:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55-69):[/]"))
-        parts = [f"[{CY}]{a['symbol']}[/][dim] {float(a.get('score') or 0):.0f}[/]" for a in near]
+        parts = []
+        for a in near:
+            sc = float(a.get('score')) if a.get('score') is not None else None
+            sc_s = f"{sc:.0f}" if sc is not None else "--"
+            parts.append(f"[{CY}]{a['symbol']}[/][dim] {sc_s}[/]")
         for i in range(0, len(parts), 4):
             rows.append(Text.from_markup("  " + "    ".join(parts[i:i+4])))
 
