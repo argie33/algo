@@ -3134,8 +3134,14 @@ def _get_sentiment(cur) -> Dict:
 
 @db_route_handler('get economic calendar', default_error_response=[])
 def _get_economic_calendar(cur) -> Dict:
-    """Get economic calendar data."""
+    """Get economic calendar data with freshness validation.
+
+    Returns list of upcoming economic events. Includes data_freshness metadata
+    so clients can detect when calendar data is stale or missing.
+    """
     try:
+        freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
+
         cur.execute("""
             SELECT event_date, event_name, country, actual, forecast, previous, impact
             FROM economic_calendar
@@ -3145,7 +3151,19 @@ def _get_economic_calendar(cur) -> Dict:
         """)
         rows = cur.fetchall()
         events = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
-        return success_response(events)
+
+        response = {
+            'statusCode': 200,
+            'items': events,
+            'total': len(events),
+            'data_freshness': freshness
+        }
+
+        if freshness.get('is_stale'):
+            response['_warning'] = f"Economic calendar data is stale: {freshness.get('warning')}"
+            logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
+
+        return response
     except Exception as e:
         logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Economic calendar unavailable')

@@ -390,13 +390,25 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     close = _v('Close')
                     if close is None:
                         continue
+
+                    open_val = _v('Open')
+                    high_val = _v('High')
+                    low_val = _v('Low')
+                    volume_val = _v('Volume')
+
+                    if volume_val is None:
+                        logger.debug(f"{sym} on {d}: Volume data missing")
+                        volume_val = None
+                    else:
+                        volume_val = int(volume_val)
+
                     records.append((
                         sym, d,
-                        _v('Open') or close,
-                        _v('High') or close,
-                        _v('Low') or close,
+                        open_val,
+                        high_val,
+                        low_val,
                         close,
-                        int(_v('Volume') or 0),
+                        volume_val,
                     ))
                 logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
             except Exception as e:

@@ -65,7 +65,7 @@ class PositionSizer:
                 snapshot_date = result[1]
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days <= 2:
-                    logger.info(f"[PORTFOLIO] Using snapshot from {age_days}d ago: ${snapshot_value:,.2f}")
+                    logger.warning(f"[PORTFOLIO] STALE: Using snapshot from {age_days}d ago (threshold: 2 days): ${snapshot_value:,.2f}")
                     return snapshot_value
                 logger.error(
                     f"Portfolio snapshot is {age_days} days old (threshold: 2 days). "
