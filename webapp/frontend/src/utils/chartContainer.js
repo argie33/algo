@@ -9,6 +9,7 @@ export const chartContainerStyles = {
   // Default chart container with guaranteed height
   default: {
     width: '100%',
+    minWidth: 0,
     height: '300px',
     display: 'flex',
     flexDirection: 'column',
@@ -17,6 +18,7 @@ export const chartContainerStyles = {
   // Tall chart for detailed data (e.g., historical prices)
   tall: {
     width: '100%',
+    minWidth: 0,
     height: '500px',
     display: 'flex',
     flexDirection: 'column',
@@ -25,6 +27,7 @@ export const chartContainerStyles = {
   // Compact chart for secondary data (e.g., breadth)
   compact: {
     width: '100%',
+    minWidth: 0,
     height: '250px',
     display: 'flex',
     flexDirection: 'column',

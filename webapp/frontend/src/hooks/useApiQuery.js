@@ -103,12 +103,22 @@ export const useApiQuery = (
 
       // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
       // Allow up to 3 retries (4 total attempts) for backend recovery
-      if (status >= 500) return failureCount < 3;
+      if (status >= 500) {
+        if (failureCount < 3) {
+          console.warn(`[useApiQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`, errorMsg);
+          return true;
+        }
+        return false;
+      }
 
       // Retry on network errors and timeouts with LIMITED attempts
       // Aggressive retry strategy: fail fast if API is truly down
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        return failureCount < 3;
+        if (failureCount < 3) {
+          console.warn(`[useApiQuery] Network error, retrying (attempt ${failureCount + 1}/3):`, errorMsg);
+          return true;
+        }
+        return false;
       }
 
       // Default: no retry for unknown errors
@@ -230,12 +240,22 @@ export const useApiPaginatedQuery = (
 
       // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
       // Allow up to 3 retries (4 total attempts) for backend recovery
-      if (status >= 500) return failureCount < 3;
+      if (status >= 500) {
+        if (failureCount < 3) {
+          console.warn(`[useApiPaginatedQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`, errorMsg);
+          return true;
+        }
+        return false;
+      }
 
       // Retry on network errors and timeouts with LIMITED attempts
       // Aggressive retry strategy: fail fast if API is truly down
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        return failureCount < 3;
+        if (failureCount < 3) {
+          console.warn(`[useApiPaginatedQuery] Network error, retrying (attempt ${failureCount + 1}/3):`, errorMsg);
+          return true;
+        }
+        return false;
       }
 
       // Default: no retry for unknown errors
