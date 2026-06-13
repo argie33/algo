@@ -111,12 +111,15 @@ class DailyReconciliation:
 
                 # FIXED: Read from algo_trades (source of truth) instead of algo_positions (stale).
                 # algo_positions drifts over time; algo_trades is authoritative for open positions.
+                # CRITICAL: Do NOT fall back to entry_price when current_price is missing.
+                # When price_daily has no entry, current_price must be NULL to indicate missing data.
+                # This prevents position_value from being calculated incorrectly (showing 0% gain/loss).
                 cur.execute("""
                     WITH open_trades AS (
                         SELECT DISTINCT ON (at.symbol)
                             at.symbol, at.entry_quantity as quantity, at.entry_price as avg_entry_price,
-                            COALESCE(lp.current_price, at.entry_price) as current_price,
-                            (at.entry_quantity * COALESCE(lp.current_price, at.entry_price)) as position_value
+                            lp.current_price,
+                            (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
                         LEFT JOIN (
                             SELECT DISTINCT ON (symbol) symbol, close as current_price
@@ -143,17 +146,26 @@ class DailyReconciliation:
                 total_position_value = 0.0
                 unrealized_pnl = 0.0
                 unrealized_pnl_pct = 0.0
+                positions_with_prices = 0
 
                 for symbol, qty, entry, current, pos_value in positions:
                     # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
                     qty_f = float(qty or 0)
                     entry_f = float(entry or 0)
-                    current_f = float(current or entry_f)
+
+                    # CRITICAL: Do NOT fall back to entry_f when current is None.
+                    # If current is None, it means price data is missing. Skip position value calculation.
+                    if current is None:
+                        logger.warning(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> PRICE MISSING (cannot compute P&L)")
+                        continue
+
+                    current_f = float(current)
                     pos_value_f = float(pos_value or 0)
                     pnl = (current_f - entry_f) * qty_f
                     pnl_pct = ((current_f - entry_f) / entry_f * 100.0) if entry_f > 0 else 0.0
                     total_position_value += pos_value_f
                     unrealized_pnl += pnl
+                    positions_with_prices += 1
 
                     logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 

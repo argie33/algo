@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from utils.database_context import DatabaseContext
 from algo.algo_signals import SignalComputer
+from algo.algo_signals_vectorized import VectorizedSignalGenerator
 from algo.algo_swing_score import SwingTraderScore
 from algo.algo_liquidity_checks import LiquidityChecks
 from algo.orchestrator.phase_result import PhaseResult
@@ -214,25 +215,36 @@ def run(
 
     logger.info(f"[PHASE 5] Generating signals for {len(symbols)} symbols (Minervini gate active)")
 
-    signal_computer = SignalComputer()
+    start_compute = time.time()
+
+    # VECTORIZED: Compute Minervini + Weinstein + power_trend in parallel for ALL symbols
+    vectorized_gen = VectorizedSignalGenerator()
+    vectorized_signals = vectorized_gen.run(symbols, run_date)
+
+    minervini_results = vectorized_signals.get('minervini', {})
+    weinstein_results = vectorized_signals.get('weinstein', {})
+    power_results = vectorized_signals.get('power', {})
+
+    # Count passes before detailed scoring
+    minervini_pass_count = sum(1 for r in minervini_results.values() if r.get('pass'))
+
     candidates = []
     errors = []
-    minervini_pass_count = 0
+    signal_computer = SignalComputer()  # Only used for base/vcp on passing symbols
 
-    start_compute = time.time()
-    for i, symbol in enumerate(symbols):
+    for symbol in symbols:
         try:
-            minervini = signal_computer.minervini_trend_template(symbol, run_date)
+            minervini = minervini_results.get(symbol, {'pass': False})
 
-            # Hard gate: skip immediately if Minervini template fails (saves ~5 DB queries per symbol)
+            # Hard gate: skip immediately if Minervini template fails (saves ~3 DB queries per symbol)
             if not minervini.get('pass'):
                 continue
 
-            minervini_pass_count += 1
-            weinstein = signal_computer.weinstein_stage(symbol, run_date)
+            # For passing Minervini symbols, compute base + VCP details (still per-symbol but only on ~500-1000 candidates)
             base = signal_computer.base_detection(symbol, run_date)
             vcp = signal_computer.vcp_detection(symbol, run_date)
-            power = signal_computer.power_trend(symbol, run_date)
+            weinstein = weinstein_results.get(symbol, {})
+            power = power_results.get(symbol, {})
 
             quality = _score_signal(minervini, weinstein, vcp, base, power)
 
@@ -260,15 +272,12 @@ def run(
                     'entry_price': c,  # Today's close from already-fetched OHLC
                 })
 
-            if verbose and i % 500 == 0:
-                logger.debug(f"  [{i}/{len(symbols)}] processed, {minervini_pass_count} minervini passes so far")
-
         except Exception as e:
             errors.append(f"{symbol}: {str(e)[:50]}")
 
     compute_elapsed = time.time() - start_compute
     logger.info(
-        f"[PHASE 5] Signal compute: {len(symbols)} symbols in {compute_elapsed:.1f}s, "
+        f"[PHASE 5] Signal compute: {len(symbols)} symbols in {compute_elapsed:.1f}s (vectorized), "
         f"{minervini_pass_count} passed Minervini gate, {len(candidates)} scored >={_MIN_QUALITY}"
     )
 

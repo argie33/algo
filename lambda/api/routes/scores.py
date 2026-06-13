@@ -100,6 +100,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     sc.updated_at AS last_updated,
                     COALESCE(lp.current_close, 0) AS current_price,
                     COALESCE(lp.current_close, 0) AS price,
+                    (lp.current_close IS NULL) AS _is_fallback,
                     ROUND(CASE
                         WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL

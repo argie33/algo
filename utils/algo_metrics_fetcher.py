@@ -272,13 +272,12 @@ class AlgoMetricsFetcher:
                 SELECT
                     at.symbol,
                     at.entry_price as avg_entry_price,
-                    COALESCE(pd.close, at.entry_price) as current_price,
+                    pd.close as current_price,
                     CASE
-                        WHEN at.entry_price > 0
-                        THEN (((COALESCE(pd.close, at.entry_price) - at.entry_price) / at.entry_price) * 100)
-                        ELSE 0
+                        WHEN pd.close IS NULL OR at.entry_price <= 0 THEN NULL
+                        ELSE (((pd.close - at.entry_price) / at.entry_price) * 100)
                     END as unrealized_pnl_pct,
-                    (at.entry_quantity * COALESCE(pd.close, at.entry_price))::DECIMAL(14,2) as position_value,
+                    (at.entry_quantity * pd.close)::DECIMAL(14,2) as position_value,
                     at.entry_quantity as quantity,
                     at.stop_loss_price,
                     at.target_1_price,
@@ -315,14 +314,16 @@ class AlgoMetricsFetcher:
                     d['unrealized_pnl'] = None
 
                 # Compute R multiple (current price relative to stop loss)
+                # CRITICAL: Do NOT fall back to entry_price when current_price is None.
+                # If current_price is None, we cannot compute R multiple.
                 avg_entry = d.get('avg_entry_price')
                 stop_loss = d.get('stop_loss_price')
-                current = d.get('current_price', avg_entry)
+                current = d.get('current_price')
 
-                if (avg_entry and stop_loss and
+                if (current is not None and avg_entry and stop_loss and
                     float(avg_entry) > float(stop_loss or 0)):
                     d['r_multiple'] = round(
-                        (float(current or avg_entry) - float(avg_entry)) /
+                        (float(current) - float(avg_entry)) /
                         (float(avg_entry) - float(stop_loss)),
                         2
                     )

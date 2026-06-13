@@ -1110,7 +1110,8 @@ def _get_markets(cur) -> Dict:
                   AND date = (SELECT d FROM prev_date)
         )
         SELECT t.symbol, t.date, t.close,
-                   COALESCE(y.prev_close, t.close) AS prev_close
+                   COALESCE(y.prev_close, t.close) AS prev_close,
+                   (y.prev_close IS NULL) AS _is_fallback
         FROM today t
         LEFT JOIN yesterday y ON t.symbol = y.symbol
         ORDER BY t.symbol

@@ -982,18 +982,18 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
-    pv    = float(port.get("total_portfolio_value") or 0)
-    dr    = float(port.get("daily_return_pct") or 0)
-    urp   = float(port.get("unrealized_pnl_pct") or 0)
-    cash  = float(port.get("total_cash") or 0)
+    pv    = float(port.get("total_portfolio_value")) if port.get("total_portfolio_value") is not None else None
+    dr    = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else None
+    urp   = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else None
+    cash  = float(port.get("total_cash")) if port.get("total_cash") is not None else None
     npos  = int(port.get("position_count") or 0)
     cum   = port.get("cumulative_return_pct")
     mxdd  = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap  = port.get("snapshot_date")
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
-    pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
-    bp    = pv * pct_c / 100 if (pv and pct_c) else cash
+    pct_c = float(cfg.get("max_pos_pct")) if cfg and cfg.get("max_pos_pct") is not None else 0
+    bp    = (pv * pct_c / 100 if (pv is not None and pct_c and pct_c > 0) else (cash if cash is not None else 0))
     if max_n:
         _sb   = mini_bar(npos, max_n, w=5)
         pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
@@ -1014,9 +1014,11 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     ))
 
     # Line 3: daily return + unrealized P&L
+    dr_s = f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     rows.append(Text.from_markup(
-        f"[dim]Day:[/] [{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]  "
-        f"[dim]Unrlzd:[/] [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
+        f"[dim]Day:[/] {dr_s}  "
+        f"[dim]Unrlzd:[/] {urp_s}"
     ))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
@@ -1157,14 +1159,16 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     if recent:
         rows.append(Text.from_markup("[dim]Recent exits:[/]"))
         for t in recent:
-            pv2   = float(t.get("profit_loss_dollars") or 0)
-            pct_v = float(t.get("profit_loss_pct") or 0)
-            rv    = float(t.get("exit_r_multiple") or 0) if t.get("exit_r_multiple") else None
+            pv2   = float(t.get("profit_loss_dollars")) if t.get("profit_loss_dollars") is not None else None
+            pct_v = float(t.get("profit_loss_pct")) if t.get("profit_loss_pct") is not None else None
+            rv    = float(t.get("exit_r_multiple")) if t.get("exit_r_multiple") is not None else None
             sym   = t.get("symbol") or "--"
-            c     = G if pv2 >= 0 else R
+            c     = G if (pv2 is not None and pv2 >= 0) else R
+            pct_s = f"{sign(pct_v)}{pct_v:.1f}%" if pct_v is not None else "--"
+            pv_s = fmt_money(pv2) if pv2 is not None else "--"
             rv_s  = f" {sign(rv)}{rv:.1f}R" if rv is not None else ""
             rows.append(Text.from_markup(
-                f"  [{c}]{sym}[/] [{c}]{sign(pct_v)}{pct_v:.1f}%  {fmt_money(pv2)}{rv_s}[/]"
+                f"  [{c}]{sym}[/] [{c}]{pct_s}  {pv_s}{rv_s}[/]"
             ))
 
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
@@ -1191,34 +1195,35 @@ def panel_positions(pos, compact=False, trades=None):
         t.add_column("Swg",    justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim",     no_wrap=True, max_width=12)
     for p in pos:
-        entry = float(p.get("avg_entry_price") or 0)
-        price = float(p.get("current_price")   or 0)
-        pval  = float(p.get("position_value")  or 0) if p.get("position_value") else None
-        stop  = float(p.get("stop_loss_price") or 0) if p.get("stop_loss_price") else None
-        t1    = float(p.get("target_1_price")  or 0) if p.get("target_1_price")  else None
-        pnl   = float(p.get("unrealized_pnl_pct") or 0)
+        entry = float(p.get("avg_entry_price")) if p.get("avg_entry_price") is not None else None
+        price = float(p.get("current_price"))   if p.get("current_price") is not None else None
+        pval  = float(p.get("position_value"))  if p.get("position_value") is not None else None
+        stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
+        t1    = float(p.get("target_1_price"))  if p.get("target_1_price") is not None else None
+        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None
         days  = p.get("days_since_entry") or "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
         rmul  = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
         dist  = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
-        t1pct = (t1 - price)    / price * 100         if (t1 and price)         else None
-        pc    = G if pnl >= 0        else R
-        rc    = G if (rmul or 0) >= 0 else R
-        dc    = R if (dist or 99) < 3 else (Y if (dist or 99) < 5 else "white")
+        t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price != 0) else None
+        pc    = G if (pnl is not None and pnl >= 0) else R
+        rc    = G if (rmul is not None and rmul >= 0) else R
+        dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
-            f"${entry:.2f}", f"${price:.2f}",
-            Text(f"{sign(pnl)}{pnl:.2f}%", style=pc),
-            Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
-            f"${stop:.2f}" if stop else "--",
+            f"${entry:.2f}" if entry is not None else "--",
+            f"${price:.2f}" if price is not None else "--",
+            Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
+            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
+            f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
         if not compact:
             swg_s = float(swg) if swg is not None else None
-            swg_c = G if (swg_s or 0) >= 80 else (Y if (swg_s or 0) >= 60 else "white")
+            swg_c = G if (swg_s is not None and swg_s >= 80) else (Y if (swg_s is not None and swg_s >= 60) else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -1299,14 +1304,22 @@ def panel_signals_compact(sig, sig_eval=None):
     if top_a:
         parts = []
         for s in top_a[:8]:
-            sc   = float(s.get("score") or 0)
+            sc = float(s.get("score")) if s.get("score") is not None else None
+            if sc is None:
+                continue
             sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
             parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
         extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga > 8 else ""
-        rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
+        if parts:
+            rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:
-        parts = [f"[{CY}]{a['symbol']}[/][dim]{float(a.get('score') or 0):.0f}[/]" for a in near[:8]]
-        rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
+        parts = []
+        for a in near[:8]:
+            sc = float(a.get("score")) if a.get("score") is not None else None
+            if sc is not None:
+                parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc:.0f}[/]")
+        if parts:
+            rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not sig_eval.get("_error"):

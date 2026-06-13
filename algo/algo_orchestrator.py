@@ -63,12 +63,9 @@ class Orchestrator:
         self.alerts = AlertManager()
 
         # RDS Proxy handles connection pooling - no local pool needed
-        # In dry-run mode, database is optional; fail gracefully if unavailable
-        if self.dry_run:
-            logger.info("[DRY-RUN] Database optional in dry-run mode")
-            self.degraded_mode = True
-        else:
-            self.degraded_mode = False
+        # Database is ALWAYS required - both dry-run and live execution need data to validate phases
+        # degraded_mode is ONLY set if database connection actually fails (checked at pre-flight)
+        self.degraded_mode = False
 
         logger.info("[ORCHESTRATOR] About to initialize feature flags")
         self._initialize_feature_flags()
@@ -935,13 +932,8 @@ class Orchestrator:
                 for var in ['BYPASS_PHASE1_HALT', 'BYPASS_HALT_FLAG', 'BYPASS_MARKET_REGIME',
                            'BYPASS_EXPOSURE_POLICY', 'BYPASS_CIRCUIT_BREAKERS']
             )
-            if self.degraded_mode and self.dry_run and not bypass_active:
-                logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")
-                self.log_phase_result(1, 'planning_mode', 'success', 'Dry-run mode with unavailable database')
-                return self._final_report()
-            elif bypass_active and self.dry_run:
+            if bypass_active and self.dry_run:
                 logger.critical("[PATH_B] Bypass flags active in dry-run — running Phase 5-6 signal generation for testing")
-                self.degraded_mode = False  # Allow phases to run despite dry-run
 
             try:
                 phase_1_start = time.time()

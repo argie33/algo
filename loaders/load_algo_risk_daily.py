@@ -77,9 +77,10 @@ class AlgoRiskDailyLoader(OptimalLoader):
                         ORDER BY symbol, date DESC
                     )
                     SELECT ot.symbol,
-                           (ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::DECIMAL(14,2) as position_value
+                           (ot.entry_quantity * lp.current_price)::DECIMAL(14,2) as position_value
                     FROM open_trades ot
                     LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
+                    WHERE lp.current_price IS NOT NULL
                     ORDER BY position_value DESC
                 """)
                 positions = cur.fetchall() or []

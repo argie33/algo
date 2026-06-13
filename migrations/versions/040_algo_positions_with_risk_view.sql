@@ -12,7 +12,7 @@
 --
 -- CREATED: 2026-06-11
 
-CREATE OR REPLACE VIEW algo_positions_with_risk AS
+CREATE MATERIALIZED VIEW algo_positions_with_risk AS
 WITH latest_prices AS (
   -- Get most recent price for each symbol
   SELECT DISTINCT ON (symbol)
@@ -23,12 +23,10 @@ WITH latest_prices AS (
   ORDER BY symbol, date DESC
 ),
 latest_trades AS (
-  -- Get the most recent trade for each position (by symbol)
+  -- Get the most recent trade for each symbol (not filtered by status)
   -- This gives us stops, targets, sector, and stage info
   SELECT DISTINCT ON (symbol)
     symbol,
-    entry_price,
-    entry_quantity,
     stop_loss_price,
     target_1_price,
     target_1_r_multiple,
@@ -39,11 +37,8 @@ latest_trades AS (
     sector,
     industry,
     stage_phase,
-    signal_date,
     trade_date
   FROM algo_trades
-  WHERE status IN ('open', 'filled', 'partially_filled', 'active')
-    AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
   ORDER BY symbol, trade_date DESC
 ),
 latest_technical AS (
@@ -53,8 +48,7 @@ latest_technical AS (
     minervini_trend_score,
     weinstein_stage,
     percent_from_52w_low,
-    percent_from_52w_high,
-    date as tech_date
+    percent_from_52w_high
   FROM trend_template_data
   ORDER BY symbol, date DESC
 )
@@ -72,7 +66,7 @@ SELECT
   ap.stage_in_exit_plan,
   ap.days_since_entry,
 
-  -- Stop and target levels (from latest open trade)
+  -- Stop and target levels (from latest trade)
   COALESCE(lt.stop_loss_price, 0)::DECIMAL(12, 4) as stop_loss_price,
   lt.target_1_price,
   lt.target_2_price,
@@ -143,7 +137,7 @@ FROM algo_positions ap
 LEFT JOIN latest_prices lp ON ap.symbol = lp.symbol
 LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
 LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
-WHERE ap.status = 'open';
+WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted');
 
 -- Create index for performance
 CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol
