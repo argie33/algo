@@ -11,7 +11,7 @@ try {
   query = null;
 }
 
-const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest, sendPlaceholder } = require('../utils/apiResponse');
 const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const paginationConfig = require("../config/pagination");
@@ -2062,7 +2062,7 @@ router.get("/aaii", async (req, res) => {
 
     // Fallback to database
     if (!query) {
-      return sendPaginated(res, [], { total: 0, limit: 0, offset: 0 });
+      return sendPlaceholder(res, 'Database connection unavailable', 503, 'items');
     }
 
     let days = 30;
@@ -2095,7 +2095,7 @@ router.get("/aaii", async (req, res) => {
 
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return sendPaginated(res, [], { total: 0, limit: 0, offset: 0 });
+    return sendPlaceholder(res, `AAII sentiment data unavailable: ${error.message}`, 500, 'items');
   }
 });
 
@@ -2127,8 +2127,8 @@ router.get("/fear-greed", async (req, res) => {
       ORDER BY date ASC
     `, [days]);
 
-    if (!result || !result.rows) {
-      return sendSuccess(res, { items: [], range: range, count: 0 });
+    if (!result || !result.rows || result.rows.length === 0) {
+      return sendPlaceholder(res, 'Fear & Greed index data not available', 200, 'object');
     }
 
     const data = result.rows.map(row => ({
@@ -2145,7 +2145,7 @@ router.get("/fear-greed", async (req, res) => {
 
   } catch (error) {
     console.error("Fear & Greed index error:", error);
-    return sendError(res, "Failed to fetch Fear & Greed index data", 500);
+    return sendPlaceholder(res, `Failed to fetch Fear & Greed index data: ${error.message}`, 500, 'object');
   }
 });
 
@@ -2273,10 +2273,14 @@ async function getMarketDataHandler(req, res) {
             FROM aaii_sentiment
             ORDER BY date DESC LIMIT 30
           `);
-          return result.rows || [];
+          const data = result.rows || [];
+          if (data.length === 0) {
+            return { _is_placeholder: true, _error: 'No AAII sentiment data available', items: [] };
+          }
+          return data;
         } catch (err) {
           console.warn('AAII sentiment data unavailable:', err.message);
-          return [];
+          return { _is_placeholder: true, _error: `AAII sentiment error: ${err.message}`, items: [] };
         }
       })(),
 
@@ -2289,10 +2293,14 @@ async function getMarketDataHandler(req, res) {
             FROM fear_greed_index
             ORDER BY date DESC LIMIT 30
           `);
-          return result.rows || [];
+          const data = result.rows || [];
+          if (data.length === 0) {
+            return { _is_placeholder: true, _error: 'No Fear & Greed data available', items: [] };
+          }
+          return data;
         } catch (err) {
           console.warn('Fear & Greed index data unavailable:', err.message);
-          return [];
+          return { _is_placeholder: true, _error: `Fear & Greed error: ${err.message}`, items: [] };
         }
       })(),
 
@@ -2305,10 +2313,14 @@ async function getMarketDataHandler(req, res) {
             FROM naaim
             ORDER BY date DESC LIMIT 30
           `);
-          return result.rows || [];
+          const data = result.rows || [];
+          if (data.length === 0) {
+            return { _is_placeholder: true, _error: 'No NAAIM data available', items: [] };
+          }
+          return data;
         } catch (err) {
           console.warn('NAAIM data unavailable:', err.message);
-          return [];
+          return { _is_placeholder: true, _error: `NAAIM error: ${err.message}`, items: [] };
         }
       })(),
 
@@ -2423,7 +2435,11 @@ router.get("/technicals", async (req, res) => {
           )
           SELECT * FROM adv_dec_line
         `);
-        return result.rows || [];
+        const data = result.rows || [];
+        if (data.length === 0) {
+          return { _is_placeholder: true, _error: 'No McClellan Oscillator data available', items: [] };
+        }
+        return data;
       })(),
 
       // 3. Distribution Days (from /data endpoint logic)
@@ -2575,7 +2591,11 @@ router.get("/sentiment", async (req, res) => {
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
         `, [days]);
-        return result.rows || [];
+        const data = result.rows || [];
+        if (data.length === 0) {
+          return { _is_placeholder: true, _error: 'No AAII sentiment data available', items: [] };
+        }
+        return data;
       })(),
 
       // 2. Fear & Greed
@@ -2590,7 +2610,11 @@ router.get("/sentiment", async (req, res) => {
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
         `, [days]);
-        return result.rows || [];
+        const data = result.rows || [];
+        if (data.length === 0) {
+          return { _is_placeholder: true, _error: 'No Fear & Greed data available', items: [] };
+        }
+        return data;
       })(),
 
       // 3. NAAIM
@@ -2606,7 +2630,11 @@ router.get("/sentiment", async (req, res) => {
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
         `, [days]);
-        return result.rows || [];
+        const data = result.rows || [];
+        if (data.length === 0) {
+          return { _is_placeholder: true, _error: 'No NAAIM data available', items: [] };
+        }
+        return data;
       })()
     ]);
 

@@ -1,7 +1,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require('../utils/apiResponse');
 const { authenticateToken } = require("../middleware/auth");
 const logger = require('../utils/logger');
 const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
@@ -43,14 +43,7 @@ router.get("/covered-calls", async (req, res) => {
     const totalPages = Math.ceil(total / limitNum);
 
     if (total === 0) {
-      return sendPaginated(res, [], {
-        page: pageNum,
-        limit: limitNum,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false
-      });
+      return sendPlaceholder(res, 'No covered call opportunities available - data may not be populated yet', 200, 'items');
     }
 
     const sql = `
@@ -101,15 +94,7 @@ router.get("/covered-calls", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching covered call opportunities:", error.message);
-    return sendPaginated(res, [], {
-      page: pageNum,
-      limit: limitNum,
-      total: 0,
-      totalPages: 0,
-      hasNext: false,
-      hasPrev: false,
-      error: "Covered call strategies require populated options chains data"
-    });
+    return sendPlaceholder(res, `Failed to fetch covered call opportunities: ${error.message}`, 500, 'items');
   }
 });
 

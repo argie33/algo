@@ -2,7 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { getMarketDataPath } = require("../utils/market-data-path");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require('../utils/apiResponse');
 const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require("../utils/logger");
 const router = express.Router();
@@ -79,13 +79,16 @@ router.get("/leading-indicators", async (req, res) => {
     let calendarResult = { rows: [] };
 
     try {
+      let fetchError = null;
       const [ecResult, calResult] = await Promise.all([
         query(economicQuery).catch(e => {
           console.warn("Economic data table not available:", e.message);
+          fetchError = e;
           return { rows: [] };
         }),
         query(calendarQuery).catch(e => {
           console.warn("Economic calendar table not available:", e.message);
+          fetchError = e;
           return { rows: [] };
         })
       ]);
@@ -93,10 +96,13 @@ router.get("/leading-indicators", async (req, res) => {
       validateQueryResult(calResult, { requireRows: false });
       result = ecResult;
       calendarResult = calResult;
+
+      if ((!result.rows || result.rows.length === 0) && (!calendarResult.rows || calendarResult.rows.length === 0)) {
+        return sendPlaceholder(res, fetchError ? 'Economic data tables not available' : 'No economic data available', 200, 'object');
+      }
     } catch (e) {
       console.warn("Could not fetch economic data:", e.message);
-      result = { rows: [] };
-      calendarResult = { rows: [] };
+      return sendPlaceholder(res, `Failed to fetch economic data: ${e.message}`, 503, 'object');
     }
 
     const indicators = {};
@@ -628,6 +634,7 @@ router.get("/calendar", async (req, res) => {
     }
 
     let calendarResult = { rows: [] };
+    let calendarError = null;
 
     try {
       calendarResult = await query(
@@ -644,8 +651,11 @@ router.get("/calendar", async (req, res) => {
       validateQueryResult(calendarResult, { requireRows: false });
     } catch (tableError) {
       console.warn("Economic calendar table not available:", tableError.message);
-      // Table doesn't exist or query failed - return empty results
-      calendarResult = { rows: [] };
+      calendarError = tableError;
+    }
+
+    if ((!calendarResult.rows || calendarResult.rows.length === 0) && calendarError) {
+      return sendPlaceholder(res, 'Economic calendar data not available', 503, 'object');
     }
 
     return sendSuccess(res, {

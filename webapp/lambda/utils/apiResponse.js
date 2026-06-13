@@ -212,5 +212,37 @@ module.exports = {
       : defaultMessage;
 
     return module.exports.sendError(res, message, statusCode);
+  },
+
+  // Placeholder response - returns empty data with metadata flags so frontend knows data is unavailable
+  // Format: { success: true, statusCode: 200, items: [], _is_placeholder: true, _error: "message", timestamp }
+  sendPlaceholder: (res, errorMessage = 'Data unavailable', statusCode = 200, dataType = 'items') => {
+    const response = {
+      success: true,
+      statusCode: statusCode,
+      _is_placeholder: true,
+      _error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    // Support both paginated (items) and single-data responses
+    if (dataType === 'items') {
+      response.items = [];
+      response.pagination = {
+        limit: 0,
+        offset: 0,
+        total: 0,
+        page: 1,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      };
+    } else if (dataType === 'data') {
+      response.data = null;
+    } else if (dataType === 'object') {
+      response.data = {};
+    }
+
+    return res.status(statusCode).json(response);
   }
 };

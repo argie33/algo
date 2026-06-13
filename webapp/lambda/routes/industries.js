@@ -1,6 +1,6 @@
 const express = require("express");
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
+const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require("../utils/apiResponse");
 const logger = require('../utils/logger');
 const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const router = express.Router();
@@ -265,7 +265,7 @@ router.get("/:industry/trend", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
-      return sendSuccess(res, { industry, trendData: [] });
+      return sendPlaceholder(res, `No trend data available for industry: ${industry}`, 200, 'object');
     }
 
     return sendSuccess(res, {

@@ -542,6 +542,76 @@ router.get('/positions', authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /api/algo/portfolio
+ * Get current portfolio metrics including cumulative return, max drawdown, largest position.
+ */
+router.get('/portfolio', authenticateToken, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT
+        snapshot_date,
+        total_portfolio_value,
+        total_cash,
+        position_count,
+        daily_return_pct,
+        unrealized_pnl_pct,
+        cumulative_return_pct,
+        max_drawdown_pct,
+        largest_position_pct
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC
+      LIMIT 1
+    `);
+
+    validateQueryResult(result, { requireRows: false });
+
+    const snapshot = result.rows.length > 0
+      ? validateAndCoerceRow(result.rows[0], {
+          snapshot_date: { type: 'date', required: false },
+          total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
+          total_cash: { type: 'float', required: false, defaultValue: 0 },
+          position_count: { type: 'int', required: false, defaultValue: 0 },
+          daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
+          unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
+          cumulative_return_pct: { type: 'float', required: false, defaultValue: null },
+          max_drawdown_pct: { type: 'float', required: false, defaultValue: null },
+          largest_position_pct: { type: 'float', required: false, defaultValue: null }
+        })
+      : {
+          snapshot_date: null,
+          total_portfolio_value: 0,
+          total_cash: 0,
+          position_count: 0,
+          daily_return_pct: 0,
+          unrealized_pnl_pct: 0,
+          cumulative_return_pct: null,
+          max_drawdown_pct: null,
+          largest_position_pct: null
+        };
+
+    return sendSuccess(res, {
+      data: {
+        last_run: snapshot.snapshot_date,
+        total_portfolio_value: snapshot.total_portfolio_value,
+        total_cash: snapshot.total_cash,
+        open_positions: snapshot.position_count,
+        daily_return_pct: snapshot.daily_return_pct,
+        unrealized_pnl_pct: snapshot.unrealized_pnl_pct,
+        cumulative_return_pct: snapshot.cumulative_return_pct,
+        max_drawdown_pct: snapshot.max_drawdown_pct,
+        largest_position_pct: snapshot.largest_position_pct
+      }
+    });
+  } catch (error) {
+    logger.error('Error in /algo/portfolio:', { error: error.message, stack: error.stack });
+    return sendDatabaseError(res, error, 'An error occurred while fetching portfolio');
+  }
+});
+
+/**
  * GET /api/algo/portfolio-summary
  * Get aggregated portfolio metrics without individual positions.
  * ISSUE #9a: Replaces frontend aggregation logic.

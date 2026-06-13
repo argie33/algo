@@ -1036,9 +1036,10 @@ function HoldingPeriodHistogram({ holding_data }) {
 
 // ─── R-multiple ladder per position ────────────────────────────────────────
 function RLadderPanel({ positions, loading, onSelect }) {
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
   const ladders = useMemo(() => {
-    if (!positions) return [];
-    return positions
+    if (!posArray) return [];
+    return posArray
       .filter(p => p.ladder_pct_stop != null && p.ladder_pct_entry != null && p.ladder_pct_current != null)
       .map(p => ({
         symbol: p.symbol,
@@ -1057,7 +1058,7 @@ function RLadderPanel({ positions, loading, onSelect }) {
         pT2: p.ladder_pct_t2,
         pT3: p.ladder_pct_t3,
       }));
-  }, [positions]);
+  }, [posArray]);
 
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -1154,9 +1155,10 @@ function RChip({ r }) {
 
 // ─── Risk allocation pie ───────────────────────────────────────────────────
 function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
   const data = useMemo(() => {
-    if (!positions) return [];
-    return positions
+    if (!posArray) return [];
+    return posArray
       .filter(p => (p.open_risk_dollars || 0) > 0)
       .map(p => ({
         symbol: p.symbol,
@@ -1164,7 +1166,7 @@ function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
         risk_pct: Number(p.risk_pct) || 0,
       }))
       .sort((a, b) => b.risk - a.risk);
-  }, [positions]);
+  }, [posArray]);
   // Risk percentage is pre-computed per-position; aggregate using backend-computed total
   const totalRisk = data.reduce((s, d) => s + d.risk, 0);
   const riskPct = data.length > 0 ? data.reduce((s, d) => s + d.risk_pct, 0) : 0;
@@ -1310,18 +1312,19 @@ function StagePhaseDonut({ distribution, loading }) {
 
 // ─── Position health table ─────────────────────────────────────────────────
 function PositionHealthTable({ positions, loading, onSelect }) {
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
       <div className="card-head">
         <div>
-          <div className="card-title">Position Health ({positions?.length || 0})</div>
+          <div className="card-title">Position Health ({posArray.length || 0})</div>
           <div className="card-sub">Days held · R · stop/target distance · trend posture · sector</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {loading ? (
           <SkeletonTable />
-        ) : !positions || positions.length === 0 ? (
+        ) : !posArray || posArray.length === 0 ? (
           <Empty title="No open positions" />
         ) : (
           <div style={{ overflow: 'auto' }}>
@@ -1344,7 +1347,7 @@ function PositionHealthTable({ positions, loading, onSelect }) {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((p, i) => (
+                {posArray.map((p, i) => (
                   <tr key={i}
                       onClick={() => onSelect(p.symbol)}
                       style={{ cursor: 'pointer' }}>

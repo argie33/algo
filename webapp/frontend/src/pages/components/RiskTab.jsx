@@ -17,10 +17,11 @@ const COLORS = ['var(--brand)', 'var(--purple)', 'var(--success)', 'var(--amber)
 function RiskTab({ circuitBreakers, _markets, positions = [] }) {
   const breakers = Array.isArray(circuitBreakers) ? circuitBreakers : (circuitBreakers?.breakers || []);
   const anyTriggered = Array.isArray(circuitBreakers) ? false : circuitBreakers?.any_triggered;
+  const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
 
   const sectorExposure = React.useMemo(() => {
     const totals = {};
-    positions.forEach(p => {
+    posArray.forEach(p => {
       const s = p.sector || 'Unknown';
       totals[s] = (totals[s] || 0) + (p.position_value || 0);
     });
@@ -28,7 +29,7 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
     return Object.entries(totals)
       .map(([sector, value]) => ({ sector, value, pct: total > 0 ? Math.round(value / total * 1000) / 10 : 0 }))
       .sort((a, b) => b.value - a.value);
-  }, [positions]);
+  }, [posArray]);
 
   const statusColor = (triggered) => triggered ? 'var(--danger)' : 'var(--success)';
   const breakerBg = (triggered) => triggered ? 'rgba(225, 29, 72, 0.1)' : 'rgba(34, 197, 94, 0.1)';
@@ -97,7 +98,7 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
         <div className="card">
           <div className="card-head">
             <div className="card-title">Sector Exposure</div>
-            <div className="card-sub">{positions.length} open positions</div>
+            <div className="card-sub">{posArray.length} open positions</div>
           </div>
           <div className="card-body">
             {sectorExposure.length === 0 ? (
@@ -129,7 +130,7 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
             <div className="card-title">Position Risk Summary</div>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            {positions.length === 0 ? (
+            {posArray.length === 0 ? (
               <div className="empty"><div className="empty-title">No open positions</div></div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -144,7 +145,7 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {positions.map(p => (
+                    {posArray.map(p => (
                       <tr key={p.symbol}>
                         <td className="strong mono">{p.symbol}</td>
                         <td className="num mono tnum">${Math.round(p.position_value || 0).toLocaleString()}</td>

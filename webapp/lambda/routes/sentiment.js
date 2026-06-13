@@ -1,7 +1,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require('../utils/apiResponse');
 const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const router = express.Router();
@@ -72,6 +72,10 @@ router.get("/data", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
     const total = parseInt(countResult.rows[0]?.total || 0);
 
+    if (!result.rows || result.rows.length === 0) {
+      return sendPlaceholder(res, 'No sentiment data available', 200, 'items');
+    }
+
     return sendPaginated(res, result.rows || [], {
       limit: limitNum,
       offset,
@@ -81,7 +85,7 @@ router.get("/data", async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /sentiment/data:', { error: error.message, stack: error.stack });
-    return sendError(res, `Failed to fetch sentiment data: ${error.message}`, 500);
+    return sendPlaceholder(res, `Failed to fetch sentiment data: ${error.message}`, 500, 'items');
   }
 });
 
@@ -160,6 +164,11 @@ router.get("/analyst", async (req, res) => {
 
     const result = await query(queryStr, params);
     validateQueryResult(result, { requireRows: false });
+
+    if (!result.rows || result.rows.length === 0) {
+      return sendPlaceholder(res, 'No analyst sentiment data available', 200, 'items');
+    }
+
     return sendPaginated(res, result.rows || [], {
       page: pageNum,
       limit: limitNum,
@@ -169,7 +178,7 @@ router.get("/analyst", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst sentiment error:", error);
-    return sendError(res, "Failed to fetch analyst sentiment data", 500);
+    return sendPlaceholder(res, `Failed to fetch analyst sentiment data: ${error.message}`, 500, 'items');
   }
 });
 
@@ -194,11 +203,14 @@ router.get("/history", async (req, res) => {
 
     try {
       const result = await query(queryStr, [daysNum]);
-      return sendSuccess(res, result.rows || []);
+      if (!result.rows || result.rows.length === 0) {
+        return sendPlaceholder(res, 'No sentiment history available', 200, 'items');
+      }
+      return sendSuccess(res, result.rows);
     } catch (tableError) {
-      // If analyst table doesn't exist, return empty history
+      // If analyst table doesn't exist, return placeholder
       console.warn("Analyst sentiment table not available:", tableError.message);
-      return sendSuccess(res, []);
+      return sendPlaceholder(res, 'Sentiment history table not available', 503, 'items');
     }
   } catch (error) {
     console.error("Sentiment history error:", error);

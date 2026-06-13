@@ -468,10 +468,10 @@ def fetch_algo_config(c):
     try:
         data = api_call('/api/algo/config')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
         cfg = data.get('data', {})
         if "_error" in cfg:
-            return {"_error": cfg["_error"]}
+            return {"_error": cfg["_error"], "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
         return {
             "enabled": cfg.get("algo_enabled", True),
             "mode": cfg.get("trade_mode", "unknown"),
@@ -485,14 +485,14 @@ def fetch_algo_config(c):
         }
     except Exception as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
 
 def fetch_market(c):
     """Issue 3 FIX: API-only market data."""
     try:
         mkt = api_call('/api/algo/market')
         if mkt.get('_error'):
-            return {"pct": None, "tier": "unknown", "halts": []}
+            return {"_error": mkt.get('_error'), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
         data = mkt.get('data', {})
         return {
             "pct": safe_float(data.get("exposure_pct")),
@@ -515,14 +515,14 @@ def fetch_market(c):
         }
     except Exception as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
 
 def fetch_exposure_factors(c):
     """Issue 3 FIX: API-only exposure factors."""
     try:
         data = api_call('/api/algo/market-factors')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
         d = data.get('data', {})
         return {
             "raw_score": safe_float(d.get("raw_score")),
@@ -532,17 +532,17 @@ def fetch_exposure_factors(c):
         }
     except Exception as e:
         logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "raw_score": None, "exposure_pct": None, "regime": None, "factors": {}}
 
 def fetch_portfolio(c):
     """AWS-only portfolio snapshot (no local fallback)."""
     try:
         data = api_call('/api/algo/portfolio')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
         port = data.get('data', {})
         if "_error" in port:
-            return {}
+            return {"_error": port.get("_error"), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
@@ -550,13 +550,13 @@ def fetch_portfolio(c):
             "position_count": safe_int(port.get("open_positions")),
             "daily_return_pct": safe_float(port.get("daily_return_pct")),
             "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct")),
-            "cumulative_return_pct": None,
-            "max_drawdown_pct": None,
-            "largest_position_pct": None
+            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct")),
+            "max_drawdown_pct": safe_float(port.get("max_drawdown_pct")),
+            "largest_position_pct": safe_float(port.get("largest_position_pct"))
         }
     except Exception as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "snapshot_date": None, "total_portfolio_value": None, "total_cash": None, "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None, "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None}
 
 def fetch_perf(c):
     """AWS-only performance data (no local fallback)."""
@@ -662,12 +662,12 @@ def fetch_sector_ranking(c):
     try:
         data = api_call('/api/sectors')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "items": []}
         rankings = data.get('data', [])
-        return rankings if isinstance(rankings, list) else []
+        return {"items": rankings if isinstance(rankings, list) else []}
     except Exception as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "items": []}
 
 def fetch_activity(c):
     """Fetch activity and audit log from API."""
@@ -691,18 +691,18 @@ def fetch_health(c):
     try:
         data = api_call('/api/algo/data-status')
         if data.get('_error'):
-            return []
+            return {"_error": data.get('_error'), "items": []}
         health = data.get('data', [])
-        return health if isinstance(health, list) else []
+        return {"items": health if isinstance(health, list) else []}
     except Exception as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
-        return []
+        return {"_error": str(e), "items": []}
 
 def fetch_economic_pulse(c):
     try:
         data = api_call('/api/economic')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
         econ = data.get('data', {})
         return {
             't10': econ.get('t10'), 't2': econ.get('t2'), 't3m': econ.get('t3m'), 't6m': econ.get('t6m'),
@@ -719,18 +719,18 @@ def fetch_economic_pulse(c):
             'umcsent':   econ.get('umcsent'),
         }
     except Exception as e:
-        return {"_error": str(e)}
+        return {"_error": str(e), 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
 
 def fetch_algo_metrics(c):
     """Issue 3 FIX: API-only algo metrics."""
     try:
         data = api_call('/api/algo/metrics')
         if data.get('_error'):
-            return []
-        return data.get('data', []) if isinstance(data.get('data'), list) else []
+            return {"_error": data.get('_error'), "items": []}
+        return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
     except Exception as e:
         logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
-        return []
+        return {"_error": str(e), "items": []}
 
 def fetch_notifications(c):
     try:
@@ -746,7 +746,7 @@ def fetch_sentiment(c):
     try:
         data = api_call('/api/algo/sentiment')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "fg": 50, "label": "Unknown", "date": None, "color": CY}
         d = data.get('data', {})
         fg = safe_float(d.get("fear_greed_index"), default=50)
         label = d.get("label", "Neutral")
@@ -754,25 +754,25 @@ def fetch_sentiment(c):
         return {"fg": round(fg, 1), "label": label, "date": d.get("date"), "color": c_fg}
     except Exception as e:
         logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "fg": 50, "label": "Unknown", "date": None, "color": CY}
 
 def fetch_economic_calendar(c):
     """Issue 3 FIX: API-only economic calendar."""
     try:
         data = api_call('/api/algo/economic-calendar')
         if data.get('_error'):
-            return []
-        return data.get('data', []) if isinstance(data.get('data'), list) else []
+            return {"_error": data.get('_error'), "items": []}
+        return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
     except Exception as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
-        return []
+        return {"_error": str(e), "items": []}
 
 def fetch_risk_metrics(c):
     """Issue 3 FIX: API-only risk metrics."""
     try:
         data = api_call('/api/algo/risk-metrics')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "date": None, "var95": None, "cvar95": None, "svar": None, "beta": None, "conc5": None}
         d = data.get('data', {})
         return {
             "date": d.get("report_date"),
@@ -784,14 +784,14 @@ def fetch_risk_metrics(c):
         }
     except Exception as e:
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "date": None, "var95": None, "cvar95": None, "svar": None, "beta": None, "conc5": None}
 
 def fetch_perf_analytics(c):
     """Issue 3 FIX: API-only performance analytics."""
     try:
         data = api_call('/api/algo/performance-analytics')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "sharpe252": None, "sortino": None, "calmar": None, "wr50": None, "avg_w_r": None, "avg_l_r": None, "expectancy": None, "maxdd": None}
         d = data.get('data', {})
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
@@ -805,7 +805,7 @@ def fetch_perf_analytics(c):
         }
     except Exception as e:
         logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
-        return {}
+        return {"_error": str(e), "sharpe252": None, "sortino": None, "calmar": None, "wr50": None, "avg_w_r": None, "avg_l_r": None, "expectancy": None, "maxdd": None}
 
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
@@ -834,10 +834,10 @@ def fetch_sector_rotation(c):
     try:
         data = api_call('/api/algo/sector-rotation')
         if data.get('_error'):
-            return {}
+            return {"_error": data.get('_error'), "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
         row = data.get('data', {})
         if not row:
-            return {}
+            return {"date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
         details = safe_json_parse(row.get("details"), default={}, field_name="fetch_sector_rotation.details")
         return {
             "date":     row.get("date"),
@@ -849,55 +849,55 @@ def fetch_sector_rotation(c):
         }
     except Exception as e:
         logger.error(f"fetch_sector_rotation: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
 
 def fetch_industry_ranking(c):
     """Fetch industry rankings from API."""
     try:
         data = api_call('/api/industries')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "items": []}
         industries = data.get('data', [])
-        return industries if isinstance(industries, list) else []
+        return {"items": industries if isinstance(industries, list) else []}
     except Exception as e:
         logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "items": []}
 
 def fetch_loader_status(c):
     """Fetch data loader status from API."""
     try:
         data = api_call('/api/algo/data-status')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "items": []}
         loaders = data.get('data', [])
-        return loaders if isinstance(loaders, list) else []
+        return {"items": loaders if isinstance(loaders, list) else []}
     except Exception as e:
         logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "items": []}
 
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
     try:
         data = api_call('/api/algo/execution/recent', params={'days': 7, 'limit': 10})
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "items": []}
         executions = data.get('data', [])
-        return executions if isinstance(executions, list) else []
+        return {"items": executions if isinstance(executions, list) else []}
     except Exception as e:
         logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "items": []}
 
 def fetch_audit_log(c):
     """Fetch audit log from API."""
     try:
         data = api_call('/api/algo/audit-log')
         if data.get('_error'):
-            return {"_error": data.get('_error')}
+            return {"_error": data.get('_error'), "items": []}
         log_entries = data.get('data', [])
-        return log_entries if isinstance(log_entries, list) else []
+        return {"items": log_entries if isinstance(log_entries, list) else []}
     except Exception as e:
         logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        return {"_error": str(e), "items": []}
 
 def fetch_circuit(c):
     """Fetch circuit breakers from API."""
@@ -3069,26 +3069,34 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     perf     = data.get("perf")        or {}
     pos      = data.get("pos")         # Keep as-is to detect errors
     sig      = data.get("sig")         or {}
-    hlth     = data.get("health")      or []
+    hlth_data = data.get("health")     or {}
+    hlth     = hlth_data.get("items", []) if isinstance(hlth_data, dict) and "items" in hlth_data else (hlth_data if isinstance(hlth_data, list) else [])
     cb       = data.get("cb")          or {}
     rec_data = data.get("trades")      # Extract raw data
     rec      = rec_data.get("items", []) if isinstance(rec_data, dict) and "items" in rec_data else (rec_data if isinstance(rec_data, list) else [])
-    srank    = data.get("srank")       or []
+    srank_data = data.get("srank")     or {}
+    srank    = srank_data.get("items", []) if isinstance(srank_data, dict) and "items" in srank_data else (srank_data if isinstance(srank_data, list) else [])
     act      = data.get("activity")    or {}
     exp_f    = data.get("exp_factors") or {}
     eco      = data.get("eco")         or {}
     notifs   = data.get("notifs")      or []
     sentiment = data.get("sentiment")  or {}
-    econ_cal  = data.get("econ_cal")   or []
+    econ_cal_data = data.get("econ_cal") or {}
+    econ_cal = econ_cal_data.get("items", []) if isinstance(econ_cal_data, dict) and "items" in econ_cal_data else (econ_cal_data if isinstance(econ_cal_data, list) else [])
     risk      = data.get("risk")       or {}
     perf_anl  = data.get("perf_anl")   or {}
     sig_eval  = data.get("sig_eval")   or {}
     sec_rot      = data.get("sec_rot")       or {}
-    algo_metrics = data.get("algo_metrics")  or []
-    irank        = data.get("irank")         or []
-    loader       = data.get("loader")        or []
-    audit        = data.get("audit")         or []
-    exec_hist    = data.get("exec_hist")     or []
+    algo_metrics_data = data.get("algo_metrics") or {}
+    algo_metrics = algo_metrics_data.get("items", []) if isinstance(algo_metrics_data, dict) and "items" in algo_metrics_data else (algo_metrics_data if isinstance(algo_metrics_data, list) else [])
+    irank_data        = data.get("irank")         or {}
+    irank        = irank_data.get("items", []) if isinstance(irank_data, dict) and "items" in irank_data else (irank_data if isinstance(irank_data, list) else [])
+    loader_data       = data.get("loader")        or {}
+    loader       = loader_data.get("items", []) if isinstance(loader_data, dict) and "items" in loader_data else (loader_data if isinstance(loader_data, list) else [])
+    audit_data        = data.get("audit")         or {}
+    audit        = audit_data.get("items", []) if isinstance(audit_data, dict) and "items" in audit_data else (audit_data if isinstance(audit_data, list) else [])
+    exec_hist_data    = data.get("exec_hist")     or {}
+    exec_hist    = exec_hist_data.get("items", []) if isinstance(exec_hist_data, dict) and "items" in exec_hist_data else (exec_hist_data if isinstance(exec_hist_data, list) else [])
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()

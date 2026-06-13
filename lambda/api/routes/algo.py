@@ -2649,7 +2649,8 @@ def _get_algo_portfolio(cur) -> Dict:
     try:
         cur.execute("""
             SELECT snapshot_date, total_portfolio_value, total_cash,
-                   unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct
+                   unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct,
+                   cumulative_return_pct, max_drawdown_pct, largest_position_pct
             FROM algo_portfolio_snapshots
             ORDER BY snapshot_date DESC
             LIMIT 1
@@ -2662,6 +2663,9 @@ def _get_algo_portfolio(cur) -> Dict:
                 'open_positions': 0,
                 'daily_return_pct': None,
                 'unrealized_pnl_pct': None,
+                'cumulative_return_pct': None,
+                'max_drawdown_pct': None,
+                'largest_position_pct': None,
                 'last_run': None
             })
         data = dict(row)
@@ -2671,6 +2675,9 @@ def _get_algo_portfolio(cur) -> Dict:
             'open_positions': safe_int(data.get('position_count')),
             'daily_return_pct': safe_float(data.get('daily_return_pct')),
             'unrealized_pnl_pct': safe_float(data.get('unrealized_pnl_pct')),
+            'cumulative_return_pct': safe_float(data.get('cumulative_return_pct')),
+            'max_drawdown_pct': safe_float(data.get('max_drawdown_pct')),
+            'largest_position_pct': safe_float(data.get('largest_position_pct')),
             'last_run': data.get('snapshot_date')
         })
     except Exception as e:
