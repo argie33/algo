@@ -200,6 +200,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 "statusCode": 503,
                 "errorType": "route_load_error",
                 "message": msg,
+                "error": msg,
                 "_error": msg,
                 "_diagnostic": {
                     "failed_module": module_name,

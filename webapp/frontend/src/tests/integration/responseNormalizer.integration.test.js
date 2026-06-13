@@ -106,6 +106,41 @@ describe('responseNormalizer Integration Tests', () => {
       expect(() => extractData(response)).toThrow('Database connection error');
     });
 
+    test('handles 503 route_load_error with _diagnostic field (Issue #12)', () => {
+      // This matches the route_load_error response from api_router when a critical route fails to import
+      const response = {
+        data: {
+          statusCode: 503,
+          errorType: 'route_load_error',
+          message: 'Route handler unavailable: algo module failed to load',
+          error: 'Route handler unavailable: algo module failed to load',
+          _error: 'Route handler unavailable: algo module failed to load',
+          _diagnostic: {
+            failed_module: 'algo',
+            module_error: 'ImportError: cannot import name X',
+            failed_route_count: 5,
+            critical_failures: ['algo'],
+            all_failed_modules: ['earnings', 'signals', 'algo', 'prices'],
+          },
+        },
+        status: 503,
+      };
+
+      expect(() => extractData(response)).toThrow('Route handler unavailable');
+
+      // Verify error details include diagnostic information
+      try {
+        extractData(response);
+      } catch (error) {
+        expect(error.status).toBe(503);
+        expect(error.code).toBe('route_load_error');
+        expect(error.details).toBeDefined();
+        expect(error.details._diagnostic).toBeDefined();
+        expect(error.details._diagnostic.failed_module).toBe('algo');
+        expect(error.details._error).toBeDefined();
+      }
+    });
+
     test('extracts paginated data correctly', () => {
       const response = {
         data: {

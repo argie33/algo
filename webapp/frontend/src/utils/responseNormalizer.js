@@ -44,6 +44,7 @@ export const extractData = (response) => {
       timestamp: data.timestamp,
       requestId: data.requestId,
       context: data.context,
+      _diagnostic: data._diagnostic,
     };
     throw error;
   }
@@ -62,6 +63,8 @@ export const extractData = (response) => {
       timestamp: data.timestamp,
       requestId: data.requestId,
       context: data.context,
+      _diagnostic: data._diagnostic,
+      _error: data._error,
     };
     throw error;
   }
@@ -175,6 +178,7 @@ export const extractPaginatedData = (response) => {
       timestamp: data.timestamp,
       requestId: data.requestId,
       context: data.context,
+      _diagnostic: data._diagnostic,
     };
     throw error;
   }
@@ -192,6 +196,8 @@ export const extractPaginatedData = (response) => {
       timestamp: data.timestamp,
       requestId: data.requestId,
       context: data.context,
+      _diagnostic: data._diagnostic,
+      _error: data._error,
     };
     throw error;
   }
