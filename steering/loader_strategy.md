@@ -21,7 +21,7 @@ Use for: **Full daily loads, intraday updates, production pipelines**
 # Full load (300-day lookback for moving averages): 15-25 min
 python3 loaders/load_technical_data_daily_vectorized.py
 
-# Incremental load (just today): 3-8 min
+# Incremental load (recent date): 3-8 min
 python3 loaders/load_technical_data_daily_vectorized.py --since YYYY-MM-DD
 ```
 

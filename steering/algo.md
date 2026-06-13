@@ -172,7 +172,7 @@ scripts/refresh-aws-credentials.ps1
 6. Liquidity check on top 10 candidates (parallelized)
 7. SwingScore 7-component ranking (disabled for speed, using quality ranking instead)
 
-**Performance (verified 2026-06-10 test):**
+**Performance (vectorized implementation):**
 - 9,940 symbols → 33.4 seconds (19x faster than sequential)
 - 3,294 passed Minervini gate (33%)
 - 1,211 qualified at quality >=50 (12%)
@@ -227,6 +227,28 @@ This design tolerates incomplete upstream data and ensures signals always have t
 
 **Morning prep completion:** Must finish before 9:30 AM. Currently completes in 5-5.5h (start 2:00 AM = 1-1.5h buffer). Monitor CloudWatch if approaching deadline.
 
+## Dashboard Setup (Terminal Tool)
+
+**Dynamic credential fetching (no manual setup required):**
+
+```powershell
+# Ensure credentials are fresh (quarterly or when expired):
+scripts/refresh-aws-credentials.ps1
+
+# Run dashboard (automatically fetches Terraform outputs):
+.\run-dashboard.ps1                    # Live view
+.\run-dashboard.ps1 -Watch 60          # Auto-refresh every 60s
+.\run-dashboard.ps1 --local            # Use localhost:3001 (dev mode)
+.\run-dashboard.ps1 -Legend            # Print legend/guide
+```
+
+The dashboard script automatically:
+1. Sets AWS_PROFILE=algo-developer
+2. Calls `terraform output` to fetch API URL + Cognito credentials
+3. Authenticates with Cognito and displays real-time metrics
+
+No environment variables need to be manually set — Terraform integration handles it.
+
 ## Key Files
 
 - `algo/algo_orchestrator.py` — 7-phase orchestrator
@@ -235,6 +257,7 @@ This design tolerates incomplete upstream data and ensures signals always have t
 - `lambda/db-init/schema.sql` — database schema (3031 lines)
 - `loaders/load_*.py` — data loaders
 - `tools/dashboard/` — terminal dashboard
+- `run-dashboard.ps1` — convenience wrapper (auto-fetches credentials)
 
 ## Configuration
 
