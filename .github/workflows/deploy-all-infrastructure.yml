@@ -1524,12 +1524,8 @@ jobs:
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
 
-          # Look up ECS infrastructure by naming convention (set by Terraform)
-          CLUSTER=$(aws ecs list-clusters --query "clusterArns[?contains(@, '${PROJECT}') && contains(@, '${ENVIRONMENT}')]" --output text 2>/dev/null | head -1)
-          if [ -z "$CLUSTER" ]; then
-            echo "[WARN] Could not find ECS cluster for project=${PROJECT} env=${ENVIRONMENT}, skipping migrations"
-            exit 0
-          fi
+          # Cluster name set by Terraform: coalesce(var.ecs_cluster_name, "${project_name}-cluster")
+          CLUSTER="${PROJECT}-cluster"
           echo "Using cluster: $CLUSTER"
 
           # Use the market_health_daily loader task (smallest/fastest, has psycopg2 + DB env vars)
