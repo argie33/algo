@@ -120,7 +120,7 @@ rds_multi_az         = false # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 # ============================================================
 # SECURITY: Data Encryption at Rest
 # ============================================================
-enable_rds_kms_encryption = true # Enable customer-managed KMS encryption for RDS (required for SOC2/PCI-DSS compliance)
+enable_rds_kms_encryption = false # RDS uses AWS-managed encryption key; switching to customer-managed requires instance replacement (blocked by prevent_destroy)
 
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability
