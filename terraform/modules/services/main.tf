@@ -399,7 +399,7 @@ data "aws_cloudfront_origin_request_policy" "managed_all_viewer_except_host" {
 resource "aws_cloudfront_response_headers_policy" "api_cors" {
   count   = var.cloudfront_enabled ? 1 : 0
   name    = "${var.project_name}-api-cors-${var.environment}"
-  comment = "Pass through CORS headers from API Gateway (dynamic origins); do not override"
+  comment = "Forward CORS headers from API Gateway responses to CloudFront clients"
 
   cors_config {
     access_control_allow_credentials = true
@@ -415,7 +415,7 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
     access_control_expose_headers {
       items = ["Content-Length", "Content-Type"]
     }
-    origin_override = false
+    origin_override = true
   }
 }
 
