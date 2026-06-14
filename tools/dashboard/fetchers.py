@@ -425,7 +425,7 @@ def fetch_perf(c):
 def fetch_positions(c):
     """Fetch positions via AWS API only (no local database fallback)."""
     try:
-        data = api_call('/api/algo/positions')
+        data = api_call(_get_endpoint_path('pos'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
@@ -439,7 +439,7 @@ def fetch_positions(c):
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
     try:
-        data = api_call('/api/algo/trades', params={'limit': 10, 'status': 'closed'})
+        data = api_call(_get_endpoint_path('trades', params={'limit': 10, 'status': 'closed'})
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
@@ -453,7 +453,7 @@ def fetch_recent_trades(c):
 def fetch_signals(c):
     """Fetch dashboard signals from API."""
     try:
-        data = api_call('/api/algo/dashboard-signals')
+        data = api_call(_get_endpoint_path('sig'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": [], "timestamp": datetime.now(timezone.utc)}
         if not data.get('data'):
@@ -481,7 +481,7 @@ def fetch_signals(c):
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
     try:
-        data = api_call('/api/algo/sector-rotation')
+        data = api_call(_get_endpoint_path('srank'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         rankings = data.get('data', [])
@@ -494,7 +494,7 @@ def fetch_sector_ranking(c):
 def fetch_activity(c):
     """Fetch activity and audit log from API."""
     try:
-        data = api_call('/api/algo/audit-log')
+        data = api_call(_get_endpoint_path('activity'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "run_id": None, "run_at": None, "phases": [], "recent_actions": []}
         result = data.get('data', {})
@@ -526,7 +526,7 @@ def _get_data_status_cached():
             return _data_status_cache['result']
 
         try:
-            data = api_call('/api/algo/data-status')
+            data = api_call(_get_endpoint_path('health'))
             _data_status_cache['result'] = data
             return data
         except Exception as e:
@@ -549,7 +549,7 @@ def fetch_health(c):
 
 def fetch_economic_pulse(c):
     try:
-        data = api_call('/api/algo/economic-calendar')
+        data = api_call(_get_endpoint_path('eco'))
         if data.get('_error'):
             return {"_error": data.get('_error'), 't10': None, 't2': None, 't3m': None, 't6m': None, 'yc_10_2': None, 'yc_10_3m': None, 'hy': None, 'ig': None, 'oil': None, 'nfci': None, 'fed_funds': None, 'cpi_yoy': None, 'unrate': None, 'be10': None, 'be5': None, 'dxy': None, 'mortgage': None, 'umcsent': None}
         econ = data.get('data', {})
@@ -575,7 +575,7 @@ def fetch_economic_pulse(c):
 def fetch_algo_metrics(c):
     """Issue 3 FIX: API-only algo metrics."""
     try:
-        data = api_call('/api/algo/metrics')
+        data = api_call(_get_endpoint_path('algo_metrics'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
@@ -586,7 +586,7 @@ def fetch_algo_metrics(c):
 
 def fetch_notifications(c):
     try:
-        data = api_call('/api/algo/notifications')
+        data = api_call(_get_endpoint_path('notifs')
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
@@ -598,7 +598,7 @@ def fetch_notifications(c):
 def fetch_sentiment(c):
     """Issue 3 FIX: API-only sentiment data."""
     try:
-        data = api_call('/api/algo/sentiment')
+        data = api_call(_get_endpoint_path('sentiment'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "fg": 50, "label": "Unknown", "date": None, "color": CY}
         d = data.get('data', {})
@@ -614,7 +614,7 @@ def fetch_sentiment(c):
 def fetch_economic_calendar(c):
     """Issue 3 FIX: API-only economic calendar."""
     try:
-        data = api_call('/api/algo/economic-calendar')
+        data = api_call(_get_endpoint_path('eco'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
@@ -626,7 +626,7 @@ def fetch_economic_calendar(c):
 def fetch_risk_metrics(c):
     """Issue 3 FIX: API-only risk metrics."""
     try:
-        data = api_call('/api/algo/risk-metrics')
+        data = api_call(_get_endpoint_path('risk'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "date": None, "var95": None, "cvar95": None, "svar": None, "beta": None, "conc5": None}
         d = data.get('data', {})
@@ -646,7 +646,7 @@ def fetch_risk_metrics(c):
 def fetch_perf_analytics(c):
     """Issue 3 FIX: API-only performance analytics."""
     try:
-        data = api_call('/api/algo/performance-analytics')
+        data = api_call(_get_endpoint_path('perf_anl'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "sharpe252": None, "sortino": None, "calmar": None, "wr50": None, "avg_w_r": None, "avg_l_r": None, "expectancy": None, "maxdd": None}
         d = data.get('data', {})
@@ -668,7 +668,7 @@ def fetch_perf_analytics(c):
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
     try:
-        data = api_call('/api/algo/rejection-funnel')
+        data = api_call(_get_endpoint_path('sig_eval'))
         if data.get('_error'):
             return {"_error": data.get('_error')}
         result = data.get('data', {})
@@ -691,7 +691,7 @@ def fetch_signal_eval(c):
 def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API."""
     try:
-        data = api_call('/api/algo/sector-rotation')
+        data = api_call(_get_endpoint_path('srank'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "date": None, "signal": "", "strength": None, "weeks": 0, "def_score": 0, "cyc_score": 0}
         row = data.get('data', {})
@@ -714,7 +714,7 @@ def fetch_sector_rotation(c):
 def fetch_industry_ranking(c):
     """Fetch industry rankings from API."""
     try:
-        data = api_call('/api/industries')
+        data = api_call(_get_endpoint_path('irank'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         industries = data.get('data', [])
@@ -727,7 +727,7 @@ def fetch_industry_ranking(c):
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
     try:
-        data = api_call('/api/algo/execution/recent', params={'days': 7, 'limit': 10})
+        data = api_call(_get_endpoint_path('exec_hist', params={'days': 7, 'limit': 10})
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         executions = data.get('data', [])
@@ -740,7 +740,7 @@ def fetch_exec_history(c):
 def fetch_audit_log(c):
     """Fetch audit log from API."""
     try:
-        data = api_call('/api/algo/audit-log')
+        data = api_call(_get_endpoint_path('activity'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         log_entries = data.get('data', [])
