@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Stock Symbols Loader - Load all tradable symbols from NASDAQ/NYSE."""
 import sys
+from pathlib import Path
+
+# Add project root to sys.path BEFORE importing utils module
+loader_dir = Path(__file__).parent
+project_root = loader_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import logging
 from datetime import date
 from typing import Optional, List
