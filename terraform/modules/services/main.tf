@@ -410,7 +410,7 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
       items = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     }
     access_control_allow_origins {
-      items = ["https://${aws_cloudfront_distribution.frontend[0].domain_name}", "http://localhost:5173", "http://localhost:3000"]
+      items = var.api_cors_allowed_origins
     }
     access_control_expose_headers {
       items = ["Content-Length", "Content-Type"]
