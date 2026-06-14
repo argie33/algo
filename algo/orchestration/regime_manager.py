@@ -12,6 +12,28 @@ from datetime import date as _date, datetime, timedelta
 from typing import Dict, Optional, List, Tuple, Any
 
 from utils.db import DatabaseContext
+from algo.infrastructure.constants import (
+    REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
+    REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE,
+    REGIME_POSITION_SIZE_CAUTION,
+    REGIME_POSITION_SIZE_CORRECTION,
+    REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
+    REGIME_HOLD_DAYS_UPTREND_UNDER_PRESSURE,
+    REGIME_HOLD_DAYS_CAUTION,
+    REGIME_HOLD_DAYS_CORRECTION,
+    REGIME_TARGET_CONFIRMED_UPTREND,
+    REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+    REGIME_TARGET_CAUTION,
+    REGIME_TARGET_CORRECTION,
+    REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
+    REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
+    REGIME_MIN_SWING_SCORE_CAUTION,
+    REGIME_MIN_SWING_SCORE_CORRECTION,
+    REGIME_WEIGHT_UPDATE_ALPHA_CONFIRMED_UPTREND,
+    REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
+    REGIME_WEIGHT_UPDATE_ALPHA_CAUTION,
+    REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,45 +43,45 @@ class RegimeManager:
     # Regime values from market_exposure_daily
     REGIMES = ['confirmed_uptrend', 'uptrend_under_pressure', 'caution', 'correction']
 
-    # Parameter overrides by regime
+    # Parameter overrides by regime (see algo.infrastructure.constants for values and rationale)
     REGIME_PARAMS = {
         'confirmed_uptrend': {
-            'position_size_mult': 1.0,    # Full size
-            'max_hold_days_mult': 1.5,    # Let winners run (20d × 1.5 = 30d)
-            'target_1_mult': 1.0,         # Standard 1.5R target
-            'target_2_mult': 1.0,         # Standard 3.0R target
-            'target_3_mult': 1.0,         # Standard 4.0R target
-            'min_swing_score': 55,        # Standard bar
-            'weight_update_alpha': 0.10,  # Normal adaptation speed
+            'position_size_mult': REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
+            'max_hold_days_mult': REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
+            'target_1_mult': REGIME_TARGET_CONFIRMED_UPTREND,
+            'target_2_mult': REGIME_TARGET_CONFIRMED_UPTREND,
+            'target_3_mult': REGIME_TARGET_CONFIRMED_UPTREND,
+            'min_swing_score': REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
+            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CONFIRMED_UPTREND,
             'description': 'Bull market: full size, longer holds, aggressive targets',
         },
         'uptrend_under_pressure': {
-            'position_size_mult': 0.75,   # Reduce size
-            'max_hold_days_mult': 1.0,    # Standard hold (20d)
-            'target_1_mult': 1.0,         # Standard targets
-            'target_2_mult': 1.0,
-            'target_3_mult': 1.0,
-            'min_swing_score': 62,        # Higher bar
-            'weight_update_alpha': 0.05,  # Slower adaptation
+            'position_size_mult': REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE,
+            'max_hold_days_mult': REGIME_HOLD_DAYS_UPTREND_UNDER_PRESSURE,
+            'target_1_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            'target_2_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            'target_3_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            'min_swing_score': REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
+            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
             'description': 'Uptrend weakening: reduce size, standard exits',
         },
         'caution': {
-            'position_size_mult': 0.50,   # Half size
-            'max_hold_days_mult': 0.75,   # Shorter holds (15d)
-            'target_1_mult': 0.8,         # Lower targets
-            'target_2_mult': 0.8,
-            'target_3_mult': 0.8,
-            'min_swing_score': 70,        # High bar only
-            'weight_update_alpha': 0.05,  # Slow adaptation
+            'position_size_mult': REGIME_POSITION_SIZE_CAUTION,
+            'max_hold_days_mult': REGIME_HOLD_DAYS_CAUTION,
+            'target_1_mult': REGIME_TARGET_CAUTION,
+            'target_2_mult': REGIME_TARGET_CAUTION,
+            'target_3_mult': REGIME_TARGET_CAUTION,
+            'min_swing_score': REGIME_MIN_SWING_SCORE_CAUTION,
+            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CAUTION,
             'description': 'VIX elevated or distribution days: defensive positioning',
         },
         'correction': {
-            'position_size_mult': 0.0,    # No new entries
-            'max_hold_days_mult': 0.5,    # Get out fast (10d)
-            'target_1_mult': 0.6,         # Quick profit targets
-            'target_2_mult': 0.6,
-            'target_3_mult': 0.6,
-            'min_swing_score': 80,        # Impossible bar
+            'position_size_mult': REGIME_POSITION_SIZE_CORRECTION,
+            'max_hold_days_mult': REGIME_HOLD_DAYS_CORRECTION,
+            'target_1_mult': REGIME_TARGET_CORRECTION,
+            'target_2_mult': REGIME_TARGET_CORRECTION,
+            'target_3_mult': REGIME_TARGET_CORRECTION,
+            'min_swing_score': REGIME_MIN_SWING_SCORE_CORRECTION,
             'weight_update_alpha': 0.0,   # Freeze weights
             'description': 'Bear market: halt new entries, tight stops, quick exits',
         },

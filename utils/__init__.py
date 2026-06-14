@@ -11,10 +11,6 @@ from utils.signals.grade_classifier import GradeClassifier
 from utils.signals.scorer import SignalScorer
 from utils.signals.query_builder import SignalQueryBuilder
 from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.feature_flags import (
-    initialize_safe_defaults,
-    create_feature_flags_table,
-)
 from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR,
     MARKET_CLOSE_HOUR,
@@ -45,6 +41,4 @@ __all__ = [
     'MARKET_CLOSE_HOUR',
     'MARKET_OPEN_MINUTE',
     'MARKET_CLOSE_MINUTE',
-    'initialize_safe_defaults',
-    'create_feature_flags_table',
 ]

@@ -24,14 +24,20 @@ import random
 import time
 from typing import Callable, Tuple, Type
 from algo.infrastructure import get_api_timeout
+from algo.infrastructure.constants import (
+    RETRY_BASE_DELAY_SEC, RETRY_MAX_DELAY_SEC, RETRY_BACKOFF_MULTIPLIER,
+    RETRY_JITTER_MIN_FACTOR, RETRY_JITTER_MAX_FACTOR,
+    YFINANCE_RATE_LIMIT_CPM, ALPACA_DATA_RATE_LIMIT_CPM,
+    ALPHA_VANTAGE_RATE_LIMIT_CPM, DEFAULT_RATE_LIMIT_CPM,
+)
 
 logger = logging.getLogger(__name__)
 
 def retry(
     max_attempts: int = 3,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-    backoff: float = 2.0,
+    base_delay: float = RETRY_BASE_DELAY_SEC,
+    max_delay: float = RETRY_MAX_DELAY_SEC,
+    backoff: float = RETRY_BACKOFF_MULTIPLIER,
     jitter: bool = True,
     exceptions: Tuple[Type[Exception], ...] = (Exception,),
 ) -> Callable:
@@ -62,7 +68,7 @@ def retry(
                         raise
                     sleep = min(delay, max_delay)
                     if jitter:
-                        sleep *= 0.75 + random.random() * 0.5
+                        sleep *= RETRY_JITTER_MIN_FACTOR + random.random() * (RETRY_JITTER_MAX_FACTOR - RETRY_JITTER_MIN_FACTOR)
                     logger.warning(
                         "retry.will_retry fn=%s attempt=%d/%d error=%s sleep=%.1fs",
                         fn.__qualname__, attempt, max_attempts, exc, sleep,
@@ -100,13 +106,8 @@ class RateLimiter:
             self._last_call = time.monotonic()
 
 # ── Pre-built limiters for known providers ────────────────────────────────────
-# Alpaca: 200 req/min data API, 10,000 req/min broker API
-ALPACA_DATA_LIMITER = RateLimiter(calls_per_minute=180)   # 10% headroom
-
-# Alpha Vantage free tier: 5 req/min, 500/day
-ALPHA_VANTAGE_LIMITER = RateLimiter(calls_per_minute=4)   # 20% headroom
-
-YFINANCE_LIMITER = RateLimiter(calls_per_minute=400)  # Optimized: 400 calls/min provides balance. Below: 150 was too slow (80+ min for 10k stocks). Above: >1000 triggers yfinance rate limit. 400 = ~30 min for full universe load.
-
-# Generic conservative fallback
-DEFAULT_LIMITER = RateLimiter(calls_per_minute=30)
+# See algo.infrastructure.constants for CPM values and rationale
+ALPACA_DATA_LIMITER = RateLimiter(calls_per_minute=ALPACA_DATA_RATE_LIMIT_CPM)
+ALPHA_VANTAGE_LIMITER = RateLimiter(calls_per_minute=ALPHA_VANTAGE_RATE_LIMIT_CPM)
+YFINANCE_LIMITER = RateLimiter(calls_per_minute=YFINANCE_RATE_LIMIT_CPM)
+DEFAULT_LIMITER = RateLimiter(calls_per_minute=DEFAULT_RATE_LIMIT_CPM)

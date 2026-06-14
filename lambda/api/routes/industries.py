@@ -240,6 +240,8 @@ def _industry_trend(cur, industry_name, params):
     """Return daily price series for an industry (from price_daily, indexed to 100)."""
     days_str = params.get('days', [None])[0] if params else None
     days = safe_days(days_str, max_val=365, default=90)
+    limit_str = params.get('limit', [None])[0] if params else None
+    limit = safe_limit(limit_str, max_val=252, default=90)
 
     cur.execute("""
         WITH prices AS (
@@ -260,7 +262,8 @@ def _industry_trend(cur, industry_name, params):
                 AS daily_strength_score
         FROM prices
         ORDER BY date ASC
-    """, (industry_name, days))
+        LIMIT %s
+    """, (industry_name, days, limit))
 
     rows = cur.fetchall()
     trend_data = [

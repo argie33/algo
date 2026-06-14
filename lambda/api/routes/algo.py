@@ -14,7 +14,7 @@ from routes.utils import (
     check_data_freshness, safe_json_serialize, safe_dict_convert
 )
 
-from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS, check_public_rate_limit, PUBLIC_RATE_LIMITS
+from utils.rate_limiting import check_admin_rate_limit, ADMIN_RATE_LIMITS, check_public_rate_limit, PUBLIC_RATE_LIMITS
 from utils.validation import safe_float, safe_float_strict, safe_int, safe_int_strict, APIResponseValidator
 import math
 
@@ -577,6 +577,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             stage_in_exit_plan
             FROM algo_positions_with_risk
             ORDER BY position_value DESC
+            LIMIT 1000
         """)
         positions = cur.fetchall()
 

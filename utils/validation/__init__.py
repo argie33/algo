@@ -47,6 +47,12 @@ from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 from .schema import validate_table_schema
 
+# Import unified data age validator (consolidates watermark + freshness checking)
+try:
+    from utils.data.age_validator import DataAgeValidator
+except ImportError:
+    DataAgeValidator = None  # Graceful fallback if not available
+
 __all__ = [
     # Core validation classes & exceptions
     'ValidationResult',
@@ -81,4 +87,6 @@ __all__ = [
     'AlpacaResponseValidator',
     'APIResponseValidator',
     'validate_table_schema',
+    # Data freshness (unified)
+    'DataAgeValidator',
 ]

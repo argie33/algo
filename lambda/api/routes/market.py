@@ -1013,6 +1013,7 @@ def _get_cap_distribution(cur) -> Dict:
         WHERE COALESCE(ss.etf, 'N') != 'Y'
               AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
         ORDER BY km.market_cap DESC
+        LIMIT 10000
     """)
     rows = cur.fetchall()
 
@@ -1210,6 +1211,7 @@ def _get_sector_overview(cur) -> Dict:
         FROM sectors
         WHERE metric_date = (SELECT MAX(metric_date) FROM sectors)
         ORDER BY market_cap DESC NULLS LAST
+        LIMIT 100
     """)
     rows = cur.fetchall()
     if not rows:
@@ -1217,6 +1219,7 @@ def _get_sector_overview(cur) -> Dict:
             SELECT DISTINCT sector, COUNT(*) as stock_count
             FROM company_profile WHERE sector IS NOT NULL AND sector != ''
             GROUP BY sector ORDER BY stock_count DESC
+            LIMIT 100
         """)
         rows = cur.fetchall()
         return list_response(

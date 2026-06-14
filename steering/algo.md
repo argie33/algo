@@ -12,6 +12,19 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
 
+## API Rate Limiting
+
+See `steering/rate-limiting-strategy.md` for complete rate limiting strategy. Quick summary:
+
+- **API Gateway:** 10,000 RPS global hard limit
+- **Public endpoints** (no auth): Global per-endpoint limits via `check_public_rate_limit()`
+  - `/api/algo/markets`, `/api/algo/market-factors`, etc.: 50-100 req/min
+- **Admin endpoints** (requires 'admin' Cognito group): Per-user, per-endpoint limits via `check_admin_rate_limit()`
+  - Health checks: 30 req/min (loader-status, system-health)
+  - Expensive operations: 5 req/5min (patrol, pre-trade-impact)
+  - Dashboard endpoints: 20 req/min
+- **External APIs** (yfinance, FRED): Handled by adaptive rate limiting in loaders
+
 ## API Error Handling
 
 All database errors return proper HTTP status codes with error details instead of masking failures with empty data objects:

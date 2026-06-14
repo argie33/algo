@@ -26,7 +26,6 @@ When a circuit breaker fires:
 import json
 import math
 from utils.db import DatabaseContext
-from utils.validation import get_freshness_rule
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
 from utils.trading import TradeStatus, PositionStatus

@@ -67,10 +67,6 @@ class Orchestrator:
         # degraded_mode is ONLY set if database connection actually fails (checked at pre-flight)
         self.degraded_mode = False
 
-        logger.info("[ORCHESTRATOR] About to initialize feature flags")
-        self._initialize_feature_flags()
-        logger.info("[ORCHESTRATOR] Feature flags initialized")
-
         # DB failure counter removed: /tmp is ephemeral in Lambda (doesn't persist across invocations).
         # CloudWatch alarms on DB connection errors are more reliable for detecting outages.
 
@@ -572,23 +568,6 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
-
-    def _initialize_feature_flags(self) -> None:
-        """Initialize feature flags with safe defaults on startup."""
-        # In AWS Lambda, skip feature flag initialization (uses defaults only)
-        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
-            logger.info("[FEATURE_FLAGS] Skipping initialization in Lambda (using defaults)")
-            return
-
-        try:
-            from utils.infrastructure import initialize_safe_defaults, create_feature_flags_table
-            # Ensure table exists
-            create_feature_flags_table()
-            initialize_safe_defaults()
-        except Exception as e:
-            if self.verbose:
-                logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
-            # Don't fail the orchestrator if flags aren't available
 
     def _validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.

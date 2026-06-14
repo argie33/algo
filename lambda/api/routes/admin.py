@@ -13,7 +13,7 @@ from routes.utils import (
 # setup_imports is imported by parent module (lambda_function or api_router),
 # so utils is already available in sys.path
 
-from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
+from utils.rate_limiting import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
 logger = logging.getLogger(__name__)
 
