@@ -1,129 +1,148 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-Setup Algo Dashboard for AWS mode with Cognito authentication
+Set up and verify the dashboard is ready to run with AWS endpoints.
 
 .DESCRIPTION
 This script:
-1. Retrieves Terraform outputs (API URL, Cognito Pool ID, Client ID)
-2. Optionally creates/resets a test Cognito user
-3. Sets environment variables for dashboard
-4. Starts the dashboard in watch mode
+1. Ensures AWS credentials are available locally (algo-developer profile)
+2. Verifies dashboard config exists in Secrets Manager
+3. Tests connectivity to API Gateway
+4. Provides clear troubleshooting steps if anything is missing
 
-.PARAMETER Interactive
-If true, prompts for Cognito username/password to save for future runs
+.EXAMPLE
+./scripts/setup-dashboard.ps1
 #>
 
-param(
-    [switch]$Interactive = $false,
-    [string]$Username = "",
-    [string]$Password = ""
-)
-
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Write-Host "`n=== Algo Dashboard Setup (AWS Mode) ===" -ForegroundColor Cyan
+$Profile = "algo-developer"
+$Region = "us-east-1"
+$CredFile = "$HOME\.aws\credentials"
 
-# Step 1: Verify AWS credentials
-Write-Host "`n[1/4] Verifying AWS credentials..." -ForegroundColor Cyan
+Write-Host "`n╔══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "║       ALGO DASHBOARD - AWS SETUP & VERIFICATION         ║" -ForegroundColor Cyan
+Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+
+# Step 1: Check local AWS credentials
+Write-Host "`n[1/4] Checking local AWS credentials..." -ForegroundColor Cyan
+if (-not (Test-Path $CredFile)) {
+    Write-Host "[FAIL] AWS credentials file not found: $CredFile" -ForegroundColor Red
+    Write-Host "       Run: scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
+    exit 1
+}
+
+$Content = Get-Content $CredFile -Raw
+if ($Content -notmatch "\[$Profile\]") {
+    Write-Host "[FAIL] Profile '$Profile' not found in $CredFile" -ForegroundColor Red
+    Write-Host "       Run: scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "[OK] Local AWS credentials configured" -ForegroundColor Green
+
+# Step 2: Verify AWS credentials work
+Write-Host "`n[2/4] Verifying AWS credentials..." -ForegroundColor Cyan
+$env:AWS_PROFILE = $Profile
+$env:AWS_DEFAULT_REGION = $Region
+
+$Identity = aws sts get-caller-identity --profile $Profile 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[FAIL] AWS credentials not working" -ForegroundColor Red
+    Write-Host "       Error: $Identity" -ForegroundColor Red
+    Write-Host "       Run: scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
+    exit 1
+}
+
+$IdentityObj = $Identity | ConvertFrom-Json
+Write-Host "[OK] AWS credentials valid (Account: $($IdentityObj.Account))" -ForegroundColor Green
+
+# Step 3: Fetch and verify dashboard config from Secrets Manager
+Write-Host "`n[3/4] Fetching dashboard configuration..." -ForegroundColor Cyan
+
+$DashboardConfigJson = aws secretsmanager get-secret-value `
+    --secret-id algo/dashboard-config `
+    --region $Region `
+    --query SecretString `
+    --output text 2>&1
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[FAIL] Dashboard config not found in Secrets Manager" -ForegroundColor Red
+    Write-Host "       Secret: algo/dashboard-config" -ForegroundColor Red
+    Write-Host "" -ForegroundColor Red
+    Write-Host "Options:" -ForegroundColor Yellow
+    Write-Host "  A) If infrastructure just deployed:" -ForegroundColor Cyan
+    Write-Host "     Run: scripts/refresh-aws-credentials.ps1" -ForegroundColor Cyan
+    Write-Host "     (This refreshes and checks Secrets Manager)" -ForegroundColor Cyan
+    Write-Host "" -ForegroundColor Yellow
+    Write-Host "  B) If infrastructure hasn't deployed yet:" -ForegroundColor Cyan
+    Write-Host "     Run deploy from GitHub Actions:" -ForegroundColor Cyan
+    Write-Host "     .github/workflows/deploy-all-infrastructure.yml" -ForegroundColor Cyan
+    exit 1
+}
+
+if (-not $DashboardConfigJson -or $DashboardConfigJson -eq "") {
+    Write-Host "[FAIL] Dashboard config is empty" -ForegroundColor Red
+    exit 1
+}
+
 try {
-    $identity = & aws sts get-caller-identity --query 'Arn' --output text 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ AWS credentials valid: $identity" -ForegroundColor Green
+    $DashboardConfig = $DashboardConfigJson | ConvertFrom-Json
+} catch {
+    Write-Host "[FAIL] Could not parse dashboard config JSON" -ForegroundColor Red
+    Write-Host "       Error: $_" -ForegroundColor Red
+    exit 1
+}
+
+$ApiUrl = $DashboardConfig.api_url
+$PoolId = $DashboardConfig.cognito_user_pool_id
+$ClientId = $DashboardConfig.cognito_user_pool_client_id
+
+$Errors = @()
+if ([string]::IsNullOrWhiteSpace($ApiUrl)) { $Errors += "api_url" }
+if ([string]::IsNullOrWhiteSpace($PoolId)) { $Errors += "cognito_user_pool_id" }
+if ([string]::IsNullOrWhiteSpace($ClientId)) { $Errors += "cognito_user_pool_client_id" }
+
+if ($Errors.Count -gt 0) {
+    Write-Host "[FAIL] Dashboard config incomplete in Secrets Manager" -ForegroundColor Red
+    Write-Host "       Missing fields: $($Errors -join ', ')" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "[OK] Dashboard configuration found" -ForegroundColor Green
+Write-Host "     API URL: $ApiUrl" -ForegroundColor Green
+Write-Host "     Cognito Pool: $PoolId" -ForegroundColor Green
+Write-Host "     Cognito Client: $(if ($ClientId.Length -gt 20) { $ClientId.Substring(0, 20) + '...' } else { $ClientId })" -ForegroundColor Green
+
+# Step 4: Test API connectivity
+Write-Host "`n[4/4] Testing API Gateway connectivity..." -ForegroundColor Cyan
+
+$ApiHealthUrl = "$ApiUrl/api/algo/health"
+try {
+    $Response = Invoke-WebRequest -Uri $ApiHealthUrl -Method Get -TimeoutSec 5 -SkipHttpErrorCheck
+    if ($Response.StatusCode -eq 200) {
+        Write-Host "[OK] API Gateway responding (200 OK)" -ForegroundColor Green
+    } elseif ($Response.StatusCode -eq 401) {
+        Write-Host "[WARN] API Gateway responding (401 Unauthorized)" -ForegroundColor Yellow
+        Write-Host "       Authentication required - dashboard will prompt for Cognito login" -ForegroundColor Yellow
     } else {
-        throw "AWS credentials not available"
+        Write-Host "[WARN] API Gateway responding ($($Response.StatusCode))" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "  ✗ AWS credentials required. Run:" -ForegroundColor Red
-    Write-Host "    scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
-    exit 1
+    Write-Host "[WARN] Could not reach API Gateway" -ForegroundColor Yellow
+    Write-Host "       Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "       This is OK if API is still initializing" -ForegroundColor Yellow
 }
 
-# Step 2: Get Terraform outputs
-Write-Host "`n[2/4] Fetching Terraform configuration..." -ForegroundColor Cyan
-$env:AWS_PROFILE = 'algo-developer'
-$terraformDir = Join-Path $PSScriptRoot "..\terraform"
+# Final success message
+Write-Host "`n╔══════════════════════════════════════════════════════════╗" -ForegroundColor Green
+Write-Host "║              DASHBOARD READY TO RUN                      ║" -ForegroundColor Green
+Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Green
 
-if (!(Test-Path $terraformDir)) {
-    Write-Host "  ✗ terraform/ directory not found" -ForegroundColor Red
-    exit 1
-}
-
-$outputs = @{}
-try {
-    Push-Location $terraformDir
-    foreach ($key in @('api_url', 'cognito_user_pool_id', 'cognito_user_pool_client_id')) {
-        $value = & terraform output -raw $key 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to get $key from terraform output"
-        }
-        $outputs[$key] = $value
-    }
-    Pop-Location
-} catch {
-    Write-Host "  ✗ Terraform init failed: $_" -ForegroundColor Red
-    Write-Host "    Try: scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
-    exit 1
-}
-
-$apiUrl = $outputs['api_url']
-$poolId = $outputs['cognito_user_pool_id']
-$clientId = $outputs['cognito_user_pool_client_id']
-
-Write-Host "  ✓ Terraform outputs retrieved:" -ForegroundColor Green
-Write-Host "    API: $apiUrl" -ForegroundColor DarkGray
-Write-Host "    Pool: $poolId" -ForegroundColor DarkGray
-Write-Host "    Client: $clientId" -ForegroundColor DarkGray
-
-# Step 3: Setup/validate Cognito user
-Write-Host "`n[3/4] Cognito authentication setup..." -ForegroundColor Cyan
-$tokenFile = Join-Path $env:USERPROFILE ".algo\cognito_token.json"
-$hasCachedToken = Test-Path $tokenFile
-
-if ($Interactive -or (!$hasCachedToken -and !$Username -and !$Password)) {
-    Write-Host "  No cached credentials found." -ForegroundColor Yellow
-    $response = Read-Host "  Create/reset test user? (y/n)"
-    if ($response -eq "y") {
-        Write-Host "  Running: gh workflow run reset-cognito-test-user.yml" -ForegroundColor Cyan
-        & gh workflow run reset-cognito-test-user.yml --ref main
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ✓ Workflow triggered. Check GitHub Actions for test user details." -ForegroundColor Green
-            $Username = Read-Host "  Enter Cognito email (test user)"
-            $securePass = Read-Host "  Enter Cognito password" -AsSecureString
-            $Password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($securePass))
-        }
-    } else {
-        Write-Host "  Using environment variables or cached token..." -ForegroundColor Cyan
-    }
-} elseif ($hasCachedToken) {
-    Write-Host "  ✓ Cached credentials found at $tokenFile" -ForegroundColor Green
-}
-
-# Step 4: Set environment variables
-Write-Host "`n[4/4] Setting environment variables..." -ForegroundColor Cyan
-$env:DASHBOARD_API_URL = $apiUrl
-$env:COGNITO_USER_POOL_ID = $poolId
-$env:COGNITO_CLIENT_ID = $clientId
-
-if ($Username -and $Password) {
-    $env:COGNITO_USERNAME = $Username
-    $env:COGNITO_PASSWORD = $Password
-    Write-Host "  ✓ Username/password set" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "Environment configured:" -ForegroundColor Green
-Write-Host "  DASHBOARD_API_URL = $apiUrl" -ForegroundColor DarkGray
-Write-Host "  COGNITO_USER_POOL_ID = $poolId" -ForegroundColor DarkGray
-Write-Host "  COGNITO_CLIENT_ID = $clientId" -ForegroundColor DarkGray
-if ($env:COGNITO_USERNAME) {
-    Write-Host "  COGNITO_USERNAME = $($env:COGNITO_USERNAME)" -ForegroundColor DarkGray
-}
-
-# Step 5: Start dashboard
-Write-Host "`nStarting dashboard..." -ForegroundColor Cyan
-Write-Host "  Press 'q' or Ctrl+C to exit" -ForegroundColor DarkGray
-Write-Host ""
-
-$dashboardPath = Join-Path $PSScriptRoot "..\tools\dashboard\dashboard.py"
-& python $dashboardPath -w 30
+Write-Host "`nTo start the dashboard:" -ForegroundColor Cyan
+Write-Host "  cd tools/dashboard" -ForegroundColor White
+Write-Host "  python dashboard.py -w 30  # Auto-refresh every 30 seconds" -ForegroundColor White
+Write-Host "" -ForegroundColor White
+Write-Host "Or run without watch mode:" -ForegroundColor Cyan
+Write-Host "  python dashboard.py" -ForegroundColor White

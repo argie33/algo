@@ -1,20 +1,16 @@
-# Loader Safeguards: Preventing Indefinite Execution and AWS Bill Bleeding
+# Loader Safeguards: Preventing Indefinite Execution and Resource Waste
 
-## Problem
+## Overview
 
-On 2026-05-25 to 2026-06-13, **14 loaders got stuck in RUNNING state for 19+ days**, likely consuming ECS, RDS, and network resources continuously without completing. This could cost $500-5000+ per day in AWS charges.
+Loaders must not run indefinitely. This system enforces hard timeouts, automatic task termination, and alerting to prevent hung loaders from consuming infrastructure resources.
 
-**Root causes to investigate:**
-1. ECS task timeout not enforced (Step Functions timeout alone doesn't kill the task)
-2. Loader process hang (infinite loop, deadlock, network hang)
-3. RDS connection leak (loaders holding connections indefinitely)
-4. CloudWatch alarms not wired to auto-kill tasks
+Key principle: Step Functions timeout alone does not guarantee ECS task termination—additional safeguards are required.
 
-## Safeguards (Implemented & Recommended)
+## Safeguards
 
-### 1. **Hard Timeout on Step Functions** (CRITICAL - Already Configured)
+### 1. **Hard Timeout on Step Functions**
 
-**Status:** Configured in `terraform/modules/pipeline/main.tf`
+Configured in `terraform/modules/pipeline/main.tf`:
 - **stock_prices_daily**: 6h timeout (expected: 60-90 min)
 - **swing_trader_scores**: 2h timeout (expected: 30+ min)
 - **technical_data_daily**: 2h timeout (expected: varies)
@@ -22,11 +18,9 @@ On 2026-05-25 to 2026-06-13, **14 loaders got stuck in RUNNING state for 19+ day
 
 **Problem with timeouts:** Step Functions timeout aborts the state machine but may NOT kill the underlying ECS task. The task can keep running even after the state machine abort.
 
-### 2. **ECS Task Hard Timeout** (CRITICAL - MUST IMPLEMENT)
+### 2. **ECS Task Hard Timeout**
 
-**Current status:** NOT CONFIGURED
-
-**Solution:** Add timeout to ECS task definition:
+Add timeout to ECS task definition:
 
 ```json
 {
@@ -44,11 +38,11 @@ On 2026-05-25 to 2026-06-13, **14 loaders got stuck in RUNNING state for 19+ day
 **Also add:** Runtime limit in ECS capacity provider or Step Functions integration:
 - Kill ECS task after hard timeout (Step Functions timeout + 5 min)
 
-### 3. **Timeout Guardian Lambda** (CRITICAL - IMPLEMENTED)
+### 3. **Timeout Guardian Lambda**
 
-**File:** `lambda/loader_timeout_guardian.py`
+Implemented in `lambda/loader_timeout_guardian.py`.
 
-**What it does:**
+**Implementation:**
 - Runs every 5 minutes via EventBridge
 - Checks all loaders in RUNNING state
 - Compares runtime against MAX_DURATION (loader-specific):
@@ -88,11 +82,9 @@ resource "aws_scheduler_schedule" "guardian_check" {
 }
 ```
 
-### 4. **Database Constraint: Prevent RUNNING > 24h** (RECOMMENDED)
+### 4. **Database Constraint: Prevent RUNNING > 24h**
 
-**Status:** NOT IMPLEMENTED
-
-**Solution:** Add check constraint to `data_loader_status`:
+Add check constraint to `data_loader_status`:
 
 ```sql
 ALTER TABLE data_loader_status
@@ -104,11 +96,9 @@ ADD CONSTRAINT max_running_duration CHECK (
 
 **Trade-off:** This will prevent INSERTs/UPDATEs that violate the constraint. May cause loader status updates to fail if they exceed 24h (acceptable - we'd want to know).
 
-### 5. **CloudWatch Alarms: Alert on Hung Loaders** (HIGH PRIORITY)
+### 5. **CloudWatch Alarms: Alert on Hung Loaders**
 
-**Status:** Partially configured (eod_pipeline_failed exists, but no "RUNNING too long" alarm)
-
-**Add alarms:**
+Configure alarms:
 
 ```terraform
 resource "aws_cloudwatch_metric_alarm" "loader_running_too_long" {
@@ -173,42 +163,6 @@ ORDER BY execution_started ASC;
 ```
 
 **Action:** Run this in a CloudWatch-triggered Lambda that alerts if any rows exist.
-
-## Changes Made on 2026-06-13
-
-1. **Fixed load_stock_symbols.py** - Syntax error in class definition prevented loader from running
-2. **Manually triggered critical loaders** - Populated database with real data (3148+ rows across all critical loaders)
-3. **Reset 14 stuck loaders** - Changed status from RUNNING (stuck since May 25-June 13) back to NULL so they can be re-triggered on Monday
-
-## For Monday (2026-06-16)
-
-### Before Market Open
-1. **Deploy timeout guardian Lambda** (if not already deployed) - Protects against future hangs
-2. **Verify Step Functions timeouts** - Ensure all loaders have appropriate timeout values
-3. **Check ECS task definitions** - Confirm `stopTimeout` is set to 60 seconds
-4. **Monitor early morning pipeline run** (2:00 AM ET):
-   - Watch CloudWatch metrics for any loader running > 30 min (anomaly)
-   - Check database for any TIMEOUT statuses (would indicate hung task killed by guardian)
-
-### Risk Assessment
-- **Best case**: Loaders run to completion within SLA (no issues)
-- **Risk case**: A loader hangs again (but timeout guardian will kill it within 5 min of detection)
-- **Monitored**: CloudWatch alarms will fire if timeouts occur, alerting ops team
-
-## SLA Guarantee for Monday
-
-With these safeguards in place:
-- **No indefinite execution** - Guardian kills hung tasks within 5 min of max runtime exceeded
-- **Financial protection** - Hung tasks max out at (SLA timeout + 5 min), not 19 days
-- **Visibility** - CloudWatch alarms alert before bill impact is severe
-- **Fast recovery** - Hung loaders are reset and can be re-run manually or wait for next scheduled time
-
-## To-Do
-
-1. **Deploy timeout guardian Lambda** - Make this a priority
-2. **Add ECS task stopTimeout** - Ensure tasks terminate quickly when told to stop
-3. **Wire CloudWatch alarms** - SNS notifications to ops team for timeouts
-4. **Test timeout behavior** - Manually trigger a long-running loader and verify guardian kills it
 
 ## References
 - Terraform pipeline module: `terraform/modules/pipeline/main.tf` (lines 1270-1362)

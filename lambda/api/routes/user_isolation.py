@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any
 from functools import wraps
 from utils.error_handlers import make_error_response
 from routes.utils import error_response
-from algo.algo_sql_safety import assert_safe_table, assert_safe_column
+from utils.db.sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 

@@ -124,6 +124,36 @@ Write-Host "Verifying credentials..." -ForegroundColor Gray
 $env:AWS_PROFILE = $Profile
 $env:AWS_DEFAULT_REGION = $Region
 
+# Also check if dashboard credentials are available in Secrets Manager
+Write-Host "Checking dashboard configuration in Secrets Manager..." -ForegroundColor Gray
+$DashboardConfigJson = aws secretsmanager get-secret-value `
+    --secret-id algo/dashboard-config `
+    --region $Region `
+    --query SecretString `
+    --output text 2>&1
+
+if ($LASTEXITCODE -eq 0 -and $DashboardConfigJson -and $DashboardConfigJson -ne "") {
+    $DashboardConfig = $DashboardConfigJson | ConvertFrom-Json
+    $HasApiUrl = [string]::IsNullOrWhiteSpace($DashboardConfig.api_url) -eq $false
+    $HasPoolId = [string]::IsNullOrWhiteSpace($DashboardConfig.cognito_user_pool_id) -eq $false
+    $HasClientId = [string]::IsNullOrWhiteSpace($DashboardConfig.cognito_user_pool_client_id) -eq $false
+
+    if ($HasApiUrl -and $HasPoolId -and $HasClientId) {
+        Write-Host "[OK] Dashboard config found in Secrets Manager:" -ForegroundColor Green
+        Write-Host "  API URL: $($DashboardConfig.api_url)" -ForegroundColor Green
+        Write-Host "  Cognito Pool: $($DashboardConfig.cognito_user_pool_id)" -ForegroundColor Green
+        Write-Host "  Cognito Client: $($DashboardConfig.cognito_user_pool_client_id)" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Dashboard config exists but is incomplete" -ForegroundColor Yellow
+        Write-Host "  API URL: $(if ($HasApiUrl) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
+        Write-Host "  Cognito Pool: $(if ($HasPoolId) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
+        Write-Host "  Cognito Client: $(if ($HasClientId) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[WARN] Dashboard config NOT found in Secrets Manager" -ForegroundColor Yellow
+    Write-Host "       This is normal if infrastructure hasn't been deployed yet." -ForegroundColor Yellow
+}
+
 # Try verification with a short delay for IAM consistency
 $MaxRetries = 3
 $Retry = 0

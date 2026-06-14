@@ -875,7 +875,7 @@ def _get_circuit_breakers(cur) -> Dict:
             missing_tables = []
             for table in required_tables:
                 try:
-                    from algo.algo_sql_safety import assert_safe_table
+                    from utils.db.sql_safety import assert_safe_table
                     table_safe = assert_safe_table(table)
                     cur.execute(
                         psycopg2.sql.SQL("SELECT 1 FROM {} LIMIT 1").format(

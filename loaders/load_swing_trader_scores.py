@@ -33,7 +33,7 @@ from datetime import date, timedelta
 from typing import List, Optional, Dict
 import json
 
-from algo.algo_sql_safety import assert_safe_table
+from utils.db.sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext

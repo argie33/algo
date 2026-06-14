@@ -19,7 +19,7 @@ from typing import List, Optional
 
 import pandas as pd
 
-from algo.algo_sql_safety import assert_safe_table
+from utils.db.sql_safety import assert_safe_table
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader

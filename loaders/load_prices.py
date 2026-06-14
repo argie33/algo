@@ -26,7 +26,7 @@ import psycopg2.sql
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from algo.algo_sql_safety import assert_safe_table
+from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.data.provenance import DataProvenanceTracker
