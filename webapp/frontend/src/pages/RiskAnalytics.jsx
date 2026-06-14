@@ -11,9 +11,13 @@ import React from 'react';
 import { Shield, AlertTriangle } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { SkeletonKpi } from '../components/Skeleton';
+import { api } from '../services/api';
 
 const RiskAnalytics = () => {
-  const { data: riskMetrics, isLoading, error } = useApiQuery('/api/algo/risk-metrics');
+  const { data: riskMetrics, loading: isLoading, error } = useApiQuery(
+    ['risk-metrics'],
+    () => api.get('/api/algo/risk-metrics')
+  );
 
   if (isLoading) {
     return (

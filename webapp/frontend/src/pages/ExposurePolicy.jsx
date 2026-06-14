@@ -12,6 +12,7 @@ import React from 'react';
 import { Shield, AlertTriangle } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { SkeletonKpi } from '../components/Skeleton';
+import { api } from '../services/api';
 
 const getTierColor = (tier) => {
   const tierLower = (tier || '').toLowerCase();
@@ -38,7 +39,10 @@ const getTierLabel = (tier) => {
 };
 
 const ExposurePolicy = () => {
-  const { data: policyData, isLoading, error } = useApiQuery('/api/algo/exposure-policy');
+  const { data: policyData, loading: isLoading, error } = useApiQuery(
+    ['exposure-policy'],
+    () => api.get('/api/algo/exposure-policy')
+  );
 
   if (isLoading) {
     return (
