@@ -172,11 +172,11 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
-        var_line = (f"\n[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{risk['beta']:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]"
+        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{risk.get('svar', 0):.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
+        var_line = (f"\n[dim]VaR 95%:[/][white]{risk.get('var95', 0):.2f}%[/]"
+                    f"  [dim]CVaR 95%:[/][white]{risk.get('cvar95', 0):.2f}%[/]"
+                    f"  [dim]Portfolio Beta:[/][{beta_c}]{risk.get('beta', 0):.2f}[/]"
+                    f"  [dim]Top-5 Conc:[/][white]{risk.get('conc5', 0):.0f}%[/]"
                     + svar_s)
 
     if not run or run.get("_error"):
@@ -496,10 +496,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         rows.append(Text.from_markup(
-            f"[dim]VaR:[/][white]{risk['var95']:.2f}%[/]  "
-            f"[dim]CVaR:[/][white]{risk['cvar95']:.2f}%[/]  "
-            f"[dim]Î²:[/][{beta_c}]{risk['beta']:.2f}[/]  "
-            f"[dim]Conc5:[/][white]{risk['conc5']:.0f}%[/]"
+            f"[dim]VaR:[/][white]{risk.get('var95', 0):.2f}%[/]  "
+            f"[dim]CVaR:[/][white]{risk.get('cvar95', 0):.2f}%[/]  "
+            f"[dim]Î²:[/][{beta_c}]{risk.get('beta', 0):.2f}[/]  "
+            f"[dim]Conc5:[/][white]{risk.get('conc5', 0):.0f}%[/]"
         ))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
@@ -1855,13 +1855,13 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{risk['conc5']:.0f}%[/]",
+            f"[dim]VaR 95%:[/][white]{risk.get('var95', 0):.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{risk.get('cvar95', 0):.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{risk.get('beta', 0):.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{risk.get('conc5', 0):.0f}%[/]",
         ]
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]")
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk.get('svar', 0):.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
@@ -2211,13 +2211,13 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{risk['conc5']:.0f}%[/]",
+            f"[dim]VaR 95%:[/][white]{risk.get('var95', 0):.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{risk.get('cvar95', 0):.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{risk.get('beta', 0):.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{risk.get('conc5', 0):.0f}%[/]",
         ]
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]")
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk.get('svar', 0):.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # All notifications âE" untruncated titles
