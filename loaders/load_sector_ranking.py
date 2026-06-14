@@ -10,10 +10,6 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-try:
-    except ImportError:
-    pass
-
 
 class SectorRankingLoader(OptimalLoader):
     """Rank sectors by composite score from stock_scores + company_profile."""
