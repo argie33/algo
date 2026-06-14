@@ -8,12 +8,15 @@ Run: python3 load_market_health_daily.py [--parallelism 1]
 """
 
 import argparse
+import sys
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 import pandas as pd
+import sys
 
 import logging
+import sys
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader

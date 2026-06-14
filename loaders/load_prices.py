@@ -17,6 +17,7 @@ import argparse
 import contextvars
 import logging
 import os
+import sys
 import threading
 import time
 import uuid
@@ -1759,8 +1760,12 @@ def main():
         logger.critical(f"[TIMEOUT] Price loader exceeded {execution_timeout_sec}s timeout. Killing process.")
         raise TimeoutError(f"Execution exceeded {execution_timeout_sec}s timeout")
 
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(execution_timeout_sec)
+    # SIGALRM only available on Unix; skip on Windows
+    if hasattr(signal, 'SIGALRM'):
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(execution_timeout_sec)
+    else:
+        logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
     # Validate
     valid_intervals = {"1d", "1wk", "1mo"}

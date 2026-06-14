@@ -35,10 +35,13 @@ Run:
 """
 
 import argparse
+import sys
 import logging
+import sys
 logger = logging.getLogger(__name__)
 from utils.loaders.helpers import get_active_symbols
 import os
+import sys
 from datetime import date, timedelta
 from typing import List, Optional
 

@@ -44,14 +44,14 @@ from config.thresholds import ThresholdConfig
 
 logger = logging.getLogger(__name__)
 
-# FINAL OPTIMIZED LIMITS FOR <60s SLA
-# Skip expensive operations entirely for speed
+# Performance optimization limits (can be overridden by config)
+# WARNING: These are performance trade-offs, not intentional feature disables.
+# _SWING_SCORE_LIMIT = 0 disables SwingScore 7-component ranking (issue #10)
+# This means signals are ranked only by quality score, not by deep swing trading metrics.
+# To enable: set phase5_swing_score_limit in algo_config (non-zero value enables scoring)
 _LIQUIDITY_CHECK_LIMIT = 10
-# Swing scoring: 0 = skip entirely (eliminates 500+ seconds)
-_SWING_SCORE_LIMIT = 0
-# Max parallel workers
+_SWING_SCORE_LIMIT = 0  # Disabled by default (too slow for 60s SLA), enabled if config>0
 _MAX_WORKERS = 4
-# Minimum scores to qualify
 _MIN_QUALITY = 50       # Pre-swing-score quality gate
 _MIN_SWING_SCORE = 35   # Grade D+ minimum (A+=85, A=75, B=65, C=55, D=45, D+=35)
 
@@ -181,6 +181,12 @@ def run(
     # Load configurable thresholds
     min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0  # Convert percent to decimal
 
+    # Allow SwingScore to be enabled/disabled via config (ISSUE #10)
+    # phase5_swing_score_limit: 0=disabled (fast path), >0=number of candidates to score
+    swing_score_limit = config.get('phase5_swing_score_limit', _SWING_SCORE_LIMIT) if config else _SWING_SCORE_LIMIT
+    if swing_score_limit != _SWING_SCORE_LIMIT:
+        logger.info(f"[PHASE 5] SwingScore limit overridden by config: {_SWING_SCORE_LIMIT} → {swing_score_limit}")
+
     # ISSUE #8 FIX: Check halt flag before generating signals
     # If Phase 1 detected stale data, don't generate full-intensity signals
     if check_halt_flag and check_halt_flag():
@@ -188,6 +194,28 @@ def run(
         log_phase_result_fn(5, 'signal_generation', 'halt', 'Halt flag set: data quality degradation')
         return PhaseResult(5, 'signal_generation', 'halted', {'qualified_trades': []}, True,
                          'Halt flag set: data quality degradation detected')
+
+    # Verify signal score freshness (swing_trader_scores, signal_quality_scores must be <24h old)
+    from datetime import datetime, timezone
+    now_utc = datetime.now(timezone.utc)
+    signal_max_age_hours = config.get('phase5_signal_max_age_hours', 24) if config else 24
+    try:
+        with DatabaseContext('read') as cur:
+            for score_table in ['swing_trader_scores', 'signal_quality_scores']:
+                cur.execute(f"SELECT MAX(created_at) FROM {score_table}")
+                max_created = cur.fetchone()[0]
+                if max_created:
+                    if max_created.tzinfo is None:
+                        max_created = max_created.replace(tzinfo=timezone.utc)
+                    age_hours = (now_utc - max_created).total_seconds() / 3600
+                    if age_hours > signal_max_age_hours:
+                        logger.critical(f"[PHASE 5] {score_table} is {age_hours:.1f}h old (max {signal_max_age_hours}h) — halting")
+                        log_phase_result_fn(5, 'signal_scores_stale', 'halt',
+                                           f'{score_table} is {age_hours:.1f}h old')
+                        return PhaseResult(5, 'signal_scores_stale', 'halted', {'qualified_trades': []}, True,
+                                         f'{score_table} stale: {age_hours:.1f}h old')
+    except Exception as e:
+        logger.warning(f"[PHASE 5] Could not check signal score freshness: {e} — proceeding")
 
     # Market regime gate
     regime = _check_market_regime(run_date)
@@ -362,7 +390,7 @@ def run(
 
     swing_scored = []
     swing_errors = 0
-    to_score = liq_passed[:_SWING_SCORE_LIMIT]
+    to_score = liq_passed[:swing_score_limit]
 
     if to_score:
         with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
@@ -386,11 +414,11 @@ def run(
         f"(>={effective_min_swing:.0f}), {swing_errors} errors"
     )
 
-    # If swing scoring is disabled (_SWING_SCORE_LIMIT=0), or >80% of swing scores errored,
+    # If swing scoring is disabled (limit=0), or >80% of swing scores errored,
     # fall back to quality-ranked liquidity-passed candidates rather than blocking trades.
-    if _SWING_SCORE_LIMIT == 0 or (swing_error_rate > 0.8 and swing_checked >= 5):
-        if _SWING_SCORE_LIMIT == 0:
-            logger.info("[PHASE 5] SwingScore disabled (_SWING_SCORE_LIMIT=0) — using liquidity-passed candidates")
+    if swing_score_limit == 0 or (swing_error_rate > 0.8 and swing_checked >= 5):
+        if swing_score_limit == 0:
+            logger.info("[PHASE 5] SwingScore disabled (phase5_swing_score_limit=0) — using quality-ranked candidates")
         else:
             logger.warning(
                 f"[PHASE 5] SwingScore error rate {swing_error_rate:.0%} — "
