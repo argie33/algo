@@ -63,13 +63,13 @@ class CredentialManager:
             try:
                 import boto3
                 import botocore.config
-                # Short timeouts prevent hanging Lambda INIT when Secrets Manager VPC endpoint
-                # is overloaded by concurrent cold-starts (26 parallel on MarketsHealth load).
-                # connect_timeout=2: TCP handshake must complete in 2s
-                # read_timeout=3: full response must arrive in 3s
-                # max_attempts=1: no retry so cold-start stays under the 10s INIT limit
-                _cfg = botocore.config.Config(connect_timeout=2, read_timeout=3,
-                                              retries={'max_attempts': 1})
+                # Timeouts for Secrets Manager API calls (must handle VPC latency).
+                # VPC requests to Secrets Manager endpoint can take 5-10s on cold-start.
+                # connect_timeout=10: Allow 10s for TCP handshake through NAT/endpoint
+                # read_timeout=15: Allow 15s for full response (includes API processing)
+                # max_attempts=2: 1 retry for transient failures (still under 30s total)
+                _cfg = botocore.config.Config(connect_timeout=10, read_timeout=15,
+                                              retries={'max_attempts': 2})
                 self._secrets_client = boto3.client('secretsmanager',
                                                      region_name=os.getenv('AWS_REGION', 'us-east-1'),
                                                      config=_cfg)

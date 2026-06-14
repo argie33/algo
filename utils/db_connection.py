@@ -96,6 +96,7 @@ def _get_connection_pool():
                 try:
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection
                     # Statement timeout is set at RDS parameter group level (900s = 15 min) instead
+                    # connect_timeout increased from 5s to 30s to handle VPC/Proxy latency on cold-start
                     _connection_pool = psycopg2.pool.SimpleConnectionPool(
                         minconn=2,
                         maxconn=20,
@@ -104,7 +105,7 @@ def _get_connection_pool():
                         database=db_config['database'],
                         user=db_config['user'],
                         password=db_config['password'],
-                        connect_timeout=10
+                        connect_timeout=30
                         # Note: Do NOT pass options= parameter to RDS Proxy
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
