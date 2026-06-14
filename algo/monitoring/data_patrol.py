@@ -630,12 +630,12 @@ class DataPatrol:
             self.log(cur, 'alignment', ERROR, 'signal_alignment', f'Check failed: {e}', None)
 
     def check_yahoo_cross_validate(self, top_n=None):
-        “””P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
+        '''P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
         Second-source verification - if our DB matches Alpaca but disagrees with
         Yahoo, that's a real signal something's off. Yahoo's chart endpoint
         accepts unauthenticated requests for basic OHLC.
-        “””
+        '''
         if top_n is None:
             top_n = XVAL_TOP_N_SYMBOLS
         try:

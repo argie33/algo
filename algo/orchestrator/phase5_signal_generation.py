@@ -106,12 +106,15 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
         return candidate, False
 
 
-def _compute_swing_score_parallel(candidate: Dict, run_date: _date, min_swing: int, config=None) -> Tuple[Dict, bool]:
-    """Compute swing score for a single candidate. Returns (candidate_with_score, passed)."""
+def _compute_swing_score_parallel(candidate: Dict, run_date: _date, min_swing: int, config) -> Tuple[Dict, bool]:
+    """Compute swing score for a single candidate. Returns (candidate_with_score, passed).
+
+    Args:
+        config: Required configuration object (dependency injection)
+    """
     try:
         if config is None:
-            from algo.infrastructure import get_config
-            config = get_config()
+            raise ValueError("_compute_swing_score_parallel requires config parameter (dependency injection)")
         swing_scorer = SwingTraderScore(config)
         result = swing_scorer.compute(candidate['symbol'], run_date)
         if result and result.get('pass') and result.get('swing_score', 0) >= min_swing:
@@ -167,10 +170,10 @@ def run(
     config = None,
 ) -> PhaseResult:
     import os
-    # Ensure config is provided for dependency injection
+    # Enforce config parameter for dependency injection
     if config is None:
-        from algo.infrastructure import get_config
-        config = get_config()
+        raise ValueError("phase5_signal_generation.run() requires explicit config parameter (dependency injection). "
+                        "Get config at orchestrator level and pass it explicitly.")
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
