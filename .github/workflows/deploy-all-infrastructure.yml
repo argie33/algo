@@ -1061,14 +1061,17 @@ jobs:
             exit 1
           fi
 
-          SECRET_JSON=$(cat <<EOF
-          {
-            "api_url": "$API_URL",
-            "cognito_user_pool_id": "$POOL_ID",
-            "cognito_user_pool_client_id": "$CLIENT_ID"
-          }
-          EOF
-          )
+          # Read existing secret and merge infra keys — preserves cognito_username/cognito_password
+          # set by the earlier "Setup Cognito Admin Group" step
+          EXISTING=$(aws secretsmanager get-secret-value \
+            --secret-id algo/dashboard-config \
+            --query SecretString --output text \
+            --region $AWS_REGION 2>/dev/null || echo '{}')
+          SECRET_JSON=$(echo "$EXISTING" | jq \
+            --arg url "$API_URL" \
+            --arg pool "$POOL_ID" \
+            --arg client "$CLIENT_ID" \
+            '. + {api_url: $url, cognito_user_pool_id: $pool, cognito_user_pool_client_id: $client}')
 
           # Create or update the secret — fail if this doesn't work
           if aws secretsmanager describe-secret --secret-id algo/dashboard-config --region $AWS_REGION 2>/dev/null; then
