@@ -3064,187 +3064,171 @@ def _get_economic_calendar(cur) -> Dict:
         logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Economic calendar unavailable')
 
-@db_route_handler('get daily return histogram', default_error_response={'buckets': [], 'stats': None, '_is_placeholder': True})
+@db_route_handler('get daily return histogram', default_error_response={'buckets': [], 'stats': None})
 def _get_daily_return_histogram(cur) -> Dict:
     """Return histogram of daily portfolio returns with stats."""
-    try:
-        cur.execute("""
-            SELECT daily_return_pct
-            FROM algo_portfolio_snapshots
-            WHERE daily_return_pct IS NOT NULL
-            ORDER BY snapshot_date DESC
-            LIMIT 250
-        """)
-        rows = cur.fetchall()
-        returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
+    cur.execute("""
+        SELECT daily_return_pct
+        FROM algo_portfolio_snapshots
+        WHERE daily_return_pct IS NOT NULL
+        ORDER BY snapshot_date DESC
+        LIMIT 250
+    """)
+    rows = cur.fetchall()
+    returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
 
-        if not returns:
-            return json_response(200, {'buckets': [], 'stats': None})
+    if not returns:
+        return json_response(200, {'buckets': [], 'stats': None})
 
-        bucket_width = 0.5
-        min_ret = min(returns)
-        max_ret = max(returns)
-        min_bucket = math.floor(min_ret / bucket_width) * bucket_width
-        max_bucket = math.ceil(max_ret / bucket_width) * bucket_width
+    bucket_width = 0.5
+    min_ret = min(returns)
+    max_ret = max(returns)
+    min_bucket = math.floor(min_ret / bucket_width) * bucket_width
+    max_bucket = math.ceil(max_ret / bucket_width) * bucket_width
 
-        buckets_dict = {}
-        mid = min_bucket
-        while mid <= max_bucket:
-            buckets_dict[mid] = 0
-            mid += bucket_width
+    buckets_dict = {}
+    mid = min_bucket
+    while mid <= max_bucket:
+        buckets_dict[mid] = 0
+        mid += bucket_width
 
-        for ret in returns:
-            bucket_mid = round((ret / bucket_width)) * bucket_width
-            if bucket_mid in buckets_dict:
-                buckets_dict[bucket_mid] += 1
+    for ret in returns:
+        bucket_mid = round((ret / bucket_width)) * bucket_width
+        if bucket_mid in buckets_dict:
+            buckets_dict[bucket_mid] += 1
 
-        buckets = [{'mid': round(mid, 2), 'count': count} for mid, count in sorted(buckets_dict.items())]
+    buckets = [{'mid': round(mid, 2), 'count': count} for mid, count in sorted(buckets_dict.items())]
 
-        mean_ret = sum(returns) / len(returns)
-        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-        std_ret = math.sqrt(variance)
-        stats = {'count': len(returns), 'mean': round(mean_ret, 2), 'std': round(std_ret, 2)}
+    mean_ret = sum(returns) / len(returns)
+    variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
+    std_ret = math.sqrt(variance)
+    stats = {'count': len(returns), 'mean': round(mean_ret, 2), 'std': round(std_ret, 2)}
 
-        return json_response(200, {'buckets': buckets, 'stats': stats})
-    except Exception as e:
-        logger.warning(f'[DAILY_RETURN_HISTOGRAM] {type(e).__name__}: {e}')
-        return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
+    return json_response(200, {'buckets': buckets, 'stats': stats})
 
-@db_route_handler('get trade distribution', default_error_response={'buckets': [], '_is_placeholder': True})
+@db_route_handler('get trade distribution', default_error_response={'buckets': []})
 def _get_trade_distribution(cur) -> Dict:
     """Return distribution of trade outcomes by R-multiple."""
-    try:
-        cur.execute("""
-            SELECT exit_r_multiple
-            FROM algo_trades
-            WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
-            ORDER BY exit_date DESC
-            LIMIT 500
-        """)
-        rows = cur.fetchall()
-        r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
+    cur.execute("""
+        SELECT exit_r_multiple
+        FROM algo_trades
+        WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
+        ORDER BY exit_date DESC
+        LIMIT 500
+    """)
+    rows = cur.fetchall()
+    r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
 
-        if not r_multiples:
-            return json_response(200, {'buckets': []})
+    if not r_multiples:
+        return json_response(200, {'buckets': []})
 
-        buckets = [
-            {'range': '<-2R', 'count': 0, 'min': -999},
-            {'range': '-2R to -1R', 'count': 0, 'min': -2},
-            {'range': '-1R to 0R', 'count': 0, 'min': -1},
-            {'range': '0R to 1R', 'count': 0, 'min': 0},
-            {'range': '1R to 2R', 'count': 0, 'min': 1},
-            {'range': '2R to 3R', 'count': 0, 'min': 2},
-            {'range': '>3R', 'count': 0, 'min': 3},
-        ]
+    buckets = [
+        {'range': '<-2R', 'count': 0, 'min': -999},
+        {'range': '-2R to -1R', 'count': 0, 'min': -2},
+        {'range': '-1R to 0R', 'count': 0, 'min': -1},
+        {'range': '0R to 1R', 'count': 0, 'min': 0},
+        {'range': '1R to 2R', 'count': 0, 'min': 1},
+        {'range': '2R to 3R', 'count': 0, 'min': 2},
+        {'range': '>3R', 'count': 0, 'min': 3},
+    ]
 
-        for r in r_multiples:
-            if r < -2:
-                buckets[0]['count'] += 1
-            elif r < -1:
-                buckets[1]['count'] += 1
-            elif r < 0:
-                buckets[2]['count'] += 1
-            elif r < 1:
-                buckets[3]['count'] += 1
-            elif r < 2:
-                buckets[4]['count'] += 1
-            elif r < 3:
-                buckets[5]['count'] += 1
-            else:
-                buckets[6]['count'] += 1
+    for r in r_multiples:
+        if r < -2:
+            buckets[0]['count'] += 1
+        elif r < -1:
+            buckets[1]['count'] += 1
+        elif r < 0:
+            buckets[2]['count'] += 1
+        elif r < 1:
+            buckets[3]['count'] += 1
+        elif r < 2:
+            buckets[4]['count'] += 1
+        elif r < 3:
+            buckets[5]['count'] += 1
+        else:
+            buckets[6]['count'] += 1
 
-        filtered_buckets = [b for b in buckets if b['count'] > 0]
-        return json_response(200, {'buckets': filtered_buckets})
-    except Exception as e:
-        logger.warning(f'[TRADE_DISTRIBUTION] {type(e).__name__}: {e}')
-        return json_response(200, {'buckets': [], '_is_placeholder': True})
+    filtered_buckets = [b for b in buckets if b['count'] > 0]
+    return json_response(200, {'buckets': filtered_buckets})
 
-@db_route_handler('get holding period distribution', default_error_response={'buckets': [], '_is_placeholder': True})
+@db_route_handler('get holding period distribution', default_error_response={'buckets': []})
 def _get_holding_period_distribution(cur) -> Dict:
     """Return distribution of position holding periods in days."""
-    try:
-        cur.execute("""
-            SELECT trade_duration_days
-            FROM algo_trades
-            WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC
-            LIMIT 500
-        """)
-        rows = cur.fetchall()
-        durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
+    cur.execute("""
+        SELECT trade_duration_days
+        FROM algo_trades
+        WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
+        ORDER BY exit_date DESC
+        LIMIT 500
+    """)
+    rows = cur.fetchall()
+    durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
 
-        if not durations:
-            return json_response(200, {'buckets': []})
+    if not durations:
+        return json_response(200, {'buckets': []})
 
-        buckets = [
-            {'range': '1-3 days', 'count': 0},
-            {'range': '4-7 days', 'count': 0},
-            {'range': '8-14 days', 'count': 0},
-            {'range': '15-30 days', 'count': 0},
-            {'range': '31-60 days', 'count': 0},
-            {'range': '61-90 days', 'count': 0},
-            {'range': '91-180 days', 'count': 0},
-            {'range': '>180 days', 'count': 0},
-        ]
+    buckets = [
+        {'range': '1-3 days', 'count': 0},
+        {'range': '4-7 days', 'count': 0},
+        {'range': '8-14 days', 'count': 0},
+        {'range': '15-30 days', 'count': 0},
+        {'range': '31-60 days', 'count': 0},
+        {'range': '61-90 days', 'count': 0},
+        {'range': '91-180 days', 'count': 0},
+        {'range': '>180 days', 'count': 0},
+    ]
 
-        for d in durations:
-            if d <= 3:
-                buckets[0]['count'] += 1
-            elif d <= 7:
-                buckets[1]['count'] += 1
-            elif d <= 14:
-                buckets[2]['count'] += 1
-            elif d <= 30:
-                buckets[3]['count'] += 1
-            elif d <= 60:
-                buckets[4]['count'] += 1
-            elif d <= 90:
-                buckets[5]['count'] += 1
-            elif d <= 180:
-                buckets[6]['count'] += 1
-            else:
-                buckets[7]['count'] += 1
+    for d in durations:
+        if d <= 3:
+            buckets[0]['count'] += 1
+        elif d <= 7:
+            buckets[1]['count'] += 1
+        elif d <= 14:
+            buckets[2]['count'] += 1
+        elif d <= 30:
+            buckets[3]['count'] += 1
+        elif d <= 60:
+            buckets[4]['count'] += 1
+        elif d <= 90:
+            buckets[5]['count'] += 1
+        elif d <= 180:
+            buckets[6]['count'] += 1
+        else:
+            buckets[7]['count'] += 1
 
-        filtered_buckets = [b for b in buckets if b['count'] > 0]
-        return json_response(200, {'buckets': filtered_buckets})
-    except Exception as e:
-        logger.warning(f'[HOLDING_DISTRIBUTION] {type(e).__name__}: {e}')
-        return json_response(200, {'buckets': [], '_is_placeholder': True})
+    filtered_buckets = [b for b in buckets if b['count'] > 0]
+    return json_response(200, {'buckets': filtered_buckets})
 
-@db_route_handler('get stage distribution', default_error_response={'distribution': [], '_is_placeholder': True})
+@db_route_handler('get stage distribution', default_error_response={'distribution': []})
 def _get_stage_distribution(cur) -> Dict:
     """Return distribution of positions by Weinstein stage."""
-    try:
-        cur.execute("""
-            SELECT
-                COUNT(*) as count,
-                CASE
-                    WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
-                    WHEN weinstein_stage = 2 THEN
-                        CASE
-                            WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
-                            WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
-                            ELSE 'Mid Stage-2'
-                        END
-                    WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
-                    WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
-                    ELSE 'Unknown'
-                END as phase
-            FROM algo_positions_with_risk
-            GROUP BY phase, weinstein_stage
-            ORDER BY weinstein_stage ASC
-        """)
-        rows = cur.fetchall()
+    cur.execute("""
+        SELECT
+            COUNT(*) as count,
+            CASE
+                WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
+                WHEN weinstein_stage = 2 THEN
+                    CASE
+                        WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
+                        WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
+                        ELSE 'Mid Stage-2'
+                    END
+                WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
+                WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
+                ELSE 'Unknown'
+            END as phase
+        FROM algo_positions_with_risk
+        GROUP BY phase, weinstein_stage
+        ORDER BY weinstein_stage ASC
+    """)
+    rows = cur.fetchall()
 
-        if not rows:
-            return json_response(200, {'distribution': []})
+    if not rows:
+        return json_response(200, {'distribution': []})
 
-        distribution = [
-            {'phase': r['phase'], 'count': safe_int(r['count'])}
-            for r in rows
-        ]
+    distribution = [
+        {'phase': r['phase'], 'count': safe_int(r['count'])}
+        for r in rows
+    ]
 
-        return json_response(200, {'distribution': distribution})
-    except Exception as e:
-        logger.warning(f'[STAGE_DISTRIBUTION] {type(e).__name__}: {e}')
-        return json_response(200, {'distribution': [], '_is_placeholder': True})
+    return json_response(200, {'distribution': distribution})
