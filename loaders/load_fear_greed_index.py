@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Fear & Greed Index Loader - Market Sentiment Indicators (Market-wide)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import sys
 import logging
 from datetime import date
@@ -15,8 +18,6 @@ logger = logging.getLogger(__name__)
 
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
     table_name = "fear_greed_index"
     primary_key = ("date",)

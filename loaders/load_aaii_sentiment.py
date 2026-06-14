@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """AAII Sentiment Survey Loader - Investor Sentiment Indicators (Market-wide data)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import sys
 import logging
 from datetime import date
@@ -21,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 class AAIISentimentLoader(OptimalLoader):
     """Load AAII investor sentiment survey data (market-wide, non-symbol based)."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
     table_name = "aaii_sentiment"
     primary_key = ("date",)
