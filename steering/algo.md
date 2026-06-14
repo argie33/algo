@@ -60,11 +60,10 @@ scripts/refresh-aws-credentials.ps1
 - Phase 7's RegimeManager falls back to yesterday's regime (graceful degradation, but market regime becomes 1+ days stale)
 - Dashboard market regime display shows stale data without visible warning
 
-**Recent Fix (2026-06-13):** Resolved Python import path errors in ECS containers. Changes committed to git but require Docker image rebuild via `git push main` to deploy. Until deployed, loaders will continue to fail with ModuleNotFoundError.
-
 **Monitoring & Recovery:**
 - Monitor: Check if `SELECT COUNT(*) FROM market_exposure_daily WHERE date = CURRENT_DATE` returns 0 (stale)
 - Verify: Check CloudWatch logs `/ecs/algo-stock_prices_daily-loader` for loader errors
+- Python import errors in loaders (ModuleNotFoundError): Require Docker image rebuild. Push to main to trigger CI/CD pipeline which rebuilds and redeployes ECS tasks.
 - Deploy: `git push main` to trigger CI/CD pipeline (rebuild Docker image)
 - Manual test after deploy: `aws stepfunctions start-execution --state-machine-arn arn:aws:states:us-east-1:626216981288:stateMachine:algo-eod-pipeline-dev --name test-eod-$(date +%s)`
 
@@ -172,7 +171,7 @@ scripts/refresh-aws-credentials.ps1
 1. **Check execution status (DynamoDB):**
    - Query `algo-loader-status` table: look for `compute_circuit_breakers` and `compute_performance_metrics` with today's date
    - Status: "SUCCESS" = loader completed; "FAILED" = check ECS task logs
-   - Run (from AWS CLI): `aws dynamodb query --table-name algo-loader-status-dev --key-condition-expression "loader_name = :name AND execution_date = :date" --expression-attribute-values '{ ":name": {"S": "compute_circuit_breakers"}, ":date": {"S": "2026-06-13"}}'`
+   - Run (from AWS CLI): `aws dynamodb query --table-name algo-loader-status-dev --key-condition-expression "loader_name = :name AND execution_date = :date" --expression-attribute-values '{ ":name": {"S": "compute_circuit_breakers"}, ":date": {"S": "'$(date +%Y-%m-%d)'"}}'` (substitute today's date)
 
 2. **Check table data (PostgreSQL):**
    ```sql
@@ -399,7 +398,7 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 - VPC: Enabled with 2 private subnets for RDS access
 - Layers: API dependencies + psycopg2 + shared (numpy/pandas/scipy)
 
-**Recent Fix (2026-06-14):** Resolved 503 "Database connection failed" errors by increasing Secrets Manager timeouts (2s→10s connect, 3s→15s read) to handle VPC cold-start latency. Lambda now successfully loads credentials and connects to database on first invocation.
+**Secrets Manager Configuration (VPC Cold-Start):** Increased timeouts to handle VPC cold-start latency: Secrets Manager connect timeout 10s (was 2s), read timeout 15s (was 3s). This prevents 503 "Database connection failed" errors on first invocation.
 
 **Environment Configuration:**
 - DB_HOST: RDS Proxy endpoint (`algo-rds-proxy-dev.proxy-...rds.amazonaws.com`)
