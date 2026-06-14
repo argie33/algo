@@ -235,7 +235,7 @@ class QueryCache(Generic[T]):
             return
 
         # Find oldest access time
-        lru_key = min(self._access_order, key=self._access_order.get)
+        lru_key = min(self._access_order, key=self._access_order.get)  # type: ignore[arg-type]
         del self._cache[lru_key]
         del self._access_order[lru_key]
         self._stats.evictions += 1

@@ -403,7 +403,7 @@ class DailyReconciliation:
             since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
             resp = requests.get(
                 f'{self._alpaca_base_url}/v2/orders',
-                params={'status': 'closed', 'side': 'sell', 'after': since,
+                params={'status': 'closed', 'side': 'sell', 'after': since,  # type: ignore[arg-type]
                         'direction': 'desc', 'limit': 500},
                 headers={'APCA-API-KEY-ID': self._alpaca_key,
                          'APCA-API-SECRET-KEY': self._alpaca_secret},

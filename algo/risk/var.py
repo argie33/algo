@@ -20,7 +20,7 @@ Alerts:
 import os
 import logging
 from datetime import datetime, date, timezone
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -400,6 +400,7 @@ class ValueAtRisk:
             logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
             logger.debug(f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%" if concentration else "  Top 5 Concentration: <unavailable>")
 
+            alerts: List[str] = []
             result: Dict[str, Any] = {
                 'report_date': report_date,
                 'generated_at': datetime.now(timezone.utc).isoformat(),
@@ -409,25 +410,25 @@ class ValueAtRisk:
                 'stressed_var': stressed_var,
                 'beta_exposure': beta,
                 'concentration': concentration,
-                'alerts': [],
+                'alerts': alerts,
             }
 
             # Alert if VaR > 2%
             if var_metrics and var_metrics['var_pct'] > 2.0:
                 msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
-                result['alerts'].append(msg)  # type: ignore[union-attr]
+                alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if concentration > 30%
             if concentration and concentration['top_5_concentration_pct'] > 30:
                 msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
-                result['alerts'].append(msg)  # type: ignore[union-attr]
+                alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if beta > 2.0
             if beta and beta['portfolio_beta'] > 2.0:
                 msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)"
-                result['alerts'].append(msg)  # type: ignore[union-attr]
+                alerts.append(msg)
                 logger.warning(msg)
 
             try:

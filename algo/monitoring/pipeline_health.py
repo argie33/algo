@@ -199,7 +199,7 @@ class PipelineHealth:
                             cur,
                             table_name,
                             str(config['date_column']),
-                            int(config['sla_days'])
+                            int(config['sla_days'])  # type: ignore[arg-type]
                         )
                         status.tables[table_name] = health
 

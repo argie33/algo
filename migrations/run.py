@@ -28,6 +28,56 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _split_sql_statements(sql: str) -> list:
+    """Split SQL into individual statements on ';', respecting dollar-quoted strings.
+
+    PostgreSQL functions use dollar-quoting ($$ ... $$ or $tag$ ... $tag$).
+    A naive sql.split(';') breaks inside function bodies that contain semicolons.
+    """
+    statements = []
+    current = []
+    dollar_tag = None  # None = not in dollar-quote; set to tag string when inside
+    i = 0
+    n = len(sql)
+
+    while i < n:
+        ch = sql[i]
+
+        if dollar_tag is None and ch == '$':
+            # Scan potential dollar-quote opening tag: $identchars$
+            j = i + 1
+            while j < n and (sql[j].isalnum() or sql[j] == '_'):
+                j += 1
+            if j < n and sql[j] == '$':
+                tag = sql[i:j + 1]
+                dollar_tag = tag
+                current.append(tag)
+                i = j + 1
+                continue
+        elif dollar_tag is not None and ch == '$':
+            end = i + len(dollar_tag)
+            if sql[i:end] == dollar_tag:
+                current.append(dollar_tag)
+                i = end
+                dollar_tag = None
+                continue
+
+        if ch == ';' and dollar_tag is None:
+            stmt = ''.join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(ch)
+        i += 1
+
+    stmt = ''.join(current).strip()
+    if stmt:
+        statements.append(stmt)
+
+    return statements
+
+
 def _load_credentials():
     """Load database credentials from environment or stdin.
 
@@ -204,8 +254,7 @@ class MigrationRunner:
                 with open(mig_path, 'r') as f:
                     sql = f.read()
 
-                # Split by ';' to handle multiple statements
-                statements = [s.strip() for s in sql.split(';') if s.strip()]
+                statements = _split_sql_statements(sql)
 
                 for statement in statements:
                     logger.debug(f"Executing SQL: {statement[:80]}...")

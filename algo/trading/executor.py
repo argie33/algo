@@ -1130,7 +1130,7 @@ class TradeExecutor:
 
             response = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
-                json=order_data,
+                json=order_data,  # type: ignore[arg-type]
                 headers={'APCA-API-KEY-ID': self.alpaca_key,
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
                 timeout=get_api_timeout(),
