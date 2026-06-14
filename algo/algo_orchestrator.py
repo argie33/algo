@@ -17,7 +17,7 @@ from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.reporting import AlertManager
 from algo.infrastructure import MarketCalendar
-from algo.algo_sql_safety import assert_safe_table, assert_safe_column
+from utils.db.sql_safety import assert_safe_table, assert_safe_column
 from algo.trading import TradeExecutor
 from utils.db.context import DatabaseContext
 from utils.logging.execution_tracker import get_tracker
