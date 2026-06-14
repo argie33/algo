@@ -144,7 +144,7 @@ def sanitize_error_message(msg: str) -> str:
 
     # Remove file paths
     msg = re.sub(r'(/[a-zA-Z0-9_/.-]+)+', '/path/..', msg)
-    msg = re.sub(r'([A-Z]:\\[a-zA-Z0-9_\\.-]+)+', 'C:\\path\\...', msg)
+    msg = re.sub(r'([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+', 'C:\\\\path\\\\...', msg)
 
     # Remove SQL if too long (indicates stack trace)
     if 'SELECT' in msg or 'INSERT' in msg or 'UPDATE' in msg:
