@@ -28,7 +28,7 @@ import pandas as pd
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
-from algo.algo_market_calendar import MarketCalendar
+from algo.infrastructure import MarketCalendar
 
 logger = logging.getLogger(__name__)
 

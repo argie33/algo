@@ -1151,7 +1151,7 @@ def _get_data_status(cur) -> Dict:
         false stale warnings on Monday holidays or 3-day weekends.
         """
         try:
-            from algo.algo_market_calendar import MarketCalendar
+            from algo.infrastructure import MarketCalendar
 
             cur.execute("""
                 SELECT table_name, row_count, last_updated

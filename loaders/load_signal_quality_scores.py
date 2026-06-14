@@ -38,7 +38,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
         from zoneinfo import ZoneInfo
 

@@ -417,7 +417,7 @@ class PriceLoader(OptimalLoader):
 
         from datetime import datetime, timezone, timedelta
         from zoneinfo import ZoneInfo
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
         today = datetime.now(EASTERN_TZ).date()
 
@@ -653,7 +653,7 @@ class PriceLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
@@ -689,7 +689,7 @@ class PriceLoader(OptimalLoader):
 
         Uses adaptive batch sizing based on recent success rates to reduce retries.
         """
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
@@ -1096,7 +1096,7 @@ class PriceLoader(OptimalLoader):
         if not rows:
             return []
 
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
@@ -1257,7 +1257,7 @@ class PriceLoader(OptimalLoader):
         market_close_available = True  # Optimistic: assume data is available (we'll check async)
         if self.interval == "1d":
             try:
-                from algo.algo_market_calendar import MarketCalendar
+                from algo.infrastructure import MarketCalendar
                 today = datetime.now(EASTERN_TZ).date()
                 # Only check if today is a trading day
                 if not MarketCalendar.is_trading_day(today):

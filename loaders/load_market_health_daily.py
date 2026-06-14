@@ -31,7 +31,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str = "SPY", since: Optional[date] = None):
         """Fetch SPY price data and compute market health metrics."""
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
@@ -103,7 +103,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         today = datetime.now(EASTERN_TZ).date()
         if not MarketCalendar.is_trading_day(today):
             logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
@@ -347,7 +347,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     """
     # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
     # Skip the fetch — existing price_daily data is still current from the last trading day.
-    from algo.algo_market_calendar import MarketCalendar
+    from algo.infrastructure import MarketCalendar
     today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
         logger.info(f"Market closed today ({today}) — skipping VIX/index yfinance fetch")

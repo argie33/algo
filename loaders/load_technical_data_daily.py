@@ -41,7 +41,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
@@ -159,7 +159,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 row = cur.fetchone()
                 if row and row[0]:
                     max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
-                    from algo.algo_market_calendar import MarketCalendar
+                    from algo.infrastructure import MarketCalendar
 
                     # Count trading days from max_date to today
                     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)

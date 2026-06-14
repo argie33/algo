@@ -75,7 +75,7 @@ def run(
             # Check 2: Is the most recent date the last trading day before today?
             # At 9:30 AM ET when markets just open, the price loader has loaded
             # EOD data for the previous trading day (e.g., Friday when today is Monday).
-            from algo.algo_market_calendar import MarketCalendar
+            from algo.infrastructure import MarketCalendar
             last_trading_day = run_date - timedelta(days=1)
             while last_trading_day > run_date - timedelta(days=10):
                 if MarketCalendar.is_trading_day(last_trading_day):

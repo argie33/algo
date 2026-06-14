@@ -36,7 +36,7 @@ class SignalsDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
         from zoneinfo import ZoneInfo
 
@@ -573,7 +573,7 @@ def main():
 
             # Compare against last trading day, not calendar days.
             # On Monday, Friday's data is 2 calendar days old but 0 trading days stale.
-            from algo.algo_market_calendar import MarketCalendar
+            from algo.infrastructure import MarketCalendar
             last_trading_day = today_et
             for _ in range(10):
                 if MarketCalendar.is_trading_day(last_trading_day):

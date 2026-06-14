@@ -23,7 +23,7 @@ except ImportError:
     stats = None  # type: ignore[assignment]
 
 from utils.db.context import DatabaseContext
-from algo.algo_regime_manager import RegimeManager
+from algo.orchestration import RegimeManager
 
 logger = logging.getLogger(__name__)
 

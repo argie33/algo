@@ -32,7 +32,7 @@ def run(
         from algo.algo_daily_reconciliation import DailyReconciliation
         from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
         from algo.algo_signal_attribution import SignalAttributionEngine
-        from algo.algo_weight_optimizer import WeightOptimizer
+        from algo.orchestration import WeightOptimizer
         from algo.reporting import DailyFinanceReport
 
         recon = DailyReconciliation(config)
@@ -121,7 +121,7 @@ def run(
         # Step 3: Run weight optimization (if enough trades)
         opt_result = {'changes': []}
         try:
-            from algo.algo_regime_manager import RegimeManager as _RegimeManager
+            from algo.orchestration import RegimeManager as _RegimeManager
             _current_regime = _RegimeManager().get_current_regime(run_date) or 'confirmed_uptrend'
             optimizer = WeightOptimizer(config)
             opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)

@@ -53,7 +53,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         FIX #5: Validates all 4 source tables before computing scores.
         """
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
         from zoneinfo import ZoneInfo
 

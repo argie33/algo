@@ -191,7 +191,7 @@ def _get_system_health(cur) -> Dict:
         # recent trading day. A hardcoded day threshold causes false 'degraded'
         # on 3-day holiday weekends where Friday data is 4 calendar days old.
         try:
-            from algo.algo_market_calendar import MarketCalendar
+            from algo.infrastructure import MarketCalendar
             expected = today - timedelta(days=1)
             for _ in range(10):
                 if MarketCalendar.is_trading_day(expected):

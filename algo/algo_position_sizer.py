@@ -270,7 +270,7 @@ class PositionSizer:
         """Get position size multiplier from current market regime (mockable for tests)."""
         regime_mult = 1.0
         try:
-            from algo.algo_regime_manager import RegimeManager
+            from algo.orchestration import RegimeManager
             regime_mgr = RegimeManager()
             regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
         except Exception as e:

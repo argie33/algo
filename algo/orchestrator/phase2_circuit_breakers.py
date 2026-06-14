@@ -51,7 +51,7 @@ def run(
             logger.error(f"Unhandled exception: {e}")
 
         try:
-            from algo.algo_market_events import MarketEventHandler
+            from algo.infrastructure import MarketEventHandler
             meh = MarketEventHandler(config)
             cb_result = meh.check_market_circuit_breaker()
             if cb_result:  # If not None, market circuit breaker triggered
