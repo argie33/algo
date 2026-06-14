@@ -1858,64 +1858,17 @@ CREATE TABLE IF NOT EXISTS algo_tca (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Live Performance Metrics - Daily aggregation for institutional comparison
-CREATE TABLE IF NOT EXISTS algo_performance_daily (
-    report_date DATE PRIMARY KEY,
-    rolling_sharpe_252d NUMERIC(8, 4),
-    rolling_sortino_252d NUMERIC(8, 4),
-    calmar_ratio NUMERIC(8, 4),
-    win_rate_50t NUMERIC(6, 2),
-    avg_win_r_50t NUMERIC(6, 3),
-    avg_loss_r_50t NUMERIC(6, 3),
-    expectancy NUMERIC(6, 4),
-    max_drawdown_pct NUMERIC(8, 2),
-    live_vs_backtest_ratio NUMERIC(6, 4),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
--- Add new ratio columns to existing databases (idempotent)
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS rolling_sortino_252d NUMERIC(8, 4);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS calmar_ratio NUMERIC(8, 4);
--- Add critical metrics for dashboard (issue #1-5 fix)
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS win_rate_all NUMERIC(6, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_trades INTEGER;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS num_wins INTEGER;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS num_losses INTEGER;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS profit_factor NUMERIC(8, 3);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win NUMERIC(10, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss NUMERIC(10, 2);
--- HIGH-SEVERITY ISSUE FIX: Average R-Multiple only in dashboard — now pre-computed
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_r NUMERIC(6, 3);
--- ARCHITECTURAL FIX: Streaks and additional metrics pre-computed (Phase 1)
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS current_win_streak INT DEFAULT 0;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS best_win_streak INT DEFAULT 0;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS worst_loss_streak INT DEFAULT 0;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win_pct NUMERIC(8, 3);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss_pct NUMERIC(8, 3);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss_r NUMERIC(6, 3);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_pnl_dollars NUMERIC(12, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS gross_win_dollars NUMERIC(12, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS gross_loss_dollars NUMERIC(12, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_return_pct NUMERIC(8, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_hold_days NUMERIC(8, 1);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS portfolio_snapshots_count INT;
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS biggest_win NUMERIC(12, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS biggest_loss NUMERIC(12, 2);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS best_trade_r NUMERIC(6, 3);
-ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS worst_trade_r NUMERIC(6, 3);
+-- DEPRECATED: algo_performance_daily
+-- Replaced by: algo_performance_metrics (populated by compute_performance_metrics.py)
+-- Reason: Consolidation of performance tracking; old loaders (load_algo_performance_daily.py) removed
+-- Migration: See AWS-INFRASTRUCTURE-AUDIT.md for cleanup notes
+-- Table is no longer populated and can be dropped after migration of any dependent reports
 
--- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
-CREATE TABLE IF NOT EXISTS algo_risk_daily (
-    report_date DATE PRIMARY KEY,
-    var_pct_95 NUMERIC(8, 3),
-    cvar_pct_95 NUMERIC(8, 3),
-    stressed_var_pct NUMERIC(8, 3),
-    portfolio_beta NUMERIC(6, 2),
-    top_5_concentration NUMERIC(6, 2),
-    status VARCHAR(20) DEFAULT 'ok',
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
+-- DEPRECATED: algo_risk_daily
+-- Replaced by: algo_performance_metrics (populated by compute_performance_metrics.py)
+-- Reason: Risk metrics now included in performance_metrics; load_algo_risk_daily.py removed
+-- Note: Risk data (sharpe, sortino, max_drawdown, calmar) available in algo_performance_metrics
+-- Table is no longer populated and can be dropped after migration
 
 -- Economic Metrics Daily - Pre-computed derived economic indicators (MEDIUM ISSUE FIX)
 CREATE TABLE IF NOT EXISTS economic_metrics_daily (
@@ -2170,10 +2123,7 @@ CREATE INDEX IF NOT EXISTS idx_algo_tca_symbol ON algo_tca(symbol);
 CREATE INDEX IF NOT EXISTS idx_algo_tca_signal_date ON algo_tca(signal_date);
 
 -- Indexes for Performance metrics
-CREATE INDEX IF NOT EXISTS idx_algo_performance_daily_date ON algo_performance_daily(report_date);
 
--- Indexes for Risk metrics
-CREATE INDEX IF NOT EXISTS idx_algo_risk_daily_date ON algo_risk_daily(report_date);
 
 -- Indexes for Model Governance
 CREATE INDEX IF NOT EXISTS idx_algo_model_registry_commit ON algo_model_registry(git_commit_hash);
@@ -2779,10 +2729,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_trades_position_id
 ON algo_trades (position_id)
 WHERE position_id IS NOT NULL;
 
--- RISK TRACKING INDEXES — VaR/concentration monitoring
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_risk_daily_date
-ON algo_risk_daily (report_date DESC)
-WHERE report_date IS NOT NULL;
 
 -- MARKET EXPOSURE INDEXES — Regime detection
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_market_exposure_daily_date
