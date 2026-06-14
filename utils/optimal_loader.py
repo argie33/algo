@@ -917,6 +917,15 @@ class OptimalLoader(ABC):
 
             # ISSUE #5 FIX: Check upstream completeness before proceeding
             symbols = list(symbols)
+
+            # ROOT CAUSE #4 FIX: Prepare batch context once before symbol processing
+            try:
+                self._prepare_batch_context()
+                logger.debug(f"[{self.table_name}] Batch context prepared")
+            except Exception as e:
+                logger.warning(f"[{self.table_name}] Batch context prep failed: {e}")
+                self._batch_context = {}
+
             if not self._check_upstream_completeness(len(symbols)):
                 # Upstream incomplete — abort this load to prevent silent data loss
                 logger.error(f"[{self.table_name}] Aborting due to incomplete upstream data")
