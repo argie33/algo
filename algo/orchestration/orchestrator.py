@@ -53,7 +53,7 @@ class Orchestrator:
         self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
-        self.phase_results: Dict[int, Any] = {}
+        self.phase_results: Dict[Union[int, str], Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         # FIXED Issue #6: Initialize execution tracker for audit trail logging
         self.execution_tracker = get_tracker()

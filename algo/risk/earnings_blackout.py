@@ -19,8 +19,9 @@ logger = logging.getLogger(__name__)
 try:
     from algo.reporting import AlertManager
 except ImportError:
-    class AlertManager:
+    class AlertManagerFallback:
         def critical(self, *args, **kwargs): pass
+    AlertManager = AlertManagerFallback
 
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
