@@ -480,57 +480,34 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
-        # AWS mode: try to fetch credentials dynamically
+        # AWS mode: fetch credentials from Secrets Manager (single source of truth)
         import os
-        aws_url = os.environ.get("DASHBOARD_API_URL")
-        pool_id = os.environ.get("COGNITO_USER_POOL_ID")
-        client_id = os.environ.get("COGNITO_CLIENT_ID")
 
-        # If not set, try to fetch from multiple sources
-        if not aws_url:
-            logger.info("Credentials not set - trying Terraform, then Secrets Manager...")
-
-            # Try Terraform first
-            tf_url, tf_pool, tf_client = _fetch_terraform_credentials()
-            if tf_url:
-                aws_url = tf_url
-                pool_id = tf_pool
-                client_id = tf_client
-                os.environ["DASHBOARD_API_URL"] = aws_url
-                os.environ["COGNITO_USER_POOL_ID"] = pool_id
-                os.environ["COGNITO_CLIENT_ID"] = client_id
-                logger.info("Credentials fetched from Terraform")
-
-            # Try AWS Secrets Manager if Terraform failed
-            if not aws_url:
-                logger.info("Terraform failed - trying AWS Secrets Manager...")
-                sm_url, sm_pool, sm_client = _fetch_secrets_manager_credentials()
-                if sm_url:
-                    aws_url = sm_url
-                    pool_id = sm_pool
-                    client_id = sm_client
-                    os.environ["DASHBOARD_API_URL"] = aws_url
-                    os.environ["COGNITO_USER_POOL_ID"] = pool_id
-                    os.environ["COGNITO_CLIENT_ID"] = client_id
-                    logger.info("Credentials fetched from AWS Secrets Manager")
+        logger.info("AWS mode: Fetching dashboard credentials from Secrets Manager...")
+        aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
 
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials")
+            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found in AWS Secrets Manager")
             CONSOLE.print("")
-            CONSOLE.print("[bold cyan]Solutions:[/]")
-            CONSOLE.print("[yellow]Option 1: Deploy via GitHub Actions[/]")
-            CONSOLE.print("[dim]This creates Terraform outputs + Secrets Manager entries[/]")
+            CONSOLE.print("[bold cyan]To fix:[/]")
+            CONSOLE.print("[yellow]1. Run credential refresh:[/]")
+            CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
             CONSOLE.print("")
-            CONSOLE.print("[yellow]Option 2: Manually set environment variables[/]")
-            CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = \"<api_url>\"[/]")
-            CONSOLE.print("[cyan]   $env:COGNITO_USER_POOL_ID = \"<pool_id>\"[/]")
-            CONSOLE.print("[cyan]   $env:COGNITO_CLIENT_ID = \"<client_id>\"[/]")
+            CONSOLE.print("[yellow]2. If that doesn't work, manually create the secret:[/]")
+            CONSOLE.print("[cyan]   aws secretsmanager create-secret --name algo/dashboard-config --secret-string '{[/]")
+            CONSOLE.print("[cyan]     \"api_url\": \"https://api-gateway-url-here\",[/]")
+            CONSOLE.print("[cyan]     \"cognito_user_pool_id\": \"us-east-1_xxxxx\",[/]")
+            CONSOLE.print("[cyan]     \"cognito_user_pool_client_id\": \"xxxxx\"[/]")
+            CONSOLE.print("[cyan]   }' --region us-east-1[/]")
             CONSOLE.print("")
-            CONSOLE.print("[yellow]Option 3: Create secrets in AWS Secrets Manager[/]")
-            CONSOLE.print("[cyan]   algo/dashboard-config[/]")
-            CONSOLE.print("[dim]   with keys: api_url, cognito_user_pool_id, cognito_user_pool_client_id[/]")
+            CONSOLE.print("[dim]After GitHub Actions deploy completes, run refresh-aws-credentials.ps1 again[/]")
             sys.exit(1)
+
         set_api_url(aws_url)
+        os.environ["DASHBOARD_API_URL"] = aws_url
+        os.environ["COGNITO_USER_POOL_ID"] = pool_id
+        os.environ["COGNITO_CLIENT_ID"] = client_id
+        logger.info("Dashboard credentials loaded from Secrets Manager")
         data_source = "AWS"
 
         # Cognito authentication - dynamic with fallback
