@@ -45,6 +45,7 @@ from .framework import (
 from .freshness_config import get_freshness_rule
 from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
+from .schema import validate_table_schema
 
 __all__ = [
     # Core validation classes & exceptions
@@ -79,4 +80,5 @@ __all__ = [
     'get_freshness_rule',
     'AlpacaResponseValidator',
     'APIResponseValidator',
+    'validate_table_schema',
 ]

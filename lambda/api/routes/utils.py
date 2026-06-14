@@ -331,11 +331,13 @@ def json_response(code, data, data_freshness=None):
             response["data_freshness"] = data_freshness
         return response
     else:
-        # For non-200 codes, sanitize data and ensure _error field is present for consistency
+        # For error responses, sanitize to prevent None values in nested fields
+        # BUT only auto-populate _error from message if message was not None originally
+        has_non_none_message = "message" in data and data.get("message") is not None
         sanitized_data = APIResponseValidator.sanitize_response(data)
         response = {"statusCode": code, **sanitized_data}
-        if "_error" not in response and "message" in response:
-            response["_error"] = response["message"]
+        if "_error" not in response and has_non_none_message:
+            response["_error"] = sanitized_data["message"]
         return response
 
 def safe_dict_convert(row):

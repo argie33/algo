@@ -18,19 +18,27 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
     def _mock_cursor_with_schema(self, columns_data):
         """Create a mock cursor that returns the given columns data."""
         mock_cur = Mock()
+        self._columns_data = columns_data  # Store for fetchall
 
-        def side_effect(*args, **kwargs):
-            query = args[0]
-            if 'information_schema.columns' in query:
-                mock_cur.fetchall.return_value = columns_data
-                return columns_data
-            elif 'information_schema.tables' in query:
-                # Other tables exist
-                mock_cur.fetchone.return_value = (1,)
+        def execute_side_effect(query, *args, **kwargs):
+            # Store query for fetchall/fetchone to know what to return
+            self._last_query = query if isinstance(query, str) else (query if len(args) == 0 else args[0])
+
+        def fetchall_side_effect():
+            # Check last query to know what data to return
+            if 'information_schema.columns' in self._last_query:
+                return self._columns_data
+            return []
+
+        def fetchone_side_effect():
+            # For table existence checks
+            if 'information_schema.tables' in self._last_query:
                 return (1,)
             return None
 
-        mock_cur.execute.side_effect = side_effect
+        mock_cur.execute.side_effect = execute_side_effect
+        mock_cur.fetchall.side_effect = fetchall_side_effect
+        mock_cur.fetchone.side_effect = fetchone_side_effect
         return mock_cur
 
     def test_detects_correct_column_types(self):
@@ -50,7 +58,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.db.context.DatabaseContext') as mock_db:
+        with patch('utils.db.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()
@@ -76,7 +84,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.db.context.DatabaseContext') as mock_db:
+        with patch('utils.db.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()
@@ -103,7 +111,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.db.context.DatabaseContext') as mock_db:
+        with patch('utils.db.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()

@@ -140,8 +140,9 @@ def next_run_str() -> str:
                 _schedule_cache['result'] = result
                 _schedule_cache['timestamp'] = now
                 return result
-    except Exception:
-        pass
+    except Exception as sched_err:
+        import logging
+        logging.debug(f"Could not fetch next run schedule: {sched_err}, using fallback")
 
     result = _next_run_hardcoded()
     _schedule_cache['result'] = result

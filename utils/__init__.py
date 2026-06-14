@@ -10,7 +10,7 @@ from utils.signals.metrics import MetricsCalculator
 from utils.signals.grade_classifier import GradeClassifier
 from utils.signals.scorer import SignalScorer
 from utils.signals.query_builder import SignalQueryBuilder
-from utils.loaders.base import OptimalLoader
+from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.feature_flags import (
     initialize_safe_defaults,
     create_feature_flags_table,

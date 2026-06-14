@@ -17,6 +17,11 @@ try:
 except ImportError as e:
     raise RuntimeError(f"CRITICAL: Failed to import routes.algo (required for API to function): {e}") from e
 
+try:
+    from routes import openapi_spec
+except ImportError as e:
+    raise RuntimeError(f"CRITICAL: Failed to import routes.openapi_spec (required for API documentation): {e}") from e
+
 # Import routes gracefully - if a single module fails, others still work
 _ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
@@ -38,6 +43,7 @@ _STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration up
 # Populate available routes with statically imported critical routes
 _AVAILABLE_ROUTES['health'] = health
 _AVAILABLE_ROUTES['algo'] = algo
+_AVAILABLE_ROUTES['openapi_spec'] = openapi_spec
 
 # Dynamically import optional routes with error handling
 for module_name in _OPTIONAL_ROUTE_MODULES:
@@ -79,6 +85,14 @@ if 'health' in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS['/health'] = _AVAILABLE_ROUTES['health']
 else:
     logger.error("CRITICAL: health route module failed to import - health endpoints will not work")
+
+# API documentation endpoints (public, no auth required)
+if 'openapi_spec' in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS['/api/openapi.json'] = _AVAILABLE_ROUTES['openapi_spec']
+    PUBLIC_HANDLERS['/api/swagger'] = _AVAILABLE_ROUTES['openapi_spec']
+    PUBLIC_HANDLERS['/api/redoc'] = _AVAILABLE_ROUTES['openapi_spec']
+else:
+    logger.error("WARNING: openapi_spec route module failed to import - API documentation unavailable")
 
 # Frontend error logging endpoint (public, may be called before auth)
 if 'logs' in _AVAILABLE_ROUTES:
