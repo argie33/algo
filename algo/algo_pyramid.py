@@ -338,7 +338,7 @@ class PyramidEngine:
             return {'success': False, 'message': f'DB update failed: {str(e)}'}
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
+    from algo.infrastructure import get_config
     e = PyramidEngine(get_config())
     recs = e.evaluate_pyramid_adds()
     logger.info(f"\n{'='*70}\nPYRAMID ADD RECOMMENDATIONS\n{'='*70}")

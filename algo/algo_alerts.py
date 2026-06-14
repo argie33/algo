@@ -20,7 +20,7 @@ from email.mime.multipart import MIMEMultipart
 import logging
 import re
 from urllib.parse import urlparse
-from algo.algo_config import get_webhook_timeout
+from algo.infrastructure import get_webhook_timeout
 
 logger = logging.getLogger(__name__)
 

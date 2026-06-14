@@ -106,7 +106,7 @@ class EarningsBlackout:
             return []
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
+    from algo.infrastructure import get_config
     config = get_config()
     eb = EarningsBlackout(config)
 

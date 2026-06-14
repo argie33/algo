@@ -13,7 +13,7 @@ Features:
 
 from config.credential_manager import get_alpaca_credentials
 from config.alpaca_config import get_alpaca_base_url
-from algo.algo_config import get_api_timeout, get_alpaca_timeout
+from algo.infrastructure import get_api_timeout, get_alpaca_timeout
 
 import os
 import json

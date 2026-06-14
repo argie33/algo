@@ -21,7 +21,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
-from algo.algo_config import get_alpaca_timeout
+from algo.infrastructure import get_alpaca_timeout
 from utils.db.context import DatabaseContext
 import os
 import json
@@ -742,7 +742,7 @@ class PositionMonitor:
             from config.alpaca_config import get_alpaca_base_url
             from config.credential_manager import get_alpaca_credentials
             import requests
-            from algo.algo_config import get_api_timeout
+            from algo.infrastructure import get_api_timeout
 
             creds = get_alpaca_credentials()
             base_url = get_alpaca_base_url()
@@ -815,7 +815,7 @@ class PositionMonitor:
                 return []
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
+    from algo.infrastructure import get_config
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
 

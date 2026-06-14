@@ -777,7 +777,7 @@ class CircuitBreaker:
 
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
+    from algo.infrastructure import get_config
     cb = CircuitBreaker(get_config())
     result = cb.check_all()
     logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")

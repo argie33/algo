@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.db.context import DatabaseContext
 from algo.algo_orchestrator import Orchestrator
 from algo.algo_market_calendar import MarketCalendar
-from algo.algo_config import get_config
+from algo.infrastructure import get_config
 
 logging.basicConfig(
     level=logging.INFO,

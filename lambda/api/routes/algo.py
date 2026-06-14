@@ -2557,7 +2557,7 @@ def _categorize_config_key(key: str) -> str:
 @db_route_handler('fetch algo config')
 def _get_algo_config(cur) -> Dict:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
-    from algo.algo_config import AlgoConfig
+    from algo.infrastructure import AlgoConfig
 
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
     rows = cur.fetchall()
@@ -2593,7 +2593,7 @@ def _get_algo_config_key(cur, key: str) -> Dict:
 @db_route_handler('update algo config key')
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         """Update a configuration key (TIER 4: Configuration Editing)."""
-        from algo.algo_config import AlgoConfig
+        from algo.infrastructure import AlgoConfig
 
         if not body or 'value' not in body:
             return error_response(400, 'bad_request', 'value required in request body')
@@ -2652,7 +2652,7 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
 @db_route_handler('reset algo config key')
 def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
-    from algo.algo_config import AlgoConfig
+    from algo.infrastructure import AlgoConfig
 
     # Validate the key exists
     if key not in AlgoConfig.DEFAULTS:

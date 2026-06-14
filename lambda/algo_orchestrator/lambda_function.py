@@ -54,7 +54,7 @@ def lambda_handler(event, context):
     """
 
     # Reset config singleton on invocation to load fresh DB config
-    from algo.algo_config import reset_config
+    from algo.infrastructure import reset_config
     reset_config()
 
     source = "unknown"

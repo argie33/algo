@@ -657,7 +657,7 @@ class ExitEngine:
             return None
 
 if __name__ == "__main__":
-    from algo.algo_config import get_config
+    from algo.infrastructure import get_config
     config = get_config()
     engine = ExitEngine(config)
     exits = engine.check_and_execute_exits()

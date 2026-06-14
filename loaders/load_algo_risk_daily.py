@@ -117,7 +117,7 @@ class AlgoRiskDailyLoader(OptimalLoader):
 
         M3 FIX: Risk percentiles now loaded from config instead of hardcoded.
         """
-        from algo.algo_config import AlgoConfig
+        from algo.infrastructure import AlgoConfig
         cfg = AlgoConfig()
 
         # Extract daily returns

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from algo.algo_config import get_subprocess_timeout
+from algo.infrastructure import get_subprocess_timeout
 from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
     ORCHESTRATOR_RUN_TIMES_TUPLE, ORCHESTRATOR_KILL_BUFFER_MINUTES
@@ -32,7 +32,7 @@ class Orchestrator:
     HALT_FLAG_DYNAMODB_KEY = 'orchestrator_halt'
 
     def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
-        from algo.algo_config import get_config
+        from algo.infrastructure import get_config
         self.config = config or get_config()
 
         # Override execution_mode from environment variable if set

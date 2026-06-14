@@ -37,7 +37,7 @@ class ThresholdConfig:
             Config value or default
         """
         try:
-            from algo.algo_config import get_config
+            from algo.infrastructure import get_config
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:

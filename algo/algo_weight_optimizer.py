@@ -59,7 +59,7 @@ class WeightOptimizer:
 
     def _get_config(self):
         """Get AlgoConfig singleton."""
-        from algo.algo_config import get_config
+        from algo.infrastructure import get_config
 
         return get_config()
 

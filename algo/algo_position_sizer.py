@@ -11,7 +11,7 @@ Rules:
 - Max positions: 12 concurrent
 """
 
-from algo.algo_config import get_alpaca_timeout
+from algo.infrastructure import get_alpaca_timeout
 import os
 from datetime import date as _date
 from utils.db.context import DatabaseContext

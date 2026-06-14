@@ -23,7 +23,7 @@ import logging
 import random
 import time
 from typing import Callable, Tuple, Type
-from algo.algo_config import get_api_timeout
+from algo.infrastructure import get_api_timeout
 
 logger = logging.getLogger(__name__)
 

@@ -72,7 +72,7 @@ class MarketExposure:
     W_NAAIM = 3
 
     def __init__(self):
-        from algo.algo_config import get_config
+        from algo.infrastructure import get_config
         self.config = get_config()
 
     def _with_cursor(self, operation):

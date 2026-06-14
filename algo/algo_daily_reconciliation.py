@@ -9,7 +9,7 @@ import logging
 import requests
 from datetime import datetime, timezone, timedelta, date as _date_type
 from utils.trading.status import TradeStatus, PositionStatus
-from algo.algo_config import get_config, get_api_timeout
+from algo.infrastructure import get_config, get_api_timeout
 from algo.algo_notifications import notify
 
 logger = logging.getLogger(__name__)
@@ -399,7 +399,7 @@ class DailyReconciliation:
             return {'updated': 0, 'message': 'No Alpaca credentials'}
         try:
             import requests
-            from algo.algo_config import get_api_timeout
+            from algo.infrastructure import get_api_timeout
 
             since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
             resp = requests.get(
@@ -578,7 +578,7 @@ class DailyReconciliation:
             return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca credentials'}
         try:
             import requests
-            from algo.algo_config import get_api_timeout
+            from algo.infrastructure import get_api_timeout
             resp = requests.get(
                 f'{self._alpaca_base_url}/v2/positions',
                 headers={'APCA-API-KEY-ID': self._alpaca_key,

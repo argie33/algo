@@ -395,7 +395,7 @@ class SwingTraderScore:
     def _load_config_val(self, key: str, default):
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
-            from algo.algo_config import get_config
+            from algo.infrastructure import get_config
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:

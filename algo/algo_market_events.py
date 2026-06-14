@@ -12,7 +12,7 @@ Implements fail-safe protocols that override strategy logic.
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
-from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
+from algo.infrastructure import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 
