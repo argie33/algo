@@ -226,7 +226,7 @@ jobs:
         run: |
           pip install -q pytest pytest-cov pytest-mock
           pip install -q psycopg2-binary python-dotenv requests boto3
-          pip install -q yfinance pandas
+          pip install -q yfinance pandas pydantic
       - name: Run integration tests
         run: pytest tests/integration/ -m "not db" --tb=short -q
         env:
