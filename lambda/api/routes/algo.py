@@ -2838,7 +2838,7 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
         'period_days': days
     })
 
-@db_route_handler('get algo portfolio', default_error_response={})
+@db_route_handler('get algo portfolio')
 def _get_algo_portfolio(cur) -> Dict:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown."""
     try:
@@ -2928,7 +2928,7 @@ def _get_algo_metrics(cur) -> Dict:
         logger.error(f'Metrics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Metrics unavailable')
 
-@db_route_handler('get risk metrics', default_error_response={})
+@db_route_handler('get risk metrics')
 def _get_risk_metrics(cur) -> Dict:
     """Get portfolio risk metrics."""
     try:
@@ -2962,7 +2962,7 @@ def _get_risk_metrics(cur) -> Dict:
         logger.error(f'Risk metrics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Risk metrics unavailable')
 
-@db_route_handler('get performance analytics', default_error_response={})
+@db_route_handler('get performance analytics')
 def _get_performance_analytics(cur) -> Dict:
     """Get performance analytics data."""
     try:
@@ -3000,7 +3000,7 @@ def _get_performance_analytics(cur) -> Dict:
         logger.error(f'Performance analytics fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Performance analytics unavailable')
 
-@db_route_handler('get sentiment', default_error_response={})
+@db_route_handler('get sentiment')
 def _get_sentiment(cur) -> Dict:
     """Get market sentiment data.
 
