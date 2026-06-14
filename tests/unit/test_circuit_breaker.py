@@ -9,7 +9,7 @@ from pathlib import Path
 # Add algo directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from algo.algo_circuit_breaker import CircuitBreaker
+from algo.risk import CircuitBreaker
 
 
 @pytest.fixture

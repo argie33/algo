@@ -145,19 +145,16 @@ def load_seasonality() -> int:
 
         total = len(monthly_records) + len(dow_records)
 
-        # Update data_loader_status so ServiceHealth can track freshness
-        try:
-            cur.execute(
-                "DELETE FROM data_loader_status WHERE table_name = %s",
-                ('seasonality_monthly_stats',)
-            )
-            cur.execute(
-                "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
-                "VALUES (%s, %s, %s, NOW())",
-                ('seasonality_monthly_stats', len(monthly_records), date.today())
-            )
-        except Exception as e:
-            logger.warning(f"Failed to update data_loader_status for seasonality_monthly_stats: {e}")
+        # Update data_loader_status atomically with data insert (no exception suppression)
+        cur.execute(
+            "DELETE FROM data_loader_status WHERE table_name = %s",
+            ('seasonality_monthly_stats',)
+        )
+        cur.execute(
+            "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
+            "VALUES (%s, %s, %s, NOW())",
+            ('seasonality_monthly_stats', len(monthly_records), date.today())
+        )
 
         return total
 

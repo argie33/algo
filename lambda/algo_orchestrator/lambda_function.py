@@ -131,10 +131,10 @@ def lambda_handler(event, context):
         # Fail-open: if Secrets Manager is unavailable, continue with current dry_run value.
         if not dry_run:
             try:
-                import boto3, json as _json
-                sm = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                secret = sm.get_secret_value(SecretId='algo/orchestrator')
-                orch_state = _json.loads(secret.get('SecretString', '{}'))
+                import json as _json
+                from config.credential_manager import get_secret
+                secret_str = get_secret('algo/orchestrator', default='{}')
+                orch_state = _json.loads(secret_str)
                 if orch_state.get('orchestrator_dry_run', False) in (True, 'true', '1'):
                     logger.warning("[F-02] Circuit breaker halted trading — orchestrator_dry_run=true in Secrets Manager")
                     dry_run = True

@@ -1,51 +1,62 @@
 #!/usr/bin/env python3
 """
 Database schema initialization Lambda for RDS PostgreSQL.
-Uses Secrets Manager for credentials. Must run in VPC.
+Uses Secrets Manager for credentials via credential_manager. Must run in VPC.
 Deployed: May 24, 2026 21:56 - Triggering auto database initialization
 """
 
 import json
 import logging
 import os
+import sys
 import re
-import boto3
 import psycopg2
 import psycopg2.sql
+from pathlib import Path
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_DB_PORT = 5432
 
-def get_credentials():
-    """Get DB credentials from Secrets Manager or env vars."""
-    secret_arn = os.environ.get('DB_SECRET_ARN')
-    if secret_arn:
-        try:
-            client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-            response = client.get_secret_value(SecretId=secret_arn)
-            secret = json.loads(response['SecretString'])
-            raw_host = os.environ.get('DB_ENDPOINT') or secret.get('host', '')
-            host = raw_host.split(':')[0] if ':' in raw_host else raw_host
-            return {
-                'host': host,
-                'port': int(secret.get('port', DEFAULT_DB_PORT)),
-                'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
-                'user': secret.get('username'),
-                'password': secret.get('password'),
-            }
-        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
-            logger.error(f'Failed to parse secrets: {e}')
-            # Fall through to env vars
+# Add project root to path for importing config module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-    return {
-        'host': os.environ.get('DB_HOST'),
-        'port': int(os.environ.get('DB_PORT', DEFAULT_DB_PORT)),
-        'database': os.environ.get('DB_NAME', 'stocks'),
-        'user': os.environ.get('DB_USER'),
-        'password': os.environ.get('DB_PASSWORD'),
-    }
+def get_credentials():
+    """Get DB credentials from Secrets Manager or env vars via credential_manager."""
+    try:
+        from config.credential_manager import get_db_credentials
+        return get_db_credentials()
+    except ImportError:
+        logger.warning("Could not import credential_manager, falling back to manual boto3 fetch")
+        # Fallback if config module not available
+        import boto3
+        secret_arn = os.environ.get('DB_SECRET_ARN')
+        if secret_arn:
+            try:
+                client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+                response = client.get_secret_value(SecretId=secret_arn)
+                secret = json.loads(response['SecretString'])
+                raw_host = os.environ.get('DB_ENDPOINT') or secret.get('host', '')
+                host = raw_host.split(':')[0] if ':' in raw_host else raw_host
+                return {
+                    'host': host,
+                    'port': int(secret.get('port', DEFAULT_DB_PORT)),
+                    'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
+                    'user': secret.get('username'),
+                    'password': secret.get('password'),
+                }
+            except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+                logger.error(f'Failed to parse secrets: {e}')
+                # Fall through to env vars
+
+        return {
+            'host': os.environ.get('DB_HOST'),
+            'port': int(os.environ.get('DB_PORT', DEFAULT_DB_PORT)),
+            'database': os.environ.get('DB_NAME', 'stocks'),
+            'user': os.environ.get('DB_USER'),
+            'password': os.environ.get('DB_PASSWORD'),
+        }
 
 def split_sql_statements(sql):
     """Split SQL into statements, respecting dollar-quoted blocks (DO $$ ... $$).

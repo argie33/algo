@@ -15,16 +15,15 @@ class TestIntegration:
 
     def test_end_to_end_signal_generation(self):
         """Test end-to-end signal generation pipeline imports and structure."""
-        from algo.algo_signals import SignalComputer
-        from algo.algo_swing_score import SwingTraderScore
+        from algo.signals import SignalComputer, SwingTraderScore
         assert SignalComputer is not None
         assert SwingTraderScore is not None
 
     def test_live_data_pipeline(self):
         """Test pipeline structure for live market data."""
         try:
-            from algo.algo_trade_executor import TradeExecutor
-            from algo.algo_circuit_breaker import CircuitBreaker
+            from algo.trading import TradeExecutor
+            from algo.risk import CircuitBreaker
             assert TradeExecutor is not None
             assert CircuitBreaker is not None
         except ImportError:

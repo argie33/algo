@@ -306,28 +306,25 @@ class VectorizedTechnicalLoader:
 
 def _update_tech_loader_status(status: str, error_message: str = None):
     """Update data_loader_status for Phase 1 monitoring."""
-    try:
-        with DatabaseContext('write') as cur:
-            if status == 'RUNNING':
+    with DatabaseContext('write') as cur:
+        if status == 'RUNNING':
+            cur.execute("""
+                UPDATE data_loader_status
+                SET status = %s, last_updated = NOW(), execution_started = NOW()
+                WHERE table_name = %s
+            """, (status, 'technical_data_daily'))
+            if cur.rowcount == 0:
                 cur.execute("""
-                    UPDATE data_loader_status
-                    SET status = %s, last_updated = NOW(), execution_started = NOW()
-                    WHERE table_name = %s
-                """, (status, 'technical_data_daily'))
-                if cur.rowcount == 0:
-                    cur.execute("""
-                        INSERT INTO data_loader_status
-                        (table_name, status, last_updated, execution_started)
-                        VALUES (%s, %s, NOW(), NOW())
-                    """, ('technical_data_daily', status))
-            else:
-                cur.execute("""
-                    UPDATE data_loader_status
-                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
-                    WHERE table_name = %s
-                """, (status, error_message, 'technical_data_daily'))
-    except Exception as e:
-        logger.warning(f"Failed to update loader status: {e}")
+                    INSERT INTO data_loader_status
+                    (table_name, status, last_updated, execution_started)
+                    VALUES (%s, %s, NOW(), NOW())
+                """, ('technical_data_daily', status))
+        else:
+            cur.execute("""
+                UPDATE data_loader_status
+                SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
+                WHERE table_name = %s
+            """, (status, error_message, 'technical_data_daily'))
 
 def _tech_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""

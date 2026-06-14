@@ -113,17 +113,14 @@ setup_imports()
             count = len(records)
             logger.info(f"Upserted {count} economic calendar events through {end}")
 
-            try:
-                cur.execute("""
-                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                    VALUES ('economic_calendar', %s, %s, NOW())
-                    ON CONFLICT (table_name) DO UPDATE SET
-                        row_count = EXCLUDED.row_count,
-                        latest_date = EXCLUDED.latest_date,
-                        last_updated = EXCLUDED.last_updated
-                """, (count, end))
-            except Exception as e:
-                logger.warning(f"Could not update loader status: {e}")
+            cur.execute("""
+                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                VALUES ('economic_calendar', %s, %s, NOW())
+                ON CONFLICT (table_name) DO UPDATE SET
+                    row_count = EXCLUDED.row_count,
+                    latest_date = EXCLUDED.latest_date,
+                    last_updated = EXCLUDED.last_updated
+            """, (count, end))
 
             return count
         except Exception as e:

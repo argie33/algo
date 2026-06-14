@@ -17,34 +17,45 @@ Resets:
 
 import json
 import os
+import sys
 import time
 import boto3
 import logging
 import psycopg2
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
+# Add project root to path for importing config module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 dynamodb = boto3.resource('dynamodb')
-secretsmanager = boto3.client("secretsmanager")
 
 def get_db_credentials():
-    """Fetch database credentials from Secrets Manager."""
+    """Fetch database credentials from credential_manager (centralized)."""
     try:
-        secret_id = "algo/database"
-        response = secretsmanager.get_secret_value(SecretId=secret_id)
-        creds = json.loads(response["SecretString"])
-        return {
-            'host': creds.get('host'),
-            'port': int(creds.get('port', 5432)),
-            'database': creds.get('dbname'),
-            'user': creds.get('username'),
-            'password': creds.get('password')
-        }
-    except Exception as e:
-        logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
-        raise
+        from config.credential_manager import get_db_credentials as get_db_creds
+        return get_db_creds()
+    except ImportError:
+        logger.warning("Could not import credential_manager, falling back to direct Secrets Manager fetch")
+        # Fallback if config module not available
+        secretsmanager = boto3.client("secretsmanager")
+        try:
+            secret_id = "algo/database"
+            response = secretsmanager.get_secret_value(SecretId=secret_id)
+            creds = json.loads(response["SecretString"])
+            return {
+                'host': creds.get('host'),
+                'port': int(creds.get('port', 5432)),
+                'database': creds.get('dbname'),
+                'user': creds.get('username'),
+                'password': creds.get('password')
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
+            raise
 
 def get_portfolio_pnl(max_attempts: int = 3):
     """Query current portfolio P&L and calculate intraday variance.

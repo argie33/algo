@@ -5,9 +5,8 @@ import traceback
 from datetime import date as _date
 from typing import Any, Callable
 
-from algo.algo_metrics import MetricsPublisher
+from algo.reporting import MetricsPublisher, AlertManager
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ def run(
         PhaseResult with status and data
     """
     try:
-        from algo.algo_circuit_breaker import CircuitBreaker
+        from algo.risk import CircuitBreaker
         cb = CircuitBreaker(config)
         result = cb.check_all(run_date)
 

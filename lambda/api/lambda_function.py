@@ -48,7 +48,7 @@ logger.setLevel(logging.INFO)
 def fetch_cloudfront_domain_from_secrets():
     """Fetch CloudFront domain from AWS Secrets Manager (thread-safe).
 
-    This eliminates hardcoding CloudFront domain in terraform.tfvars.
+    Uses centralized credential_manager for consistent error handling, caching, and fallback.
     If domain is not found in Secrets Manager, falls back to FRONTEND_URL env var.
 
     Returns: (domain: Optional[str], error: Optional[str])
@@ -64,15 +64,11 @@ def fetch_cloudfront_domain_from_secrets():
             return _CLOUDFRONT_DOMAIN_CACHE, None
 
         try:
-            import boto3
             import json
-
-            secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
-            secret_name = 'algo/cloudfront-domain'
+            from config.credential_manager import get_secret
 
             try:
-                response = secrets_client.get_secret_value(SecretId=secret_name)
-                secret = response.get('SecretString', '')
+                secret = get_secret('algo/cloudfront-domain', default='')
 
                 if isinstance(secret, str) and not secret.startswith('{'):
                     # Plain string secret (just the domain)
@@ -90,7 +86,7 @@ def fetch_cloudfront_domain_from_secrets():
                     logger.warning("[CloudFront] Secret exists but domain is empty")
                     return None, "Secret exists but domain is empty"
 
-            except secrets_client.exceptions.ResourceNotFoundException:
+            except ValueError:
                 logger.info("[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)")
                 return None, "Secret not found"
             except json.JSONDecodeError as e:

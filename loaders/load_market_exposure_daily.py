@@ -16,6 +16,7 @@ Purpose:
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
 
+import sys
 import os
 import logging
 from datetime import date as _date
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 def main():
     """Compute and persist market_exposure_daily for latest trading date."""
     try:
-        from algo.algo_market_exposure import MarketExposure
+        from algo.risk import MarketExposure
         from utils.db.context import DatabaseContext
 
         # Determine the latest trading date from price_daily
@@ -45,7 +46,7 @@ def main():
 
         if not latest_date:
             logger.error("No price data available for SPY — cannot compute market exposure")
-            sys.exit(1)
+            return 1
 
         logger.info(f"Computing market exposure for {latest_date}")
 
@@ -55,7 +56,7 @@ def main():
 
         if result.get('success') is False:
             logger.error(f"Market exposure computation failed: {result.get('error')}")
-            sys.exit(1)
+            return 1
 
         logger.info(f"✓ Market exposure computed:")
         logger.info(f"  Regime: {result.get('regime')}")
@@ -66,11 +67,11 @@ def main():
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
 
         logger.info("✓ Loader completed successfully")
-        sys.exit(0)
+        return 0
 
     except Exception as e:
         logger.error(f"Market exposure loader failed: {e}", exc_info=True)
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
