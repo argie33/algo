@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import requests
 import requests.exceptions
 
-from utils.validation import (
+from data_validation import (
     safe_float, safe_int, safe_json_parse, safe_bool, safe_str,
     validate_required_fields, validate_field_types, log_data_issue
 )

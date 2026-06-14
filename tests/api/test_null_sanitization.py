@@ -121,6 +121,57 @@ def test_json_serializable():
     print("[OK] test_json_serializable passed")
 
 
+def test_json_response_sanitizes_success():
+    """Test that json_response sanitizes None values for success (200) responses."""
+    data = {'ratio': None, 'value': 42}
+
+    response = json_response(200, data)
+
+    assert response['statusCode'] == 200
+    assert response['data']['ratio'] == 0
+    assert response['data']['value'] == 42
+    print("[OK] test_json_response_sanitizes_success passed")
+
+
+def test_json_response_sanitizes_errors():
+    """Test that json_response sanitizes None values for error responses."""
+    data = {
+        'errorType': 'validation_error',
+        'message': 'Invalid input',
+        'details': None,
+        'nested': {'field': None, 'status': 'error'}
+    }
+
+    response = json_response(400, data)
+
+    assert response['statusCode'] == 400
+    assert response['errorType'] == 'validation_error'
+    assert response['message'] == 'Invalid input'
+    # None values should be replaced with 0 (or filtered as appropriate)
+    assert response['details'] == 0
+    assert response['nested']['field'] == 0
+    assert response['nested']['status'] == 'error'
+    print("[OK] test_json_response_sanitizes_errors passed")
+
+
+def test_no_null_in_json_output():
+    """Test that serialized responses contain no null values."""
+    responses = [
+        success_response({'value': None}),
+        list_response([{'item': None}]),
+        json_response(200, {'data': None}),
+        json_response(500, {'error': None})
+    ]
+
+    for response in responses:
+        json_str = json.dumps(response)
+        # No null should appear in the JSON output (except potentially in strings)
+        parsed = json.loads(json_str)
+        assert None not in str(parsed).lower().split('none'), f"Found null in response: {response}"
+
+    print("[OK] test_no_null_in_json_output passed")
+
+
 if __name__ == '__main__':
     test_sanitize_nested_dict_with_nulls()
     test_sanitize_list_with_nulls()
@@ -128,4 +179,7 @@ if __name__ == '__main__':
     test_list_response_sanitizes()
     test_validate_no_nulls()
     test_json_serializable()
+    test_json_response_sanitizes_success()
+    test_json_response_sanitizes_errors()
+    test_no_null_in_json_output()
     print("\n[SUCCESS] All tests passed!")

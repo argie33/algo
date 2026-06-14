@@ -119,7 +119,7 @@ class TestPooledConnectionManager(unittest.TestCase):
 
         manager.release()
 
-    @patch('utils.db.pooled_connection_manager._get_connection_pool')
+    @patch('utils.db.connection._get_connection_pool')
     def test_manager_idempotent_release(self, mock_get_pool):
         """Test that release is idempotent."""
         mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
