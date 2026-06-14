@@ -617,7 +617,7 @@ function RecentPerformance({ rows, timeframe }) {
           try {
             const symbols = chunk.map(r => r.symbol).join(',');
             const res = await api.get(`/api/prices/batch-history?symbols=${encodeURIComponent(symbols)}&timeframe=${timeframe}&limit=60`);
-            const symbolsData = res?.data?.symbols || {};
+            const symbolsData = res?.data?.data?.symbols || res?.data?.symbols || {};
 
             // Map results back to entry objects
             return chunk.map(r => {

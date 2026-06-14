@@ -10,7 +10,7 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 
 import logging
 from datetime import date as _date
-from typing import Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List, Tuple
 
 try:
     import numpy as np
@@ -192,7 +192,7 @@ class WeightOptimizer:
         report_date: _date,
         regime: str = 'confirmed_uptrend',
         dry_run: bool = False,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Run full optimization cycle: compute → blend → persist.
 

@@ -9,14 +9,14 @@ Gracefully handle missing options data (many small-caps have no options).
 
 import logging
 from datetime import date as _date
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 
-    def iv_rank_signal(self, symbol: str, eval_date: _date) -> Dict[str, any]:
+    def iv_rank_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
         def _fetch_iv(cur):
             cur.execute(
                 """
@@ -61,7 +61,7 @@ class SignalOptionsMixin:
             logger.debug(f"IV rank signal failed for {symbol}: {e}")
             return {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
 
-    def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> Dict[str, any]:
+    def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
         """
         Stock-level put/call ratio from options_chains.
 
@@ -122,7 +122,7 @@ class SignalOptionsMixin:
         self,
         symbol: str,
         eval_date: _date,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Options-implied move = current_IV * sqrt(days_to_expiry / 365)
 
@@ -194,7 +194,7 @@ class SignalOptionsMixin:
                 'bonus_pts': 0.0,
             }
 
-    def options_signal(self, symbol: str, eval_date: _date) -> Dict[str, any]:
+    def options_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
         """
         Aggregate all options signals for use in momentum component scoring.
 

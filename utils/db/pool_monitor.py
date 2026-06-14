@@ -10,7 +10,7 @@ Monitors connection pool saturation during high-load periods:
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 # Inlined from algo.infrastructure.constants — avoids importing the algo package
 # at module load time, which is not available in the API Lambda runtime.
 DB_MAX_CONNECTIONS = 100       # db.t4g.small safety threshold
@@ -30,7 +30,7 @@ class RDSPoolMonitor:
     def __init__(self):
         self.region = os.getenv('AWS_REGION', 'us-east-1')
 
-    def get_connection_pool_status(self) -> Dict[str, any]:
+    def get_connection_pool_status(self) -> Dict[str, Any]:
         """Query RDS for current connection pool usage.
 
         Returns:
@@ -212,7 +212,7 @@ class RDSPoolMonitor:
             except Exception as e:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
-    def check_eod_readiness(self) -> Dict[str, any]:
+    def check_eod_readiness(self) -> Dict[str, Any]:
         """Check if RDS is ready for EOD pipeline (4:05 PM).
 
         Returns:

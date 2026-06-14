@@ -10,7 +10,7 @@ DynamoDB is critical for:
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class DynamoDBHealthCheck:
             logger.error(f"[DynamoDB] Connectivity check FAILED: {e}")
             return False
 
-    def get_halt_flag_status(self) -> Dict[str, any]:
+    def get_halt_flag_status(self) -> Dict[str, Any]:
         """Get current halt flag state from DynamoDB.
 
         Returns:
@@ -91,7 +91,7 @@ class DynamoDBHealthCheck:
                 'last_checked': datetime.now().isoformat(),
             }
 
-    def get_phase1_degraded_mode_status(self) -> Dict[str, any]:
+    def get_phase1_degraded_mode_status(self) -> Dict[str, Any]:
         """Get Phase 1 degraded mode status.
 
         Returns:
@@ -129,7 +129,7 @@ class DynamoDBHealthCheck:
                 'error': str(e),
             }
 
-    def check_lock_status(self) -> Dict[str, any]:
+    def check_lock_status(self) -> Dict[str, Any]:
         """Check distributed lock status (orchestrator-run-lock).
 
         Returns:

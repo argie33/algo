@@ -53,7 +53,7 @@ class _CorrelationIdCursor:
     def fetchall(self):
         return self.cursor.fetchall()
 
-    def fetchmany(self, size: int = None):
+    def fetchmany(self, size: Optional[int] = None):
         return self.cursor.fetchmany(size)
 
     def close(self):

@@ -11,6 +11,7 @@ import json
 import uuid
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 try:
     import boto3
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 class DynamoDBLockManager:
     """Distributed lock manager using DynamoDB conditional writes."""
 
-    def __init__(self, table_name: str = None, lock_duration_seconds: int = 600):
+    def __init__(self, table_name: Optional[str] = None, lock_duration_seconds: int = 600):
         """Initialize lock manager.
 
         Args:

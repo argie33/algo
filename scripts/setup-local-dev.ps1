@@ -203,12 +203,14 @@ if (-not $LocalOnly) {
         }
     }
 
-    # Fallback to known deployment values
     if (-not $ApiUrl) {
-        Write-Host "[FALLBACK] Using known deployment values" -ForegroundColor Yellow
-        $ApiUrl = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
-        $PoolId = "us-east-1_XJpLb9SKX"
-        $ClientId = "6smb0vrcidd9kvhju2kn2a3qrl"
+        Write-Error-Custom "Could not retrieve dashboard credentials from Secrets Manager or Terraform."
+        Write-Host ""
+        Write-Host "To fix this, ensure:" -ForegroundColor Yellow
+        Write-Host "  1. AWS credentials are valid:  scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
+        Write-Host "  2. Terraform has been applied: cd terraform && terraform apply" -ForegroundColor Yellow
+        Write-Host "  3. algo/dashboard-config secret exists in Secrets Manager" -ForegroundColor Yellow
+        exit 1
     }
 
     Write-Success "Credentials retrieved"

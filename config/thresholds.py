@@ -17,7 +17,7 @@ Architecture:
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +234,7 @@ class ThresholdConfig:
         return float(ThresholdConfig._get_config_value('portfolio_variance_threshold', 0.15))
 
     @staticmethod
-    def get_all_thresholds() -> Dict[str, any]:
+    def get_all_thresholds() -> Dict[str, Any]:
         """Export all thresholds as a flat dict for inspection/debugging.
 
         Returns:

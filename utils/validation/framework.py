@@ -474,7 +474,7 @@ def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
 
 
 def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
-                   field_name: str = None) -> Any:
+                   field_name: Optional[str] = None) -> Any:
     """Parse JSON string with configurable failure behavior (dashboard API variant).
 
     Args:
@@ -514,7 +514,7 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
 
 
 def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
-                             source: str = None) -> bool:
+                             source: Optional[str] = None) -> bool:
     """Check if required fields exist in data dict. Log warnings for missing fields."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
@@ -525,7 +525,7 @@ def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
 
 
 def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
-                         source: str = None) -> bool:
+                         source: Optional[str] = None) -> bool:
     """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
     for field, expected_type in type_spec.items():
