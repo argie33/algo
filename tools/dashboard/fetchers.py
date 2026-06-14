@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from utils.validation import (
+from data_validation import (
     safe_int, safe_float, safe_json_parse, safe_bool,
     safe_float_strict, safe_int_strict, StrictValidationError
 )
