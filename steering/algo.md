@@ -572,11 +572,38 @@ Technical indicators (RSI, SMA_50, SMA_200, EMA_21, ADX, ATR, Mansfield_RS) are 
 
 This design tolerates incomplete upstream data and ensures signals always have technical data when available.
 
+## Halt Flag Architecture (DynamoDB + RDS Redundancy)
+
+**Problem Solved:** Previously, halt flag was stored only in DynamoDB, creating a single point of failure. Any DynamoDB outage would halt all trading even if the underlying reason for the halt had cleared.
+
+**Solution (FIXED):** Dual-storage with intelligent fallback.
+
+**Storage Strategy:**
+- **Write:** Always write halt flag to both DynamoDB and RDS (`algo_runtime_state` table)
+- **Read:** Try DynamoDB first (fast), fall back to RDS if DynamoDB unavailable
+- **Circuit Breaker:** If DynamoDB fails >3 times in 5 minutes, skip DynamoDB reads and use RDS only (prevents cascade failure)
+
+**Implementation:**
+- Core logic: `utils/db/halt_flag.py` (HaltFlagManager class)
+- Database backing: `algo_runtime_state` table in RDS (added to schema.sql)
+- Orchestrator integration: `algo/algo_orchestrator.py` uses HaltFlagManager instead of direct DynamoDB calls
+- Failover: If both storages unavailable, fail-closed (conservatively assume halt for safety)
+
+**TTL & Cleanup:**
+- Halt flag records have `expires_at` field (24h TTL)
+- Can be manually cleaned up: `DELETE FROM algo_runtime_state WHERE expires_at < NOW()`
+- Auto-expires halt flag at market open of next trading day (via timestamp comparison in HaltFlagManager)
+
+**Monitoring:**
+- Log entries: `[HALT_FLAG]` prefix for all halt flag operations
+- Metric: `HaltFlagCheckFailure` emitted when both storages unavailable
+- CloudWatch alarm: Monitor for repeated HaltFlagCheckFailure metrics (indicates infrastructure issue)
+
 ## Known Limitations & Mitigations
 
 **F-01 (Position monitoring pricing):** Position monitor uses daily closing prices from the database (price_daily table) for all price data. Real-time pricing fallback chains were removed as dead code.
 
-**F-02 (Intraday circuit breaker):** Lambda runs at 10 AM, 12 PM, 3 PM ET (halt if portfolio P&L drops >15%). Updates DynamoDB `orchestrator_halt` flag. Flag auto-expires on prior trading day.
+**F-02 (Halt flag redundancy):** Halt flag now uses dual-storage (DynamoDB + RDS) with circuit breaker pattern. Single storage failure no longer halts all trading. If both storages unavailable, fails closed for safety (conservative approach).
 
 **F-03 (Portfolio optimization):** numpy deployed to Lambda layer. Phase 7 executes weight optimization.
 

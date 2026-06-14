@@ -130,21 +130,16 @@ def lambda_handler(event, context):
     if freshness['status'] in ['degraded', 'critical']:
         logger.critical(f"[FRESHNESS] Data quality degraded: {freshness['stale_tables']}")
 
-        # Set halt flag so Phase 1 can detect and stop trading
+        # Set halt flag so orchestrator can detect and stop trading
+        # Uses HaltFlagManager for dual-storage (DynamoDB + RDS redundancy)
         try:
-            import boto3
-            dynamodb = boto3.resource('dynamodb')
-            table = dynamodb.Table(os.environ.get('HALT_FLAG_TABLE', 'algo_orchestrator_state'))
-            table.put_item(Item={
-                'key': 'data_freshness_halt',
-                'halt_flag': True,
-                'reason': f"Data freshness degraded: {'; '.join(freshness['stale_tables'][:3])}",
-                'triggered_at': datetime.now(timezone.utc).isoformat(),
-                'ttl': int(datetime.now(timezone.utc).timestamp()) + 86400,  # 24h TTL
-            })
-            logger.info("Set data freshness halt flag in DynamoDB")
+            from utils.db.halt_flag import get_halt_flag_manager
+            halt_manager = get_halt_flag_manager()
+            reason = f"Data freshness degraded: {'; '.join(freshness['stale_tables'][:3])}"
+            halt_manager.set_halt_flag(reason)
+            logger.info(f"[FRESHNESS] Set halt flag: {reason}")
         except Exception as db_err:
-            logger.error(f"Could not set halt flag: {db_err}")
+            logger.error(f"[FRESHNESS] Could not set halt flag: {db_err}")
 
     return {
         'statusCode': 200 if freshness['status'] == 'ok' else 202,

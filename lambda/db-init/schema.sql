@@ -1720,6 +1720,31 @@ CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_run_date ON orchestrator_e
 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_status ON orchestrator_execution_log(overall_status);
 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_started ON orchestrator_execution_log(started_at DESC);
 
+-- Runtime state for orchestrator (halt flags, circuit breaker status, etc.)
+-- FIXED Issue #X: Provides RDS-backed redundancy for halt flag (eliminates DynamoDB single point of failure)
+-- Dual-write strategy: Always writes to both DynamoDB and RDS for redundancy
+-- Read strategy: Try DynamoDB first (fast), fall back to RDS if DynamoDB unavailable
+CREATE TABLE IF NOT EXISTS algo_runtime_state (
+    state_key VARCHAR(64) PRIMARY KEY,
+    state_value JSONB NOT NULL,
+    last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(255),
+    -- Halt flag metadata
+    halt_flag BOOLEAN,
+    halt_triggered_at TIMESTAMP,
+    halt_reason TEXT,
+    halt_count INTEGER DEFAULT 0,
+    -- Circuit breaker tracking
+    dynamodb_check_failure_count INTEGER DEFAULT 0,
+    dynamodb_last_failure_at TIMESTAMP,
+    -- TTL (entries older than 24 hours are stale and can be cleaned up)
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_algo_runtime_state_halt ON algo_runtime_state(state_key, halt_flag);
+CREATE INDEX IF NOT EXISTS idx_algo_runtime_state_expires ON algo_runtime_state(expires_at);
+
 -- Daily algo performance metrics (computed from audit_log)
 CREATE TABLE IF NOT EXISTS algo_metrics_daily (
     date DATE PRIMARY KEY,

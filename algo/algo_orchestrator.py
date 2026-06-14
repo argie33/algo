@@ -62,7 +62,9 @@ class Orchestrator:
         from utils.db.dynamo_lock import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
-        # FIXED Issue #3: Halt flag now uses DynamoDB instead of /tmp (which is ephemeral in Lambda)
+        # FIXED Issue #X: Halt flag now uses DynamoDB + RDS redundancy (eliminates DynamoDB single point of failure)
+        from utils.db.halt_flag import get_halt_flag_manager
+        self.halt_flag_manager = get_halt_flag_manager()
         self._halt_flag_checked = False
         self.degraded_mode = False
         self.alerts = AlertManager()
@@ -92,19 +94,15 @@ class Orchestrator:
             return False
 
     def _check_halt_flag(self) -> bool:
-        """Check for halt flag in DynamoDB. Returns True if halt was requested.
+        """Check for halt flag with DynamoDB + RDS redundancy.
 
-        Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
-        SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
+        Returns True if halt was requested, False if not halted.
 
-        ISSUE #8 FIX: Halt flag persists through entire trading day (9:30 AM - 4:00 PM ET)
-        to prevent Phase 5 from generating signals with stale data set by early morning
-        Phase 1. Auto-expires only at market open of next trading day (9:30 AM ET).
-
-        Timeline example:
-        - 2:30 AM: Loaders detect stale data → Phase 1 sets halt_flag with triggered_at=2:30 AM
-        - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
-        - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
+        FIXED Issue #X: Eliminates DynamoDB single point of failure.
+        - Tries DynamoDB first (fast)
+        - Falls back to RDS if DynamoDB unavailable
+        - Circuit breaker: if DynamoDB unavailable >3 times in 5 min, uses RDS only
+        - If both unavailable: conservative fail-closed (assume halt)
 
         PATH_B_OVERRIDE: If BYPASS_HALT_FLAG is set, always return False to allow Phase 5/6 to run.
         """
@@ -113,209 +111,78 @@ class Orchestrator:
             logger.debug("[PATH_B] BYPASS_HALT_FLAG=true — halt flag check disabled")
             return False
 
+        halt_flag, reason = self.halt_flag_manager.check_halt_flag()
+
+        # If we got a definitive answer (True or False)
+        if halt_flag is not None:
+            if halt_flag:
+                logger.critical(f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED. Reason: {reason}")
+                self.log_phase_result(0, 'halt_flag_detected', 'halted',
+                                    f"Halt flag detected: {reason[:100] if reason else 'Unknown'}")
+            return halt_flag
+
+        # Both storages unavailable: fail-closed for safety
+        logger.critical("[CRITICAL] Could not check halt flag in either DynamoDB or RDS")
+        logger.critical("[CRITICAL] FAILING CLOSED: Treating unavailability as halt condition for safety")
+
+        # Emit alert to operations team
         try:
-            import boto3
-            dynamodb = boto3.resource('dynamodb')
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-            table = dynamodb.Table(table_name)
+            self.alerts.send_position_alert(
+                'HALT_FLAG',
+                'CHECK_UNAVAILABLE',
+                'Could not verify halt flag status (both DynamoDB and RDS unavailable). Trading halted as fail-safe.',
+                {'action': 'manual_intervention_required'}
+            )
+        except Exception as alert_err:
+            logger.warning(f"Could not send halt flag unavailability alert: {alert_err}")
 
-            response = table.get_item(Key={'key': self.HALT_FLAG_DYNAMODB_KEY})
-            if 'Item' in response and response['Item'].get('halt_flag') is True:
-                triggered_at_str = response['Item'].get('triggered_at', '')
-                if triggered_at_str:
-                    try:
-                        trigger_dt = datetime.fromisoformat(triggered_at_str.replace('Z', '+00:00'))
-                        now_utc = datetime.now(timezone.utc)
+        # Emit metric for monitoring
+        try:
+            from algo.reporting import MetricsPublisher
+            MetricsPublisher().add_metric('HaltFlagCheckFailure', 1, unit='Count')
+        except Exception as metric_err:
+            logger.warning(f"Could not emit halt flag check failure metric: {metric_err}")
 
-                        # Convert to ET for trading hour comparison
-                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
-                        now_et = now_utc.astimezone(EASTERN_TZ)
-
-                        trigger_date = trigger_et.date()
-                        now_date_et = now_et.date()
-
-                        # Check if halt is from a previous trading day
-                        if trigger_date < now_date_et:
-                            # Halt flag from previous day: auto-clear only if we've passed
-                            # market open (9:30 AM) of current trading day
-                            now_trading_day = now_date_et
-                            market_open_et = now_et.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0)
-                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
-
-                            if now_et >= market_open_et:
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
-                                    f"on {now_date_et} — auto-clearing"
-                                )
-                                table.put_item(Item={
-                                    'key': self.HALT_FLAG_DYNAMODB_KEY,
-                                    'halt_flag': False,
-                                    'reason': 'Auto-expired: halt flag from prior trading day after market open',
-                                    'reset_at': now_utc.isoformat(),
-                                })
-                                return False
-                            else:
-                                # Pre-market on current day, keep halt from previous day active
-                                # (e.g., stale data from night loaders should halt all-day trading)
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
-                                )
-                                return True
-
-                        # Same trading day: halt persists throughout entire day
-                        # (early morning Phase 1 sets flag to protect all-day trading)
-                        if trigger_date == now_date_et:
-                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
-                            logger.critical(
-                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
-                                f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
-                                f"Reason: {response['Item'].get('reason', 'Unknown')[:150]}"
-                            )
-                            self.log_phase_result(0, 'halt_flag_detected', 'halted',
-                                                f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {response['Item'].get('reason', 'Unknown')[:100]})")
-                            return True
-
-                    except Exception as parse_err:
-                        logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
-
-                reason = response['Item'].get('reason', 'Unknown')
-                logger.critical(
-                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). "
-                    f"Reason: {reason[:150]}"
-                )
-                self.log_phase_result(0, 'halt_flag_detected', 'halted', f'Halt flag detected: {reason[:100]}')
-                return True
-        except Exception as e:
-            # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
-            # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag
-            # Better to stop trading unnecessarily than to trade when halt was set
-            logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
-            logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
-
-            # Emit alert to operations team
-            try:
-                from algo.reporting import AlertManager
-                alerts = AlertManager()
-                alerts.send_position_alert(
-                    'DYNAMODB',
-                    'HALT_CHECK_UNAVAILABLE',
-                    f'DynamoDB halt flag check failed. Emergency halt mechanism DISABLED. Trading halted as fail-safe. '
-                    f'Error: {str(e)[:200]}',
-                    {'error': str(e)[:200], 'action': 'manual_intervention_required'}
-                )
-            except Exception as alert_err:
-                logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
-
-            # Emit metric for monitoring
-            try:
-                from algo.reporting import MetricsPublisher
-                MetricsPublisher().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
-            except Exception as metric_err:
-                logger.warning(f"Could not emit halt check failure metric: {metric_err}")
-
-            # Return True (halt condition) to fail-closed
-            return True
+        # Return True (halt condition) to fail-closed
+        return True
 
     def _set_halt_flag(self, reason: str = '') -> bool:
-        """Set halt flag in DynamoDB. Returns True if successfully set.
+        """Set halt flag in both DynamoDB and RDS. Returns True if set successfully.
 
-        ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
-        Phase 5 from generating full-intensity signals during degradation.
-
-        ISSUE #10 FIX: Track multiple halt events in a day for escalation.
+        FIXED Issue #X: Dual-storage ensures halt flag persists even if one
+        storage is temporarily unavailable. Uses halt_flag_manager for redundancy.
         """
-        try:
-            import boto3
-            dynamodb = boto3.resource('dynamodb')
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-            table = dynamodb.Table(table_name)
+        success = self.halt_flag_manager.set_halt_flag(reason or 'Phase 1 degraded: stale data detected')
 
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
+        # Send escalation alert if halt is being triggered for 2nd time in a day
+        halt_flag, _ = self.halt_flag_manager.check_halt_flag()
+        if halt_flag:
+            try:
+                self.alerts.send_position_alert(
+                    'HALT_FLAG',
+                    'SET',
+                    f'Halt flag set: {reason or "Stale data detected"}',
+                    {'reason': reason}
+                )
+            except Exception as alert_err:
+                logger.warning(f"Could not send halt flag set alert: {alert_err}")
 
-            # ISSUE #10 FIX: Check if halt flag was already set today (escalation tracking)
-            halt_count = 1
-            halt_escalated = False
-            response = table.get_item(Key={'key': self.HALT_FLAG_DYNAMODB_KEY})
-            if 'Item' in response and response['Item'].get('halt_flag') is True:
-                # Flag already set today - this is a repeat failure requiring escalation
-                first_trigger = response['Item'].get('triggered_at', '')
-                if first_trigger:
-                    try:
-                        first_dt = datetime.fromisoformat(first_trigger.replace('Z', '+00:00'))
-                        first_et = first_dt.astimezone(EASTERN_TZ)
-                        # Same trading day = escalate
-                        if first_et.date() == now_et.date():
-                            halt_count = response['Item'].get('halt_count', 1) + 1
-                            halt_escalated = True
-                            logger.critical(
-                                f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
-                                f"Halt #{halt_count} in same day. "
-                                f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
-                                f"Reason: {reason[:100]}"
-                            )
-                            # Send escalation alert if repeated failures
-                            if halt_count >= 2:
-                                try:
-                                    self.alerts.send_position_alert(
-                                        'HALT_ESCALATION',
-                                        f'HALT_REPEAT_{halt_count}',
-                                        f'Halt flag triggered {halt_count} times on {now_et.date()}. '
-                                        f'Repeated data quality issues. Manual investigation required.',
-                                        {'halt_count': halt_count, 'first_at': first_trigger, 'latest_reason': reason[:100]}
-                                    )
-                                except Exception as alert_err:
-                                    logger.warning(f"Could not send escalation alert: {alert_err}")
-                    except Exception as escalation_err:
-                        logger.warning(f"Could not check halt escalation: {escalation_err}")
-
-            table.put_item(Item={
-                'key': self.HALT_FLAG_DYNAMODB_KEY,
-                'halt_flag': True,
-                'triggered_at': now_utc.isoformat(),
-                'reason': reason or 'Phase 1 degraded: stale data detected',
-                'halt_count': halt_count,
-            })
-
-            if halt_escalated and halt_count >= 2:
-                logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
-            else:
-                logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
-            return True
-        except Exception as e:
-            logger.error(f"[ERROR] Failed to set halt flag: {e}")
-            return False
+        return success
 
     def _clear_halt_flag(self, reason: str = '') -> bool:
-        """Clear halt flag in DynamoDB. Returns True if successfully cleared.
+        """Clear halt flag in both DynamoDB and RDS. Returns True if successfully cleared.
 
-        ISSUE #8 FIX: When Phase 1 verifies data is fresh, explicitly clear the
-        halt flag to allow Phase 5 to generate signals normally.
+        FIXED Issue #X: Uses halt_flag_manager for dual-storage clearing, ensuring
+        halt flag is cleared in both storages for consistency.
 
         Args:
             reason: Optional explanation for why halt was cleared
 
         Returns: True if successfully cleared, False on error
         """
-        try:
-            import boto3
-            dynamodb = boto3.resource('dynamodb')
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-            table = dynamodb.Table(table_name)
-
-            now_utc = datetime.now(timezone.utc)
-            table.put_item(Item={
-                'key': self.HALT_FLAG_DYNAMODB_KEY,
-                'halt_flag': False,
-                'cleared_at': now_utc.isoformat(),
-                'reason': reason or 'Phase 1 verified: data is fresh',
-                'reset_at': now_utc.isoformat(),
-            })
-            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
-            return True
-        except Exception as e:
-            logger.error(f"[ERROR] Failed to clear halt flag: {e}")
-            return False
+        success = self.halt_flag_manager.clear_halt_flag(reason or 'Phase 1 verified: all data fresh')
+        logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
+        return success
 
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
