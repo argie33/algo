@@ -196,8 +196,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT %s
                 """ % limit
 
-                # Execute with retry logic and exponential backoff on timeout
-                rows = execute_with_timeout(cur, deep_value_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
+                # Execute with single attempt at 20s — complex multi-CTE query needs headroom.
+                # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
+                rows = execute_with_timeout(cur, deep_value_query, timeout_sec=20, max_attempts=1)
                 if rows:
                     freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                     return list_response([safe_json_serialize(dict(r)) for r in rows], data_freshness=freshness)
