@@ -12,6 +12,8 @@
 --
 -- CREATED: 2026-06-11
 
+DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE;
+
 CREATE MATERIALIZED VIEW algo_positions_with_risk AS
 WITH latest_prices AS (
   -- Get most recent price for each symbol

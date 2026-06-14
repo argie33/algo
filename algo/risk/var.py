@@ -31,7 +31,7 @@ class ValueAtRisk:
     def __init__(self, config):
         self.config = config
 
-    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, float]]:
+    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
         """Compute historical simulation VaR.
 
         Args:
@@ -82,7 +82,7 @@ class ValueAtRisk:
             logger.error(f"historical_var error: {e}", exc_info=True)
             return None
 
-    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, float]]:
+    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
 
         Args:
@@ -137,7 +137,7 @@ class ValueAtRisk:
             logger.error(f"CVaR calculation error: {e}", exc_info=True)
             return None
 
-    def stressed_var(self, confidence: float = 0.99) -> Optional[Dict[str, float]]:
+    def stressed_var(self, confidence: float = 0.99) -> Optional[Dict[str, Any]]:
         """Compute stressed VaR using worst 12-month rolling window.
 
         Conservative measure for stress periods.
@@ -239,7 +239,7 @@ class ValueAtRisk:
                     spy_mean = sum(spy_returns) / len(spy_returns)
                     spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
 
-                total_beta_exposure = 0
+                total_beta_exposure = 0.0
                 positions_list = []
 
                 for symbol, qty, cur_price, entry_price in positions:
