@@ -400,7 +400,7 @@ class ValueAtRisk:
             logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
             logger.debug(f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%" if concentration else "  Top 5 Concentration: <unavailable>")
 
-            result = {
+            result: Dict[str, Any] = {
                 'report_date': report_date,
                 'generated_at': datetime.now(timezone.utc).isoformat(),
                 'status': 'ok',

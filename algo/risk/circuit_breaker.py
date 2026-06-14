@@ -83,7 +83,7 @@ class CircuitBreaker:
 
         with DatabaseContext('write', cursor_factory=None) as cur:
             try:
-                results = {
+                results: Dict[str, Any] = {
                     'halted': False,
                     'halt_reasons': [],
                     'checks': {},
@@ -149,8 +149,8 @@ class CircuitBreaker:
                         title='CIRCUIT BREAKER CHECK FAILED',
                         message=f'Circuit breaker logic crashed: {e}. Trading halted until resolved.'
                     )
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
+                except Exception as notify_err:
+                    logger.error(f"Unhandled exception: {notify_err}")
 
                 return {
                     'halted': True,
