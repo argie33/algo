@@ -337,8 +337,12 @@ def panel_circuit(cb, risk=None):
         def fmt_b(br):
             if br is None: return ""
             fired = br.get("fired", False)
-            thr = br.get("thr", 0)
-            cur = br.get("cur", 0)
+            thr = br.get("thr")
+            cur = br.get("cur")
+            if thr is None or cur is None:
+                thr_s = "--" if thr is None else f"{float(thr):.0f}"
+                cur_s = "--" if cur is None else str(cur)
+                return f"[{R if fired else 'dim'}]{br.get('lbl', 'N/A')}:[/]{cur_s}{br.get('u', '')}[dim]/{thr_s}{br.get('u', '')}[/]"
             fc  = R if fired else (Y if float(thr) > 0 and float(cur) / float(thr) >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             return f"[{fc}]{br.get('lbl', 'N/A')}:[/]{cur}{br.get('u', '')}[dim]/{thr:.0f}{br.get('u', '')}[/]{hbar(cur, thr, w=4)}{ind}"
