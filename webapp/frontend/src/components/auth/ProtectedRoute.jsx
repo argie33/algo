@@ -26,18 +26,6 @@ function ProtectedRoute({ children, requireAuth = false, requireRole = null }) {
     return children;
   }
 
-  // In development mode with Cognito configured but no active session, provide fallback access
-  // This prevents blocking dev workflows when Cognito is configured but user isn't logged in
-  if (isDev && requireAuth && !isAuthenticated && cognitoConfigured) {
-    // Use dev tokens for development
-    // Check role requirement
-    if (requireRole && (!user || user.role !== requireRole)) {
-      return <Navigate to="/app" replace />;
-    }
-    // Allow access with fallback dev authentication
-    return children;
-  }
-
   // Production behavior: require authentication when Cognito is configured
   if (requireAuth && !isAuthenticated) {
     return <Navigate to="/login" replace />;

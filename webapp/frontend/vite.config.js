@@ -12,12 +12,12 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   // API URL configuration - read from process.env
-  // Development: Vite proxy routes /api/* to localhost:3001 (api-proxy-server.py)
-  // api-proxy-server.py forwards requests to the real AWS Lambda (algo-api-dev)
-  // Production: Uses explicit URL from VITE_API_URL environment variable
+  // VITE_PROXY_TARGET must be set to AWS API Gateway endpoint
+  // Example: export VITE_PROXY_TARGET=https://abcd1234.execute-api.us-east-1.amazonaws.com
+  // Get endpoint from: cd terraform && terraform output api_gateway_endpoint
   const apiUrl = env.VITE_API_URL || "";
-  // Vite proxy target - development uses localhost:3001 (api-proxy-server.py)
-  const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
+  // Vite proxy target - routes /api/* to AWS API Gateway
+  const proxyTarget = env.VITE_PROXY_TARGET || "";
 
   return {
     plugins: [
@@ -62,6 +62,14 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               timeout: 15000, // 15s to match backend's 8s query timeout + 7s buffer for network/serialization. Some queries use SET LOCAL statement_timeout = '8000ms' for performance.
               configure: (proxy, options) => {
+                // Forward CORS headers from backend to client to fix mixed mock/real API access
+                proxy.on('proxyRes', (proxyRes, req, res) => {
+                  const origin = req.headers.origin;
+                  if (origin) {
+                    proxyRes.headers['Access-Control-Allow-Origin'] = origin;
+                    proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
+                  }
+                });
               },
             },
           }

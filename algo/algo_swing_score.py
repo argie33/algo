@@ -46,6 +46,22 @@ class SwingTraderScore:
             logger.debug(f"Could not load swing weights from config: {e} — using defaults")
         return weights
 
+    def _load_date_thresholds(self, cur) -> Dict[str, int]:
+        """Load date threshold config values."""
+        thresholds = {
+            'swing_score_short_lookback_days': 40,
+            'swing_score_medium_lookback_days': 90,
+            'swing_score_long_lookback_days': 270,
+        }
+        try:
+            keys = ', '.join([f"'{k}'" for k in thresholds.keys()])
+            cur.execute(f"SELECT key, value FROM algo_config WHERE key IN ({keys})")
+            for k, v in cur.fetchall():
+                thresholds[k] = int(v)
+        except Exception as e:
+            logger.debug(f"Could not load date thresholds from config: {e} — using defaults")
+        return thresholds
+
     def compute(self, symbol: str, eval_date, sector: Optional[str] = None, industry: Optional[str] = None) -> Dict[str, Any]:
         """
         Compute the full swing trader score composite with hard-fail gates.
@@ -700,14 +716,16 @@ class SwingTraderScore:
                 ratio_pts = 1
 
         # Accumulation days (last 20 days where close up + volume above 50-day avg)
+        thresholds = self._load_date_thresholds(cur)
+        lookback = thresholds['swing_score_short_lookback_days']
         cur.execute(
-            """
+            f"""
             WITH d AS (
                 SELECT date, close, volume,
                        LAG(close) OVER (ORDER BY date) AS prev_close,
                        AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
                 FROM price_daily WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - INTERVAL '40 days'
+                  AND date >= %s::date - INTERVAL '{lookback} days'
             )
             SELECT
                 COUNT(*) FILTER (WHERE close > prev_close * 1.002 AND volume > avg50) AS accum,

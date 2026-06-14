@@ -206,7 +206,7 @@ scripts/refresh-aws-credentials.ps1
 - work_mem: 16MB per sort operation
 - effective_cache_size: 768MB (75% of RAM)
 
-**Lambda API (256 MB, 28s timeout, 1 provisioned concurrency):** Warm container, prevents VPC cold-start
+**Lambda API (256 MB, 25s timeout, 1 provisioned concurrency):** Warm container, prevents VPC cold-start. Deployed at `algo-api-dev`. Environment: 3 layers (API deps + psycopg2 + shared dependencies). Credentials: RDS via Secrets Manager, Alpaca/FRED via algo-secrets-dev. VPC-enabled with 2 private subnets for database access. CORS: Allows CloudFront domain, localhost:3000, localhost:5173.
 
 **Lambda Orchestrator (512 MB, 600s timeout):** Pre-warmed at 9:25 AM (5 min before market open)
 
@@ -319,9 +319,51 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 
 **Circuit Breaker Status:** Distributed DynamoDB lock (`orchestrator-run-lock`) prevents concurrent orchestrator executions. 600-second expiration.
 
+## Lambda API Configuration Status
+
+**Deployment Status:** ✓ DEPLOYED
+- Function name: `algo-api-dev`
+- Runtime: Python 3.12
+- Memory: 256 MB
+- Timeout: 25 seconds (API Gateway hard limit: 29s)
+- Provisioned concurrency: 1 (keeps one container warm)
+- Reserved concurrency: 50 (supports 26 concurrent dashboard calls from MarketsHealth + headroom)
+- VPC: Enabled with 2 private subnets for RDS access
+- Layers: API dependencies + psycopg2 + shared (numpy/pandas/scipy)
+
+**Environment Configuration:**
+- DB_HOST: RDS Proxy endpoint (`algo-rds-proxy-dev.proxy-...rds.amazonaws.com`)
+- DB_SECRET_ARN: Fetched from Secrets Manager at cold-start
+- CLOUDFRONT_DOMAIN: Set dynamically at deployment (e.g., `https://d2u93...cloudfront.net`)
+- COGNITO_USER_POOL_ID: Set from deployed Cognito user pool
+- ALGO_SECRETS_ARN: Alpaca API keys from Secrets Manager
+
+**Health Check:**
+- Endpoint: `/api/health` (no auth required)
+- Returns: `statusCode: 200` with system health snapshot (RDS connections, data freshness, import status)
+- Example response: `{"status": "healthy" | "degraded" | "critical", "rds_connection_pool": {...}, "freshness": {...}}`
+
+**Database Connectivity:**
+- RDS Proxy acts as connection pool manager
+- Expected connections during active requests: 20-30 (from 48-96 loader connections via proxy)
+- Timeout errors: Check RDS Performance Insights for slow queries (7-day free tier)
+- Connection refusal: Check security group ingress rules (must allow port 5432 from Lambda SG)
+
+**Testing Lambda API:**
+```bash
+# Direct invocation (for debugging)
+aws lambda invoke --function-name algo-api-dev \
+  --payload '{"httpMethod":"GET","path":"/api/health"}' \
+  --log-type Tail response.json
+cat response.json
+
+# Via API Gateway (production path)
+curl https://<api-gateway-endpoint>/api/health
+```
+
 ## Troubleshooting
 
-**Phase 1 halts on stale data:**
+**Lambda returns 502 Bad Gateway (VPC cold-start timeout):**
 - Check `DATA_FRESHNESS_MAX_HOURS` (may need increase for holidays)
 - Check morning prep pipeline completion: `scripts/orchestrator-history.py recent 1`
 - Check yfinance status: `curl https://query1.finance.yahoo.com/...`

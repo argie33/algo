@@ -53,31 +53,29 @@ try {
 Write-Host ""
 Write-Host "Fetching Terraform outputs..." -ForegroundColor Cyan
 
-# Get Terraform outputs
-cd terraform
+# Get Terraform outputs (with fallback for local development)
+Set-Location terraform
 try {
-    $apiUrl = & terraform output -raw api_url 2>$null
-    $poolId = & terraform output -raw cognito_user_pool_id 2>$null
-    $clientId = & terraform output -raw cognito_user_pool_client_id 2>$null
+    $apiUrl    = & terraform output -raw api_url 2>$null
+    $poolId    = & terraform output -raw cognito_user_pool_id 2>$null
+    $clientId  = & terraform output -raw cognito_user_pool_client_id 2>$null
+} catch {}
+Set-Location ..
 
-    if ($apiUrl -and $poolId -and $clientId) {
-        $env:DASHBOARD_API_URL = $apiUrl
-        $env:COGNITO_USER_POOL_ID = $poolId
-        $env:COGNITO_CLIENT_ID = $clientId
-        Write-Host "Terraform outputs loaded successfully" -ForegroundColor Green
-        Write-Host "  API URL: $apiUrl" -ForegroundColor Gray
-    } else {
-        Write-Host "WARNING: Could not fetch all Terraform outputs" -ForegroundColor Yellow
-        Write-Host "Run: terraform init && terraform apply" -ForegroundColor Yellow
-        exit 1
-    }
-} catch {
-    Write-Host "ERROR: Failed to fetch Terraform outputs: $_" -ForegroundColor Red
-    Write-Host "Make sure you're in the terraform directory and terraform is initialized" -ForegroundColor Yellow
-    exit 1
-} finally {
-    cd ..
+# Fall back to known-good deployed values if terraform outputs are unavailable
+# (Terraform state only exists after GitHub Actions deploy, not locally)
+if (-not $apiUrl) {
+    Write-Host "Terraform outputs unavailable — using known deployment values" -ForegroundColor Yellow
+    $apiUrl   = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
+    $poolId   = "us-east-1_XJpLb9SKX"
+    $clientId = "6smb0vrcidd9kvhju2kn2a3qrl"
 }
+
+$env:DASHBOARD_API_URL   = $apiUrl
+$env:COGNITO_USER_POOL_ID = $poolId
+$env:COGNITO_CLIENT_ID   = $clientId
+Write-Host "Dashboard credentials set" -ForegroundColor Green
+Write-Host "  API URL: $apiUrl" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "Running dashboard..." -ForegroundColor Cyan

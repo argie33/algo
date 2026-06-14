@@ -18,7 +18,9 @@ setup_imports()
 import sys
 import argparse
 import logging
+import os
 import time
+import threading
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -26,7 +28,6 @@ import pandas as pd
 from utils.database_context import DatabaseContext
 from utils.timezone_utils import EASTERN_TZ
 from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
 from algo.algo_market_calendar import MarketCalendar
 
 logger = logging.getLogger(__name__)
@@ -279,8 +280,46 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 
+def _update_swing_loader_status(status: str, error_message: str = None):
+    """Update data_loader_status for Phase 1 monitoring."""
+    try:
+        with DatabaseContext('write') as cur:
+            if status == 'RUNNING':
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_started = NOW()
+                    WHERE table_name = %s
+                """, (status, 'swing_trader_scores'))
+                if cur.rowcount == 0:
+                    cur.execute("""
+                        INSERT INTO data_loader_status
+                        (table_name, status, last_updated, execution_started)
+                        VALUES (%s, %s, NOW(), NOW())
+                    """, ('swing_trader_scores', status))
+            else:
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
+                    WHERE table_name = %s
+                """, (status, error_message, 'swing_trader_scores'))
+    except Exception as e:
+        logger.warning(f"Failed to update swing scores status: {e}")
+
+def _swing_heartbeat_worker(stop_event):
+    """Periodically update last_updated to signal loader is alive."""
+    while not stop_event.is_set():
+        try:
+            time.sleep(60)
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET last_updated = NOW()
+                    WHERE table_name = %s AND status = %s
+                """, ('swing_trader_scores', 'RUNNING'))
+        except Exception as e:
+            logger.debug(f"Swing scores heartbeat failed: {e}")
+
 def main():
-    import os
     parser = argparse.ArgumentParser(description="Vectorized Swing Trader Scores Loader")
     parser.add_argument("--today", action="store_true", help="Intraday mode: only compute today's scores (fast)")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
@@ -292,49 +331,76 @@ def main():
         args.today = True
         logger.info("[ENV] INTRADAY_MODE=true, enabling fast intraday computation")
 
-    # Get symbols
+    # Update status to RUNNING before fetching symbols
+    _update_swing_loader_status('RUNNING')
+
+    # Start heartbeat thread for hung task detection
+    stop_heartbeat = threading.Event()
+    heartbeat_thread = threading.Thread(target=_swing_heartbeat_worker, args=(stop_heartbeat,), daemon=True)
+    heartbeat_thread.start()
+
     try:
-        symbols = get_active_symbols(timeout_secs=300)
-        if args.limit:
-            symbols = symbols[:args.limit]
-        logger.info(f"Loaded {len(symbols)} symbols")
+        # Get symbols
+        try:
+            symbols = get_active_symbols(timeout_secs=300)
+            if args.limit:
+                symbols = symbols[:args.limit]
+            logger.info(f"Loaded {len(symbols)} symbols")
+        except Exception as e:
+            logger.error(f"Failed to get symbols: {e}")
+            _update_swing_loader_status('FAILED', f"Symbol fetch failed: {str(e)}")
+            return 1
+
+        # Run loader
+        loader = VectorizedSwingScoresLoader()
+        result = loader.run(symbols, incremental_only=args.today)
+
+        logger.info(f"Result: {result}")
+
+        # Update status to COMPLETED or FAILED based on result
+        if result.get('rows_inserted', 0) > 0 or result.get('error') is None:
+            _update_swing_loader_status('COMPLETED')
+            final_status = 'completed'
+        else:
+            _update_swing_loader_status('FAILED', result.get('error', 'Unknown error'))
+            final_status = 'failed'
+
+        # Log execution time
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_runs (
+                        loader_name, table_name, run_date, status, records_loaded,
+                        duration_seconds, started_at, completed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        records_loaded = EXCLUDED.records_loaded,
+                        duration_seconds = EXCLUDED.duration_seconds,
+                        completed_at = NOW()
+                """, (
+                    'swing_trader_scores_vectorized',
+                    'swing_trader_scores',
+                    date.today(),
+                    final_status,
+                    result.get('rows_inserted', 0),
+                    result.get('duration_sec', 0)
+                ))
+        except Exception as e:
+            logger.error(f"Failed to log execution: {e}")
+
+        return 0 if final_status == 'completed' else 1
+
     except Exception as e:
-        logger.error(f"Failed to get symbols: {e}")
+        logger.error(f"Unexpected error in main: {e}", exc_info=True)
+        _update_swing_loader_status('FAILED', f"Unexpected error: {str(e)}")
         return 1
-
-    # Run loader
-    loader = VectorizedSwingScoresLoader()
-    result = loader.run(symbols, incremental_only=args.today)
-
-    logger.info(f"Result: {result}")
-
-    # Log execution time
-    try:
-        with DatabaseContext('write') as cur:
-            cur.execute("""
-                INSERT INTO data_loader_runs (
-                    loader_name, table_name, run_date, status, records_loaded,
-                    duration_seconds, started_at, completed_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                )
-                ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    records_loaded = EXCLUDED.records_loaded,
-                    duration_seconds = EXCLUDED.duration_seconds,
-                    completed_at = NOW()
-            """, (
-                'swing_trader_scores_vectorized',
-                'swing_trader_scores',
-                date.today(),
-                'completed' if result.get('rows_inserted', 0) > 0 else 'failed',
-                result.get('rows_inserted', 0),
-                result.get('duration_sec', 0)
-            ))
-    except Exception as e:
-        logger.error(f"Failed to log execution: {e}")
-
-    return 0 if result.get('rows_inserted', 0) > 0 else 1
+    finally:
+        # Stop heartbeat thread
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=5)
 
 if __name__ == "__main__":
     logging.basicConfig(
