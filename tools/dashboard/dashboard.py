@@ -40,6 +40,7 @@ from rich.text import Text
 
 from utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
 from fetchers import load_all
+from error_boundary import error_summary_panel
 from panels import (
     _extract_items, mascot_compact, loading_layout, _expanded_layout,
     panel_header_market, panel_exposure_compact, panel_circuit,
@@ -260,14 +261,29 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     exp_panel = panel_exposure_compact(exp_f)
     mascot_panel = mascot_compact(data, frame)
 
+    # Check for data fetch errors and show summary if present
+    error_panel = error_summary_panel(data)
+
     outer = Layout()
-    outer.split_column(
-        Layout(name="top",  size=10),
-        Layout(name="r1",   ratio=2),
-        Layout(name="r2",   ratio=2),
-        Layout(name="r3",   ratio=2),
-        Layout(name="pos",  ratio=3),
-    )
+    # If there are errors, add error panel at the top
+    if error_panel:
+        outer.split_column(
+            Layout(name="errors", size=3),
+            Layout(name="top",    size=10),
+            Layout(name="r1",     ratio=2),
+            Layout(name="r2",     ratio=2),
+            Layout(name="r3",     ratio=2),
+            Layout(name="pos",    ratio=3),
+        )
+        outer["errors"].update(error_panel)
+    else:
+        outer.split_column(
+            Layout(name="top",  size=10),
+            Layout(name="r1",   ratio=2),
+            Layout(name="r2",   ratio=2),
+            Layout(name="r3",   ratio=2),
+            Layout(name="pos",  ratio=3),
+        )
 
     outer["top"].split_row(
         Layout(name="hdr",      ratio=1),
@@ -352,9 +368,18 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 if not done.is_set():
                     live.update(loading_layout(frame, data_source=data_source))
                 else:
-                    live.update(render_dashboard(
-                        result[0], compact=compact, elapsed=elapsed[0], frame=frame,
-                        view_mode=view_mode[0], data_source=data_source))
+                    try:
+                        layout = render_dashboard(
+                            result[0], compact=compact, elapsed=elapsed[0], frame=frame,
+                            view_mode=view_mode[0], data_source=data_source)
+                        live.update(layout)
+                    except Exception as e:
+                        logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
+                        live.update(Panel(
+                            Text.from_markup(f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"),
+                            title="[bold red]ERROR[/]",
+                            border_style="red",
+                        ))
                 time.sleep(0.125)
         except KeyboardInterrupt:
             pass
@@ -393,11 +418,20 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 if result[0] is None:
                     live.update(loading_layout(frame[0], data_source=data_source))
                 else:
-                    live.update(render_dashboard(
-                        result[0], compact=compact, elapsed=elapsed[0],
-                        frame=frame[0], watch_interval=interval,
-                        last_load_time=last_load[0], refreshing=loading[0],
-                        view_mode=view_mode[0], data_source=data_source))
+                    try:
+                        layout = render_dashboard(
+                            result[0], compact=compact, elapsed=elapsed[0],
+                            frame=frame[0], watch_interval=interval,
+                            last_load_time=last_load[0], refreshing=loading[0],
+                            view_mode=view_mode[0], data_source=data_source)
+                        live.update(layout)
+                    except Exception as e:
+                        logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
+                        live.update(Panel(
+                            Text.from_markup(f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"),
+                            title="[bold red]ERROR[/]",
+                            border_style="red",
+                        ))
                     if not loading[0] and (time.monotonic() - last_load[0]) >= interval:
                         threading.Thread(target=reload, daemon=True).start()
                 time.sleep(0.125)
