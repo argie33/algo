@@ -2063,17 +2063,17 @@ def panel_signals_expanded(sig, sig_eval=None):
             "[dim]sym    stg  type           Q    R:R  vol%    entry    stop   RS  bk-qual   base[/]"
         ))
         for bs in buy_sigs:
-            sym    = (bs.get("symbol") or "--")
+            sym    = str(bs.get("symbol") or "--")
             stg    = bs.get("stage_number")
-            sig_t  = (bs.get("signal_type") or "").replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2").replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV").replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
+            sig_t  = str((bs.get("signal_type") or "")).replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2").replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV").replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
             sq     = bs.get("signal_quality_score") or bs.get("entry_quality_score")
             rr     = bs.get("risk_reward_ratio")
             vsurge = bs.get("volume_surge_pct")
             rs     = bs.get("rs_rating")
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
-            bqual  = (bs.get("breakout_quality") or "")[:9]
-            btype  = (bs.get("base_type") or "")[:9]
+            bqual  = str(bs.get("breakout_quality") or "")[:9]
+            btype  = str(bs.get("base_type") or "")[:9]
             sq_c   = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
             rr_c   = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
             vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
