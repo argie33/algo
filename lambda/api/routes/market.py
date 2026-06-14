@@ -64,12 +64,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT 10
             """
 
-            # Single 8s attempt: if the self-join times out, PostgreSQL raises QueryCanceled
-            # which we catch below and return a clean 504. Two-attempt retry caused Lambda
-            # to be killed (28s hard limit) before the second attempt could also cancel,
-            # producing a raw HTTP 500 from API Gateway instead of a handled error.
+            # Single 15s attempt — self-join on 9000 symbols × 12 dates needs headroom.
+            # Lambda timeout is 25s; kept to single attempt to avoid hitting 28s APIGW limit.
             try:
-                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=1)
+                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=15, max_attempts=1)
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f'[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}')
                 return error_response(504, 'timeout', 'Market breadth data query exceeded timeout')
