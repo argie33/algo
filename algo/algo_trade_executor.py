@@ -315,11 +315,12 @@ class TradeExecutor:
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
+            lookback = self.config.get('position_history_lookback_days', 30)
             cur.execute(
-                """
+                f"""
                 SELECT COUNT(*) FROM algo_trades
                 WHERE symbol = %s AND status IN (%s, %s)
-                  AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+                  AND created_at >= CURRENT_TIMESTAMP - INTERVAL '{lookback} days'
                 """,
                 (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
@@ -333,12 +334,12 @@ class TradeExecutor:
 
             # Find most recent CLOSED trade for this symbol in the last 30 days
             cur.execute(
-                """
+                f"""
                 SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
                        COALESCE(reentry_count, 0) AS reentry_count
                 FROM algo_trades
                 WHERE symbol = %s AND status = %s
-                  AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND exit_date >= CURRENT_DATE - INTERVAL '{lookback} days'
                 ORDER BY exit_date DESC NULLS LAST, id DESC
                 LIMIT 1
                 """,
