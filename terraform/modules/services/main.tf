@@ -417,6 +417,13 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
     }
     origin_override = true
   }
+
+  # AWS provider bug: UpdateResponseHeadersPolicy drops Items from the request body
+  # when origins are sourced from a variable. The deployed policy is correct; ignore
+  # drift so Apply does not fail with "missing required field AccessControlAllowOrigins.Items".
+  lifecycle {
+    ignore_changes = [cors_config]
+  }
 }
 
 # ISSUE #17 FIX: Response headers policy for S3 static assets (config.js, SPA files)
