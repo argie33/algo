@@ -11,7 +11,7 @@ from typing import Iterable, List, Optional, Sequence
 import psycopg2
 import psycopg2.sql
 
-from algo.algo_sql_safety import assert_safe_table, assert_safe_column
+from utils.db.sql_safety import assert_safe_table, assert_safe_column
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)

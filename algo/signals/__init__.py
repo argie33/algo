@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from .core import SignalComputer
-from .vectorized import VectorizedSignalGenerator
-from .swing_score import SwingTraderScore
+from algo.algo_signals import SignalComputer
+from algo.signals_vectorized import VectorizedSignalGenerator
+from algo.algo_swing_score import SwingTraderScore
 
 __all__ = [
     'SignalComputer',
