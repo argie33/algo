@@ -1529,7 +1529,9 @@ jobs:
           echo "Using cluster: $CLUSTER"
 
           # Use the market_health_daily loader task (smallest/fastest, has psycopg2 + DB env vars)
-          TASK_DEF=$(aws ecs list-task-definitions --family-prefix "${PROJECT}-market_health_daily-loader" --sort DESC --max-items 1 --query "taskDefinitionArns[0]" --output text 2>/dev/null)
+          # --status ACTIVE is required: without it, list-task-definitions returns INACTIVE (deregistered)
+          # revisions too, and RunTask rejects them with "Invalid revision number"
+          TASK_DEF=$(aws ecs list-task-definitions --family-prefix "${PROJECT}-market_health_daily-loader" --status ACTIVE --sort DESC --max-items 1 --query "taskDefinitionArns[0]" --output text 2>/dev/null)
           if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
             echo "[WARN] Could not find loader task definition, skipping migrations"
             exit 0
