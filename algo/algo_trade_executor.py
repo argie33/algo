@@ -63,11 +63,11 @@ class TradeExecutor:
         self.alpaca_base_url = get_alpaca_base_url()
 
         # Wire TCA engine for execution quality tracking
-        from algo.algo_tca import TCAEngine
+        from algo.trading import TCAEngine
         self.tca = TCAEngine(config)
 
         # Wire pre-trade hard stops (Phase 5: independent risk layer)
-        from algo.algo_pretrade_checks import PreTradeChecks
+        from algo.trading import PreTradeChecks
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)

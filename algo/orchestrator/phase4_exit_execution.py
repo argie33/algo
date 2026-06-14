@@ -45,7 +45,7 @@ def run(
     # New entries are blocked by Phase 2/6 — exits are always executed.
     try:
         from algo.algo_trade_executor import TradeExecutor
-        from algo.algo_exit_engine import ExitEngine
+        from algo.trading import ExitEngine
 
         # Detect Phase 3 crash: if position monitor errored, _position_recs is []
         # but we may have real open positions. Log a critical alert so we know.

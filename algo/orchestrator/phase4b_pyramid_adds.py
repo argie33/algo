@@ -32,7 +32,7 @@ def run(
         PhaseResult with status 'ok', data containing pyramid adds
     """
     try:
-        from algo.algo_pyramid import PyramidEngine
+        from algo.trading import PyramidEngine
         engine = PyramidEngine(config)
         recs = engine.evaluate_pyramid_adds(run_date)
 
