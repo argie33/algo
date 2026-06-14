@@ -3,6 +3,7 @@
 import logging
 from datetime import date, timedelta
 from algo.algo_orchestrator import Orchestrator
+from algo.infrastructure import get_config
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger('__main__')
@@ -19,7 +20,8 @@ print(f"Testing with Monday (trading day): {monday}\n")
 
 try:
     logger.info("Creating orchestrator...")
-    orch = Orchestrator(run_date=monday, dry_run=True, verbose=True)
+    config = get_config()
+    orch = Orchestrator(config=config, run_date=monday, dry_run=True, verbose=True)
 
     logger.info("Running orchestrator in dry-run mode...")
     result = orch.run()

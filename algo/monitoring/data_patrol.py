@@ -4,6 +4,31 @@ from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
 from config.api_endpoints import get_yahoo_finance_url
 from algo.infrastructure import get_market_data_timeout, get_alpaca_timeout
+from algo.infrastructure.constants import (
+    PATROL_SLOW_CHECK_THRESHOLD_SEC,
+    STALENESS_WINDOW_PRICE_DAILY,
+    STALENESS_WINDOW_TECHNICAL_DATA,
+    STALENESS_WINDOW_BUY_SELL_DAILY,
+    STALENESS_WINDOW_SIGNAL_QUALITY,
+    STALENESS_WINDOW_STOCK_SCORES,
+    STALENESS_WINDOW_EARNINGS_HISTORY,
+    COVERAGE_RATIO_MIN_UNIVERSE_PCT,
+    COVERAGE_RATIO_MIN_NORMAL,
+    EXTREME_PRICE_MOVE_RATIO,
+    EXTREME_MOVE_COUNT_THRESHOLD,
+    VOLUME_LOW_THRESHOLD,
+    VOLUME_HIGH_THRESHOLD,
+    NULL_ANOMALY_MAX_PCT,
+    ZERO_SYMBOLS_ERROR_THRESHOLD,
+    ZERO_SYMBOLS_WARN_THRESHOLD,
+    IDENTICAL_OHLC_THRESHOLD,
+    NEW_LOW_VOLUME_ALERT_COUNT,
+    XVAL_TOP_N_SYMBOLS,
+    PRICE_XVAL_MISMATCH_PCT,
+    CORPORATE_ACTION_DROP_RATIO,
+    CORPORATE_ACTION_LOOKBACK_DAYS,
+    BUY_SELL_CLEAN_PCT_THRESHOLD,
+)
 import os
 import json
 import argparse
@@ -33,7 +58,7 @@ class DataPatrol:
             check_func()
             elapsed = time.time() - start
             self.check_timings[check_name] = elapsed
-            if elapsed > 5:  # alert if check takes >5 seconds
+            if elapsed > PATROL_SLOW_CHECK_THRESHOLD_SEC:
                 self.log(cur, 'perf_slow', 'warn', 'patrol_perf',
                         f'{check_name} took {elapsed:.1f}s (slow)',
                         {'check': check_name, 'seconds': round(elapsed, 1)})
@@ -66,57 +91,35 @@ class DataPatrol:
     def _load_configuration(self, cur):
         """Load patrol configuration from algo_config table with defaults.
 
-        Reads from database first, falls back to hardcoded defaults if not configured.
-
-        Fallback Defaults (used if algo_config record not found):
-        - staleness_windows (days since last update):
-          * price_daily: 7 days
-          * technical_data_daily: 7 days
-          * buy_sell_daily: 7 days
-          * signal_quality_scores: 7 days
-          * stock_scores: 14 days
-          * earnings_history: 120 days
-        - coverage_thresholds:
-          * min_universe_pct: 75% of universe must have data
-          * min_coverage_ratio: 0.75 (75% of records must have values)
-        - price_sanity:
-          * max_daily_move_pct: 50% (flag moves > 50% in one day)
-          * max_daily_move_count: 10 (flag if >10 moves > 50% in lookback window)
-        - volume_sanity:
-          * low_volume_threshold: 1,000,000 shares
-          * high_volume_threshold: 100,000,000 shares
-          * new_low_volume_alert: 50 (flag stocks with volume < 50% of 20d avg)
-        - loader_contracts (minimum acceptable data volumes):
-          * price_daily_14d_min: 40,000 OHLCV records in last 14 days
-          * buy_sell_daily_14d_min: 800 records in last 14 days
-          * coverage_ratio_min: 0.80 (80% of contracts must return data)
+        Reads from database first, falls back to constants defined in
+        algo.infrastructure.constants if not configured.
         """
         config = {
             'staleness_windows': {
-                'price_daily': self._get_config_value(cur, 'patrol_staleness_price_daily', 7),
-                'technical_data_daily': self._get_config_value(cur, 'patrol_staleness_technical_daily', 7),
-                'buy_sell_daily': self._get_config_value(cur, 'patrol_staleness_buy_sell_daily', 7),
-                'signal_quality_scores': self._get_config_value(cur, 'patrol_staleness_signal_quality_scores', 7),
-                'stock_scores': self._get_config_value(cur, 'patrol_staleness_stock_scores', 14),
-                'earnings_history': self._get_config_value(cur, 'patrol_staleness_earnings_history', 120),
+                'price_daily': self._get_config_value(cur, 'patrol_staleness_price_daily', STALENESS_WINDOW_PRICE_DAILY),
+                'technical_data_daily': self._get_config_value(cur, 'patrol_staleness_technical_daily', STALENESS_WINDOW_TECHNICAL_DATA),
+                'buy_sell_daily': self._get_config_value(cur, 'patrol_staleness_buy_sell_daily', STALENESS_WINDOW_BUY_SELL_DAILY),
+                'signal_quality_scores': self._get_config_value(cur, 'patrol_staleness_signal_quality_scores', STALENESS_WINDOW_SIGNAL_QUALITY),
+                'stock_scores': self._get_config_value(cur, 'patrol_staleness_stock_scores', STALENESS_WINDOW_STOCK_SCORES),
+                'earnings_history': self._get_config_value(cur, 'patrol_staleness_earnings_history', STALENESS_WINDOW_EARNINGS_HISTORY),
             },
             'coverage_thresholds': {
-                'min_universe_pct': self._get_config_value(cur, 'patrol_min_universe_pct', 75),
-                'min_coverage_ratio': self._get_config_value(cur, 'patrol_min_coverage_ratio', 0.75),
+                'min_universe_pct': self._get_config_value(cur, 'patrol_min_universe_pct', COVERAGE_RATIO_MIN_UNIVERSE_PCT),
+                'min_coverage_ratio': self._get_config_value(cur, 'patrol_min_coverage_ratio', COVERAGE_RATIO_MIN_NORMAL),
             },
             'price_sanity': {
-                'max_daily_move_pct': self._get_config_value(cur, 'patrol_max_daily_move_pct', 50),
-                'max_daily_move_count': self._get_config_value(cur, 'patrol_max_daily_move_count', 10),
+                'max_daily_move_pct': self._get_config_value(cur, 'patrol_max_daily_move_pct', EXTREME_PRICE_MOVE_PCT),
+                'max_daily_move_count': self._get_config_value(cur, 'patrol_max_daily_move_count', EXTREME_MOVE_COUNT_THRESHOLD),
             },
             'volume_sanity': {
-                'low_volume_threshold': self._get_config_value(cur, 'patrol_low_volume_threshold', 1000000),
-                'high_volume_threshold': self._get_config_value(cur, 'patrol_high_volume_threshold', 100000000),
-                'new_low_volume_alert': self._get_config_value(cur, 'patrol_new_low_volume_alert', 50),
+                'low_volume_threshold': self._get_config_value(cur, 'patrol_low_volume_threshold', VOLUME_LOW_THRESHOLD),
+                'high_volume_threshold': self._get_config_value(cur, 'patrol_high_volume_threshold', VOLUME_HIGH_THRESHOLD),
+                'new_low_volume_alert': self._get_config_value(cur, 'patrol_new_low_volume_alert', NEW_LOW_VOLUME_ALERT_COUNT),
             },
             'loader_contracts': {
                 'price_daily_14d_min': self._get_config_value(cur, 'patrol_price_daily_14d_min', 40000),
                 'buy_sell_daily_14d_min': self._get_config_value(cur, 'patrol_buy_sell_daily_14d_min', 800),
-                'coverage_ratio_min': self._get_config_value(cur, 'patrol_coverage_ratio_min', 0.80),
+                'coverage_ratio_min': self._get_config_value(cur, 'patrol_coverage_ratio_min', COVERAGE_RATIO_MIN_NORMAL),
             },
         }
         return config
@@ -218,8 +221,8 @@ class DataPatrol:
     def check_null_anomalies(self, cur):
         """P2. Sudden spike in NULL values vs historical. Uses patrol_max_null_pct_threshold."""
         try:
-            # Get threshold from config (default 5%)
-            max_null_pct = self._get_config_value(cur, 'patrol_max_null_pct_threshold', 5)
+            # Get threshold from config (default from constants)
+            max_null_pct = self._get_config_value(cur, 'patrol_max_null_pct_threshold', NULL_ANOMALY_MAX_PCT)
 
             cur.execute("""
                 SELECT
@@ -250,13 +253,13 @@ class DataPatrol:
         Uses baseline anomaly detection to avoid false positives on penny stocks
         that legitimately don't trade every day. Detects NEW zero-volume symbols
         rather than flagging the same penny stocks repeatedly.
-        Uses parameterized thresholds: patrol_new_zero_symbols_error, patrol_new_zero_symbols_warn, patrol_identical_ohlc_threshold.
+        Uses parameterized thresholds from algo_config or constants as fallback.
         """
         try:
-            # Get thresholds from config
-            new_zeros_error = self._get_config_value(cur, 'patrol_new_zero_symbols_error', 30)
-            new_zeros_warn = self._get_config_value(cur, 'patrol_new_zero_symbols_warn', 5)
-            ident_threshold = self._get_config_value(cur, 'patrol_identical_ohlc_threshold', 30)
+            # Get thresholds from config (constants define defaults)
+            new_zeros_error = self._get_config_value(cur, 'patrol_new_zero_symbols_error', ZERO_SYMBOLS_ERROR_THRESHOLD)
+            new_zeros_warn = self._get_config_value(cur, 'patrol_new_zero_symbols_warn', ZERO_SYMBOLS_WARN_THRESHOLD)
+            ident_threshold = self._get_config_value(cur, 'patrol_identical_ohlc_threshold', IDENTICAL_OHLC_THRESHOLD)
 
             cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
@@ -332,14 +335,13 @@ class DataPatrol:
         """P5. Volume within realistic range - catches zero-volume and halted symbols.
 
         Penny stocks legitimately have low volume; halted symbols have zero volume.
-        This check flags UNUSUAL patterns using parameterized thresholds:
-        patrol_low_volume_threshold, patrol_high_volume_threshold, patrol_new_low_volume_alert.
+        This check flags UNUSUAL patterns using parameterized thresholds.
         """
         try:
-            # Get thresholds from config
-            low_vol_threshold = self._get_config_value(cur, 'patrol_low_volume_threshold', 1000000)
-            high_vol_threshold = self._get_config_value(cur, 'patrol_high_volume_threshold', 100000000)
-            new_low_alert = self._get_config_value(cur, 'patrol_new_low_volume_alert', 50)
+            # Get thresholds from config (constants define defaults)
+            low_vol_threshold = self._get_config_value(cur, 'patrol_low_volume_threshold', VOLUME_LOW_THRESHOLD)
+            high_vol_threshold = self._get_config_value(cur, 'patrol_high_volume_threshold', VOLUME_HIGH_THRESHOLD)
+            new_low_alert = self._get_config_value(cur, 'patrol_new_low_volume_alert', NEW_LOW_VOLUME_ALERT_COUNT)
 
             cur.execute("""
                 SELECT
@@ -418,11 +420,11 @@ class DataPatrol:
                        ABS(close - prev) / NULLIF(prev, 0) * 100 AS pct_change
                 FROM d
                 WHERE prev IS NOT NULL
-                  AND ABS(close - prev) / NULLIF(prev, 0) > 0.5  -- > 50% move
+                  AND ABS(close - prev) / NULLIF(prev, 0) > %s
                   AND date = (SELECT MAX(date) FROM price_daily)
                 ORDER BY pct_change DESC
                 LIMIT 20
-            """)
+            """, (EXTREME_PRICE_MOVE_RATIO,))
             extreme = cur.fetchall()
             if len(extreme) > 10:
                 self.log(cur, 'price_sanity', WARN, 'price_daily',
@@ -625,13 +627,15 @@ class DataPatrol:
         except Exception as e:
             self.log(cur, 'alignment', ERROR, 'signal_alignment', f'Check failed: {e}', None)
 
-    def check_yahoo_cross_validate(self, top_n=10):
-        """P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
+    def check_yahoo_cross_validate(self, top_n=None):
+        “””P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
         Second-source verification â€” if our DB matches Alpaca but disagrees with
         Yahoo, that's a real signal something's off. Yahoo's chart endpoint
         accepts unauthenticated requests for basic OHLC.
-        """
+        “””
+        if top_n is None:
+            top_n = XVAL_TOP_N_SYMBOLS
         try:
             cur.execute(
                 """
@@ -684,7 +688,7 @@ class DataPatrol:
                     continue
                 our_close = float(row[0])
                 pct_diff = abs(our_close - yahoo_close) / yahoo_close * 100
-                if pct_diff > 5:
+                if pct_diff > PRICE_XVAL_MISMATCH_PCT:
                     mismatches.append({
                         'symbol': sym, 'our_close': our_close,
                         'yahoo_close': yahoo_close,
@@ -699,14 +703,16 @@ class DataPatrol:
 
         if mismatches:
             self.log(cur, 'yahoo_xval', WARN, 'price_daily',
-                     f'{len(mismatches)}/{len(symbols)} top symbols mismatch Yahoo > 5%',
+                     f'{len(mismatches)}/{len(symbols)} top symbols mismatch Yahoo > {PRICE_XVAL_MISMATCH_PCT}%',
                      {'mismatches': mismatches})
         else:
             self.log(cur, 'yahoo_xval', INFO, 'price_daily',
-                     f'All {len(symbols)} top symbols match Yahoo within 5%', None)
+                     f'All {len(symbols)} top symbols match Yahoo within {PRICE_XVAL_MISMATCH_PCT}%', None)
 
-    def check_alpaca_cross_validate(self, top_n=10):
+    def check_alpaca_cross_validate(self, top_n=None):
         """P6. Cross-validate top symbols vs Alpaca (uses existing free credentials)."""
+        if top_n is None:
+            top_n = XVAL_TOP_N_SYMBOLS
         try:
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
@@ -761,7 +767,7 @@ class DataPatrol:
                     continue
                 our_close = float(row[0])
                 pct_diff = abs(our_close - alpaca_close) / alpaca_close * 100
-                if pct_diff > 5:  # >5% difference is suspicious
+                if pct_diff > PRICE_XVAL_MISMATCH_PCT:
                     mismatches.append({
                         'symbol': sym, 'our_close': our_close,
                         'alpaca_close': alpaca_close, 'pct_diff': round(pct_diff, 2),
@@ -775,11 +781,11 @@ class DataPatrol:
 
         if mismatches:
             self.log(cur, 'alpaca_xval', WARN, 'price_daily',
-                     f'{len(mismatches)}/{len(symbols)} symbols mismatch Alpaca >5%',
+                     f'{len(mismatches)}/{len(symbols)} symbols mismatch Alpaca >{PRICE_XVAL_MISMATCH_PCT}%',
                      {'mismatches': mismatches})
         else:
             self.log(cur, 'alpaca_xval', INFO, 'price_daily',
-                     f'All {len(symbols)} top-volume symbols match Alpaca within 5%', None)
+                     f'All {len(symbols)} top-volume symbols match Alpaca within {PRICE_XVAL_MISMATCH_PCT}%', None)
 
     def check_loader_contracts(self, cur):
         """P11. Per-loader contracts â€” each loader has expected output thresholds.
@@ -869,7 +875,7 @@ class DataPatrol:
             row = cur.fetchone()
             if row and row[1] > 0:
                 clean_pct = (row[0] / row[1]) * 100
-                if clean_pct < 80:
+                if clean_pct < BUY_SELL_CLEAN_PCT_THRESHOLD:
                     self.log(cur, 'contract_signal_quality', ERROR, 'buy_sell_daily',
                              f'Only {clean_pct:.1f}% of recent signals are clean BUY/SELL '
                              f'({row[1] - row[0]} NULL/None of {row[1]} total)',
@@ -1076,17 +1082,17 @@ class DataPatrol:
                            LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev,
                            LAG(pd.date) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_date
                     FROM price_daily pd
-                    WHERE pd.date >= CURRENT_DATE - INTERVAL '30 days'
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '%s days'
                 )
                 SELECT symbol, date, close, prev,
                        ABS(close - prev) / NULLIF(prev, 0) * 100 AS pct_change
                 FROM d
                 WHERE prev IS NOT NULL
                   AND date = prev_date + INTERVAL '1 day'
-                  AND (close - prev) / NULLIF(prev, 0) < -0.30
+                  AND (close - prev) / NULLIF(prev, 0) < %s
                 ORDER BY pct_change ASC
                 LIMIT 50
-            """)
+            """ % (CORPORATE_ACTION_LOOKBACK_DAYS, CORPORATE_ACTION_DROP_RATIO))
             extreme_drops = cur.fetchall()
 
             if extreme_drops:

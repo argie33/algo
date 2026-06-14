@@ -1190,7 +1190,9 @@ if __name__ == "__main__":
         logger.info("To run loaders, execute: python3 run-all-loaders.py")
         sys.exit(0)
 
-    orch = Orchestrator(run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
+    from algo.infrastructure import get_config
+    config = get_config()
+    orch = Orchestrator(config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
     try:
         final = orch.run()
         sys.exit(0 if final['success'] else 1)

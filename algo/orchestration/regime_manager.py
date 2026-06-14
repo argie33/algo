@@ -82,7 +82,7 @@ class RegimeManager:
             'target_2_mult': REGIME_TARGET_CORRECTION,
             'target_3_mult': REGIME_TARGET_CORRECTION,
             'min_swing_score': REGIME_MIN_SWING_SCORE_CORRECTION,
-            'weight_update_alpha': 0.0,   # Freeze weights
+            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
             'description': 'Bear market: halt new entries, tight stops, quick exits',
         },
     }

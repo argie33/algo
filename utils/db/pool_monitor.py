@@ -11,6 +11,11 @@ import logging
 import os
 from datetime import datetime
 from typing import Dict, Optional
+from algo.infrastructure.constants import (
+    DB_MAX_CONNECTIONS,
+    DB_POOL_ALERT_THRESHOLD_PCT,
+    DB_POOL_TIMEOUT_SEC,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +23,9 @@ logger = logging.getLogger(__name__)
 class RDSPoolMonitor:
     """Monitor PostgreSQL RDS connection pool saturation."""
 
-    MAX_CONNECTIONS = 100  # db.t4g.small safety threshold
-    WARNING_THRESHOLD_PCT = 75  # Warn if >75% full
-    CRITICAL_THRESHOLD_PCT = 90  # Critical if >90% full
+    MAX_CONNECTIONS = DB_MAX_CONNECTIONS
+    ALERT_THRESHOLD_PCT = DB_POOL_ALERT_THRESHOLD_PCT
+    CRITICAL_THRESHOLD_PCT = 90  # Critical if >90% full (configurable via constants)
 
     def __init__(self):
         self.region = os.getenv('AWS_REGION', 'us-east-1')
@@ -62,7 +67,7 @@ class RDSPoolMonitor:
 
                 if utilization_pct >= self.CRITICAL_THRESHOLD_PCT:
                     status = 'CRITICAL'
-                elif utilization_pct >= self.WARNING_THRESHOLD_PCT:
+                elif utilization_pct >= self.ALERT_THRESHOLD_PCT:
                     status = 'WARNING'
                 else:
                     status = 'HEALTHY'
@@ -235,12 +240,12 @@ class RDSPoolMonitor:
                 f"Only {available} connections available - reduce parallelism or wait for idle connections"
             )
 
-        if pool_pct > 75:
+        if pool_pct > DB_POOL_ALERT_THRESHOLD_PCT:
             recommendations.append(
-                "Pool >75% utilized - monitor closely during EOD, may need to reduce loader parallelism"
+                f"Pool >{DB_POOL_ALERT_THRESHOLD_PCT}% utilized - monitor closely during EOD, may need to reduce loader parallelism"
             )
 
-        ready = available >= 20 and pool_pct <= 75
+        ready = available >= 20 and pool_pct <= DB_POOL_ALERT_THRESHOLD_PCT
 
         # Estimate max safe parallelism
         # Conservative: reserve 30 connections for running loaders, use rest for system

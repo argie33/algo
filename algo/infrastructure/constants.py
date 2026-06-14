@@ -92,7 +92,7 @@ ZERO_SYMBOLS_WARN_THRESHOLD = 5  # Alert WARN if >5 NEW zero-volume symbols
 IDENTICAL_OHLC_THRESHOLD = 30  # Alert WARN if >30 symbols with identical OHLC
 
 # Price sanity checks
-EXTREME_PRICE_MOVE_PCT = 50  # Flag moves > 50% in one day
+EXTREME_PRICE_MOVE_RATIO = 0.5  # Flag moves > 50% in one day
 EXTREME_MOVE_COUNT_THRESHOLD = 10  # Flag if >10 extreme moves in window
 EXTREME_MOVE_COUNT_LOOKBACK_DAYS = 5
 PRICE_XVAL_MISMATCH_PCT = 5  # >5% difference from Yahoo/Alpaca = suspicious
@@ -104,7 +104,7 @@ NEW_LOW_VOLUME_ALERT_COUNT = 50  # Alert if >50 NEW low-volume symbols
 VOLUME_NEW_LOW_PCT = 50  # Flag if volume < 50% of 20d avg
 
 # Corporate actions detection
-CORPORATE_ACTION_DROP_PCT = 30  # Flag if >30% drop in 1 day (likely split/halt/delisting)
+CORPORATE_ACTION_DROP_RATIO = -0.3  # Flag if >30% drop in 1 day (likely split/halt/delisting)
 CORPORATE_ACTION_LOOKBACK_DAYS = 30
 
 # ── Data Loader Contracts ───────────────────────────────────────────────────

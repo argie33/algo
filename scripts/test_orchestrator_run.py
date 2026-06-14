@@ -2,13 +2,15 @@
 import logging
 from datetime import date
 from algo.algo_orchestrator import Orchestrator
+from algo.infrastructure import get_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('__main__')
 
 try:
     logger.info("Starting orchestrator in dry-run mode...")
-    orch = Orchestrator(run_date=date.today(), dry_run=True, verbose=True)
+    config = get_config()
+    orch = Orchestrator(config=config, run_date=date.today(), dry_run=True, verbose=True)
     result = orch.run()
 
     if result.get('success'):

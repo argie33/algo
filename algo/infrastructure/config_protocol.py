@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""
+Configuration Protocol - Type definition for dependency injection.
+
+This module defines the interface that all classes expect from a configuration object.
+It supports both AlgoConfig instances and plain dicts for maximum flexibility during
+the transition to dependency injection.
+"""
+
+from typing import Protocol, Any, Union, Optional, runtime_checkable
+
+
+@runtime_checkable
+class ConfigProtocol(Protocol):
+    """Interface for configuration objects used in dependency injection.
+
+    Supports both AlgoConfig instances (with .get() method) and plain dicts.
+    Classes should accept this type and use config.get(key, default) for access.
+    """
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value with optional default."""
+        ...
+
+    def override(self, key: str, value: Any) -> None:
+        """Apply in-memory-only override (for testing and CLI args)."""
+        ...
+
+    def to_dict(self) -> dict:
+        """Export configuration as dictionary."""
+        ...
+
+
+ConfigType = Union[ConfigProtocol, dict]
+"""Type alias for configuration objects accepted in dependency injection."""

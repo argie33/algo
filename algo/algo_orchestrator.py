@@ -31,9 +31,11 @@ class Orchestrator:
 
     HALT_FLAG_DYNAMODB_KEY = 'orchestrator_halt'
 
-    def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
-        from algo.infrastructure import get_config
-        self.config = config or get_config()
+    def __init__(self, config: Any, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
+        if config is None:
+            raise ValueError("Orchestrator requires explicit config parameter (dependency injection). "
+                           "Remove fallback to get_config() — get config at entry point and pass it explicitly.")
+        self.config = config
 
         # Override execution_mode from environment variable if set
         env_execution_mode = os.getenv('ORCHESTRATOR_EXECUTION_MODE', '').strip().lower()
@@ -62,10 +64,6 @@ class Orchestrator:
         # Database is ALWAYS required - both dry-run and live execution need data to validate phases
         # degraded_mode is ONLY set if database connection actually fails (checked at pre-flight)
         self.degraded_mode = False
-
-        logger.info("[ORCHESTRATOR] About to initialize feature flags")
-        self._initialize_feature_flags()
-        logger.info("[ORCHESTRATOR] Feature flags initialized")
 
         # DB failure counter removed: /tmp is ephemeral in Lambda (doesn't persist across invocations).
         # CloudWatch alarms on DB connection errors are more reliable for detecting outages.
@@ -568,23 +566,6 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
-
-    def _initialize_feature_flags(self) -> None:
-        """Initialize feature flags with safe defaults on startup."""
-        # In AWS Lambda, skip feature flag initialization (uses defaults only)
-        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
-            logger.info("[FEATURE_FLAGS] Skipping initialization in Lambda (using defaults)")
-            return
-
-        try:
-            from utils.infrastructure.feature_flags import initialize_safe_defaults, create_feature_flags_table
-            # Ensure table exists
-            create_feature_flags_table()
-            initialize_safe_defaults()
-        except Exception as e:
-            if self.verbose:
-                logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
-            # Don't fail the orchestrator if flags aren't available
 
     def _validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.
@@ -1207,7 +1188,9 @@ if __name__ == "__main__":
         logger.info("To run loaders, execute: python3 run-all-loaders.py")
         sys.exit(0)
 
-    orch = Orchestrator(run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
+    from algo.infrastructure import get_config
+    config = get_config()
+    orch = Orchestrator(config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
     try:
         final = orch.run()
         sys.exit(0 if final['success'] else 1)

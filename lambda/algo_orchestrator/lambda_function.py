@@ -218,8 +218,11 @@ def lambda_handler(event, context):
                 os.environ[flag_name] = str(flag_value).lower()
                 logger.info(f"[PATH_B] Set {flag_name}={flag_value}")
 
-        # Create orchestrator instance
+        # Create orchestrator instance with explicit config dependency injection
+        from algo.infrastructure import get_config
+        config = get_config()
         orchestrator = Orchestrator(
+            config=config,
             run_date=run_date,
             dry_run=dry_run,
             verbose=not is_test,

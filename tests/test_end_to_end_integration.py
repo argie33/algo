@@ -286,7 +286,7 @@ class EndToEndIntegrationTest:
 
             # Check 1: Orchestrator can be instantiated
             try:
-                orch = Orchestrator(dry_run=True)
+                orch = Orchestrator(config=self.config, dry_run=True)
                 checks['orchestrator_init'] = True
                 logger.info("  ✓ Orchestrator initialization")
             except Exception as e:
