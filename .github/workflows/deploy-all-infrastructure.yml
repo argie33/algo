@@ -935,17 +935,23 @@ jobs:
           POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ steps.outputs.outputs.cognito_user_pool_client_id }}"
 
+          # Fail the deploy if any required output is missing
+          # (Don't silently skip — dashboard won't work without the secret)
           if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
-            echo "[WARN] API URL empty — skipping Secrets Manager update"
-            exit 0
+            echo "[ERROR] API_GATEWAY_ENDPOINT output is empty"
+            echo "Terraform outputs at deploy time:"
+            echo "  api_gateway_endpoint: $API_URL"
+            echo "  cognito_user_pool_id: $POOL_ID"
+            echo "  cognito_user_pool_client_id: $CLIENT_ID"
+            exit 1
           fi
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
-            echo "[WARN] Pool ID empty — skipping Secrets Manager update"
-            exit 0
+            echo "[ERROR] COGNITO_USER_POOL_ID output is empty"
+            exit 1
           fi
           if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
-            echo "[WARN] Client ID empty — skipping Secrets Manager update"
-            exit 0
+            echo "[ERROR] COGNITO_USER_POOL_CLIENT_ID output is empty"
+            exit 1
           fi
 
           SECRET_JSON=$(cat <<EOF
@@ -957,11 +963,11 @@ jobs:
           EOF
           )
 
-          # Create or update the secret
+          # Create or update the secret — fail if this doesn't work
           aws secretsmanager put-secret-value \
             --secret-id algo/dashboard-config \
             --secret-string "$SECRET_JSON" \
-            --region $AWS_REGION 2>&1 | grep -E "ARN|Successfully|ResourceExistsException" || echo "[OK] Secret updated"
+            --region $AWS_REGION || exit 1
 
           echo "[OK] Dashboard credentials saved to algo/dashboard-config in Secrets Manager"
 
