@@ -426,9 +426,8 @@ class MarketExposure:
 
     def _has_follow_through_day(self, eval_date, cur):
         """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""
+        lookback = self.config.get('market_exposure_medium_lookback_days', 30)
         cur.execute(
-            lookback = self.config.get('market_exposure_medium_lookback_days', 30)
-            cur.execute(
             f"""
             WITH d AS (
                 SELECT date, close, volume,
