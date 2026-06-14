@@ -49,14 +49,25 @@ export const useApiQuery = (
       try {
         const response = await queryFn();
         const freshData = extractData(response);
-        // Cache successful result for fallback
+        // Unwrap single-object envelope: {data: payload, statusCode, success} → payload
+        // Lambda always returns json_response(200, payload) which wraps in {data: payload}.
+        // extractData preserves this as {data: payload, statusCode, success}.
+        // Stripping the envelope here means every component gets payload fields directly.
+        const hasEnvelope = (
+          freshData !== null && typeof freshData === 'object' && !Array.isArray(freshData)
+          && freshData.data !== null && freshData.data !== undefined
+          && typeof freshData.data === 'object' && !Array.isArray(freshData.data)
+          && !freshData.items
+        );
+        const result = hasEnvelope ? freshData.data : freshData;
+        // Cache the unwrapped result for consistent access on cache hit
         try {
-          await dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+          await dataCache.set(actualCacheKey, result, { ttl: 30 * 60 * 1000 });
         } catch (cacheErr) {
           console.warn('[useApiQuery] Failed to cache data:', cacheErr.message);
           // Continue anyway - cache failure shouldn't break the query
         }
-        return freshData;
+        return result;
       } catch (err) {
         // Error already logged by api.js interceptor, skip duplicate logging
         // Try to return cached data as fallback when all retries exhausted

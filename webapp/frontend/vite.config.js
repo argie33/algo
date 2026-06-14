@@ -17,14 +17,11 @@ export default defineConfig(({ mode }) => {
   const apiUrl = env.VITE_API_URL || "";
 
   // Vite proxy target for development
-  // VITE_PROXY_TARGET: Set to AWS API Gateway endpoint to route local /api/* calls to AWS.
-  // Example: $env:VITE_PROXY_TARGET="https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
-  // Fallback order:
-  //   1. VITE_PROXY_TARGET env var (set by setup-local-dev.ps1 in PowerShell profile)
-  //   2. Known AWS API Gateway URL (hardcoded fallback so local dev works without extra setup)
-  //   3. localhost:3001 (api-proxy-server.py for fully local development without AWS)
+  // VITE_PROXY_TARGET: Set to the API endpoint to route local /api/* calls.
+  //   - AWS mode:   $env:VITE_PROXY_TARGET="https://<api-gateway-url>"  (set by setup-local-dev.ps1)
+  //   - Local mode: leave unset → proxies to localhost:3001 (api-proxy-server.py + local Docker DB)
   const proxyTarget = isDevelopment
-    ? (env.VITE_PROXY_TARGET || "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com")
+    ? (env.VITE_PROXY_TARGET || "http://localhost:3001")
     : "";
 
   return {

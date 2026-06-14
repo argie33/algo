@@ -370,7 +370,7 @@ function IndicesStrip() {
     () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=30`),
     { staleTime: 60000 }
   );
-  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
+  const symbolMap = safeGetObject(batchData, {}).symbols || {};
   return (
     <div className="card card-pad" style={{ marginTop: 'var(--space-4)' }}>
       <div className="sect-head">
@@ -1491,7 +1491,7 @@ function VolTermStructureCard() {
     () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=2`),
     { staleTime: 60000, refetchInterval: 60000 }
   );
-  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
+  const symbolMap = safeGetObject(batchData, {}).symbols || {};
 
   const getLastClose = (sym) => {
     const series = Array.isArray(symbolMap[sym]) ? symbolMap[sym] : [];

@@ -8,7 +8,7 @@ Set DB env vars before running (defaults match docker-compose.yml):
   DB_PASSWORD   - Database password (default: stocks)
 
 Cognito JWT validation uses real AWS Cognito (internet required):
-  COGNITO_USER_POOL_ID    - User pool ID (e.g. us-east-1_XJpLb9SKX)
+  COGNITO_USER_POOL_ID    - User pool ID (from setup-local-dev.ps1 or PowerShell profile)
   COGNITO_CLIENT_ID       - App client ID
   COGNITO_REGION          - Region (default: us-east-1)
 """

@@ -1349,9 +1349,11 @@ def panel_exposure_compact(exp_f):
     for a, b in zip(items[::2], items[1::2] + [""]):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
-    raw_bar = mini_bar(raw, 100, w=8)
+    raw_bar = mini_bar(raw or 0, 100, w=8)
+    raw_s = f"{(raw or 0):.0f}" if raw is not None else "--"
+    epct_s = f"{(epct or 0):.0f}" if epct is not None else "--"
     header  = Text.from_markup(
-        f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]â†' allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
+        f"[dim]Score:[/][white]{raw_s}[/][dim]/100[/] {raw_bar} [dim]↳ allocation[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:24]}[/]"
     )
     return Panel(Group(header, tbl), title="[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts)[/]",
                  border_style="blue", padding=(0, 1))
@@ -1873,7 +1875,9 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    notifs_items = notifs.get("items", []) if isinstance(notifs, dict) and "items" in notifs else (notifs if isinstance(notifs, list) else [])
+    notifs_error = notifs.get("_error") if isinstance(notifs, dict) else None
+    valid_notifs = notifs_items if notifs_items and not notifs_error else []
     if valid_notifs:
         rows.append(Rule(style="dim"))
         SEV_C  = {"critical": R, "warning": Y, "info": CY, "debug": DIM}

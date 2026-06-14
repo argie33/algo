@@ -80,11 +80,31 @@ Write-Section "ALGO LOCAL DEV SETUP"
 
 if ($LocalOnly) {
     Write-Section "LOCAL DEVELOPMENT MODE"
-    Write-Host "Skipping AWS credential setup (local-only mode)" -ForegroundColor Yellow
-    Write-Host "Dashboard will use: http://localhost:3001" -ForegroundColor Cyan
+    Write-Host "Configuring for local Docker PostgreSQL via api-proxy-server.py" -ForegroundColor Cyan
     $ApiUrl = "http://localhost:3001"
-    $PoolId = ""
-    $ClientId = ""
+    # Still try to get Cognito IDs from Secrets Manager for JWT validation in the proxy server
+    $PoolId = $null
+    $ClientId = $null
+    $env:AWS_PROFILE = $Script:Profile
+    try {
+        $SecretJson = aws secretsmanager get-secret-value `
+            --secret-id algo/dashboard-config `
+            --region $Script:Region `
+            --query SecretString `
+            --output text 2>&1
+        if ($LASTEXITCODE -eq 0 -and $SecretJson) {
+            $Secret = $SecretJson | ConvertFrom-Json
+            $PoolId = $Secret.cognito_user_pool_id
+            $ClientId = $Secret.cognito_user_pool_client_id
+            if ($PoolId -and $ClientId) {
+                Write-Success "Cognito IDs fetched from Secrets Manager (JWT validation enabled)"
+            }
+        }
+    } catch {
+        Write-Host "[WARN] Could not fetch Cognito IDs — authenticated endpoints will be unavailable locally" -ForegroundColor Yellow
+    }
+    if (-not $PoolId) { $PoolId = "" }
+    if (-not $ClientId) { $ClientId = "" }
 } elseif ($SkipAwsSetup) {
     Write-Section "AWS CREDENTIALS"
     Write-Step "Skipping AWS credential setup (option specified)"

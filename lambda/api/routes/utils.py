@@ -77,6 +77,34 @@ def safe_page(page_str, default=1):
     except (ValueError, TypeError):
         return default
 
+def safe_int(int_str, default=0, min_val=None, max_val=None):
+    """Parse and validate integer parameter."""
+    if int_str is None or int_str == '':
+        return default
+    try:
+        value = int(int_str)
+        if min_val is not None:
+            value = max(value, min_val)
+        if max_val is not None:
+            value = min(value, max_val)
+        return value
+    except (ValueError, TypeError):
+        return default
+
+def safe_float(float_str, default=0.0, min_val=None, max_val=None):
+    """Parse and validate float parameter."""
+    if float_str is None or float_str == '':
+        return default
+    try:
+        value = float(float_str)
+        if min_val is not None:
+            value = max(value, min_val)
+        if max_val is not None:
+            value = min(value, max_val)
+        return value
+    except (ValueError, TypeError):
+        return default
+
 def safe_string(value_str, allowed_values=None, default=None, max_length=100):
     """Validate and sanitize string parameter.
 
