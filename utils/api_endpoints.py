@@ -15,11 +15,3 @@ def get_alpaca_data_url() -> str:
     """
     # Standard free tier uses the main API domain
     return "https://data.alpaca.markets"
-
-
-def get_iex_cloud_url() -> str:
-    """Get the IEX Cloud API base URL.
-
-    Returns the base URL for IEX Cloud data API.
-    """
-    return "https://cloud.iexapis.com"

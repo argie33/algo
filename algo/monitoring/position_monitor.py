@@ -318,8 +318,6 @@ class PositionMonitor:
             'quantity': quantity,
             'entry_price': entry_price,
             'current_price': cur_price,
-            'price_source': price_metadata.get('source', 'daily'),  # Issue #33: Fallback indicator
-            'price_is_fallback': price_metadata.get('is_fallback', False),  # Issue #33: Mark fallback
             'r_multiple': round(r_multiple, 2),
             'unrealized_pnl': round(unrealized_pnl, 2),
             'unrealized_pct': round(unrealized_pct, 2),
@@ -339,21 +337,6 @@ class PositionMonitor:
     # ---------- Helpers ----------
 
     def _fetch_current_market(self, symbol, current_date, cur):
-        # F-01: Try real-time pricing during market hours, fallback to daily price
-        from algo.infrastructure import RealtimePricingEngine
-        engine = RealtimePricingEngine(self.config)
-
-        rt_price = None
-        if engine.is_market_hours():
-            try:
-                rt_prices = engine.get_latest_prices([symbol])
-                rt_price = rt_prices.get(symbol)
-                if rt_price:
-                    logger.info(f"Using real-time price for {symbol}: ${rt_price:.2f}")
-            except Exception as e:
-                logger.warning(f"Real-time pricing failed for {symbol}: {e} — falling back to daily")
-
-        # Fetch daily price and technical indicators from database
         cur.execute(
             """
             SELECT pd.close, td.atr, td.sma_50, td.ema_12
@@ -368,11 +351,8 @@ class PositionMonitor:
         if row is None:
             return None, None, None, None
 
-        # Use real-time price if available, otherwise use daily close
-        current_price = rt_price if rt_price else float(row[0]) if row[0] is not None else None
-
         return (
-            current_price,
+            float(row[0]) if row[0] is not None else None,
             float(row[1]) if row[1] is not None else None,
             float(row[2]) if row[2] is not None else None,
             float(row[3]) if row[3] is not None else None,

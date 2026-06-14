@@ -19,7 +19,6 @@ from .feature_flags import (
 )
 from .api_endpoints import (
     get_alpaca_data_url,
-    get_iex_cloud_url,
 )
 
 __all__ = [
@@ -38,5 +37,4 @@ __all__ = [
     'initialize_safe_defaults',
     'get_flags',
     'get_alpaca_data_url',
-    'get_iex_cloud_url',
 ]

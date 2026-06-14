@@ -3,7 +3,6 @@
 
 Validates that:
 - yfinance doesn't block critical price loads (160 req/min limit)
-- IEX Cloud can handle technical data requests
 - FRED API stays responsive
 """
 
@@ -24,11 +23,6 @@ class RateLimitValidator:
             'requests_per_minute': 160,
             'batch_size_max': 200,  # symbols per batch
             'safe_margin': 0.8,  # Use only 80% of limit
-        }
-
-        self.iex_limit = {
-            'requests_per_second': 10,
-            'per_second_limit': True,
         }
 
         self.fred_limit = {
@@ -95,7 +89,6 @@ class RateLimitValidator:
         Returns:
             {
                 'yfinance_available': bool,
-                'iex_available': bool,
                 'fred_available': bool,
                 'all_available': bool,
                 'issues': [str]
@@ -104,7 +97,6 @@ class RateLimitValidator:
         issues = []
         health = {
             'yfinance_available': False,
-            'iex_available': False,
             'fred_available': False,
         }
 
@@ -122,20 +114,6 @@ class RateLimitValidator:
         except Exception as e:
             issues.append(f"yfinance health check failed: {str(e)[:100]}")
             logger.warning(f"[API-HEALTH] yfinance unavailable: {e}")
-
-        # Check IEX Cloud (technical data)
-        try:
-            import os
-            iex_token = os.getenv('IEX_CLOUD_API_KEY')
-            if iex_token:
-                # IEX Cloud health check would require API call
-                # For now, just verify token exists
-                health['iex_available'] = True
-                logger.debug("[API-HEALTH] IEX Cloud token configured")
-            else:
-                issues.append("IEX_CLOUD_API_KEY not configured")
-        except Exception as e:
-            issues.append(f"IEX Cloud health check failed: {str(e)[:100]}")
 
         # Check FRED (market health data)
         try:

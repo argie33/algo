@@ -196,6 +196,37 @@ def _validate_required_fields(data_dict, required_fields, source_name):
         return {"_error": f"{source_name}: missing fields {missing}"}
     return None
 
+
+def _check_data_freshness(timestamp_str: str, max_age_seconds: int = 3600, source_name: str = "data") -> tuple[bool, Optional[str]]:
+    """Check if data timestamp is within acceptable age threshold.
+
+    Args:
+        timestamp_str: ISO format timestamp string (e.g., from API response)
+        max_age_seconds: Maximum acceptable age in seconds (default 1 hour)
+        source_name: Name of data source for error messages
+
+    Returns:
+        (is_fresh, error_message) tuple
+        - (True, None) if data is fresh
+        - (False, error_msg) if data is stale
+    """
+    if not timestamp_str:
+        return True, None  # No timestamp provided, can't check
+
+    try:
+        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
+        if age_seconds > max_age_seconds:
+            age_minutes = age_seconds / 60
+            error_msg = f"{source_name} data stale ({age_minutes:.0f} min old, threshold: {max_age_seconds/60:.0f} min)"
+            return False, error_msg
+        return True, None
+    except Exception as e:
+        logger.warning(f"Could not parse {source_name} timestamp '{timestamp_str}': {e}")
+        return True, None
+
 def fetch_portfolio(c):
     """Fetch portfolio snapshot from API. Fails clean if unavailable.
 
@@ -214,6 +245,22 @@ def fetch_portfolio(c):
                 "data_age_seconds": None
             }
         port = data.get('data', {})
+
+        # Check data freshness before validation (portfolio data > 1 hour old is stale)
+        snapshot_date = port.get("last_run")
+        is_fresh, freshness_error = _check_data_freshness(snapshot_date, max_age_seconds=3600, source_name="Portfolio")
+        if not is_fresh:
+            logger.warning(freshness_error)
+            record_data_quality_issue("portfolio", "timestamp", "data_stale", freshness_error)
+            return {
+                "_error": freshness_error,
+                "_data_stale": True,
+                "snapshot_date": snapshot_date, "total_portfolio_value": None, "total_cash": None,
+                "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
+                "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
+                "data_age_seconds": None
+            }
+
         required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
         validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
         if validation_error:
@@ -285,6 +332,22 @@ def fetch_perf(c):
                 "equity_vals": [], "recent_rets": []
             }
         perf = data.get('data', {})
+
+        # Check data freshness (performance data > 1 hour old is stale)
+        perf_timestamp = perf.get("timestamp") or perf.get("last_updated")
+        is_fresh, freshness_error = _check_data_freshness(perf_timestamp, max_age_seconds=3600, source_name="Performance")
+        if not is_fresh:
+            logger.warning(freshness_error)
+            record_data_quality_issue("perf", "timestamp", "data_stale", freshness_error)
+            return {
+                "_error": freshness_error,
+                "_data_stale": True,
+                "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
+                "sharpe": None, "maxdd": None, "avg_win": None, "avg_loss": None,
+                "profit_factor": None, "expectancy": None, "avg_r": None,
+                "equity_vals": [], "recent_rets": []
+            }
+
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
         validation_error = _validate_required_fields(perf, required_fields, "fetch_perf")
         if validation_error:

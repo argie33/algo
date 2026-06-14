@@ -1217,8 +1217,8 @@ def panel_exposure_compact(exp_f):
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
-    raw     = safe_float(exp_f.get("raw_score"), default=0)
-    epct    = safe_float(exp_f.get("exposure_pct"), default=0)
+    raw     = safe_float(exp_f.get("raw_score"), default=None)
+    epct    = safe_float(exp_f.get("exposure_pct"), default=None)
     regime  = exp_f.get("regime") or ""
     factors = exp_f.get("factors") or {}
     tier    = tier_from_pct(epct)
@@ -2224,11 +2224,15 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
             sec = p.get("sector") or "Unknown"
-            val = safe_float(p.get("position_value"), default=0.0)
-            pnl = safe_float(p.get("unrealized_pnl_pct"), default=0.0)
+            val = safe_float(p.get("position_value"), default=None)
+            pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
-            sd[sec]["val"] += val; sd[sec]["n"] += 1; sd[sec]["pnls"].append(pnl)
+            if val is not None:
+                sd[sec]["val"] += val
+            sd[sec]["n"] += 1
+            if pnl is not None:
+                sd[sec]["pnls"].append(pnl)
 
         if invalid_count > 0:
             logger.error(f"panel_sectors_expanded: encountered {invalid_count} invalid position(s); sector totals may be incomplete")

@@ -3100,7 +3100,7 @@ def _get_daily_return_histogram(cur) -> Dict:
     returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
 
     if not returns:
-        return json_response(200, {'buckets': [], 'stats': None})
+        return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
 
     bucket_width = 0.5
     min_ret = min(returns)
@@ -3142,7 +3142,7 @@ def _get_trade_distribution(cur) -> Dict:
     r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
 
     if not r_multiples:
-        return json_response(200, {'buckets': []})
+        return json_response(200, {'buckets': [], '_is_placeholder': True})
 
     buckets = [
         {'range': '<-2R', 'count': 0, 'min': -999},
@@ -3187,7 +3187,7 @@ def _get_holding_period_distribution(cur) -> Dict:
     durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
 
     if not durations:
-        return json_response(200, {'buckets': []})
+        return json_response(200, {'buckets': [], '_is_placeholder': True})
 
     buckets = [
         {'range': '1-3 days', 'count': 0},
@@ -3246,7 +3246,7 @@ def _get_stage_distribution(cur) -> Dict:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(200, {'distribution': []})
+        return json_response(200, {'distribution': [], '_is_placeholder': True})
 
     distribution = [
         {'phase': r['phase'], 'count': safe_int(r['count'])}

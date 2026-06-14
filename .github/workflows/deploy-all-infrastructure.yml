@@ -917,6 +917,46 @@ jobs:
             && echo "[OK] Updated API Gateway CORS with CloudFront: $CF_DOMAIN" \
             || echo "[WARN] Failed to update API Gateway CORS"
 
+      - name: Save Dashboard Credentials to Secrets Manager
+        run: |
+          # Store Terraform outputs in Secrets Manager so dashboard can fetch them without AWS CLI access
+          # Dashboard script (tools/dashboard/dashboard.py) reads: algo/dashboard-config
+          # Keys: api_url, cognito_user_pool_id, cognito_user_pool_client_id
+
+          API_URL="${{ steps.outputs.outputs.api_gateway_endpoint }}"
+          POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          CLIENT_ID="${{ steps.outputs.outputs.cognito_user_pool_client_id }}"
+
+          if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+            echo "[WARN] API URL empty — skipping Secrets Manager update"
+            exit 0
+          fi
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[WARN] Pool ID empty — skipping Secrets Manager update"
+            exit 0
+          fi
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "[WARN] Client ID empty — skipping Secrets Manager update"
+            exit 0
+          fi
+
+          SECRET_JSON=$(cat <<EOF
+          {
+            "api_url": "$API_URL",
+            "cognito_user_pool_id": "$POOL_ID",
+            "cognito_user_pool_client_id": "$CLIENT_ID"
+          }
+          EOF
+          )
+
+          # Create or update the secret
+          aws secretsmanager put-secret-value \
+            --secret-id algo/dashboard-config \
+            --secret-string "$SECRET_JSON" \
+            --region $AWS_REGION 2>&1 | grep -E "ARN|Successfully|ResourceExistsException" || echo "[OK] Secret updated"
+
+          echo "[OK] Dashboard credentials saved to algo/dashboard-config in Secrets Manager"
+
       - name: "C-7 FIX: Validate Cognito Client ID Configuration"
         shell: pwsh
         run: |

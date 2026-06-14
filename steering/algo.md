@@ -382,7 +382,7 @@ This design tolerates incomplete upstream data and ensures signals always have t
 
 ## Known Limitations & Mitigations
 
-**F-01 (Intraday pricing):** RealtimePricingEngine tries Alpaca Data API → IEX Cloud → YFinance → daily fallback. Market hours (9:30 AM - 4 PM ET): real-time prices. Outside hours or if APIs fail: daily prices from database.
+**F-01 (Position monitoring pricing):** Position monitor uses daily closing prices from the database (price_daily table) for all price data. Real-time pricing fallback chains were removed as dead code.
 
 **F-02 (Intraday circuit breaker):** Lambda runs at 10 AM, 12 PM, 3 PM ET (halt if portfolio P&L drops >15%). Updates DynamoDB `orchestrator_halt` flag. Flag auto-expires on prior trading day.
 
