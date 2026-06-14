@@ -182,7 +182,7 @@ resource "aws_config_delivery_channel" "main" {
 # Config S3 Bucket
 resource "aws_s3_bucket" "config_bucket" {
   count          = var.aws_config_enabled ? 1 : 0
-  bucket         = "${var.project_name}-config-bucket-${data.aws_caller_identity.current.account_id}"
+  bucket         = "${var.project_name}-config-v2-${data.aws_caller_identity.current.account_id}"
   force_destroy  = true
 
   tags = merge(var.common_tags, {
