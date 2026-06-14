@@ -11,11 +11,11 @@ import logging
 import os
 from datetime import datetime
 from typing import Dict, Optional
-from algo.infrastructure.constants import (
-    DB_MAX_CONNECTIONS,
-    DB_POOL_ALERT_THRESHOLD_PCT,
-    DB_POOL_TIMEOUT_SEC,
-)
+# Inlined from algo.infrastructure.constants — avoids importing the algo package
+# at module load time, which is not available in the API Lambda runtime.
+DB_MAX_CONNECTIONS = 100       # db.t4g.small safety threshold
+DB_POOL_ALERT_THRESHOLD_PCT = 80   # Alert when pool usage > 80%
+DB_POOL_TIMEOUT_SEC = 300
 
 logger = logging.getLogger(__name__)
 
