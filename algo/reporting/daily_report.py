@@ -95,13 +95,13 @@ class DailyFinanceReport:
             return {}
 
     def _fetch_risk(self, cur, report_date: _date) -> Dict[str, Any]:
-        """VaR, beta, Sharpe, Sortino."""
+        """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics."""
         try:
             cur.execute(
-                """SELECT var_95_pct, cvar_95_pct, portfolio_beta, sharpe_252d, sortino_252d
-                   FROM algo_risk_daily
-                   WHERE report_date <= %s
-                   ORDER BY report_date DESC LIMIT 1""",
+                """SELECT sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio
+                   FROM algo_performance_metrics
+                   WHERE metric_date <= %s
+                   ORDER BY metric_date DESC LIMIT 1""",
                 (report_date,),
             )
             row = cur.fetchone()
@@ -110,24 +110,23 @@ class DailyFinanceReport:
                 return {}
 
             return {
-                'var_95_pct': round(float(row[0]), 2) if row[0] else None,
-                'cvar_95_pct': round(float(row[1]), 2) if row[1] else None,
-                'beta': round(float(row[2]), 2) if row[2] else None,
-                'sharpe_ytd': round(float(row[3]), 2) if row[3] else None,
-                'sortino_ytd': round(float(row[4]), 2) if row[4] else None,
+                'sharpe': round(float(row[0]), 4) if row[0] else None,
+                'sortino': round(float(row[1]), 4) if row[1] else None,
+                'max_drawdown_pct': round(float(row[2]), 2) if row[2] else None,
+                'calmar': round(float(row[3]), 4) if row[3] else None,
             }
         except Exception as e:
             logger.debug(f"Risk fetch failed: {e}")
             return {}
 
     def _fetch_strategy(self, cur, report_date: _date) -> Dict[str, Any]:
-        """Win rate, profit factor, expectancy, best setup."""
+        """Win rate, profit factor, performance metrics from pre-computed daily metrics."""
         try:
             cur.execute(
-                """SELECT win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy
-                   FROM algo_performance_daily
-                   WHERE report_date <= %s
-                   ORDER BY report_date DESC LIMIT 1""",
+                """SELECT win_rate_pct, profit_factor, avg_trade_pct, best_trade_pct
+                   FROM algo_performance_metrics
+                   WHERE metric_date <= %s
+                   ORDER BY metric_date DESC LIMIT 1""",
                 (report_date,),
             )
             row = cur.fetchone()
@@ -135,33 +134,11 @@ class DailyFinanceReport:
             if row is None:
                 return {}
 
-            win_rate = float(row[0]) if row[0] else 0
-            avg_win = float(row[1]) if row[1] else 0
-            avg_loss = abs(float(row[2])) if row[2] else 1
-            profit_factor = avg_win / max(0.01, avg_loss)
-
-            # Get average hold days from recent closed trades
-            avg_hold_days = 0
-            cur.execute(
-                """
-                SELECT AVG(trade_duration_days)
-                FROM (
-                    SELECT trade_duration_days FROM algo_trades
-                    WHERE exit_date IS NOT NULL AND exit_date <= %s
-                    ORDER BY exit_date DESC LIMIT 100
-                ) AS last_100
-                """,
-                (report_date,),
-            )
-            hold_row = cur.fetchone()
-            if hold_row is not None and hold_row[0] is not None:
-                avg_hold_days = round(float(hold_row[0]), 1)
-
             return {
-                'win_rate_pct': round(win_rate * 100, 1),
-                'profit_factor': round(profit_factor, 2),
-                'avg_hold_days': avg_hold_days,
-                'expectancy_r': round(float(row[3]), 3) if row[3] else None,
+                'win_rate_pct': round(float(row[0]), 2) if row[0] else None,
+                'profit_factor': round(float(row[1]), 2) if row[1] else None,
+                'avg_trade_pct': round(float(row[2]), 2) if row[2] else None,
+                'best_trade_pct': round(float(row[3]), 2) if row[3] else None,
             }
         except Exception as e:
             logger.debug(f"Strategy fetch failed: {e}")
