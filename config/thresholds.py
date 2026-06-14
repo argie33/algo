@@ -144,6 +144,16 @@ class ThresholdConfig:
         return float(ThresholdConfig._get_config_value('dashboard_min_quality_threshold', 40.0))
 
     @staticmethod
+    def min_close_quality_pct() -> float:
+        """Signal entry close quality gate: stock must close at or above N% of day's range.
+
+        Range is (day_high - day_low). Quality gate filters weak closes (near day lows)
+        which often indicate distribution/selling pressure rather than accumulation.
+        For example, 40% means close must be in the upper 60% of the day's range.
+        """
+        return float(ThresholdConfig._get_config_value('min_close_quality_pct', 40.0))
+
+    @staticmethod
     def dashboard_metrics_max_age_minutes() -> int:
         """Dashboard: maximum age of metrics in minutes before warning."""
         return int(ThresholdConfig._get_config_value('dashboard_metrics_max_age_minutes', 120))

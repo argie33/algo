@@ -118,7 +118,7 @@ class AlgoConfig:
 
         # Entry Quality Gates (Sprint 2)
         'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),
-        'min_close_quality_pct': ('40.0', 'float', 'Close must be in upper N% of range'),
+        'min_close_quality_pct': ('40.0', 'float', 'Close position threshold %: stock must close at/above this % of day range (0-100). E.g., 40 means close in upper 60% of range. Filters weak closes (near lows) indicating distribution, not accumulation.'),
         'min_breakout_volume_ratio': ('1.25', 'float', 'Volume must be N x 50-day average'),
         'require_weekly_stage_2': ('false', 'bool', 'Require weekly chart Stage 2'),
         'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),

@@ -40,6 +40,7 @@ from utils.db.context import DatabaseContext
 from algo.signals import SignalComputer, VectorizedSignalGenerator, SwingTraderScore
 from algo.risk import LiquidityChecks
 from algo.orchestrator.phase_result import PhaseResult
+from config.thresholds import ThresholdConfig
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,9 @@ def run(
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
+    # Load configurable thresholds
+    min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0  # Convert percent to decimal
+
     # ISSUE #8 FIX: Check halt flag before generating signals
     # If Phase 1 detected stale data, don't generate full-intensity signals
     if check_halt_flag and check_halt_flag():
@@ -290,14 +294,14 @@ def run(
             quality = _score_signal(minervini, weinstein, vcp, base, power)
 
             if quality >= _MIN_QUALITY:
-                # Close quality gate: stock must close in upper 40% of day's range.
+                # Close quality gate (configurable via min_close_quality_pct).
                 # A weak close (near day lows) on signal day indicates distribution — not a buy setup.
                 ohlc = _ohlc.get(symbol, {})
                 c, h, lo = ohlc.get('close'), ohlc.get('high'), ohlc.get('low')
                 if h and lo and c and h > lo:
                     close_position = (c - lo) / (h - lo)
-                    if close_position < 0.40:
-                        logger.debug(f"[PHASE 5] {symbol}: weak close {close_position:.0%} of range — skip")
+                    if close_position < min_close_quality:
+                        logger.debug(f"[PHASE 5] {symbol}: weak close {close_position:.0%} of range (threshold={min_close_quality:.0%}) — skip")
                         continue
 
                 candidates.append({

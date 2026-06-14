@@ -906,7 +906,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           Next        = "LogMorningHealthFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MorningSwingScores"
+        Next = "MorningMarketExposure"
       }
 
       LogMorningHealthFailure = {
@@ -926,8 +926,41 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSwingScores"
+          Next        = "MorningMarketExposure"
           ResultPath  = "$.logError"
+        }]
+        Next = "MorningMarketExposure"
+      }
+
+      # ── Morning market exposure (fresh regime for 9:30 AM orchestrator) ────────
+      # CRITICAL FIX: Eliminates EOD-only single point of failure
+      # If EOD pipeline fails, morning pipeline ensures market_exposure_daily is fresh for:
+      # - 9:30 AM orchestrator run (9+ hours until EOD)
+      # - 1 PM and 3 PM orchestrator runs (4-7 hours until EOD)
+      # - Dashboard market regime display (avoids stale data for entire week)
+      # Depends on: market_health_daily (computed in MorningHealthAndTrend parallel step)
+      # Timeout: 600s (typically 30s-1min, well under budget)
+      # Fail-open: If this fails, orchestrator falls back to yesterday's regime (graceful degradation)
+      MorningMarketExposure = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSwingScores"
+          ResultPath  = "$.exposureError"
         }]
         Next = "MorningSwingScores"
       }

@@ -267,24 +267,30 @@ unzip -l terraform/lambda_api.zip | head -30
 
 ## Data Architecture: Market Exposure
 
-**Single Source of Truth:** `market_exposure_daily` table computed daily by EOD pipeline (4:05 PM ET)
-- Computed once per day at 4:05 PM ET (independent of orchestrator halt status)
-- All orchestrator runs (9:30 AM, 1 PM, 3 PM, 5:30 PM) use cached value from EOD — no recomputation
-- This ensures single source of truth and prevents divergence between multiple computation points
+**Single Source of Truth:** `market_exposure_daily` table computed daily (12 quantitative factors → market regime)
+- Computed TWICE per trading day: **morning prep (3:30 AM ET) + EOD (4:05 PM ET)**
+- All orchestrator runs use most recent computation (morning regime for 9:30 AM/1 PM/3 PM, EOD regime for 5:30 PM)
+- This dual-computation eliminates single point of failure (was: EOD-only)
 - Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator), Phase 3b entry constraints, Phase 7's WeightOptimizer (regime-based weight adjustments)
 
-**Data flow:** EOD pipeline (Step Functions scheduled 4:05 PM ET Mon-Fri) → market_exposure_daily upserted → Orchestrator Phase 7 queries for current regime → Dashboard → API responses
+**Data flow (REDUNDANT):**
+1. Morning pipeline (2:15 AM ET) → market_health_daily + trend_template → **market_exposure_daily (3:30 AM)** → 9:30/1 PM/3 PM orchestrators
+2. EOD pipeline (4:05 PM ET) → market_health_daily + trend_template → **market_exposure_daily (4:30 PM)** → 5:30 PM orchestrator
 
-**CRITICAL: System depends on EOD pipeline running successfully.** If scheduler fails or loaders error:
-- Phase 7's RegimeManager falls back to yesterday's regime (graceful degradation, but market regime becomes 1+ days stale)
-- Dashboard market regime display shows stale data without visible warning
+**Resilience:** If EOD pipeline fails on day 1:
+- Day 1: 9:30 AM orchestrator uses morning regime (computed 3:30 AM) ✅
+- Day 1: 5:30 PM orchestrator falls back to morning regime (graceful degradation, 9+ hours fresh) ✅
+- Day 2: 9:30 AM orchestrator has fresh morning regime again (not stale for entire week) ✅
+- Dashboard always shows regime from past 24 hours (at worst, 1 day old + fallback to caution)
 
 **Monitoring & Recovery:**
-- Monitor: Check if `SELECT COUNT(*) FROM market_exposure_daily WHERE date = CURRENT_DATE` returns 0 (stale)
-- Verify: Check CloudWatch logs `/ecs/algo-stock_prices_daily-loader` for loader errors
-- Python import errors in loaders (ModuleNotFoundError): Require Docker image rebuild. Push to main to trigger CI/CD pipeline which rebuilds and redeployes ECS tasks.
-- Deploy: `git push main` to trigger CI/CD pipeline (rebuild Docker image)
-- Manual test after deploy: `aws stepfunctions start-execution --state-machine-arn arn:aws:states:us-east-1:626216981288:stateMachine:algo-eod-pipeline-dev --name test-eod-$(date +%s)`
+- Monitor: `SELECT MAX(date), MAX(computed_at) FROM market_exposure_daily` (should show today's date with 2 recent timestamps: ~3:30 AM and ~4:30 PM)
+- Alert if: No computation in past 24 hours (both morning AND EOD failed)
+- Verify: Check CloudWatch logs `/ecs/algo-market_exposure_daily-loader` for errors (appears in both morning + EOD pipelines)
+- If morning fails: Fallback covers morning orchestrators (EOD will try again at 4:05 PM)
+- If EOD fails: Morning computation from next day covers all orchestrators (no week-long staleness)
+- Python import errors: Push to main to trigger CI/CD pipeline rebuild
+- Manual trigger morning pipeline: `aws stepfunctions start-execution --state-machine-arn <morning-pipeline-arn> --name manual-test-$(date +%s)`
 
 ## Schedule (Daily, Mon-Fri)
 
