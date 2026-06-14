@@ -185,6 +185,8 @@ def _wrap_response(response):
 
     This function is a safety net for any legacy endpoints that don't use the
     response utility functions (success_response, list_response, json_response).
+    Also cleans up responses that have extra fields added by intermediate processing
+    and fixes double-nested data issues.
     """
     if not isinstance(response, dict):
         return response
@@ -193,11 +195,38 @@ def _wrap_response(response):
     if response.get('errorType') or response.get('statusCode', 200) >= 400:
         return response
 
+    # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
+    if response.get('statusCode') == 200 and 'data' in response:
+        data_field = response['data']
+        # Check if data field is a dict with only 'data' and optional metadata keys
+        if isinstance(data_field, dict) and 'data' in data_field:
+            # Check if 'data' is the only meaningful field (allow for pagination, total, etc.)
+            meaningful_keys = [k for k in data_field.keys() if k not in ('data', 'pagination', 'total')]
+            if len(meaningful_keys) == 0:
+                # Double-nested: unwrap it
+                response = dict(response)  # Make a copy
+                response['data'] = data_field['data']
+                # Preserve pagination metadata if it exists
+                if 'pagination' in data_field:
+                    response['data']['pagination'] = data_field['pagination']
+                if 'total' in data_field and 'total' not in response['data']:
+                    response['data']['total'] = data_field['total']
+
     # Success responses should already have 'data' field from response utilities.
     # If they don't (legacy/direct returns), wrap them.
     if response.get('statusCode') == 200 and 'data' not in response:
-        # Extract all top-level fields except statusCode/headers
-        payload = {k: v for k, v in response.items() if k not in ('statusCode', 'headers', 'data_freshness')}
+        # Extract core fields: items, total, etc. but exclude metadata/timestamps
+        payload = {k: v for k, v in response.items()
+                  if k not in ('statusCode', 'headers', 'data_freshness', 'success', 'timestamp', 'pagination')}
+
+        # If we have items but no data, wrap them properly
+        if 'items' in response and 'items' not in payload:
+            # Keep items and reconstruct pagination if needed
+            payload['items'] = response.get('items')
+            if 'pagination' in response:
+                payload['pagination'] = response['pagination']
+            payload['total'] = response.get('pagination', {}).get('total') or len(response.get('items', []))
+
         wrapped = {
             'statusCode': 200,
             'data': payload

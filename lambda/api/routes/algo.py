@@ -466,6 +466,7 @@ def _get_algo_status(cur) -> Dict:
                     'total_value': round(pv, 2),
                     'daily_return_pct': round(safe_float(snap['daily_return_pct']), 2),
                     'unrealized_pnl_pct': round((safe_float(snap['unrealized_pnl_total']) / pv * 100) if pv > 0 else 0, 2),
+                    'unrealized_pnl_dollars': round(safe_float(snap['unrealized_pnl_total']) or 0, 2),
                     'open_positions': safe_int(snap['position_count']),
                 }
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
@@ -718,6 +719,84 @@ def _get_algo_performance(cur) -> Dict:
             breakeven = metrics.get('breakeven_trades') or 0
             win_loss_total = winning + losing
 
+            # Compute trade-level metrics missing from algo_performance_metrics
+            trade_stats = {}
+            try:
+                cur.execute("""
+                    SELECT
+                        AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct END) AS avg_win_pct,
+                        AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END) AS avg_loss_pct,
+                        AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END) AS avg_win_r,
+                        AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END) AS avg_loss_r,
+                        COALESCE(SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END), 0) AS gross_win_dollars,
+                        COALESCE(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 0) AS gross_loss_dollars
+                    FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                """)
+                ts_row = cur.fetchone()
+                if ts_row:
+                    trade_stats = safe_dict_convert(ts_row)
+            except Exception as te:
+                logger.warning(f'Could not compute trade-level stats: {te}')
+
+            # Compute current win/loss streak from most recent closed trades
+            current_streak = 0
+            try:
+                cur.execute("""
+                    SELECT profit_loss_pct FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL AND profit_loss_pct IS NOT NULL
+                    ORDER BY exit_date DESC, trade_id DESC LIMIT 30
+                """)
+                recent_trades = cur.fetchall()
+                if recent_trades:
+                    first_pnl = float(recent_trades[0]['profit_loss_pct'] or 0)
+                    is_win_streak = first_pnl > 0
+                    for t in recent_trades:
+                        pnl = float(t['profit_loss_pct'] or 0)
+                        if is_win_streak and pnl > 0:
+                            current_streak += 1
+                        elif not is_win_streak and pnl <= 0:
+                            current_streak -= 1
+                        else:
+                            break
+            except Exception as ce:
+                logger.warning(f'Could not compute current streak: {ce}')
+
+            # Compute open losses for adjusted win rate
+            open_losses_count = 0
+            total_open_losses_dollars = 0.0
+            win_rate_pct_adjusted = None
+            try:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE unrealized_pnl < 0) AS open_losses,
+                        COALESCE(SUM(CASE WHEN unrealized_pnl < 0 THEN unrealized_pnl ELSE 0 END), 0) AS total_losses
+                    FROM algo_positions
+                    WHERE status = 'open' AND quantity > 0
+                """)
+                pos_row = cur.fetchone()
+                if pos_row:
+                    open_losses_count = safe_int(pos_row['open_losses']) or 0
+                    total_open_losses_dollars = safe_float(pos_row['total_losses']) or 0.0
+                    wr = safe_float(metrics.get('win_rate_pct'))
+                    if open_losses_count > 0 and wr is not None:
+                        total_adj = winning + losing + open_losses_count + breakeven
+                        win_rate_pct_adjusted = round((winning / total_adj * 100) if total_adj > 0 else wr, 1)
+            except Exception as pe:
+                logger.warning(f'Could not compute open losses: {pe}')
+
+            # Compute expectancy_r from win_rate and average R multiples
+            expectancy_r = None
+            try:
+                wr = safe_float(metrics.get('win_rate_pct'))
+                avg_wr = safe_float(trade_stats.get('avg_win_r'))
+                avg_lr = safe_float(trade_stats.get('avg_loss_r'))
+                if wr is not None and avg_wr is not None and avg_lr is not None:
+                    wr_frac = wr / 100
+                    expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
+            except Exception:
+                pass
+
             response_data = {
                 'total_trades': total_trades,
                 'winning_trades': winning,
@@ -725,14 +804,21 @@ def _get_algo_performance(cur) -> Dict:
                 'breakeven_trades': breakeven,
                 'win_rate': safe_float(metrics.get('win_rate_pct')),
                 'win_rate_pct': safe_float(metrics.get('win_rate_pct')),
+                'win_rate_pct_adjusted': win_rate_pct_adjusted,
                 'win_rate_confidence': 'high' if win_loss_total >= 30 else ('medium' if win_loss_total >= 10 else 'low'),
                 'profit_factor': safe_float(metrics.get('profit_factor')),
                 'total_pnl_dollars': safe_float(metrics.get('total_pnl_dollars')),
                 'total_pnl_pct': safe_float(metrics.get('total_pnl_pct')),
                 'total_return_pct': safe_float(metrics.get('cagr_pct')),
                 'avg_trade_pct': safe_float(metrics.get('avg_trade_pct')),
-                'avg_win_pct': safe_float(metrics.get('avg_trade_pct')),
-                'avg_loss_pct': None,
+                'avg_win_pct': safe_float(trade_stats.get('avg_win_pct')),
+                'avg_loss_pct': safe_float(trade_stats.get('avg_loss_pct')),
+                'avg_win_r': safe_float(trade_stats.get('avg_win_r')),
+                'avg_loss_r': safe_float(trade_stats.get('avg_loss_r')),
+                'gross_win_dollars': safe_float(trade_stats.get('gross_win_dollars')),
+                'gross_loss_dollars': safe_float(trade_stats.get('gross_loss_dollars')),
+                'open_losses_count': open_losses_count,
+                'total_open_losses_dollars': total_open_losses_dollars,
                 'best_trade_pct': safe_float(metrics.get('best_trade_pct')),
                 'worst_trade_pct': safe_float(metrics.get('worst_trade_pct')),
                 'sharpe_annualized': safe_float(metrics.get('sharpe_ratio')),
@@ -741,13 +827,14 @@ def _get_algo_performance(cur) -> Dict:
                 'sortino_annualized': safe_float(metrics.get('sortino_ratio')),
                 'sortino_ratio': safe_float(metrics.get('sortino_ratio')),
                 'max_drawdown_pct': safe_float(metrics.get('max_drawdown_pct')),
-                'expectancy_r': None,
+                'calmar_ratio': safe_float(metrics.get('calmar_ratio')),
+                'expectancy_r': expectancy_r,
                 'avg_hold_days': safe_float(metrics.get('avg_holding_days')),
                 'avg_holding_days': safe_float(metrics.get('avg_holding_days')),
                 'portfolio_snapshots': 0,
                 'best_win_streak': metrics.get('best_win_streak') or 0,
                 'worst_loss_streak': metrics.get('worst_loss_streak') or 0,
-                'current_streak': 0,
+                'current_streak': current_streak,
                 'equity_vals': [],
                 'recent_rets': [],
                 'stale_alerts': [],
@@ -1125,10 +1212,23 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             cur.execute("""
+                WITH snapshots AS (
+                    SELECT snapshot_date, total_portfolio_value, total_cash,
+                           unrealized_pnl_total, position_count, daily_return_pct,
+                           MAX(total_portfolio_value) OVER (
+                               ORDER BY snapshot_date ASC
+                               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                           ) AS running_peak
+                    FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= %s AND total_portfolio_value > 0
+                )
                 SELECT snapshot_date, total_portfolio_value, total_cash,
-                       unrealized_pnl_total, position_count, daily_return_pct
-                FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= %s
+                       unrealized_pnl_total, position_count, daily_return_pct,
+                       ROUND(
+                           (total_portfolio_value - running_peak) / NULLIF(running_peak, 0) * 100,
+                           4
+                       ) AS drawdown_pct
+                FROM snapshots
                 ORDER BY snapshot_date DESC
                 LIMIT 1000
             """, (cutoff_date,))
@@ -2047,6 +2147,23 @@ def _get_markets(cur) -> Dict:
             except Exception as se:
                 logger.warning(f'Could not fetch sector rankings: {se}')
 
+            # Fetch market health from market_health_daily for dashboard KPIs
+            market_health = {}
+            try:
+                cur.execute("""
+                    SELECT market_trend, market_stage, vix_level,
+                           up_volume_percent, advance_decline_ratio, new_highs_count,
+                           new_lows_count, breadth_momentum_10d, put_call_ratio,
+                           yield_curve_slope, fed_rate_environment
+                    FROM market_health_daily
+                    ORDER BY date DESC LIMIT 1
+                """)
+                mh_row = cur.fetchone()
+                if mh_row:
+                    market_health = safe_json_serialize(safe_dict_convert(mh_row))
+            except Exception as mhe:
+                logger.warning(f'Could not fetch market_health_daily: {mhe}')
+
             current_date = row.get('date')
             return json_response(200, {
                 'current': {
@@ -2061,6 +2178,7 @@ def _get_markets(cur) -> Dict:
                 'active_tier': active_tier,
                 'history': history,
                 'sectors': sectors,
+                'market_health': market_health,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -2362,7 +2480,7 @@ def _get_data_quality(cur) -> Dict:
                     'severity': severity,
                     'message': entry.get('message'),
                     'detail': entry.get('data_detail'),
-                    'last_check': entry.get('created_at').isoformat() if entry.get('created_at') else None
+                    'last_check': entry.get('created_at') if entry.get('created_at') else None
                 })
 
             # Determine overall accuracy
@@ -2493,7 +2611,7 @@ def _get_exposure_policy(cur) -> Dict:
                 },
                 'factor_quality': factor_quality,
                 'halt_reasons': row.get('halt_reasons'),
-                'as_of': row['date'].isoformat() if row['date'] else None,
+                'as_of': row['date'] if row['date'] else None,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -3082,7 +3200,11 @@ def _get_economic_calendar(cur) -> Dict:
         freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
 
         cur.execute("""
-            SELECT event_date, event_name, country, actual, forecast, previous, impact
+            SELECT event_date, event_name, country, importance,
+                   category, event_time,
+                   forecast_value AS forecast,
+                   actual_value AS actual,
+                   previous_value AS previous
             FROM economic_calendar
             WHERE event_date >= CURRENT_DATE
             ORDER BY event_date ASC
