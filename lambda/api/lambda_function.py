@@ -329,35 +329,41 @@ def _build_allowed_origins() -> set:
 
     SECURITY FIX: Explicitly configure all allowed origins; no wildcard matching.
     Dev mode origins (localhost) only allowed if ALLOW_LOCALHOST_CORS=true
+    Thread-safe: Uses double-check locking pattern to prevent race conditions.
     """
     global _ALLOWED_ORIGINS_CACHE
 
     if _ALLOWED_ORIGINS_CACHE is not None:
         return _ALLOWED_ORIGINS_CACHE
 
-    origins = set()
+    with _ALLOWED_ORIGINS_LOCK:
+        # Double-check pattern after acquiring lock
+        if _ALLOWED_ORIGINS_CACHE is not None:
+            return _ALLOWED_ORIGINS_CACHE
 
-    # FRONTEND_URL is required in production (must be set explicitly)
-    frontend_url = os.getenv('FRONTEND_URL', '').strip()
-    if frontend_url:
-        origins.add(frontend_url)
+        origins = set()
 
-    # Additional origins from ALLOWED_ORIGINS env var (comma-separated)
-    env_origins = os.getenv('ALLOWED_ORIGINS', '')
-    if env_origins:
-        for o in env_origins.split(','):
-            o = o.strip()
-            if o:
-                origins.add(o)
+        # FRONTEND_URL is required in production (must be set explicitly)
+        frontend_url = os.getenv('FRONTEND_URL', '').strip()
+        if frontend_url:
+            origins.add(frontend_url)
 
-    # In development ONLY, allow localhost origins (if explicitly enabled)
-    # This is gated behind ALLOW_LOCALHOST_CORS=true to prevent accidental exposure
-    if os.getenv('ALLOW_LOCALHOST_CORS') == 'true':
-        origins.add('http://localhost:5173')  # Vite default
-        origins.add('http://localhost:3000')  # React dev default
+        # Additional origins from ALLOWED_ORIGINS env var (comma-separated)
+        env_origins = os.getenv('ALLOWED_ORIGINS', '')
+        if env_origins:
+            for o in env_origins.split(','):
+                o = o.strip()
+                if o:
+                    origins.add(o)
 
-    _ALLOWED_ORIGINS_CACHE = origins
-    return origins
+        # In development ONLY, allow localhost origins (if explicitly enabled)
+        # This is gated behind ALLOW_LOCALHOST_CORS=true to prevent accidental exposure
+        if os.getenv('ALLOW_LOCALHOST_CORS') == 'true':
+            origins.add('http://localhost:5173')  # Vite default
+            origins.add('http://localhost:3000')  # React dev default
+
+        _ALLOWED_ORIGINS_CACHE = origins
+        return origins
 
 def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (strict whitelist only).
@@ -463,6 +469,7 @@ def _get_cognito_jwks():
     """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 10 minutes.
 
     Short TTL allows rapid key rotation in emergencies (max 10min delay).
+    Thread-safe: Uses double-check locking pattern to prevent race conditions.
     """
     global _JWKS_CACHE, _JWKS_CACHE_TIME
 
@@ -479,19 +486,24 @@ def _get_cognito_jwks():
     if _JWKS_CACHE and _JWKS_CACHE_TIME and (now - _JWKS_CACHE_TIME) < cache_ttl:
         return _JWKS_CACHE
 
-    try:
-        from requests.adapters import HTTPAdapter
-        url = f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}/.well-known/jwks.json"
-        session = requests.Session()
-        session.mount('https://', HTTPAdapter(max_retries=0))
-        response = session.get(url, timeout=3)
-        response.raise_for_status()
-        _JWKS_CACHE = response.json()
-        _JWKS_CACHE_TIME = now
-        return _JWKS_CACHE
-    except Exception as e:
-        logger.error(f"Failed to fetch Cognito JWKS: {e}")
-        return None
+    with _JWKS_CACHE_LOCK:
+        # Double-check pattern after acquiring lock
+        if _JWKS_CACHE and _JWKS_CACHE_TIME and (now - _JWKS_CACHE_TIME) < cache_ttl:
+            return _JWKS_CACHE
+
+        try:
+            from requests.adapters import HTTPAdapter
+            url = f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}/.well-known/jwks.json"
+            session = requests.Session()
+            session.mount('https://', HTTPAdapter(max_retries=0))
+            response = session.get(url, timeout=3)
+            response.raise_for_status()
+            _JWKS_CACHE = response.json()
+            _JWKS_CACHE_TIME = now
+            return _JWKS_CACHE
+        except Exception as e:
+            logger.error(f"Failed to fetch Cognito JWKS: {e}")
+            return None
 
 def validate_bearer_token(token: Optional[str]) -> tuple:
     """Validate JWT token: format, signature, expiration, audience.
@@ -759,7 +771,11 @@ def require_auth(event: Dict, path: str) -> tuple:
     # This is an /api path that requires authentication
     # SECURITY FIX: Authentication must be enforced for protected endpoints
     # In production, Cognito MUST be configured (COGNITO_USER_POOL_ID set)
-    if not _COGNITO_ENABLED:
+    # Thread-safe read of _COGNITO_ENABLED flag
+    with _COGNITO_ENABLED_LOCK:
+        cognito_enabled = _COGNITO_ENABLED
+
+    if not cognito_enabled:
         # Allow development bypass with DEV_BYPASS_AUTH environment variable
         if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
             logger.warning(f"[DEV_MODE] Dev mode enabled, checking for dev token...")
@@ -802,9 +818,11 @@ if not IMPORT_ERROR:
         logger.error(f'[MODULE_INIT_DB_TEST_FAILED] {db_test_error}')
 
     # Determine if Cognito authentication is enabled
-    _COGNITO_ENABLED = bool(os.getenv('COGNITO_USER_POOL_ID'))
-    if not _COGNITO_ENABLED:
-        logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")
+    with _COGNITO_ENABLED_LOCK:
+        global _COGNITO_ENABLED
+        _COGNITO_ENABLED = bool(os.getenv('COGNITO_USER_POOL_ID'))
+        if not _COGNITO_ENABLED:
+            logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")
 
     # Pre-cache allowed origins at module load to avoid building on every request
     _build_allowed_origins()
