@@ -19,11 +19,8 @@ from utils.db.sql_safety import assert_safe_table
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism, get_default_parallelism
-from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

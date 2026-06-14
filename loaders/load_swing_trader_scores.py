@@ -35,13 +35,9 @@ import json
 
 from utils.db.sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism, get_default_parallelism
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.signals.grade_classifier import GradeClassifier
-from utils.infrastructure.timezone import EASTERN_TZ
 
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
