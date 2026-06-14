@@ -14,9 +14,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## API Error Handling
 
-**Problem Solved (June 14, 2026):** Endpoints were returning HTTP 200 with empty data objects (`{}`, `{buckets: []}`) when database queries failed, masking errors and making them invisible to clients. This created silent data failures where pages appeared to load successfully but showed blank charts and missing data.
-
-**Solution:** All database errors now return proper HTTP status codes with error details:
+All database errors return proper HTTP status codes with error details instead of masking failures with empty data objects:
 - **503 Service Unavailable:** Database unreachable or schema missing (tables not created yet)
 - **504 Gateway Timeout:** Query exceeded timeout (more than 15 seconds)
 - **500 Internal Error:** Unexpected errors
