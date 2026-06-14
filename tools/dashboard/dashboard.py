@@ -64,6 +64,43 @@ def _validate_watch_interval(value):
         raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})")
 
 
+def _fetch_secrets_manager_credentials():
+    """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
+    import os
+    import json
+    import boto3
+
+    try:
+        # Ensure AWS_PROFILE is set
+        if not os.environ.get("AWS_PROFILE"):
+            os.environ["AWS_PROFILE"] = "algo-developer"
+
+        # Try to fetch from Secrets Manager
+        client = boto3.client('secretsmanager', region_name='us-east-1')
+
+        try:
+            # Try dashboard-config secret first
+            response = client.get_secret_value(SecretId='algo/dashboard-config')
+            secret = json.loads(response['SecretString'])
+
+            api_url = secret.get('api_url', '').strip()
+            pool_id = secret.get('cognito_user_pool_id', '').strip()
+            client_id = secret.get('cognito_user_pool_client_id', '').strip()
+
+            if all([api_url, pool_id, client_id]):
+                logger.info("Credentials fetched from AWS Secrets Manager")
+                return (api_url, pool_id, client_id)
+        except client.exceptions.ResourceNotFoundException:
+            logger.debug("Secrets Manager secret not found")
+        except Exception as e:
+            logger.debug(f"Secrets Manager fetch failed: {type(e).__name__}")
+
+        return (None, None, None)
+    except Exception as e:
+        logger.debug(f"Secrets Manager access failed: {type(e).__name__}")
+        return (None, None, None)
+
+
 def _fetch_terraform_credentials():
     """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
     import subprocess
@@ -398,9 +435,11 @@ def main():
         pool_id = os.environ.get("COGNITO_USER_POOL_ID")
         client_id = os.environ.get("COGNITO_CLIENT_ID")
 
-        # If not set, try to fetch from Terraform
+        # If not set, try to fetch from multiple sources
         if not aws_url:
-            logger.info("DASHBOARD_API_URL not set, fetching from Terraform...")
+            logger.info("Credentials not set - trying Terraform, then Secrets Manager...")
+
+            # Try Terraform first
             tf_url, tf_pool, tf_client = _fetch_terraform_credentials()
             if tf_url:
                 aws_url = tf_url
@@ -411,21 +450,34 @@ def main():
                 os.environ["COGNITO_CLIENT_ID"] = client_id
                 logger.info("Credentials fetched from Terraform")
 
+            # Try AWS Secrets Manager if Terraform failed
+            if not aws_url:
+                logger.info("Terraform failed - trying AWS Secrets Manager...")
+                sm_url, sm_pool, sm_client = _fetch_secrets_manager_credentials()
+                if sm_url:
+                    aws_url = sm_url
+                    pool_id = sm_pool
+                    client_id = sm_client
+                    os.environ["DASHBOARD_API_URL"] = aws_url
+                    os.environ["COGNITO_USER_POOL_ID"] = pool_id
+                    os.environ["COGNITO_CLIENT_ID"] = client_id
+                    logger.info("Credentials fetched from AWS Secrets Manager")
+
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials from Terraform")
+            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials")
             CONSOLE.print("")
-            CONSOLE.print("[bold cyan]To fix:[/]")
-            CONSOLE.print("[yellow]1. Ensure Terraform outputs exist:[/]")
-            CONSOLE.print("[cyan]   cd terraform && terraform output -json[/]")
-            CONSOLE.print("[yellow]2. If outputs missing, deploy infrastructure:[/]")
-            CONSOLE.print("[cyan]   cd terraform && terraform apply[/]")
-            CONSOLE.print("[yellow]3. Then run dashboard:[/]")
-            CONSOLE.print("[cyan]   python tools/dashboard/dashboard.py[/]")
+            CONSOLE.print("[bold cyan]Solutions:[/]")
+            CONSOLE.print("[yellow]Option 1: Deploy via GitHub Actions[/]")
+            CONSOLE.print("[dim]This creates Terraform outputs + Secrets Manager entries[/]")
             CONSOLE.print("")
-            CONSOLE.print("[dim]Or manually set environment variables:[/]")
+            CONSOLE.print("[yellow]Option 2: Manually set environment variables[/]")
             CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = \"<api_url>\"[/]")
             CONSOLE.print("[cyan]   $env:COGNITO_USER_POOL_ID = \"<pool_id>\"[/]")
             CONSOLE.print("[cyan]   $env:COGNITO_CLIENT_ID = \"<client_id>\"[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[yellow]Option 3: Create secrets in AWS Secrets Manager[/]")
+            CONSOLE.print("[cyan]   algo/dashboard-config[/]")
+            CONSOLE.print("[dim]   with keys: api_url, cognito_user_pool_id, cognito_user_pool_client_id[/]")
             sys.exit(1)
         set_api_url(aws_url)
         data_source = "AWS"
