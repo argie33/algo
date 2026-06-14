@@ -1212,8 +1212,8 @@ def panel_economic_pulse(eco, econ_cal=None):
         for ev in valid_cal[:6]:
             ed      = ev.get("event_date")
             full_nm = (ev.get("event_name") or "")
-            name    = full_nm[:24]
-            key     = (str(ed) + full_nm[:24]).lower()
+            name    = str(full_nm)[:24]
+            key     = (str(ed) + str(full_nm)[:24]).lower()
             if key in seen_keys: continue
             seen_keys.add(key)
             imp  = (ev.get("importance") or "LOW").upper()
@@ -1239,7 +1239,7 @@ def panel_economic_pulse(eco, econ_cal=None):
             et    = ev.get("event_time")
             et_s  = f" [dim]{str(et)[:5]}[/]" if et else ""
             rows.append(Text.from_markup(
-                f"[{ic}]{when:<5}[/]{et_s} [white]{name}[/]{vals}"
+                f"[{ic}]{str(when):<5}[/]{et_s} [white]{str(name)}[/]{vals}"
             ))
 
     if not rows:
@@ -1329,7 +1329,7 @@ def panel_exposure_compact(exp_f):
         fc   = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         det  = factor_detail(key)
         det_markup = f"[dim]{det}[/]" if det else ""
-        items.append(f"[{fc}]{label:<6}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}")
+        items.append(f"[{fc}]{str(label):<6}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}")
 
     sr  = factors.get("sector_rotation") or {}
     eco = factors.get("economic_overlay") or {}
@@ -1559,8 +1559,8 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
-                nm  = (r.get("tbl") or "--")[:10]
-                age = r.get("age") or "?"
+                nm  = str((r.get("tbl") or "--")[:10])
+                age = str(r.get("age") or "?")
                 rc  = r.get("role", "")
                 cc  = "bold white" if rc == "CRIT" else "white"
                 lat = r.get("latest")
@@ -1616,10 +1616,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
         rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
-            nm  = (r.get("table_name") or "--")[:14]
+            nm  = str((r.get("table_name") or "--")[:14])
             st  = r.get("status") or "?"
             age = r.get("age_days")
-            age_s = f"{int(age)}d" if age is not None else "--"
+            age_s = str(f"{int(age)}d" if age is not None else "--")
             sc  = R if st in ("error", "failed") else Y
             err = (r.get("error_message") or "")[:20]
             rows.append(Text.from_markup(
@@ -2007,8 +2007,11 @@ def panel_signals_expanded(sig, sig_eval=None):
     if err_panel:
         return err_panel
 
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
+    # Only consider placeholder if no signals available due to data issues
+    buy_sigs = sig.get("buy_sigs") or []
+    total = sig.get("total", 0)
+    is_placeholder = (not buy_sigs and total == 0 and
+                      (sig.get("_is_placeholder") or sig.get("_is_fallback_data")))
 
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
@@ -2180,9 +2183,9 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         stale_count = sum(1 for r in hlth if r.get("st") != "ok")
         rows.append(Text.from_markup(f"[dim]Data freshness ({len(hlth)} tables, {stale_count} stale):[/]"))
         for r in hlth:
-            nm   = (r.get("tbl") or "--")
-            role = r.get("role") or ""
-            age  = r.get("age") if r.get("age") is not None else "?"
+            nm   = str(r.get("tbl") or "--")
+            role = str(r.get("role") or "")
+            age  = str(r.get("age") if r.get("age") is not None else "?")
             lat  = r.get("latest")
             lat_s = lat.strftime("%b %d") if hasattr(lat, "strftime") else str(lat or "")[:5]
             ok   = r.get("st") == "ok"
@@ -2200,8 +2203,8 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     if valid_loader:
         rows.append(Text.from_markup("[dim]Data loaders:[/]"))
         for r in valid_loader:
-            st  = r.get("status") or ""
-            nm  = r.get("table_name") or "--"
+            st  = str(r.get("status") or "")
+            nm  = str(r.get("table_name") or "--")
             err = r.get("error_message") or ""
             sc  = R if st in ("error", "failed") else (Y if st == "stale" else (CY if st == "loading" else G))
             rows.append(Text.from_markup(
@@ -2292,7 +2295,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             bar_f   = int(min(pct, 25) / 25 * 8)
             bar_s   = f"[{pc}]{'#' * bar_f}[/][dim]{'-' * (8 - bar_f)}[/]"
             rows.append(Text.from_markup(
-                f"  [white]{sec:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
+                f"  [white]{str(sec):<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
             ))
         rows.append(Rule(style="dim"))
 
