@@ -162,22 +162,26 @@ def fetch_market(c):
             }
 
         # Strict conversion for critical price fields
+        # API returns spy_price (not spy_close), vix_level at top level of data dict
         try:
-            spy = safe_float_strict(data.get("spy_close"), "market.spy_close") if data.get("spy_close") is not None else None
-            if spy is None and "spy_close" in data:
-                raise StrictValidationError("spy_close missing from market data")
+            spy_raw = data.get("spy_price") or data.get("spy_close")
+            spy = safe_float_strict(spy_raw, "market.spy_price") if spy_raw is not None else None
             vix = safe_float_strict(data.get("vix_level"), "market.vix_level") if data.get("vix_level") is not None else None
-            if vix is None and "vix_level" in data:
-                raise StrictValidationError("vix_level missing from market data")
         except StrictValidationError as e:
             error_msg = f"Critical market data missing: {str(e)}"
             logger.error(error_msg)
             record_data_quality_issue("market", "critical_field", "missing_or_invalid", str(e))
             return {"_error": error_msg, "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
 
+        # regime is nested under data.current; fall back to active_tier.name
+        current = data.get("current", {})
+        tier = (current.get("regime") or
+                data.get("active_tier", {}).get("name") or
+                data.get("regime", "unknown"))
+
         return {
             "pct": safe_float(data.get("exposure_pct"), default=None),
-            "tier": data.get("regime", "unknown"),
+            "tier": tier,
             "halts": safe_json_parse(data.get("halt_reasons"), default=[], field_name="halt_reasons"),
             "vix": vix,
             "stage": data.get("market_stage"),
@@ -718,7 +722,7 @@ def fetch_sector_rotation(c):
         return {
             "date":     row.get("date"),
             "signal":   row.get("signal", ""),
-            "strength": safe_float(row.get("strength")),
+            "strength": safe_float(row.get("strength"), default=None),
             "weeks":    details.get("weeks_persistent", 1),
             "def_score": details.get("defensive_lead_score", 0),
             "cyc_score": details.get("cyclical_weak_score", 0),

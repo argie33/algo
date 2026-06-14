@@ -28,7 +28,7 @@ def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool =
 
     Args:
         value: Value to convert
-        default: Value to return on conversion failure (default: None = strict mode)
+        default: Value to return on conversion failure (default: None returns None)
                  Use default=0.0 only for aggregation contexts where 0 is meaningful
         strict: If True, raise StrictValidationError instead of returning default
         field_name: Field name for error logging
@@ -40,7 +40,7 @@ def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool =
     portfolio values, market prices, or P&L is catastrophically misleading.
     """
     if value is None:
-        if strict or (default is None and not isinstance(default, (int, float))):
+        if strict:
             raise StrictValidationError(
                 f"Cannot convert None to float{f' for {field_name}' if field_name else ''}"
             )
@@ -80,7 +80,7 @@ def safe_int(value: Any, *, default: Optional[int] = None, strict: bool = False,
     missing trade count or position count is misleading.
     """
     if value is None:
-        if strict or (default is None and not isinstance(default, int)):
+        if strict:
             raise StrictValidationError(
                 f"Cannot convert None to int{f' for {field_name}' if field_name else ''}"
             )

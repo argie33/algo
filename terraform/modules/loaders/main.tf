@@ -397,18 +397,18 @@ locals {
     "buy_sell_daily"        = "load_buy_sell_daily.py"
 
     # Technical indicators & metrics
-    "technical_data_daily" = "load_technical_data_daily.py"
+    "technical_data_daily"            = "load_technical_data_daily.py"
     "technical_data_daily_vectorized" = "load_technical_data_daily_vectorized.py"
-    "algo_metrics_daily"   = "load_algo_metrics_daily.py"
-    "swing_trader_scores"  = "load_swing_trader_scores.py"
-    "swing_trader_scores_vectorized" = "load_swing_trader_scores_vectorized.py"
+    "algo_metrics_daily"              = "load_algo_metrics_daily.py"
+    "swing_trader_scores"             = "load_swing_trader_scores.py"
+    "swing_trader_scores_vectorized"  = "load_swing_trader_scores_vectorized.py"
 
     # Market health & economic data
-    "market_health_daily"   = "load_market_health_daily.py"
-    "market_exposure_daily" = "load_market_exposure_daily.py"
-    "fred_economic_data"    = "load_fred_economic_data.py"
+    "market_health_daily"    = "load_market_health_daily.py"
+    "market_exposure_daily"  = "load_market_exposure_daily.py"
+    "fred_economic_data"     = "load_fred_economic_data.py"
     "economic_metrics_daily" = "load_economic_metrics_daily.py"
-    "trend_template_data"   = "load_trend_criteria_data.py"
+    "trend_template_data"    = "load_trend_criteria_data.py"
     # Pre-computed metrics (used by API instead of on-the-fly computation)
     "compute_circuit_breakers"    = "compute_circuit_breakers.py"
     "compute_performance_metrics" = "compute_performance_metrics.py"
@@ -748,7 +748,7 @@ locals {
     # Pre-computed metrics for API endpoints � pure SQL aggregation, no external APIs
     # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
     # Runs after Phase 7 reconciliation to capture latest position/trade state
-    "compute_circuit_breakers" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "compute_circuit_breakers"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "compute_performance_metrics" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
   }

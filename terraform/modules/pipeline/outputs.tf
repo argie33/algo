@@ -26,10 +26,10 @@ output "preclose_update_state_machine_arn" {
 output "eventbridge_rule_names" {
   description = "EventBridge Scheduler rules that trigger all data pipelines"
   value = {
-    morning_trigger     = aws_scheduler_schedule.morning_pipeline_trigger.name
-    afternoon_trigger   = aws_scheduler_schedule.afternoon_update_pipeline_trigger.name
-    preclose_trigger    = aws_scheduler_schedule.preclose_update_pipeline_trigger.name
-    eod_trigger         = aws_scheduler_schedule.eod_pipeline_trigger.name
+    morning_trigger   = aws_scheduler_schedule.morning_pipeline_trigger.name
+    afternoon_trigger = aws_scheduler_schedule.afternoon_update_pipeline_trigger.name
+    preclose_trigger  = aws_scheduler_schedule.preclose_update_pipeline_trigger.name
+    eod_trigger       = aws_scheduler_schedule.eod_pipeline_trigger.name
   }
 }
 

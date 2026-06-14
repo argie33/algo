@@ -352,12 +352,12 @@ module "security_monitoring" {
   vpc_id       = module.vpc.vpc_id
   aws_region   = var.aws_region
 
-  cloudtrail_enabled         = var.cloudtrail_enabled
-  guardduty_enabled          = var.guardduty_enabled
-  aws_config_enabled         = var.aws_config_enabled
-  vpc_flow_logs_enabled      = var.vpc_flow_logs_enabled
+  cloudtrail_enabled            = var.cloudtrail_enabled
+  guardduty_enabled             = var.guardduty_enabled
+  aws_config_enabled            = var.aws_config_enabled
+  vpc_flow_logs_enabled         = var.vpc_flow_logs_enabled
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
-  notification_email         = var.notification_email
+  notification_email            = var.notification_email
 
   common_tags = local.common_tags
 }

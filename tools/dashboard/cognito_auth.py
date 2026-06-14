@@ -212,14 +212,23 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Opt
         except Exception as e:
             logger.warning(f"[Cognito] Failed to load cached token: {e}")
 
-    # 3. Try interactive authentication
+    # 3. Try credentials from saved file (non-interactive fallback)
+    saved_user, saved_pass = _get_or_create_test_user()
+    if saved_user and saved_pass:
+        if auth.authenticate(saved_user, saved_pass):
+            logger.info(f"[Cognito] Authenticated from saved credentials file: {saved_user}")
+            return auth
+        else:
+            logger.debug(f"[Cognito] Saved credentials invalid for {saved_user}")
+
+    # 4. Try interactive authentication
     if interactive and sys.stdin.isatty():
         try:
-            default_user, _ = _get_or_create_test_user()
             print("\n" + "="*60)
             print("Cognito Authentication Required")
             print("="*60)
-            username = input(f"Email [{default_user}]: ").strip() or default_user
+            print(f"Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
+            username = input(f"Email [{saved_user}]: ").strip() or saved_user
             password = input("Password: ").strip()
             if auth.authenticate(username, password):
                 logger.info(f"[Cognito] Authenticated as {username}")
@@ -231,8 +240,8 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Opt
             logger.info("[Cognito] Authentication cancelled")
             return None
 
-    # 4. Fallback: return unauthenticated instance (will fail on protected endpoints)
-    logger.warning("[Cognito] No credentials available - public endpoints only")
+    # 5. Fallback: return unauthenticated instance (will fail on protected endpoints)
+    logger.warning("[Cognito] No credentials available - set COGNITO_USERNAME + COGNITO_PASSWORD env vars or run from a terminal")
     return auth
 
 

@@ -706,11 +706,14 @@ jobs:
           echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
 
       - name: Remove Orphaned S3 Config Bucket From State
+        working-directory: terraform
         run: |
-          # algo-config-bucket was removed from Terraform code but still exists in state.
-          # Remove it so Terraform doesn't try to delete the bucket (which fails if it's not empty).
-          terraform state rm "aws_s3_bucket.config[0]" 2>/dev/null || true
-          terraform state rm "aws_s3_bucket.config" 2>/dev/null || true
+          # AWS Config S3 bucket is no longer managed (aws_config_enabled=false).
+          # Terraform cannot delete it if it contains versioned objects, so remove from state instead.
+          terraform state rm "module.security_monitoring.aws_s3_bucket.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_versioning.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_public_access_block.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_policy.config_bucket[0]" 2>/dev/null || true
           echo "[OK] Orphaned config bucket state entries removed (if they existed)"
 
       - name: Terraform Plan

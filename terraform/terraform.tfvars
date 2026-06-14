@@ -39,7 +39,7 @@ cognito_custom_email_enabled  = true                        # Cognito custom mes
 cognito_sender_email          = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
 
 # AWS Config - disabled due to S3 bucket state corruption
-aws_config_enabled            = false                       # Disable AWS Config to resolve Terraform state issues with legacy S3 buckets
+aws_config_enabled = false # Disable AWS Config to resolve Terraform state issues with legacy S3 buckets
 
 # Database configuration
 rds_instance_class = "db.t4g.small" # REQUIRED for loader parallelism: Graviton t4g.small (2 vCPU, 2GB, ~100 max_connections) supports concurrent loader execution. With tuned parallelism (2-3 for critical loaders), connection pool remains well below limit. Cost ~$25-30/month.
