@@ -81,7 +81,7 @@ class HaltFlagManager:
 
         return False
 
-    def check_halt_flag(self) -> Tuple[bool, Optional[str]]:
+    def check_halt_flag(self) -> Tuple[Optional[bool], Optional[str]]:
         """Check if halt flag is set.
 
         Returns:

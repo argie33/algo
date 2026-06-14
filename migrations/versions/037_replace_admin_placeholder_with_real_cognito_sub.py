@@ -1,23 +1,16 @@
-﻿"""Replace admin-user placeholder with real Cognito sub.
+"""Replace admin-user placeholder with real Cognito sub.
 
 This migration updates all database records from the hardcoded 'admin-user'
 placeholder to the real admin user's Cognito sub.
 
-IMPORTANT: Set ADMIN_COGNITO_SUB environment variable before running:
-    $env:ADMIN_COGNITO_SUB = "us-east-1_XXXXX:12345678-1234-1234-1234-123456789abc"
-
-Get the real admin Cognito sub from AWS Cognito console:
-1. Go to AWS Cognito â†’ User pools â†’ algo-trading
-2. Find the admin user (email: edgebrookecapital@gmail.com)
-3. Copy the "Sub" value
-4. Set it as ADMIN_COGNITO_SUB environment variable
-5. Run migration
+If ADMIN_COGNITO_SUB is not set, this migration skips gracefully and is marked
+as applied. Run manually later with the env var set if tables have placeholder rows.
 
 Tables affected:
 - algo_portfolio_snapshots
 - algo_trade_adds
 - algo_trades (if applicable)
-- Any other tables with cognito_sub column using 'admin-user'
+- algo_positions
 """
 
 import os
@@ -27,55 +20,46 @@ DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"
 
 def up():
     """Update all 'admin-user' references to real admin Cognito sub."""
-    # Get real admin Cognito sub from environment
     admin_cognito_sub = os.getenv('ADMIN_COGNITO_SUB', '').strip()
 
-    if not admin_cognito_sub:
-        print("  [WARN] ADMIN_COGNITO_SUB not set — skipping placeholder replacement.")
-        print("  Set ADMIN_COGNITO_SUB to the real admin Cognito sub if tables have 'admin-user' rows.")
+    if not admin_cognito_sub or admin_cognito_sub == 'admin-user':
+        print("  [WARN] ADMIN_COGNITO_SUB not set or is placeholder - skipping.")
+        print("  Set ADMIN_COGNITO_SUB to the real Cognito sub and re-run if needed.")
         return
 
-    if admin_cognito_sub == 'admin-user':
-        print("  [WARN] ADMIN_COGNITO_SUB is the placeholder itself — skipping.")
-        return
+    tables_to_update = [
+        'algo_portfolio_snapshots',
+        'algo_trade_adds',
+        'algo_trades',
+        'algo_positions',
+    ]
 
-    with DatabaseContext(‘write’) as cur:
-        # Tables to update: find all columns named cognito_sub with 'admin-user'
-        tables_to_update = [
-            'algo_portfolio_snapshots',
-            'algo_trade_adds',
-            'algo_trades',
-            'algo_positions',
-        ]
-
+    with DatabaseContext('write') as cur:
         for table_name in tables_to_update:
             try:
-                # Check if table exists
                 cur.execute(
                     "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
                     (table_name,)
                 )
                 if not cur.fetchone():
-                    continue  # Table doesn't exist, skip
+                    continue
 
-                # Update all 'admin-user' to real Cognito sub
                 cur.execute(
-                    f"UPDATE {table_name} SET cognito_sub = %s WHERE cognito_sub = 'admin-user'",
+                    "UPDATE " + table_name + " SET cognito_sub = %s WHERE cognito_sub = 'admin-user'",
                     (admin_cognito_sub,)
                 )
                 rows_updated = cur.rowcount
                 if rows_updated > 0:
-                    print(f"  âœ“ {table_name}: {rows_updated} rows updated")
+                    print("  [OK] " + table_name + ": " + str(rows_updated) + " rows updated")
             except Exception as e:
-                print(f"  âœ— {table_name}: {e}")
+                print("  [ERR] " + table_name + ": " + str(e))
                 raise
 
-        print(f"\nAdmin Cognito sub replaced in all tables: {admin_cognito_sub}")
+    print("Admin Cognito sub replaced in all tables: " + admin_cognito_sub)
+
 
 def down():
-    """Revert back to 'admin-user' placeholder (for rollback only)."""
-    # This is a destructive operation - we're reverting to a placeholder
-    # Only do this if migration failed and needs rollback
+    """Revert to 'admin-user' placeholder (rollback only)."""
     with DatabaseContext('write') as cur:
         tables_to_revert = [
             'algo_portfolio_snapshots',
@@ -87,27 +71,21 @@ def down():
         for table_name in tables_to_revert:
             try:
                 cur.execute(
-                    f"SELECT 1 FROM information_schema.tables WHERE table_name = %s",
+                    "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
                     (table_name,)
                 )
                 if not cur.fetchone():
                     continue
 
-                # Revert to placeholder
                 cur.execute(
-                    f"""
-                    UPDATE {table_name}
-                    SET cognito_sub = 'admin-user'
-                    WHERE cognito_sub IS NOT NULL AND cognito_sub != 'admin-user'
-                    """,
-                    ()
+                    "UPDATE " + table_name + " SET cognito_sub = 'admin-user'"
+                    " WHERE cognito_sub IS NOT NULL AND cognito_sub != 'admin-user'"
                 )
                 rows_reverted = cur.rowcount
                 if rows_reverted > 0:
-                    print(f"  âœ“ {table_name}: {rows_reverted} rows reverted to placeholder")
+                    print("  [OK] " + table_name + ": " + str(rows_reverted) + " rows reverted")
             except Exception as e:
-                print(f"  âœ— {table_name}: {e}")
+                print("  [ERR] " + table_name + ": " + str(e))
                 raise
 
-        print("\nReverted to 'admin-user' placeholder (rollback complete)")
-
+    print("Reverted to 'admin-user' placeholder (rollback complete)")
