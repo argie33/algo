@@ -975,11 +975,9 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 5, 'unit': '%',
                     'description': 'No weekly data yet'})
 
-            # CB6: Market stage break (Stage 4 = downtrend)
+            # CB6: Market stage break (Stage 4 = downtrend) (from pre-computed metrics)
             try:
-                cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
-                row = cur.fetchone()
-                stage = safe_int(row['market_stage']) if row else 0
+                stage = cbm_data['market_stage'] if cbm_data else 0
                 breakers.append({
                     'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': stage == 4,
