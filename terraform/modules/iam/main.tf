@@ -147,9 +147,19 @@ data "aws_iam_policy_document" "github_actions_compute" {
     actions = [
       "ecs:Describe*", "ecs:List*", "ecs:CreateService", "ecs:DeleteService",
       "ecs:UpdateService", "ecs:CreateTaskDefinition", "ecs:RegisterTaskDefinition",
-      "ecs:DeregisterTaskDefinition"
+      "ecs:DeregisterTaskDefinition", "ecs:RunTask", "ecs:StopTask",
+      "ecs:PutClusterCapacityProviders"
     ]
     resources = ["arn:aws:ecs:*:${var.aws_account_id}:*/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "ECSCluster"
+    effect = "Allow"
+    actions = [
+      "ecs:Describe*", "ecs:List*", "ecs:RunTask"
+    ]
+    resources = ["arn:aws:ecs:*:${var.aws_account_id}:cluster/${var.project_name}*"]
   }
 
   statement {

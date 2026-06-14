@@ -1554,16 +1554,23 @@ jobs:
           CONTAINER="${PROJECT}-market_health_daily"
 
           # Run migration as ECS task within VPC — has DB access, migrations code is in the image
-          TASK_ARN=$(aws ecs run-task \
+          # Use set +e so a permission error doesn't kill the script silently
+          set +e
+          RUN_OUTPUT=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --task-definition "$TASK_DEF" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
             --overrides "{\"containerOverrides\":[{\"name\":\"${CONTAINER}\",\"command\":[\"python3\",\"migrations/run.py\",\"apply\",\"--all\"]}]}" \
-            --query "tasks[0].taskArn" --output text 2>&1)
+            --region "$AWS_REGION" 2>&1)
+          RUN_EXIT=$?
+          set -e
+          echo "ECS run-task exit code: $RUN_EXIT"
+          echo "ECS run-task output: ${RUN_OUTPUT:0:500}"
 
-          if [ $? -ne 0 ] || [ -z "$TASK_ARN" ]; then
-            echo "[WARN] Failed to start migration ECS task: $TASK_ARN"
+          TASK_ARN=$(echo "$RUN_OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tasks'][0]['taskArn'])" 2>/dev/null || echo "")
+          if [ $RUN_EXIT -ne 0 ] || [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "[WARN] Failed to start migration ECS task (exit=${RUN_EXIT})"
             exit 0
           fi
           echo "Migration task started: $TASK_ARN"
