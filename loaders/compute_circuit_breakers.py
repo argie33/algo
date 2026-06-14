@@ -1,6 +1,6 @@
 """
 Compute circuit breaker metrics and store in circuit_breaker_status table.
-Runs nightly after Phase 7 reconciliation (around 5:00 PM ET).
+Runs daily at 4:30 PM ET (before Phase 7 reconciliation) via EventBridge scheduled task.
 
 Metrics computed:
 - CB1: Portfolio drawdown from peak
@@ -16,7 +16,7 @@ Metrics computed:
 
 import psycopg2
 import psycopg2.extras
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime as dt, timezone
 import logging
 import os
 import json
@@ -26,13 +26,17 @@ from decimal import Decimal
 
 from utils.db.context import DatabaseContext
 from utils.validation import safe_float, safe_int
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
 def compute_circuit_breaker_metrics(cur, today: date = None):
     """Compute all circuit breaker metrics for today and store in database."""
     if today is None:
-        today = date.today()
+        # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
+        today = dt.now(EASTERN_TZ).date()
+
+    logger.info(f'Computing circuit breaker metrics for {today}')
 
     try:
         metrics = {}
@@ -433,9 +437,11 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
 def main():
     """Main entry point for the loader."""
     try:
+        # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
+        run_date = dt.now(EASTERN_TZ).date()
         with DatabaseContext('write', cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            compute_circuit_breaker_metrics(cur)
-            logger.info('Circuit breaker metrics loader completed successfully')
+            compute_circuit_breaker_metrics(cur, today=run_date)
+            logger.info(f'Circuit breaker metrics loader completed successfully for {run_date}')
     except Exception as e:
         logger.error(f'Circuit breaker metrics loader failed: {e}', exc_info=True)
         raise
