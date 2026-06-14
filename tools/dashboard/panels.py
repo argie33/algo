@@ -2298,11 +2298,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  momentum  â-²â-¼1wk/4wk):[/]"))
         for r in valid_srank:
-            nm  = r.get("sector_name") or ""
+            nm  = str(r.get("sector_name") or "")
             mm  = r.get("momentum_score")
             ms  = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
+            rank_str = str(r.get('current_rank') or "")
             rows.append(Text.from_markup(
-                f"  [{G}]#{r['current_rank']:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}"
+                f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}"
             ))
         rows.append(Rule(style="dim"))
 
@@ -2311,11 +2312,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  momentum  â-²â-¼1wk):[/]"))
         for r in valid_irank:
-            nm  = r.get("industry") or ""
+            nm  = str(r.get("industry") or "")
             mm  = r.get("momentum_score")
             ms  = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
+            rank_str = str(r.get('current_rank') or "")
             rows.append(Text.from_markup(
-                f"  [{CY}]#{r['current_rank']:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"
+                f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"
             ))
 
     if not rows:
