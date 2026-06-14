@@ -1625,8 +1625,12 @@ data "aws_iam_policy_document" "developer_cognito" {
       "cognito-idp:AdminSetUserMFAPreference",
       "cognito-idp:AdminEnableUser",
       "cognito-idp:AdminDisableUser",
+      "cognito-idp:AdminAddUserToGroup",
+      "cognito-idp:AdminRemoveUserFromGroup",
+      "cognito-idp:AdminListGroupsForUser",
       "cognito-idp:ListUsers",
       "cognito-idp:ListUserPools",
+      "cognito-idp:ListGroups",
       "cognito-idp:DescribeUserPool",
       "cognito-idp:DescribeUserPoolClient"
     ]
