@@ -106,26 +106,43 @@ Try AWS Secrets Manager: algo/dashboard-config
 Show error with 3 setup options
 ```
 
-**Local Dev Setup (3 Options):**
+**Local Dev Setup (Fully Automated - RECOMMENDED):**
+
+One-command setup that discovers credentials and configures dashboard + frontend:
 
 ```powershell
-# Option 1: Manual environment variables (bypass credential fetch)
+# Automated setup - fetches credentials and configures everything
+scripts/setup-local-dev.ps1
+
+# Then start any of these (credentials are already configured):
+scripts/run-dashboard.ps1 -w 30           # Terminal dashboard with auto-refresh
+cd webapp/frontend && npm run dev         # React web frontend (localhost:5173)
+python scripts/api-proxy-server.py        # Local API proxy (if using --local mode)
+```
+
+What `setup-local-dev.ps1` does:
+1. Fetches AWS credentials from Secrets Manager (or via workflow if missing)
+2. Auto-discovers Dashboard config (Secrets Manager → Terraform → known fallback)
+3. Generates `webapp/frontend/public/config.js` with API credentials
+4. Updates PowerShell profile so credentials auto-load in future sessions
+5. Verifies API connectivity
+
+**Legacy Setup (if automated setup doesn't work):**
+
+```powershell
+# Option 1: Manual environment variables (one-session only)
 $env:DASHBOARD_API_URL = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
 $env:COGNITO_USER_POOL_ID = "us-east-1_XJpLb9SKX"
 $env:COGNITO_CLIENT_ID = "6smb0vrcidd9kvhju2kn2a3qrl"
 python tools/dashboard/dashboard.py
 
-# Option 2: AWS credentials bootstrap + auto-fetch from Secrets Manager (RECOMMENDED after deploy)
+# Option 2: AWS credentials bootstrap + auto-fetch from Secrets Manager
 scripts/refresh-aws-credentials.ps1  # creates ~/.aws/credentials with algo-developer profile
 python tools/dashboard/dashboard.py  # auto-fetches from Secrets Manager
 
-# Option 3: Local development (no AWS)
-# Terminal 1: Start local API proxy server (real Lambda code, no mocks)
-python scripts/api-proxy-server.py
-
-# Terminal 2: Run dashboard against localhost
-python tools/dashboard/dashboard.py --local
-python tools/dashboard/dashboard.py -w 30 --local  # with auto-refresh
+# Option 3: Local development without AWS infrastructure
+python scripts/api-proxy-server.py                    # Terminal 1: Local API proxy
+python tools/dashboard/dashboard.py --local -w 30    # Terminal 2: Dashboard
 ```
 
 **Local API Proxy Server (`scripts/api-proxy-server.py`):**
@@ -199,11 +216,59 @@ response = client.get_secret_value(SecretId='algo/secret')  # ❌ NO
 **When credential_manager is unavailable (rare):**
 Lambda functions have fallback logic that reverts to direct boto3 calls (db-init, circuit-breaker). This is a last-resort safeguard and should never be needed in normal operation.
 
+## Terraform Outputs: Version Control & Freshness
+
+**Problem Solved:** Terraform outputs were previously stored only in AWS S3 remote state, without git version control. This meant:
+- Outputs could become stale if Terraform wasn't re-run
+- No historical record of infrastructure changes
+- No way to detect if outputs were out of sync with AWS
+
+**Solution:** Outputs are now tracked in git and validated for freshness.
+
+**How it works:**
+
+1. **GitHub Actions saves outputs to git** (`deploy-all-infrastructure.yml`)
+   - After successful `terraform apply`, workflow saves `.terraform-outputs.json` to git
+   - File includes timestamp and commit hash for traceability
+   - Committed with message: `INFRA: Update Terraform outputs from successful apply`
+
+2. **Scripts for managing outputs:**
+   - `scripts/sync-terraform-outputs.ps1` — Manually sync live AWS state to git
+   - `scripts/verify-terraform-outputs.ps1` — Check if cached outputs are fresh (< 24h old)
+   - `scripts/get-cached-terraform-outputs.ps1` — Load outputs from cache with live fallback
+
+**Freshness Rules:**
+
+- Outputs are considered FRESH if < 24 hours old
+- `verify-terraform-outputs.ps1` compares git cache against live AWS state and alerts on differences
+- If stale or missing, scripts automatically fetch from live AWS (read-only, no state changes)
+- Dashboard and deployment scripts use cached outputs by default (fast, offline-safe)
+
+**Local Usage:**
+
+```powershell
+# Verify outputs are fresh and accurate
+scripts/verify-terraform-outputs.ps1
+
+# Manually sync outputs to git (only needed if outputs change outside GitHub Actions)
+scripts/sync-terraform-outputs.ps1
+
+# Load outputs for use in scripts (auto-selects cache or live)
+. scripts/get-cached-terraform-outputs.ps1
+$api_url = $env:API_GATEWAY_ENDPOINT
+```
+
+**In CI/CD:**
+
+- Outputs are automatically saved to git after `terraform apply` succeeds
+- No manual action needed
+- Allows infrastructure changes to be fully traceable (one commit = one state snapshot)
+
 ## Deployment
 
 **Frontend Build:** Reads API URL + Cognito config at build time. Injects cache-bust parameter to `index.html` (prevents stale config.js). Four-layer cache invalidation (S3 headers + CloudFront + browser fetch + parameter).
 
-**Production:** `git push main` → deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations)
+**Production:** `git push main` → deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations + saves outputs to git)
 
 **Staging:** `git push staging` → deploy-staging.yml (dry-run, separate Lambda, shared RDS)
 

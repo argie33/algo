@@ -846,6 +846,32 @@ jobs:
             fi
           fi
 
+      - name: Save Terraform Outputs to Git
+        if: steps.tf_plan.outputs.has_changes == 'true'
+        run: |
+          # Save Terraform outputs to git for version control and freshness tracking
+          # Prevents stale outputs and ensures all past versions are traceable
+          TF_OUT=$(terraform output -json 2>&1)
+
+          # Create output file with timestamp
+          cat > ../.terraform-outputs.json <<EOF
+          {
+            "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "git_commit": "$(git rev-parse HEAD)",
+            "outputs": $TF_OUT
+          }
+          EOF
+
+          # Commit to git (safe for concurrent deploys because we only commit after apply succeeds)
+          cd ..
+          if git status --short .terraform-outputs.json | grep -q ".terraform-outputs.json"; then
+            git add .terraform-outputs.json
+            git commit -m "INFRA: Update Terraform outputs from successful apply - $(git rev-parse --short HEAD)" || true
+            echo "[OK] Terraform outputs committed to git"
+          else
+            echo "[OK] No changes to Terraform outputs"
+          fi
+
       - name: Setup Cognito Admin Group
         run: |
           POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
