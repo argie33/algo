@@ -1005,27 +1005,27 @@ variable "cloudtrail_enabled" {
 }
 
 variable "guardduty_enabled" {
-  description = "Enable Amazon GuardDuty threat detection"
+  description = "Enable Amazon GuardDuty threat detection (disabled for dev/staging cost savings ~$5-10/month)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "aws_config_enabled" {
-  description = "Enable AWS Config compliance monitoring"
+  description = "Enable AWS Config compliance monitoring (disabled for dev/staging cost savings ~$1/month)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "vpc_flow_logs_enabled" {
-  description = "Enable VPC Flow Logs"
+  description = "Enable VPC Flow Logs (disabled for dev/staging cost savings ~$5-10/month)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "security_log_retention_days" {
-  description = "CloudWatch log retention for security monitoring (CloudTrail, GuardDuty, Config, VPC Flow Logs)"
+  description = "CloudWatch log retention for security monitoring (CloudTrail, GuardDuty, Config, VPC Flow Logs). Reduced to 7 days for dev/staging cost savings."
   type        = number
-  default     = 90
+  default     = 7
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.security_log_retention_days)
     error_message = "Must be a valid CloudWatch retention period"

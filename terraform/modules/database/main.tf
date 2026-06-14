@@ -102,7 +102,7 @@ resource "aws_db_instance" "main" {
 
   # Monitoring & Logs
   enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
-  monitoring_interval             = 60
+  monitoring_interval             = 0 # Disabled for dev cost savings (~$8-10/month); CloudWatch native metrics still available
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
   # Always enable Performance Insights: free for 7-day retention, essential for slow-query diagnosis.
   # Cannot be gated on environment == "prod" because this environment is named "dev" but runs live capital.
