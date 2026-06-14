@@ -6,7 +6,7 @@ from datetime import date as _date
 from typing import Any, Callable, List, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
+from algo.reporting import AlertManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ def run(
         PhaseResult with status 'ok', data containing position recommendations
     """
     try:
-        from algo.algo_position_monitor import PositionMonitor
-        from algo.algo_market_events import MarketEventHandler
+        from algo.monitoring import PositionMonitor
+        from algo.infrastructure import MarketEventHandler
         monitor = PositionMonitor(config)
 
         try:

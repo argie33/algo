@@ -15,10 +15,10 @@ import psycopg2.extensions
 import psycopg2.sql
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
-from algo.algo_alerts import AlertManager
-from algo.algo_market_calendar import MarketCalendar
+from algo.reporting import AlertManager
+from algo.infrastructure import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
-from algo.algo_trade_executor import TradeExecutor
+from algo.trading import TradeExecutor
 from utils.db.context import DatabaseContext
 from utils.logging.execution_tracker import get_tracker
 import logging
@@ -315,7 +315,7 @@ class Orchestrator:
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
         try:
-            from algo.algo_connection_monitor import get_pool_status, check_stuck_connections
+            from algo.monitoring import get_pool_status, check_stuck_connections
             status = get_pool_status()
             logger.debug(f"[RDS_POOL] Status: {status['active_connections']}/{status['max_connections']} "
                         f"({status['usage_pct']:.0f}%)")

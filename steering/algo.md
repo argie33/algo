@@ -137,6 +137,55 @@ DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRE
 scripts/refresh-aws-credentials.ps1
 ```
 
+## Centralized Credential Manager (Unified Secret Access)
+
+**Single Source of Truth:** `config/credential_manager.py`
+
+All Lambda functions and utilities must fetch secrets through the centralized `CredentialManager` class instead of directly calling boto3. This ensures:
+- Consistent error handling and timeouts (Secrets Manager uses 10s connect timeout, 15s read timeout)
+- Unified fallback chain: Cache → Secrets Manager → Environment Variables → Default/Error
+- Automatic caching with 5-minute TTL (balances freshness with cost)
+- Thread-safe credential access with double-checked locking
+
+**Implementation:**
+- Core class: `CredentialManager` (lines 40-405)
+- Module-level functions: `get_secret()`, `get_password()`, `get_db_credentials()`, `get_alpaca_credentials()` (lines 423-442)
+- Singleton instance: `get_credential_manager()` (thread-safe, lines 410-421)
+
+**Usage in Lambda Functions:**
+```python
+# CORRECT: Use credential_manager for all secret access
+from config.credential_manager import get_secret, get_db_credentials, get_alpaca_credentials
+
+secret = get_secret('algo/orchestrator', default='{}')
+db_creds = get_db_credentials()  # Returns {host, port, user, password, database}
+alpaca = get_alpaca_credentials(user_id=None)  # Returns {key, secret}
+```
+
+**DO NOT directly call boto3:**
+```python
+# WRONG: Direct boto3 calls bypass error handling, caching, timeouts
+import boto3
+client = boto3.client('secretsmanager')
+response = client.get_secret_value(SecretId='algo/secret')  # ❌ NO
+```
+
+**Specific Secrets Managed:**
+- `DB_SECRET_ARN` → parsed by `get_db_credentials()`, returns connection dict
+- `algo/alpaca` → parsed by `get_alpaca_credentials()`, supports per-user isolation
+- `algo/orchestrator` → fetched via `get_secret()`, circuit breaker halt flag
+- `algo/cloudfront-domain` → fetched via `get_secret()`, CORS configuration
+- Other secrets → fetched via `get_secret(secret_name)` with env var fallback
+
+**Credential Rotation & Caching:**
+- Cache TTL: 5 minutes (balances cost and rotation speed)
+- At Lambda invocation start: `clear_expired_credentials()` removes stale entries while keeping fresh ones
+- On credential 401 error: `invalidate_alpaca_credentials()` clears cache and emits CloudWatch alarm
+- Local dev: Set `FORCE_AWS=true` to access Secrets Manager from local machine
+
+**When credential_manager is unavailable (rare):**
+Lambda functions have fallback logic that reverts to direct boto3 calls (db-init, circuit-breaker). This is a last-resort safeguard and should never be needed in normal operation.
+
 ## Deployment
 
 **Frontend Build:** Reads API URL + Cognito config at build time. Injects cache-bust parameter to `index.html` (prevents stale config.js). Four-layer cache invalidation (S3 headers + CloudFront + browser fetch + parameter).

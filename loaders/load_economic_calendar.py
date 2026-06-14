@@ -9,6 +9,9 @@ from typing import Optional, List
 import requests
 import boto3
 
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 from utils.db.context import DatabaseContext
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
@@ -65,9 +68,6 @@ FOMC_DATES_2027 = [
 
 def _get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager, fall back to env var."""
-from loaders.loader_helper import setup_imports
-setup_imports()
-
     return get_api_key('algo/fred', 'FRED_API_KEY') or ""
 
 def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -> List[date]:
