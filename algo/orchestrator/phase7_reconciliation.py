@@ -37,12 +37,13 @@ def run(
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)
-        status = 'success' if result.get('success') else 'error'
+        reconciliation_succeeded = result.get('success', False)
+        status = 'success' if reconciliation_succeeded else 'error'
         summary = (
             f'Portfolio ${result.get("portfolio_value", 0):,.2f}, '
             f'{result.get("positions", 0)} positions, '
             f'unrealized P&L ${result.get("unrealized_pnl", 0):+,.2f}'
-        ) if result.get('success') else result.get('error', 'unknown')
+        ) if reconciliation_succeeded else result.get('error', 'unknown')
         log_phase_result_fn(7, 'reconciliation', status, summary)
 
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
@@ -261,7 +262,9 @@ def run(
             'reconciliation': result,
         }
 
-        return PhaseResult(7, 'reconciliation', 'ok', data, False, None)
+        # Return status reflecting whether the core reconciliation succeeded
+        phase_status = 'ok' if reconciliation_succeeded else 'error'
+        return PhaseResult(7, 'reconciliation', phase_status, data, False, None)
 
     except Exception as e:
         traceback.print_exc()
