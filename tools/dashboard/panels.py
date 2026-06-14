@@ -276,7 +276,7 @@ def panel_market_full(mkt, sentiment=None):
     uvc   = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
     pcr_c = G if (pcr or 99) <= 0.8 else (Y if (pcr or 99) <= 1.0 else R)
     nhnl  = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R) if nhnl is not None else DIM
+    nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
 
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
@@ -375,7 +375,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         if upvol is not None:
             uvc    = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl   = (nh - nl) if (nh is not None and nl is not None) else None
-            nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R) if nhnl is not None else DIM
+            nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
             adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
             nhnl_s = f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else "[dim]NH-NL: --[/]"
             rows.append(Text.from_markup(
@@ -555,11 +555,11 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
     wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    dd_v = perf.get('maxdd') if perf.get('maxdd') is not None else 0
+    dd_v = perf.get('maxdd') or 0
     dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
-    closed_wins = perf.get('w', 0)
-    closed_losses = perf.get('l', 0)
-    losing_open = adj_l - closed_losses
+    closed_wins = perf.get('w') or 0
+    closed_losses = perf.get('l') or 0
+    losing_open = (adj_l or 0) - (closed_losses or 0)
     rows = [
         Text.from_markup(
             f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
