@@ -11,13 +11,12 @@ export default defineConfig(({ mode }) => {
   const isDevelopment = mode === "development";
   const isProduction = mode === "production";
 
-  // API URL configuration - read from process.env (set by build-prod.js)
-  // In development: leave VITE_API_URL empty so api.js uses relative paths
-  // The Vite proxy will handle routing /api/* to localhost:3001
-  // In production: use explicit URL from VITE_API_URL environment variable
-  const apiUrl = env.VITE_API_URL || ""; // Empty for dev, explicit for prod
-  // Vite proxy target for development (backend running on localhost:3001)
-  const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
+  // API URL configuration - read from process.env
+  // Set VITE_API_URL to your AWS Lambda API Gateway endpoint
+  // Example: export VITE_API_URL=https://abcd1234.execute-api.us-east-1.amazonaws.com
+  const apiUrl = env.VITE_API_URL || "";
+  // Vite proxy target for development (requires VITE_API_URL environment variable)
+  const proxyTarget = env.VITE_API_URL || "";
 
   return {
     plugins: [
@@ -62,6 +61,14 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               timeout: 15000, // 15s to match backend's 8s query timeout + 7s buffer for network/serialization. Some queries use SET LOCAL statement_timeout = '8000ms' for performance.
               configure: (proxy, options) => {
+                proxy.on('proxyRes', (proxyRes, req, res) => {
+                  // Ensure CORS headers are passed through from backend/mock server
+                  const origin = req.headers.origin;
+                  if (origin) {
+                    proxyRes.headers['Access-Control-Allow-Origin'] = origin;
+                    proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
+                  }
+                });
               },
             },
           }
