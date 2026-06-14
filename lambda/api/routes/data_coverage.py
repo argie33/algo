@@ -19,6 +19,7 @@ from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
 from utils.error_handlers import make_error_response
 from routes.utils import error_response, execute_with_timeout, success_response, json_response
+from utils.db.sql_safety import assert_safe_table
 
 logger = logging.getLogger(__name__)
 
@@ -198,9 +199,10 @@ def get_loader_health(cur) -> Dict[str, Any]:
         table_health = []
         for table in tables_to_check:
             try:
+                table_safe = assert_safe_table(table)
                 cur.execute(f"""
                     SELECT MAX(updated_at) as last_update, COUNT(*) as row_count
-                    FROM {table}
+                    FROM {table_safe}
                     WHERE updated_at > NOW() - INTERVAL '30 days' OR updated_at IS NULL
                 """)
                 result = cur.fetchone()

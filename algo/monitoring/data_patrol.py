@@ -561,9 +561,10 @@ class DataPatrol:
 
             for table_name in critical_tables:
                 try:
+                    table_safe = assert_safe_table(table_name)
                     cur.execute(f"""
-                        SELECT COUNT(DISTINCT symbol) FROM {table_name}
-                        WHERE date = (SELECT MAX(date) FROM {table_name})
+                        SELECT COUNT(DISTINCT symbol) FROM {table_safe}
+                        WHERE date = (SELECT MAX(date) FROM {table_safe})
                     """)
                     result = cur.fetchone()
                     table_count = result[0] if result is not None and result[0] is not None else 0

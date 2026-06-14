@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 import pandas as pd
+from pandas.tseries.offsets import CustomBusinessDay
 
 from utils.db.sql_safety import assert_safe_table
 from utils.loaders.helpers import get_active_symbols
@@ -229,10 +230,14 @@ class TechnicalDataDailyLoader(OptimalLoader):
         # Mansfield Relative Strength: (rs_line / 52wk_ma_of_rs_line - 1) * 100
         # rs_line = close / spy_close; requires SPY prices aligned to same dates
         if spy_rows:
+            from algo.infrastructure.market_calendar import US_HOLIDAYS
             spy_df = pd.DataFrame(spy_rows)
             spy_df["date"] = pd.to_datetime(spy_df["date"])
             spy_closes = spy_df.set_index("date")["close"]
-            spy_aligned = spy_closes.reindex(df["date"].values)
+
+            holidays = list(US_HOLIDAYS.keys())
+            cbd = CustomBusinessDay(holidays=holidays)
+            spy_aligned = spy_closes.reindex(df["date"].values, freq=cbd)
             rs_line = df["close"].values / spy_aligned.values
             rs_line_s = pd.Series(rs_line, index=df.index)
             rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
