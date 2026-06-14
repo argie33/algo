@@ -2,31 +2,13 @@
 
 import logging
 import traceback
-from datetime import date as _date, datetime
+from datetime import date as _date
 from typing import Any, Callable, Dict, List
 
-from utils.timezone_utils import EASTERN_TZ
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
-def _is_live_evening_run(run_date):
-    """Return True only for same-day live runs after 5 PM ET.
-
-    Historical replays (run_date < today) never force-recompute — the data is
-    already settled for that date and recomputing would hit the wrong market data.
-    """
-    from datetime import date as _today_date
-    if run_date < _today_date.today():
-        return False
-    try:
-        et_tz = EASTERN_TZ
-        now_et = datetime.now(et_tz)
-        return now_et.hour >= 17
-    except Exception as e:
-        logger.warning(f"Could not determine run time: {e}")
-        return False
 
 def run(
     config: Any,
@@ -50,16 +32,16 @@ def run(
         PhaseResult with status 'ok', data containing exposure constraints and actions
     """
     try:
-        # Refresh market exposure first
+        # Load cached market exposure from EOD pipeline (4:05 PM is sole source of truth)
+        # All orchestrator runs use the cached value — no recomputation.
+        # This ensures single source of truth and prevents divergence between EOD and evening runs.
         from algo.algo_market_exposure import MarketExposure
         from algo.algo_market_exposure_policy import ExposurePolicy
 
         me = MarketExposure()
-        # Use cached market exposure (computed once per day at EOD) unless we're in evening refresh
-        # Evening refresh (after 5 PM) recomputes for next day's trading decisions
-        force_recompute = _is_live_evening_run(run_date)
-        exposure = me.compute(run_date, force_recompute=force_recompute)
-        cache_status = " ✓ cached" if exposure.get('_cached') else " (recomputed)"
+        # Always use cached exposure (computed once per day at 4:05 PM EOD pipeline)
+        exposure = me.compute(run_date, force_recompute=False)
+        cache_status = " ✓ cached" if exposure.get('_cached') else " (WARNING: not cached, using fallback)"
         logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}")
         if exposure.get('halt_reasons'):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")

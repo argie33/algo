@@ -48,12 +48,13 @@ scripts/refresh-aws-credentials.ps1
 
 ## Data Architecture: Market Exposure
 
-**Guaranteed availability:** `market_exposure_daily` table
-- Computed daily in EOD pipeline (4:05 PM ET) — independent of orchestrator halt status
-- Fallback: If orchestrator Phase 3b would compute it but halts first, EOD loader ensures it's populated
-- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator)
+**Single Source of Truth:** `market_exposure_daily` table computed daily by EOD pipeline (4:05 PM ET)
+- Computed once per day at 4:05 PM ET (independent of orchestrator halt status)
+- All orchestrator runs (9:30 AM, 1 PM, 3 PM, 5:30 PM) use cached value from EOD — no recomputation
+- This ensures single source of truth and prevents divergence between multiple computation points
+- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator), Phase 3b entry constraints
 
-**Data flow:** EOD pipeline computes at 4:05 PM → Orchestrator Phase 3b updates if recompute flagged (evening runs) → Dashboard queries for regime
+**Data flow:** EOD pipeline computes at 4:05 PM → Orchestrator Phase 3b uses cached value → Dashboard queries → API responses populated
 
 ## Schedule (Daily, Mon-Fri)
 
