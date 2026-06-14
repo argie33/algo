@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Market Health Daily Loader â€" Market stage, distribution days, advance/decline.
+"""Market Health Daily Loader – Market stage, distribution days, advance/decline.
 
 Computes market-wide health metrics from SPY price data and market indicators.
 Populates all required market_health_daily columns.
 
 Run: python3 load_market_health_daily.py [--parallelism 1]
 """
+import sys
+from pathlib import Path
+
+# Add project root to sys.path BEFORE importing loaders module
+loader_dir = Path(__file__).parent
+project_root = loader_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from loaders.loader_helper import setup_imports
 setup_imports()
-
-import sys
 import argparse
 from datetime import date, datetime, timedelta
 from typing import List, Optional
