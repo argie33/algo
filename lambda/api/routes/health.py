@@ -44,10 +44,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _handle_basic(cur) -> Dict:
     """Basic health check - PUBLIC, no auth required.
 
-    Includes: database connectivity, RDS connection pool status, data freshness overview,
-    API route import status.
+    Fast health check: DB connectivity + key metrics (optimized).
+    Uses simple, indexed queries only. Complex checks move to /health/detailed.
     """
-    # Get route status from api_router module (for C-4 fix)
     import_status = get_api_import_status()
 
     health = {
@@ -57,8 +56,6 @@ def _handle_basic(cur) -> Dict:
     }
 
     has_critical = False
-    has_warning = False
-    degradation_reasons = []
 
     # C-4 FIX: Report API route import failures in health check
     if import_status.get('failed_routes', 0) > 0:
@@ -70,151 +67,58 @@ def _handle_basic(cur) -> Dict:
         }
         if import_status.get('critical_failures'):
             has_critical = True
-            degradation_reasons.append(f"Critical routes failed to import: {', '.join(import_status['critical_failures'])}")
-        else:
-            has_warning = True
-            degradation_reasons.append(f"Some routes failed to import: {len(import_status['failed_modules'])} modules")
     else:
         health['api_route_imports'] = {'status': 'healthy', 'failed_count': 0}
 
     try:
-        # Verify DB is responsive with a simple query (3 second timeout)
-        result = execute_with_timeout(cur, "SELECT 1", timeout_sec=3)
+        # Verify DB connectivity (2 second timeout)
+        result = execute_with_timeout(cur, "SELECT 1", timeout_sec=2)
         if not result:
             return error_response(503, 'connection_error', 'Database connection failed')
 
-        # Get RDS connection pool status (5-second timeout for metadata query)
+        # Signal freshness check (fast indexed query, 2 second timeout)
         try:
-            pool_info = execute_with_timeout(cur, """
-                SELECT
-                    (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) as active_connections,
-                    current_setting('max_connections')::int as max_connections
-            """, timeout_sec=5)
-
-            if pool_info and len(pool_info) > 0:
-                row = safe_json_serialize(dict(pool_info[0]))
-                active = row.get('active_connections', 0)
-                max_conn = row.get('max_connections', 100)
-                pool_pct = int((active / max_conn) * 100) if max_conn > 0 else 0
-
-                if pool_pct > 90:
-                    status = 'CRITICAL'
-                elif pool_pct > 75:
-                    status = 'WARNING'
-                else:
-                    status = 'HEALTHY'
-
-                health['rds_connection_pool'] = {
-                    'active_connections': active,
-                    'max_connections': max_conn,
-                    'utilization_percent': pool_pct,
-                    'status': status
-                }
-        except Exception as e:
-            logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
-            health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
-
-        # ISSUE #13 FIX: Include signal freshness in basic endpoint for frontend visibility
-        # Query signal freshness with short timeout to keep endpoint responsive
-        try:
-            signal_freshness = execute_with_timeout(cur, """
-                SELECT
-                    MAX(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600.0) as max_age_hours
+            signal_check = execute_with_timeout(cur, """
+                SELECT MAX(created_at) as latest_signal
                 FROM signal_quality_scores
-                WHERE created_at >= NOW() - INTERVAL '7 days'
+                WHERE created_at >= NOW() - INTERVAL '2 days'
+                LIMIT 1
             """, timeout_sec=2)
 
-            if signal_freshness and len(signal_freshness) > 0:
-                row = safe_json_serialize(dict(signal_freshness[0]))
-                age_hours = float(row.get('max_age_hours')) if row.get('max_age_hours') is not None else 999
-                config = get_config()
-
-                if age_hours <= 1:  # Fresh (within 1 hour)
-                    signal_status = 'FRESH'
-                elif age_hours <= config.signal_stale_threshold_hours:  # Acceptable
-                    signal_status = 'OK'
-                    if age_hours > (config.signal_stale_threshold_hours * 0.5):  # Warn at 50% of threshold
-                        degradation_reasons.append(f"Signals {age_hours:.1f}h old (waiting for fresh data)")
-                        has_warning = True
-                else:  # Stale (exceeds threshold)
-                    signal_status = 'STALE'
-                    degradation_reasons.append(f"Signals {age_hours:.1f}h old (use with caution)")
-                    has_critical = True
-
-                health['freshness'] = {
-                    'status': signal_status,
-                    'signal_age_hours': round(age_hours, 1),
-                    'message': f'Signals based on data from {age_hours:.1f} hours ago'
-                }
-            else:
-                health['freshness'] = {'status': 'UNKNOWN', 'message': 'No signal data available'}
+            if signal_check and len(signal_check) > 0:
+                latest = signal_check[0]['latest_signal']
+                if latest:
+                    age_hours = (datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                    config = get_config()
+                    if age_hours > config.signal_stale_threshold_hours:
+                        has_critical = True
+                        health['freshness'] = {'status': 'STALE', 'age_hours': round(age_hours, 1)}
+                    else:
+                        health['freshness'] = {'status': 'OK', 'age_hours': round(age_hours, 1)}
+                else:
+                    health['freshness'] = {'status': 'UNKNOWN'}
         except Exception as e:
-            logger.debug(f"Failed to get signal freshness: {str(e)[:60]}")
-            health['freshness'] = {'status': 'UNKNOWN', 'message': 'Signal freshness check unavailable'}
+            logger.debug(f"Signal freshness check unavailable: {str(e)[:60]}")
+            health['freshness'] = {'status': 'UNKNOWN'}
 
-        # Overall system status based on component health
-        if health.get('rds_connection_pool', {}).get('status') == 'CRITICAL':
-            has_critical = True
-            degradation_reasons.append(f"RDS pool at {health['rds_connection_pool'].get('utilization_percent', 0)}%")
-        elif health.get('rds_connection_pool', {}).get('status') == 'WARNING':
-            has_warning = True
-
-        if health.get('freshness', {}).get('status') == 'STALE':
-            has_critical = True
-            degradation_reasons.append(f"Data {health['freshness'].get('oldest_data_age_days', 0):.1f}d stale")
-        elif health.get('freshness', {}).get('status') == 'WARNING':
-            has_warning = True
-
-        # Check orchestrator halt flag and degraded mode status (from DynamoDB)
+        # Last successful loader timestamp (indexed query, 1 second timeout)
         try:
-            import boto3
-            import os
-            dynamodb = boto3.resource('dynamodb')
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-            table = dynamodb.Table(table_name)
-
-            response = table.get_item(Key={'key': 'orchestrator_halt'})
-            halt_flag_active = response.get('Item', {}).get('halt_flag', False) is True
-            health['orchestrator_halt_flag'] = halt_flag_active
-
-            # ISSUE #9 FIX: Check Phase 1 degraded mode status (indicates failsafe is running)
-            degraded_response = table.get_item(Key={'key': 'phase1_degraded_mode'})
-            phase1_degraded = degraded_response.get('Item', {}).get('degraded', False) is True
-            health['phase1_degraded_mode'] = phase1_degraded
-            if phase1_degraded:
-                degradation_reasons.append("Phase 1 degraded: failsafe in progress")
-                has_warning = True
-        except Exception as e:
-            logger.debug(f"Failed to check orchestrator state: {str(e)[:60]}")
-            health['orchestrator_halt_flag'] = None  # Unknown if DynamoDB unavailable
-            health['phase1_degraded_mode'] = None
-
-        # Check last successful load time
-        try:
-            loader_status = execute_with_timeout(cur, """
-                SELECT MAX(last_updated) as latest_load_time
+            loader_check = execute_with_timeout(cur, """
+                SELECT MAX(last_updated) as latest_load
                 FROM data_loader_status
-                WHERE table_name IN ('stock_prices_daily', 'buy_sell_daily', 'signal_quality_scores')
-                AND status = 'success'
-            """, timeout_sec=3)
+                WHERE status='success'
+                LIMIT 1
+            """, timeout_sec=1)
 
-            if loader_status and len(loader_status) > 0:
-                row = safe_json_serialize(dict(loader_status[0]))
-                last_load = row.get('latest_load_time')
-                if last_load:
-                    health['last_successful_load_time'] = last_load.isoformat() if hasattr(last_load, 'isoformat') else str(last_load)
+            if loader_check and len(loader_check) > 0:
+                latest_load = loader_check[0]['latest_load']
+                if latest_load:
+                    health['last_load_time'] = latest_load.isoformat() if hasattr(latest_load, 'isoformat') else str(latest_load)
         except Exception as e:
-            logger.debug(f"Failed to get last load time: {str(e)[:60]}")
+            logger.debug(f"Loader check unavailable: {str(e)[:60]}")
 
         if has_critical:
             health['status'] = 'degraded'
-            health['degraded_mode_active'] = True
-            health['degradation_reason'] = ' | '.join(degradation_reasons) if degradation_reasons else 'System degraded'
-        else:
-            health['degraded_mode_active'] = False
-
-        if has_warning and not has_critical:
-            health['status'] = 'warning'
 
         return success_response(health)
 

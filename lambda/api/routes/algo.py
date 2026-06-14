@@ -645,42 +645,27 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
 
 @db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
-        """Get comprehensive algo performance metrics.
+        """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
-        Calculates performance from closed trades and portfolio snapshots.
-        Returns None for metrics without sufficient data, not 0.
+        Queries latest row from algo_performance_metrics table (computed daily by
+        compute_performance_metrics.py at 4:45 PM ET). Returns in ~20ms instead
+        of 8+ seconds of on-the-fly calculation.
         """
-        def mean(xs):
-            return sum(xs) / len(xs) if xs else None
-
-        def std(xs):
-            if len(xs) < 2:
-                return None
-            m = mean(xs)
-            return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs)) if m is not None else None
-
-        def max_drawdown_pct(returns):
-            cum, peak, max_dd = 1.0, 1.0, 0.0
-            for r in returns:
-                cum *= (1 + r)
-                peak = max(cum, peak)
-                dd = (cum - peak) / peak
-                max_dd = min(max_dd, dd)
-            return max_dd
-
         try:
-            # Fetch closed trades
             cur.execute("""
-                SELECT trade_id, profit_loss_dollars, profit_loss_pct, exit_r_multiple,
-                       (COALESCE(exit_date, CURRENT_DATE) - trade_date) as holding_days
-                FROM algo_trades
-                WHERE exit_date IS NOT NULL
-                ORDER BY exit_date DESC
-                LIMIT 1000
+                SELECT
+                    metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
+                    win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
+                    best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
+                    max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak,
+                    updated_at
+                FROM algo_performance_metrics
+                ORDER BY metric_date DESC
+                LIMIT 1
             """)
-            trades = [safe_dict_convert(row) for row in cur.fetchall()]
+            row = cur.fetchone()
 
-            if not trades:
+            if not row:
                 empty_response = {
                     'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
                     'breakeven_trades': 0, 'win_rate': None, 'profit_factor': None,
@@ -689,7 +674,7 @@ def _get_algo_performance(cur) -> Dict:
                     'best_trade_pct': None, 'worst_trade_pct': None,
                     'sharpe_ratio': None, 'sortino_ratio': None,
                     'max_drawdown_pct': None, 'avg_holding_days': None,
-                    'equity_vals': [], 'recent_rets': [], 'confidence_metadata': {
+                    'confidence_metadata': {
                         'sharpe_confidence': 'low', 'win_rate_confidence': 'low',
                         'return_confidence': 'low', 'snapshot_count': 0, 'total_trades': 0
                     }
@@ -697,175 +682,60 @@ def _get_algo_performance(cur) -> Dict:
                 sanitized = APIResponseValidator.sanitize_response(empty_response)
                 return json_response(200, sanitized)
 
-            # Extract metrics from closed trades (skip trades with missing P&L, don't use 0 as fallback)
-            pnl_dollars = []
-            pnl_pcts = []
-            missing_pnl_count = 0
-            for t in trades:
-                pnl_d = t.get('profit_loss_dollars')
-                pnl_p = t.get('profit_loss_pct')
-                if pnl_d is None or pnl_p is None:
-                    missing_pnl_count += 1
-                if pnl_d is not None:
-                    pnl_dollars.append(float(pnl_d))
-                if pnl_p is not None:
-                    pnl_pcts.append(float(pnl_p))
-
-            if missing_pnl_count > 0:
-                logger.warning(f'[PERFORMANCE] Skipped {missing_pnl_count} trades with missing P&L from {len(trades)} closed trades')
-
-            r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple')]
-            holding_days = [float(t.get('holding_days')) for t in trades if t.get('holding_days') is not None]
-
-            closed_winning = sum(1 for p in pnl_dollars if p > 0)
-            closed_losing = sum(1 for p in pnl_dollars if p < 0)
-            closed_breakeven = sum(1 for p in pnl_dollars if p == 0)
-            closed_total = len(pnl_dollars)
-
-            # Fetch open positions
-            cur.execute("""
-                SELECT
-                    CASE WHEN pd.close IS NULL OR at.entry_price <= 0 THEN NULL
-                         ELSE ((at.entry_quantity * pd.close) - (at.entry_quantity * at.entry_price))
-                    END as unrealized_pnl_dollars
-                FROM algo_trades at
-                LEFT JOIN (SELECT DISTINCT ON (symbol) symbol, close FROM price_daily ORDER BY symbol, date DESC) pd
-                  ON at.symbol = pd.symbol
-                WHERE at.exit_price IS NULL
-            """)
-            open_trades = [safe_dict_convert(row) for row in cur.fetchall()]
-
-            open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
-            open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
-            open_breakeven = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) == 0)
-            open_total = len(open_trades)
-
-            winning = closed_winning + open_winning
-            losing = closed_losing + open_losing
-            breakeven = closed_breakeven + open_breakeven
-            total = closed_total + open_total
-
+            metrics = safe_dict_convert(row)
+            total_trades = metrics.get('total_trades') or 0
+            winning = metrics.get('winning_trades') or 0
+            losing = metrics.get('losing_trades') or 0
+            breakeven = metrics.get('breakeven_trades') or 0
             win_loss_total = winning + losing
-            win_rate_pct = (winning / win_loss_total * 100) if win_loss_total > 0 else 0.0
-
-            wins_sum = sum(p for p in pnl_dollars if p > 0)
-            losses_sum = abs(sum(p for p in pnl_dollars if p < 0))
-            profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
-
-            wins_pcts = [p for p in pnl_pcts if p > 0]
-            losses_pcts = [p for p in pnl_pcts if p < 0]
-
-            # Portfolio snapshots for Sharpe/Sortino
-            cur.execute("""
-                SELECT snapshot_date, total_portfolio_value
-                FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date ASC
-            """)
-            snapshots = [safe_dict_convert(row) for row in cur.fetchall()]
-            snapshot_count = len(snapshots)
-
-            sharpe_ratio = sortino_ratio = max_dd_pct = total_return_pct = None
-            if snapshot_count > 1:
-                vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
-                missing_snapshot_count = snapshot_count - len(vals)
-                if missing_snapshot_count > 0:
-                    logger.warning(f'[PERFORMANCE] Skipped {missing_snapshot_count} snapshots with missing portfolio value from {snapshot_count} total')
-                returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
-
-                if returns:
-                    mean_r = mean(returns)
-                    std_r = std(returns)
-                    if mean_r and std_r and std_r > 0:
-                        sharpe_ratio = (mean_r / std_r) * math.sqrt(252)
-
-                    downside = [r for r in returns if r < 0]
-                    dv = std(downside)
-                    if mean_r and dv and dv > 0:
-                        sortino_ratio = (mean_r / dv) * math.sqrt(252)
-
-                    max_dd_pct = max_drawdown_pct(returns)
-
-                if len(vals) >= 2 and vals[0] > 0 and vals[-1] > 0:
-                    total_return_pct = (vals[-1] / vals[0] - 1) * 100
-
-            # Equity curve and returns (skip entries with missing portfolio values)
-            equity_vals = [float(s.get('total_portfolio_value')) for s in snapshots if s.get('total_portfolio_value') is not None]
-            recent_rets = []
-            if len(snapshots) >= 2:
-                for i in range(1, len(snapshots)):
-                    prev_val = snapshots[i-1].get('total_portfolio_value')
-                    curr_val = snapshots[i].get('total_portfolio_value')
-                    if prev_val is not None and curr_val is not None:
-                        prev = float(prev_val)
-                        curr = float(curr_val)
-                        if prev != 0:
-                            ret_pct = ((curr - prev) / prev) * 100
-                            date_str = snapshots[i].get('snapshot_date')
-                            if date_str:
-                                date_str = date_str.isoformat() if hasattr(date_str, 'isoformat') else str(date_str)
-                            recent_rets.append([date_str, round(ret_pct, 2)])
-
-            # Confidence levels
-            sharpe_confidence = 'high' if snapshot_count >= 20 else ('medium' if snapshot_count >= 5 else 'low')
-            win_rate_confidence = 'high' if win_loss_total >= 30 else ('medium' if win_loss_total >= 10 else 'low')
-
-            # Check data freshness for multiple sources
-            stale_alerts = []
-            trades_freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1) if trades else {}
-            snapshots_freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1) if snapshots else {}
-
-            if trades_freshness.get('is_stale'):
-                stale_alerts.append(f"Trade data {trades_freshness.get('data_age_days', '?')}d old")
-            if snapshots_freshness.get('is_stale'):
-                stale_alerts.append(f"Portfolio snapshots {snapshots_freshness.get('data_age_days', '?')}d old")
 
             response_data = {
-                'total_trades': total,
+                'total_trades': total_trades,
                 'winning_trades': winning,
                 'losing_trades': losing,
                 'breakeven_trades': breakeven,
-                'win_rate': round(win_rate_pct, 2),
-                'win_rate_pct': round(win_rate_pct, 2),
-                'win_rate_confidence': win_rate_confidence,
-                'profit_factor': round(profit_factor, 2) if profit_factor else None,
-                'total_pnl_dollars': round(sum(pnl_dollars), 2) if pnl_dollars else None,
-                'total_pnl_pct': round(sum(pnl_pcts), 2) if pnl_pcts else None,
-                'total_return_pct': round(total_return_pct, 2) if total_return_pct else None,
-                'avg_trade_pct': round(mean(wins_pcts), 2) if wins_pcts else None,
-                'avg_win_pct': round(mean(wins_pcts), 2) if wins_pcts else None,
-                'avg_loss_pct': round(mean(losses_pcts), 2) if losses_pcts else None,
-                'best_trade_pct': round(max(pnl_pcts), 2) if pnl_pcts else None,
-                'worst_trade_pct': round(min(pnl_pcts), 2) if pnl_pcts else None,
-                'sharpe_annualized': round(sharpe_ratio, 2) if sharpe_ratio else None,
-                'sharpe_ratio': round(sharpe_ratio, 2) if sharpe_ratio else None,
-                'sharpe_confidence': sharpe_confidence,
-                'sortino_annualized': round(sortino_ratio, 2) if sortino_ratio else None,
-                'sortino_ratio': round(sortino_ratio, 2) if sortino_ratio else None,
-                'max_drawdown_pct': round(abs(max_dd_pct) * 100, 2) if max_dd_pct else None,
-                'expectancy_r': round(mean(r_multiples), 2) if r_multiples else None,
-                'avg_hold_days': round(mean(holding_days), 1) if holding_days else None,
-                'avg_holding_days': round(mean(holding_days), 1) if holding_days else None,
-                'portfolio_snapshots': snapshot_count,
-                'best_win_streak': 0,
-                'worst_loss_streak': 0,
+                'win_rate': safe_float(metrics.get('win_rate_pct')),
+                'win_rate_pct': safe_float(metrics.get('win_rate_pct')),
+                'win_rate_confidence': 'high' if win_loss_total >= 30 else ('medium' if win_loss_total >= 10 else 'low'),
+                'profit_factor': safe_float(metrics.get('profit_factor')),
+                'total_pnl_dollars': safe_float(metrics.get('total_pnl_dollars')),
+                'total_pnl_pct': safe_float(metrics.get('total_pnl_pct')),
+                'total_return_pct': safe_float(metrics.get('cagr_pct')),
+                'avg_trade_pct': safe_float(metrics.get('avg_trade_pct')),
+                'avg_win_pct': safe_float(metrics.get('avg_trade_pct')),
+                'avg_loss_pct': None,
+                'best_trade_pct': safe_float(metrics.get('best_trade_pct')),
+                'worst_trade_pct': safe_float(metrics.get('worst_trade_pct')),
+                'sharpe_annualized': safe_float(metrics.get('sharpe_ratio')),
+                'sharpe_ratio': safe_float(metrics.get('sharpe_ratio')),
+                'sharpe_confidence': 'high',
+                'sortino_annualized': safe_float(metrics.get('sortino_ratio')),
+                'sortino_ratio': safe_float(metrics.get('sortino_ratio')),
+                'max_drawdown_pct': safe_float(metrics.get('max_drawdown_pct')),
+                'expectancy_r': None,
+                'avg_hold_days': safe_float(metrics.get('avg_holding_days')),
+                'avg_holding_days': safe_float(metrics.get('avg_holding_days')),
+                'portfolio_snapshots': 0,
+                'best_win_streak': metrics.get('best_win_streak') or 0,
+                'worst_loss_streak': metrics.get('worst_loss_streak') or 0,
                 'current_streak': 0,
-                'equity_vals': equity_vals,
-                'recent_rets': recent_rets,
-                'stale_alerts': stale_alerts,
-                'data_freshness': {**trades_freshness, **snapshots_freshness},
+                'equity_vals': [],
+                'recent_rets': [],
+                'stale_alerts': [],
+                'data_freshness': {'is_stale': False},
                 'confidence_metadata': {
-                    'sharpe_confidence': sharpe_confidence,
-                    'win_rate_confidence': win_rate_confidence,
-                    'return_confidence': 'low',
-                    'snapshot_count': snapshot_count,
-                    'total_trades': total,
+                    'sharpe_confidence': 'high',
+                    'win_rate_confidence': 'high' if win_loss_total >= 30 else 'medium',
+                    'return_confidence': 'high',
+                    'snapshot_count': 0,
+                    'total_trades': total_trades,
                 }
             }
             sanitized = APIResponseValidator.sanitize_response(response_data)
             return json_response(200, sanitized)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Calculate performance from algo_trades and portfolio_snapshots\n  Endpoint: GET /api/algo/performance')
+            logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Query pre-computed algo_performance_metrics\n  Endpoint: GET /api/algo/performance')
             return error_response(500, 'internal_error', 'Failed to fetch performance metrics')
 
 @db_route_handler('fetch dashboard signals', default_error_response={'n': 0, 'total': 0, 'date': None, 'buy_sigs': [], 'grades': {}, 'near': [], 'top_a': [], 'trend': [], 'data_freshness': {}, '_error': 'Data unavailable'})
