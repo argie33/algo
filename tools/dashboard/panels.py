@@ -512,7 +512,7 @@ def _calculate_adjusted_win_rate(perf, pos):
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
     if not perf or perf.get("_error"):
-        return perf.get("wr"), perf.get("w"), perf.get("l")
+        return perf.get("wr") or 0, perf.get("w") or 0, perf.get("l") or 0
 
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
@@ -596,7 +596,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
                 dt, ret = item[0], item[1]
             else:
                 continue
-            rc = G if (ret or 0) >= 0 else R
+            ret = ret or 0
+            rc = G if ret >= 0 else R
             if hasattr(dt, "strftime"):
                 d_s = dt.strftime("%a")
             elif isinstance(dt, str):
