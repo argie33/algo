@@ -29,7 +29,8 @@ try:
     if response.get('statusCode') == 200:
         print("[SUCCESS]")
     else:
-        body = eval(response.get('body', '{}'))
+        import json
+        body = json.loads(response.get('body', '{}'))
         print(f"Error: {body.get('errorType')}")
         print(f"Message: {body.get('message')}")
 
