@@ -219,7 +219,7 @@ class LoaderConfigManager:
         1. DynamoDB cached value (if available and fresh) + adaptive RDS adjustment
         2. DynamoDB direct fetch (if available) + adaptive RDS adjustment
         3. Environment variable LOADER_PARALLELISM + adaptive RDS adjustment
-        4. Per-loader constraint minimum (e.g., stock_prices_daily min=1)
+        4. Per-loader constraint maximum (e.g., stock_prices_daily max=6)
         5. Default: 1
 
         The returned value respects:
@@ -248,10 +248,18 @@ class LoaderConfigManager:
                 self._set_cache(loader_name, config)
                 base_parallelism = config["parallelism"]
                 logger.debug(f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}")
-        # Fall back to environment variable
+        # Fall back to environment variable, then per-loader constraint
         else:
-            base_parallelism = int(os.getenv("LOADER_PARALLELISM", "1"))
-            logger.debug(f"Using env var parallelism for {loader_name}: {base_parallelism}")
+            env_parallelism = os.getenv("LOADER_PARALLELISM", None)
+            if env_parallelism is not None:
+                base_parallelism = int(env_parallelism)
+                logger.debug(f"Using env var parallelism for {loader_name}: {base_parallelism}")
+            else:
+                # Use per-loader constraint maximum as default (enables per-loader optimization)
+                constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
+                min_parallelism, max_parallelism = constraints
+                base_parallelism = max_parallelism
+                logger.info(f"Using per-loader constraint for {loader_name}: max={max_parallelism} (no DynamoDB/env var)")
 
         # Apply adaptive adjustment based on RDS load
         adjusted = self._compute_adaptive_parallelism(loader_name, base_parallelism)
