@@ -95,12 +95,12 @@ class WeightOptimizer:
                 logger.warning(f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for optimization")
                 return None
 
-            ic_array = []
+            ic_list: List[float] = []
             for comp in self.COMPONENTS:
                 ic = ic_values.get(comp, {}).get('ic_value', 0)
-                ic_array.append(float(ic))
+                ic_list.append(float(ic))
 
-            ic_array = np.array(ic_array)
+            ic_array = np.array(ic_list)
 
             # Normalize to [0, 1] (shift negatives up)
             if ic_array.min() < 0:

@@ -21,7 +21,7 @@ from pathlib import Path
 import logging
 
 from utils.db import DatabaseContext
-from utils.signals import MetricsCalculator
+from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -285,13 +285,14 @@ class LivePerformance:
             backtest_sharpe = backtest_metrics.get('sharpe_ratio')
             backtest_wr = backtest_metrics.get('win_rate_pct')
 
+            live_win_rate = live_wr.get('win_rate_pct') if isinstance(live_wr, dict) else live_wr
             return {
                 'live_sharpe': live_sharpe,
                 'backtest_sharpe': backtest_sharpe,
                 'sharpe_ratio': live_sharpe / backtest_sharpe if backtest_sharpe else None,
-                'live_win_rate': live_wr['win_rate_pct'],
+                'live_win_rate': live_win_rate,
                 'backtest_win_rate': backtest_wr,
-                'win_rate_ratio': live_wr['win_rate_pct'] / backtest_wr if backtest_wr else None,
+                'win_rate_ratio': live_win_rate / backtest_wr if (live_win_rate and backtest_wr) else None,
                 'live_expectancy': live_expectancy,
                 'live_max_dd': live_max_dd,
                 'backtest_max_dd': backtest_metrics.get('max_drawdown_pct'),

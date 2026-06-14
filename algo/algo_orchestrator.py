@@ -501,13 +501,13 @@ class Orchestrator:
         if self._lock_acquired:
             self.lock_manager.release()
 
-    def log_phase_start(self, phase_num: int, name: str) -> None:
+    def log_phase_start(self, phase_num: Union[int, str], name: str) -> None:
         if self.verbose:
             logger.info(f"\n{'='*70}")
             logger.info(f"PHASE {phase_num}: {name}")
             logger.info(f"{'='*70}")
 
-    def log_phase_result(self, phase_num: int, name: str, status: str, summary: str) -> None:
+    def log_phase_result(self, phase_num: Union[int, str], name: str, status: str, summary: str) -> None:
         self.phase_results[phase_num] = {
             'name': name,
             'status': status,
