@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Economic Calendar Loader — Upcoming macro events (FOMC, CPI, NFP, GDP)."""
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import sys
 import logging
 from datetime import date, timedelta
@@ -20,9 +23,6 @@ FOMC_DATES_2026 = [
 
 def _load_economic_calendar(today: date) -> int:
     """Load economic calendar events: FOMC, CPI, NFP, GDP, etc."""
-from loaders.loader_helper import setup_imports
-setup_imports()
-
     end = today + timedelta(days=90)
     records = []
 
