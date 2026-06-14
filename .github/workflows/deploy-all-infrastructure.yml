@@ -864,9 +864,15 @@ jobs:
 
           # Commit to git (safe for concurrent deploys because we only commit after apply succeeds)
           cd ..
+
+          # Configure git identity for commit (GitHub Actions doesn't set this by default)
+          git config user.email "github-actions[bot]@users.noreply.github.com" || true
+          git config user.name "github-actions[bot]" || true
+
           if git status --short .terraform-outputs.json | grep -q ".terraform-outputs.json"; then
             git add .terraform-outputs.json
             git commit -m "INFRA: Update Terraform outputs from successful apply - $(git rev-parse --short HEAD)" || true
+            git push origin HEAD:${{ github.ref }} --quiet || echo "[WARN] Could not push outputs commit (may be due to concurrent push)"
             echo "[OK] Terraform outputs committed to git"
           else
             echo "[OK] No changes to Terraform outputs"
