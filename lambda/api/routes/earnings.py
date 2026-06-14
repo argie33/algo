@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
 from utils.error_handlers import make_error_response
-from routes.utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, safe_json_serialize
+from routes.utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, safe_json_serialize, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +14,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
         if symbol:
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=20)
-            cur.execute("SET LOCAL statement_timeout = '3000ms'")
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT symbol,
                        earnings_date AS report_date,
                        CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
@@ -27,14 +26,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 WHERE symbol = %s
                 ORDER BY earnings_date DESC
                 LIMIT %s
-            """, (symbol.upper(), limit))
-            rows = cur.fetchall()
+            """, (symbol.upper(), limit), timeout_sec=3)
             freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
             return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
-        cur.execute("SET LOCAL statement_timeout = '5000ms'")
-        cur.execute("""
+        rows = execute_with_timeout(cur, """
             SELECT symbol,
                    earnings_date AS report_date,
                    CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
@@ -43,8 +40,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             FROM earnings_history
             ORDER BY earnings_date DESC
             LIMIT %s
-        """, (limit,))
-        rows = cur.fetchall()
+        """, (limit,), timeout_sec=5)
         freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
         return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

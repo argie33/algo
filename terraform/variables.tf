@@ -935,15 +935,31 @@ variable "require_terraform_tag" {
 # ============================================================
 
 variable "enable_rds_kms_encryption" {
-  description = "Enable KMS encryption for RDS (recommended for prod)"
+  description = "Enable customer-managed KMS encryption for RDS (required for SOC2/PCI-DSS compliance)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "rds_kms_key_alias" {
   description = "KMS key alias for RDS encryption (used if enable_rds_kms_encryption=true)"
   type        = string
   default     = null
+}
+
+# ============================================================
+# S3 KMS Configuration
+# ============================================================
+
+variable "s3_encryption_kms_key_id" {
+  description = "Customer-managed KMS key ID for S3 encryption (required for SOC2/PCI-DSS compliance). If null, uses AWS-managed AES256 encryption."
+  type        = string
+  default     = null
+}
+
+variable "enforce_s3_kms_encryption" {
+  description = "Enforce KMS-only encryption for S3 buckets and deny unencrypted uploads (production recommended)"
+  type        = bool
+  default     = false
 }
 
 variable "db_port" {

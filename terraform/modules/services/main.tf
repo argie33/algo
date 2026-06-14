@@ -399,7 +399,7 @@ data "aws_cloudfront_origin_request_policy" "managed_all_viewer_except_host" {
 resource "aws_cloudfront_response_headers_policy" "api_cors" {
   count   = var.cloudfront_enabled ? 1 : 0
   name    = "${var.project_name}-api-cors-${var.environment}"
-  comment = "Forward CORS headers from API Gateway responses to CloudFront clients"
+  comment = "Pass through CORS headers from API Gateway (dynamic origins); do not override"
 
   cors_config {
     access_control_allow_credentials = true
@@ -410,12 +410,12 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
       items = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     }
     access_control_allow_origins {
-      items = ["*"]
+      items = ["https://${aws_cloudfront_distribution.frontend[0].domain_name}", "http://localhost:5173", "http://localhost:3000"]
     }
     access_control_expose_headers {
       items = ["Content-Length", "Content-Type"]
     }
-    origin_override = true
+    origin_override = false
   }
 }
 

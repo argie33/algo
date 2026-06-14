@@ -1974,66 +1974,77 @@ _TIER_CONFIG = {
 }
 
 def _get_markets(cur) -> Dict:
-        """Get active market indices (SPY, QQQ, IWM, DIA) with current prices and changes."""
-        INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^RUT', '^DJI']
-        INDEX_NAMES = {
-            '^GSPC': 'S&P 500',
-            '^IXIC': 'Nasdaq Composite',
-            '^RUT': 'Russell 2000',
-            '^DJI': 'Dow Jones Industrial',
-        }
+        """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
         try:
+            # Latest exposure row
             cur.execute("""
-                WITH latest_date AS (
-                    SELECT date AS d FROM price_daily WHERE symbol = ANY(%s) ORDER BY date DESC LIMIT 1
-                ),
-                prev_date AS (
-                    SELECT date AS d FROM price_daily
-                    WHERE symbol = ANY(%s) AND date < (SELECT d FROM latest_date)
-                    ORDER BY date DESC LIMIT 1
-                ),
-                today AS (
-                    SELECT symbol, date, close FROM price_daily
-                    WHERE symbol = ANY(%s) AND date = (SELECT d FROM latest_date)
-                ),
-                yesterday AS (
-                    SELECT symbol, close AS prev_close FROM price_daily
-                    WHERE symbol = ANY(%s) AND date = (SELECT d FROM prev_date)
-                )
-                SELECT t.symbol, t.date, t.close,
-                       COALESCE(y.prev_close, t.close) AS prev_close
-                FROM today t
-                LEFT JOIN yesterday y ON t.symbol = y.symbol
-                ORDER BY t.symbol
-            """, (INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS))
-            latest = cur.fetchall()
+                SELECT date, exposure_pct, raw_score, regime, factors, halt_reasons, distribution_days
+                FROM market_exposure_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
 
-            markets = []
-            for row in latest:
-                price = float(row['close']) if row['close'] else 0
-                prev_price = float(row['prev_close']) if row['prev_close'] else price
-                change = price - prev_price if prev_price > 0 else 0
-                change_pct = (change / prev_price * 100) if prev_price > 0 else 0
+            if not row:
+                return json_response(200, {'current': None, 'active_tier': None, 'history': []})
 
-                markets.append({
-                    'symbol': row['symbol'],
-                    'name': INDEX_NAMES.get(row['symbol'], row['symbol']),
-                    'date': str(row['date']),
-                    'price': round(price, 2),
-                    'change': round(change, 2),
-                    'changePercent': round(change_pct, 2),
+            row = safe_json_serialize(safe_dict_convert(row))
+
+            halt_reasons = []
+            if row.get('halt_reasons'):
+                try:
+                    halt_reasons = json.loads(row['halt_reasons']) if isinstance(row['halt_reasons'], str) else row['halt_reasons']
+                except (json.JSONDecodeError, TypeError):
+                    halt_reasons = []
+
+            factors = {}
+            if row.get('factors'):
+                try:
+                    factors = json.loads(row['factors']) if isinstance(row['factors'], str) else row['factors']
+                except (json.JSONDecodeError, TypeError):
+                    factors = {}
+
+            tier_key = str(row.get('regime') or '').lower()
+            tier_conf = _TIER_CONFIG.get(tier_key, {})
+            active_tier = {'name': tier_key, **tier_conf}
+            active_tier['halt'] = bool(halt_reasons) or tier_conf.get('halt', False)
+
+            # History: last 90 sessions for ExposureHistory chart
+            cur.execute("""
+                SELECT date, exposure_pct, regime, distribution_days
+                FROM market_exposure_daily
+                ORDER BY date DESC
+                LIMIT 90
+            """)
+            history = []
+            for h in cur.fetchall():
+                h = safe_json_serialize(safe_dict_convert(h))
+                d = h.get('date')
+                history.append({
+                    'date': d.isoformat() if hasattr(d, 'isoformat') else str(d),
+                    'exposure_pct': float(h['exposure_pct']) if h.get('exposure_pct') is not None else None,
+                    'regime': h.get('regime'),
+                    'distribution_days': h.get('distribution_days'),
                 })
 
+            current_date = row.get('date')
             return json_response(200, {
-                'success': True,
-                'data': {
-                    'markets': markets
-                }
+                'current': {
+                    'exposure_pct': float(row['exposure_pct']) if row.get('exposure_pct') is not None else None,
+                    'raw_score': float(row['raw_score']) if row.get('raw_score') is not None else None,
+                    'regime': row.get('regime'),
+                    'halt_reasons': halt_reasons,
+                    'distribution_days': row.get('distribution_days', 0),
+                    'factors': factors,
+                    'date': current_date.isoformat() if hasattr(current_date, 'isoformat') else str(current_date),
+                },
+                'active_tier': active_tier,
+                'history': history,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_health_daily and sector_health tables\n  Endpoint: GET /api/algo/markets')
-            return error_response(503, 'service_unavailable', 'Failed to fetch markets: database connection failed')
+            logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets')
+            return error_response(503, 'service_unavailable', 'Failed to fetch markets data')
 
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""

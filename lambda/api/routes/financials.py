@@ -81,16 +81,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
         if endpoint == 'cash-flow':
             if period == 'quarterly':
-                cur.execute(psycopg2.sql.SQL("""
+                rows = execute_with_timeout(cur, """
                     SELECT * FROM quarterly_cash_flow
                     WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
-                """), (sym, limit))
+                """, (sym, limit), timeout_sec=5)
             else:
-                cur.execute(psycopg2.sql.SQL("""
+                rows = execute_with_timeout(cur, """
                     SELECT * FROM annual_cash_flow
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
-                """), (sym, limit))
-            rows = cur.fetchall()
+                """, (sym, limit), timeout_sec=5)
             return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
 
         return error_response(404, 'not_found', f'No financials handler for {path}')

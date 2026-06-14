@@ -100,7 +100,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_artifacts"
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.encryption_kms_key_id != null ? "aws:kms" : "AES256"
+      kms_master_key_id = var.encryption_kms_key_id != null ? "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/${var.encryption_kms_key_id}" : null
     }
   }
 }
@@ -163,7 +164,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data_loading" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.encryption_kms_key_id != null ? "aws:kms" : "AES256"
+      kms_master_key_id = var.encryption_kms_key_id != null ? "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/${var.encryption_kms_key_id}" : null
     }
   }
 }
@@ -230,7 +232,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "log_archive" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.encryption_kms_key_id != null ? "aws:kms" : "AES256"
+      kms_master_key_id = var.encryption_kms_key_id != null ? "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/${var.encryption_kms_key_id}" : null
     }
   }
 }
@@ -325,7 +328,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.encryption_kms_key_id != null ? "aws:kms" : "AES256"
+      kms_master_key_id = var.encryption_kms_key_id != null ? "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/${var.encryption_kms_key_id}" : null
     }
   }
 }

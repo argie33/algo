@@ -44,6 +44,8 @@ module "storage" {
   enable_versioning           = var.enable_s3_versioning
   code_bucket_expiration_days = var.code_bucket_expiration_days
   data_bucket_expiration_days = var.data_bucket_expiration_days
+  encryption_kms_key_id       = var.s3_encryption_kms_key_id
+  enforce_kms_encryption      = var.enforce_s3_kms_encryption
   common_tags                 = local.common_tags
 }
 

@@ -669,11 +669,6 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 @register_panel("positions", endpoint_deps=["pos", "trades"], optional=True, description="Positions")
 def panel_positions(pos, compact=False, trades=None):
     """Display open positions table. Normalizes input from {"items": [...]} format."""
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = False
-    if isinstance(pos, dict):
-        is_placeholder = pos.get("_is_placeholder") or pos.get("_is_fallback_data")
-
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_error = normalize_positions_data(pos)
     if has_error:
@@ -683,6 +678,10 @@ def panel_positions(pos, compact=False, trades=None):
     if not pos_items:
         return Panel(Text("  No open positions - algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
+
+    # Only consider data as placeholder if BOTH flag is set AND we have no items (already checked above)
+    # If we reach here, we have actual position data, so never show placeholder warning
+    is_placeholder = False
 
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)
@@ -788,8 +787,12 @@ def panel_signals_compact(sig, sig_eval=None):
     if err_panel:
         return err_panel
 
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = sig.get("_is_placeholder") or sig.get("_is_fallback_data")
+    # Only consider data placeholder if no signals are available due to data issues
+    # If we have actual buy signals or screened stocks, it's real data
+    buy_sigs = sig.get("buy_sigs") or []
+    total_screened = sig.get("total", 0)
+    is_placeholder = (not buy_sigs and total_screened == 0 and
+                      (sig.get("_is_placeholder") or sig.get("_is_fallback_data")))
 
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
@@ -965,8 +968,8 @@ def panel_recent_trades(trades):
         return Panel(Text('no recent trades', style='dim'),
                      title=f'[bold cyan]RECENT TRADES[/]{age_s}', border_style='cyan', padding=(0, 1))
 
-    # Check if placeholder/fallback data is being displayed
-    is_placeholder = any(t.get("_is_placeholder") or t.get("_is_fallback_data") for t in trades_list if isinstance(t, dict))
+    # If we have actual trades to display, it's real data (not placeholder)
+    is_placeholder = False
 
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)

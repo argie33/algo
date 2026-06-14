@@ -136,7 +136,7 @@ function MarketsHealthPage() {
   }, []);
 
   const refetchAll = () => { refetchMarkets(); setTs(new Date()); };
-  const m = marketsData;
+  const m = marketsData?.data || marketsData;
 
   const isPrimaryLoading = marketsLoading || sentimentLoading || moversLoading || technicalsLoading || seasonalityLoading;
 

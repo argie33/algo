@@ -177,3 +177,33 @@ def notify(severity: str, title: str, message: str, symbol: Optional[str] = None
         )
     except Exception as e:
         logger.error(f"notify() failed: {e}")
+
+def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = None):
+    """Alert when trading signals become stale or unavailable.
+
+    Triggered by Phase 1 data freshness check or data patrol when critical
+    signal tables (buy_sell_daily, signal_quality_scores, etc.) are outdated.
+    """
+    try:
+        if not stale_tables:
+            return
+
+        tables_str = "; ".join(stale_tables[:3])
+        if len(stale_tables) > 3:
+            tables_str += f" (and {len(stale_tables) - 3} more)"
+
+        message = f"Trading signals based on stale or unavailable data.\n\nAffected: {tables_str}"
+
+        notify(
+            severity="critical",
+            title="SIGNAL STALENESS ALERT",
+            message=message,
+            details={
+                "stale_tables": stale_tables,
+                "alert_type": "signal_staleness",
+                **(details or {})
+            }
+        )
+        logger.critical(f"SIGNAL STALENESS ALERT: {tables_str}")
+    except Exception as e:
+        logger.error(f"notify_signal_staleness() failed: {e}")

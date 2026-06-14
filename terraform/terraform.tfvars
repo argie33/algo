@@ -118,6 +118,11 @@ enable_s3_versioning = false # COST OPTIMIZED: S3 versioning disabled. Saves ~$5
 rds_multi_az         = false # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 
 # ============================================================
+# SECURITY: Data Encryption at Rest
+# ============================================================
+enable_rds_kms_encryption = true # Enable customer-managed KMS encryption for RDS (required for SOC2/PCI-DSS compliance)
+
+# ============================================================
 # COST OPTIMIZATION: Logging & Observability
 # ============================================================
 cloudwatch_log_retention_days  = 7 # Increased from 1: 1 day was too short to debug why orchestrator wasn't trading; 7 days covers a full week of runs

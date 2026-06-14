@@ -676,6 +676,32 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 
 **Circuit Breaker Status:** Distributed DynamoDB lock (`orchestrator-run-lock`) prevents concurrent orchestrator executions. 600-second expiration.
 
+## Data Encryption at Rest
+
+**Implementation:** All data stored at rest is encrypted using customer-managed KMS keys for compliance (SOC2, PCI-DSS).
+
+**RDS Database Encryption:**
+- Customer-managed KMS key (not AWS-managed default)
+- Enabled via `enable_rds_kms_encryption = true` in Terraform (line 940 in variables.tf)
+- KMS key alias configurable via `rds_kms_key_alias` variable
+- Rotation: KMS keys have automatic annual key rotation enabled
+
+**S3 Bucket Encryption:**
+- All S3 buckets support customer-managed KMS encryption
+- Configurable via `s3_encryption_kms_key_id` variable in Terraform
+- Buckets with encryption: code, lambda_artifacts, data_loading, log_archive, frontend
+- Default: AES256 (AWS-managed); can be switched to customer-managed KMS by setting `s3_encryption_kms_key_id`
+- Enforcement: Set `enforce_s3_kms_encryption = true` to deny unencrypted uploads
+
+**Secrets Manager Encryption:**
+- All secrets automatically encrypted by AWS Secrets Manager using default service key
+- Customer-managed KMS key support available if needed (configure in AWS console)
+
+**Database Backups:**
+- RDS automated backups inherit database encryption settings
+- Final snapshots use same KMS key as database
+- Backup retention: 1-7 days (configurable)
+
 ## Lambda API Configuration Status
 
 **Deployment Status:** ✓ DEPLOYED & OPERATIONAL

@@ -10,24 +10,29 @@ logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/signals/* endpoints."""
-        if not params:
-            params = {}
-        if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
-            limit_list = params.get('limit', [])
-            limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str, max_val=10000, default=500)
-            timeframe_list = params.get('timeframe', [])
-            timeframe = timeframe_list[0] if timeframe_list else 'daily'
-            symbol_list = params.get('symbol', [])
-            symbol_filter = symbol_list[0] if symbol_list else None
-            return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
-        elif path == '/api/signals/etf':
-            limit_list = params.get('limit', [])
-            limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str, max_val=10000, default=500)
-            return _get_signals_etf(cur, limit)
-        else:
-            return error_response(404, 'not_found', f'No signals handler for {path}')
+        try:
+            if not params:
+                params = {}
+            if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
+                limit_list = params.get('limit', [])
+                limit_str = limit_list[0] if limit_list else None
+                limit = safe_limit(limit_str, max_val=10000, default=500)
+                timeframe_list = params.get('timeframe', [])
+                timeframe = timeframe_list[0] if timeframe_list else 'daily'
+                symbol_list = params.get('symbol', [])
+                symbol_filter = symbol_list[0] if symbol_list else None
+                return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
+            elif path == '/api/signals/etf':
+                limit_list = params.get('limit', [])
+                limit_str = limit_list[0] if limit_list else None
+                limit = safe_limit(limit_str, max_val=10000, default=500)
+                return _get_signals_etf(cur, limit)
+            else:
+                return error_response(404, 'not_found', f'No signals handler for {path}')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            code, error_type, message = handle_db_error(e, 'handle signals')
+            return error_response(code, error_type, message)
 
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with all available technical and analytical data."""
