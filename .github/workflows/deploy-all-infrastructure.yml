@@ -1284,13 +1284,20 @@ jobs:
         run: |
           npm install
 
-          # API URL: Use API Gateway endpoint (not CloudFront)
+          # API URL: Use CloudFront domain so browser makes same-origin requests.
+          # CloudFront routes /api/* to the API Gateway server-side — no CORS headers needed.
+          # Fall back to API Gateway URL if CloudFront is not enabled (rare, dev-only).
+          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
           API_GATEWAY_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
-          if [ -n "$API_GATEWAY_URL" ] && [ "$API_GATEWAY_URL" != "null" ] && [ "$API_GATEWAY_URL" != "None" ]; then
+
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+            echo "[OK] Using CloudFront domain as API_URL (same-origin, no CORS needed): $FINAL_API_URL"
+          elif [ -n "$API_GATEWAY_URL" ] && [ "$API_GATEWAY_URL" != "null" ] && [ "$API_GATEWAY_URL" != "None" ]; then
             FINAL_API_URL="$API_GATEWAY_URL"
-            echo "[OK] Using Terraform api_gateway_endpoint: $FINAL_API_URL"
+            echo "[WARN] CloudFront not available — using API Gateway URL directly (CORS required): $FINAL_API_URL"
           else
-            echo "[ERROR] Terraform api_gateway_endpoint output not available - cannot determine API URL"
+            echo "[ERROR] Neither website_url nor api_gateway_endpoint available — cannot determine API URL"
             exit 1
           fi
 

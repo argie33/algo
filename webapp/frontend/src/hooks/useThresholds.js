@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../services/api';
 
 const DEFAULT_THRESHOLDS = {
   // Sahm Rule (unemployment-based recession indicator)
@@ -36,54 +34,23 @@ const DEFAULT_THRESHOLDS = {
 };
 
 /**
- * Fetch economic dashboard thresholds from API
- * Falls back to defaults if API unavailable
+ * Returns economic dashboard thresholds.
+ *
+ * Uses static defaults — the /api/settings/thresholds endpoint is protected
+ * (requires auth) but EconomicDashboard is a public page, so calling it would
+ * cause a 401 → login redirect for unauthenticated visitors. The defaults here
+ * are the canonical values; update DEFAULT_THRESHOLDS if they need to change.
  *
  * Usage:
- *   const { thresholds, loading, error } = useThresholds();
+ *   const { thresholds } = useThresholds();
  *   if (value > thresholds.vix_critical) { ... }
  */
-export const useThresholds = (options = {}) => {
-  const {
-    staleTime = 30 * 60 * 1000, // 30 minutes
-    retry = 2,
-    enabled = true,
-  } = options;
-
-  const { data: fetchedThresholds, isLoading, error } = useQuery({
-    queryKey: ['settings-thresholds'],
-    queryFn: async () => {
-      try {
-        const response = await api.get('/api/settings/thresholds');
-        // Merge fetched values with defaults (in case API is missing some)
-        return {
-          ...DEFAULT_THRESHOLDS,
-          ...(response.data?.thresholds || response.data || {}),
-        };
-      } catch (err) {
-        console.warn('[useThresholds] Failed to fetch thresholds, using defaults:', err.message);
-        throw err; // This will trigger fallback to default
-      }
-    },
-    staleTime,
-    gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    retry: retry === false ? false : retry,
-    enabled,
-  });
-
-  // Always return valid thresholds object (use defaults if fetch fails)
-  const thresholds = fetchedThresholds || DEFAULT_THRESHOLDS;
-
+export const useThresholds = (_options = {}) => {
   return {
-    thresholds,
-    loading: isLoading,
-    error: error ? {
-      message: error?.message || 'Failed to load thresholds',
-      status: error?.response?.status,
-    } : null,
-    isDefault: !fetchedThresholds, // Indicates if we're using defaults
+    thresholds: DEFAULT_THRESHOLDS,
+    loading: false,
+    error: null,
+    isDefault: true,
   };
 };
 
