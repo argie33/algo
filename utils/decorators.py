@@ -95,6 +95,7 @@ def external_api_handler(
             try:
                 # Add timeout enforcement
                 import signal
+
                 def timeout_handler(signum, frame):
                     raise TimeoutError(f"{operation_name} exceeded {timeout}s timeout")
 
