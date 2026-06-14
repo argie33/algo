@@ -427,6 +427,7 @@ class ExitEngine:
                 last_price = quote.get("lp")
                 if last_price is not None:
                     return float(last_price)
+                return None
             elif response.status_code == 401:
                 logger.debug(f"Alpaca quote API auth failed for {symbol}")
                 return None
@@ -485,7 +486,7 @@ class ExitEngine:
         prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, cur, current_date) -> int:
+    def _fetch_market_dist_days(self, cur, current_date) -> Optional[int]:
         cur.execute(
             """
             SELECT distribution_days_4w FROM market_health_daily

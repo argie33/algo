@@ -483,10 +483,6 @@ class AlgoConfig:
         self._load_defaults()
         self._load_from_database()
 
-    def to_dict(self):
-        """Export configuration as dictionary."""
-        return dict(self._config)
-
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"
 

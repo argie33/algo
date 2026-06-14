@@ -151,11 +151,11 @@ class CircuitBreaker:
                     )
                 except Exception as e:
                     logger.error(f"Unhandled exception: {e}")
-                return {
-                    'halted': True,
-                    'halt_reasons': [f'Circuit breaker check failed: {e}'],
-                    'checks': {}
-                }
+                    return {
+                        'halted': True,
+                        'halt_reasons': [f'Circuit breaker check failed: {e}'],
+                        'checks': {}
+                    }
 
     # ---------- Individual checks ----------
 

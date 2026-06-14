@@ -322,6 +322,7 @@ Write-Host "[Algo] Local dev environment loaded - API proxy: `$env:VITE_PROXY_TA
     $env:COGNITO_CLIENT_ID = $ClientId
     $env:AWS_PROFILE = $Script:Profile
     $env:AWS_DEFAULT_REGION = $Script:Region
+    $env:VITE_PROXY_TARGET = $ApiUrl
 }
 
 # ====================================================================
