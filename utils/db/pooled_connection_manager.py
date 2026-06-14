@@ -127,7 +127,7 @@ class PooledConnectionManager:
         self.loader_name = loader_name
         self.timeout_sec = timeout_sec
         self._conn = None
-        self._acquired_at = None
+        self._acquired_at: Optional[float] = None
         self._lock = threading.Lock()
 
     def acquire(self) -> Optional[psycopg2.extensions.connection]:
@@ -184,6 +184,10 @@ class PooledConnectionManager:
                         time.sleep(wait_time)
                     else:
                         raise
+
+            raise RuntimeError(
+                f"[{self.loader_name}] Failed to acquire connection from pool after {max_retries} retries"
+            )
 
         except Exception as e:
             # Release semaphore on failure
