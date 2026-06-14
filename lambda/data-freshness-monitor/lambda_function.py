@@ -14,6 +14,7 @@ from typing import Dict, List
 
 import psycopg2
 from algo.reporting import AlertManager
+from utils.db.sql_safety import assert_safe_table
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -59,7 +60,8 @@ def check_critical_table_freshness() -> Dict:
         for table_name, description in critical_tables.items():
             try:
                 # Get most recent date in table
-                cur.execute(f"SELECT MAX(date) FROM {table_name}")
+                table_safe = assert_safe_table(table_name)
+                cur.execute(f"SELECT MAX(date) FROM {table_safe}")
                 max_date = cur.fetchone()[0]
 
                 if max_date is None:
@@ -84,7 +86,7 @@ def check_critical_table_freshness() -> Dict:
 
                 # For time-based freshness (swing/quality scores)
                 if table_name in ['swing_trader_scores', 'signal_quality_scores']:
-                    cur.execute(f"SELECT MAX(created_at) FROM {table_name}")
+                    cur.execute(f"SELECT MAX(created_at) FROM {table_safe}")
                     max_created = cur.fetchone()[0]
                     if max_created:
                         if max_created.tzinfo is None:

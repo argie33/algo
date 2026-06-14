@@ -16,6 +16,7 @@ import psycopg2
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple
 import boto3
+from utils.db.sql_safety import assert_safe_table
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -154,8 +155,9 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
         for table_name, description in critical_tables.items():
             try:
                 # Find the most recent timestamp in the table
+                table_safe = assert_safe_table(table_name)
                 cur.execute(f"""
-                    SELECT MAX(created_at) as max_date FROM {table_name}
+                    SELECT MAX(created_at) as max_date FROM {table_safe}
                     LIMIT 1
                 """)
 
