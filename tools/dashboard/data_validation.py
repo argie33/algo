@@ -1,7 +1,15 @@
-"""Data validation and safe conversion utilities for dashboard."""
+"""Data validation and safe conversion utilities for dashboard.
+
+STRICT MODE FOR FINANCE: This module supports two modes for data conversion:
+1. Permissive (default=0.0/0/{}): Legacy mode for backward compatibility
+2. Strict (default=None, strict=True): For financial data—fails loudly if conversion fails
+
+Finance principle: Missing data is NOT the same as zero. Use strict mode for critical paths.
+"""
 
 import json
 import logging
+import warnings
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 logger = logging.getLogger(__name__)
@@ -9,37 +17,108 @@ logger = logging.getLogger(__name__)
 T = TypeVar('T')
 
 
-def safe_float(value: Any, default: Union[float, None] = 0.0, field_name: str = None) -> Union[float, None]:
-    """Safely convert value to float with logging. Returns default (0.0 or None) if conversion fails."""
+class StrictValidationError(Exception):
+    """Raised when data conversion fails in strict mode (required for finance paths)."""
+    pass
+
+
+def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool = False,
+               field_name: str = None) -> Union[float, None]:
+    """Convert value to float with configurable failure behavior.
+
+    Args:
+        value: Value to convert
+        default: Value to return on conversion failure (default: None = strict mode)
+                 Use default=0.0 only for aggregation contexts where 0 is meaningful
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
+
+    Returns:
+        float, or default value, or raises StrictValidationError (if strict=True)
+
+    WARNING: For finance data, use strict=True or default=None. Returning 0.0 for missing
+    portfolio values, market prices, or P&L is catastrophically misleading.
+    """
     if value is None:
+        if strict or (default is None and not isinstance(default, (int, float))):
+            raise StrictValidationError(
+                f"Cannot convert None to float{f' for {field_name}' if field_name else ''}"
+            )
+        if default == 0.0:
+            logger.warning(f"Converting None to 0.0{f' for {field_name}' if field_name else ''}—finance data should use strict mode")
         return default
+
     try:
         return float(value)
     except (TypeError, ValueError) as e:
-        if field_name:
-            logger.warning(f"Failed to convert {field_name}={value!r} to float: {e}")
-        else:
-            logger.warning(f"Failed to convert {value!r} to float: {e}")
+        if strict:
+            raise StrictValidationError(
+                f"Cannot convert {field_name or 'value'}={value!r} to float: {e}"
+            ) from e
+        if default == 0.0:
+            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning 0.0—use strict mode for finance): {e}")
+        elif default is not None:
+            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
         return default
 
 
-def safe_int(value: Any, default: int = 0, field_name: str = None) -> int:
-    """Safely convert value to int with logging."""
+def safe_int(value: Any, *, default: Optional[int] = None, strict: bool = False,
+             field_name: str = None) -> Optional[int]:
+    """Convert value to int with configurable failure behavior.
+
+    Args:
+        value: Value to convert
+        default: Value to return on conversion failure (default: None = strict mode)
+                 Use default=0 only for counters/counts where 0 is meaningful
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
+
+    Returns:
+        int, or default value, or raises StrictValidationError (if strict=True)
+
+    WARNING: For trade counts or position metrics, use strict=True. Returning 0 for
+    missing trade count or position count is misleading.
+    """
     if value is None:
+        if strict or (default is None and not isinstance(default, int)):
+            raise StrictValidationError(
+                f"Cannot convert None to int{f' for {field_name}' if field_name else ''}"
+            )
+        if default == 0:
+            logger.warning(f"Converting None to 0{f' for {field_name}' if field_name else ''}—trade counts should use strict mode")
         return default
+
     try:
         return int(value)
     except (TypeError, ValueError) as e:
-        if field_name:
-            logger.warning(f"Failed to convert {field_name}={value!r} to int: {e}")
-        else:
-            logger.warning(f"Failed to convert {value!r} to int: {e}")
+        if strict:
+            raise StrictValidationError(
+                f"Cannot convert {field_name or 'value'}={value!r} to int: {e}"
+            ) from e
+        if default == 0:
+            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to int (returning 0—use strict mode for finance): {e}")
+        elif default is not None:
+            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to int (returning {default}): {e}")
         return default
 
 
-def safe_json_parse(value: Any, default: Any = None, field_name: str = None) -> Any:
-    """Safely parse JSON string with logging."""
+def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
+                   field_name: str = None) -> Any:
+    """Parse JSON string with configurable failure behavior.
+
+    Args:
+        value: Value to parse (string, dict, list, or None)
+        default: Value to return on parse failure (default: None = strict mode)
+                 If default is None and not strict, returns {} for missing JSON
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
+
+    Returns:
+        Parsed object, or default value, or raises StrictValidationError (if strict=True)
+    """
     if value is None:
+        if strict:
+            raise StrictValidationError(f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}")
         return default if default is not None else {}
 
     # If it's already parsed, return as-is
@@ -51,17 +130,19 @@ def safe_json_parse(value: Any, default: Any = None, field_name: str = None) -> 
         try:
             return json.loads(value)
         except json.JSONDecodeError as e:
-            if field_name:
-                logger.warning(f"Failed to parse JSON in {field_name}: {e}. Value: {value[:100]}")
-            else:
-                logger.warning(f"Failed to parse JSON: {e}. Value: {value[:100]}")
+            if strict:
+                raise StrictValidationError(
+                    f"Cannot parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
+                ) from e
+            logger.warning(f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}")
             return default if default is not None else {}
 
-    # For unexpected types, log and return default
-    if field_name:
-        logger.warning(f"Expected string or dict for {field_name}, got {type(value).__name__}: {value!r}")
-    else:
-        logger.warning(f"Expected string or dict, got {type(value).__name__}: {value!r}")
+    # For unexpected types
+    if strict:
+        raise StrictValidationError(
+            f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
+        )
+    logger.warning(f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}")
     return default if default is not None else {}
 
 
@@ -151,3 +232,20 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
         logger.warning(f"{fetcher_name}.{field_name}: {issue} (value: {value!r})")
     else:
         logger.warning(f"{fetcher_name}.{field_name}: {issue}")
+
+
+# ── Strict-mode convenience functions for finance paths ────────────────────────
+
+def safe_float_strict(value: Any, field_name: str = None) -> float:
+    """Convert value to float in strict mode. Raises StrictValidationError if fails."""
+    return safe_float(value, strict=True, field_name=field_name)
+
+
+def safe_int_strict(value: Any, field_name: str = None) -> int:
+    """Convert value to int in strict mode. Raises StrictValidationError if fails."""
+    return safe_int(value, strict=True, field_name=field_name)
+
+
+def safe_json_parse_strict(value: Any, field_name: str = None) -> Any:
+    """Parse JSON in strict mode. Raises StrictValidationError if fails."""
+    return safe_json_parse(value, strict=True, field_name=field_name)

@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -415,3 +415,51 @@ def get_cached_response(endpoint: str) -> Optional[dict]:
     else:
         cached_data = {**cached_data, "_cached": True}
     return cached_data
+
+
+# ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
+
+_data_quality_issues = []
+_data_quality_lock = threading.Lock()
+
+
+def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any = None):
+    """Record a data quality issue for dashboarding and alerting.
+
+    Args:
+        fetcher: Fetcher name (e.g., "portfolio", "perf", "market")
+        field: Field name (e.g., "total_portfolio_value")
+        issue: Issue type (e.g., "missing_required_field", "conversion_failed", "data_stale")
+        value: Optional value for context
+    """
+    global _data_quality_issues
+    with _data_quality_lock:
+        _data_quality_issues.append({
+            "timestamp": datetime.now(timezone.utc),
+            "fetcher": fetcher,
+            "field": field,
+            "issue": issue,
+            "value": str(value)[:100] if value is not None else None
+        })
+        if len(_data_quality_issues) > 1000:
+            _data_quality_issues = _data_quality_issues[-1000:]
+    logger.warning(f"Data quality issue: {fetcher}.{field} - {issue}" + (f" (value: {value!r})" if value is not None else ""))
+
+
+def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
+    """Get data quality issues from the last N minutes.
+
+    Returns:
+        List of issue dicts with timestamp, fetcher, field, issue, value
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+    with _data_quality_lock:
+        recent = [i for i in _data_quality_issues if i["timestamp"] >= cutoff]
+    return recent
+
+
+def clear_data_quality_issues():
+    """Clear the data quality issue history."""
+    global _data_quality_issues
+    with _data_quality_lock:
+        _data_quality_issues = []

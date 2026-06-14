@@ -3,12 +3,16 @@
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from data_validation import safe_int, safe_float, safe_json_parse, safe_bool
+from data_validation import (
+    safe_int, safe_float, safe_json_parse, safe_bool,
+    safe_float_strict, safe_int_strict, StrictValidationError
+)
 
 from utilities import (
     api_call, logger, _data_status_cache, _data_status_lock,
+    record_data_quality_issue,
     G, R, Y, CY,
 )
 
@@ -113,34 +117,55 @@ def fetch_algo_config(c):
         return {"_error": error_msg, "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
 
 def fetch_market(c):
-    """Issue 3 FIX: API-only market data."""
+    """Issue 3 FIX: API-only market data.
+
+    STRICT MODE: SPY price and VIX are critical for position sizing. Missing them
+    is a critical data freshness issue, not a fallback-to-None situation.
+    """
     try:
         mkt = api_call('/api/algo/markets')
         if mkt.get('_error'):
+            record_data_quality_issue("market", "api_call", "api_error", mkt.get('_error'))
             return {"_error": mkt.get('_error'), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
         data = mkt.get('data', {})
+
+        # Strict conversion for critical price fields
+        try:
+            spy = safe_float_strict(data.get("spy_close"), "market.spy_close") if data.get("spy_close") is not None else None
+            if spy is None and "spy_close" in data:
+                raise StrictValidationError("spy_close missing from market data")
+            vix = safe_float_strict(data.get("vix_level"), "market.vix_level") if data.get("vix_level") is not None else None
+            if vix is None and "vix_level" in data:
+                raise StrictValidationError("vix_level missing from market data")
+        except StrictValidationError as e:
+            error_msg = f"Critical market data missing: {str(e)}"
+            logger.error(error_msg)
+            record_data_quality_issue("market", "critical_field", "missing_or_invalid", str(e))
+            return {"_error": error_msg, "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
+
         return {
-            "pct": safe_float(data.get("exposure_pct")),
+            "pct": safe_float(data.get("exposure_pct"), default=None),
             "tier": data.get("regime", "unknown"),
             "halts": safe_json_parse(data.get("halt_reasons"), default=[], field_name="halt_reasons"),
-            "vix": safe_float(data.get("vix_level")),
+            "vix": vix,
             "stage": data.get("market_stage"),
             "trend": data.get("market_trend"),
-            "dist": safe_int(data.get("distribution_days_4w")),
-            "spy": safe_float(data.get("spy_close")),
-            "spy_chg": safe_float(data.get("spy_change_pct")),
-            "upvol": safe_float(data.get("up_volume_percent")),
-            "adr": safe_float(data.get("advance_decline_ratio")),
-            "nh": safe_int(data.get("new_highs_count")),
-            "nl": safe_int(data.get("new_lows_count")),
-            "pcr": safe_float(data.get("put_call_ratio")),
-            "bmom": safe_float(data.get("breadth_momentum_10d")),
-            "ycs": safe_float(data.get("yield_curve_slope")),
+            "dist": safe_int(data.get("distribution_days_4w"), default=None),
+            "spy": spy,
+            "spy_chg": safe_float(data.get("spy_change_pct"), default=None),
+            "upvol": safe_float(data.get("up_volume_percent"), default=None),
+            "adr": safe_float(data.get("advance_decline_ratio"), default=None),
+            "nh": safe_int(data.get("new_highs_count"), default=None),
+            "nl": safe_int(data.get("new_lows_count"), default=None),
+            "pcr": safe_float(data.get("put_call_ratio"), default=None),
+            "bmom": safe_float(data.get("breadth_momentum_10d"), default=None),
+            "ycs": safe_float(data.get("yield_curve_slope"), default=None),
             "fed": data.get("fed_rate_environment"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("mkt", e)
         logger.error(error_msg)
+        record_data_quality_issue("market", "exception", type(e).__name__, str(e))
         return {"_error": error_msg, "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
 
 def fetch_exposure_factors(c):
@@ -172,10 +197,15 @@ def _validate_required_fields(data_dict, required_fields, source_name):
     return None
 
 def fetch_portfolio(c):
-    """Fetch portfolio snapshot from API. Fails clean if unavailable."""
+    """Fetch portfolio snapshot from API. Fails clean if unavailable.
+
+    STRICT MODE: Uses direct conversion for critical financial fields (no defaults to 0).
+    Missing data triggers error, not silent 0 values which are catastrophically misleading.
+    """
     try:
         data = api_call('/api/algo/portfolio')
         if data.get('_error'):
+            record_data_quality_issue("portfolio", "api_call", "api_error", data.get('_error'))
             return {
                 "_error": data.get('_error'),
                 "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
@@ -187,26 +217,48 @@ def fetch_portfolio(c):
         required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
         validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
         if validation_error:
+            for field in required_fields:
+                if field not in port or port[field] is None:
+                    record_data_quality_issue("portfolio", field, "missing_required_field")
             return {**validation_error, "snapshot_date": None, "total_portfolio_value": None,
                    "total_cash": None, "position_count": None, "daily_return_pct": None,
                    "unrealized_pnl_pct": None, "cumulative_return_pct": None,
                    "max_drawdown_pct": None, "largest_position_pct": None, "data_age_seconds": None}
+
+        # Strict conversion for critical financial fields
+        try:
+            tpv = safe_float_strict(port["total_portfolio_value"], "portfolio.total_portfolio_value")
+            tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
+            pc = safe_int_strict(port["open_positions"], "portfolio.open_positions")
+        except StrictValidationError as e:
+            error_msg = f"Portfolio data conversion failed: {str(e)}"
+            logger.error(error_msg)
+            record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
+            return {
+                "_error": error_msg,
+                "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
+                "position_count": None, "daily_return_pct": None, "unrealized_pnl_pct": None,
+                "cumulative_return_pct": None, "max_drawdown_pct": None, "largest_position_pct": None,
+                "data_age_seconds": None
+            }
+
         return {
             "snapshot_date": port.get("last_run"),
-            "total_portfolio_value": safe_float(port.get("total_portfolio_value")),
-            "total_cash": safe_float(port.get("total_cash")),
-            "total_buying_power": safe_float(port.get("total_buying_power")),
-            "position_count": safe_int(port.get("open_positions")),
-            "daily_return_pct": safe_float(port.get("daily_return_pct")),
-            "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct")),
-            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct")),
-            "max_drawdown_pct": safe_float(port.get("max_drawdown_pct")),
-            "largest_position_pct": safe_float(port.get("largest_position_pct")),
+            "total_portfolio_value": tpv,
+            "total_cash": tc,
+            "total_buying_power": safe_float(port.get("total_buying_power"), default=None),
+            "position_count": pc,
+            "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
+            "unrealized_pnl_pct": safe_float(port.get("unrealized_pnl_pct"), default=None),
+            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),
+            "max_drawdown_pct": safe_float(port.get("max_drawdown_pct"), default=None),
+            "largest_position_pct": safe_float(port.get("largest_position_pct"), default=None),
             "data_age_seconds": port.get("data_age_seconds")
         }
     except Exception as e:
         error_msg = _format_fetcher_error("port", e)
         logger.error(error_msg)
+        record_data_quality_issue("portfolio", "exception", type(e).__name__, str(e))
         return {
             "_error": error_msg,
             "snapshot_date": None, "total_portfolio_value": None, "total_cash": None,
@@ -216,10 +268,15 @@ def fetch_portfolio(c):
         }
 
 def fetch_perf(c):
-    """AWS-only performance data (no local fallback)."""
+    """AWS-only performance data (no local fallback).
+
+    STRICT MODE: Trade counts (total, winning, losing) are critical finance metrics.
+    Returns 0 for missing counts is catastrophically misleading.
+    """
     try:
         data = api_call('/api/algo/performance')
         if data.get('_error'):
+            record_data_quality_issue("perf", "api_call", "api_error", data.get('_error'))
             return {
                 "_error": data.get('_error'),
                 "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
@@ -231,32 +288,54 @@ def fetch_perf(c):
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
         validation_error = _validate_required_fields(perf, required_fields, "fetch_perf")
         if validation_error:
+            for field in required_fields:
+                if field not in perf or perf[field] is None:
+                    record_data_quality_issue("perf", field, "missing_required_field")
             return {**validation_error, "n": None, "w": None, "l": None, "wr": None,
                    "pnl": None, "streak": None, "sharpe": None, "maxdd": None,
                    "avg_win": None, "avg_loss": None, "profit_factor": None,
                    "expectancy": None, "avg_r": None, "equity_vals": [], "recent_rets": []}
+
+        # Strict conversion for critical trade count fields
+        try:
+            n = safe_int_strict(perf["total_trades"], "perf.total_trades")
+            w = safe_int_strict(perf["winning_trades"], "perf.winning_trades")
+            l = safe_int_strict(perf["losing_trades"], "perf.losing_trades")
+        except StrictValidationError as e:
+            error_msg = f"Performance data conversion failed: {str(e)}"
+            logger.error(error_msg)
+            record_data_quality_issue("perf", "type_conversion", "conversion_failed", str(e))
+            return {
+                "_error": error_msg,
+                "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
+                "sharpe": None, "maxdd": None, "avg_win": None, "avg_loss": None,
+                "profit_factor": None, "expectancy": None, "avg_r": None,
+                "equity_vals": [], "recent_rets": []
+            }
+
         return {
-            "n": safe_int(perf.get("total_trades")),
-            "w": safe_int(perf.get("winning_trades")),
-            "l": safe_int(perf.get("losing_trades")),
-            "wr": safe_float(perf.get("win_rate_pct")),
-            "open_count": safe_int(perf.get("open_positions")),
-            "pnl": safe_float(perf.get("total_pnl_dollars")),
-            "unrealized_pnl": safe_float(perf.get("unrealized_pnl")),
-            "streak": safe_int(perf.get("current_streak"), default=0),
-            "sharpe": safe_float(perf.get("sharpe_annualized")),
-            "maxdd": safe_float(perf.get("max_drawdown_pct")),
-            "avg_win": safe_float(perf.get("avg_win_pct")),
-            "avg_loss": safe_float(perf.get("avg_loss_pct")),
-            "profit_factor": safe_float(perf.get("profit_factor")),
-            "expectancy": safe_float(perf.get("expectancy_r")),
-            "avg_r": safe_float(perf.get("expectancy_r"), default=0),
+            "n": n,
+            "w": w,
+            "l": l,
+            "wr": safe_float(perf.get("win_rate_pct"), default=None),
+            "open_count": safe_int(perf.get("open_positions"), default=None),
+            "pnl": safe_float(perf.get("total_pnl_dollars"), default=None),
+            "unrealized_pnl": safe_float(perf.get("unrealized_pnl"), default=None),
+            "streak": safe_int(perf.get("current_streak"), default=None),
+            "sharpe": safe_float(perf.get("sharpe_annualized"), default=None),
+            "maxdd": safe_float(perf.get("max_drawdown_pct"), default=None),
+            "avg_win": safe_float(perf.get("avg_win_pct"), default=None),
+            "avg_loss": safe_float(perf.get("avg_loss_pct"), default=None),
+            "profit_factor": safe_float(perf.get("profit_factor"), default=None),
+            "expectancy": safe_float(perf.get("expectancy_r"), default=None),
+            "avg_r": safe_float(perf.get("expectancy_r"), default=None),
             "equity_vals": perf.get("equity_vals", []),
             "recent_rets": perf.get("recent_rets", [])
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf", e)
         logger.error(error_msg)
+        record_data_quality_issue("perf", "exception", type(e).__name__, str(e))
         return {
             "_error": error_msg,
             "n": None, "w": None, "l": None, "wr": None, "pnl": None, "streak": None,
