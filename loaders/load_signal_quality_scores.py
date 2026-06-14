@@ -30,26 +30,23 @@ class SignalQualityScoresLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute signal quality scores from buy/sell signals and technical confirmation."""
+    def _prepare_batch_context(self) -> None:
+        """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
+
+        Caches end_date and buy_sell_daily signal count to avoid per-symbol computation.
+        """
         from algo.infrastructure import MarketCalendar
-        from datetime import datetime, timezone, timedelta as td
-        from zoneinfo import ZoneInfo
+        from datetime import datetime, timezone
 
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
-        now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(EASTERN_TZ)
-        end = now_et.date()
-
-        # If today is not a trading day, use yesterday instead
-        # (prevents computing scores for non-trading days when no new signals exist)
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-            end = end - timedelta(days=1)
-
-        # If buy_sell_daily doesn't have today's signals yet (e.g., morning prep runs before
-        # market open), fall back to the last date with available data rather than skipping.
+        self._batch_context = {}
         try:
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
+
             with DatabaseContext('read') as cur:
                 cur.execute(
                     "SELECT MAX(date) FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL') AND date <= %s",
@@ -60,13 +57,60 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if last_bs_date:
                     last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
                     if last_bs and last_bs < end:
-                        logger.info(
-                            f"buy_sell_daily has data up to {last_bs}, not yet {end}. "
-                            f"Using {last_bs} as effective end date for signal quality computation."
-                        )
                         end = last_bs
+
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
+                    (end,)
+                )
+                cur_row = cur.fetchone()
+                actual_symbols = cur_row[0] if cur_row else 0
+
+            self._batch_context = {
+                "end_date": end,
+                "bs_signal_count": actual_symbols,
+            }
+            logger.debug(
+                f"Batch context: end={end}, bs_signals={actual_symbols}"
+            )
         except Exception as e:
-            logger.debug(f"Could not check buy_sell_daily max date: {e}")
+            logger.warning(f"Batch context preparation failed: {e}")
+            self._batch_context = {}
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Compute signal quality scores from buy/sell signals and technical confirmation."""
+        from algo.infrastructure import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
+        from zoneinfo import ZoneInfo
+
+        # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
+        # instead of recomputing trading day verification for each symbol.
+        if self._batch_context and "end_date" in self._batch_context:
+            end = self._batch_context["end_date"]
+        else:
+            # Fallback if batch context unavailable
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
+
+            # Fallback: check buy_sell_daily max date if batch context failed
+            try:
+                with DatabaseContext('read') as cur:
+                    cur.execute(
+                        "SELECT MAX(date) FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL') AND date <= %s",
+                        (end,)
+                    )
+                    row = cur.fetchone()
+                    last_bs_date = row[0] if row is not None and row[0] is not None else None
+                    if last_bs_date:
+                        last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
+                        if last_bs and last_bs < end:
+                            end = last_bs
+            except Exception as e:
+                logger.debug(f"Could not check buy_sell_daily max date: {e}")
 
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-querying 5 years of history.
@@ -103,24 +147,17 @@ class SignalQualityScoresLoader(OptimalLoader):
         # buy_sell_daily generates signals only for stocks meeting filter criteria (~500-1500 symbols).
         # Comparing against all active symbols (10,000+) will ALWAYS fail 95% threshold.
         # Instead: require at least 300 buy/sell signals exist for end date.
-        try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
-                    (end,)
-                )
-                cur_row = cur.fetchone()
-                actual_symbols = cur_row[0] if cur_row else 0
 
-                if actual_symbols < 300:
-                    logger.critical(
-                        f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
-                        f"only {actual_symbols} signals (expected >= 300). "
-                        f"signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
-                    )
-                    return []
-        except Exception as e:
-            logger.debug(f"Could not validate buy_sell_daily completeness: {e}")
+        # ROOT CAUSE #4 FIX: Use cached signal count from batch context instead of per-symbol query.
+        actual_symbols = self._batch_context.get("bs_signal_count", 0) if self._batch_context else 0
+
+        if actual_symbols < 300:
+            logger.critical(
+                f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
+                f"only {actual_symbols} signals (expected >= 300). "
+                f"signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
+            )
+            return []
 
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
