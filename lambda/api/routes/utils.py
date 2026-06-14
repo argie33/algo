@@ -143,21 +143,25 @@ def success_response(data, metadata=None):
 def list_response(items, total=None, data_freshness=None, limit=None, offset=None):
     """Standardized list response for paginated data.
 
-    Always returns array in 'items' field with total count.
+    Always returns array in 'data.items' field with total count.
     Sanitizes response to remove None values (Issue #14 FIX).
     Includes pagination metadata for client-side pagination.
-    Format: {statusCode: 200, items: [...], total: X, limit?: Y, offset?: Z}
+    Format: {statusCode: 200, data: {items: [...], total: X, limit?: Y, offset?: Z}, data_freshness?: {...}}
     """
     sanitized_items = APIResponseValidator.sanitize_response(items if items else [])
-    response = {
-        "statusCode": 200,
+    data = {
         "items": sanitized_items,
         "total": total if total is not None else len(sanitized_items)
     }
     if limit is not None:
-        response["limit"] = limit
+        data["limit"] = limit
     if offset is not None:
-        response["offset"] = offset
+        data["offset"] = offset
+
+    response = {
+        "statusCode": 200,
+        "data": data
+    }
     if data_freshness:
         response["data_freshness"] = data_freshness
     return response

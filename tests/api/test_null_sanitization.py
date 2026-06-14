@@ -74,8 +74,8 @@ def test_list_response_sanitizes():
     response = list_response(items)
 
     assert response['statusCode'] == 200
-    assert response['total'] == 2
-    assert response['items'][1]['quantity'] == 0
+    assert response['data']['total'] == 2
+    assert response['data']['items'][1]['quantity'] == 0
     print("✓ test_list_response_sanitizes passed")
 
 

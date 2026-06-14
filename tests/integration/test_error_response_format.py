@@ -90,13 +90,14 @@ class TestErrorResponseFormat:
         assert response['data']['id'] == 123
 
     def test_list_response_format(self):
-        """list_response() should return {statusCode: 200, items: [...], total: N}."""
+        """list_response() should return {statusCode: 200, data: {items: [...], total: N}}."""
         items = [{'id': 1}, {'id': 2}]
         response = list_response(items, total=2)
 
         assert response['statusCode'] == 200
-        assert response['items'] == items
-        assert response['total'] == 2
+        assert 'data' in response
+        assert response['data']['items'] == items
+        assert response['data']['total'] == 2
 
     def test_error_response_consistency_across_codes(self):
         """All error status codes should produce consistent format."""

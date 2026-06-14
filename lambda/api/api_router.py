@@ -120,36 +120,36 @@ if _SKIPPED_ROUTES:
 def _wrap_response(response):
     """Standardize response format for consistent client handling.
 
-    Issue 2.1 FIX: Wrap all responses in 'data' field so dashboard can consistently:
-    1. Access response payload via response['data']
-    2. Extract errors via response['_error'] (always at top level)
+    All API responses follow a consistent format:
+    - Success (200): {statusCode: 200, data: {...}, data_freshness?: {...}}
+    - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "...", _error: "..."}
 
-    Formats handled:
-    - list_response: {"statusCode": 200, "items": [...]} → {"statusCode": 200, "data": {"items": [...]}}
-    - json_response: {"statusCode": 200, "data": {...}} → unchanged (already wrapped)
-    - error_response: {"statusCode": 4xx, "errorType": "...", "message": "..."} → unchanged (no data field)
+    This function is a safety net for any legacy endpoints that don't use the
+    response utility functions (success_response, list_response, json_response).
     """
     if not isinstance(response, dict):
         return response
 
-    # Errors don't need wrapping - they're returned as-is
+    # Errors are returned as-is (already include errorType and _error)
     if response.get('errorType') or response.get('statusCode', 200) >= 400:
         return response
 
-    # Already wrapped in 'data' field (json_response format)
-    if 'data' in response:
-        return response
-
-    # Wrap other successful responses (list_response format: {items: [...], total: N})
-    if response.get('statusCode') == 200 and not response.get('_error'):
+    # Success responses should already have 'data' field from response utilities.
+    # If they don't (legacy/direct returns), wrap them.
+    if response.get('statusCode') == 200 and 'data' not in response:
         # Extract all top-level fields except statusCode/headers
-        payload = {k: v for k, v in response.items() if k not in ('statusCode', 'headers')}
-        response = {
+        payload = {k: v for k, v in response.items() if k not in ('statusCode', 'headers', 'data_freshness')}
+        wrapped = {
             'statusCode': 200,
             'data': payload
         }
+        # Preserve data_freshness if it exists
+        if 'data_freshness' in response:
+            wrapped['data_freshness'] = response['data_freshness']
+        # Preserve headers if they exist
         if 'headers' in response:
-            response['headers'] = response['headers']
+            wrapped['headers'] = response['headers']
+        return wrapped
 
     return response
 
