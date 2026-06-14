@@ -4,6 +4,7 @@ import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from data_validation import (
     safe_int, safe_float, safe_json_parse, safe_bool,
