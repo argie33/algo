@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Filter, AlertCircle, CheckCircle, Edit2, Save, X, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle, Edit2, Save, X, RotateCcw } from 'lucide-react';
 import { getAlgoConfig, updateAlgoConfigKey, resetAlgoConfigKey } from '../services/api';
-import { extractData } from '../utils/responseNormalizer';
 
 /**
  * ConfigurationViewer — TIER 3 Configuration Visibility

@@ -11,6 +11,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { num, pct, money } from '../components/dashboard/shared/utils/dashboardFormatters';
+import { formatNumber } from '../utils/formatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 import StockScoreAccordion from '../components/StockScoreAccordion';
 

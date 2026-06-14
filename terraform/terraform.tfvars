@@ -18,7 +18,11 @@ cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins i
 # environment variable. This avoids hardcoding and ensures CORS always works with the current domain.
 # See .github/workflows/deploy-all-infrastructure.yml "Discover CloudFront domain for CORS configuration" step
 # Fallback: If no environment variable is set, this default is used (empty list is a safe fallback)
-api_cors_allowed_origins = []
+api_cors_allowed_origins = [
+  "https://d2u93283nn45h2.cloudfront.net",
+  "http://localhost:5173",
+  "http://localhost:3000"
+]
 # ORCHESTRATOR SCHEDULE: 3 runs during market hours
 # Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
 # All runs use signals from previous night's EOD computation (no intraday signal recalc yet)

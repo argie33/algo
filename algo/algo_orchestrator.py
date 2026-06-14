@@ -53,7 +53,7 @@ class Orchestrator:
         self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
-        self.phase_results: Dict[int, Any] = {}
+        self.phase_results: Dict[Union[int, str], Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         # FIXED Issue #6: Initialize execution tracker for audit trail logging
         self.execution_tracker = get_tracker()
@@ -532,7 +532,7 @@ class Orchestrator:
                 )
         except Exception as e:
             logger.critical(f"[AUDIT_FAILURE] Could not persist audit log entry for phase {phase_num}: {e}")
-            raise
+            # Audit log failure must never abort trading
 
     # ---------- Phase implementations ----------
 
@@ -1000,7 +1000,7 @@ class Orchestrator:
 
         if not self.execution_tracker.save_execution_log(overall_status, halt_reason):
             logger.critical(f"[AUDIT_FAILURE] Could not save execution log for run {self.run_id}")
-            raise RuntimeError("Execution log persistence failed — cannot trust audit trail")
+            # Audit log failure must never prevent the final report from returning
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:

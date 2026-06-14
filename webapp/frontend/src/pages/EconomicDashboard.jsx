@@ -59,7 +59,7 @@ function deriveRegime(indicators, yieldData, recessionProb) {
 
 function EconomicDashboardPage() {
   const [tab, setTab] = useState('overview');
-  const { thresholds, isDefault: usingDefaultThresholds } = useThresholds();
+  const { thresholds, isDefault: _usingDefaultThresholds } = useThresholds();
 
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {

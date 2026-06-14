@@ -421,7 +421,7 @@ class SwingTraderScore:
             'ascending_base': 7, 'double_bottom': 6, 'saucer': 5,
             'consolidation': 3, 'no_base': 0, 'wide_and_loose': 0,
         }
-        type_pts = type_scores.get(base.get('type'), 0)
+        type_pts = float(type_scores.get(base.get('type'), 0))
         quality_mult = {'A': 1.0, 'B': 0.85, 'C': 0.6, 'D': 0.0}
         type_pts *= quality_mult.get(base.get('quality', 'D'), 0)
         pts += type_pts
@@ -1070,7 +1070,8 @@ class SwingTraderScore:
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    s = SwingTraderScore()
+    from algo.infrastructure.config import get_config
+    s = SwingTraderScore(get_config())
     eval_date = date(2026, 4, 24)
     logger.info(f"SWING TRADER SCORES — {eval_date}")
 

@@ -62,5 +62,5 @@ def run(
 
     except Exception as e:
         traceback.print_exc()
-        log_phase_result_fn('3a', 'reconciliation', 'error', str(e))
-        return PhaseResult('3a', 'reconciliation', 'ok', {}, False, str(e))
+        log_phase_result_fn(3, 'reconciliation', 'error', str(e))
+        return PhaseResult(3, 'reconciliation', 'ok', {}, False, str(e))

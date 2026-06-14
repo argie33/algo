@@ -129,7 +129,7 @@ function MarketsHealthPage() {
     () => api.get('/api/market/seasonality'),
     { refetchInterval: 1000 * 60 * 60 }
   );
-  const { data: notificationsData, loading: notifLoading } = useApiQuery(
+  const { data: notificationsData, loading: _notifLoading } = useApiQuery(
     ['signal-staleness-alerts'],
     () => api.get('/api/algo/notifications?kind=signal&severity=critical'),
     { refetchInterval: 60000 }

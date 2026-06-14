@@ -11,7 +11,7 @@ Logs orchestrator runs to orchestrator_execution_log table so you can:
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class OrchestratorExecutionTracker:
         self.run_id: Optional[str] = None
         self.run_date: Optional[Any] = None
         self.started_at: Optional[datetime] = None
-        self.phase_results: Dict[int, Dict[str, str]] = {}
+        self.phase_results: Dict[Union[int, str], Dict[str, Any]] = {}
 
     def set_run_context(self, run_id: str, run_date: Any) -> None:
         """Set the run context (called at orchestrator startup)."""
@@ -57,10 +57,10 @@ class OrchestratorExecutionTracker:
                 ON orchestrator_execution_log(run_date DESC)
             """)
 
-    def log_phase_result(self, phase_num: int, name: str, status: str, summary: str) -> None:
+    def log_phase_result(self, phase_num: Union[int, str], name: str, status: str, summary: str) -> None:
         """Record a phase result. Called by orchestrator.log_phase_result()."""
         self.phase_results[phase_num] = {
-            'phase': phase_num,
+            'phase': str(phase_num),
             'name': name,
             'status': status,
             'summary': summary,

@@ -176,19 +176,19 @@ function PortfolioDashboardPage() {
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
   );
-  const { data: returnHistogram, loading: histogramLoading, error: histogramError, refetch: refetchHistogram } = useApiQuery(
+  const { data: returnHistogram, loading: histogramLoading, error: _histogramError, refetch: refetchHistogram } = useApiQuery(
     ['algo-daily-return-histogram'],
     () => api.get('/api/algo/daily-return-histogram'),
   );
-  const { data: tradeDistribution, loading: distLoading, error: distError, refetch: refetchDistribution } = useApiQuery(
+  const { data: tradeDistribution, loading: distLoading, error: _distError, refetch: refetchDistribution } = useApiQuery(
     ['algo-trade-distribution'],
     () => api.get('/api/algo/trade-distribution'),
   );
-  const { data: holdingDistribution, loading: holdingLoading, error: holdingError, refetch: refetchHolding } = useApiQuery(
+  const { data: holdingDistribution, loading: holdingLoading, error: _holdingError, refetch: refetchHolding } = useApiQuery(
     ['algo-holding-period-distribution'],
     () => api.get('/api/algo/holding-period-distribution'),
   );
-  const { data: stageDistribution, loading: stageLoading, error: stageError, refetch: refetchStage } = useApiQuery(
+  const { data: stageDistribution, loading: stageLoading, error: _stageError, refetch: refetchStage } = useApiQuery(
     ['algo-stage-distribution'],
     () => api.get('/api/algo/stage-distribution'),
   );
@@ -246,11 +246,11 @@ function PortfolioDashboardPage() {
   const statusDataError = hasError(status) ? status._error : null;
 
   const isPerfPlaceholder = isPlaceholder(perf);
-  const isEquityPlaceholder = isPlaceholder(equityItems);
-  const isTradesPlaceholder = isPlaceholder(trades);
-  const isReturnHistogramPlaceholder = isPlaceholder(returnHistogram);
-  const isDistributionPlaceholder = isPlaceholder(tradeDistribution);
-  const isHoldingPlaceholder = isPlaceholder(holdingDistribution);
+  const _isEquityPlaceholder = isPlaceholder(equityItems);
+  const _isTradesPlaceholder = isPlaceholder(trades);
+  const _isReturnHistogramPlaceholder = isPlaceholder(returnHistogram);
+  const _isDistributionPlaceholder = isPlaceholder(tradeDistribution);
+  const _isHoldingPlaceholder = isPlaceholder(holdingDistribution);
 
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
@@ -1207,7 +1207,7 @@ function RChip({ r }) {
 }
 
 // ─── Risk allocation pie ───────────────────────────────────────────────────
-function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
+function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
   const posArray = Array.isArray(positions) ? positions : (positions?.items || []);
   const data = useMemo(() => {
     if (!Array.isArray(posArray) || posArray.length === 0) return [];

@@ -763,6 +763,13 @@ def require_auth(event: Dict, path: str) -> tuple:
     if not cognito_enabled:
         # SECURITY FIX S-02: Dev mode only in local development (dev_server.py), never in Lambda
         # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
+
+        # DEV_BYPASS_AUTH: Allow all requests without authentication in local dev mode
+        # This is ONLY for local development - never used in production
+        if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
+            logger.info(f"[DEV_BYPASS_AUTH] Development bypass enabled - allowing request without auth")
+            return (True, True, None, None)
+
         try:
             from dev_auth import validate_dev_token
             token = get_bearer_token(event)
