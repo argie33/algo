@@ -32,6 +32,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     # Detect environment
     is_aws = bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
     is_lambda = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+    is_local_dev = os.getenv("ENVIRONMENT") in ("development", "local") or os.getenv("LOCAL_DEV") == "true"
 
     # === CRITICAL: Database Password ===
     # This is always required. No defaults allowed.
@@ -46,10 +47,16 @@ def validate_credentials() -> Tuple[bool, List[str]]:
             "Set DB_PASSWORD for local dev or DB_SECRET_ARN for AWS production."
         )
     elif db_password:
-        # Validate password is not empty string or too short
-        if len(db_password.strip()) < 8:
+        # Validate password is not empty string
+        if len(db_password.strip()) == 0:
             errors.append(
-                "[ERROR] DB_PASSWORD is too short (min 8 characters). "
+                "[ERROR] DB_PASSWORD is empty string. "
+                "Check that password is properly loaded from environment."
+            )
+        # In production, require longer passwords; in dev, allow shorter ones (test fixtures)
+        elif not is_local_dev and len(db_password.strip()) < 8:
+            errors.append(
+                "[ERROR] DB_PASSWORD is too short (min 8 characters in production). "
                 "Check that password is properly loaded from environment."
             )
 
