@@ -243,27 +243,43 @@ This design tolerates incomplete upstream data and ensures signals always have t
 
 **Morning prep completion:** Must finish before 9:30 AM. Currently completes in 5-5.5h (start 2:00 AM = 1-1.5h buffer). Monitor CloudWatch if approaching deadline.
 
-## Dashboard Setup (Terminal Tool)
+## Dashboard Setup
 
-**Dynamic credential fetching (no manual setup required):**
+### Browser Dashboard (Vite Dev Server)
 
+**One-time PowerShell profile setup:**
 ```powershell
-# Ensure credentials are fresh (quarterly or when expired):
-scripts/refresh-aws-credentials.ps1
+$env:VITE_PROXY_TARGET           = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
+$env:VITE_COGNITO_USER_POOL_ID   = "us-east-1_XJpLb9SKX"
+$env:VITE_COGNITO_CLIENT_ID      = "6smb0vrcidd9kvhju2kn2a3qrl"
+$env:VITE_COGNITO_DOMAIN         = "https://algo-dev.auth.us-east-1.amazoncognito.com"
+```
 
-# Run dashboard (automatically fetches Terraform outputs):
+**Run dev server:**
+```powershell
+cd webapp/frontend && npm run dev
+```
+
+Behavior:
+- Public pages (markets, economic, sectors, sentiment, scores, deep-value) load with AWS data immediately
+- Protected pages (algo-dashboard, portfolio, trades, admin) redirect to `/login`
+- Login with Cognito email (argeropolos@gmail.com) to access protected pages
+- Vite proxy transparently routes `/api/*` requests to AWS API Gateway (no CORS issues)
+
+### Terminal Dashboard (Python Tool)
+
+**Run (no additional setup required):**
+```powershell
 .\run-dashboard.ps1                    # Live view
 .\run-dashboard.ps1 -Watch 60          # Auto-refresh every 60s
-.\run-dashboard.ps1 --local            # Use localhost:3001 (dev mode)
 .\run-dashboard.ps1 -Legend            # Print legend/guide
 ```
 
-The dashboard script automatically:
-1. Sets AWS_PROFILE=algo-developer
-2. Calls `terraform output` to fetch API URL + Cognito credentials
-3. Authenticates with Cognito and displays real-time metrics
-
-No environment variables need to be manually set — Terraform integration handles it.
+Behavior:
+- Fetches API URL + Cognito credentials from Terraform outputs (or uses hardcoded fallback if local)
+- Prompts for Cognito login interactively
+- Displays real-time metrics from AWS
+- If AWS credentials expired, run: `scripts/refresh-aws-credentials.ps1`
 
 ## Key Files
 
