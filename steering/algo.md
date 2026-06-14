@@ -364,12 +364,24 @@ curl https://<api-gateway-endpoint>/api/health
 ## Troubleshooting
 
 **Lambda returns 502 Bad Gateway (VPC cold-start timeout):**
+- Cause: VPC cold-start (15-40s) exceeds API Gateway timeout (29s). Provisioned concurrency should prevent this.
+- Check: Is provisioned concurrency enabled? `aws lambda get-provisioned-concurrency-config --function-name algo-api-dev`
+- Fix: Ensure terraform.tfvars has `api_lambda_provisioned_concurrency = 1`
+- Workaround: Client should retry with exponential backoff (retry after 2s)
+
+**Lambda returns 5xx error (internal):**
+- Check Lambda logs: `aws logs tail /aws/lambda/algo-api-dev --follow`
+- Check database connectivity: Verify RDS Proxy is reachable from Lambda (security group rules)
+- Check credentials: Lambda environment variables include DB_SECRET_ARN (should be decrypted at runtime)
+- Check Lambda layer: Verify psycopg2 layer is deployed (`aws lambda get-function --function-name algo-api-dev`)
+
+**Phase 1 halts on stale data:**
 - Check `DATA_FRESHNESS_MAX_HOURS` (may need increase for holidays)
 - Check morning prep pipeline completion: `scripts/orchestrator-history.py recent 1`
 - Check yfinance status: `curl https://query1.finance.yahoo.com/...`
 
 **API route failures:**
-- Check Lambda logs: `fields @message | filter @message like /ROUTE_IMPORT_STATUS/`
+- Check Lambda logs: `aws logs filter-log-events --log-group-name /aws/lambda/algo-api-dev --filter-pattern "FAILED"`
 - Syntax check: `python -m py_compile lambda/api/routes/algo.py`
 
 **RDS connection saturation:**
