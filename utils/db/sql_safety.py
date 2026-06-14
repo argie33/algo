@@ -14,7 +14,7 @@ from typing import List, Tuple, Optional
 # Security: M-001 SQL injection prevention — table names validated against whitelist
 SAFE_TABLES = {
     # Algo core
-    'algo_metrics_daily', 'algo_performance_daily', 'algo_risk_daily',
+    'algo_metrics_daily', 'algo_performance_daily', 'algo_performance_metrics', 'algo_risk_daily',
     'algo_trades', 'algo_positions', 'algo_signals', 'algo_portfolio_snapshots',
     'algo_audit_log', 'algo_notifications', 'algo_data_patrol', 'algo_signals_evaluated',
     'algo_trade_adds', 'algo_tca', 'algo_information_coefficient', 'algo_model_registry',
@@ -60,6 +60,7 @@ SAFE_TABLES = {
     'trades', 'portfolio_holdings', 'portfolio_history', 'portfolio_performance',
     # Data management
     'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
+    'circuit_breaker_status',
     # Distribution data (for dashboards)
     'grade_distribution_daily',
     # Russell/S&P constituents
