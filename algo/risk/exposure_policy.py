@@ -2,6 +2,7 @@
 
 import math
 from datetime import date as _date
+from typing import List, Dict, Any
 from utils.db import DatabaseContext
 import logging
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 #   correction           < 25%
 #
 # Upper bounds are exclusive (except the top tier) — no boundary overlap.
-EXPOSURE_TIERS = [
+EXPOSURE_TIERS: List[Dict[str, Any]] = [
     {
         'name': 'confirmed_uptrend',
         'min_pct': 70,

@@ -30,7 +30,7 @@ class VectorizedSignalGenerator:
         self.lookback_days = 300  # 300 trading days ~ 1.2 years
         self.min_history = 50  # Minimum bars required for technical indicators
 
-    def fetch_all_price_data(self, symbols: List[str], eval_date: _date) -> Tuple[Dict[str, np.ndarray], _date]:
+    def fetch_all_price_data(self, symbols: List[str], eval_date: _date) -> Tuple[Dict[str, List[Dict[str, Any]]], _date]:
         """
         Fetch all price data for all symbols in ONE query.
         Automatically falls back to most recent date if eval_date has no data.
@@ -224,13 +224,13 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
-                results[symbol] = {'stage': 0, 'confidence': 0}
+                results[symbol] = {'stage': 0, 'confidence': 0.0}
                 continue
 
             try:
                 closes = np.array([r['close'] for r in rows if r['close'] is not None])
                 if len(closes) < 150:
-                    results[symbol] = {'stage': 0, 'confidence': 0}
+                    results[symbol] = {'stage': 0, 'confidence': 0.0}
                     continue
 
                 # Compute 30-week MA (150 days) and slope
@@ -257,7 +257,7 @@ class VectorizedSignalGenerator:
                 results[symbol] = {'stage': stage, 'confidence': 0.75}
             except Exception as e:
                 logger.debug(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
-                results[symbol] = {'stage': 0, 'confidence': 0}
+                results[symbol] = {'stage': 0, 'confidence': 0.0}
 
         return results
 
