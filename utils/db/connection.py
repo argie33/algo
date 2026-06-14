@@ -32,11 +32,11 @@ except ImportError as import_err:
         config_path = str(Path(__file__).resolve().parent.parent.parent.parent / 'config')
         if config_path not in sys.path:
             sys.path.insert(0, config_path)
-        from credential_manager import get_db_config  # type: ignore[import-not-found]
+        from credential_manager import get_db_config  # type: ignore[no-redef]
     except ImportError:
         # Fallback 2: Environment-based credential loading
         # This allows the API to work even without the credential_manager module
-        def get_db_config():  # type: ignore[no-redef]
+        def get_db_config():  # type: ignore[misc]
             return {
                 'host': os.getenv('DB_HOST'),
                 'port': os.getenv('DB_PORT'),

@@ -51,7 +51,7 @@ from .schema import validate_table_schema
 try:
     from utils.data.age_validator import DataAgeValidator
 except ImportError:
-    DataAgeValidator = None  # type: ignore[assignment] # Graceful fallback if not available
+    DataAgeValidator = None  # type: ignore[misc] # Graceful fallback if not available
 
 __all__ = [
     # Core validation classes & exceptions
