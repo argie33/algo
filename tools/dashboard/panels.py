@@ -172,11 +172,11 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{risk.get('svar') or 0:.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
-        var_line = (f"\n[dim]VaR 95%:[/][white]{risk.get('var95') or 0:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][white]{risk.get('cvar95') or 0:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{risk.get('beta') or 0:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{risk.get('conc5') or 0:.0f}%[/]"
+        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
+        var_line = (f"\n[dim]VaR 95%:[/][white]{(risk.get('var95') or 0):.2f}%[/]"
+                    f"  [dim]CVaR 95%:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]"
+                    f"  [dim]Portfolio Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]"
+                    f"  [dim]Top-5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
                     + svar_s)
 
     if not run or run.get("_error"):
@@ -309,7 +309,7 @@ def panel_market_full(mkt, sentiment=None):
 
     # Fear & Greed
     if sentiment and not sentiment.get("_error"):
-        fg_v   = sentiment.get("fg", 0)
+        fg_v   = sentiment.get("fg") or 0
         fg_lbl = (sentiment.get("label") or "")[:16]
         fg_c   = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
@@ -407,7 +407,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         hc_col = Y if halts else DIM
         line5  = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if sentiment and not sentiment.get("_error"):
-            fg_v   = sentiment.get("fg", 0)
+            fg_v   = sentiment.get("fg") or 0
             fg_lbl = (sentiment.get("label") or "")[:14]
             fg_c   = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
@@ -500,10 +500,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         rows.append(Text.from_markup(
-            f"[dim]VaR:[/][white]{risk.get('var95') or 0:.2f}%[/]  "
-            f"[dim]CVaR:[/][white]{risk.get('cvar95') or 0:.2f}%[/]  "
-            f"[dim]Î²:[/][{beta_c}]{risk.get('beta') or 0:.2f}[/]  "
-            f"[dim]Conc5:[/][white]{risk.get('conc5') or 0:.0f}%[/]"
+            f"[dim]VaR:[/][white]{(risk.get('var95') or 0):.2f}%[/]  "
+            f"[dim]CVaR:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]  "
+            f"[dim]Î²:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
+            f"[dim]Conc5:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
         ))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
