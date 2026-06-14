@@ -163,10 +163,57 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'recentUpgrades': [],
                 })
             elif path.startswith('/api/sentiment/social/insights/'):
-                # Social sentiment endpoint not implemented
-                # To implement: integrate external social sentiment API (e.g., Twitter API, Seeking Alpha)
-                # See: lambda/api/routes/sentiment.py for pattern
-                return error_response(404, 'not_found', 'Social sentiment endpoint not implemented. Use /api/sentiment/analyst/insights/ instead.')
+                symbol = path.split('/api/sentiment/social/insights/')[-1].upper()
+                if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
+                    return error_response(400, 'bad_request', 'Invalid symbol format')
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
+                cur.execute("""
+                    SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
+                           target_price, current_price, upside_downside_percent
+                    FROM analyst_sentiment_analysis
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 12
+                """, (symbol,))
+                rows = cur.fetchall()
+                if not rows:
+                    return json_response(200, {'sentiment': None, 'priceTargets': [], 'coverage': None, 'momentum': None, 'recentTrends': []})
+                latest = dict(rows[0])
+                total_val = latest.get('analyst_count')
+                bull_val = latest.get('bullish_count')
+                bear_val = latest.get('bearish_count')
+                neut_val = latest.get('neutral_count')
+                total = int(total_val) if total_val is not None else None
+                bull = int(bull_val) if bull_val is not None else None
+                bear = int(bear_val) if bear_val is not None else None
+                neut = int(neut_val) if neut_val is not None else None
+                bp = round(bull / total * 100, 1) if total and total > 0 else None
+                bep = round(bear / total * 100, 1) if total and total > 0 else None
+                np_ = round(neut / total * 100, 1) if total and total > 0 else None
+                sentiment_data = {
+                    'totalAnalysts': total,
+                    'bullish': bull, 'bearish': bear, 'neutral': neut,
+                    'bullishPercent': bp, 'bearishPercent': bep, 'neutralPercent': np_,
+                    'avgPriceTarget': float(latest['target_price']) if latest.get('target_price') else None,
+                    'priceTargetVsCurrent': float(latest['upside_downside_percent']) if latest.get('upside_downside_percent') else None,
+                    'sentiment': (
+                        'Very Bullish' if bp and bp > 70 else
+                        'Bullish' if bp and bp > 55 else
+                        'Bearish' if bep and bep > 55 else
+                        'Neutral'
+                    ) if total and total > 0 else None,
+                }
+                price_targets = [
+                    {'date': str(dict(r)['date']), 'target': float(dict(r)['target_price']) if dict(r).get('target_price') else None}
+                    for r in rows if dict(r).get('target_price')
+                ]
+                return json_response(200, {
+                    'sentiment': sentiment_data,
+                    'priceTargets': price_targets,
+                    'coverage': {'totalAnalysts': total} if total else None,
+                    'momentum': None,
+                    'recentTrends': [],
+                })
             elif path == '/api/sentiment/vix':
                 return _get_vix_data(cur)
             elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):
