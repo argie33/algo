@@ -25,8 +25,10 @@ except ImportError:
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
 
-    def __init__(self, config=None):
-        self.config = config or {}
+    def __init__(self, config):
+        if config is None:
+            raise ValueError("EarningsBlackout requires explicit config parameter (dependency injection)")
+        self.config = config
         self.days_before = int(self.config.get('earnings_blackout_days_before', 7))
         self.days_after = int(self.config.get('earnings_blackout_days_after', 3))
 
@@ -108,7 +110,7 @@ class EarningsBlackout:
 if __name__ == "__main__":
     from algo.infrastructure import get_config
     config = get_config()
-    eb = EarningsBlackout(config)
+    eb = EarningsBlackout(config=config)
 
     # Test
     result = eb.run("AAPL", _date(2026, 5, 15))

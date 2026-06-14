@@ -106,10 +106,13 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
         return candidate, False
 
 
-def _compute_swing_score_parallel(candidate: Dict, run_date: _date, min_swing: int) -> Tuple[Dict, bool]:
+def _compute_swing_score_parallel(candidate: Dict, run_date: _date, min_swing: int, config=None) -> Tuple[Dict, bool]:
     """Compute swing score for a single candidate. Returns (candidate_with_score, passed)."""
     try:
-        swing_scorer = SwingTraderScore()
+        if config is None:
+            from algo.infrastructure import get_config
+            config = get_config()
+        swing_scorer = SwingTraderScore(config)
         result = swing_scorer.compute(candidate['symbol'], run_date)
         if result and result.get('pass') and result.get('swing_score', 0) >= min_swing:
             candidate['swing_score'] = result['swing_score']
@@ -161,8 +164,13 @@ def run(
     exposure_constraints: Dict = None,
     check_halt_flag: Callable = None,
     phase1_degraded: bool = False,
+    config = None,
 ) -> PhaseResult:
     import os
+    # Ensure config is provided for dependency injection
+    if config is None:
+        from algo.infrastructure import get_config
+        config = get_config()
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
@@ -352,7 +360,7 @@ def run(
     if to_score:
         with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
             futures = {
-                executor.submit(_compute_swing_score_parallel, cand, run_date, effective_min_swing): cand
+                executor.submit(_compute_swing_score_parallel, cand, run_date, effective_min_swing, config): cand
                 for cand in to_score
             }
 

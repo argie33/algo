@@ -9,7 +9,6 @@ import logging
 import requests
 from datetime import datetime, timezone, timedelta, date as _date_type
 from utils.trading import TradeStatus, PositionStatus
-from algo.infrastructure import get_config, get_api_timeout
 from algo.reporting import notify
 
 logger = logging.getLogger(__name__)
@@ -408,7 +407,7 @@ class DailyReconciliation:
                         'direction': 'desc', 'limit': 500},
                 headers={'APCA-API-KEY-ID': self._alpaca_key,
                          'APCA-API-SECRET-KEY': self._alpaca_secret},
-                timeout=get_api_timeout(),
+                timeout=self.config.get('api_request_timeout_seconds', 5),
             )
             if resp.status_code != 200:
                 return {'updated': 0, 'message': f'Alpaca orders API {resp.status_code}'}
@@ -583,7 +582,7 @@ class DailyReconciliation:
                 f'{self._alpaca_base_url}/v2/positions',
                 headers={'APCA-API-KEY-ID': self._alpaca_key,
                          'APCA-API-SECRET-KEY': self._alpaca_secret},
-                timeout=get_api_timeout(),
+                timeout=self.config.get('api_request_timeout_seconds', 5),
             )
             if resp.status_code != 200:
                 return {'imported': 0, 'orphaned': 0, 'message': f'Alpaca /v2/positions HTTP {resp.status_code}'}
@@ -736,15 +735,13 @@ class DailyReconciliation:
 
                 # If risk calculation failed, use configured defaults
                 if stop_loss_price is None:
-                    config = get_config()
-                    stop_loss_pct = config.get('imported_position_default_stop_loss_pct', 5.0)
+                    stop_loss_pct = self.config.get('imported_position_default_stop_loss_pct', 5.0)
                     stop_loss_price = avg_entry * (1.0 - stop_loss_pct / 100.0)
                     stop_loss_method = 'imported_conservative_default'
                 if target_1 is None:
-                    config = get_config()
-                    target_1_pct = config.get('imported_position_default_target_1_pct', 5.0)
-                    target_2_pct = config.get('imported_position_default_target_2_pct', 10.0)
-                    target_3_pct = config.get('imported_position_default_target_3_pct', 15.0)
+                    target_1_pct = self.config.get('imported_position_default_target_1_pct', 5.0)
+                    target_2_pct = self.config.get('imported_position_default_target_2_pct', 10.0)
+                    target_3_pct = self.config.get('imported_position_default_target_3_pct', 15.0)
                     target_1 = avg_entry * (1.0 + target_1_pct / 100.0)
                     target_2 = avg_entry * (1.0 + target_2_pct / 100.0)
                     target_3 = avg_entry * (1.0 + target_3_pct / 100.0)
@@ -803,7 +800,7 @@ class DailyReconciliation:
                     f'{self._alpaca_base_url}/v2/orders?status=pending&status=accepted&status=held',
                     headers={'APCA-API-KEY-ID': self._alpaca_key,
                              'APCA-API-SECRET-KEY': self._alpaca_secret},
-                    timeout=get_api_timeout(),
+                    timeout=self.config.get('api_request_timeout_seconds', 5),
                 )
                 if resp.status_code == 200:
                     pending_orders = resp.json() if isinstance(resp.json(), list) else []
@@ -1132,7 +1129,7 @@ class DailyReconciliation:
                 f'{self._alpaca_base_url}/v2/account',
                 headers={'APCA-API-KEY-ID': self._alpaca_key,
                          'APCA-API-SECRET-KEY': self._alpaca_secret},
-                timeout=get_api_timeout(),
+                timeout=self.config.get('api_request_timeout_seconds', 5),
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -1183,7 +1180,7 @@ class DailyReconciliation:
                 params={'period': 'all'},
                 headers={'APCA-API-KEY-ID': self._alpaca_key,
                          'APCA-API-SECRET-KEY': self._alpaca_secret},
-                timeout=get_api_timeout(),
+                timeout=self.config.get('api_request_timeout_seconds', 5),
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -1215,7 +1212,7 @@ class DailyReconciliation:
         raise ValueError("Cannot determine initial capital: Alpaca history unavailable and no database snapshots found")
 
 if __name__ == "__main__":
-
+    from algo.infrastructure import get_config
     config = get_config()
     reconciliation = DailyReconciliation(config)
 

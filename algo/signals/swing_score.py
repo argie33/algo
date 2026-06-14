@@ -21,7 +21,10 @@ class SwingTraderScore:
     W_SECTOR = 8        # Sector rotation and performance relative to market
     W_MULTI_TF = 5      # Multi-timeframe alignment (1h/4h/daily confirmation)
 
-    def __init__(self):
+    def __init__(self, config):
+        if config is None:
+            raise ValueError("SwingTraderScore requires explicit config parameter (dependency injection)")
+        self.config = config
         from algo.signals import SignalComputer
         self._signals = SignalComputer()
 
@@ -379,8 +382,7 @@ class SwingTraderScore:
     def _load_config_val(self, key: str, default):
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
-            from algo.infrastructure import get_config
-            val = get_config().get(key)
+            val = self.config.get(key)
             return val if val is not None else default
         except Exception as e:
             logger.debug(f"_load_config_val({key}) failed: {e}")

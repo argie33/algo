@@ -782,7 +782,8 @@ class Orchestrator:
             self.verbose, self.log_phase_result,
             getattr(self, '_exposure_constraints', {}),
             self._check_halt_flag,
-            phase1_degraded=False
+            phase1_degraded=False,
+            config=self.config
         )
         self._qualified_trades = result.data.get('qualified_trades', [])
         self.phase_results.setdefault(5, {})['signals_evaluated'] = len(self._qualified_trades)
