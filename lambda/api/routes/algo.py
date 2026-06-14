@@ -2027,6 +2027,26 @@ def _get_markets(cur) -> Dict:
                     'distribution_days': h.get('distribution_days'),
                 })
 
+            # Sector rankings for SectorRotationMap
+            sectors = []
+            try:
+                cur.execute("""
+                    SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
+                    FROM sector_ranking
+                    WHERE date = (SELECT MAX(date) FROM sector_ranking)
+                    ORDER BY current_rank ASC NULLS LAST
+                """)
+                for sr in cur.fetchall():
+                    sr = safe_json_serialize(safe_dict_convert(sr))
+                    sectors.append({
+                        'name': sr.get('name'),
+                        'rank': sr.get('rank'),
+                        'rank_4w_ago': sr.get('rank_4w_ago'),
+                        'momentum': float(sr['momentum']) if sr.get('momentum') is not None else None,
+                    })
+            except Exception as se:
+                logger.warning(f'Could not fetch sector rankings: {se}')
+
             current_date = row.get('date')
             return json_response(200, {
                 'current': {
@@ -2040,6 +2060,7 @@ def _get_markets(cur) -> Dict:
                 },
                 'active_tier': active_tier,
                 'history': history,
+                'sectors': sectors,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

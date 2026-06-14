@@ -1,101 +1,173 @@
 #!/usr/bin/env python3
-"""Local API proxy server that forwards requests to the real AWS Lambda function."""
+"""Local API server that runs the Lambda handler directly against local Docker PostgreSQL.
+
+Set DB env vars before running (defaults match docker-compose.yml):
+  DB_HOST       - PostgreSQL host (default: localhost)
+  DB_PORT       - PostgreSQL port (default: 5432)
+  DB_NAME       - Database name (default: stocks)
+  DB_PASSWORD   - Database password (default: stocks)
+
+Cognito JWT validation uses real AWS Cognito (internet required):
+  COGNITO_USER_POOL_ID    - User pool ID (e.g. us-east-1_XJpLb9SKX)
+  COGNITO_CLIENT_ID       - App client ID
+  COGNITO_REGION          - Region (default: us-east-1)
+"""
 
 import json
 import logging
-import sys
 import os
-import importlib.util
+import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-# Add project root to path for imports
-sys.path.insert(0, os.path.dirname(__file__))
+# --- Set DB env vars for local Docker PostgreSQL BEFORE importing lambda modules ---
+os.environ.setdefault('DB_HOST', os.environ.get('LOCAL_DB_HOST', 'localhost'))
+os.environ.setdefault('DB_PORT', '5432')
+os.environ.setdefault('DB_NAME', 'stocks')
+os.environ.setdefault('DB_PASSWORD', os.environ.get('LOCAL_DB_PASSWORD', 'stocks'))
+os.environ.setdefault('ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:3000')
+os.environ.setdefault('FRONTEND_URL', 'http://localhost:5173')
 
-# Import lambda_wrapper module (can't use 'from lambda...' since lambda is reserved)
-try:
-    spec = importlib.util.spec_from_file_location(
-        "lambda_wrapper",
-        os.path.join(os.path.dirname(__file__), "lambda", "api", "lambda_wrapper.py")
-    )
-    lambda_wrapper_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(lambda_wrapper_module)
-    invoke_api = lambda_wrapper_module.invoke_api
-    USE_REAL_LAMBDA = True
-except Exception as e:
-    USE_REAL_LAMBDA = False
-    print(f"Warning: Could not load lambda_wrapper: {e}")
+# --- Set up sys.path for lambda imports ---
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_LAMBDA_API_DIR = os.path.normpath(os.path.join(_THIS_DIR, '..', 'lambda', 'api'))
+_PROJECT_ROOT = os.path.normpath(os.path.join(_THIS_DIR, '..'))
+for _p in (_LAMBDA_API_DIR, _PROJECT_ROOT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-class LambdaProxyHandler(BaseHTTPRequestHandler):
-    """HTTP handler that forwards requests to the real Lambda function."""
+try:
+    import lambda_function
+    _handler = lambda_function.lambda_handler
+    logger.info(
+        'Lambda handler loaded — DB_HOST=%s DB_PORT=%s DB_NAME=%s',
+        os.environ['DB_HOST'], os.environ['DB_PORT'], os.environ['DB_NAME'],
+    )
+except Exception as _err:
+    logger.error('Failed to import lambda_function: %s', _err, exc_info=True)
+    _handler = None
 
-    def do_GET(self):
-        parsed_url = urlparse(self.path)
-        path = parsed_url.path
-        query_string = parsed_url.query
 
-        # Set CORS headers for localhost development
-        self.send_response(200)
-        origin = self.headers.get('Origin')
-        if origin and origin.startswith('http://localhost'):
-            self.send_header('Access-Control-Allow-Origin', origin)
-        else:
-            self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+class _MockContext:
+    function_name = 'algo-api-local'
+    function_version = '$LATEST'
+    invoked_function_arn = 'arn:aws:lambda:local:000000000000:function:algo-api-local'
+    memory_limit_in_mb = 512
+    aws_request_id = 'local-dev-request'
+    log_group_name = '/local/algo-api'
+    log_stream_name = 'local'
+
+    def get_remaining_time_in_millis(self):
+        return 28000
+
+
+class _APIHandler(BaseHTTPRequestHandler):
+
+    def _cors_headers(self):
+        origin = self.headers.get('Origin', '')
+        if origin.startswith('http://localhost'):
+            return {
+                'Access-Control-Allow-Origin': origin,
+                'Vary': 'Origin',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                'Access-Control-Allow-Credentials': 'true',
+            }
+        return {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        }
+
+    def _read_body(self):
+        length = int(self.headers.get('Content-Length', 0))
+        return self.rfile.read(length).decode('utf-8') if length else None
+
+    def _build_event(self, method, body=None):
+        parsed = urlparse(self.path)
+        qs = parsed.query
+        params = {k: v[0] for k, v in parse_qs(qs, keep_blank_values=True).items()} if qs else None
+        headers = {k.lower(): v for k, v in self.headers.items()}
+        event = {
+            'version': '2.0',
+            'routeKey': f'{method} {parsed.path}',
+            'rawPath': parsed.path,
+            'path': parsed.path,
+            'rawQueryString': qs,
+            'queryStringParameters': params,
+            'headers': headers,
+            'requestContext': {
+                'http': {
+                    'method': method,
+                    'path': parsed.path,
+                    'sourceIp': '127.0.0.1',
+                    'userAgent': headers.get('user-agent', 'local-dev'),
+                }
+            },
+            'isBase64Encoded': False,
+        }
+        if body is not None:
+            event['body'] = body
+        return event
+
+    def _invoke(self, method, body=None):
+        if not _handler:
+            self._write(503, '{"error":"Lambda handler not loaded — check startup logs"}')
+            return
+        event = self._build_event(method, body)
+        try:
+            result = _handler(event, _MockContext())
+        except Exception as exc:
+            logger.error('Handler raised: %s', exc, exc_info=True)
+            result = {'statusCode': 500, 'body': json.dumps({'error': str(exc)})}
+
+        status = result.get('statusCode', 200)
+        body_out = result.get('body', '{}')
+        if isinstance(body_out, (dict, list)):
+            body_out = json.dumps(body_out)
+        lambda_headers = {k: v for k, v in (result.get('headers') or {}).items()
+                          if not k.lower().startswith('access-control')}
+        self._write(status, body_out, lambda_headers)
+
+    def _write(self, status, body_str, extra=None):
+        self.send_response(status)
+        for k, v in self._cors_headers().items():
+            self.send_header(k, v)
+        if extra:
+            for k, v in extra.items():
+                self.send_header(k, v)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
+        self.wfile.write(body_str.encode('utf-8'))
 
-        # Forward to real Lambda
-        if USE_REAL_LAMBDA:
-            try:
-                # Parse query parameters
-                query_params = parse_qs(query_string) if query_string else None
-                # Flatten query_params (parse_qs returns lists)
-                if query_params:
-                    query_params = {k: v[0] if isinstance(v, list) else v for k, v in query_params.items()}
-
-                # Invoke the real Lambda function
-                result = invoke_api(path, method='GET', query_params=query_params)
-                response = result.get('body', {})
-                logger.info(f'GET {path} -> {result.get("statusCode", "?")}')
-            except Exception as e:
-                logger.error(f'Error invoking Lambda: {e}')
-                response = {"success": False, "error": str(e)}
-        else:
-            logger.error('Lambda wrapper unavailable - boto3 not installed')
-            response = {"success": False, "error": "Lambda wrapper not available - ensure boto3 is installed"}
-
-        self.wfile.write(json.dumps(response).encode())
+    def do_GET(self):    self._invoke('GET')
+    def do_DELETE(self): self._invoke('DELETE')
+    def do_POST(self):   self._invoke('POST', self._read_body())
+    def do_PUT(self):    self._invoke('PUT', self._read_body())
+    def do_PATCH(self):  self._invoke('PATCH', self._read_body())
 
     def do_OPTIONS(self):
-        """Handle CORS preflight."""
         self.send_response(200)
-        origin = self.headers.get('Origin')
-        if origin and origin.startswith('http://localhost'):
-            self.send_header('Access-Control-Allow-Origin', origin)
-        else:
-            self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        for k, v in self._cors_headers().items():
+            self.send_header(k, v)
         self.send_header('Content-Length', '0')
         self.end_headers()
 
-    def log_message(self, format, *args):
-        """Suppress default HTTP logging."""
-        pass
+    def log_message(self, fmt, *args):
+        status = args[1] if len(args) >= 2 else '?'
+        logger.info('%s %s -> %s', self.command, self.path, status)
+
 
 if __name__ == '__main__':
-    server_address = ('127.0.0.1', 3001)
-    server = HTTPServer(server_address, LambdaProxyHandler)
-    logger.info('API Proxy Server running on http://localhost:3001')
-    logger.info('Forwarding requests to AWS Lambda function (algo-api-dev)')
-    logger.info('Press Ctrl+C to stop')
+    port = int(os.environ.get('LOCAL_API_PORT', '3001'))
+    httpd = HTTPServer(('127.0.0.1', port), _APIHandler)
+    logger.info('Local API server on http://localhost:%d', port)
+    logger.info('Requests routed through lambda_function.lambda_handler → local PostgreSQL')
     try:
-        server.serve_forever()
+        httpd.serve_forever()
     except KeyboardInterrupt:
+        httpd.server_close()
         logger.info('Server stopped')
-        server.server_close()

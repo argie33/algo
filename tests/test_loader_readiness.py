@@ -28,16 +28,13 @@ def test_parallelism():
         "technical_data_daily": 8,
     }
 
-    all_pass = True
     for loader_name, expected in critical_loaders.items():
         actual = get_parallelism(loader_name)
         status = "PASS" if actual >= expected else "FAIL"
         print(f"[{status}]: {loader_name:30} expected>={expected}, got {actual}")
-        if actual < expected:
-            all_pass = False
+        assert actual >= expected, f"{loader_name} parallelism {actual} < expected {expected}"
 
     print("=" * 60)
-    return all_pass
 
 def test_imports():
     """Test that all critical modules can import without errors."""
@@ -51,17 +48,15 @@ def test_imports():
         "utils.loaders.config",
     ]
 
-    all_pass = True
     for module_name in modules_to_test:
         try:
             __import__(module_name)
             print(f"[PASS]: {module_name}")
         except Exception as e:
             print(f"[FAIL]: {module_name} - {type(e).__name__}: {str(e)[:50]}")
-            all_pass = False
+            raise AssertionError(f"Failed to import {module_name}: {e}") from e
 
     print("=" * 60)
-    return all_pass
 
 def test_loaders_syntax():
     """Test that loader files have valid Python syntax."""
@@ -80,7 +75,6 @@ def test_loaders_syntax():
         "load_signal_quality_scores.py",
     ]
 
-    all_pass = True
     for loader_file in critical_loaders:
         loader_path = loaders_dir / loader_file
         try:
@@ -88,10 +82,9 @@ def test_loaders_syntax():
             print(f"[PASS]: {loader_file}")
         except Exception as e:
             print(f"[FAIL]: {loader_file} - {e}")
-            all_pass = False
+            raise AssertionError(f"Syntax error in {loader_file}: {e}") from e
 
     print("=" * 60)
-    return all_pass
 
 def main():
     """Run all tests."""

@@ -49,15 +49,10 @@ def test_critical_loaders():
     project_root = os.path.dirname(os.path.dirname(__file__))
     loaders_dir = os.path.join(project_root, 'loaders')
 
-    all_passed = True
-
     for loader_file, description in critical_loaders:
         loader_path = os.path.join(loaders_dir, loader_file)
 
-        if not os.path.exists(loader_path):
-            print(f"[FAIL] {loader_file:<35} - FILE NOT FOUND")
-            all_passed = False
-            continue
+        assert os.path.exists(loader_path), f"{loader_file} not found at {loader_path}"
 
         has_timeout, status = check_loader_has_timeout_guard(loader_path)
         status_icon = "[OK]" if has_timeout else "[FAIL]"
@@ -66,10 +61,7 @@ def test_critical_loaders():
         print(f"   {status}")
         print()
 
-        if not has_timeout:
-            all_passed = False
-
-    return all_passed
+        assert has_timeout, f"Timeout guards missing for {loader_file}: {status}"
 
 def test_socket_timeout_utility():
     """Verify loader_helper has socket timeout setup function."""
@@ -82,28 +74,18 @@ def test_socket_timeout_utility():
     project_root = os.path.dirname(os.path.dirname(__file__))
     helper_path = os.path.join(project_root, 'loaders', 'loader_helper.py')
 
-    try:
-        with open(helper_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+    with open(helper_path, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-        has_setup_func = 'def setup_loader_timeouts' in content
-        has_socket_import = 'import socket' in content
+    has_setup_func = 'def setup_loader_timeouts' in content
+    has_socket_import = 'import socket' in content
 
-        if has_setup_func and has_socket_import:
-            print("[OK] loader_helper.py has setup_loader_timeouts() function")
-            print("[OK] socket module is imported")
-            print()
-            return True
-        else:
-            print(f"[FAIL] loader_helper.py is missing required timeout setup")
-            print(f"   setup_loader_timeouts: {has_setup_func}")
-            print(f"   socket import: {has_socket_import}")
-            print()
-            return False
-    except Exception as e:
-        print(f"[FAIL] Error reading loader_helper.py: {e}")
-        print()
-        return False
+    assert has_setup_func, f"[FAIL] loader_helper.py is missing setup_loader_timeouts() function"
+    assert has_socket_import, f"[FAIL] loader_helper.py is missing socket import"
+
+    print("[OK] loader_helper.py has setup_loader_timeouts() function")
+    print("[OK] socket module is imported")
+    print()
 
 def test_execution_timeout_utility():
     """Verify ExecutionTimeout utility is available."""
@@ -116,26 +98,17 @@ def test_execution_timeout_utility():
     project_root = os.path.dirname(os.path.dirname(__file__))
     timeout_path = os.path.join(project_root, 'utils', 'infrastructure', 'timeout.py')
 
-    try:
-        with open(timeout_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+    with open(timeout_path, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-        has_timeout_class = 'class ExecutionTimeout' in content or 'def ExecutionTimeout' in content
-        has_context_manager = '@contextmanager' in content or 'def ExecutionTimeout' in content
+    has_timeout_class = 'class ExecutionTimeout' in content or 'def ExecutionTimeout' in content
+    has_context_manager = '@contextmanager' in content or 'def ExecutionTimeout' in content
 
-        if has_timeout_class or has_context_manager:
-            print("[OK] ExecutionTimeout utility is available")
-            print("[OK] Provides context manager for timeout handling")
-            print()
-            return True
-        else:
-            print(f"[FAIL] ExecutionTimeout utility missing expected components")
-            print()
-            return False
-    except Exception as e:
-        print(f"[FAIL] Error reading ExecutionTimeout utility: {e}")
-        print()
-        return False
+    assert has_timeout_class or has_context_manager, "[FAIL] ExecutionTimeout utility missing expected components"
+
+    print("[OK] ExecutionTimeout utility is available")
+    print("[OK] Provides context manager for timeout handling")
+    print()
 
 def main():
     results = []
