@@ -70,6 +70,7 @@ class OptimalLoader(ABC):
         self._heartbeat_lock = threading.Lock()
         self._heartbeat_interval = 60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         self._execution_start_time = None  # Track execution start for execution history logging
+        self._batch_context = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -351,6 +352,18 @@ class OptimalLoader(ABC):
             logger.warning("Watermark unavailable (%s) �� running full refresh", e)
             self._watermark = False
         return self._watermark if self._watermark else None
+
+    def _prepare_batch_context(self) -> None:
+        """Prepare shared data for entire run (ROOT CAUSE #4 FIX: avoid N+1 queries).
+
+        Called ONCE at start of run(), before symbol processing begins.
+        Subclasses override to load date-based/shared data that would otherwise
+        be queried per-symbol in fetch_incremental().
+
+        Default implementation: no-op (subclasses override as needed).
+        Store results in self._batch_context dict to avoid per-symbol queries.
+        """
+        self._batch_context = {}
 
     def _ensure_unique_constraint(self, cur):
         """Ensure the primary_key columns have a UNIQUE constraint.
