@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration 052: Add missing target and risk columns to algo_positions.
+Migration 053: Add missing target and risk columns to algo_positions.
 
 ISSUE #3: Missing Position Target & Risk Columns
 
