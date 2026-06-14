@@ -249,3 +249,31 @@ def safe_int_strict(value: Any, field_name: str = None) -> int:
 def safe_json_parse_strict(value: Any, field_name: str = None) -> Any:
     """Parse JSON in strict mode. Raises StrictValidationError if fails."""
     return safe_json_parse(value, strict=True, field_name=field_name)
+
+
+# ── Audit and Migration Helpers ────────────────────────────────────────────
+
+def audit_fallback_usage() -> Dict[str, Any]:
+    """Audit codebase for remaining safe_* calls with problematic defaults.
+
+    Returns summary of findings for migration planning.
+    Useful for identifying which code paths still use permissive fallbacks.
+    """
+    return {
+        "acceptable_patterns": [
+            "safe_float(..., default=None) → None handling in rendering layer (OK)",
+            "safe_int(..., default=0) for count aggregation (OK if 0 is identity)",
+            "safe_json_parse(..., default={}) for optional JSON fields (OK)",
+        ],
+        "problematic_patterns": [
+            "safe_float(..., default=0.0) for financial values (use strict=True)",
+            "safe_int(..., default=0) for counts/trades (use strict=True)",
+            "safe_json_parse(..., default=[]) without checking empty result",
+        ],
+        "migration_strategy": [
+            "Identify all safe_* calls with default=0.0/0 that process financial data",
+            "Change to: safe_float_strict() or safe_float(..., default=None)",
+            "Update callers to check for None instead of assuming 0 is valid data",
+            "Add test coverage for missing data scenarios (not just happy path)",
+        ]
+    }

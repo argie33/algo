@@ -66,41 +66,55 @@ curl https://api.example.com/api/algo/sentiment
    - `algo/alpaca` (Alpaca API keys)
    - `algo/fred` (FRED API key)
 
-**Dashboard Credential Flow (Fully Dynamic):**
+**Dashboard Credential Flow (Fully Dynamic - Bootstrap Required):**
+
+After GitHub Actions deploy-all-infrastructure.yml runs:
+1. Terraform outputs are collected (api_url, cognito_user_pool_id, cognito_user_pool_client_id)
+2. Workflow saves to AWS Secrets Manager as `algo/dashboard-config`
+3. You must bootstrap AWS credentials locally first, then dashboard auto-fetches
 
 ```
-User runs: python tools/dashboard/dashboard.py
+STEP 1: Set up AWS credentials (after deploy-all-infrastructure.yml succeeds)
+  $ scripts/refresh-aws-credentials.ps1
+  (fetches fresh developer credentials from Secrets Manager via OIDC, writes to ~/.aws/credentials)
+  (AWS_PROFILE=algo-developer is then available)
+
+STEP 2: Run dashboard
+  $ python tools/dashboard/dashboard.py
+  
+Flow inside dashboard.py:
   ↓
 Check environment variables (DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID)
   ↓ (if not set)
 Try Terraform: cd terraform && terraform output -json
-  ↓ (if Terraform fails or outputs empty)
-Try Secrets Manager: algo/dashboard-config secret
+  (reads from S3 remote backend, requires AWS_PROFILE=algo-developer)
+  ↓ (if Terraform fails)
+Try AWS Secrets Manager: algo/dashboard-config
+  (reads from Secrets Manager, requires AWS_PROFILE=algo-developer)
   ↓ (if all fail)
-Show error with setup options
+Show error with 3 setup options
 ```
 
-This means: After GitHub Actions deploy-all-infrastructure.yml runs, dashboard automatically fetches fresh config on every startup (no caching, picks up credential rotations).
-
-**Local Dev Setup:**
+**Local Dev Setup (3 Options):**
 
 ```powershell
-# Option 1: Manual environment variables
-$env:DASHBOARD_API_URL = "https://api.example.com"
-$env:COGNITO_USER_POOL_ID = "us-east-1_xyz"
-$env:COGNITO_CLIENT_ID = "abc123"
+# Option 1: Manual environment variables (bypass credential fetch)
+$env:DASHBOARD_API_URL = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
+$env:COGNITO_USER_POOL_ID = "us-east-1_XJpLb9SKX"
+$env:COGNITO_CLIENT_ID = "6smb0vrcidd9kvhju2kn2a3qrl"
+python tools/dashboard/dashboard.py
 
-# Option 2: Fetch from Terraform outputs (requires AWS credentials + terraform init)
-cd terraform && terraform output -json
-python tools/dashboard/dashboard.py  # fetches automatically
+# Option 2: AWS credentials bootstrap + auto-fetch from Secrets Manager (RECOMMENDED after deploy)
+scripts/refresh-aws-credentials.ps1  # creates ~/.aws/credentials with algo-developer profile
+python tools/dashboard/dashboard.py  # auto-fetches from Secrets Manager
 
 # Option 3: Local development (no AWS)
-# Terminal 1: Start local API proxy server (invokes real Lambda function locally)
+# Terminal 1: Start local API proxy server (real Lambda code, no mocks)
 python scripts/api-proxy-server.py
 
-# Terminal 2: In a new terminal, run dashboard with --local flag
-python tools/dashboard/dashboard.py --local  # connects to localhost:3001 (api-proxy-server)
-python tools/dashboard/dashboard.py -w 30 --local  # watch mode with 30s refresh
+# Terminal 2: Run dashboard against localhost
+python tools/dashboard/dashboard.py --local
+python tools/dashboard/dashboard.py -w 30 --local  # with auto-refresh
 ```
 
 **Local API Proxy Server (`scripts/api-proxy-server.py`):**

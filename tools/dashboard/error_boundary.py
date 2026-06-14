@@ -11,13 +11,27 @@ from utilities import R, Y, CY, DIM
 
 
 def has_error(data: Any) -> bool:
-    """Check if data has error marker."""
-    return isinstance(data, dict) and "_error" in data
+    """Check if data has error marker (includes stale data as error state)."""
+    if not isinstance(data, dict):
+        return False
+    return "_error" in data or data.get("_data_stale", False)
+
+
+def is_data_stale(data: Any) -> bool:
+    """Check if data is marked as stale (too old to be reliable)."""
+    return isinstance(data, dict) and data.get("_data_stale", False)
 
 
 def get_error_message(data: Any) -> Optional[str]:
-    """Extract error message from data if present."""
-    if has_error(data):
+    """Extract error message from data if present.
+
+    Distinguishes between stale data and hard errors for better visibility.
+    """
+    if not isinstance(data, dict):
+        return None
+    if is_data_stale(data):
+        return f"[yellow]⚠ STALE[/]: {data.get('_error', 'Data too old')}"
+    if "_error" in data:
         return data.get("_error", "Unknown error")
     return None
 
@@ -43,27 +57,41 @@ def safe_list(data: Any) -> List:
 
 
 def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
-    """Generate a panel showing all failed data fetchers.
+    """Generate a panel showing all failed data fetchers and stale data.
 
-    Returns None if no errors, otherwise returns a Panel listing them.
+    Distinguishes between hard errors (red) and stale data (yellow).
+    Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
-    failed = []
-    for key, data in data_dict.items():
-        if has_error(data):
-            error_msg = get_error_message(data)
-            # Truncate long error messages (keep endpoint/type visible)
-            if len(error_msg) > 80:
-                error_msg = error_msg[:77] + "..."
-            failed.append(f"[{Y}]{key}[/]: {error_msg}")
+    failed_errors = []
+    stale_data = []
 
-    if not failed:
+    for key, data in data_dict.items():
+        if not has_error(data):
+            continue
+        error_msg = get_error_message(data)
+        # Truncate long error messages (keep endpoint/type visible)
+        if len(error_msg) > 80:
+            error_msg = error_msg[:77] + "..."
+
+        if is_data_stale(data):
+            stale_data.append(f"[{Y}]⚠ {key}[/]: {error_msg}")
+        else:
+            failed_errors.append(f"[{R}]✗ {key}[/]: {error_msg}")
+
+    if not failed_errors and not stale_data:
         return None
 
-    content = "\n".join(failed)
+    # Show stale data warning in yellow, hard errors in red
+    content_parts = failed_errors + stale_data
+    content = "\n".join(content_parts)
+
+    border_color = R if failed_errors else Y
+    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]"
+
     return Panel(
         Text.from_markup(content),
-        title=f"[bold {R}]⚠ Data Fetch Failures ({len(failed)})[/]",
-        border_style=R,
+        title=title,
+        border_style=border_color,
         padding=(0, 1),
     )
 

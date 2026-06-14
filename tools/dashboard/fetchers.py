@@ -129,6 +129,20 @@ def fetch_market(c):
             return {"_error": mkt.get('_error'), "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None, "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None, "pcr": None, "bmom": None, "ycs": None, "fed": None}
         data = mkt.get('data', {})
 
+        # Check data freshness (market data > 5 minutes old is stale during market hours)
+        mkt_timestamp = data.get("timestamp") or data.get("last_updated")
+        is_fresh, freshness_error = _check_data_freshness(mkt_timestamp, max_age_seconds=300, source_name="Market")
+        if not is_fresh:
+            logger.warning(freshness_error)
+            record_data_quality_issue("market", "timestamp", "data_stale", freshness_error)
+            return {
+                "_error": freshness_error,
+                "_data_stale": True,
+                "pct": None, "tier": "unknown", "halts": [], "vix": None, "stage": None, "trend": None,
+                "dist": None, "spy": None, "spy_chg": None, "upvol": None, "adr": None, "nh": None, "nl": None,
+                "pcr": None, "bmom": None, "ycs": None, "fed": None
+            }
+
         # Strict conversion for critical price fields
         try:
             spy = safe_float_strict(data.get("spy_close"), "market.spy_close") if data.get("spy_close") is not None else None

@@ -3290,7 +3290,7 @@ def _get_stage_distribution(cur) -> Dict:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(200, {'distribution': []})
+        return json_response(200, {'distribution': [], '_is_placeholder': True})
 
     distribution = [
         {'phase': r['phase'], 'count': safe_int(r['count'])}
