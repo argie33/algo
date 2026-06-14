@@ -415,19 +415,19 @@ class ValueAtRisk:
             # Alert if VaR > 2%
             if var_metrics and var_metrics['var_pct'] > 2.0:
                 msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
-                result['alerts'].append(msg)
+                result['alerts'].append(msg)  # type: ignore[union-attr]
                 logger.warning(msg)
 
             # Alert if concentration > 30%
             if concentration and concentration['top_5_concentration_pct'] > 30:
                 msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
-                result['alerts'].append(msg)
+                result['alerts'].append(msg)  # type: ignore[union-attr]
                 logger.warning(msg)
 
             # Alert if beta > 2.0
             if beta and beta['portfolio_beta'] > 2.0:
                 msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)"
-                result['alerts'].append(msg)
+                result['alerts'].append(msg)  # type: ignore[union-attr]
                 logger.warning(msg)
 
             try:
