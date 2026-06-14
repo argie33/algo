@@ -681,7 +681,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         sanitized = APIResponseValidator.sanitize_response(response_data)
         return json_response(200, sanitized)
 
-@db_route_handler('calculate performance', default_error_response={'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('calculate performance')
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
@@ -689,36 +689,23 @@ def _get_algo_performance(cur) -> Dict:
         compute_performance_metrics.py at 4:45 PM ET). Returns in ~20ms instead
         of 8+ seconds of on-the-fly calculation.
         """
-        try:
-            cur.execute("""
-                SELECT
-                    metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
-                    win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
-                    best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
-                    max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak,
-                    updated_at
-                FROM algo_performance_metrics
-                ORDER BY metric_date DESC
-                LIMIT 1
-            """)
-            row = cur.fetchone()
+        cur.execute("""
+            SELECT
+                metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
+                win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
+                best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
+                max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak,
+                updated_at
+            FROM algo_performance_metrics
+            ORDER BY metric_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
 
-            if not row:
-                empty_response = {
-                    'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
-                    'breakeven_trades': 0, 'win_rate': None, 'profit_factor': None,
-                    'total_pnl_dollars': None, 'total_pnl_pct': None,
-                    'total_return_pct': None, 'avg_win_pct': None, 'avg_loss_pct': None,
-                    'best_trade_pct': None, 'worst_trade_pct': None,
-                    'sharpe_ratio': None, 'sortino_ratio': None,
-                    'max_drawdown_pct': None, 'avg_holding_days': None,
-                    'confidence_metadata': {
-                        'sharpe_confidence': 'low', 'win_rate_confidence': 'low',
-                        'return_confidence': 'low', 'snapshot_count': 0, 'total_trades': 0
-                    }
-                }
-                sanitized = APIResponseValidator.sanitize_response(empty_response)
-                return json_response(200, sanitized)
+        if not row:
+            return error_response(503, 'no_data', 'Performance metrics not yet available')
+
+        try:
 
             metrics = safe_dict_convert(row)
             total_trades = metrics.get('total_trades') or 0
@@ -3086,7 +3073,7 @@ def _get_economic_calendar(cur) -> Dict:
         logger.error(f'Economic calendar fetch error: {type(e).__name__}: {e}')
         return error_response(503, 'service_unavailable', 'Economic calendar unavailable')
 
-@db_route_handler('get daily return histogram', default_error_response={'buckets': [], 'stats': None})
+@db_route_handler('get daily return histogram')
 def _get_daily_return_histogram(cur) -> Dict:
     """Return histogram of daily portfolio returns with stats."""
     cur.execute("""
@@ -3100,7 +3087,7 @@ def _get_daily_return_histogram(cur) -> Dict:
     returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
 
     if not returns:
-        return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
+        return json_response(200, {'buckets': [], 'stats': None})
 
     bucket_width = 0.5
     min_ret = min(returns)
@@ -3128,7 +3115,7 @@ def _get_daily_return_histogram(cur) -> Dict:
 
     return json_response(200, {'buckets': buckets, 'stats': stats})
 
-@db_route_handler('get trade distribution', default_error_response={'buckets': []})
+@db_route_handler('get trade distribution')
 def _get_trade_distribution(cur) -> Dict:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""
@@ -3142,7 +3129,7 @@ def _get_trade_distribution(cur) -> Dict:
     r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
 
     if not r_multiples:
-        return json_response(200, {'buckets': [], '_is_placeholder': True})
+        return json_response(200, {'buckets': []})
 
     buckets = [
         {'range': '<-2R', 'count': 0, 'min': -999},
@@ -3173,7 +3160,7 @@ def _get_trade_distribution(cur) -> Dict:
     filtered_buckets = [b for b in buckets if b['count'] > 0]
     return json_response(200, {'buckets': filtered_buckets})
 
-@db_route_handler('get holding period distribution', default_error_response={'buckets': []})
+@db_route_handler('get holding period distribution')
 def _get_holding_period_distribution(cur) -> Dict:
     """Return distribution of position holding periods in days."""
     cur.execute("""
@@ -3187,7 +3174,7 @@ def _get_holding_period_distribution(cur) -> Dict:
     durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
 
     if not durations:
-        return json_response(200, {'buckets': [], '_is_placeholder': True})
+        return json_response(200, {'buckets': []})
 
     buckets = [
         {'range': '1-3 days', 'count': 0},
@@ -3221,7 +3208,7 @@ def _get_holding_period_distribution(cur) -> Dict:
     filtered_buckets = [b for b in buckets if b['count'] > 0]
     return json_response(200, {'buckets': filtered_buckets})
 
-@db_route_handler('get stage distribution', default_error_response={'distribution': []})
+@db_route_handler('get stage distribution')
 def _get_stage_distribution(cur) -> Dict:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
@@ -3246,7 +3233,7 @@ def _get_stage_distribution(cur) -> Dict:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(200, {'distribution': [], '_is_placeholder': True})
+        return json_response(200, {'distribution': []})
 
     distribution = [
         {'phase': r['phase'], 'count': safe_int(r['count'])}
