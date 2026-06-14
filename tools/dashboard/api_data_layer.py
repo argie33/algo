@@ -147,11 +147,12 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/positions")
         if "_error" in resp:
             logger.error(f"get_positions failed: {resp['_error']}")
-            return []
+            return {"_error": resp['_error']}
         items = resp.get("items", [])
         if not isinstance(items, list):
-            logger.error(f"get_positions: expected list, got {type(items).__name__}")
-            return []
+            error_msg = f"get_positions: expected list, got {type(items).__name__}"
+            logger.error(error_msg)
+            return {"_error": error_msg}
         valid_items = [item for item in items if isinstance(item, dict)]
         if len(valid_items) < len(items):
             logger.warning(f"get_positions: filtered {len(items) - len(valid_items)} non-dict items")
@@ -163,7 +164,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/performance")
         if "_error" in resp:
             logger.error(f"get_performance failed: {resp['_error']}")
-            return {}
+            return resp
         return resp
 
     @staticmethod
@@ -172,7 +173,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/trades", params={"limit": limit})
         if "_error" in resp:
             logger.error(f"get_trades failed: {resp['_error']}")
-            return []
+            return resp
         return resp.get("items", [])
 
     @staticmethod
@@ -181,7 +182,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/dashboard-signals")
         if "_error" in resp:
             logger.error(f"get_signals failed: {resp['_error']}")
-            return {"n": 0, "total": 0, "buy_sigs": [], "grades": {}, "near": [], "top_a": [], "trend": []}
+            return resp
         return resp
 
     @staticmethod
@@ -190,7 +191,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/data-status")
         if "_error" in resp:
             logger.error(f"get_health failed: {resp['_error']}")
-            return {"ready_to_trade": False, "summary": {}, "sources": []}
+            return resp
         return resp
 
     @staticmethod
@@ -199,7 +200,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/config")
         if "_error" in resp:
             logger.error(f"get_config failed: {resp['_error']}")
-            return {}
+            return resp
         return resp
 
     @staticmethod
@@ -208,7 +209,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/notifications", params={"limit": limit})
         if "_error" in resp:
             logger.error(f"get_notifications failed: {resp['_error']}")
-            return []
+            return resp
         return resp.get("items", []) if isinstance(resp, dict) else []
 
     @staticmethod
