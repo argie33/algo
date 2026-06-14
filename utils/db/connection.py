@@ -54,7 +54,7 @@ _pool_lock = threading.Lock()
 
 # Import connection monitor - integrates pool health tracking
 try:
-    from algo.monitoring import on_connect, on_disconnect
+    from algo.monitoring import on_connect, on_disconnect  # type: ignore[attr-defined]
 except ImportError:
     # Fallback if monitor unavailable
     def on_connect():

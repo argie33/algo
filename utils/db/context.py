@@ -143,7 +143,7 @@ class DatabaseContext:
     def _get_loader_correlation_id() -> Optional[str]:
         """Auto-retrieve correlation_id from context (loaders only)."""
         try:
-            from utils.infrastructure import get_correlation_id
+            from utils.infrastructure import get_correlation_id  # type: ignore[attr-defined]
             cid = get_correlation_id()
             return cid if cid else None
         except Exception:
