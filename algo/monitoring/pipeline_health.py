@@ -198,8 +198,8 @@ class PipelineHealth:
                         health = self.check_table_health(
                             cur,
                             table_name,
-                            config['date_column'],
-                            config['sla_days']
+                            str(config['date_column']),
+                            int(config['sla_days'])
                         )
                         status.tables[table_name] = health
 
