@@ -28,11 +28,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def _has_sql_content(stmt: str) -> bool:
+    """Return True if stmt has any SQL beyond whitespace and -- line comments."""
+    for line in stmt.splitlines():
+        s = line.strip()
+        if s and not s.startswith('--'):
+            return True
+    return False
+
+
 def _split_sql_statements(sql: str) -> list:
     """Split SQL into individual statements on ';', respecting dollar-quoted strings.
 
     PostgreSQL functions use dollar-quoting ($$ ... $$ or $tag$ ... $tag$).
     A naive sql.split(';') breaks inside function bodies that contain semicolons.
+    Filters out empty or comment-only fragments (psycopg2 rejects empty queries).
     """
     statements = []
     current = []
@@ -64,7 +74,7 @@ def _split_sql_statements(sql: str) -> list:
 
         if ch == ';' and dollar_tag is None:
             stmt = ''.join(current).strip()
-            if stmt:
+            if _has_sql_content(stmt):
                 statements.append(stmt)
             current = []
         else:
@@ -72,7 +82,7 @@ def _split_sql_statements(sql: str) -> list:
         i += 1
 
     stmt = ''.join(current).strip()
-    if stmt:
+    if _has_sql_content(stmt):
         statements.append(stmt)
 
     return statements
