@@ -126,7 +126,7 @@ class SignalTrendMixin:
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
         try:
-            return self._with_cursor(_fetch_trend) or {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Database error'}
+            return self._with_cursor(_fetch_trend) or {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Database error'}  # type: ignore[attr-defined]
         except Exception as e:
             logger.warning(f"minervini_trend_template({symbol}) failed: {e}")
             return {'score': 0, 'pass': False, 'criteria': {}, 'reason': str(e)[:50]}
@@ -168,7 +168,7 @@ class SignalTrendMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_stage) or {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
+            return self._with_cursor(_fetch_stage) or {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}  # type: ignore[attr-defined]
         except Exception as e:
             logger.warning(f"weinstein_stage({symbol}) failed: {e}")
             return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
@@ -209,7 +209,7 @@ class SignalTrendMixin:
             }
 
         try:
-            return self._with_cursor(_compute_rs) or {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}
+            return self._with_cursor(_compute_rs) or {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}  # type: ignore[attr-defined]
         except Exception as e:
             logger.warning(f"mansfield_rs({symbol}) failed: {e}")
             return {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}

@@ -22,12 +22,14 @@ def get_alpaca_base_url() -> str:
         str: 'https://paper-api.alpaca.markets' or 'https://api.alpaca.markets'
     """
     # Allow explicit APCA_API_BASE_URL env var (set by Terraform)
-    if os.getenv('APCA_API_BASE_URL'):
-        return os.getenv('APCA_API_BASE_URL').rstrip('/')
+    apca_url = os.getenv('APCA_API_BASE_URL')
+    if apca_url:
+        return apca_url.rstrip('/')
 
     # Allow explicit ALPACA_BASE_URL override
-    if os.getenv('ALPACA_BASE_URL'):
-        return os.getenv('ALPACA_BASE_URL').rstrip('/')
+    alpaca_url = os.getenv('ALPACA_BASE_URL')
+    if alpaca_url:
+        return alpaca_url.rstrip('/')
 
     # Check trading mode from ALPACA_PAPER_TRADING flag
     try:

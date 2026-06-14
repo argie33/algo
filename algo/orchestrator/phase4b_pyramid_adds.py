@@ -54,7 +54,7 @@ def run(
         log_phase_result_fn('4b', 'pyramid_adds', 'success',
                            f'{len(recs)} recommended, {executed} executed')
         return PhaseResult(
-            '4b', 'pyramid_adds', 'ok',
+            4, 'pyramid_adds', 'ok',
             {'recommendations': recs, 'executed': executed},
             False, None
         )
@@ -62,4 +62,4 @@ def run(
     except Exception as e:
         traceback.print_exc()
         log_phase_result_fn('4b', 'pyramid_adds', 'error', str(e))
-        return PhaseResult('4b', 'pyramid_adds', 'ok', {'adds': []}, False, str(e))
+        return PhaseResult(4, 'pyramid_adds', 'ok', {'adds': []}, False, str(e))

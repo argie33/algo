@@ -56,7 +56,7 @@ class SignalOptionsMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_iv) or {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
+            return self._with_cursor(_fetch_iv) or {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}  # type: ignore[attr-defined]
         except Exception as e:
             logger.debug(f"IV rank signal failed for {symbol}: {e}")
             return {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
@@ -113,7 +113,7 @@ class SignalOptionsMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_pc_ratio) or {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}
+            return self._with_cursor(_fetch_pc_ratio) or {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}  # type: ignore[attr-defined]
         except Exception as e:
             logger.debug(f"P/C ratio signal failed for {symbol}: {e}")
             return {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}
@@ -165,7 +165,7 @@ class SignalOptionsMixin:
             implied_move = current_iv * (days_to_exp / 365.0) ** 0.5 * 100
 
             # Get base depth from technical analysis
-            base_type = self.classify_base_type(symbol, eval_date)
+            base_type = self.classify_base_type(symbol, eval_date)  # type: ignore[attr-defined]
             base_depth = float(base_type.get('depth_pct', 0)) if base_type else 0
 
             underpriced = implied_move < base_depth
@@ -179,7 +179,7 @@ class SignalOptionsMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_implied_move) or {
+            return self._with_cursor(_fetch_implied_move) or {  # type: ignore[attr-defined]
                 'implied_move_pct': None,
                 'vs_base_depth_pct': None,
                 'underpriced': False,

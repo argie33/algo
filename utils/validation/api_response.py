@@ -39,25 +39,25 @@ class APIResponseValidator:
             return 0  # Default for unknown types
 
         if isinstance(data, dict):
-            sanitized = {}
+            sanitized_dict: Dict[str, Any] = {}
             for key, value in data.items():
                 new_path = f"{path}.{key}"
                 if value is None:
                     logger.warning(f"[NULL_FOUND] {new_path}: Found None value in dict, replacing with default")
-                    sanitized[key] = 0  # Conservative default for None in dicts
+                    sanitized_dict[key] = 0  # Conservative default for None in dicts
                 else:
-                    sanitized[key] = APIResponseValidator.sanitize_response(value, new_path)
-            return sanitized
+                    sanitized_dict[key] = APIResponseValidator.sanitize_response(value, new_path)
+            return sanitized_dict
 
         elif isinstance(data, list):
-            sanitized = []
+            sanitized_list: List[Any] = []
             for i, item in enumerate(data):
                 new_path = f"{path}[{i}]"
                 if item is None:
                     logger.warning(f"[NULL_FOUND] {new_path}: Found None value in list, skipping")
                     continue  # Filter out None values from arrays
-                sanitized.append(APIResponseValidator.sanitize_response(item, new_path))
-            return sanitized
+                sanitized_list.append(APIResponseValidator.sanitize_response(item, new_path))
+            return sanitized_list
 
         else:
             # Scalar value (string, number, bool, etc.)

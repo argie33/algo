@@ -162,7 +162,7 @@ jobs:
       - name: Flake8 lint
         run: flake8 algo/ tests/ --max-line-length=120 --ignore=E501,W503 || true
       - name: MyPy type check
-        run: mypy algo/ --ignore-missing-imports 2>/dev/null || true
+        run: mypy algo/ --ignore-missing-imports --show-error-codes
 
   unit-tests:
     runs-on: ubuntu-latest

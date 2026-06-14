@@ -71,7 +71,7 @@ def run(
             log_phase_result_fn('3b', 'exposure_policy', 'success',
                                f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
             return PhaseResult(
-                '3b', 'exposure_policy', 'ok',
+                3, 'exposure_policy', 'ok',
                 {'constraints': constraints, 'actions': []},
                 False, None
             )
@@ -95,7 +95,7 @@ def run(
         )
 
         return PhaseResult(
-            '3b', 'exposure_policy', 'ok',
+            3, 'exposure_policy', 'ok',
             {'constraints': constraints, 'actions': actions},
             False, None
         )
@@ -106,4 +106,4 @@ def run(
         logger.warning(f"Exposure policy phase skipped due to error (fail-open): {e}")
         log_phase_result_fn('3b', 'exposure_policy', 'skip',
                            f'Skipped due to error: {str(e)[:80]}')
-        return PhaseResult('3b', 'exposure_policy', 'ok', {'constraints': None, 'actions': []}, False, None)
+        return PhaseResult(3, 'exposure_policy', 'ok', {'constraints': None, 'actions': []}, False, None)

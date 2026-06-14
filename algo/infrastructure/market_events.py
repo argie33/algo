@@ -20,6 +20,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
+from concurrent.futures import Future
 import logging
 
 logger = logging.getLogger(__name__)
@@ -386,7 +387,7 @@ class MarketEventHandler:
                 executor.submit(self.check_after_hours_window): 'after_hours_window',
             }
 
-            for future in as_completed(futures, timeout=30):
+            for future in as_completed(futures.keys(), timeout=30):  # type: Future[bool]
                 check_name = futures[future]
                 try:
                     result['checks'][check_name] = future.result()

@@ -53,7 +53,7 @@ class Orchestrator:
         self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
-        self.phase_results = {}
+        self.phase_results: Dict[int, Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         # FIXED Issue #6: Initialize execution tracker for audit trail logging
         self.execution_tracker = get_tracker()
@@ -593,7 +593,7 @@ class Orchestrator:
         )
         return not result.halted
 
-    def phase_3_position_monitor(self) -> List[Dict[str, Any]]:
+    def phase_3_position_monitor(self) -> bool:
         """Thin delegation to phase3_position_monitor module."""
         self.log_phase_start(3, 'POSITION MONITOR')
         from algo.orchestrator.phase3_position_monitor import run as run_phase3
@@ -605,7 +605,7 @@ class Orchestrator:
         self._position_recs = result.data.get('recommendations', [])
         return True  # fail-open
 
-    def phase_3b_exposure_policy(self) -> Dict[str, Any]:
+    def phase_3b_exposure_policy(self) -> bool:
         """Thin delegation to phase3b_exposure_policy module."""
         self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
         from algo.orchestrator.phase3b_exposure_policy import run as run_phase3b
@@ -618,7 +618,7 @@ class Orchestrator:
         self._exposure_actions = result.data.get('actions', [])
         return True  # fail-open
 
-    def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
+    def phase_4_exit_execution(self) -> bool:
         """Thin delegation to phase4_exit_execution module."""
         self.log_phase_start(4, 'EXIT EXECUTION')
         # No halt flag check: exits must always run to reduce risk even when entries are halted.
@@ -633,7 +633,7 @@ class Orchestrator:
         )
         return not result.halted
 
-    def phase_4b_pyramid_adds(self) -> List[Dict[str, Any]]:
+    def phase_4b_pyramid_adds(self) -> bool:
         """Thin delegation to phase4b_pyramid_adds module."""
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
         from algo.orchestrator.phase4b_pyramid_adds import run as run_phase4b
@@ -644,7 +644,7 @@ class Orchestrator:
         )
         return True  # fail-open
 
-    def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
+    def phase_5_signal_generation(self) -> bool:
         """Thin delegation to phase5_signal_generation module.
 
         New version: Compute signals on-the-fly from price data.
@@ -664,7 +664,7 @@ class Orchestrator:
         self.phase_results.setdefault(5, {})['signals_evaluated'] = len(self._qualified_trades)
         return not result.halted
 
-    def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
+    def phase_6_entry_execution(self) -> bool:
         """Thin delegation to phase6_entry_execution module.
 
         New version: Compute ATR + SMA_50 on-demand, execute immediately.
@@ -682,7 +682,7 @@ class Orchestrator:
         self.phase_results.setdefault(6, {})['trades_executed'] = result.data.get('entered', 0)
         return not result.halted
 
-    def phase_7_reconcile(self) -> Dict[str, Any]:
+    def phase_7_reconcile(self) -> bool:
         """Thin delegation to phase7_reconciliation module."""
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
         # No halt flag check: snapshot must always be written so circuit breakers

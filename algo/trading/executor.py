@@ -1182,7 +1182,7 @@ class TradeExecutor:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
             return {'success': False, 'message': f'Request failed: {e}'}
 
-    def _cancel_bracket_orders(self, alpaca_order_id: str) -> bool:
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> Dict[str, Any]:
         """Cancel bracket order and its children (stop loss + take profit).
 
         Returns: { success: bool, message: str }
@@ -1243,7 +1243,7 @@ class TradeExecutor:
             logger.warning(f"[GET_ORDER_PRICE] {alpaca_order_id}: Request failed: {e}")
         return None
 
-    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float:
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> Optional[float]:
         """Query Alpaca for actual filled quantity of an order.
 
         Includes retry logic (B11) with exponential backoff for transient failures.
@@ -1286,7 +1286,7 @@ class TradeExecutor:
                     logger.warning(f"Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
-    def _verify_order_status(self, alpaca_order_id: str) -> Dict[str, Any]:
+    def _verify_order_status(self, alpaca_order_id: str) -> Optional[Dict[str, Any]]:
         """Re-query order status from Alpaca (B6: race condition protection).
 
         Includes retry logic (B5) with exponential backoff for transient failures.

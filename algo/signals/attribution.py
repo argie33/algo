@@ -46,7 +46,7 @@ class SignalAttributionEngine:
         'noise': 0.00,
     }
 
-    def compute_ic(self, report_date: _date, lookback_trades: int = 40) -> Dict[str, Dict[str, float]]:
+    def compute_ic(self, report_date: _date, lookback_trades: int = 40) -> Dict[str, Dict[str, Any]]:
         """
         Compute Information Coefficient for each component.
 
