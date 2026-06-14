@@ -41,8 +41,7 @@ class AdvancedFilters:
     def _load_config_val(self, key: str, default):
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
-            from algo.infrastructure import get_config
-            val = get_config().get(key)
+            val = self.config.get(key)
             return val if val is not None else default
         except Exception as e:
             logger.debug(f"_load_config_val({key}) failed: {e}")
