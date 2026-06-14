@@ -1386,8 +1386,8 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             return list_response([safe_json_serialize(safe_dict_convert(n)) for n in notifs])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch notifications: {type(e).__name__}: {str(e)}', extra={'operation': 'fetch notifications'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch notifications: {type(e).__name__}')
+            logger.error(f'Failed to fetch notifications: {type(e).__name__}: {str(e)}\n  Operation: Query algo_notifications\n  Endpoint: GET /api/algo/notifications', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch notifications')
 
 @db_route_handler('analyze trade impact')
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
@@ -1796,8 +1796,8 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
             return list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch swing scores: {type(e).__name__}')
+            logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {str(e)}\n  Operation: Query algo_swing_scores\n  Endpoint: GET /api/algo/swing-scores', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch swing scores')
 def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
