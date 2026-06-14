@@ -896,7 +896,7 @@ jobs:
             exit 0
           fi
 
-          echo "Setting up admin group in pool: $POOL_ID for user: $PRIMARY_USER"
+          echo "Setting up admin group and primary user in pool: $POOL_ID for user: $PRIMARY_USER"
 
           # Create admin group (idempotent — fails silently if exists)
           aws cognito-idp create-group \
@@ -907,6 +907,68 @@ jobs:
             && echo "[OK] Admin group created" \
             || echo "[OK] Admin group already exists"
 
+          # Check for existing Cognito password in Secrets Manager (avoid overwriting on every deploy)
+          EXISTING_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/dashboard-config \
+            --region $AWS_REGION \
+            --query SecretString --output text 2>/dev/null || echo "{}")
+          EXISTING_PASS=$(echo "$EXISTING_SECRET" | jq -r '.cognito_password // ""' 2>/dev/null || echo "")
+          EXISTING_USER=$(echo "$EXISTING_SECRET" | jq -r '.cognito_username // ""' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_PASS" ] && [ "$EXISTING_USER" = "$PRIMARY_USER" ]; then
+            COGNITO_PASS="$EXISTING_PASS"
+            echo "[OK] Using existing Cognito password from Secrets Manager"
+          else
+            # Generate a random password that satisfies Cognito policy (12+ chars, upper, lower, number, symbol)
+            RAND=$(openssl rand -base64 16 | tr -dc 'A-Za-z0-9' | head -c14)
+            COGNITO_PASS="${RAND}A1!"
+            echo "[INFO] Generated new Cognito password (existing: '${EXISTING_USER}')"
+          fi
+
+          # Create user if not exists (idempotent — suppress-message skips verification email)
+          USER_EXISTS=$(aws cognito-idp admin-get-user \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --region $AWS_REGION 2>/dev/null && echo "true" || echo "false")
+
+          if [ "$USER_EXISTS" != "true" ]; then
+            echo "[INFO] Creating Cognito user $PRIMARY_USER"
+            TEMP_PASS="Temp$(openssl rand -base64 6 | tr -dc 'A-Za-z0-9' | head -c8)A1!"
+            aws cognito-idp admin-create-user \
+              --user-pool-id "$POOL_ID" \
+              --username "$PRIMARY_USER" \
+              --user-attributes Name=email,Value="$PRIMARY_USER" Name=email_verified,Value=true \
+              --temporary-password "$TEMP_PASS" \
+              --message-action SUPPRESS \
+              --region $AWS_REGION \
+              && echo "[OK] Cognito user $PRIMARY_USER created" \
+              || echo "[WARN] Could not create user (may already exist)"
+          else
+            echo "[OK] User $PRIMARY_USER already exists in Cognito"
+          fi
+
+          # Set permanent password (idempotent — overwrites temp/existing password)
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --password "$COGNITO_PASS" \
+            --permanent \
+            --region $AWS_REGION \
+            && echo "[OK] Permanent password set for $PRIMARY_USER" \
+            || echo "[WARN] Could not set permanent password"
+
+          # Store credentials in algo/dashboard-config Secrets Manager secret
+          UPDATED_SECRET=$(echo "$EXISTING_SECRET" | jq \
+            --arg user "$PRIMARY_USER" \
+            --arg pass "$COGNITO_PASS" \
+            '. + {cognito_username: $user, cognito_password: $pass}')
+          aws secretsmanager update-secret \
+            --secret-id algo/dashboard-config \
+            --secret-string "$UPDATED_SECRET" \
+            --region $AWS_REGION \
+            && echo "[OK] Cognito credentials stored in Secrets Manager (algo/dashboard-config)" \
+            || echo "[WARN] Could not update Secrets Manager with Cognito credentials"
+
           # Add primary user to admin group (idempotent — no-op if already member)
           aws cognito-idp admin-add-user-to-group \
             --user-pool-id "$POOL_ID" \
@@ -914,7 +976,7 @@ jobs:
             --group-name admin \
             --region $AWS_REGION 2>/dev/null \
             && echo "[OK] User $PRIMARY_USER added to admin group" \
-            || echo "[WARN] Could not add user to admin group (user may not exist yet)"
+            || echo "[WARN] Could not add user to admin group"
 
       - name: Update API Gateway CORS with CloudFront Domain
         run: |

@@ -222,6 +222,8 @@ data "aws_iam_policy_document" "github_actions_identity" {
       "cognito-idp:Describe*", "cognito-idp:List*",
       "cognito-idp:UpdateUserPool", "cognito-idp:UpdateUserPoolClient",
       "cognito-idp:AdminGetUser", "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword", "cognito-idp:AdminDeleteUser",
+      "cognito-idp:AdminEnableUser", "cognito-idp:AdminDisableUser",
       "cognito-idp:CreateGroup", "cognito-idp:DeleteGroup", "cognito-idp:GetGroup", "cognito-idp:UpdateGroup",
       "cognito-idp:AdminAddUserToGroup", "cognito-idp:AdminRemoveUserFromGroup", "cognito-idp:AdminListGroupsForUser"
     ]
