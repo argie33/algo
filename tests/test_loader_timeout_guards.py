@@ -10,7 +10,7 @@ import os
 def check_loader_has_timeout_guard(loader_file_path: str) -> tuple[bool, str]:
     """Check if a loader file has ExecutionTimeout import and usage."""
     try:
-        with open(loader_file_path, 'r') as f:
+        with open(loader_file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         has_import = 'from utils.infrastructure.timeout import ExecutionTimeout' in content
@@ -83,7 +83,7 @@ def test_socket_timeout_utility():
     helper_path = os.path.join(project_root, 'loaders', 'loader_helper.py')
 
     try:
-        with open(helper_path, 'r') as f:
+        with open(helper_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         has_setup_func = 'def setup_loader_timeouts' in content
@@ -117,7 +117,7 @@ def test_execution_timeout_utility():
     timeout_path = os.path.join(project_root, 'utils', 'infrastructure', 'timeout.py')
 
     try:
-        with open(timeout_path, 'r') as f:
+        with open(timeout_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         has_timeout_class = 'class ExecutionTimeout' in content or 'def ExecutionTimeout' in content

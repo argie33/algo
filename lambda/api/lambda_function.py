@@ -819,7 +819,6 @@ if not IMPORT_ERROR:
 
     # Determine if Cognito authentication is enabled
     with _COGNITO_ENABLED_LOCK:
-        global _COGNITO_ENABLED
         _COGNITO_ENABLED = bool(os.getenv('COGNITO_USER_POOL_ID'))
         if not _COGNITO_ENABLED:
             logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")

@@ -1714,6 +1714,11 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
 def main():
     """Read config from environment variables (set by ECS task definition)."""
     start_time = time.time()
+
+    # Setup socket-level timeouts to prevent hanging on network operations
+    from loaders.loader_helper import setup_loader_timeouts
+    setup_loader_timeouts(socket_timeout_sec=30.0)
+
     logger.info(f"[{_correlation_id}] [MAIN] Starting price loader instance")
 
     try:

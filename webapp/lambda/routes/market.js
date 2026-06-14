@@ -3039,7 +3039,7 @@ router.get("/naaim", async (req, res) => {
     if (!query) return sendPlaceholder(res, 'Database connection unavailable', 503, 'data');
 
     const result = await query(`
-      SELECT date, naaim_number_mean, bearish, bullish, deviation
+      SELECT date, naaim_number_mean, bearish, bullish
       FROM naaim
       ORDER BY date DESC
       LIMIT 52
@@ -3060,7 +3060,6 @@ router.get("/naaim", async (req, res) => {
       date: latest.date,
       bearish: latest.bearish != null ? parseFloat(latest.bearish) : null,
       bullish: latest.bullish != null ? parseFloat(latest.bullish) : null,
-      deviation: latest.deviation != null ? parseFloat(latest.deviation) : null,
       history,
     });
   } catch (error) {
