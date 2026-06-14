@@ -23,7 +23,6 @@ except ImportError:
     stats = None  # type: ignore[assignment]
 
 from utils.db import DatabaseContext
-from algo.orchestration import RegimeManager
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +177,8 @@ class SignalAttributionEngine:
                 'correction': {component: ic_data},
             }
         """
+        from algo.orchestration import RegimeManager
+
         regime_mgr = RegimeManager()
         regime_results = {regime: {} for regime in RegimeManager.REGIMES}
 

@@ -8,7 +8,6 @@ from typing import Optional, List
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

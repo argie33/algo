@@ -20,7 +20,10 @@ class Russell2000ConstituentsLoader(OptimalLoader):
     watermark_field = "created_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Fetch Russell 2000 symbols from data source."""
+        """Fetch Russell 2000 symbols from data source with timeout protection."""
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(15.0)
+
         try:
             logger.info("Fetching Russell 2000 constituents")
 
@@ -36,8 +39,15 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                     import pandas as pd
                     from io import StringIO
 
-                    response = requests.get(url, headers=headers, timeout=15)
-                    response.raise_for_status()
+                    try:
+                        response = requests.get(url, headers=headers, timeout=15)
+                        response.raise_for_status()
+                    except requests.exceptions.Timeout:
+                        logger.debug(f"Russell 2000 fetch timeout from {url}")
+                        continue
+                    except requests.exceptions.ConnectionError:
+                        logger.debug(f"Russell 2000 connection error from {url}")
+                        continue
 
                     tables = pd.read_html(StringIO(response.text))
                     if tables:
@@ -62,15 +72,22 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             return None
 
 def main():
-    loader = Russell2000ConstituentsLoader()
-    result = loader.load_global()
+    try:
+        # Execution timeout: Fetch + parse typically takes 10-20s
+        # Set limit to 2 min (120s) to catch hanging requests early
+        with ExecutionTimeout(max_seconds=120, label="load_russell2000_constituents"):
+            loader = Russell2000ConstituentsLoader()
+            result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} Russell 2000 symbols marked")
-        return 0
-    else:
-        logger.warning(f"COMPLETED: No symbols marked")
-        return 0
+            if result > 0:
+                logger.info(f"SUCCESS: {result} Russell 2000 symbols marked")
+                return 0
+            else:
+                logger.warning(f"COMPLETED: No symbols marked")
+                return 0
+    except Exception as e:
+        logger.error(f"Russell 2000 constituents load failed: {e}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

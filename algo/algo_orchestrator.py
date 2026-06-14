@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+import sys
+from pathlib import Path
+# Ensure project root is in path before importing modules that need it
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 from algo.infrastructure import get_subprocess_timeout
 from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,

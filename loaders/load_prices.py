@@ -30,20 +30,13 @@ from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.data.provenance import DataProvenanceTracker
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.data.tick_validator import validate_price_tick
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.data.watermark import WatermarkManager
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.infrastructure.correlation import set_correlation_id, get_correlation_id
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism
-from utils.infrastructure.timezone import EASTERN_TZ
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

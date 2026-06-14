@@ -23,7 +23,7 @@ except ImportError:
     minimize = None  # type: ignore[assignment]
 
 from utils.db import DatabaseContext
-from algo.signals import SignalAttributionEngine
+from algo.signals.attribution import SignalAttributionEngine
 
 logger = logging.getLogger(__name__)
 
