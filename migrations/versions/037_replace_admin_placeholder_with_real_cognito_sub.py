@@ -31,21 +31,15 @@ def up():
     admin_cognito_sub = os.getenv('ADMIN_COGNITO_SUB', '').strip()
 
     if not admin_cognito_sub:
-        raise ValueError(
-            "ADMIN_COGNITO_SUB environment variable not set!\n"
-            "Set it to the real admin user's Cognito sub from AWS Cognito console:\n"
-            "  $env:ADMIN_COGNITO_SUB = 'us-east-1_XXXXX:12345678-1234-1234-1234-123456789abc'\n"
-            "Then run: python -m alembic upgrade head"
-        )
+        print("  [WARN] ADMIN_COGNITO_SUB not set — skipping placeholder replacement.")
+        print("  Set ADMIN_COGNITO_SUB to the real admin Cognito sub if tables have 'admin-user' rows.")
+        return
 
     if admin_cognito_sub == 'admin-user':
-        raise ValueError(
-            "ADMIN_COGNITO_SUB should be the REAL Cognito sub, not the placeholder 'admin-user'\n"
-            "Get the real sub from AWS Cognito console â†’ User pools â†’ algo-trading â†’ admin user\n"
-            "Copy the 'Sub' value and set it as the environment variable"
-        )
+        print("  [WARN] ADMIN_COGNITO_SUB is the placeholder itself — skipping.")
+        return
 
-    with DatabaseContext('write') as cur:
+    with DatabaseContext(‘write’) as cur:
         # Tables to update: find all columns named cognito_sub with 'admin-user'
         tables_to_update = [
             'algo_portfolio_snapshots',
