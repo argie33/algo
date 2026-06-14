@@ -25,7 +25,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-class PortfolioRisk:
+class ValueAtRisk:
     """Portfolio risk metrics and concentration analysis."""
 
     def __init__(self, config):

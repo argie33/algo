@@ -37,7 +37,7 @@ def run(
         PhaseResult with status 'ok' (fail-open)
     """
     try:
-        from algo.algo_daily_reconciliation import DailyReconciliation
+        from algo.infrastructure.reconciliation import DailyReconciliation
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)

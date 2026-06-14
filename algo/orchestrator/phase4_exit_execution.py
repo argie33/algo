@@ -44,7 +44,7 @@ def run(
     # to reduce risk. Blocking exits compounds losses.
     # New entries are blocked by Phase 2/6 — exits are always executed.
     try:
-        from algo.algo_trade_executor import TradeExecutor
+        from algo.trading.executor import TradeExecutor
         from algo.trading import ExitEngine
 
         # Detect Phase 3 crash: if position monitor errored, _position_recs is []

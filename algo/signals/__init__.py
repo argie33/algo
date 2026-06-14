@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-from algo.algo_signals import SignalComputer
-from algo.algo_signals_vectorized import VectorizedSignalGenerator
-from algo.algo_swing_score import SwingTraderScore
+from .signal_computer import SignalComputer
+from .vectorized import VectorizedSignalGenerator
+from .swing_score import SwingTraderScore
 
 __all__ = [
     'SignalComputer',
     'VectorizedSignalGenerator',
     'SwingTraderScore',
 ]
-

@@ -506,4 +506,3 @@ class PositionSizer:
             return splits
         except (ValueError, AttributeError):
             return [0.50, 0.33, 0.17]
-

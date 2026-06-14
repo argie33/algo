@@ -5,8 +5,9 @@ This module centralizes path setup for loader scripts so they can import from
 utils, algo, and other root packages without doing their own sys.path manipulation.
 
 Usage in loader scripts:
-    from loaders.loader_helper import setup_imports
+    from loaders.loader_helper import setup_imports, setup_loader_timeouts
     setup_imports()
+    setup_loader_timeouts()
 
     # Now you can import from root packages
     from utils.db.context import DatabaseContext
@@ -14,6 +15,7 @@ Usage in loader scripts:
 """
 
 import sys
+import socket
 from pathlib import Path
 
 def setup_imports():
@@ -25,3 +27,21 @@ def setup_imports():
 
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
+
+
+def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
+    """Configure socket-level timeouts for all network operations in loaders.
+
+    Args:
+        socket_timeout_sec: Socket-level timeout in seconds (default 30s).
+                           This prevents indefinite hangs in underlying network libraries
+                           that don't respect requests.timeout settings.
+
+    Note: This should be called early in loader initialization, before any network calls.
+    """
+    try:
+        socket.setdefaulttimeout(socket_timeout_sec)
+    except Exception as e:
+        import logging
+        logging.warning(f"Could not set socket timeout: {e}")
+        pass

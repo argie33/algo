@@ -742,14 +742,14 @@ class PositionMonitor:
             from config.alpaca_config import get_alpaca_base_url
             from config.credential_manager import get_alpaca_credentials
             import requests
-            from algo.infrastructure import get_api_timeout
 
             creds = get_alpaca_credentials()
             base_url = get_alpaca_base_url()
+            timeout = self.config.get('api_request_timeout_seconds', 5)
             resp = requests.get(
                 f'{base_url}/v2/account',
                 headers={'APCA-API-KEY-ID': creds['key'], 'APCA-API-SECRET-KEY': creds['secret']},
-                timeout=get_api_timeout(),
+                timeout=timeout,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -776,7 +776,7 @@ class PositionMonitor:
             resp = requests.get(
                 f'{base_url}/v2/account',
                 headers={'APCA-API-KEY-ID': creds['key'], 'APCA-API-SECRET-KEY': creds['secret']},
-                timeout=get_api_timeout(),
+                timeout=self.config.get('api_request_timeout_seconds', 5),
             )
             if resp.status_code == 200:
                 data = resp.json()

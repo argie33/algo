@@ -29,9 +29,9 @@ def run(
         PhaseResult with status 'ok' (fail-open), data containing reconciliation results
     """
     try:
-        from algo.algo_daily_reconciliation import DailyReconciliation
-        from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
-        from algo.algo_signal_attribution import SignalAttributionEngine
+        from algo.infrastructure.reconciliation import DailyReconciliation
+        from algo.signals.trade_performance import SignalTradePerformancePopulator
+        from algo.signals.attribution import SignalAttributionEngine
         from algo.orchestration import WeightOptimizer
         from algo.reporting import DailyFinanceReport
 
@@ -191,8 +191,8 @@ def run(
         risk_status = 'warn'
         risk_summary = 'N/A'
         try:
-            from algo.algo_var import PortfolioRisk
-            risk = PortfolioRisk(config)
+            from algo.risk import ValueAtRisk
+            risk = ValueAtRisk(config)
             risk_report = risk.generate_daily_risk_report(run_date)
             if risk_report and risk_report.get('status') == 'ok':
                 risk_status = 'success'

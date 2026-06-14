@@ -10,9 +10,11 @@ from io import BytesIO
 import pandas as pd
 import zipfile
 import xml.etree.ElementTree as ET
+import socket
 
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.url_validator import validate_url
+from utils.infrastructure.timeout import ExecutionTimeout
 from config.api_endpoints import get_aaii_sentiment_url
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,9 @@ setup_imports()
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch AAII sentiment data from Excel file."""
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(60.0)
+
         aaii_url = get_aaii_sentiment_url()
         logging.info(f"Downloading AAII sentiment data from: {aaii_url}")
 
@@ -138,15 +143,22 @@ setup_imports()
         return None
 
 def main():
-    loader = AAIISentimentLoader()
-    result = loader.load_global()
+    try:
+        # Execution timeout: AAII Excel download + parsing typically takes 30-60s
+        # Set limit to 5 min (300s) to catch hanging downloads early
+        with ExecutionTimeout(max_seconds=300, label="load_aaii_sentiment"):
+            loader = AAIISentimentLoader()
+            result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} AAII sentiment records loaded")
-        return 0
-    else:
-        logger.warning(f"COMPLETED: No records loaded")
-        return 0
+            if result > 0:
+                logger.info(f"SUCCESS: {result} AAII sentiment records loaded")
+                return 0
+            else:
+                logger.warning(f"COMPLETED: No records loaded")
+                return 0
+    except Exception as e:
+        logger.error(f"AAII sentiment load failed: {e}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

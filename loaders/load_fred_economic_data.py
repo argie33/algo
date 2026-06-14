@@ -8,10 +8,12 @@ from typing import List, Optional, Dict, Any
 import requests
 import time
 import boto3
+import socket
 
 from utils.optimal_loader import OptimalLoader
 from utils.loaders.helpers import get_api_key
 from config.api_endpoints import get_fred_url
+from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +101,7 @@ class FredEconomicDataLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Fetch FRED economic data for all configured series."""
+        """Fetch FRED economic data for all configured series with proper timeouts."""
         api_key = get_fred_api_key()
         if not api_key:
             logger.error("FRED_API_KEY not found")
@@ -111,6 +113,9 @@ class FredEconomicDataLoader(OptimalLoader):
 
         all_rows = []
         failed_series = []
+
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(30.0)
 
         for i, series_id in enumerate(SERIES):
             # Very conservative delay between requests: FRED API has strict per-key rate limiting
@@ -138,7 +143,10 @@ class FredEconomicDataLoader(OptimalLoader):
                         "sort_order": "asc",
                     }
                     fred_url = f"{get_fred_url()}/series/observations"
-                    resp = requests.get(fred_url, params=params, timeout=30)
+                    # Use connect_timeout + read_timeout tuple for more granular control
+                    # connect_timeout: 10s to establish connection
+                    # read_timeout: 20s to receive response (can be slow with large datasets)
+                    resp = requests.get(fred_url, params=params, timeout=(10, 20))
                     resp.raise_for_status()
                     observations = resp.json().get("observations", [])
 
@@ -167,6 +175,24 @@ class FredEconomicDataLoader(OptimalLoader):
                     success = True
                     break  # Success, exit retry loop
 
+                except requests.exceptions.Timeout as e:
+                    # Timeout error - retry with backoff
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"  {series_id}: Timeout (attempt {attempt + 1}/{max_retries}), waiting {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"  {series_id}: FAILED after {max_retries} retries with timeout errors")
+                        failed_series.append(series_id)
+                except requests.exceptions.ConnectionError as e:
+                    # Connection error - retry with backoff
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"  {series_id}: Connection error (attempt {attempt + 1}/{max_retries}), waiting {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"  {series_id}: FAILED after {max_retries} retries with connection errors")
+                        failed_series.append(series_id)
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 429:  # Rate limit
                         if attempt < max_retries - 1:
@@ -191,15 +217,22 @@ class FredEconomicDataLoader(OptimalLoader):
         return all_rows if all_rows else None
 
 def main():
-    loader = FredEconomicDataLoader()
-    result = loader.load_global()
+    try:
+        # Execution timeout: FRED has ~40 series, 5s delay between + 30s per request = ~5-10 min normally
+        # Set limit to 20 min (1200s) to catch hanging requests early
+        with ExecutionTimeout(max_seconds=1200, label="load_fred_economic_data"):
+            loader = FredEconomicDataLoader()
+            result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} economic data records loaded")
-        return 0
-    else:
-        logger.warning(f"COMPLETED: No records loaded")
-        return 0
+            if result > 0:
+                logger.info(f"SUCCESS: {result} economic data records loaded")
+                return 0
+            else:
+                logger.warning(f"COMPLETED: No records loaded")
+                return 0
+    except Exception as e:
+        logger.error(f"FRED economic data load failed: {e}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

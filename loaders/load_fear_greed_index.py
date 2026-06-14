@@ -5,9 +5,11 @@ import logging
 from datetime import date
 from typing import Optional, List
 import requests
+import socket
 
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.url_validator import validate_url
+from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,9 @@ setup_imports()
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch Fear & Greed Index from CNN."""
         import time
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(30.0)
+
         url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
         # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
@@ -115,15 +120,22 @@ setup_imports()
         return None
 
 def main():
-    loader = FearGreedIndexLoader()
-    result = loader.load_global()
+    try:
+        # Execution timeout: CNN API typically responds in 1-5s
+        # Set limit to 2 min (120s) to catch blocking/rate limiting early
+        with ExecutionTimeout(max_seconds=120, label="load_fear_greed_index"):
+            loader = FearGreedIndexLoader()
+            result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: Fear & Greed data loaded")
-        return 0
-    else:
-        logger.warning(f"COMPLETED: No data loaded")
-        return 0
+            if result > 0:
+                logger.info(f"SUCCESS: Fear & Greed data loaded")
+                return 0
+            else:
+                logger.warning(f"COMPLETED: No data loaded")
+                return 0
+    except Exception as e:
+        logger.error(f"Fear & Greed load failed: {e}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())
