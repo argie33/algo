@@ -26,7 +26,7 @@ def mock_config():
 @pytest.fixture
 def position_sizer(mock_config):
     """Create PositionSizer instance with mocked database."""
-    with patch("algo.algo_position_sizer.DatabaseContext"):
+    with patch("algo.trading.position_sizer.DatabaseContext"):
         return PositionSizer(mock_config)
 
 

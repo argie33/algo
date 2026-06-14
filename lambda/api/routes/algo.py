@@ -5,6 +5,7 @@ import logging, re, json, os
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
+from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from utils.error_handlers import make_error_response
@@ -16,6 +17,7 @@ from routes.utils import (
 
 from utils.rate_limiting import check_admin_rate_limit, ADMIN_RATE_LIMITS, check_public_rate_limit, PUBLIC_RATE_LIMITS
 from utils.validation import safe_float, safe_float_strict, safe_int, safe_int_strict, APIResponseValidator
+from models.requests import TradePreviewRequest, PreTradeImpactRequest
 import math
 
 logger = logging.getLogger(__name__)
@@ -1293,13 +1295,16 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 @db_route_handler('analyze trade impact')
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
-        symbol = body.get('symbol', '').upper()
-        entry_price = body.get('entry_price')
-        position_dollars = body.get('position_dollars')
-        position_pct = body.get('position_pct')
+        try:
+            req = PreTradeImpactRequest(**body)
+        except ValidationError as e:
+            error_details = e.errors()[0] if e.errors() else {'msg': 'Validation error'}
+            return error_response(400, 'bad_request', f"Invalid request: {error_details.get('msg', 'Validation failed')}")
 
-        if not symbol:
-            return error_response(400, 'bad_request', 'symbol is required')
+        symbol = req.symbol
+        entry_price = req.entry_price
+        position_dollars = req.position_dollars
+        position_pct = req.position_pct
 
         # Call stored procedure to compute all impact metrics in database
         cur.execute("""
@@ -1358,20 +1363,15 @@ def _calculate_trade_preview(cur, body: Dict) -> Dict:
     Output: { shares, pct_of_portfolio, risk_amount, targets {...} }
     """
     try:
-        symbol = body.get('symbol', '').upper()
-        entry_price = body.get('entry_price')
-        stop_loss_price = body.get('stop_loss_price')
-
-        if not symbol:
-            return error_response(400, 'bad_request', 'symbol is required')
-        if entry_price is None:
-            return error_response(400, 'bad_request', 'entry_price is required')
-
         try:
-            entry_price = float(entry_price)
-            stop_loss_price = float(stop_loss_price) if stop_loss_price else None
-        except (ValueError, TypeError):
-            return error_response(400, 'bad_request', 'entry_price and stop_loss_price must be numbers')
+            req = TradePreviewRequest(**body)
+        except ValidationError as e:
+            error_details = e.errors()[0] if e.errors() else {'msg': 'Validation error'}
+            return error_response(400, 'bad_request', f"Invalid request: {error_details.get('msg', 'Validation failed')}")
+
+        symbol = req.symbol
+        entry_price = req.entry_price
+        stop_loss_price = req.stop_loss_price
 
         cur.execute("""
             SELECT total_portfolio_value FROM algo_portfolio_snapshots

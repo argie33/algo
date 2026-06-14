@@ -268,5 +268,5 @@ def make_error_response(
         'statusCode': status_code,
         'errorType': error_type,
         'message': safe_message,
-        '_error': error_type,
+        '_error': safe_message,
     }

@@ -3,8 +3,10 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging, re
 from datetime import datetime, timezone
+from pydantic import ValidationError
 from utils.error_handlers import make_error_response
 from routes.utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from models.requests import ContactSubmissionRequest
 from collections import defaultdict
 from time import time
 
@@ -127,65 +129,22 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
 def _submit_contact(cur, body: Dict) -> Dict:
     """Store a contact form submission."""
-    name = str(body.get('name', '')).strip()[:100]
-    email = str(body.get('email', '')).strip()[:200]
-    subject = str(body.get('subject', '')).strip()[:200]
-    message = str(body.get('message', '')).strip()[:5000]
-    phone = str(body.get('phone', '')).strip()[:20] if body.get('phone') else ''
+    try:
+        req = ContactSubmissionRequest(**body)
+    except ValidationError as e:
+        errors = e.errors()
+        if errors:
+            error_detail = errors[0]
+            field = error_detail.get('loc', ('unknown',))[0]
+            msg = error_detail.get('msg', 'Validation failed')
+            return error_response(400, 'bad_request', f"Invalid {field}: {msg}")
+        return error_response(400, 'bad_request', 'Invalid request')
 
-    if not name:
-        return error_response(400, 'bad_request', 'Name is required')
-    if not email or not _EMAIL_RE.match(email):
-        return error_response(400, 'bad_request', 'Valid email is required')
-    if not message:
-        return error_response(400, 'bad_request', 'Message is required')
-
-    # SECURITY FIX: Validate phone number format (if provided)
-    if phone and not re.match(r'^\+?[\d\s\-\(\)]{10,15}$', phone):
-        return error_response(400, 'bad_request', 'Phone number format invalid')
-
-    # SECURITY FIX #5: Comprehensive XSS blocklist with event handler variations
-    # Covers: direct tags, javascript protocol, event handlers (including bypass attempts)
-    dangerous_patterns = [
-        # HTML tags that can execute scripts
-        r'<script',
-        r'<iframe',
-        r'<embed',
-        r'<object',
-        r'<img[\s/]',        # img tag (with space or slash after <img to catch <img...> and <img/...> variants)
-        r'<svg\s+[^>]*on',   # svg with event handlers
-        # JavaScript protocol
-        r'javascript:',
-        r'vbscript:',
-        r'data:text/html',
-        # Event handlers — must have = to be dangerous (onclick=, onerror=, onload=, etc.)
-        # Catches all variations: onclick=, onerror=, onload=, on\w+=, etc.
-        r'on\w+[\s/]*=',     # onclick=, onerror=, onload=, onfocus=, on/*=, etc. (handles space and slash variants)
-        # HTML entity encodings that spell out dangerous patterns (e.g. &#106;avascript:)
-        r'&#x[0-9a-fA-F]+;',  # hex entity sequence (requires semicolon to be decodable)
-        r'&#\d{2,};',          # decimal entity sequence (2+ digits + semicolon = decodable entity)
-        # HTML5 attributes that can be dangerous
-        r'formaction\s*=',
-        r'onfocus\s*=',
-        r'onblur\s*=',
-        # SQL injection patterns (defense-in-depth)
-        r'union\s+select',
-        r'drop\s+table',
-        r'update\s+\w+\s+set',
-        r'delete\s+from',
-        r'insert\s+into',
-        # Command injection
-        r';\s*rm\s',
-        r';\s*cat\s',
-    ]
-
-    for pattern in dangerous_patterns:
-        if re.search(pattern, message, re.IGNORECASE):
-            return error_response(400, 'bad_request', 'Message contains invalid content')
-        if re.search(pattern, name, re.IGNORECASE):
-            return error_response(400, 'bad_request', 'Name contains invalid content')
-        if re.search(pattern, subject, re.IGNORECASE):
-            return error_response(400, 'bad_request', 'Subject contains invalid content')
+    name = req.name
+    email = req.email
+    subject = req.subject or ''
+    message = req.message
+    phone = req.phone or ''
 
     # SECURITY L-NEW-01: Return 200 even when rate limited � a 429 lets an
     # attacker enumerate whether an email has submitted recently.

@@ -21,7 +21,6 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
-from algo.infrastructure import get_alpaca_timeout
 from utils.db import DatabaseContext
 import os
 import json
@@ -644,7 +643,7 @@ class PositionMonitor:
                         'APCA-API-KEY-ID': alpaca_key,
                         'APCA-API-SECRET-KEY': alpaca_secret,
                     }
-                    resp = requests.get(url, headers=headers, timeout=get_alpaca_timeout())
+                    resp = requests.get(url, headers=headers, timeout=self.config.get('api_request_timeout_seconds', 5))
                     if resp.status_code != 200:
                         continue
 

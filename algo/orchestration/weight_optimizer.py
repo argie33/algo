@@ -54,14 +54,10 @@ class WeightOptimizer:
         'correction': 0.0,  # Freeze weights during crisis
     }
 
-    def __init__(self, config=None):
-        self.config = config or self._get_config()
-
-    def _get_config(self):
-        """Get AlgoConfig singleton."""
-        from algo.infrastructure import get_config
-
-        return get_config()
+    def __init__(self, config):
+        if config is None:
+            raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
+        self.config = config
 
     def get_current_weights(self) -> Dict[str, int]:
         """Fetch current weights from algo_config."""
@@ -333,6 +329,7 @@ class WeightOptimizer:
             logger.error(f"Failed to log weight changes: {e}")
 
 if __name__ == "__main__":
-    opt = WeightOptimizer()
+    from algo.infrastructure import get_config
+    opt = WeightOptimizer(config=get_config())
     result = opt.apply(_date.today(), regime='confirmed_uptrend', dry_run=True)
     logger.info(f"Optimization result: {result}")

@@ -1,4 +1,4 @@
-"""API response models."""
+"""API response and request models."""
 from .responses import (
     DataFreshness,
     BaseResponse,
@@ -25,7 +25,14 @@ from .responses import (
     DataCoverageResponse,
 )
 
+from .requests import (
+    TradePreviewRequest,
+    PreTradeImpactRequest,
+    ContactSubmissionRequest,
+)
+
 __all__ = [
+    # Response models
     "DataFreshness",
     "BaseResponse",
     "SuccessResponse",
@@ -49,4 +56,8 @@ __all__ = [
     "ContactResponse",
     "SettingsResponse",
     "DataCoverageResponse",
+    # Request models
+    "TradePreviewRequest",
+    "PreTradeImpactRequest",
+    "ContactSubmissionRequest",
 ]

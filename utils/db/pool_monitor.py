@@ -138,7 +138,7 @@ class RDSPoolMonitor:
 
         except Exception as e:
             logger.error(f"Failed to query slow queries: {e}")
-            return []
+            raise
 
     def get_connection_by_state(self) -> Dict[str, int]:
         """Get breakdown of connections by state.
@@ -173,7 +173,7 @@ class RDSPoolMonitor:
 
         except Exception as e:
             logger.error(f"Failed to get connection breakdown: {e}")
-            return {}
+            raise
 
     def log_pool_status(self):
         """Log current connection pool status with details."""
@@ -197,14 +197,20 @@ class RDSPoolMonitor:
 
         if status['status'] != 'HEALTHY':
             # Log additional details for warning/critical
-            states = self.get_connection_by_state()
-            logger.warning(f"[RDS-POOL] Connection breakdown: {states}")
+            try:
+                states = self.get_connection_by_state()
+                logger.warning(f"[RDS-POOL] Connection breakdown: {states}")
+            except Exception as e:
+                logger.error(f"[RDS-POOL] Failed to get connection breakdown: {e}")
 
-            slow = self.get_slow_queries()
-            if slow:
-                logger.warning(f"[RDS-POOL] {len(slow)} slow queries (>5s):")
-                for q in slow[:3]:  # Show top 3
-                    logger.warning(f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}")
+            try:
+                slow = self.get_slow_queries()
+                if slow:
+                    logger.warning(f"[RDS-POOL] {len(slow)} slow queries (>5s):")
+                    for q in slow[:3]:  # Show top 3
+                        logger.warning(f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}")
+            except Exception as e:
+                logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
     def check_eod_readiness(self) -> Dict[str, any]:
         """Check if RDS is ready for EOD pipeline (4:05 PM).
