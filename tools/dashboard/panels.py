@@ -1,4 +1,8 @@
-"""Panel rendering functions for the dashboard display."""
+"""Panel rendering functions for the dashboard display.
+
+Panels self-register with the panel registry via @register_panel decorator
+to enable dynamic discovery and extensibility.
+"""
 
 import json
 import logging
@@ -7,6 +11,17 @@ from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Import panel registry for self-registration
+try:
+    from panel_registry import register_panel
+except ImportError as e:
+    logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+    # Fallback: create no-op decorator
+    def register_panel(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda fn: fn
 
 from rich import box
 from rich.align import Align
@@ -305,6 +320,7 @@ def panel_market_full(mkt, sentiment=None):
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
+@register_panel("circuit", endpoint_deps=["cb"], optional=False, description="Circuit breaker status")
 def panel_circuit(cb, risk=None):
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
@@ -331,6 +347,7 @@ def panel_circuit(cb, risk=None):
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
 
 
+@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
 def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"):
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
@@ -416,6 +433,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
     return Panel(Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
+@register_panel("portfolio", endpoint_deps=["port", "cfg", "risk", "perf"], optional=False, description="Portfolio")
 def panel_portfolio(port, cfg, risk=None, perf=None):
     err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
     if err_panel:
@@ -516,6 +534,7 @@ def _calculate_adjusted_win_rate(perf, pos):
     return adjusted_wr, closed_wins, closed_losses + losing_open
 
 
+@register_panel("performance", endpoint_deps=["perf", "trades", "perf_anl"], optional=True, description="Performance")
 def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
@@ -646,6 +665,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
 
 
+@register_panel("positions", endpoint_deps=["pos", "trades"], optional=True, description="Positions")
 def panel_positions(pos, compact=False, trades=None):
     """Display open positions table. Normalizes input from {"items": [...]} format."""
     # Check if placeholder/fallback data is being displayed
@@ -760,6 +780,7 @@ def panel_positions(pos, compact=False, trades=None):
     return Panel(content, title=f"{title_str}{age_s}  [dim][p] expand[/]", border_style=border, padding=(0, 0))
 
 
+@register_panel("signals", endpoint_deps=["sig", "sig_eval"], optional=True, description="Signals")
 def panel_signals_compact(sig, sig_eval=None):
     """Signals & screening - actual BUY signals from buy_sell_daily with setup detail."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
@@ -928,6 +949,7 @@ def panel_signals_compact(sig, sig_eval=None):
     return Panel(Group(*rows), title=f"{title}{age_s}  [dim][s] expand[/]", border_style=border, padding=(0, 1))
 
 
+@register_panel("trades", endpoint_deps=["trades"], optional=True, description="Trades")
 def panel_recent_trades(trades):
     # Closed/recent trade history - sits alongside positions panel
     trades_timestamp = None
@@ -1002,6 +1024,7 @@ def _rdelta(r, wk="rank_1w_ago", wk4=None):
     return s1
 
 
+@register_panel("sectors", endpoint_deps=["srank", "pos", "port", "sec_rot", "irank"], optional=True, description="Sectors")
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
     rows = []
@@ -1087,6 +1110,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]", border_style="cyan", padding=(0, 1))
 
 
+@register_panel("economic", endpoint_deps=["eco", "econ_cal"], optional=True, description="Economic")
 def panel_economic_pulse(eco, econ_cal=None):
     """Economic factors the algo uses to calculate market exposure score."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
@@ -1220,6 +1244,7 @@ def panel_economic_pulse(eco, econ_cal=None):
                  border_style="bright_magenta", padding=(0, 1))
 
 
+@register_panel("exposure", endpoint_deps=["exp_factors"], optional=True, description="Exposure")
 def panel_exposure_compact(exp_f):
     """12-factor exposure score - compact 2-col layout."""
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
@@ -1631,6 +1656,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     return Panel(Group(*rows), title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]", border_style="yellow", padding=(0, 1))
 
 
+@register_panel("health", endpoint_deps=["run", "activity", "health", "notifs", "algo_metrics", "audit", "exec_hist", "risk"], optional=True, description="Health")
 def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
     """Focused 'did the algo work?' panel: run outcome â†' what it did â†' system health."""
     rows: list = []
@@ -1970,6 +1996,7 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
     return exp
 
 
+@register_panel("signals_expanded", endpoint_deps=["sig", "sig_eval"], optional=True, description="Signals Expanded")
 def panel_signals_expanded(sig, sig_eval=None):
     """Full-screen buy signals - all signals, full text, breakout quality, base type."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
@@ -2082,6 +2109,7 @@ def panel_signals_expanded(sig, sig_eval=None):
     return Panel(Group(*rows), title=f"{title}  [dim][s] return[/]", border_style=border, padding=(0, 1))
 
 
+@register_panel("health_expanded", endpoint_deps=["run", "activity", "health", "notifs", "algo_metrics", "audit", "exec_hist", "risk"], optional=True, description="Health Expanded")
 def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
     """Full-screen algo health - complete run history, all data tables, all notifications."""
     rows: list = [Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"), Rule(style="dim")]
@@ -2208,6 +2236,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
 
 
+@register_panel("sectors_expanded", endpoint_deps=["srank", "pos", "port", "sec_rot", "irank"], optional=True, description="Sectors Expanded")
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
     rows: list = [Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"), Rule(style="dim")]
