@@ -653,6 +653,14 @@ def main():
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
         logger.info("Daily signals load completed")
+
+        # ISSUE #7 FIX: Automatically enrich technical data after signal generation
+        # This backfills NULL technical columns in buy_sell_daily with data from technical_data_daily
+        logger.info("Starting technical data enrichment...")
+        from enrich_buy_sell_daily_technical import enrich_technical_data
+        enrich_result = enrich_technical_data(since=today_et - timedelta(days=3), symbols=None)
+        logger.info(f"Technical enrichment complete: {enrich_result['updated']} updated, {enrich_result['checked']} checked")
+
         return 0
     except Exception as e:
         logger.error(f"Daily signals load failed: {e}")
