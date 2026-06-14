@@ -69,7 +69,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             result['drawdown'] = drawdown_info
         except Exception as e:
             logger.warning(f"Drawdown fetch failed: {e}")
-            result['drawdown'] = {'error': str(e)}
+            result['drawdown'] = {'errorType': 'fetch_failed', 'message': str(e), '_error': str(e)}
 
         # Exposure tier
         try:
@@ -77,7 +77,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             result['exposure_tier'] = tier_info
         except Exception as e:
             logger.warning(f"Exposure tier fetch failed: {e}")
-            result['exposure_tier'] = {'error': str(e)}
+            result['exposure_tier'] = {'errorType': 'fetch_failed', 'message': str(e), '_error': str(e)}
 
         # VIX metrics
         try:

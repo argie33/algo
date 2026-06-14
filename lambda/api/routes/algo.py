@@ -647,7 +647,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         sanitized = APIResponseValidator.sanitize_response(response_data)
         return json_response(200, sanitized)
 
-@db_route_handler('calculate performance', default_error_response={'error': 'Failed to calculate performance metrics', 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('calculate performance', default_error_response={'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
@@ -868,13 +868,14 @@ def _get_circuit_breakers(cur) -> Dict:
 
             if missing_tables:
                 logger.error(f'ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}')
-                return json_response(200, {
+                return json_response(503, {
                     'breakers': [],
                     'any_triggered': False,
                     'triggered_count': 0,
                     'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'},
-                    'error': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.',
-                    'error_type': 'missing_critical_tables'
+                    'errorType': 'missing_critical_tables',
+                    'message': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.',
+                    '_error': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.'
                 })
 
             # Fetch pre-computed circuit breaker metrics from database
