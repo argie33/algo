@@ -35,9 +35,11 @@ class Orchestrator:
 
     HALT_FLAG_DYNAMODB_KEY = 'orchestrator_halt'
 
-    def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
-        from algo.infrastructure import get_config
-        self.config = config or get_config()
+    def __init__(self, config: Any, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
+        if config is None:
+            raise ValueError("Orchestrator requires explicit config parameter (dependency injection). "
+                           "Remove fallback to get_config() — get config at entry point and pass it explicitly.")
+        self.config = config
 
         # Override execution_mode from environment variable if set
         env_execution_mode = os.getenv('ORCHESTRATOR_EXECUTION_MODE', '').strip().lower()

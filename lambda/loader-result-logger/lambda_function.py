@@ -55,8 +55,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.info(f"[LOADER-RESULT] Logged {loader_name} result to DynamoDB")
 
         except Exception as db_error:
-            logger.warning(f"[LOADER-RESULT] Failed to write to DynamoDB: {db_error}")
-            # Continue - don't fail the pipeline due to logging error
+            logger.error(f"[LOADER-RESULT] Failed to write loader result to DynamoDB: {db_error}")
+            raise
 
         return {
             'statusCode': 200,

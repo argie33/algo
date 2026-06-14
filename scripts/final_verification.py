@@ -3,6 +3,7 @@
 import logging
 from datetime import date, timedelta
 from algo.algo_orchestrator import Orchestrator
+from algo.infrastructure import get_config
 
 logging.basicConfig(level=logging.CRITICAL)
 
@@ -18,7 +19,8 @@ try:
 
     print(f"Testing with Monday: {monday}\n")
 
-    orch = Orchestrator(run_date=monday, dry_run=True, verbose=False)
+    config = get_config()
+    orch = Orchestrator(config=config, run_date=monday, dry_run=True, verbose=False)
     result = orch.run()
 
     print("ORCHESTRATOR RESULT:")

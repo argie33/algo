@@ -213,8 +213,8 @@ class SignalsDailyLoader(OptimalLoader):
                     VALUES (%s, %s, %s, %s, %s, NOW())
                 """, ("buy_sell_daily", reason, symbol, signal_date, "loader"))
         except Exception as e:
-            # Graceful degradation: if signal_rejection_log doesn't exist, just log warning
-            logger.debug(f"Could not log rejection: {e}")
+            logger.error(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
+            raise
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""

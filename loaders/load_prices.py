@@ -1920,13 +1920,16 @@ def main():
         except RuntimeError as cache_err:
             logger.critical(f"[MAIN] Cache invalidation failed on timeout error: {cache_err}")
         duration_seconds = round(time.time() - start_time, 2)
-        log_loader_execution(
-            'loadpricedaily',
-            'price_daily',
-            'failed',
-            error_msg=f"Execution timeout: {timeout_err}",
-            duration_seconds=duration_seconds
-        )
+        try:
+            log_loader_execution(
+                'loadpricedaily',
+                'price_daily',
+                'failed',
+                error_msg=f"Execution timeout: {timeout_err}",
+                duration_seconds=duration_seconds
+            )
+        except Exception as log_err:
+            logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
         return 1
 
     logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
@@ -1938,23 +1941,30 @@ def main():
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
             logger.critical(f"[MAIN] Cache invalidation failed on final failure: {cache_err}")
+        try:
+            log_loader_execution(
+                'loadpricedaily',
+                'price_daily',
+                'failed',
+                records_loaded=total_stats.get('rows_inserted', 0),
+                error_msg=f"{fail_count} interval(s) failed",
+                duration_seconds=duration_seconds
+            )
+        except Exception as log_err:
+            logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
+        return 1
+
+    try:
         log_loader_execution(
             'loadpricedaily',
             'price_daily',
-            'failed',
+            'completed',
             records_loaded=total_stats.get('rows_inserted', 0),
-            error_msg=f"{fail_count} interval(s) failed",
             duration_seconds=duration_seconds
         )
+    except Exception as log_err:
+        logger.critical(f"[MAIN] Could not log loader completion to audit trail: {log_err}")
         return 1
-
-    log_loader_execution(
-        'loadpricedaily',
-        'price_daily',
-        'completed',
-        records_loaded=total_stats.get('rows_inserted', 0),
-        duration_seconds=duration_seconds
-    )
     if _lock_conn:
         try:
             _lock_conn.close()

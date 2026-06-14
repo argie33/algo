@@ -340,7 +340,8 @@ class SwingTraderScoresLoader(OptimalLoader):
                     VALUES (%s, %s, %s, %s, %s, NOW())
                 """, ("swing_trader_scores", reason, symbol, signal_date, "loader"))
         except Exception as e:
-            logger.debug(f"Could not log rejection: {e}")
+            logger.error(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
+            raise
 
 def main():
     import time
