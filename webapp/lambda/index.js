@@ -62,6 +62,7 @@ const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const performanceRoutes = require("./routes/performance");
 const logoutRoutes = require("./routes/logout");
+const settingsRoutes = require("./routes/settings");
 
 const app = express();
 
@@ -703,6 +704,7 @@ app.use("/api/earnings", cacheMiddleware(60), require("./routes/earnings"));
 
 // Authentication routes
 app.use("/api/logout", logoutRoutes);
+app.use("/api/settings", settingsRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
