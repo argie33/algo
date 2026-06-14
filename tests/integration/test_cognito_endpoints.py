@@ -212,28 +212,33 @@ class TestLiveEndpointAccess:
 
     These tests require actual JWT tokens from Cognito. To run manually:
 
-    1. Log in as admin user (edgebrookecapital@gmail.com) at:
-       https://algo-dev.auth.us-east-1.amazoncognito.com/login?client_id=6smb0vrcidd9kvhju2kn2a3qrl&response_type=code&scope=openid+email+profile&redirect_uri=https://d2u93283nn45h2.cloudfront.net/callback
+    1. Fetch CloudFront domain from Terraform or environment:
+       CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain 2>/dev/null || \
+                          echo $VITE_CLOUDFRONT_DOMAIN || echo "d2u93283nn45h2.cloudfront.net")
+       echo "Using CloudFront domain: $CLOUDFRONT_DOMAIN"
 
-    2. Get the access token from browser DevTools (Application > Local Storage > access_token)
+    2. Log in as admin user (edgebrookecapital@gmail.com) at:
+       https://algo-dev.auth.us-east-1.amazoncognito.com/login?client_id=6smb0vrcidd9kvhju2kn2a3qrl&response_type=code&scope=openid+email+profile&redirect_uri=https://${CLOUDFRONT_DOMAIN}/callback
 
-    3. Test admin endpoint:
+    3. Get the access token from browser DevTools (Application > Local Storage > access_token)
+
+    4. Test admin endpoint:
        curl -H "Authorization: Bearer <ACCESS_TOKEN>" \
-         https://d2u93283nn45h2.cloudfront.net/api/algo/performance
+         https://${CLOUDFRONT_DOMAIN}/api/algo/performance
        Expected: 200 OK with performance data
 
-    4. Log out and log in as trader user (argeropolos@gmail.com)
+    5. Log out and log in as trader user (argeropolos@gmail.com)
 
-    5. Get the new access token
+    6. Get the new access token
 
-    6. Test admin endpoint with trader token:
+    7. Test admin endpoint with trader token:
        curl -H "Authorization: Bearer <TRADER_TOKEN>" \
-         https://d2u93283nn45h2.cloudfront.net/api/algo/performance
+         https://${CLOUDFRONT_DOMAIN}/api/algo/performance
        Expected: 403 Forbidden
 
-    7. Test public endpoint with trader token:
+    8. Test public endpoint with trader token:
        curl -H "Authorization: Bearer <TRADER_TOKEN>" \
-         https://d2u93283nn45h2.cloudfront.net/api/algo/markets
+         https://${CLOUDFRONT_DOMAIN}/api/algo/markets
        Expected: 200 OK with market data
     """
 
