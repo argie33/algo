@@ -154,6 +154,46 @@ scripts/refresh-aws-credentials.ps1
 - Computed by: `loaders/compute_performance_metrics.py` (EventBridge rule: 4:45 PM ET Mon-Fri)
 - Computation time: 10-15 seconds (bulk trade analysis + portfolio snapshots)
 - API response: `/api/algo/performance` returns pre-computed data in 20-30ms (was 1200ms on-the-fly)
+
+**Verification:** Pre-computation loaders run via EventBridge schedule rules (Terraform: `terraform/modules/loaders/main.tf:533-540`). To verify daily execution:
+
+1. **Check execution status (DynamoDB):**
+   - Query `algo-loader-status` table: look for `compute_circuit_breakers` and `compute_performance_metrics` with today's date
+   - Status: "SUCCESS" = loader completed; "FAILED" = check ECS task logs
+   - Run (from AWS CLI): `aws dynamodb query --table-name algo-loader-status-dev --key-condition-expression "loader_name = :name AND execution_date = :date" --expression-attribute-values '{ ":name": {"S": "compute_circuit_breakers"}, ":date": {"S": "2026-06-13"}}'`
+
+2. **Check table data (PostgreSQL):**
+   ```sql
+   SELECT MAX(check_date), COUNT(*) FROM circuit_breaker_status WHERE check_date >= CURRENT_DATE - 5;
+   SELECT MAX(metric_date), COUNT(*) FROM algo_performance_metrics WHERE metric_date >= CURRENT_DATE - 5;
+   ```
+   Both should show today's date. If missing: loaders likely failed or didn't trigger.
+
+3. **Check EventBridge rule status:**
+   - Rule names: `algo-compute_circuit_breakers-schedule`, `algo-compute_performance_metrics-schedule` (Terraform: `/terraform/modules/loaders/main.tf`)
+   - State: "ENABLED" in AWS EventBridge console
+   - If disabled: re-enable and investigate reason for disable
+
+4. **Check ECS task logs:**
+   - CloudWatch log groups: `/ecs/algo-compute_circuit_breakers-loader`, `/ecs/algo-compute_performance_metrics-loader`
+   - Look for "SUCCESS: 1 circuit breaker records computed" (circuit_breakers) or "SUCCESS: 1 performance metric records computed" (performance_metrics)
+   - If missing or error: loader crashed; check full log for DatabaseError, timeout, or connection pool issues
+
+5. **Manual trigger (testing only):**
+   ```bash
+   aws ecs run-task --cluster algo-cluster-dev --task-definition algo-compute_circuit_breakers-loader --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=DISABLED}"
+   ```
+
+**Alert conditions:** CloudWatch alarms configured for:
+- No loader execution in 25+ hours (checked hourly)
+- ECS task exit code non-zero (dead-letter queue monitoring)
+
+If alarms trigger:
+1. Check EventBridge rule state (enabled?)
+2. Check ECS task definition (LOADER_NAME env var matches loader filename)
+3. Check DynamoDB loader_locks table (orphaned lock from crash?)
+4. Manually run task above to diagnose error in logs
+
 ## Data Freshness Configuration
 
 **Configurable thresholds (algo_config table):**
