@@ -52,9 +52,15 @@ scripts/refresh-aws-credentials.ps1
 - Computed once per day at 4:05 PM ET (independent of orchestrator halt status)
 - All orchestrator runs (9:30 AM, 1 PM, 3 PM, 5:30 PM) use cached value from EOD — no recomputation
 - This ensures single source of truth and prevents divergence between multiple computation points
-- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator), Phase 3b entry constraints
+- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator), Phase 3b entry constraints, Phase 7's WeightOptimizer (regime-based weight adjustments)
 
-**Data flow:** EOD pipeline computes at 4:05 PM → Orchestrator Phase 3b uses cached value → Dashboard queries → API responses populated
+**Data flow:** EOD pipeline (Step Functions scheduled 4:05 PM ET Mon-Fri) → market_exposure_daily upserted → Orchestrator Phase 7 queries for current regime → Dashboard → API responses
+
+**CRITICAL: System depends on EOD pipeline running successfully.** If scheduler fails or loaders error:
+- Phase 7's RegimeManager falls back to yesterday's regime (graceful degradation, but market regime becomes 1+ days stale)
+- Dashboard market regime display shows stale data without visible warning
+- Monitor: Check if `SELECT COUNT(*) WHERE date = CURRENT_DATE FROM market_exposure_daily` returns 0 (stale)
+- Recovery: `aws stepfunctions start-execution --state-machine-arn arn:aws:states:us-east-1:626216981288:stateMachine:algo-eod-pipeline-dev --name manual-eod-$(date +%s)`
 
 ## Schedule (Daily, Mon-Fri)
 
