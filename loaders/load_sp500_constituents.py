@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
-class SP500ConstituentsLoader(OptimalLoader):
-    """Load and mark S&P 500 constituent symbols."""
 from loaders.loader_helper import setup_imports
 setup_imports()
 
+class SP500ConstituentsLoader(OptimalLoader):
+    """Load and mark S&P 500 constituent symbols."""
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"

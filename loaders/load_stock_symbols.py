@@ -2,6 +2,8 @@
 """Stock Symbols Loader - Load all tradable symbols from NASDAQ/NYSE."""
 
 import logging
+import sys
+import socket
 from datetime import date
 from typing import Optional, List
 import os
@@ -10,6 +12,7 @@ import csv
 import requests
 
 from utils.optimal_loader import OptimalLoader
+from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +41,34 @@ class StockSymbolsLoader(OptimalLoader):
     watermark_field = "created_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Fetch all stock symbols from NASDAQ/NYSE.
+        """Fetch all stock symbols from NASDAQ/NYSE with timeout protection.
 
         Also populates etf_symbols table with ETF-flagged symbols so that
         the anti-join filter in /api/scores/stockscores can exclude them.
         """
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(15.0)
+
         try:
             logger.info("Downloading NASDAQ list")
-            nas_text = requests.get(NASDAQ_URL, timeout=15).text
+            try:
+                nas_text = requests.get(NASDAQ_URL, timeout=15).text
+            except requests.exceptions.Timeout:
+                logger.error("NASDAQ symbols fetch timeout")
+                return None
+            except requests.exceptions.ConnectionError:
+                logger.error("NASDAQ symbols connection error")
+                return None
+
             logger.info("Downloading OTHER list")
-            oth_text = requests.get(OTHER_URL, timeout=15).text
+            try:
+                oth_text = requests.get(OTHER_URL, timeout=15).text
+            except requests.exceptions.Timeout:
+                logger.error("Other symbols fetch timeout")
+                return None
+            except requests.exceptions.ConnectionError:
+                logger.error("Other symbols connection error")
+                return None
 
             rows = []
             etf_rows = []
@@ -115,15 +136,22 @@ class StockSymbolsLoader(OptimalLoader):
             logger.warning(f"Failed to refresh etf_symbols: {e}")
 
 def main():
-    loader = StockSymbolsLoader()
-    result = loader.load_global()
+    try:
+        # Execution timeout: Fetch 2 files + parse typically takes 10-20s
+        # Set limit to 2 min (120s) to catch hanging requests early
+        with ExecutionTimeout(max_seconds=120, label="load_stock_symbols"):
+            loader = StockSymbolsLoader()
+            result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} symbols loaded")
-        return 0
-    else:
-        logger.warning(f"COMPLETED: No symbols loaded")
-        return 0
+            if result > 0:
+                logger.info(f"SUCCESS: {result} symbols loaded")
+                return 0
+            else:
+                logger.warning(f"COMPLETED: No symbols loaded")
+                return 0
+    except Exception as e:
+        logger.error(f"Stock symbols load failed: {e}", exc_info=True)
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

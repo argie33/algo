@@ -12,11 +12,11 @@ from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
-class AlgoMetricsDailyLoader(OptimalLoader):
-    """Compute and store daily algo performance metrics."""
 from loaders.loader_helper import setup_imports
 setup_imports()
 
+class AlgoMetricsDailyLoader(OptimalLoader):
+    """Compute and store daily algo performance metrics."""
     table_name = "algo_metrics_daily"
     primary_key = ("date",)
     watermark_field = "date"

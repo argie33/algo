@@ -9,14 +9,13 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 from utils.optimal_loader import OptimalLoader
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 logger = logging.getLogger(__name__)
 
 class NAAIMExposureLoader(OptimalLoader):
     """Load NAAIM fund manager exposure index."""
-from loaders.loader_helper import setup_imports
-setup_imports()
-
     table_name = "naaim"
     primary_key = ("date",)
     watermark_field = "date"

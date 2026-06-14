@@ -7,14 +7,14 @@ from typing import Optional, List
 import requests
 
 from utils.optimal_loader import OptimalLoader
+from utils.infrastructure.timeout import ExecutionTimeout
+from loaders.loader_helper import setup_imports
+setup_imports()
 
 logger = logging.getLogger(__name__)
 
 class Russell2000ConstituentsLoader(OptimalLoader):
     """Load and mark Russell 2000 constituent symbols."""
-from loaders.loader_helper import setup_imports
-setup_imports()
-
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"
