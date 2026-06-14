@@ -861,6 +861,18 @@ jobs:
                   zf.write(str(file_path), layer_arcname)
               print("  + monitoring/")
 
+            # Add algo package (required by routes/algo.py and routes/admin.py)
+            algo_path = app_dir / "algo"
+            if algo_path.is_dir():
+              for file_path in algo_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + algo/")
+            else:
+              print("  [WARN] algo/ not found — routes/algo.py imports will fail at runtime")
+
           print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
           print("OK - API function code and layer ready with all required modules")
           PYTHON_API

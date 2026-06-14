@@ -1378,7 +1378,7 @@ data "aws_iam_policy_document" "developer" {
     resources = ["*"]
   }
 
-  # Secrets Manager (read-only, for checking configuration)
+  # Secrets Manager (read + update dashboard-config only, for local credential bootstrap)
   statement {
     sid    = "SecretsManagerRead"
     effect = "Allow"
@@ -1391,6 +1391,20 @@ data "aws_iam_policy_document" "developer" {
     resources = [
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
+    ]
+  }
+
+  # Secrets Manager (write access scoped only to dashboard-config, for Cognito credential bootstrap)
+  statement {
+    sid    = "SecretsManagerUpdateDashboard"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:UpdateSecret"
+    ]
+
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/dashboard-config*"
     ]
   }
 
