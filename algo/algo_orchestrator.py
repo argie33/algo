@@ -189,7 +189,7 @@ class Orchestrator:
 
             # Emit alert to operations team
             try:
-                from algo.algo_alerts import AlertManager
+                from algo.reporting import AlertManager
                 alerts = AlertManager()
                 alerts.send_position_alert(
                     'DYNAMODB',
@@ -203,7 +203,7 @@ class Orchestrator:
 
             # Emit metric for monitoring
             try:
-                from algo.algo_metrics import MetricsPublisher
+                from algo.reporting import MetricsPublisher
                 MetricsPublisher().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
             except Exception as metric_err:
                 logger.warning(f"Could not emit halt check failure metric: {metric_err}")
@@ -1090,7 +1090,7 @@ class Orchestrator:
 
             # Emit pipeline timing to CloudWatch for monitoring
             try:
-                from algo.algo_metrics import MetricsPublisher
+                from algo.reporting import MetricsPublisher
                 with MetricsPublisher() as metrics:
                     metrics.put_loader_duration("orchestrator_run", total_elapsed)
                     # Determine pipeline context (morning prep vs EOD based on run time)
@@ -1148,7 +1148,7 @@ class Orchestrator:
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:
-            from algo.algo_metrics import MetricsPublisher
+            from algo.reporting import MetricsPublisher
             with MetricsPublisher(dry_run=self.dry_run) as m:
                 m.put_orchestrator_result(result['success'], self.phase_results)
 

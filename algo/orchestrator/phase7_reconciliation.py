@@ -7,7 +7,7 @@ from datetime import date as _date
 from typing import Any, Callable, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
+from algo.reporting import AlertManager
 from utils.trading.recorder import TradeRecorder
 from utils.db.context import DatabaseContext
 
@@ -33,7 +33,7 @@ def run(
         from algo.algo_signal_trade_performance import SignalTradePerformancePopulator
         from algo.algo_signal_attribution import SignalAttributionEngine
         from algo.algo_weight_optimizer import WeightOptimizer
-        from algo.algo_daily_report import DailyFinanceReport
+        from algo.reporting import DailyFinanceReport
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)
@@ -168,7 +168,7 @@ def run(
         perf_status = 'warn'
         perf_summary = 'N/A'
         try:
-            from algo.algo_performance import LivePerformance
+            from algo.reporting import LivePerformance
             perf = LivePerformance(config)
             perf_report = perf.generate_daily_report(run_date)
             if perf_report and perf_report.get('status') == 'ok':

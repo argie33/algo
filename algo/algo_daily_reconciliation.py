@@ -10,7 +10,7 @@ import requests
 from datetime import datetime, timezone, timedelta, date as _date_type
 from utils.trading.status import TradeStatus, PositionStatus
 from algo.infrastructure import get_config, get_api_timeout
-from algo.algo_notifications import notify
+from algo.reporting import notify
 
 logger = logging.getLogger(__name__)
 

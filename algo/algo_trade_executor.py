@@ -29,7 +29,7 @@ from typing import Dict, Any, Optional
 from utils.trading.status import TradeStatus, PositionStatus
 from utils.validation.alpaca import AlpacaResponseValidator
 from utils.db.retry import OptimisticLockRetry, RetryConfig
-from algo.algo_notifications import TradeNotificationService, notify
+from algo.reporting import TradeNotificationService, notify
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
@@ -401,7 +401,7 @@ class TradeExecutor:
                 if not order_result['success']:
                     # Alert on Alpaca API failure
                     try:
-                        from algo.algo_alerts import AlertManager
+                        from algo.reporting import AlertManager
                         AlertManager().send_position_alert(
                             symbol, 'EXECUTION_FAILURE', 'CRITICAL',
                             f'Order submission failed: {order_result.get("message", "Unknown error")}'

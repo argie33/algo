@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from typing import Any, Callable
 
 from utils.db.context import DatabaseContext
-from algo.algo_alerts import AlertManager
+from algo.reporting import AlertManager
 from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)

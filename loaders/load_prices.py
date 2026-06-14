@@ -468,7 +468,7 @@ class PriceLoader(OptimalLoader):
                     logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt})")
                     # Emit success metric
                     try:
-                        from algo.algo_metrics import MetricsPublisher
+                        from algo.reporting import MetricsPublisher
                         metrics = MetricsPublisher()
                         metrics.put_metric('MarketCloseDataAvailable', 1, unit='Count', dimensions={'Status': 'success'})
                         metrics.flush()
@@ -520,14 +520,14 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(f"[{self._correlation_id}] {alert_msg}")
             try:
-                from algo.algo_alerts import AlertManager
+                from algo.reporting import AlertManager
                 AlertManager().critical(alert_msg)
             except Exception as alert_err:
                 logger.error(f"[{self._correlation_id}] Failed to send critical alert: {alert_err}", exc_info=True)
 
         # Emit failure metric with diagnostic info
         try:
-            from algo.algo_metrics import MetricsPublisher
+            from algo.reporting import MetricsPublisher
             metrics = MetricsPublisher()
             metrics.put_metric('MarketCloseDataAvailable', 0, unit='Count',
                              dimensions={'Status': 'timeout', 'LastError': last_error_type or 'unknown', 'ConsecutiveCount': str(self._market_close_timeout_count)})
@@ -807,7 +807,7 @@ class PriceLoader(OptimalLoader):
                     f"persisting for {error_duration/60:.1f}min. yfinance API severely degraded. Failing to prevent timeout."
                 )
                 try:
-                    from algo.algo_metrics import MetricsPublisher
+                    from algo.reporting import MetricsPublisher
                     m = MetricsPublisher()
                     m.put_metric('BatchFetchMinimumSizeReached', 1, unit='Count', dimensions={
                         'table': self.table_name,
@@ -857,7 +857,7 @@ class PriceLoader(OptimalLoader):
                     f"yfinance API experiencing degradation. Failing batch. Check yfinance API status."
                 )
                 try:
-                    from algo.algo_alerts import AlertManager
+                    from algo.reporting import AlertManager
                     alerts = AlertManager()
                     alerts.send_position_alert(
                         'YFINANCE',
@@ -921,7 +921,7 @@ class PriceLoader(OptimalLoader):
 
                 # Emit CloudWatch metric for rate limit occurrence
                 try:
-                    from algo.algo_metrics import MetricsPublisher
+                    from algo.reporting import MetricsPublisher
                     metrics = MetricsPublisher()
                     metrics.add_metric(
                         'RateLimitErrors',
@@ -1339,7 +1339,7 @@ class PriceLoader(OptimalLoader):
                         f"Currently at {completion_pct*100:.1f}% completion. Triggering emergency mode."
                     )
                     try:
-                        from algo.algo_metrics import MetricsPublisher
+                        from algo.reporting import MetricsPublisher
                         m = MetricsPublisher()
                         m.put_metric('LoaderTimeoutAlert', 1, unit='Count', dimensions={
                             'table': self.table_name,
@@ -1393,7 +1393,7 @@ class PriceLoader(OptimalLoader):
                         f"HALTING to trigger failsafe."
                     )
                     try:
-                        from algo.algo_metrics import MetricsPublisher
+                        from algo.reporting import MetricsPublisher
                         m = MetricsPublisher()
                         m.put_metric('RateLimitCircuitBreaker', 1, unit='Count', dimensions={
                             'table': self.table_name,
@@ -1446,7 +1446,7 @@ class PriceLoader(OptimalLoader):
         )
 
         try:
-            from algo.algo_metrics import MetricsPublisher
+            from algo.reporting import MetricsPublisher
             with MetricsPublisher() as m:
                 m.put_loader_result(self.table_name, self._stats)
                 # Publish rate limiting metrics separately if there were errors

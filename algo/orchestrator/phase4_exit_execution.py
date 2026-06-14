@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List
 from utils.trading.status import PositionStatus
 from utils.db.context import DatabaseContext
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
+from algo.reporting import AlertManager
 
 logger = logging.getLogger(__name__)
 

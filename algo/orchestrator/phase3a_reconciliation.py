@@ -6,7 +6,7 @@ from datetime import date as _date
 from typing import Any, Callable, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
+from algo.reporting import AlertManager
 
 logger = logging.getLogger(__name__)
 
