@@ -185,6 +185,9 @@ class Orchestrator:
                 )
                 self.log_phase_result(0, 'halt_flag_detected', 'halted', f'Halt flag detected: {reason[:100]}')
                 return True
+
+            # Halt flag not set in DynamoDB
+            return False
         except Exception as e:
             # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
             # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag

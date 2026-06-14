@@ -20,8 +20,9 @@ export default defineConfig(({ mode }) => {
   // VITE_PROXY_TARGET: Set to the API endpoint to route local /api/* calls.
   //   - AWS mode:   $env:VITE_PROXY_TARGET="https://<api-gateway-url>"  (set by setup-local-dev.ps1)
   //   - Local mode: leave unset → proxies to localhost:3001 (api-proxy-server.py + local Docker DB)
+  // env comes from loadEnv (.env files); process.env catches shell-exported vars like VITE_PROXY_TARGET
   const proxyTarget = isDevelopment
-    ? (env.VITE_PROXY_TARGET || "http://localhost:3001")
+    ? (env.VITE_PROXY_TARGET || process.env.VITE_PROXY_TARGET || "http://localhost:3001")
     : "";
 
   return {

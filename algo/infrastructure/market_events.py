@@ -387,7 +387,7 @@ class MarketEventHandler:
                 executor.submit(self.check_after_hours_window): 'after_hours_window',
             }
 
-            for future in as_completed(futures.keys(), timeout=30):  # type: Future[bool]
+            for future in as_completed(futures, timeout=30):
                 check_name = futures[future]
                 try:
                     result['checks'][check_name] = future.result()
