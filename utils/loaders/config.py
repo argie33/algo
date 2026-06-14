@@ -38,7 +38,7 @@ class LoaderConfigManager:
 
     # Per-loader parallelism constraints: (min, max) to prevent rate limiting or RDS exhaustion
     LOADER_CONSTRAINTS = {
-        "stock_prices_daily": (1, 3),      # Locked at 1 due to yfinance 429 rate limiting; can go to 3 if RDS allows
+        "stock_prices_daily": (1, 6),      # Rate limiter at 160 API calls/min protects against yfinance limits
         "technical_data_daily": (1, 8),    # Can scale up if RDS available
         "buy_sell_daily": (1, 6),          # Critical path, scale cautiously
         "signal_quality_scores": (1, 6),   # Critical path
