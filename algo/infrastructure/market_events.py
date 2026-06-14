@@ -374,14 +374,14 @@ class MarketEventHandler:
         Returns:
             dict with all checks and any alerts
         """
-        result = {
+        result: Dict[str, Any] = {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'checks': {},
             'alerts': [],
         }
 
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
+            futures: Dict[Any, str] = {
                 executor.submit(self.check_early_close): 'early_close',
                 executor.submit(self.check_market_circuit_breaker): 'circuit_breaker',
                 executor.submit(self.check_after_hours_window): 'after_hours_window',
