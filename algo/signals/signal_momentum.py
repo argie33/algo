@@ -283,7 +283,7 @@ class SignalMomentumMixin:
 
         return self._with_cursor(_check_pocket) or {'pocket_pivot': False}
 
-    def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> Dict[str, Any]:
+    def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> int:
         """
         IBD-style distribution day count. A distribution day is when:
           - Close is down >= 0.2% from prior close
