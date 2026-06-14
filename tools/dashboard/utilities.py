@@ -152,11 +152,13 @@ _sector_cache_maxsize = 100
 # ── Helper functions ──────────────────────────────────────────────────────────
 
 _cognito_auth = None
+_cognito_auth_lock = threading.Lock()
 
 def set_cognito_auth(auth):
     """Set the Cognito authentication instance for API calls."""
     global _cognito_auth
-    _cognito_auth = auth
+    with _cognito_auth_lock:
+        _cognito_auth = auth
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
@@ -177,8 +179,10 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     headers = {"Content-Type": "application/json"}
 
     # Add Cognito authorization if available
-    if _cognito_auth:
-        auth_headers = _cognito_auth.get_authorization_header()
+    with _cognito_auth_lock:
+        cognito_auth = _cognito_auth
+    if cognito_auth:
+        auth_headers = cognito_auth.get_authorization_header()
         headers.update(auth_headers)
 
     for attempt in range(API_MAX_RETRIES + 1):
@@ -233,11 +237,12 @@ def normalize_positions_data(data):
     """Unified normalization of positions data structure.
 
     Returns:
-        (positions_list, timestamp, has_error)
+        (positions_list, timestamp, has_error) or
+        ({"_error": "..."}, None, True) on error
     """
     if isinstance(data, dict):
         if data.get("_error"):
-            return [], None, True
+            return data, None, True
         if "items" in data:
             return data.get("items", []), data.get("timestamp"), False
         return [], None, False
@@ -311,9 +316,16 @@ def compute_sector_agg(pos, port):
 
 
 def extract_items_and_error(data):
-    """Extract items array and error message from data dict or list."""
-    if isinstance(data, dict) and "items" in data:
-        return data.get("items", []), data.get("_error")
+    """Extract items array and error message from data dict or list.
+
+    Propagates errors instead of silently hiding them.
+    """
+    if isinstance(data, dict):
+        if data.get("_error"):
+            return [], data.get("_error")
+        if "items" in data:
+            return data.get("items", []), data.get("_error")
+        return [], None
     elif isinstance(data, list):
         return data, None
     else:
@@ -360,15 +372,15 @@ CIRCUIT_BREAKER_RESET_SECONDS = 60
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
-    if _circuit_breaker_state != "open":
-        return False
-    if _circuit_breaker_reset_time and time.time() - _circuit_breaker_reset_time > CIRCUIT_BREAKER_RESET_SECONDS:
-        with _circuit_breaker_lock:
+    with _circuit_breaker_lock:
+        if _circuit_breaker_state != "open":
+            return False
+        if _circuit_breaker_reset_time and time.time() - _circuit_breaker_reset_time > CIRCUIT_BREAKER_RESET_SECONDS:
             _circuit_breaker_state = "half-open"
             _circuit_breaker_failures = 0
             logger.info("Circuit breaker attempting half-open state")
-        return False
-    return True
+            return False
+        return True
 
 def _record_api_failure():
     """Record API failure, open circuit breaker if threshold exceeded."""
