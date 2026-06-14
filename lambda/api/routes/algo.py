@@ -2974,59 +2974,40 @@ def _get_performance_analytics(cur) -> Dict:
 
 @db_route_handler('get sentiment', default_error_response={})
 def _get_sentiment(cur) -> Dict:
-    """Get market sentiment data with explicit fallback flagging.
+    """Get market sentiment data.
 
-    Removed silent fallback to neutral sentiment (50.0). Returns explicit
-    _is_fallback_data flag when data is missing, enabling clients to detect
-    and handle incomplete data rather than displaying stale defaults.
+    Returns current market sentiment (fear/greed index). Returns 503 error
+    if data is unavailable or incomplete, enabling clients to handle data
+    absence explicitly rather than displaying stale defaults.
     """
-    try:
-        freshness = check_data_freshness(cur, 'market_sentiment', 'date', warning_days=1)
+    freshness = check_data_freshness(cur, 'market_sentiment', 'date', warning_days=1)
 
-        cur.execute("""
-            SELECT date, fear_greed_index, label
-            FROM market_sentiment
-            ORDER BY date DESC
-            LIMIT 1
-        """)
-        row = cur.fetchone()
+    cur.execute("""
+        SELECT date, fear_greed_index, label
+        FROM market_sentiment
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    row = cur.fetchone()
 
-        if row is None:
-            logger.warning('Sentiment data missing: market_sentiment table is empty')
-            return success_response({
-                'date': None,
-                'fear_greed_index': None,
-                'label': None,
-                '_is_fallback_data': True,
-                '_warning': 'Sentiment data unavailable',
-                'data_freshness': freshness
-            })
-
-        data = safe_dict_convert(row)
-        fear_greed = data.get('fear_greed_index')
-        label = data.get('label')
-
-        if fear_greed is None or label is None:
-            logger.warning(f'Sentiment data incomplete: fear_greed={fear_greed}, label={label}')
-            return success_response({
-                'date': data.get('date'),
-                'fear_greed_index': fear_greed,
-                'label': label,
-                '_is_fallback_data': True,
-                '_warning': 'Sentiment data incomplete',
-                'data_freshness': freshness
-            })
-
-        return success_response({
-            'date': data.get('date'),
-            'fear_greed_index': safe_float(fear_greed),
-            'label': label,
-            '_is_fallback_data': False,
-            'data_freshness': freshness
-        })
-    except Exception as e:
-        logger.error(f'Sentiment fetch error: {type(e).__name__}: {e}')
+    if row is None:
+        logger.warning('Sentiment data missing: market_sentiment table is empty')
         return error_response(503, 'service_unavailable', 'Sentiment data unavailable')
+
+    data = safe_dict_convert(row)
+    fear_greed = data.get('fear_greed_index')
+    label = data.get('label')
+
+    if fear_greed is None or label is None:
+        logger.warning(f'Sentiment data incomplete: fear_greed={fear_greed}, label={label}')
+        return error_response(503, 'service_unavailable', 'Sentiment data incomplete')
+
+    return success_response({
+        'date': data.get('date'),
+        'fear_greed_index': safe_float(fear_greed),
+        'label': label,
+        'data_freshness': freshness
+    })
 
 @db_route_handler('get economic calendar', default_error_response=[])
 def _get_economic_calendar(cur) -> Dict:
