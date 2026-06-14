@@ -880,15 +880,17 @@ def _get_circuit_breakers(cur) -> Dict:
             # Fetch pre-computed circuit breaker metrics from database
             cbm_data = None
             try:
-                cur.execute("SELECT current_drawdown_pct, daily_loss_pct, weekly_loss_pct, total_risk_pct, consecutive_losses FROM circuit_breaker_metrics LIMIT 1")
+                cur.execute("SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status LIMIT 1")
                 cbm_row = cur.fetchone()
                 if cbm_row:
                     cbm_data = {
-                        'drawdown': safe_float(cbm_row['current_drawdown_pct']) if cbm_row['current_drawdown_pct'] is not None else 0,
+                        'drawdown': safe_float(cbm_row['portfolio_drawdown_pct']) if cbm_row['portfolio_drawdown_pct'] is not None else 0,
                         'daily_loss': safe_float(cbm_row['daily_loss_pct']) if cbm_row['daily_loss_pct'] is not None else 0,
                         'weekly_loss': safe_float(cbm_row['weekly_loss_pct']) if cbm_row['weekly_loss_pct'] is not None else 0,
-                        'total_risk': safe_float(cbm_row['total_risk_pct']) if cbm_row['total_risk_pct'] is not None else 0,
+                        'total_risk': safe_float(cbm_row['open_risk_pct']) if cbm_row['open_risk_pct'] is not None else 0,
                         'consecutive_losses': safe_int(cbm_row['consecutive_losses']) if cbm_row['consecutive_losses'] is not None else 0,
+                        'vix_level': safe_float(cbm_row['vix_level']) if cbm_row['vix_level'] is not None else None,
+                        'market_stage': safe_int(cbm_row['market_stage']) if cbm_row['market_stage'] is not None else 0,
                     }
             except Exception as e:
                 logger.warning(f"Circuit breaker metrics view unavailable: {e}")
@@ -941,12 +943,9 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 3, 'unit': '',
                     'description': 'No closed trades yet'})
 
-            # CB4: VIX spike
+            # CB4: VIX spike (from pre-computed metrics)
             try:
-                cur.execute("SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1")
-                row = cur.fetchone()
-                vix_val = row['vix_level'] if row and row['vix_level'] is not None else None
-                vix = round(float(vix_val), 1) if vix_val is not None else None
+                vix = cbm_data['vix_level'] if cbm_data else None
                 threshold_vix = 35.0
                 breakers.append({
                     'id': 'vix_spike', 'label': 'VIX Spike',
@@ -3081,7 +3080,7 @@ def _get_daily_return_histogram(cur) -> Dict:
         returns = [float(r['daily_return_pct']) for r in rows if r.get('daily_return_pct') is not None]
 
         if not returns:
-            return json_response(200, {'buckets': [], 'stats': None, '_is_placeholder': True})
+            return json_response(200, {'buckets': [], 'stats': None})
 
         bucket_width = 0.5
         min_ret = min(returns)
@@ -3127,7 +3126,7 @@ def _get_trade_distribution(cur) -> Dict:
         r_multiples = [float(r['exit_r_multiple']) for r in rows if r.get('exit_r_multiple') is not None]
 
         if not r_multiples:
-            return json_response(200, {'buckets': [], '_is_placeholder': True})
+            return json_response(200, {'buckets': []})
 
         buckets = [
             {'range': '<-2R', 'count': 0, 'min': -999},
@@ -3176,7 +3175,7 @@ def _get_holding_period_distribution(cur) -> Dict:
         durations = [int(r['trade_duration_days']) for r in rows if r.get('trade_duration_days') is not None]
 
         if not durations:
-            return json_response(200, {'buckets': [], '_is_placeholder': True})
+            return json_response(200, {'buckets': []})
 
         buckets = [
             {'range': '1-3 days', 'count': 0},
@@ -3239,7 +3238,7 @@ def _get_stage_distribution(cur) -> Dict:
         rows = cur.fetchall()
 
         if not rows:
-            return json_response(200, {'distribution': [], '_is_placeholder': True})
+            return json_response(200, {'distribution': []})
 
         distribution = [
             {'phase': r['phase'], 'count': safe_int(r['count'])}
