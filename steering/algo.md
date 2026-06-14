@@ -72,9 +72,14 @@ scripts/refresh-aws-credentials.ps1
 
 ## Loader Configuration
 
-**6 Core Loaders (FAIL-CLOSED):** stock_symbols, stock_prices_daily, swing_trader_scores, market_health_daily, trend_template_data
+**6 Core Loaders (FAIL-CLOSED):**
+- `load_stock_symbols.py` — stock symbols and universe
+- `load_prices.py` — daily OHLCV price data (formerly `load_stock_prices_daily.py`)
+- `load_swing_trader_scores.py` — Minervini-based scoring
+- `load_market_health_daily.py` — market breadth and health metrics
+- `load_trend_criteria_data.py` — Weinstein trend template data (formerly `load_trend_template_data.py`)
 
-**28 Supporting Loaders (FAIL-OPEN):** Earnings, sentiment, technical, etc. Continue if they fail.
+**50 Supporting Loaders (FAIL-OPEN):** Earnings, sentiment, technical, economic, sector, etc. Continue if they fail.
 
 **Parallelism:** Adaptive per-loader based on RDS connection pool. Base config in DynamoDB, reduces automatically if RDS >80% saturated.
 - stock_prices_daily: min=1, max=3 (yfinance rate limit protection)

@@ -11,12 +11,12 @@ export default defineConfig(({ mode }) => {
   const isDevelopment = mode === "development";
   const isProduction = mode === "production";
 
-  // API URL configuration - read from process.env (set by build-prod.js)
-  // In development: leave VITE_API_URL empty so api.js uses relative paths
-  // The Vite proxy will handle routing /api/* to localhost:3001
-  // In production: use explicit URL from VITE_API_URL environment variable
-  const apiUrl = env.VITE_API_URL || ""; // Empty for dev, explicit for prod
-  // Vite proxy target for development (backend running on localhost:3001)
+  // API URL configuration - read from process.env
+  // Development: Vite proxy routes /api/* to localhost:3001 (api-proxy-server.py)
+  // api-proxy-server.py forwards requests to the real AWS Lambda (algo-api-dev)
+  // Production: Uses explicit URL from VITE_API_URL environment variable
+  const apiUrl = env.VITE_API_URL || "";
+  // Vite proxy target - development uses localhost:3001 (api-proxy-server.py)
   const proxyTarget = isDevelopment ? "http://localhost:3001" : "";
 
   return {

@@ -10,8 +10,8 @@ const __dirname = path.dirname(__filename);
 // Get values from environment variables or sensible defaults
 const isDev = process.env.NODE_ENV !== "production" && !process.argv.includes("--production");
 const apiUrl = isDev
-  ? (process.env.VITE_API_URL || "http://localhost:3001")
-  : (process.env.API_URL || process.env.VITE_API_URL || "http://localhost:3001");
+  ? (process.env.VITE_API_URL || "")  // empty = use Vite proxy (set VITE_PROXY_TARGET to route to AWS)
+  : (process.env.API_URL || process.env.VITE_API_URL || "");
 
 const environment = process.env.ENVIRONMENT || "development";
 

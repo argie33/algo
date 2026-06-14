@@ -335,10 +335,10 @@ export function AuthProvider({ children }) {
             console.error("❌ Cognito authentication failed:", error?.message);
           }
 
-          // In development mode, provide dev tokens even with Cognito configured
-          // This allows dev workflows without requiring actual Cognito login
-          if (!isProductionBuild) {
-            console.log('[AUTH] 🔧 Dev mode: Cognito configured but no active session — using dev auto-authentication');
+          // In development mode, provide dev tokens ONLY if Cognito is not configured
+          // With real Cognito config, require real login (don't bypass with fake tokens)
+          if (!isProductionBuild && !isCognitoConfigured()) {
+            console.log('[AUTH] 🔧 Dev mode: Cognito not configured — using dev auto-authentication');
             const devToken = localStorage.getItem('devToken') || 'dev-admin';
             tokenManager.setTokens({
               access: devToken,

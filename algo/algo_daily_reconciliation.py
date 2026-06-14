@@ -874,11 +874,12 @@ class DailyReconciliation:
         """
         try:
             # E4: Information Coefficient (last 8 weeks of closed trades)
-            cur.execute("""
+            lookback = self.config.get('reconciliation_lookback_days', 56)
+            cur.execute(f"""
                 SELECT swing_score, profit_loss_pct, trade_duration_days
                 FROM algo_trades
                 WHERE status = %s
-                  AND exit_date >= NOW()::date - INTERVAL '56 days'
+                  AND exit_date >= NOW()::date - INTERVAL '{lookback} days'
                   AND swing_score IS NOT NULL
                   AND profit_loss_pct IS NOT NULL
                 ORDER BY exit_date
@@ -990,12 +991,13 @@ class DailyReconciliation:
         """E3: Compute MAE/MFE for recently closed trades (last 30 days)."""
         try:
             # Find recently closed trades without MAE/MFE
-            cur.execute("""
+            lookback = self.config.get('position_history_lookback_days', 30)
+            cur.execute(f"""
                 SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price, exit_r_multiple
                 FROM algo_trades
                 WHERE status = %s
                   AND exit_date IS NOT NULL
-                  AND exit_date >= NOW()::date - INTERVAL '30 days'
+                  AND exit_date >= NOW()::date - INTERVAL '{lookback} days'
                   AND (mae_pct IS NULL OR mfe_pct IS NULL)
                 ORDER BY exit_date DESC
             """, (TradeStatus.CLOSED.value,))

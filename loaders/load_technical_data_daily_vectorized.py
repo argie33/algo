@@ -20,13 +20,14 @@ import argparse
 import logging
 import os
 import time
+import threading
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 from utils.database_context import DatabaseContext
 from utils.timezone_utils import EASTERN_TZ
 from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -182,7 +183,7 @@ class VectorizedTechnicalLoader:
                     symbol_df[col] = symbol_df[col].clip(-_DECIMAL84_MAX, _DECIMAL84_MAX)
                     capped_count = ((before.abs() > _DECIMAL84_MAX) & (symbol_df[col].notna())).sum()
                     if capped_count > 0:
-                        logger.warning(f"{symbol}: {capped_count} {col} values capped to ±{_DECIMAL84_MAX} (extreme market conditions)")
+                        logger.warning(f"{symbol}: {capped_count} {col} values capped to +/{_DECIMAL84_MAX} (extreme market conditions)")
 
                 # Moving averages
                 mas = compute_moving_averages(symbol_df['close'])
@@ -302,6 +303,45 @@ class VectorizedTechnicalLoader:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 
+def _update_tech_loader_status(status: str, error_message: str = None):
+    """Update data_loader_status for Phase 1 monitoring."""
+    try:
+        with DatabaseContext('write') as cur:
+            if status == 'RUNNING':
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_started = NOW()
+                    WHERE table_name = %s
+                """, (status, 'technical_data_daily'))
+                if cur.rowcount == 0:
+                    cur.execute("""
+                        INSERT INTO data_loader_status
+                        (table_name, status, last_updated, execution_started)
+                        VALUES (%s, %s, NOW(), NOW())
+                    """, ('technical_data_daily', status))
+            else:
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
+                    WHERE table_name = %s
+                """, (status, error_message, 'technical_data_daily'))
+    except Exception as e:
+        logger.warning(f"Failed to update loader status: {e}")
+
+def _tech_heartbeat_worker(stop_event):
+    """Periodically update last_updated to signal loader is alive."""
+    while not stop_event.is_set():
+        try:
+            time.sleep(60)
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET last_updated = NOW()
+                    WHERE table_name = %s AND status = %s
+                """, ('technical_data_daily', 'RUNNING'))
+        except Exception as e:
+            logger.debug(f"Heartbeat failed: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
@@ -315,58 +355,86 @@ def main():
         args.since = now_et.date().isoformat()
         logger.info(f"[ENV] INTRADAY_MODE=true, loading data since {args.since}")
 
-    # Get symbols
-    try:
-        symbols = get_active_symbols(timeout_secs=300)
-        if args.limit:
-            symbols = symbols[:args.limit]
-        logger.info(f"Loaded {len(symbols)} symbols for vectorized processing")
-    except Exception as e:
-        logger.error(f"Failed to get symbols: {e}")
-        return 1
+    # Update status to RUNNING before fetching symbols
+    _update_tech_loader_status('RUNNING')
 
-    # Parse since date
-    since_date = None
-    if args.since:
+    # Start heartbeat thread for hung task detection
+    stop_heartbeat = threading.Event()
+    heartbeat_thread = threading.Thread(target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=True)
+    heartbeat_thread.start()
+
+    try:
+        # Get symbols
         try:
-            since_date = datetime.strptime(args.since, "%Y-%m-%d").date()
-        except:
-            logger.error(f"Invalid date format: {args.since}")
+            symbols = get_active_symbols(timeout_secs=300)
+            if args.limit:
+                symbols = symbols[:args.limit]
+            logger.info(f"Loaded {len(symbols)} symbols for vectorized processing")
+        except Exception as e:
+            logger.error(f"Failed to get symbols: {e}")
+            _update_tech_loader_status('FAILED', f"Symbol fetch failed: {str(e)}")
             return 1
 
-    # Run vectorized loader
-    loader = VectorizedTechnicalLoader()
-    result = loader.run(symbols, since_date=since_date)
+        # Parse since date
+        since_date = None
+        if args.since:
+            try:
+                since_date = datetime.strptime(args.since, "%Y-%m-%d").date()
+            except:
+                logger.error(f"Invalid date format: {args.since}")
+                _update_tech_loader_status('FAILED', f"Invalid date format: {args.since}")
+                return 1
 
-    logger.info(f"Result: {result}")
+        # Run vectorized loader
+        loader = VectorizedTechnicalLoader()
+        result = loader.run(symbols, since_date=since_date)
 
-    # Log execution time
-    try:
-        with DatabaseContext('write') as cur:
-            cur.execute("""
-                INSERT INTO data_loader_runs (
-                    loader_name, table_name, run_date, status, records_loaded,
-                    duration_seconds, started_at, completed_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                )
-                ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    records_loaded = EXCLUDED.records_loaded,
-                    duration_seconds = EXCLUDED.duration_seconds,
-                    completed_at = NOW()
-            """, (
-                'technical_data_daily_vectorized',
-                'technical_data_daily',
-                date.today(),
-                'completed' if result.get('rows_inserted', 0) > 0 else 'failed',
-                result.get('rows_inserted', 0),
-                result.get('duration_sec', 0)
-            ))
+        logger.info(f"Result: {result}")
+
+        # Update status to COMPLETED or FAILED based on result
+        if result.get('rows_inserted', 0) > 0 or result.get('error') is None:
+            _update_tech_loader_status('COMPLETED')
+            final_status = 'completed'
+        else:
+            _update_tech_loader_status('FAILED', result.get('error', 'Unknown error'))
+            final_status = 'failed'
+
+        # Log execution time
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_runs (
+                        loader_name, table_name, run_date, status, records_loaded,
+                        duration_seconds, started_at, completed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        records_loaded = EXCLUDED.records_loaded,
+                        duration_seconds = EXCLUDED.duration_seconds,
+                        completed_at = NOW()
+                """, (
+                    'technical_data_daily_vectorized',
+                    'technical_data_daily',
+                    date.today(),
+                    final_status,
+                    result.get('rows_inserted', 0),
+                    result.get('duration_sec', 0)
+                ))
+        except Exception as e:
+            logger.error(f"Failed to log execution: {e}")
+
+        return 0 if final_status == 'completed' else 1
+
     except Exception as e:
-        logger.error(f"Failed to log execution: {e}")
-
-    return 0 if result.get('rows_inserted', 0) > 0 else 1
+        logger.error(f"Unexpected error in main: {e}", exc_info=True)
+        _update_tech_loader_status('FAILED', f"Unexpected error: {str(e)}")
+        return 1
+    finally:
+        # Stop heartbeat thread
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=5)
 
 if __name__ == "__main__":
     logging.basicConfig(
