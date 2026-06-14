@@ -333,8 +333,8 @@ def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str
     if isinstance(ts, str):
         try:
             ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-        except:
-            logger.warning(f"Could not parse timestamp in {field_name}")
+        except (ValueError, AttributeError, TypeError) as e:
+            logger.warning(f"Could not parse timestamp in {field_name}: {e}")
             return True
     if not isinstance(ts, datetime):
         return True

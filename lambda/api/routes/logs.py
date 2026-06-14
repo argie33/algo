@@ -114,7 +114,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 else:
                     from datetime import datetime, timezone
                     timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
-            except:
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning(f"Failed to parse log entry timestamp '{timestamp_str}': {e}, using current time")
                 from datetime import datetime, timezone
                 timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
 

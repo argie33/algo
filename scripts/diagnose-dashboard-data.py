@@ -76,17 +76,17 @@ def check_table_exists(conn, table_name):
                 cur.close()
                 if latest_date:
                     break
-            except:
+            except (Exception, AttributeError) as e:
                 try:
                     cur.close()
-                except:
+                except (Exception, AttributeError):
                     pass
 
         return {'exists': True, 'row_count': row_count, 'latest_date': latest_date}
     except Exception as e:
         try:
             cur.close()
-        except:
+        except (Exception, AttributeError):
             pass
         return {'exists': False, 'error': str(e)}
 

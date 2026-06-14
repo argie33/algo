@@ -10,7 +10,8 @@ def get_exports_from_module(filepath: Path) -> list:
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             tree = ast.parse(f.read())
-    except:
+    except (SyntaxError, OSError, UnicodeDecodeError) as e:
+        print(f"Warning: Could not parse {filepath}: {e}")
         return []
 
     exports = []

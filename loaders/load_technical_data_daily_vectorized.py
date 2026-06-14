@@ -25,9 +25,9 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
-from utils.loader_helpers import get_active_symbols
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -249,7 +249,8 @@ class VectorizedTechnicalLoader:
                     ('SPY', start_date, end_date)
                 )
                 return [{'date': r[0], 'close': float(r[1])} for r in cur.fetchall()]
-        except:
+        except Exception as e:
+            logger.error(f"Failed to fetch SPY prices for Mansfield RS: {e}")
             return []
 
     def _bulk_insert(self, df: pd.DataFrame, since_date: date = None) -> int:
@@ -380,8 +381,8 @@ def main():
         if args.since:
             try:
                 since_date = datetime.strptime(args.since, "%Y-%m-%d").date()
-            except:
-                logger.error(f"Invalid date format: {args.since}")
+            except ValueError as e:
+                logger.error(f"Invalid date format: {args.since}: {e}")
                 _update_tech_loader_status('FAILED', f"Invalid date format: {args.since}")
                 return 1
 

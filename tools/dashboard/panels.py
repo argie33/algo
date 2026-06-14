@@ -1,9 +1,12 @@
 """Panel rendering functions for the dashboard display."""
 
 import json
+import logging
 import statistics
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from rich import box
 from rich.align import Align
@@ -56,7 +59,9 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         pdata = p.get("data") or {}
         if isinstance(pdata, str):
             try:    pdata = json.loads(pdata)
-            except: pdata = {}
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse phase data JSON: {e}")
+                pdata = {}
         detail = next(
             (str(pdata[k]) for k in _FIELDS
              if pdata.get(k) and len(str(pdata.get(k))) > 3),
@@ -77,7 +82,9 @@ def _fmt_phases_halted(phases_halted) -> str:
         return ""
     if isinstance(phases_halted, str):
         try:    phases_halted = json.loads(phases_halted)
-        except: phases_halted = [phases_halted]
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to parse phases_halted JSON: {e}")
+            phases_halted = [phases_halted]
     if not isinstance(phases_halted, (list, tuple)):
         return ""
     names = []
@@ -578,7 +585,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
                     from datetime import datetime
                     dt_obj = datetime.fromisoformat(dt.replace('Z', '+00:00'))
                     d_s = dt_obj.strftime("%a")
-                except:
+                except (ValueError, AttributeError, TypeError) as e:
+                    logger.debug(f"Failed to parse datetime {dt}: {e}")
                     d_s = str(dt)[:3]
             else:
                 d_s = str(dt)[:3]
@@ -1445,7 +1453,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"Failed to parse phase data JSON: {e}")
+                    pdata = {}
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]â†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
@@ -1500,7 +1510,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         det = a.get("details") or {}
         if isinstance(det, str):
             try: det = json.loads(det)
-            except: det = {}
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse action details JSON: {e}")
+                det = {}
         sym = det.get("symbol", "")
         ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
@@ -1689,7 +1701,9 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"Failed to parse phase metrics data JSON: {e}")
+                    pdata = {}
             sg = pdata.get("signals_generated")
             ee = pdata.get("entries_executed") or pdata.get("trades_executed")
             xe = pdata.get("exits_executed")
