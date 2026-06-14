@@ -40,10 +40,10 @@ class OptimisticLockRetry:
 
     @staticmethod
     def retry_on_race_condition(
-        operation: Callable[[], T],
+        operation: Callable[[], bool],
         operation_name: str = "database_operation",
         config: Optional[RetryConfig] = None,
-    ) -> T:
+    ) -> bool:
         """Retry an operation if it fails due to optimistic lock conflict (rowcount==0).
 
         Pattern Usage:
