@@ -14,7 +14,9 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Credentials
 
-**Local dev (PowerShell profile):** DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY
+**Local dev (PowerShell profile):** DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, ALPACA_PAPER_TRADING=true, APCA_API_BASE_URL=https://paper-api.alpaca.markets
+
+**Local dev note:** ALPACA_PAPER_TRADING must be 'true' and APCA_API_BASE_URL must point to paper trading endpoint. System fetches Alpaca credentials from AWS Secrets Manager (algo/alpaca); set AWS credentials via `aws configure` or PowerShell profile.
 
 **Production (AWS Secrets Manager):** algo/database, algo/alpaca, algo/fred
 
