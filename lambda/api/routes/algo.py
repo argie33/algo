@@ -437,9 +437,15 @@ def _get_algo_status(cur) -> Dict:
                     'unrealized_pnl_pct': round((safe_float(snap['unrealized_pnl_total']) / pv * 100) if pv > 0 else 0, 2),
                     'open_positions': safe_int(snap['position_count']),
                 }
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.warning(f"[STATUS] Portfolio snapshot unavailable: {type(e).__name__}: {e}")
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'[STATUS] Portfolio snapshot table missing: {type(e).__name__}: {e}')
+            return error_response(503, 'service_unavailable', 'Portfolio data unavailable - table missing')
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f'[STATUS] Portfolio snapshot query failed: {type(e).__name__}: {e}')
+            return error_response(503, 'service_unavailable', 'Database error while fetching portfolio')
+        except Exception as e:
+            logger.error(f'[STATUS] Unexpected error fetching portfolio: {type(e).__name__}: {e}')
+            return error_response(500, 'internal_error', 'Failed to fetch portfolio snapshot')
 
         freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
         return json_response(200, {
@@ -893,8 +899,15 @@ def _get_circuit_breakers(cur) -> Dict:
                         'vix_level': safe_float(cbm_row['vix_level']) if cbm_row['vix_level'] is not None else None,
                         'market_stage': safe_int(cbm_row['market_stage']) if cbm_row['market_stage'] is not None else 0,
                     }
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+                logger.error(f'Circuit breaker metrics table missing: {type(e).__name__}: {e}')
+                return error_response(503, 'service_unavailable', 'Circuit breaker metrics table missing')
+            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.error(f'Circuit breaker metrics query failed: {type(e).__name__}: {e}')
+                return error_response(503, 'service_unavailable', 'Database error fetching circuit breaker metrics')
             except Exception as e:
-                logger.warning(f"Circuit breaker metrics view unavailable: {e}")
+                logger.error(f'Unexpected error fetching circuit breaker metrics: {type(e).__name__}: {e}')
+                return error_response(500, 'internal_error', 'Failed to fetch circuit breaker metrics')
 
             # CB1: Portfolio drawdown (from pre-computed metrics)
             try:
@@ -907,7 +920,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt when drawdown from peak â‰¥ {threshold_dd:.0f}%',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB1 (drawdown) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'drawdown', 'label': 'Portfolio Drawdown',
                     'triggered': False, 'current': 0, 'threshold': 20, 'unit': '%',
                     'description': 'No portfolio data yet'})

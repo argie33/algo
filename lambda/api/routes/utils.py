@@ -436,13 +436,17 @@ def db_route_handler(operation_name: str, default_error_response=None):
     - Unified error logging via handle_db_error()
     - Standard error response formatting with _error field for consistency
 
+    When database errors occur, returns proper error status codes (503, 504, etc.)
+    instead of 200 OK with empty data. This prevents silent data failures that appear
+    successful to clients but contain no data.
+
     Args:
         operation_name: Description of the operation for logging context
-        default_error_response: Default error response dict to return on exception.
-                              If None, returns json_response(code, {...})
+        default_error_response: DEPRECATED - ignored. Errors always return proper HTTP status.
+                              This parameter is kept for backward compatibility.
 
     Example:
-        @db_route_handler('fetch user data', default_error_response={'items': []})
+        @db_route_handler('fetch user data')
         def _get_users(cur): ...
     """
     def decorator(func):
@@ -454,9 +458,8 @@ def db_route_handler(operation_name: str, default_error_response=None):
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, operation_name)
                 logger.error(f'Failed to {operation_name}: {error_type} - {message}')
-                if default_error_response is not None:
-                    # Wrap default error response with success status (graceful degradation)
-                    return success_response(default_error_response)
+                # Always return proper error response with correct HTTP status code
+                # Never return 200 OK with empty data - use proper 503/504/500 instead
                 return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
         return wrapper
     return decorator

@@ -35,7 +35,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     """)
                     aaii_row = cur.fetchone()
                 except Exception as e:
-                    logger.warning(f"Exception caught: {e}")
+                    logger.error(f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}")
 
                 naaim_row = None
                 try:
@@ -48,7 +48,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     """)
                     naaim_row = cur.fetchone()
                 except Exception as e:
-                    logger.warning(f"Exception caught: {e}")
+                    logger.error(f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}")
 
                 analyst_row = None
                 try:
@@ -63,7 +63,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     """)
                     analyst_row = cur.fetchone()
                 except Exception as e:
-                    logger.warning(f"Exception caught: {e}")
+                    logger.error(f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}")
 
                 return json_response(200, {
                     'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,
@@ -234,7 +234,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         'vix_level': float(row['vix_level']) if row['vix_level'] else None,
                         'date': str(row['date']),
                     })
-                return json_response(200, {})
+                return error_response(503, 'no_data', 'Sentiment data not available')
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema not available for sentiment {path}: {str(e)}")

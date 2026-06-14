@@ -12,15 +12,67 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
 
-## Credentials
+## Credentials & Secrets
 
-**Local dev (PowerShell profile):** DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, ALPACA_PAPER_TRADING=true, APCA_API_BASE_URL=https://paper-api.alpaca.markets
+**Credential Sources (Priority Order):**
 
-**Local dev note:** ALPACA_PAPER_TRADING must be 'true' and APCA_API_BASE_URL must point to paper trading endpoint. System fetches Alpaca credentials from AWS Secrets Manager (algo/alpaca); set AWS credentials via `aws configure` or PowerShell profile.
+1. **Environment Variables** (local dev, CI override)
+   - `DASHBOARD_API_URL`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID` (dashboard)
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (database)
+   - `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET` (trading)
+   - `FRED_API_KEY` (economic data)
 
-**Production (AWS Secrets Manager):** algo/database, algo/alpaca, algo/fred
+2. **Terraform Outputs** (after GitHub Actions deploy)
+   - `terraform output -json` fetches: api_url, cognito_user_pool_id, cognito_user_pool_client_id
+   - Stored in S3 remote backend (stocks-terraform-state bucket)
+   - Dashboard reads automatically via `_fetch_terraform_credentials()`
 
-**CI (GitHub Secrets):** API keys + AWS_ACCOUNT_ID, RDS_PASSWORD
+3. **AWS Secrets Manager** (fallback, production)
+   - `algo/dashboard-config` (api_url, cognito_user_pool_id, cognito_user_pool_client_id)
+   - `algo/database` (RDS credentials)
+   - `algo/alpaca` (Alpaca API keys)
+   - `algo/fred` (FRED API key)
+
+**Dashboard Credential Flow (Fully Dynamic):**
+
+```
+User runs: python tools/dashboard/dashboard.py
+  ↓
+Check environment variables (DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID)
+  ↓ (if not set)
+Try Terraform: cd terraform && terraform output -json
+  ↓ (if Terraform fails or outputs empty)
+Try Secrets Manager: algo/dashboard-config secret
+  ↓ (if all fail)
+Show error with setup options
+```
+
+This means: After GitHub Actions deploy-all-infrastructure.yml runs, dashboard automatically fetches fresh config on every startup (no caching, picks up credential rotations).
+
+**Local Dev Setup:**
+
+```powershell
+# Option 1: Manual environment variables
+$env:DASHBOARD_API_URL = "https://api.example.com"
+$env:COGNITO_USER_POOL_ID = "us-east-1_xyz"
+$env:COGNITO_CLIENT_ID = "abc123"
+
+# Option 2: Fetch from Terraform outputs (requires AWS credentials + terraform init)
+cd terraform && terraform output -json
+python tools/dashboard/dashboard.py  # fetches automatically
+
+# Option 3: Local development (no AWS)
+python tools/dashboard/dashboard.py --local  # uses localhost:3001
+```
+
+**Local Database + Trading Credentials (PowerShell profile):**
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, ALPACA_PAPER_TRADING=true, APCA_API_BASE_URL=https://paper-api.alpaca.markets
+
+**Local Dev Note:** ALPACA_PAPER_TRADING must be 'true' and APCA_API_BASE_URL must point to paper trading endpoint. System fetches Alpaca credentials from AWS Secrets Manager (algo/alpaca); set AWS credentials via `aws configure` or PowerShell profile.
+
+**Production (AWS Secrets Manager):** algo/database, algo/alpaca, algo/fred, algo/dashboard-config (created automatically by Terraform)
+
+**CI (GitHub Actions):** AWS_OIDC_ROLE_ARN (for OIDC authentication, no static keys stored)
 
 **Rules:** Rotate quarterly (first Monday of each quarter). If leaked, rotate immediately. Never commit .env files. OIDC for GitHub Actions (no static keys).
 
