@@ -775,6 +775,9 @@ class OptimalLoader(ABC):
                     return False
 
                 completion_pct, symbols_loaded, symbol_count = result
+                # Handle NULL completion_pct for global loaders (non-symbol-based data)
+                if completion_pct is None:
+                    completion_pct = 100.0
                 if completion_pct < 95:
                     logger.critical(
                         f"[UPSTREAM] {self.table_name} depends on {upstream_table}, which is only "
@@ -1036,7 +1039,7 @@ class OptimalLoader(ABC):
                 cache_table = dynamodb.Table(cache_table_name)
 
                 # Invalidate any cached data_loader_status entries
-                run_date = _date.today().isoformat()
+                run_date = date.today().isoformat()
                 cache_key = f"data_loader_status-{run_date}"
                 try:
                     cache_table.delete_item(Key={'cache_key': cache_key})

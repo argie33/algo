@@ -171,7 +171,7 @@ class LoaderConflictDetector:
                 cur.execute("""
                     SELECT COUNT(*) FROM data_loader_status
                     WHERE status = 'RUNNING'
-                    AND loader_name NOT IN ('load_swing_trader_scores_vectorized', 'load_technical_data_daily_vectorized')
+                    AND table_name NOT IN ('swing_trader_scores', 'technical_data_daily')
                 """)
 
                 other_running = cur.fetchone()[0]

@@ -775,6 +775,9 @@ class OptimalLoader(ABC):
                     return False
 
                 completion_pct, symbols_loaded, symbol_count = result
+                # Handle NULL completion_pct for global loaders (non-symbol-based data)
+                if completion_pct is None:
+                    completion_pct = 100.0
                 if completion_pct < 95:
                     logger.critical(
                         f"[UPSTREAM] {self.table_name} depends on {upstream_table}, which is only "
