@@ -7,38 +7,38 @@
 
 -- ============= SENTIMENT TABLES =============
 -- AAII sentiment queries by date range (no current indexes)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_aaii_sentiment_date
+CREATE INDEX IF NOT EXISTS idx_aaii_sentiment_date
 ON aaii_sentiment (date DESC)
 WHERE bullish IS NOT NULL;
 
 -- NAAIM queries by date range
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_naaim_date
+CREATE INDEX IF NOT EXISTS idx_naaim_date
 ON naaim (date DESC)
 WHERE naaim_number_mean IS NOT NULL;
 
 -- Fear & Greed index queries by date range
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_fear_greed_index_date
+CREATE INDEX IF NOT EXISTS idx_fear_greed_index_date
 ON fear_greed_index (date DESC)
 WHERE fear_greed_value IS NOT NULL;
 
 -- ============= SEASONALITY TABLES =============
 -- Seasonality monthly stats (currently unindexed)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_seasonality_monthly_stats_month
+CREATE INDEX IF NOT EXISTS idx_seasonality_monthly_stats_month
 ON seasonality_monthly_stats (month);
 
 -- Seasonality day-of-week (currently unindexed)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_seasonality_day_of_week_day_num
+CREATE INDEX IF NOT EXISTS idx_seasonality_day_of_week_day_num
 ON seasonality_day_of_week (day_num);
 
 -- ============= STOCK SYMBOLS =============
 -- Top-movers query joins on stock_symbols.symbol (currently unindexed)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_symbols_symbol
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol
 ON stock_symbols (symbol)
 WHERE etf IS NULL OR etf != 'Y';
 
 -- ============= PRICE DAILY OPTIMIZATION =============
 -- Breadth calculation self-joins on date (additional index for date-only filters)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_daily_date_symbol
+CREATE INDEX IF NOT EXISTS idx_price_daily_date_symbol
 ON price_daily (date DESC, symbol)
 WHERE close IS NOT NULL AND symbol NOT LIKE '^%';
 
