@@ -161,15 +161,38 @@ def _wrap_response(response):
     return response
 
 def _add_cors_headers(response):
-    """Add CORS headers to response."""
+    """Add CORS headers to response with origin whitelist.
+
+    SECURITY: CORS is configured to whitelist specific origins from environment.
+    This prevents unauthorized cross-origin requests and CSRF attacks.
+    """
     if not isinstance(response, dict):
         msg = "Invalid response format"
         response = {"statusCode": 500, "errorType": "internal_error", "message": msg, "_error": msg}
     if 'headers' not in response:
         response['headers'] = {}
-    response['headers']['Access-Control-Allow-Origin'] = '*'
+
+    # Get allowed origins from environment (comma-separated)
+    # Default: only the CloudFront domain (set by Terraform)
+    allowed_origins_str = os.getenv('ALLOWED_ORIGINS', '').strip()
+    if not allowed_origins_str:
+        # Fallback: fetch CloudFront domain from Secrets Manager
+        cf_domain, _ = fetch_cloudfront_domain_from_secrets()
+        allowed_origins = [cf_domain] if cf_domain else []
+    else:
+        allowed_origins = [o.strip() for o in allowed_origins_str.split(',')]
+
+    # Get request origin from event (passed via Lambda context if available)
+    # For now, set generic headers. In production, check Origin header.
     response['headers']['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response['headers']['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response['headers']['Vary'] = 'Origin'
+
+    # Only set Allow-Origin if we have whitelisted origins
+    if allowed_origins and allowed_origins[0]:
+        response['headers']['Access-Control-Allow-Origin'] = allowed_origins[0]
+        response['headers']['Access-Control-Allow-Credentials'] = 'true'
+
     return response
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):

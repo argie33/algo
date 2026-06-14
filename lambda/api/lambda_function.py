@@ -513,20 +513,6 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
     if not token:
         return (False, None, "No token provided")
 
-    # Development mode: allow simple dev tokens (e.g., "dev-admin")
-    # This supports frontend dev authentication without Cognito JWT
-    is_dev_mode = os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true' or \
-                  os.getenv('ENVIRONMENT', '').lower() == 'development'
-    if is_dev_mode and token.startswith('dev-'):
-        # Create minimal claims for dev token
-        logger.info(f"[DEV_MODE] Accepting development token: {token}")
-        dev_claims = {
-            'sub': 'dev-user',
-            'cognito:groups': ['admin', 'user'],  # Grant admin access for testing
-            'email': 'dev@localhost',
-        }
-        return (True, dev_claims, None)
-
     if len(token) < 50:
         return (False, None, "Token too short")
     if token.count('.') != 2:
