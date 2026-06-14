@@ -526,10 +526,10 @@ locals {
 
     # sector_ranking is now part of the EOD Step Functions pipeline (runs after swing_trader_scores)
     # Removed from EventBridge to ensure it completes BEFORE the orchestrator runs
-    # Pre-computed metrics loaders — run nightly after orchestrator (Phase 7 reconciliation)
+    # Pre-computed metrics loaders ï¿½ run nightly after orchestrator (Phase 7 reconciliation)
     # These metrics are used by API endpoints instead of on-the-fly computation
-    # circuit_breaker_status: 4:30 PM ET (20:30 UTC) — stores 9 circuit breaker metrics for API
-    # algo_performance_metrics: 4:45 PM ET (20:45 UTC) — stores performance stats for API
+    # circuit_breaker_status: 4:30 PM ET (20:30 UTC) ï¿½ stores 9 circuit breaker metrics for API
+    # algo_performance_metrics: 4:45 PM ET (20:45 UTC) ï¿½ stores performance stats for API
     "compute_circuit_breakers" = {
       schedule    = "cron(30 20 ? * MON-FRI *)"
       description = "Pre-compute circuit breaker metrics - Daily 4:30pm ET"
@@ -745,7 +745,7 @@ locals {
 
     # Trend template â€” compute-heavy scoring
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
-    # Pre-computed metrics for API endpoints — pure SQL aggregation, no external APIs
+    # Pre-computed metrics for API endpoints ï¿½ pure SQL aggregation, no external APIs
     # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
     # Runs after Phase 7 reconciliation to capture latest position/trade state
     "compute_circuit_breakers" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -916,6 +916,11 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "TASK_DEFINITION_VERSION_TIMESTAMP"
           value = "2026-06-04T13:45:00Z"
+        },
+        # Python path for module imports (defined in Dockerfile, but set here as redundant safety)
+        {
+          name  = "PYTHONPATH"
+          value = "/app"
         }
         ],
         # Unified price loader: handles all intervals and asset classes
@@ -1091,7 +1096,8 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
         { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) },
         { name = "ORCHESTRATOR_LOCK_TABLE", value = aws_dynamodb_table.orchestrator_locks.name },
-        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
+        { name = "PYTHONPATH", value = "/app" }
       ]
     }
   ])
@@ -1152,7 +1158,8 @@ resource "aws_ecs_task_definition" "data_patrol" {
         { name = "DB_NAME", value = var.db_name },
         { name = "DB_SECRET_ARN", value = var.db_secret_arn },
         { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
-        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
+        { name = "PYTHONPATH", value = "/app" }
       ]
     }
   ])

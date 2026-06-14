@@ -1,12 +1,4 @@
 ﻿#!/usr/bin/env python3
-import sys
-from pathlib import Path
-
-# Add project root to sys.path BEFORE importing loaders module
-loader_dir = Path(__file__).parent
-project_root = loader_dir.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 """
 UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).

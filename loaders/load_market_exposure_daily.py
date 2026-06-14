@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
 
-import sys
-from pathlib import Path
-
-# Add project root to sys.path BEFORE importing algo/utils modules
-loader_dir = Path(__file__).parent
-project_root = loader_dir.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 """
 Load market_exposure_daily: Compute market regime + exposure % from price & market health data.
 

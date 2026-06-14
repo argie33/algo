@@ -6,14 +6,6 @@ Populates all required market_health_daily columns.
 
 Run: python3 load_market_health_daily.py [--parallelism 1]
 """
-import sys
-from pathlib import Path
-
-# Add project root to sys.path BEFORE importing loaders module
-loader_dir = Path(__file__).parent
-project_root = loader_dir.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 from loaders.loader_helper import setup_imports
 setup_imports()
