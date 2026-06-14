@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """FRED Economic Data Loader — Market-wide macroeconomic indicators."""
+from loaders.loader_helper import setup_imports
+setup_imports()
+
 import sys
 import logging
 import os
@@ -88,9 +91,6 @@ SERIES = [
 
 def get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager, fall back to env var."""
-from loaders.loader_helper import setup_imports
-setup_imports()
-
     return get_api_key('algo/fred', 'FRED_API_KEY') or ""
 
 class FredEconomicDataLoader(OptimalLoader):
