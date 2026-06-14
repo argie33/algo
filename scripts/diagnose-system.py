@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 
 def check_database_connection():
@@ -78,7 +79,8 @@ def check_critical_tables():
             healthy = []
             for table in critical_tables:
                 try:
-                    cur.execute(f"SELECT COUNT(*) FROM {table}")
+                    table_safe = assert_safe_table(table)
+                    cur.execute(f"SELECT COUNT(*) FROM {table_safe}")
                     count = cur.fetchone()[0]
                     print(f"[OK] {table:<30} {count:>10,} rows")
                     if count > 0:

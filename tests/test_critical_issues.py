@@ -21,6 +21,7 @@ project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
 import pytest
+from utils.db.sql_safety import assert_safe_table
 
 
 class TestRDSConnectionPool:
@@ -225,7 +226,8 @@ class TestDatabaseConnectivity:
         with DatabaseContext('read') as cur:
             for table in tables:
                 try:
-                    cur.execute(f'SELECT COUNT(*) FROM {table} LIMIT 1')
+                    table_safe = assert_safe_table(table)
+                    cur.execute(f'SELECT COUNT(*) FROM {table_safe} LIMIT 1')
                     cur.fetchone()
                 except Exception as e:
                     pytest.fail(f"Table {table} not accessible: {e}")

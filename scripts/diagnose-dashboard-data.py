@@ -8,6 +8,7 @@ import logging
 import os
 import psycopg2
 from datetime import date
+from utils.db.sql_safety import assert_safe_table, assert_safe_column
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -61,8 +62,9 @@ def check_table_exists(conn, table_name):
             return {'exists': False, 'row_count': 0, 'latest_date': None}
 
         # Get row count with fresh cursor
+        table_safe = assert_safe_table(table_name)
         cur = conn.cursor()
-        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+        cur.execute(f"SELECT COUNT(*) FROM {table_safe}")
         row_count = cur.fetchone()[0]
         cur.close()
 
@@ -70,8 +72,9 @@ def check_table_exists(conn, table_name):
         latest_date = None
         for date_col in ['date', 'snapshot_date', 'report_date', 'metric_date', 'check_date', 'created_at']:
             try:
+                date_col_safe = assert_safe_column(date_col)
                 cur = conn.cursor()
-                cur.execute(f"SELECT MAX({date_col}) FROM {table_name}")
+                cur.execute(f"SELECT MAX({date_col_safe}) FROM {table_safe}")
                 latest_date = cur.fetchone()[0]
                 cur.close()
                 if latest_date:

@@ -38,6 +38,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from algo.algo_orchestrator import Orchestrator
 from algo.infrastructure import MarketCalendar
 from algo.infrastructure import get_config
@@ -137,7 +138,8 @@ class EndToEndIntegrationTest:
         try:
             with DatabaseContext('read') as cur:
                 for table in required_tables:
-                    cur.execute(f"SELECT 1 FROM {table} LIMIT 1")
+                    table_safe = assert_safe_table(table)
+                    cur.execute(f"SELECT 1 FROM {table_safe} LIMIT 1")
                     logger.info(f"✓ Table {table} exists")
                 checks['required_tables'] = True
         except Exception as e:

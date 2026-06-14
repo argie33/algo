@@ -22,6 +22,7 @@ import threading
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
+from pandas.tseries.offsets import CustomBusinessDay
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -208,10 +209,14 @@ class VectorizedTechnicalLoader:
                     # Fetch SPY data for this date range
                     spy_prices = self._fetch_spy_prices(symbol_df['date'].min(), symbol_df['date'].max())
                     if spy_prices:
+                        from algo.infrastructure.market_calendar import US_HOLIDAYS
                         spy_df = pd.DataFrame(spy_prices)
                         spy_df['date'] = pd.to_datetime(spy_df['date'])
                         spy_closes = spy_df.set_index('date')['close']
-                        spy_aligned = spy_closes.reindex(symbol_df['date'].values)
+
+                        holidays = list(US_HOLIDAYS.keys())
+                        cbd = CustomBusinessDay(holidays=holidays)
+                        spy_aligned = spy_closes.reindex(symbol_df['date'].values, freq=cbd)
 
                         rs_line = symbol_df['close'].values / spy_aligned.values
                         rs_line_s = pd.Series(rs_line, index=symbol_df.index)
