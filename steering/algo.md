@@ -12,6 +12,39 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
 
+## API Error Handling
+
+**Problem Solved (June 14, 2026):** Endpoints were returning HTTP 200 with empty data objects (`{}`, `{buckets: []}`) when database queries failed, masking errors and making them invisible to clients. This created silent data failures where pages appeared to load successfully but showed blank charts and missing data.
+
+**Solution:** All database errors now return proper HTTP status codes with error details:
+- **503 Service Unavailable:** Database unreachable or schema missing (tables not created yet)
+- **504 Gateway Timeout:** Query exceeded timeout (more than 15 seconds)
+- **500 Internal Error:** Unexpected errors
+- Never return 200 OK with empty data
+
+**Implementation:**
+- `db_route_handler` decorator in `lambda/api/routes/utils.py` always returns error responses, never graceful degradation
+- Removed `default_error_response` parameter from all endpoints (was masking errors with success_response)
+- Fixed `/api/sentiment` endpoint that was returning `{}` on missing data
+- Improved error logging (changed warning→error) for optional data fetches
+
+**Frontend Implications:**
+- Must now handle 503/504/500 errors as actual errors, not check for empty data
+- Display error alerts instead of blank charts when 503 returned
+- Retry logic recommended for 503/504 (transient errors)
+
+**Affected Endpoints:**
+- Daily return histogram, trade distribution, holding period distribution, stage distribution
+- Algo portfolio, risk metrics, performance analytics, sentiment
+- Economic calendar
+
+**Verification:**
+```bash
+# Test: Empty table → 503 error (not empty {}), clear error message
+curl https://api.example.com/api/algo/sentiment
+# Returns: {"statusCode":503,"errorType":"no_data","message":"Sentiment data not available","_error":"..."}
+```
+
 ## Credentials & Secrets
 
 **Credential Sources (Priority Order):**
