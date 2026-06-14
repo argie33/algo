@@ -6,29 +6,20 @@ import setup_imports  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-# Static imports for critical routes - import errors fail fast at startup
+# health is the only truly critical route — if it fails the API can't self-report its own status
 try:
     from routes import health
 except ImportError as e:
     raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
 
-try:
-    from routes import algo
-except ImportError as e:
-    raise RuntimeError(f"CRITICAL: Failed to import routes.algo (required for API to function): {e}") from e
-
-try:
-    from routes import openapi_spec
-except ImportError as e:
-    raise RuntimeError(f"CRITICAL: Failed to import routes.openapi_spec (required for API documentation): {e}") from e
-
 # Import routes gracefully - if a single module fails, others still work
 _ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
-_CRITICAL_ROUTES = {'health', 'algo'}  # Routes that must load for API to function
+_CRITICAL_ROUTES = {'health'}
 
-# Critical routes are imported statically above; these are optional routes with graceful fallback
+# All optional routes: loaded with graceful fallback — one module failing doesn't break others
 _OPTIONAL_ROUTE_MODULES = [
+    'algo', 'openapi_spec',
     'logs', 'financials', 'earnings', 'signals', 'prices', 'stocks',
     'sectors', 'industries', 'market', 'economic', 'sentiment',
     'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'risk_dashboard',
@@ -40,10 +31,8 @@ _STARTUP_TIME = None
 _IMPORT_DURATION = None
 _STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration updates
 
-# Populate available routes with statically imported critical routes
+# Populate health (statically imported above)
 _AVAILABLE_ROUTES['health'] = health
-_AVAILABLE_ROUTES['algo'] = algo
-_AVAILABLE_ROUTES['openapi_spec'] = openapi_spec
 
 # Dynamically import optional routes with error handling
 for module_name in _OPTIONAL_ROUTE_MODULES:

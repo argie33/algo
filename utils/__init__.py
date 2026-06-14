@@ -1,44 +1,10 @@
 #!/usr/bin/env python3
-
-from utils.db.context import DatabaseContext
-from utils.db.connection import get_db_connection
-from utils.infrastructure.conversion import safe_int, safe_float
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.logging.logger import get_logger
-from utils.trading.status import TradeStatus, PositionStatus
-from utils.signals.metrics import MetricsCalculator
-from utils.signals.grade_classifier import GradeClassifier
-from utils.signals.scorer import SignalScorer
-from utils.signals.query_builder import SignalQueryBuilder
-from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.market_timing import (
-    MARKET_OPEN_HOUR,
-    MARKET_CLOSE_HOUR,
-    MARKET_OPEN_MINUTE,
-    MARKET_CLOSE_MINUTE,
-)
-
-__all__ = [
-    # Core infrastructure
-    'DatabaseContext',
-    'get_db_connection',
-    'get_logger',
-    # Data conversion & validation
-    'safe_int',
-    'safe_float',
-    # Business logic
-    'TradeStatus',
-    'PositionStatus',
-    'MetricsCalculator',
-    'GradeClassifier',
-    'SignalScorer',
-    'SignalQueryBuilder',
-    # Data loading
-    'OptimalLoader',
-    # Configuration & constants
-    'EASTERN_TZ',
-    'MARKET_OPEN_HOUR',
-    'MARKET_CLOSE_HOUR',
-    'MARKET_OPEN_MINUTE',
-    'MARKET_CLOSE_MINUTE',
-]
+# utils package — import from submodules directly, e.g.:
+#   from utils.db.context import DatabaseContext
+#   from utils.validation import safe_float
+#   from utils.error_handlers import make_error_response
+#
+# Do NOT add eager imports here. Any import from utils.* triggers this file,
+# so eagerly importing heavy submodules (utils.db, signals, loaders) causes
+# them to load in every context — including the API Lambda — even when unused.
+# That was the root cause of "No module named algo" crashing the entire API.
