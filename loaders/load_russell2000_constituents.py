@@ -8,9 +8,6 @@ import requests
 
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timeout import ExecutionTimeout
-from loaders.loader_helper import setup_imports
-setup_imports()
-
 logger = logging.getLogger(__name__)
 
 class Russell2000ConstituentsLoader(OptimalLoader):

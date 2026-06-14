@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """Fear & Greed Index Loader - Market Sentiment Indicators (Market-wide)."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

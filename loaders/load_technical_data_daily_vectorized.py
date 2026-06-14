@@ -12,8 +12,6 @@ Performance: 5000 symbols in 15-25 minutes vs 60-90 minutes with per-symbol appr
 
 Run: python3 loaders/load_technical_data_daily_vectorized.py [--limit 100]
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse

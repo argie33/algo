@@ -6,8 +6,6 @@ Income Statement Loader -â€ annual and quarterly from SEC EDGAR.
 Period determined by LOADER_PERIOD env var (financials_annual_income / financials_quarterly_income)
 or --period CLI flag for manual runs.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import logging
 import argparse

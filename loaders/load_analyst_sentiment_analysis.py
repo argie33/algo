@@ -33,8 +33,6 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadanalystsentiment.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import argparse
 import logging

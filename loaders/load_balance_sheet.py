@@ -7,8 +7,6 @@ Balance Sheet Loader â€" annual and quarterly from SEC EDGAR.
 Period determined by LOADER_PERIOD env var (financials_annual_balance / financials_quarterly_balance)
 or --period CLI flag for manual runs.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import logging
 import argparse

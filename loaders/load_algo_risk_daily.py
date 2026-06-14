@@ -10,8 +10,6 @@ Calculates from:
 
 Risk metrics updated hourly during market hours.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

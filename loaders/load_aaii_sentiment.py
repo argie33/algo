@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """AAII Sentiment Survey Loader - Investor Sentiment Indicators (Market-wide data)."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

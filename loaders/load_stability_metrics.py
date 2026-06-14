@@ -9,8 +9,6 @@ Computes:
 
 Requires: price_daily table populated with at least 252 days of data.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse

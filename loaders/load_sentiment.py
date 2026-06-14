@@ -10,9 +10,6 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-from loaders.loader_helper import setup_imports
-setup_imports()
-
 class SentimentLoader(OptimalLoader):
     """Load market sentiment from available sources."""
     table_name = "sentiment"

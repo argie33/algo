@@ -14,8 +14,6 @@ Grade thresholds:
 
 Runs after swing_trader_scores is loaded (end of day pipeline).
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

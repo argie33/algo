@@ -14,8 +14,6 @@ Final composite score is weighted average of all factors.
 
 Run: python3 loaders/load_stock_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse

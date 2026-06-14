@@ -8,8 +8,6 @@ Pre-computes daily economic metrics for dashboard consumption:
 - spy_price_change_pct: SPY daily price change percentage
 - yield_curve_slope: 10Y - 2Y yield spread
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

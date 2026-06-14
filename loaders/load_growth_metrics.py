@@ -6,8 +6,6 @@ Growth Metrics Loader - Computes multi-year growth metrics from annual financial
 Metrics: Revenue Growth (1Y, 3Y, 5Y), EPS Growth (1Y, 3Y, 5Y), Growth Score (0-100).
 Requires: annual_income_statement populated.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import argparse
 import logging

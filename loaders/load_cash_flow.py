@@ -6,8 +6,6 @@ Cash Flow Loader -â€ annual and quarterly from SEC EDGAR.
 Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financials_quarterly_cashflow)
 or --period CLI flag for manual runs.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import logging
 import argparse

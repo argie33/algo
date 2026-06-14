@@ -7,8 +7,6 @@ Populates all required market_health_daily columns.
 Run: python3 load_market_health_daily.py [--parallelism 1]
 """
 
-from loaders.loader_helper import setup_imports
-setup_imports()
 import argparse
 from datetime import date, datetime, timedelta
 from typing import List, Optional

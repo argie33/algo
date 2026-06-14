@@ -13,8 +13,6 @@ Computes fundamental quality metrics from annual financials:
 
 Requires: annual_income_statement, annual_balance_sheet populated
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import logging
 

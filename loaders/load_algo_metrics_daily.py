@@ -11,9 +11,6 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-from loaders.loader_helper import setup_imports
-setup_imports()
-
 class AlgoMetricsDailyLoader(OptimalLoader):
     """Compute and store daily algo performance metrics."""
     table_name = "algo_metrics_daily"

@@ -9,8 +9,6 @@ Fetches:
 
 Requires: active symbols list.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse

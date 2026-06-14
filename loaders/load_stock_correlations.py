@@ -15,8 +15,6 @@ Computes:
 
 Run: python3 load_stock_correlations.py [--symbols "AAPL,MSFT,SPY" --parallelism 1]
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import argparse
 from datetime import date, datetime, timedelta

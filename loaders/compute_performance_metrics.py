@@ -17,8 +17,6 @@ Metrics computed:
 - Avg holding days
 - Best/worst streaks
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import psycopg2
 import psycopg2.extras

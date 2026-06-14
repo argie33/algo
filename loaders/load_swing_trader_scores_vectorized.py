@@ -12,8 +12,6 @@ Use:
 
 Run: python3 loaders/load_swing_trader_scores_vectorized.py [--today]
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse

@@ -12,9 +12,6 @@ from utils.loaders.config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
-from loaders.loader_helper import setup_imports
-setup_imports()
-
 class CompanyProfileLoader(OptimalLoader):
     """Load company profiles with sector and industry from yfinance."""
     table_name = "company_profile"

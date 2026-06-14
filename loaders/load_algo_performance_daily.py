@@ -9,8 +9,6 @@ Calculates all-time rolling metrics for the current trading day based on:
 CRITICAL: Uses central MetricsCalculator for all calculations to ensure consistency
 across loaders, API, and dashboard. Never recalculate metrics locally.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging

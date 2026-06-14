@@ -13,8 +13,6 @@ Metrics computed:
 - CB8: SPY prior-day change %
 - CB9: Win rate (last 30 trades)
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import psycopg2
 import psycopg2.extras

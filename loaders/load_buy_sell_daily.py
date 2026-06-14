@@ -4,8 +4,6 @@
 Generates daily trading signals from technical indicators and quality scores.
 Populates the buy_sell_daily table.
 """
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import argparse
@@ -31,23 +29,75 @@ class SignalsDailyLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
+    def _prepare_batch_context(self) -> None:
+        """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
+
+        Queries that depend on end_date, not symbol:
+        - How many symbols have prices on the target date (denominator for completeness check)
+        - How many symbols have technical data on the target date (coverage check)
+
+        Instead of querying these 10,506 times (once per symbol), query them once
+        and cache in _batch_context.
+        """
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+        from algo.infrastructure import MarketCalendar
+
+        self._batch_context = {}
+        try:
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
+
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                    (end,)
+                )
+                price_row = cur.fetchone()
+                price_coverage_symbols = price_row[0] if price_row else 0
+
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
+                    (end,)
+                )
+                tech_row = cur.fetchone()
+                tech_coverage_symbols = tech_row[0] if tech_row else 0
+
+            self._batch_context = {
+                "end_date": end,
+                "price_coverage_symbols": price_coverage_symbols,
+                "tech_coverage_symbols": tech_coverage_symbols,
+            }
+            logger.debug(
+                f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
+                f"tech_coverage={tech_coverage_symbols}"
+            )
+        except Exception as e:
+            logger.warning(f"Batch context preparation failed: {e}")
+            self._batch_context = {}
+
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
         from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
         from zoneinfo import ZoneInfo
 
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
-        # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
-        now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(EASTERN_TZ)
-        end = now_et.date()
-
-        # If today (ET) is not a trading day, use yesterday instead
-        # (prevents generating signals for non-trading days when no new data exists)
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-            end = end - timedelta(days=1)
+        # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
+        # instead of recomputing and re-verifying trading day for each symbol.
+        # This eliminates per-symbol timezone and trading day calculations.
+        if self._batch_context and "end_date" in self._batch_context:
+            end = self._batch_context["end_date"]
+        else:
+            # Fallback if batch context unavailable
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
 
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-fetching old data and causing constraint violations.
@@ -114,12 +164,10 @@ class SignalsDailyLoader(OptimalLoader):
                 # This correctly identifies partial failures (e.g., 46% on June 5 = anomaly)
                 # while allowing normal operations to proceed.
 
-                cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                    (end,)
-                )
-                cur_row = cur.fetchone()
-                price_coverage_symbols = cur_row[0] if cur_row else 0
+                # ROOT CAUSE #4 FIX: Use cached counts from batch context (computed once)
+                # instead of querying per-symbol. Eliminates ~20k per-symbol database queries.
+                price_coverage_symbols = self._batch_context.get("price_coverage_symbols", 0) if self._batch_context else 0
+                tech_coverage_symbols = self._batch_context.get("tech_coverage_symbols", 0) if self._batch_context else 0
 
                 # Require at least 3000 symbols with prices before generating signals
                 if price_coverage_symbols < 3000:
@@ -130,13 +178,6 @@ class SignalsDailyLoader(OptimalLoader):
                     )
                     self._log_rejection_if_available(symbol, end, "price_daily_incomplete_coverage")
                     return []
-
-                cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
-                    (end,)
-                )
-                cur_row = cur.fetchone()
-                tech_coverage_symbols = cur_row[0] if cur_row else 0
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
 

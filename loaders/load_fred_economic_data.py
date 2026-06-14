@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """FRED Economic Data Loader — Market-wide macroeconomic indicators."""
-from loaders.loader_helper import setup_imports
-setup_imports()
 
 import sys
 import logging
