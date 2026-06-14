@@ -707,30 +707,35 @@ function PortfolioDashboardPage() {
             </div>
           </div>
           <div className="card-body">
-            <div className="grid grid-4">
-              <Stile
-                label="Exposure Target"
-                value={<span className="mono tnum">{markets?.current?.exposure_pct ?? '—'}%</span>}
-                sub={(markets?.current?.regime || '').toString().toUpperCase()}
-              />
-              <Stile
-                label="Market Score"
-                value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
-                sub="12-factor composite"
-              />
-              <Stile
-                label="VIX"
-                value={<span className="mono tnum">{num(market.vix, 1)}</span>}
-                sub={market.vix > 25 ? 'elevated' : market.vix > 15 ? 'normal' : 'low'}
-              />
-              <Stile
-                label="Distribution Days"
-                value={<span className={`mono tnum ${market.distribution_days >= 5 ? 'down' : ''}`}>
-                  {market.distribution_days ?? 0}
-                </span>}
-                sub="trailing 4 weeks"
-              />
-            </div>
+            {(() => {
+              const safeCurrent = safeGetMarketCurrent(markets);
+              return (
+                <div className="grid grid-4">
+                  <Stile
+                    label="Exposure Target"
+                    value={<span className="mono tnum">{safeCurrent?.exposure_pct ?? '—'}%</span>}
+                    sub={(safeCurrent?.regime || 'unknown').toString().toUpperCase()}
+                  />
+                  <Stile
+                    label="Market Score"
+                    value={<span className="mono tnum">{safeCurrent?.raw_score ?? '—'}/100</span>}
+                    sub="12-factor composite"
+                  />
+                  <Stile
+                    label="VIX"
+                    value={<span className="mono tnum">{num(market.vix, 1)}</span>}
+                    sub={market.vix > 25 ? 'elevated' : market.vix > 15 ? 'normal' : 'low'}
+                  />
+                  <Stile
+                    label="Distribution Days"
+                    value={<span className={`mono tnum ${market.distribution_days >= 5 ? 'down' : ''}`}>
+                      {market.distribution_days ?? 0}
+                    </span>}
+                    sub="trailing 4 weeks"
+                  />
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -2123,7 +2123,7 @@ def _get_markets(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
+            logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_health_daily and sector_health tables\n  Endpoint: GET /api/algo/markets')
             return error_response(503, 'service_unavailable', 'Failed to fetch markets: database connection failed')
 
 def _get_market(cur) -> Dict:
@@ -2201,7 +2201,7 @@ def _get_market(cur) -> Dict:
         return json_response(200, {'data': data})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
+        logger.error(f'Failed to fetch market: {type(e).__name__}: {e}\n  Operation: Query market_health_daily with date filter\n  Endpoint: GET /api/algo/market')
         return error_response(503, 'service_unavailable', 'Failed to fetch market data')
 
 def _get_market_factors(cur) -> Dict:
@@ -2250,7 +2250,7 @@ def _get_market_factors(cur) -> Dict:
         return json_response(200, {'data': data})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
+        logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}\n  Operation: Calculate market exposure factors\n  Endpoint: GET /api/algo/market-factors')
         return error_response(503, 'service_unavailable', 'Failed to fetch market factors')
 
 def _get_algo_evaluate(cur) -> Dict:
@@ -2364,7 +2364,7 @@ def _get_algo_evaluate(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}', extra={'operation': 'get algo evaluate'})
+            logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}\n  Operation: Evaluate algorithm with signals and constraints\n  Endpoint: GET /api/algo/evaluate')
             return json_response(200, {'signals': {'total_candidates': 0}, 'constraints': {}, 'sector_exposure': {}, 'portfolio_health': {}})
 def _get_data_quality(cur) -> Dict:
         """Get detailed data quality summary by table from latest data_patrol_log run."""
@@ -2556,7 +2556,7 @@ def _get_exposure_policy(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}', extra={'operation': 'get exposure policy'})
+            logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}\n  Operation: Calculate exposure policy and market regime\n  Endpoint: GET /api/algo/exposure-policy')
             return json_response(200, {'current_exposure_pct': 0, 'regime': 'unknown', 'halt_reasons': [], 'factor_quality': 'unavailable', 'factors': {}, 'as_of': None})
 def _get_sector_stage2(cur) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""

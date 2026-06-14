@@ -347,7 +347,8 @@ def safe_dict_convert(row):
     try:
         return dict(row)
     except (KeyError, ValueError, TypeError) as e:
-        logger.error(f"Failed to convert row to dict: {type(e).__name__}: {e}")
+        row_keys = list(row.keys()) if hasattr(row, 'keys') else 'unknown'
+        logger.error(f"Failed to convert row to dict: {type(e).__name__}: {e}\n  Row keys: {row_keys}\n  Row type: {type(row).__name__}\n  Context: DictCursor row conversion (possible schema mismatch)")
         try:
             if hasattr(row, 'keys'):
                 return {k: row[k] for k in row.keys() if k is not None}

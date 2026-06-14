@@ -1096,17 +1096,23 @@ function CreditSpreadsPanel({ yieldData }) {
 }
 
 function NaaimPanel({ naaim }) {
-  const current = naaim?.current?.value ?? naaim?.current ?? naaim?.naaim_number_mean;
-  if (current == null) return null;
+  if (!naaim || typeof naaim !== 'object') return null;
 
-  const val = +current;
+  const current = naaim?.current?.value ?? naaim?.current ?? naaim?.naaim_number_mean ?? null;
+  if (current == null || isNaN(Number(current))) return null;
+
+  const val = Number(current);
   // Zone classification: <30 very defensive, 30-50 defensive, 50-75 healthy, >75 extended
   const zone = val > 80 ? 'extended' : val >= 50 ? 'healthy' : val >= 30 ? 'defensive' : 'very_defensive';
   const zoneColor = zone === 'healthy' ? 'var(--success)' : zone === 'extended' ? 'var(--amber)' : 'var(--danger)';
   const zoneLabel = zone === 'healthy' ? 'Healthy Risk Appetite' : zone === 'extended' ? 'Extended — Watch for Reversion' : zone === 'defensive' ? 'Defensive Positioning' : 'Very Defensive — Capitulation Risk';
 
   const history = Array.isArray(naaim?.history) ? naaim.history : [];
-  const chartData = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const chartData = [...history].filter(d => d && typeof d === 'object').sort((a, b) => {
+    const aDate = a?.date ? new Date(a.date) : new Date(0);
+    const bDate = b?.date ? new Date(b.date) : new Date(0);
+    return aDate - bDate;
+  });
 
   return (
     <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
@@ -1563,26 +1569,32 @@ function LEIPanel({ indicators }) {
 }
 
 function TipsBreakevenPanel({ t5y, t10y, yieldData }) {
-  const t5hist = Array.isArray(t5y?.history) ? t5y.history : Array.isArray(yieldData?.breakevens?.history?.T5YIE) ? yieldData.breakevens.history.T5YIE : [];
-  const t10hist = Array.isArray(t10y?.history) ? t10y.history : Array.isArray(yieldData?.breakevens?.history?.T10YIE) ? yieldData.breakevens.history.T10YIE : [];
-  const t5cur = t5y?.rawValue ?? yieldData?.breakevens?.current?.T5YIE;
-  const t10cur = t10y?.rawValue ?? yieldData?.breakevens?.current?.T10YIE;
+  const t5hist = Array.isArray(t5y?.history) ? t5y.history : (yieldData && yieldData.breakevens && yieldData.breakevens.history && Array.isArray(yieldData.breakevens.history.T5YIE) ? yieldData.breakevens.history.T5YIE : []);
+  const t10hist = Array.isArray(t10y?.history) ? t10y.history : (yieldData && yieldData.breakevens && yieldData.breakevens.history && Array.isArray(yieldData.breakevens.history.T10YIE) ? yieldData.breakevens.history.T10YIE : []);
+  const t5cur = t5y?.rawValue ?? (yieldData && yieldData.breakevens && yieldData.breakevens.current ? yieldData.breakevens.current.T5YIE : null);
+  const t10cur = t10y?.rawValue ?? (yieldData && yieldData.breakevens && yieldData.breakevens.current ? yieldData.breakevens.current.T10YIE : null);
 
   const combined = (() => {
     const map = new Map();
     [...t5hist].filter((_, i) => i % 5 === 0).forEach(p => {
+      if (!p || !p.date || !p.value) return;
       const k = String(p.date).slice(0, 10);
       const cur = map.get(k) || { date: k };
-      cur.t5y = +p.value;
+      cur.t5y = Number(p.value);
       map.set(k, cur);
     });
     [...t10hist].filter((_, i) => i % 5 === 0).forEach(p => {
+      if (!p || !p.date || !p.value) return;
       const k = String(p.date).slice(0, 10);
       const cur = map.get(k) || { date: k };
-      cur.t10y = +p.value;
+      cur.t10y = Number(p.value);
       map.set(k, cur);
     });
-    return [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+    return [...map.values()].sort((a, b) => {
+      const aDate = a?.date ? new Date(a.date) : new Date(0);
+      const bDate = b?.date ? new Date(b.date) : new Date(0);
+      return aDate - bDate;
+    });
   })();
 
   if (combined.length < 5) return null;
@@ -1636,23 +1648,27 @@ function TipsBreakevenPanel({ t5y, t10y, yieldData }) {
 
 function InflationVsFedChart({ cpiHist, corePceHist, fedHist }) {
   const map = new Map();
-  [...(cpiHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+  [...(cpiHist || [])].filter(p => p && p.date && p.value != null).sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
     const k = String(p.date).slice(0, 7);
-    map.set(k, { date: k, cpi: +p.value });
+    map.set(k, { date: k, cpi: Number(p.value) });
   });
-  [...(corePceHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
-    const k = String(p.date).slice(0, 7);
-    const cur = map.get(k) || { date: k };
-    cur.corePce = +p.value;
-    map.set(k, cur);
-  });
-  [...(fedHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+  [...(corePceHist || [])].filter(p => p && p.date && p.value != null).sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
     const k = String(p.date).slice(0, 7);
     const cur = map.get(k) || { date: k };
-    cur.fed = +p.value;
+    cur.corePce = Number(p.value);
     map.set(k, cur);
   });
-  const data = [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-48);
+  [...(fedHist || [])].filter(p => p && p.date && p.value != null).sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+    const k = String(p.date).slice(0, 7);
+    const cur = map.get(k) || { date: k };
+    cur.fed = Number(p.value);
+    map.set(k, cur);
+  });
+  const data = [...map.values()].sort((a, b) => {
+    const aDate = a?.date ? new Date(a.date) : new Date(0);
+    const bDate = b?.date ? new Date(b.date) : new Date(0);
+    return aDate - bDate;
+  }).slice(-48);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
