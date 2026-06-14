@@ -657,7 +657,8 @@ class Orchestrator:
                     ),
                 )
         except Exception as e:
-            logger.warning(f"Warning: Could not persist audit log entry: {e}")
+            logger.critical(f"[AUDIT_FAILURE] Could not persist audit log entry for phase {phase_num}: {e}")
+            raise
 
     # ---------- Phase implementations ----------
 
@@ -1113,20 +1114,19 @@ class Orchestrator:
         }
 
         # FIXED Issue #6: Save execution log for audit trail
-        try:
-            if any_error:
-                overall_status = 'error'
-                halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'error'), None)
-            elif any_halt:
-                overall_status = 'halted'
-                halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'halt'), None)
-            else:
-                overall_status = 'success'
-                halt_reason = None
+        if any_error:
+            overall_status = 'error'
+            halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'error'), None)
+        elif any_halt:
+            overall_status = 'halted'
+            halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'halt'), None)
+        else:
+            overall_status = 'success'
+            halt_reason = None
 
-            self.execution_tracker.save_execution_log(overall_status, halt_reason)
-        except Exception as e:
-            logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
+        if not self.execution_tracker.save_execution_log(overall_status, halt_reason):
+            logger.critical(f"[AUDIT_FAILURE] Could not save execution log for run {self.run_id}")
+            raise RuntimeError("Execution log persistence failed — cannot trust audit trail")
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:

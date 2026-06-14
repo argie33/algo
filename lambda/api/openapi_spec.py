@@ -440,11 +440,11 @@ def _get_paths():
                 }
             }
         },
-        "/api/contact": {
+        "/api/algo/preview": {
             "post": {
-                "tags": ["Contact"],
-                "summary": "Submit contact form",
-                "description": "Submit feedback or support request",
+                "tags": ["Algo", "Trading"],
+                "summary": "Preview trade position sizing",
+                "description": "Calculate position preview before trade entry with request validation via Pydantic TradePreviewRequest",
                 "requestBody": {
                     "required": True,
                     "content": {
@@ -452,19 +452,77 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "name": {"type": "string"},
-                                    "email": {"type": "string", "format": "email"},
-                                    "subject": {"type": "string"},
-                                    "message": {"type": "string"}
+                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
+                                    "entry_price": {"type": "number", "description": "Proposed entry price (must be > 0)", "exclusiveMinimum": 0},
+                                    "stop_loss_price": {"type": "number", "description": "Stop loss price (optional, must be < entry_price)"}
                                 },
-                                "required": ["email", "subject", "message"]
+                                "required": ["symbol", "entry_price"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {"description": "Trade preview with position sizing", "content": {"application/json": {"schema": {"type": "object"}}}},
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "500": {"$ref": "#/components/responses/InternalError"}
+                }
+            }
+        },
+        "/api/algo/pre-trade-impact": {
+            "post": {
+                "tags": ["Algo", "Trading"],
+                "summary": "Analyze pre-trade portfolio impact",
+                "description": "Analyze impact of potential trade on portfolio constraints with request validation via Pydantic PreTradeImpactRequest",
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
+                                    "entry_price": {"type": "number", "description": "Proposed entry price (optional, must be > 0)"},
+                                    "position_dollars": {"type": "number", "description": "Position size in dollars (optional, must be > 0)"},
+                                    "position_pct": {"type": "number", "description": "Position size as percentage of portfolio (optional, 0 < x <= 100)"}
+                                },
+                                "required": ["symbol"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {"description": "Pre-trade impact analysis", "content": {"application/json": {"schema": {"type": "object"}}}},
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "500": {"$ref": "#/components/responses/InternalError"}
+                }
+            }
+        },
+        "/api/contact": {
+            "post": {
+                "tags": ["Contact"],
+                "summary": "Submit contact form",
+                "description": "Submit feedback or support request with request body validation via Pydantic ContactSubmissionRequest",
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string", "description": "Contact name (1-100 chars)", "minLength": 1, "maxLength": 100},
+                                    "email": {"type": "string", "format": "email", "description": "Contact email (valid RFC 5322 format)", "minLength": 5, "maxLength": 200},
+                                    "subject": {"type": "string", "description": "Message subject (optional, max 200 chars)", "maxLength": 200},
+                                    "message": {"type": "string", "description": "Message body (1-5000 chars, validated against XSS/SQL injection patterns)", "minLength": 1, "maxLength": 5000},
+                                    "phone": {"type": "string", "description": "Phone number (optional, 10-15 chars including formatting)", "minLength": 10, "maxLength": 15}
+                                },
+                                "required": ["name", "email", "message"]
                             }
                         }
                     }
                 },
                 "security": [],
                 "responses": {
-                    "200": {"description": "Contact form submitted"},
+                    "200": {"description": "Contact form submitted successfully"},
                     "400": {"$ref": "#/components/responses/BadRequest"}
                 }
             }
