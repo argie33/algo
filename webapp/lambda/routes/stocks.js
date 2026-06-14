@@ -138,7 +138,6 @@ router.get('/deep-value', async (req, res) => {
         0 as drop_from_52w_high_pct,
         0 as drop_from_3y_high_pct,
         0 as intrinsic_value_per_share,
-        0 as margin_of_safety_pct,
         0 as revenue_growth_3y_pct,
         0 as eps_growth_3y_pct,
         0 as revenue_growth_yoy_pct,

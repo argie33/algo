@@ -3057,6 +3057,7 @@ CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- Add foreign key: algo_trades.symbol → stock_symbols.symbol
+-- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
 DO $$ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints 
@@ -3071,6 +3072,7 @@ DO $$ BEGIN
 END $$;
 
 -- Add foreign key: algo_positions.symbol → stock_symbols.symbol
+-- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
 DO $$ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints 
@@ -3093,6 +3095,7 @@ ALTER TABLE technical_data_daily DROP CONSTRAINT IF EXISTS fk_technical_data_dai
 ALTER TABLE price_daily DROP CONSTRAINT IF EXISTS fk_price_daily_symbol;
 
 -- Add foreign key: earnings_estimates.symbol → stock_symbols.symbol
+-- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
 DO $$ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
@@ -3102,6 +3105,38 @@ DO $$ BEGIN
         ALTER TABLE earnings_estimates
         ADD CONSTRAINT fk_earnings_estimates_symbol
         FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key constraints for data integrity (Issue #29)
+-- buy_sell_daily and technical_data_daily must reference price_daily (not stock_symbols)
+-- because they intentionally contain ETF and index symbols not in stock_symbols.
+-- This ensures every signal/technical row has a corresponding price row.
+-- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_buy_sell_daily_price_daily'
+        AND table_name = 'buy_sell_daily'
+    ) THEN
+        ALTER TABLE buy_sell_daily
+        ADD CONSTRAINT fk_buy_sell_daily_price_daily
+        FOREIGN KEY (symbol, date) REFERENCES price_daily(symbol, date)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_technical_data_daily_price_daily'
+        AND table_name = 'technical_data_daily'
+    ) THEN
+        ALTER TABLE technical_data_daily
+        ADD CONSTRAINT fk_technical_data_daily_price_daily
+        FOREIGN KEY (symbol, date) REFERENCES price_daily(symbol, date)
         ON DELETE RESTRICT ON UPDATE CASCADE;
     END IF;
 END $$;

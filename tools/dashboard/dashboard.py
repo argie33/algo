@@ -480,27 +480,29 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
-        # AWS mode: fetch credentials from Secrets Manager (single source of truth)
+        # AWS mode: fetch credentials from multiple sources (Secrets Manager → Terraform → Error)
         import os
 
-        logger.info("AWS mode: Fetching dashboard credentials from Secrets Manager...")
+        logger.info("AWS mode: Fetching dashboard credentials...")
         aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
 
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found in AWS Secrets Manager")
+            logger.info("Secrets Manager unavailable, trying Terraform...")
+            aws_url, pool_id, client_id = _fetch_terraform_credentials()
+
+        if not aws_url:
+            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
             CONSOLE.print("")
-            CONSOLE.print("[bold cyan]To fix:[/]")
-            CONSOLE.print("[yellow]1. Run credential refresh:[/]")
+            CONSOLE.print("[bold cyan]To automate setup:[/]")
+            CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
+            CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[bold cyan]Or manually:[/]")
+            CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
             CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
             CONSOLE.print("")
-            CONSOLE.print("[yellow]2. If that doesn't work, manually create the secret:[/]")
-            CONSOLE.print("[cyan]   aws secretsmanager create-secret --name algo/dashboard-config --secret-string '{[/]")
-            CONSOLE.print("[cyan]     \"api_url\": \"https://api-gateway-url-here\",[/]")
-            CONSOLE.print("[cyan]     \"cognito_user_pool_id\": \"us-east-1_xxxxx\",[/]")
-            CONSOLE.print("[cyan]     \"cognito_user_pool_client_id\": \"xxxxx\"[/]")
-            CONSOLE.print("[cyan]   }' --region us-east-1[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[dim]After GitHub Actions deploy completes, run refresh-aws-credentials.ps1 again[/]")
+            CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
+            CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
             sys.exit(1)
 
         set_api_url(aws_url)

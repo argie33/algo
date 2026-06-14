@@ -56,7 +56,6 @@ const DeepValueStocksContent = () => {
       drop_from_52w_high_pct: num(s.drop_from_52w_high_pct),
       drop_from_3y_high_pct: num(s.drop_from_3y_high_pct),
       intrinsic_value_per_share: num(s.intrinsic_value_per_share),
-      margin_of_safety_pct: num(s.margin_of_safety_pct),
       revenue_growth_3y_pct: num(s.revenue_growth_3y_pct),
       eps_growth_3y_pct: num(s.eps_growth_3y_pct),
       revenue_growth_yoy_pct: num(s.revenue_growth_yoy_pct),
@@ -222,7 +221,6 @@ const DeepValueStocksContent = () => {
               <MetricGrid items={[
                 ["Current Price", stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"],
                 ["Intrinsic Value", stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"],
-                ["Margin of Safety", stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—", stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444"],
               ]} />
             </div>
 
@@ -394,7 +392,6 @@ const DeepValueStocksContent = () => {
 
   const paginated = sorted.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const avgROE = avg(stocks, "roe_pct");
-  const avgMoS = avg(stocks, "margin_of_safety_pct");
   const avgDrop = avg(stocks, "drop_from_3y_high_pct");
 
   return (
@@ -524,7 +521,6 @@ const DeepValueStocksContent = () => {
                   <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_52w_high_pct")}>↓52w</th>
                   <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_3y_high_pct")}>↓3y</th>
                   <th style={{ textAlign: 'right', cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }} onClick={() => handleSort("intrinsic_value_per_share")}>Intrinsic $</th>
-                  <th style={{ textAlign: 'right', cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }} onClick={() => handleSort("margin_of_safety_pct")}>MoS %</th>
                   <th style={{ textAlign: 'right' }}>RevYoY%</th>
                   <th style={{ textAlign: 'right' }}>OpM Trend</th>
                   <th style={{ textAlign: 'right' }}>D/E</th>
@@ -583,9 +579,6 @@ const DeepValueStocksContent = () => {
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: "#818cf8" }}>
                         {stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"}
-                      </td>
-                      <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', fontWeight: 700, backgroundColor: "rgba(99, 102, 241, 0.12)", color: stock.margin_of_safety_pct >= 30 ? "#22c55e" : stock.margin_of_safety_pct >= 0 ? "#a1d922" : "#ef4444" }}>
-                        {stock.margin_of_safety_pct != null ? `${stock.margin_of_safety_pct.toFixed(1)}%` : "—"}
                       </td>
                       <td style={{ textAlign: 'right', fontSize: 'var(--t-2xs)', color: stock.revenue_growth_yoy_pct >= 0 ? "#1b5e20" : "#c62828", fontWeight: 600 }}>
                         {fmtPct(stock.revenue_growth_yoy_pct)}

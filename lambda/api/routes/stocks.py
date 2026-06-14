@@ -164,7 +164,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ROUND(((COALESCE(sm.sector_median_pe, 0) - COALESCE(vm.pe_ratio, 0)) / NULLIF(COALESCE(sm.sector_median_pe, 0), 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
                     ROUND(((COALESCE(mm.market_median_pe, 0) - COALESCE(vm.pe_ratio, 0)) / NULLIF(COALESCE(mm.market_median_pe, 0), 0) * 100)::numeric, 2) AS discount_vs_market_pe_pct,
                     ROUND((lp.current_price / NULLIF(COALESCE(vm.pb_ratio, 0), 0))::numeric, 2) AS intrinsic_value_per_share,
-                    ROUND(((1 - COALESCE(vm.pb_ratio, 0)) * 100)::numeric, 2) AS margin_of_safety_pct,
                     ROUND(COALESCE(gm.revenue_growth_3y, 0)::numeric, 2) AS revenue_growth_3y_pct,
                     ROUND(COALESCE(gm.eps_growth_3y, 0)::numeric, 2) AS eps_growth_3y_pct,
                     ROUND(COALESCE(gm.revenue_growth_1y, 0)::numeric, 2) AS revenue_growth_yoy_pct,
