@@ -29,8 +29,8 @@ import math
 
 # Add parent directory to path for imports
 
-from utils.database import get_db_connection
-from utils.safe_data_conversion import safe_float, safe_int
+from utils.db.context import DatabaseContext
+from utils.validation import safe_float, safe_int
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
@@ -299,23 +299,12 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
 def main():
     """Main entry point for the loader."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        compute_performance_metrics(cur)
-
-        conn.commit()
-        logger.info('Performance metrics loader completed successfully')
+        with DatabaseContext('write', cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            compute_performance_metrics(cur)
+            logger.info('Performance metrics loader completed successfully')
     except Exception as e:
         logger.error(f'Performance metrics loader failed: {e}', exc_info=True)
-        if conn:
-            conn.rollback()
         raise
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
 
 if __name__ == '__main__':
     logging.basicConfig(

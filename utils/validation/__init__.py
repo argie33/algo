@@ -13,7 +13,7 @@ inline try/except or silent defaults elsewhere in the codebase.
 """
 
 from .framework import (
-    # Validation classes
+    # Validation classes & exceptions
     ValidationResult,
     Validator,
     TypeValidator,
@@ -21,6 +21,7 @@ from .framework import (
     PhaseValidator,
     ValidatorRegistry,
     get_global_registry,
+    StrictValidationError,
     # Functional API - numeric
     safe_float,
     safe_float_strict,
@@ -46,7 +47,7 @@ from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 
 __all__ = [
-    # Core validation classes
+    # Core validation classes & exceptions
     'ValidationResult',
     'Validator',
     'TypeValidator',
@@ -54,6 +55,7 @@ __all__ = [
     'PhaseValidator',
     'ValidatorRegistry',
     'get_global_registry',
+    'StrictValidationError',
     # Numeric conversions
     'safe_float',
     'safe_float_strict',

@@ -879,6 +879,16 @@ class OptimalLoader(ABC):
             lock_manager = None
 
         try:
+            # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle
+            # This reduces connection churn from ~5-10 per operation to 1 total
+            from utils.db.pooled_connection_manager import PooledConnectionManager
+            from utils.db.pooled_context_var import set_pooled_connection
+
+            conn_manager = PooledConnectionManager(self.table_name)
+            pooled_conn = conn_manager.acquire()
+            set_pooled_connection(pooled_conn)
+            logger.info(f"[{self.table_name}] Acquired pooled connection for entire loader lifecycle")
+
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
@@ -1069,6 +1079,16 @@ class OptimalLoader(ABC):
         finally:
             # Ensure heartbeat stops even on error
             self._stop_heartbeat()
+
+            # OPTIMIZATION: Release pooled connection
+            try:
+                from utils.db.pooled_context_var import set_pooled_connection
+                set_pooled_connection(None)  # Clear context
+                conn_manager.release()
+                logger.info(f"[{self.table_name}] Released pooled connection after loader completion")
+            except Exception as e:
+                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
+
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)
@@ -1119,6 +1139,15 @@ class OptimalLoader(ABC):
             lock_manager = None
 
         try:
+            # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle
+            from utils.db.pooled_connection_manager import PooledConnectionManager
+            from utils.db.pooled_context_var import set_pooled_connection
+
+            conn_manager = PooledConnectionManager(self.table_name)
+            pooled_conn = conn_manager.acquire()
+            set_pooled_connection(pooled_conn)
+            logger.info(f"[{self.table_name}] Acquired pooled connection for global load")
+
             # Mark loader as RUNNING so Phase 1 knows it's in progress
             self._update_loader_status("RUNNING")
 
@@ -1229,6 +1258,15 @@ class OptimalLoader(ABC):
                 logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
             raise
         finally:
+            # OPTIMIZATION: Release pooled connection
+            try:
+                from utils.db.pooled_context_var import set_pooled_connection
+                set_pooled_connection(None)  # Clear context
+                conn_manager.release()
+                logger.info(f"[{self.table_name}] Released pooled connection after global load completion")
+            except Exception as e:
+                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
+
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)

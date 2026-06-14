@@ -157,6 +157,7 @@ class PooledConnectionManager:
 
         # Step 2: Acquire from pool with exponential backoff
         try:
+            from utils.db import get_db_connection
             from utils.db.connection import _get_connection_pool
 
             pool = _get_connection_pool()

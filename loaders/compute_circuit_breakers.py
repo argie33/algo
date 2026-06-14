@@ -26,8 +26,8 @@ from decimal import Decimal
 
 # Add parent directory to path for imports
 
-from utils.database import get_db_connection
-from utils.safe_data_conversion import safe_float, safe_int
+from utils.db.context import DatabaseContext
+from utils.validation import safe_float, safe_int
 
 logger = logging.getLogger(__name__)
 
@@ -435,23 +435,12 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
 def main():
     """Main entry point for the loader."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        compute_circuit_breaker_metrics(cur)
-
-        conn.commit()
-        logger.info('Circuit breaker metrics loader completed successfully')
+        with DatabaseContext('write', cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            compute_circuit_breaker_metrics(cur)
+            logger.info('Circuit breaker metrics loader completed successfully')
     except Exception as e:
         logger.error(f'Circuit breaker metrics loader failed: {e}', exc_info=True)
-        if conn:
-            conn.rollback()
         raise
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
 
 if __name__ == '__main__':
     logging.basicConfig(

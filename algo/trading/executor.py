@@ -1174,8 +1174,8 @@ class TradeExecutor:
                     error_data = response.json()
                     if 'message' in error_data:
                         logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                except (json.JSONDecodeError, ValueError) as json_err:
+                    logger.debug(f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}")
                 return {'success': False, 'message': f'Alpaca {response.status_code}: {error_text[:200]}'}
         except Exception as e:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")

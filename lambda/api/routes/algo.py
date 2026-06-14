@@ -14,8 +14,7 @@ from routes.utils import (
 )
 
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS, check_public_rate_limit, PUBLIC_RATE_LIMITS
-from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
-from utils.validation import APIResponseValidator
+from utils.validation import safe_float, safe_float_strict, safe_int, safe_int_strict, APIResponseValidator
 import math
 
 logger = logging.getLogger(__name__)

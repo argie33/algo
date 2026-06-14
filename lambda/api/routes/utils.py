@@ -125,7 +125,14 @@ def error_response(code, typ, msg):
     All error responses include HTTP status code for client-side error handling.
     The _error field enables consistent error detection across the dashboard.
     """
-    return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
+    # Sanitize message to remove credentials, paths, SQL
+    try:
+        from utils.error_handlers import sanitize_error_message
+        msg = sanitize_error_message(msg)
+    except Exception:
+        pass
+
+    return {"statusCode": code, "errorType": typ, "message": msg, "_error": typ}
 
 def success_response(data, metadata=None):
     """Standardized success response for single object.
@@ -316,7 +323,7 @@ def json_response(code, data, data_freshness=None):
     - Success (200): {statusCode: 200, data: {...}, data_freshness?: {...}}
     - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "...", _error: "..."}
 
-    Supports metadata parameter to maintain consistency with list_response().
+    Sanitizes all responses to prevent None values from reaching frontend (Issue #14).
     """
     if code == 200:
         response = success_response(data)
@@ -324,8 +331,9 @@ def json_response(code, data, data_freshness=None):
             response["data_freshness"] = data_freshness
         return response
     else:
-        # For non-200 codes, ensure _error field is present for consistency
-        response = {"statusCode": code, **data}
+        # For non-200 codes, sanitize data and ensure _error field is present for consistency
+        sanitized_data = APIResponseValidator.sanitize_response(data)
+        response = {"statusCode": code, **sanitized_data}
         if "_error" not in response and "message" in response:
             response["_error"] = response["message"]
         return response
@@ -394,6 +402,8 @@ def safe_json_serialize(obj):
 def handle_db_error(error, context="database operation", query=None, params=None):
     """Unified database error handler for all route handlers.
 
+    Uses centralized error classification from utils.error_handlers.classify_exception.
+
     Args:
         error: The exception caught
         context: Operation name for logging context (string, not logger instance)
@@ -403,30 +413,29 @@ def handle_db_error(error, context="database operation", query=None, params=None
     Returns:
         Tuple of (statusCode, errorType, message) for standardized error responses
     """
-    error_type = type(error).__name__
-    error_str = str(error)
+    # Use centralized classification (handles both psycopg2 and custom exceptions)
+    try:
+        from utils.error_handlers import classify_exception
+        status_code, error_type, message = classify_exception(error)
+    except Exception:
+        # Fallback to old logic if import fails
+        status_code = 500
+        error_type = 'database_error'
+        message = f'Error during {context}'
 
-    log_context = f'[DB_ERROR] {error_type} in {context}: {error_str}'
+    # Log with full context
+    error_name = type(error).__name__
+    error_str = str(error)
+    log_msg = f'[DB_ERROR] {error_name} in {context}: {error_str}'
     if query:
-        log_context += f'\n  Query: {query[:500]}'
+        log_msg += f'\n  Query: {query[:500]}'
     if params:
         param_str = str(params)[:200]
-        log_context += f'\n  Params: {param_str}'
+        log_msg += f'\n  Params: {param_str}'
 
-    logger.error(log_context)
+    logger.error(log_msg)
 
-    if isinstance(error, psycopg2.errors.UndefinedTable):
-        return 503, 'schema_error', 'Database schema issue'
-    elif isinstance(error, psycopg2.errors.UndefinedColumn):
-        return 503, 'schema_error', 'Database schema issue'
-    elif isinstance(error, psycopg2.OperationalError):
-        return 503, 'connection_error', 'Database connection failed'
-    elif isinstance(error, psycopg2.errors.QueryCanceled):
-        return 504, 'timeout', 'Database query exceeded timeout'
-    elif isinstance(error, psycopg2.DatabaseError):
-        return 503, 'query_error', 'Database query failed'
-    else:
-        return 500, 'database_error', f'Error during {context}'
+    return status_code, error_type, message
 
 def db_route_handler(operation_name: str, default_error_response=None):
     """Decorator for route handlers to standardize database error handling.

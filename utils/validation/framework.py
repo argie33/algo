@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 EASTERN_TZ = timezone.utc
 
 
+class StrictValidationError(Exception):
+    """Raised when data conversion fails in strict mode."""
+    pass
+
+
 @dataclass
 class ValidationResult:
     """Structured validation result with error details and cleaned data."""

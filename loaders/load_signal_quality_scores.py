@@ -26,7 +26,7 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism, get_default_parallelism
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.safe_data_conversion import safe_parse_date
+from utils.validation import safe_parse_date
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
