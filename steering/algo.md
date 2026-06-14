@@ -59,8 +59,14 @@ scripts/refresh-aws-credentials.ps1
 **CRITICAL: System depends on EOD pipeline running successfully.** If scheduler fails or loaders error:
 - Phase 7's RegimeManager falls back to yesterday's regime (graceful degradation, but market regime becomes 1+ days stale)
 - Dashboard market regime display shows stale data without visible warning
-- Monitor: Check if `SELECT COUNT(*) WHERE date = CURRENT_DATE FROM market_exposure_daily` returns 0 (stale)
-- Recovery: `aws stepfunctions start-execution --state-machine-arn arn:aws:states:us-east-1:626216981288:stateMachine:algo-eod-pipeline-dev --name manual-eod-$(date +%s)`
+
+**Recent Fix (2026-06-13):** Resolved Python import path errors in ECS containers. Changes committed to git but require Docker image rebuild via `git push main` to deploy. Until deployed, loaders will continue to fail with ModuleNotFoundError.
+
+**Monitoring & Recovery:**
+- Monitor: Check if `SELECT COUNT(*) FROM market_exposure_daily WHERE date = CURRENT_DATE` returns 0 (stale)
+- Verify: Check CloudWatch logs `/ecs/algo-stock_prices_daily-loader` for loader errors
+- Deploy: `git push main` to trigger CI/CD pipeline (rebuild Docker image)
+- Manual test after deploy: `aws stepfunctions start-execution --state-machine-arn arn:aws:states:us-east-1:626216981288:stateMachine:algo-eod-pipeline-dev --name test-eod-$(date +%s)`
 
 ## Schedule (Daily, Mon-Fri)
 
