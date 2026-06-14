@@ -42,6 +42,45 @@ class SwingTraderScoresLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
+    def _prepare_batch_context(self) -> None:
+        """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
+
+        Caches end_date and signal_quality_scores max date to avoid per-symbol computation.
+        """
+        from algo.infrastructure import MarketCalendar
+        from datetime import datetime, timezone
+
+        self._batch_context = {}
+        try:
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
+
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
+                    (end,)
+                )
+                fb_row = cur.fetchone()
+                last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
+                if last_sqs_date:
+                    last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
+                    if last_sqs < end:
+                        end = last_sqs
+
+            self._batch_context = {
+                "end_date": end,
+            }
+            logger.debug(
+                f"Batch context: end={end}"
+            )
+        except Exception as e:
+            logger.warning(f"Batch context preparation failed: {e}")
+            self._batch_context = {}
+
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute swing trader scores with 7-component breakdown.
 
@@ -52,36 +91,34 @@ class SwingTraderScoresLoader(OptimalLoader):
         from zoneinfo import ZoneInfo
 
         try:
-            # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-            # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
-            # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
+            # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
+            # instead of recomputing trading day verification for each symbol.
+            if self._batch_context and "end_date" in self._batch_context:
+                end = self._batch_context["end_date"]
+            else:
+                # Fallback if batch context unavailable
+                now_utc = datetime.now(timezone.utc)
+                now_et = now_utc.astimezone(EASTERN_TZ)
+                end = now_et.date()
 
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-                end = end - timedelta(days=1)
+                while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                    end = end - timedelta(days=1)
 
-            # Fall back to last date with signal_quality_scores if today's data isn't available yet
-            # (e.g., morning prep runs before today's EOD data has been computed)
-            try:
-                with DatabaseContext('read') as fbc:
-                    fbc.execute(
-                        "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
-                        (end,)
-                    )
-                    fb_row = fbc.fetchone()
-                    last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
-                    if last_sqs_date:
-                        last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
-                        if last_sqs < end:
-                            logging.info(
-                                f"signal_quality_scores data up to {last_sqs}, not yet {end}. "
-                                f"Using {last_sqs} as effective end date."
-                            )
-                            end = last_sqs
-            except Exception as e:
-                logging.debug(f"Could not check signal_quality_scores max date: {e}")
+                # Fallback: check signal_quality_scores max date if batch context failed
+                try:
+                    with DatabaseContext('read') as fbc:
+                        fbc.execute(
+                            "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
+                            (end,)
+                        )
+                        fb_row = fbc.fetchone()
+                        last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
+                        if last_sqs_date:
+                            last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
+                            if last_sqs < end:
+                                end = last_sqs
+                except Exception as e:
+                    logging.debug(f"Could not check signal_quality_scores max date: {e}")
 
             if since is None:
                 try:
