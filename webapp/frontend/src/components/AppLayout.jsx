@@ -17,7 +17,7 @@ import {
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, GitBranch,
   HeartPulse, Zap, Crosshair,
-  Bot, Bell, FileText, Map,
+  Bot, Bell, FileText, Map, Shield, AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -51,8 +51,11 @@ const NAV_SECTIONS = [
   {
     title: 'Portfolio',
     items: [
-      { text: 'Portfolio',    icon: Wallet,    path: '/app/portfolio' },
-      { text: 'Trade Tracker', icon: History,  path: '/app/trades' },
+      { text: 'Portfolio',           icon: Wallet,        path: '/app/portfolio' },
+      { text: 'Trade Tracker',       icon: History,       path: '/app/trades' },
+      { text: 'Pre-Trade Impact',    icon: AlertCircle,   path: '/app/pre-trade-impact' },
+      { text: 'Risk Analytics',      icon: Shield,        path: '/app/risk-analytics' },
+      { text: 'Exposure Policy',     icon: Activity,      path: '/app/exposure-policy' },
     ],
   },
   {
