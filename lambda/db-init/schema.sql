@@ -1,10 +1,4 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- DROP TABLES TO FORCE RECREATION WITH CORRECTED SCHEMA
--- ════════════════════════════════════════════════════════════════════════════
--- Drop tables that were modified to fix column names/schemas
-DROP TABLE IF EXISTS data_loader_status CASCADE;
-
--- ════════════════════════════════════════════════════════════════════════════
 -- CORE TABLES - Required for all systems
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -2413,12 +2407,9 @@ SELECT
     -- Stability
     stm.beta,
     -- Derived: margin of safety (simplified: discount from 52w high)
-    CASE WHEN pd_52w.high_52w > 0
-         THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
-         ELSE NULL END AS margin_of_safety_pct,
     pd_52w.high_52w,
     pd_52w.low_52w,
-    -- drop_from_52w_high_pct: same as margin_of_safety_pct, alternate name used by deep-value query
+    -- drop_from_52w_high_pct: percentage drop from 52-week high (unified column, replaces legacy margin_of_safety_pct)
     CASE WHEN pd_52w.high_52w > 0
          THEN ROUND(((pd_52w.high_52w - pd.close) / pd_52w.high_52w * 100)::numeric, 2)
          ELSE NULL END AS drop_from_52w_high_pct,
