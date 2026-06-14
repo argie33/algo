@@ -5,6 +5,7 @@ Comprehensive AWS dashboard verification and launch script.
 
 Tests all components work with AWS only - no local database needed.
 Verifies: API health, Cognito auth, endpoint responses, and dashboard launch.
+Dynamically fetches all AWS resource IDs from Terraform outputs - no hardcoded values.
 
 .EXAMPLE
 .\verify-aws-dashboard.ps1
@@ -68,12 +69,35 @@ try {
 }
 
 # ============================================================================
-# 2. VERIFY API GATEWAY
+# 2. FETCH TERRAFORM OUTPUTS (Dynamic - no hardcoded values)
 # ============================================================================
 
-Write-Section "2. TESTING API GATEWAY"
+Write-Section "2. FETCHING INFRASTRUCTURE OUTPUTS"
 
-$apiUrl = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
+try {
+    Push-Location terraform
+    $tfOutput = terraform output -json 2>&1 | ConvertFrom-Json
+    Pop-Location
+
+    $apiGatewayUrl = $tfOutput.api_gateway_endpoint.value
+    $apiUrl = if ($apiGatewayUrl -match '^https?://') { $apiGatewayUrl } else { "https://$apiGatewayUrl" }
+    $cognitoPoolId = $tfOutput.cognito_user_pool_id.value
+    $cognitoClientId = $tfOutput.cognito_user_pool_client_id.value
+    $websiteUrl = $tfOutput.website_url.value
+
+    Write-Status "API Gateway endpoint: $apiUrl" "OK"
+    Write-Status "Cognito Pool: $cognitoPoolId" "OK"
+} catch {
+    Write-Status "Could not fetch Terraform outputs: $_" "FAIL"
+    Write-Host "Make sure you're in the project root and terraform is initialized" -ForegroundColor $yellow
+    exit 1
+}
+
+# ============================================================================
+# 3. VERIFY API GATEWAY
+# ============================================================================
+
+Write-Section "3. TESTING API GATEWAY"
 
 try {
     $response = Invoke-WebRequest -Uri "$apiUrl/api/health" -TimeoutSec 10 -ErrorAction Stop
@@ -88,24 +112,50 @@ try {
 }
 
 # ============================================================================
-# 3. AUTHENTICATE WITH COGNITO
+# 4. AUTHENTICATE WITH COGNITO
 # ============================================================================
 
-Write-Section "3. AUTHENTICATING WITH COGNITO"
+Write-Section "4. AUTHENTICATING WITH COGNITO"
 
 $cognitoConfig = @{
-    poolId = "us-east-1_XJpLb9SKX"
-    clientId = "6smb0vrcidd9kvhju2kn2a3qrl"
+    poolId = $cognitoPoolId
+    clientId = $cognitoClientId
     username = "dashboardtest@example.com"
     password = "DashboardTest123!"
     region = "us-east-1"
 }
 
 Write-Status "Cognito Pool: $($cognitoConfig.poolId)" "INFO"
+Write-Status "Client ID: $($cognitoConfig.clientId)" "INFO"
 Write-Status "User: $($cognitoConfig.username)" "INFO"
 
 # Get token via Python/boto3
-Write-Host "import boto3`nimport json`nimport sys`n`ntry:`n    cognito = boto3.client('cognito-idp', region_name='us-east-1')`n    response = cognito.initiate_auth(`n        ClientId='6smb0vrcidd9kvhju2kn2a3qrl',`n        AuthFlow='USER_PASSWORD_AUTH',`n        AuthParameters={`n            'USERNAME': 'dashboardtest@example.com',`n            'PASSWORD': 'DashboardTest123!'`n        }`n    )`n`n    if 'AuthenticationResult' in response:`n        token = response['AuthenticationResult']['AccessToken']`n        print(token)`n    else:`n        print('ERROR')`n        sys.exit(1)`nexcept Exception as e:`n    print(f'ERROR: {e}')`n    sys.exit(1)" | python 2>&1 | Tee-Object -Variable token | Out-Null
+python << PYTHON_EOF 2>&1 | Tee-Object -Variable token | Out-Null
+import boto3
+import sys
+
+try:
+    cognito = boto3.client('cognito-idp', region_name='us-east-1')
+    response = cognito.initiate_auth(
+        ClientId='$cognitoClientId',
+        AuthFlow='USER_PASSWORD_AUTH',
+        AuthParameters={
+            'USERNAME': 'dashboardtest@example.com',
+            'PASSWORD': 'DashboardTest123!'
+        }
+    )
+
+    if 'AuthenticationResult' in response:
+        token = response['AuthenticationResult']['AccessToken']
+        print(token)
+    else:
+        print('ERROR')
+        sys.exit(1)
+except Exception as e:
+    print(f'ERROR: {e}')
+    sys.exit(1)
+PYTHON_EOF
+
 $token = $token.Trim()
 
 if ($token -match "^eyJ") {
@@ -119,10 +169,10 @@ if ($token -match "^eyJ") {
 }
 
 # ============================================================================
-# 4. TEST PROTECTED ENDPOINTS
+# 5. TEST PROTECTED ENDPOINTS
 # ============================================================================
 
-Write-Section "4. TESTING PROTECTED ENDPOINTS"
+Write-Section "5. TESTING PROTECTED ENDPOINTS"
 
 $headers = @{ Authorization = "Bearer $token" }
 
@@ -164,10 +214,10 @@ Write-Host ""
 Write-Host "  Endpoint Results: $passed/$($endpoints.Count) passed" -ForegroundColor $(if ($failed -eq 0) { $green } else { $yellow })
 
 # ============================================================================
-# 5. VERIFY DASHBOARD TOOL
+# 6. VERIFY DASHBOARD TOOL
 # ============================================================================
 
-Write-Section "5. VERIFYING DASHBOARD TOOL"
+Write-Section "6. VERIFYING DASHBOARD TOOL"
 
 # Check if dashboard script exists
 if (Test-Path "tools/dashboard/dashboard.py") {
@@ -208,10 +258,10 @@ if (Test-Path "run-dashboard.ps1") {
 }
 
 # ============================================================================
-# 6. SUMMARY & READINESS CHECK
+# 7. SUMMARY & READINESS CHECK
 # ============================================================================
 
-Write-Section "6. SUMMARY & READINESS"
+Write-Section "7. SUMMARY & READINESS"
 
 $readiness = @{
     "API Gateway" = "✓ READY"
@@ -233,11 +283,11 @@ Write-Host "  Overall Status: ALL SYSTEMS READY FOR LAUNCH" -ForegroundColor $gr
 Write-Host ""
 
 # ============================================================================
-# 7. LAUNCH DASHBOARD (if requested)
+# 8. LAUNCH DASHBOARD (if requested)
 # ============================================================================
 
 if ($Launch) {
-    Write-Section "7. LAUNCHING DASHBOARD"
+    Write-Section "8. LAUNCHING DASHBOARD"
 
     Write-Status "Starting dashboard..." "INFO"
     Write-Host ""
