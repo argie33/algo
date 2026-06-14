@@ -13,7 +13,7 @@ from routes.utils import (
     check_data_freshness, safe_json_serialize, safe_dict_convert
 )
 
-from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
+from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS, check_public_rate_limit, PUBLIC_RATE_LIMITS
 from utils.safe_data_conversion import safe_float, safe_float_strict, safe_int, safe_int_strict
 from utils.validation import APIResponseValidator
 import math
@@ -40,6 +40,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     # User identity from verified JWT claims (sub is the Cognito user ID)
     user_id = (jwt_claims or {}).get('sub', '')
+
+    # SECURITY: Rate limit public endpoints to prevent DoS attacks
+    if path in PUBLIC_RATE_LIMITS:
+        limits = PUBLIC_RATE_LIMITS[path]
+        is_allowed, error_msg = check_public_rate_limit(path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+        if not is_allowed:
+            logger.warning(f"Public endpoint rate limit exceeded for {path}")
+            return error_response(429, 'too_many_requests', error_msg)
 
     if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
@@ -857,7 +865,7 @@ def _get_algo_performance(cur) -> Dict:
             return json_response(200, sanitized)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}')
+            logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Calculate performance from algo_trades and portfolio_snapshots\n  Endpoint: GET /api/algo/performance')
             return error_response(500, 'internal_error', 'Failed to fetch performance metrics')
 
 @db_route_handler('fetch dashboard signals', default_error_response={'n': 0, 'total': 0, 'date': None, 'buy_sigs': [], 'grades': {}, 'near': [], 'top_a': [], 'trend': [], 'data_freshness': {}, '_error': 'Data unavailable'})
@@ -1681,16 +1689,16 @@ def _get_sector_breadth(cur) -> Dict:
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
-            logger.error(f'Sector breadth data unavailable: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
+            logger.error(f'Sector breadth schema error: {type(e).__name__}: {str(e)}\n  Operation: Get sector breadth (table/column unavailable)\n  Endpoint: GET /api/algo/sector-breadth', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch sector breadth due to schema issue')
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
-            logger.error(f'Sector breadth query failed: {type(e).__name__}: {str(e)}', extra={'operation': 'get sector breadth'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
+            logger.error(f'Sector breadth query failed: {type(e).__name__}: {str(e)}\n  Operation: Get sector breadth\n  Endpoint: GET /api/algo/sector-breadth\n  Query: SELECT with sector_breadth table and pct_above calculations', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
 
 def _get_sector_position_warnings(cur) -> Dict:
         """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
@@ -2116,7 +2124,7 @@ def _get_markets(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
-            return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
+            return error_response(503, 'service_unavailable', 'Failed to fetch markets: database connection failed')
 
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
@@ -2194,7 +2202,7 @@ def _get_market(cur) -> Dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         logger.error(f'Failed to fetch market: {type(e).__name__}: {e}')
-        return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market data'})
+        return error_response(503, 'service_unavailable', 'Failed to fetch market data')
 
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
@@ -2243,7 +2251,7 @@ def _get_market_factors(cur) -> Dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         logger.error(f'Failed to fetch market factors: {type(e).__name__}: {e}')
-        return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch market factors'})
+        return error_response(503, 'service_unavailable', 'Failed to fetch market factors')
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
@@ -2446,7 +2454,7 @@ def _get_data_quality(cur) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
-            return json_response(code, {'errorType': error_type, 'message': message})
+            return error_response(code, error_type, message)
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:

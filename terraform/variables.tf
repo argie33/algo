@@ -97,9 +97,9 @@ variable "availability_zones" {
 }
 
 variable "enable_vpc_endpoints" {
-  description = "Enable VPC endpoints (S3, Secrets Manager, ECR, CloudWatch Logs, SNS, DynamoDB)"
+  description = "Enable VPC endpoints (S3, Secrets Manager, ECR, CloudWatch Logs, SNS, DynamoDB). Disabled for dev/staging cost savings (~$43/month). Re-enable for production."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "dev_machine_cidr" {
@@ -793,9 +793,9 @@ variable "batch_spot_bid_percentage" {
 # ============================================================
 
 variable "cloudwatch_log_retention_days" {
-  description = "Default CloudWatch log retention"
+  description = "Default CloudWatch log retention (7 days for dev cost savings, 30+ for prod)"
   type        = number
-  default     = 30
+  default     = 7
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.cloudwatch_log_retention_days)
     error_message = "Must be a valid CloudWatch retention period"

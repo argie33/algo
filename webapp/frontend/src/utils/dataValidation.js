@@ -47,14 +47,95 @@ export const validateMarketData = (data) => {
     return fallback;
   }
 
+  const current = data.current && typeof data.current === 'object' ? data.current : null;
+
+  // Ensure nested objects within current exist
+  if (current) {
+    current.factors = current.factors && typeof current.factors === 'object' ? current.factors : {};
+  }
+
   return {
     success: data.success !== false,
-    current: data.current && typeof data.current === 'object' ? data.current : null,
+    current,
     active_tier: data.active_tier && typeof data.active_tier === 'object' ? data.active_tier : {},
     history: Array.isArray(data.history) ? data.history : [],
     sectors: Array.isArray(data.sectors) ? data.sectors : [],
     market_health: data.market_health && typeof data.market_health === 'object' ? data.market_health : null,
   };
+};
+
+/**
+ * Safely access nested market object properties with defaults
+ * Prevents crashes from null/undefined in: factors, regime, vix_level, etc.
+ */
+export const safeGetMarketCurrent = (markets) => {
+  if (!markets || typeof markets !== 'object') return null;
+  const current = markets.current;
+  if (!current || typeof current !== 'object') return null;
+
+  return {
+    exposure_pct: current.exposure_pct ?? 0,
+    raw_score: current.raw_score ?? 0,
+    regime: current.regime ?? 'unknown',
+    halt_reasons: current.halt_reasons ?? null,
+    distribution_days: current.distribution_days ?? 0,
+    factors: current.factors && typeof current.factors === 'object' ? current.factors : {},
+  };
+};
+
+/**
+ * Safely access nested factors with all sub-properties defaulted
+ */
+export const safeGetFactors = (current) => {
+  if (!current || !current.factors || typeof current.factors !== 'object') {
+    return {};
+  }
+  const f = current.factors;
+  return {
+    follow_through_day: f.follow_through_day && typeof f.follow_through_day === 'object' ? f.follow_through_day : {},
+    distribution_days: f.distribution_days && typeof f.distribution_days === 'object' ? f.distribution_days : {},
+    new_highs_lows: f.new_highs_lows && typeof f.new_highs_lows === 'object' ? f.new_highs_lows : {},
+    vix_regime: f.vix_regime && typeof f.vix_regime === 'object' ? f.vix_regime : {},
+    breadth_50dma: f.breadth_50dma && typeof f.breadth_50dma === 'object' ? f.breadth_50dma : {},
+    breadth_200dma: f.breadth_200dma && typeof f.breadth_200dma === 'object' ? f.breadth_200dma : {},
+    mcclellan: f.mcclellan && typeof f.mcclellan === 'object' ? f.mcclellan : {},
+    economic_overlay: f.economic_overlay && typeof f.economic_overlay === 'object' ? f.economic_overlay : {},
+  };
+};
+
+/**
+ * Safely get sentiment data with null defaults
+ */
+export const safeGetSentimentData = (data) => {
+  if (!data || typeof data !== 'object') return {};
+
+  return {
+    aaii: data.aaii && typeof data.aaii === 'object' ? data.aaii : { history: [], data: [] },
+    naaim: data.naaim && typeof data.naaim === 'object' ? data.naaim : { current: null },
+    fearGreed: data.fearGreed && typeof data.fearGreed === 'object' ? data.fearGreed : { current: null },
+  };
+};
+
+/**
+ * Safely extract array from various response formats
+ */
+export const safeGetArray = (data, defaultKey = 'items') => {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray(data[defaultKey])) {
+    return data[defaultKey];
+  }
+  return [];
+};
+
+/**
+ * Safely get object from API response (handles both direct object and { data: object } format)
+ */
+export const safeGetObject = (data, fallback = {}) => {
+  if (!data || typeof data !== 'object') return fallback;
+  if (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    return data.data;
+  }
+  return data;
 };
 
 export const validateListData = (data) => {

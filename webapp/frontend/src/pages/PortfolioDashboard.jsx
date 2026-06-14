@@ -27,6 +27,7 @@ import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
+import { safeGetMarketCurrent } from '../utils/dataValidation';
 
 const Pnl = ({ value, suffix = '' }) => {
   if (value == null || isNaN(Number(value))) return <span className="muted">—</span>;

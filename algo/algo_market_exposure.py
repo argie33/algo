@@ -173,14 +173,16 @@ class MarketExposure:
             b50_pts = self.W_BREADTH_50 * b50['score_factor']
             factors['breadth_50dma'] = {**b50, 'pts': round(b50_pts, 1), 'max': self.W_BREADTH_50}
             score += b50_pts
-            logger.debug(f"  Breadth 50-DMA: {b50.get('value', 0):.1f}%, {b50_pts:.1f} pts")
+            value_50 = b50.get('value') if b50.get('value') is not None else b50.get('score_factor', 0) * 100
+            logger.debug(f"  Breadth 50-DMA: {value_50:.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self._pct_above_ma(eval_date, ma_days=200, cur=cur)
             b200_pts = self.W_BREADTH_200 * b200['score_factor']
             factors['breadth_200dma'] = {**b200, 'pts': round(b200_pts, 1), 'max': self.W_BREADTH_200}
             score += b200_pts
-            logger.debug(f"  Breadth 200-DMA: {b200.get('value', 0):.1f}%, {b200_pts:.1f} pts")
+            value_200 = b200.get('value') if b200.get('value') is not None else b200.get('score_factor', 0) * 100
+            logger.debug(f"  Breadth 200-DMA: {value_200:.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. McClellan oscillator ---
             mc = self._mcclellan(eval_date, cur)

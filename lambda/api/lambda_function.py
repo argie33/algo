@@ -101,7 +101,7 @@ def fetch_cloudfront_domain_from_secrets():
             logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
             return None, "boto3 not available"
         except Exception as e:
-            logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}")
+            logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch JWT validation secret from AWS Secrets Manager\n  Secret name: {secret_name}")
             return None, f"Error: {e}"
 
 def validate_environment():

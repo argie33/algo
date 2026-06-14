@@ -159,3 +159,52 @@ ADMIN_RATE_LIMITS = {
     '/api/algo/holding-period-distribution': {'max_requests': 20, 'window': 60},  # Dashboard histogram
     '/api/algo/stage-distribution': {'max_requests': 20, 'window': 60},  # Dashboard histogram
 }
+
+# Rate limit profiles for public endpoints (no auth required)
+# Uses global per-endpoint limits to prevent DoS attacks
+PUBLIC_RATE_LIMITS = {
+    '/api/algo/markets': {'max_requests': 100, 'window': 60},           # Market regime (public)
+    '/api/algo/market': {'max_requests': 100, 'window': 60},            # Simplified market data (public)
+    '/api/algo/market-factors': {'max_requests': 100, 'window': 60},    # Market factors (public)
+    '/api/algo/swing-scores': {'max_requests': 100, 'window': 60},      # Swing scores (public)
+    '/api/algo/swing-scores-history': {'max_requests': 50, 'window': 60},  # Swing history (public)
+}
+
+# In-memory rate limit tracker for public endpoints: {endpoint: [(timestamp, count), ...]}
+_public_rate_limits: Dict[str, list] = {}
+
+def check_public_rate_limit(endpoint: str, max_requests: int = 100, window_seconds: int = 60) -> Tuple[bool, Optional[str]]:
+    """Check if an endpoint has exceeded its global rate limit.
+
+    This is a simplified rate limiter for public endpoints that don't have user authentication.
+    Uses in-memory tracking with a per-endpoint global limit.
+
+    Args:
+        endpoint: API endpoint path (e.g., '/api/algo/markets')
+        max_requests: Max requests allowed in time window
+        window_seconds: Time window in seconds
+
+    Returns:
+        (is_allowed: bool, error_msg: Optional[str])
+    """
+    global _public_rate_limits
+
+    now = time()
+    window_start = now - window_seconds
+
+    # Initialize or get request times for this endpoint
+    if endpoint not in _public_rate_limits:
+        _public_rate_limits[endpoint] = []
+
+    # Remove old requests outside the window
+    recent_requests = [t for t in _public_rate_limits[endpoint] if t >= window_start]
+    _public_rate_limits[endpoint] = recent_requests
+
+    # Check if limit exceeded
+    if len(recent_requests) >= max_requests:
+        logger.warning(f"Public endpoint rate limit exceeded for {endpoint}: {len(recent_requests)} requests in window")
+        return False, f"Rate limit exceeded: max {max_requests} requests per minute"
+
+    # Record this request
+    _public_rate_limits[endpoint].append(now)
+    return True, None

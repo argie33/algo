@@ -153,7 +153,7 @@ def _fetch_terraform_credentials():
         logger.info("Successfully fetched credentials from Terraform")
         return (api_url, pool_id, client_id)
     except Exception as e:
-        logger.error("Failed to fetch terraform credentials: %s: %s", type(e).__name__, e)
+        logger.error(f"Failed to fetch terraform credentials: {type(e).__name__}: {e}\n  Operation: Read Terraform outputs (api_url, pool_id, client_id)\n  File: terraform/outputs.json")
         return (None, None, None)
 
 

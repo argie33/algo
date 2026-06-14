@@ -221,10 +221,10 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
         except Exception as e:
             if attempt < API_MAX_RETRIES:
                 backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
-                logger.warning(f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}, retry in {backoff:.1f}s")
+                logger.warning(f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s")
                 time.sleep(backoff)
                 continue
-            logger.error(f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts")
+            logger.error(f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts\n  Last error: {str(e)[:200]}\n  Endpoint URL: {endpoint}")
             _record_api_failure()
             return {"_error": str(e)}
 

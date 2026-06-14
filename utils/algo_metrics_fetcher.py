@@ -280,7 +280,7 @@ class AlgoMetricsFetcher:
                 '_source': 'database_direct',
             }
         except (psycopg2.Error, Exception) as e:
-            logger.error(f"fetch_performance_metrics failed: {type(e).__name__}: {e}")
+            logger.error(f"fetch_performance_metrics failed: {type(e).__name__}: {e}\n  Operation: Calculate performance metrics from algo_trades\n  Endpoint: GET /api/algo/performance")
             return {
                 '_error': str(e),
                 '_source': 'database_direct',
@@ -392,7 +392,7 @@ class AlgoMetricsFetcher:
             return {'items': positions, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
-            logger.error(f"fetch_open_positions failed: {type(e).__name__}: {e}")
+            logger.error(f"fetch_open_positions failed: {type(e).__name__}: {e}\n  Operation: Query algo_positions with status='open'\n  Endpoint: GET /api/algo/positions")
             return {'_error': str(e), '_source': 'database_direct', 'items': []}
 
     def fetch_recent_trades(self, limit: int = 50) -> Dict[str, Any]:
@@ -420,7 +420,7 @@ class AlgoMetricsFetcher:
             return {'items': trades, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
-            logger.error(f"fetch_recent_trades failed: {type(e).__name__}: {e}")
+            logger.error(f"fetch_recent_trades failed: {type(e).__name__}: {e}\n  Operation: Query algo_trades ordered by exit_date DESC\n  Endpoint: GET /api/algo/trades\n  Limit: {limit}")
             return {'_error': str(e), '_source': 'database_direct', 'items': []}
 
     def fetch_equity_curve(self, limit: int = 252) -> Dict[str, Any]:
@@ -449,7 +449,7 @@ class AlgoMetricsFetcher:
             return {'equity_vals': values, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
-            logger.error(f"fetch_equity_curve failed: {type(e).__name__}: {e}")
+            logger.error(f"fetch_equity_curve failed: {type(e).__name__}: {e}\n  Operation: Query portfolio_snapshots for equity curve\n  Endpoint: GET /api/algo/equity-curve\n  Limit: {limit}")
             return {'_error': str(e), '_source': 'database_direct', 'equity_vals': []}
 
     def fetch_recent_returns(self, limit: int = 252) -> Dict[str, Any]:
@@ -495,5 +495,5 @@ class AlgoMetricsFetcher:
             return {'recent_rets': returns, '_source': 'database_direct'}
 
         except (psycopg2.Error, Exception) as e:
-            logger.error(f"fetch_recent_returns failed: {type(e).__name__}: {e}")
+            logger.error(f"fetch_recent_returns failed: {type(e).__name__}: {e}\n  Operation: Calculate returns from portfolio_snapshots\n  Endpoint: GET /api/algo/returns\n  Limit: {limit}")
             return {'_error': str(e), '_source': 'database_direct', 'recent_rets': []}

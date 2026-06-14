@@ -42,6 +42,7 @@ import {
 import { api } from '../services/api';
 import { num, fmtMoney, fmtPct, fmtDate, fmtAgo } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { safeGetMarketCurrent, safeGetFactors, safeGetSentimentData, safeGetArray, safeGetObject } from '../utils/dataValidation';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TOKENS (mirror tokens.css for chart colors)
@@ -253,7 +254,8 @@ export default function MarketsHealth() {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function RegimeBanner({ markets }) {
-  if (!markets?.current) {
+  const safeCurrent = safeGetMarketCurrent(markets);
+  if (!safeCurrent) {
     return (
       <div className="alert alert-warn">
         <AlertTriangle size={18} />
@@ -264,10 +266,9 @@ function RegimeBanner({ markets }) {
       </div>
     );
   }
-  const cur = markets.current;
-  const tier = markets.active_tier || {};
-  const exposure = cur.exposure_pct;
-  const regime = tier.name || cur.regime || 'unknown';
+  const tier = (markets && markets.active_tier && typeof markets.active_tier === 'object') ? markets.active_tier : {};
+  const exposure = safeCurrent.exposure_pct;
+  const regime = tier.name || safeCurrent.regime || 'unknown';
   const color = REGIME_COLOR[regime] || C.textMuted;
 
   return (
@@ -285,7 +286,7 @@ function RegimeBanner({ markets }) {
           <div>
             <div className="eyebrow">Market Exposure</div>
             <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)', color, lineHeight: 1 }}>
-              {exposure}<span style={{ fontSize: 'var(--t-lg)', fontWeight: 'var(--w-semibold)' }}>%</span>
+              {exposure ?? '—'}<span style={{ fontSize: 'var(--t-lg)', fontWeight: 'var(--w-semibold)' }}>%</span>
             </div>
           </div>
         </div>
@@ -301,31 +302,31 @@ function RegimeBanner({ markets }) {
         <div>
           <div className="eyebrow">Risk ×</div>
           <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier.risk_mult ?? '—'}
+            {tier?.risk_mult ?? '—'}
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Max New</div>
           <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier.max_new ?? '—'}
+            {tier?.max_new ?? '—'}
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Entry</div>
           <div style={{ marginTop: 4 }}>
-            <span className={`badge badge-lg ${tier.halt ? 'badge-danger' : 'badge-success'}`}>
-              {tier.halt ? 'HALTED' : 'ALLOWED'}
+            <span className={`badge badge-lg ${tier?.halt ? 'badge-danger' : 'badge-success'}`}>
+              {tier?.halt ? 'HALTED' : 'ALLOWED'}
             </span>
           </div>
         </div>
       </div>
 
-      {cur.halt_reasons && (
+      {safeCurrent.halt_reasons && (
         <div className="alert alert-warn" style={{ marginTop: 'var(--space-4)' }}>
           <AlertTriangle size={16} />
-          <div><strong>Active vetoes:</strong> {cur.halt_reasons}</div>
+          <div><strong>Active vetoes:</strong> {safeCurrent.halt_reasons}</div>
         </div>
       )}
     </div>
@@ -421,7 +422,8 @@ function IndexCell({ idx, prices = [] }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function ExposureFactors({ markets }) {
-  const factors = markets?.current?.factors || {};
+  const safeCurrent = safeGetMarketCurrent(markets);
+  const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const list = [
     ['follow_through_day', 'FOLLOW-THROUGH DAY',         10],
     ['trend_30wk',         '30-WEEK MA TREND',           15],
@@ -449,7 +451,7 @@ function ExposureFactors({ markets }) {
         <div>
           <div className="card-title">12-Factor Exposure Composite</div>
           <div className="card-sub">
-            {markets?.current ? `Raw ${num(markets.current.raw_score, 1)} → capped ${markets.current.exposure_pct}%`
+            {safeCurrent ? `Raw ${num(safeCurrent.raw_score, 1)} → capped ${safeCurrent.exposure_pct}%`
               : 'Each factor independently scored, summed for total exposure'}
           </div>
         </div>
@@ -528,11 +530,12 @@ function ExposureFactors({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function MarketPulse({ markets }) {
-  const cur = markets?.current;
-  if (!cur) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
-  const dd = cur.distribution_days || 0;
-  const ftd = cur.factors?.follow_through_day?.has_ftd;
-  const ddRegime = cur.factors?.distribution_days?.regime || '—';
+  const safeCurrent = safeGetMarketCurrent(markets);
+  if (!safeCurrent) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
+  const factors = safeGetFactors(safeCurrent);
+  const dd = safeCurrent.distribution_days || 0;
+  const ftd = factors.follow_through_day?.has_ftd;
+  const ddRegime = factors.distribution_days?.regime || '—';
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
 
   return (
@@ -629,9 +632,10 @@ function ExposureHistory({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function BreadthCard({ markets }) {
-  const cur = markets?.current?.factors || {};
-  const b50 = (cur?.breadth_50dma && typeof cur.breadth_50dma === 'object') ? cur.breadth_50dma : {};
-  const b200 = (cur?.breadth_200dma && typeof cur.breadth_200dma === 'object') ? cur.breadth_200dma : {};
+  const safeCurrent = safeGetMarketCurrent(markets);
+  const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
+  const b50 = (factors?.breadth_50dma && typeof factors.breadth_50dma === 'object') ? factors.breadth_50dma : {};
+  const b200 = (factors?.breadth_200dma && typeof factors.breadth_200dma === 'object') ? factors.breadth_200dma : {};
   const data = [
     { name: '> 50-DMA',  value: b50?.value ?? 0,  count: `${b50?.above ?? 0}/${b50?.total ?? 0}` },
     { name: '> 200-DMA', value: b200?.value ?? 0, count: `${b200?.above ?? 0}/${b200?.total ?? 0}` },
@@ -675,8 +679,8 @@ function BreadthCard({ markets }) {
           </div>
           <div className="stile">
             <div className="stile-label">McClellan</div>
-            <div className="stile-value">{num(cur.mcclellan?.value, 1)}</div>
-            <div className="stile-sub">{cur.mcclellan?.value > 0 ? 'positive' : 'negative'}</div>
+            <div className="stile-value">{num(factors.mcclellan?.value, 1)}</div>
+            <div className="stile-sub">{(factors.mcclellan?.value ?? 0) > 0 ? 'positive' : 'negative'}</div>
           </div>
         </div>
       </div>
@@ -689,7 +693,9 @@ function BreadthCard({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function NewHighsLowsCard({ markets }) {
-  const nhnl = markets?.current?.factors?.new_highs_lows || {};
+  const safeCurrent = safeGetMarketCurrent(markets);
+  const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
+  const nhnl = factors.new_highs_lows || {};
   const data = [
     { name: 'New Highs', value: nhnl?.new_highs ?? 0, fill: C.success },
     { name: 'New Lows',  value: -(nhnl?.new_lows ?? 0), fill: C.danger },
@@ -734,10 +740,11 @@ function NewHighsLowsCard({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SentimentCard({ markets, sentiment, loading }) {
-  const aaiiHistoryRaw = sentiment?.aaii?.history || sentiment?.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const safeSentiment = safeGetSentimentData(sentiment);
+  const aaiiHistoryRaw = safeSentiment.aaii?.history || safeSentiment.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const aaiiHistory = Array.isArray(aaiiHistoryRaw) ? aaiiHistoryRaw : [];
-  const naaim = sentiment?.naaim?.current ?? null;
-  const fearGreed = sentiment?.fearGreed?.current?.value ?? null;
+  const naaim = safeSentiment.naaim?.current ?? null;
+  const fearGreed = safeSentiment.fearGreed?.current?.value ?? null;
   if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
   if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
@@ -795,7 +802,9 @@ function SentimentCard({ markets, sentiment, loading }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function VixCard({ markets }) {
-  const vix = markets?.current?.factors?.vix_regime || {};
+  const safeCurrent = safeGetMarketCurrent(markets);
+  const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
+  const vix = factors.vix_regime || {};
   const level = vix.value || 0;
   const regime =
     level < 15 ? 'Calm' :
@@ -941,11 +950,12 @@ function TopMoversCard({ data, loading }) {
   );
 }
 function Mover({ symbol, chg, dir }) {
+  const chgVal = chg ?? 0;
   return (
     <div className="flex items-center justify-between" style={{ padding: '4px 0', fontSize: 'var(--t-sm)' }}>
-      <span className="mono" style={{ fontWeight: 'var(--w-bold)' }}>{symbol}</span>
+      <span className="mono" style={{ fontWeight: 'var(--w-bold)' }}>{symbol ?? '—'}</span>
       <span className={`mono tnum ${dir}`} style={{ fontWeight: 'var(--w-semibold)' }}>
-        {chg >= 0 ? '+' : ''}{num(chg, 2)}%
+        {chgVal >= 0 ? '+' : ''}{num(chgVal, 2)}%
       </span>
     </div>
   );
@@ -1040,8 +1050,10 @@ const SECTOR_ETFS = [
 
 function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
   const series = Array.isArray(prices) ? prices : [];
-  const last = (series && series.length > 0) ? (series[0]?.close ?? (series.length > 0 ? series[series.length - 1]?.close : null)) : null;
-  const prev = (series && series.length > 1) ? (series[1]?.close ?? (series.length > 1 ? series[series.length - 2]?.close : null)) : null;
+  const lastEntry = series.length > 0 ? series[0] : null;
+  const prevEntry = series.length > 1 ? series[1] : null;
+  const last = lastEntry?.close ? parseFloat(lastEntry.close) : null;
+  const prev = prevEntry?.close ? parseFloat(prevEntry.close) : null;
   const lastN = last != null ? parseFloat(last) : null;
   const prevN = prev != null ? parseFloat(prev) : null;
   const chgPct = lastN && prevN && prevN !== 0 ? ((lastN - prevN) / prevN) * 100 : null;
@@ -1099,7 +1111,7 @@ function SectorHeatMap({ onSelect }) {
     () => api.get(`/api/prices/batch-history?symbols=${etfSymbols}&timeframe=daily&limit=2`),
     { staleTime: 30000, refetchInterval: 60000 }
   );
-  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
+  const symbolMap = safeGetObject(batchData, {}).symbols && typeof safeGetObject(batchData, {}).symbols === 'object' ? safeGetObject(batchData, {}).symbols : {};
   return (
     <div className="card">
       <div className="card-head">
@@ -1128,7 +1140,7 @@ function SectorHeatMap({ onSelect }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SectorRotationMap({ markets, onSelect }) {
-  const sectors = markets?.sectors || [];
+  const sectors = safeGetArray(markets?.sectors, 'sectors') || [];
   // RS-Rank: lower current_rank = stronger (invert to score 0-100, higher = better)
   // RS-Momentum: positive if rank improved (rank_4w_ago > current_rank)
   const data = useMemo(() => {

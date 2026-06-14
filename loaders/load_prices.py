@@ -1311,7 +1311,8 @@ class PriceLoader(OptimalLoader):
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(f"Batch {len(batch) if batch else 0} symbols failed: {type(e).__name__}: {str(e)[:200]}", exc_info=True)
+                    symbols_str = ', '.join(batch[:5]) + ('...' if len(batch) > 5 else '') if batch else 'unknown'
+                    logger.error(f"Batch {len(batch) if batch else 0} symbols failed: {type(e).__name__}: {str(e)[:200]}\n  Symbols: {symbols_str}\n  Operation: Fetch prices via yfinance\n  Endpoint: Data pipeline", exc_info=True)
 
                 batch_elapsed = time.time() - batch_start
                 batch_times.append(batch_elapsed)

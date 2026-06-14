@@ -199,21 +199,28 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
             last_error = e
             if attempt < max_attempts - 1:
                 current_timeout *= backoff_multiplier
-                logger.warning(
-                    f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
-                )
+                log_msg = f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout\n  Query: {query[:500]}"
+                if params:
+                    log_msg += f"\n  Params: {str(params)[:200]}"
+                logger.warning(log_msg)
                 try:
                     cur.connection.rollback()
                 except Exception as rollback_err:
                     logger.debug(f"Failed to rollback after query timeout: {rollback_err}")
                 time.sleep(0.1)
             else:
-                logger.warning(f"Query timeout after {max_attempts} attempts")
+                log_msg = f"Query timeout after {max_attempts} attempts\n  Query: {query[:500]}"
+                if params:
+                    log_msg += f"\n  Params: {str(params)[:200]}"
+                logger.warning(log_msg)
                 # Raise the timeout error so routes can handle it properly
                 raise e
         except Exception as e:
             last_error = e
-            logger.error(f"Query failed ({type(e).__name__}): {str(e)}")
+            log_msg = f"Query failed ({type(e).__name__}): {str(e)}\n  Query: {query[:500]}"
+            if params:
+                log_msg += f"\n  Params: {str(params)[:200]}"
+            logger.error(log_msg)
             try:
                 cur.connection.rollback()
             except Exception as rollback_err:
@@ -379,12 +386,14 @@ def safe_json_serialize(obj):
     else:
         return obj
 
-def handle_db_error(error, context="database operation"):
+def handle_db_error(error, context="database operation", query=None, params=None):
     """Unified database error handler for all route handlers.
 
     Args:
         error: The exception caught
         context: Operation name for logging context (string, not logger instance)
+        query: SQL query being executed (optional, for debugging)
+        params: Query parameters (optional, for debugging)
 
     Returns:
         Tuple of (statusCode, errorType, message) for standardized error responses
@@ -392,7 +401,14 @@ def handle_db_error(error, context="database operation"):
     error_type = type(error).__name__
     error_str = str(error)
 
-    logger.error(f'[DB_ERROR] {error_type} in {context}: {error_str}')
+    log_context = f'[DB_ERROR] {error_type} in {context}: {error_str}'
+    if query:
+        log_context += f'\n  Query: {query[:500]}'
+    if params:
+        param_str = str(params)[:200]
+        log_context += f'\n  Params: {param_str}'
+
+    logger.error(log_context)
 
     if isinstance(error, psycopg2.errors.UndefinedTable):
         return 503, 'schema_error', 'Database schema issue'
