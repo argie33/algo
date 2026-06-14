@@ -212,6 +212,23 @@ def _fetch_terraform_credentials():
         return (None, None, None)
 
 
+def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
+    """Validate that panel dependencies are available in data.
+
+    Uses panel registry to check if each panel has its required endpoints.
+    Returns dict of {panel_name: can_render}.
+    """
+    if not _REGISTRY_AVAILABLE or not PANEL_REGISTRY:
+        return {}
+
+    panel_status = {}
+    for panel_name in PANEL_REGISTRY.get_panel_names():
+        can_render, _ = PANEL_REGISTRY.can_render_panel(panel_name, data)
+        panel_status[panel_name] = can_render
+
+    return panel_status
+
+
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
                      last_load_time: Optional[float] = None,
