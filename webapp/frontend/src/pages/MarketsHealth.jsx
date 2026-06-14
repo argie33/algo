@@ -1740,19 +1740,19 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
           {/* AAII bull-bear spread */}
           <div>
             <div className="eyebrow" style={{ marginBottom: 8 }}>AAII Bull-Bear Spread</div>
-            {aaiiSeries.length === 0 ? (
+            {!aaiiLatest || aaiiLatest.spread == null || aaiiSeries.length === 0 ? (
               <Empty title="AAII Spread" desc="Data not loaded" />
             ) : (
               <>
                 <div style={{ textAlign: 'center', padding: 'var(--space-4) 0' }}>
                   <div className="mono tnum" style={{
                     fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)',
-                    color: aaiiLatest.spread >= 0 ? C.success : C.danger, lineHeight: 1,
+                    color: Number(aaiiLatest.spread) >= 0 ? C.success : C.danger, lineHeight: 1,
                   }}>
-                    {aaiiLatest.spread >= 0 ? '+' : ''}{num(aaiiLatest.spread, 1)}
+                    {Number(aaiiLatest.spread) >= 0 ? '+' : ''}{num(aaiiLatest.spread, 1)}
                   </div>
                   <div className="t-sm muted" style={{ marginTop: 4 }}>
-                    {Math.abs(aaiiLatest.spread) > 20 ? 'Contrarian extreme' : 'Normal range'}
+                    {Math.abs(Number(aaiiLatest.spread)) > 20 ? 'Contrarian extreme' : 'Normal range'}
                   </div>
                 </div>
                 <div style={{ height: 100, width: '100%', minWidth: 0 }}>
@@ -1876,20 +1876,20 @@ function EconomicCalendarCard() {
                   return (
                     <tr key={i} style={{ borderTop: '1px solid var(--border-soft)' }}>
                       <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--text-muted)' }}>
-                        {fmtDate(ev.event_date || ev.date)}
+                        {fmtDate(String(ev.event_date || ev.date))}
                         {ev.event_time && (
                           <div className="t-2xs faint">{String(ev.event_time).slice(0, 5)}</div>
                         )}
                       </td>
                       <td style={{ padding: 'var(--space-2) var(--space-3)' }}>
-                        <div style={{ fontWeight: 'var(--w-semibold)' }}>{ev.event_name || ev.event || ev.name || '—'}</div>
-                        {ev.country && <div className="t-2xs faint">{ev.country}</div>}
+                        <div style={{ fontWeight: 'var(--w-semibold)' }}>{String(ev.event_name || ev.event || ev.name || '—')}</div>
+                        {ev.country && <div className="t-2xs faint">{String(ev.country)}</div>}
                       </td>
                       <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right' }}>
-                        {ev.forecast ?? ev.expected ?? '—'}
+                        {String(ev.forecast ?? ev.expected ?? '—')}
                       </td>
                       <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: 'var(--text-muted)' }}>
-                        {ev.previous ?? ev.prior ?? '—'}
+                        {String(ev.previous ?? ev.prior ?? '—')}
                       </td>
                       <td style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'center' }}>
                         <span style={{
@@ -1897,7 +1897,7 @@ function EconomicCalendarCard() {
                           background: impactColor,
                         }} />
                         <span className="t-2xs" style={{ marginLeft: 4, color: impactColor, textTransform: 'uppercase' }}>
-                          {importance || '—'}
+                          {String(importance || '—')}
                         </span>
                       </td>
                     </tr>

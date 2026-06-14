@@ -97,7 +97,7 @@ def fetch_cloudfront_domain_from_secrets():
             logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
             return None, "boto3 not available"
         except Exception as e:
-            logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch JWT validation secret from AWS Secrets Manager\n  Secret name: {secret_name}")
+            logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain")
             return None, f"Error: {e}"
 
 def validate_environment():
@@ -761,18 +761,19 @@ def require_auth(event: Dict, path: str) -> tuple:
         cognito_enabled = _COGNITO_ENABLED
 
     if not cognito_enabled:
-        # Allow development bypass with DEV_BYPASS_AUTH environment variable
-        if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
-            logger.warning(f"[DEV_MODE] Dev mode enabled, checking for dev token...")
+        # SECURITY FIX S-02: Dev mode only in local development (dev_server.py), never in Lambda
+        # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
+        try:
+            from dev_auth import validate_dev_token
             token = get_bearer_token(event)
-            if token and token.startswith('dev-'):
-                is_valid, claims, error = validate_bearer_token(token)
+            if token:
+                is_valid, claims, error = validate_dev_token(token)
                 if is_valid:
-                    logger.info(f"[DEV_MODE] Dev token validated with groups: {claims.get('cognito:groups')}")
+                    logger.info(f"[DEV_AUTH] Development token accepted (local dev mode)")
                     return (True, True, None, claims)
-            # If no valid dev token, grant admin access for development
-            logger.info(f"[DEV_MODE] No token or invalid token; granting dev admin access")
-            return (False, True, None, {'cognito:groups': ['admin', 'user'], 'sub': 'dev-user'})
+        except ImportError:
+            pass  # dev_auth not available - continue to error
+
         logger.error(f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured")
         return (True, False, "Authentication system not configured. Contact administrator.", None)
 

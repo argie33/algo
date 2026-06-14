@@ -287,9 +287,9 @@ def panel_market_full(mkt, sentiment=None):
         f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
     ]
     if upvol is not None:
-        adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
-        lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
+        adr_s  = f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
+        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]" if nhnl is not None else ""
+        lines.append(f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{str(nh or '--')}[/] [dim]Lows:[/][{R}]{str(nl or '--')}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
@@ -340,12 +340,12 @@ def panel_circuit(cb, risk=None):
             thr = br.get("thr")
             cur = br.get("cur")
             if thr is None or cur is None:
-                thr_s = "--" if thr is None else f"{float(thr):.0f}"
+                thr_s = "--" if thr is None else f"{float(thr or 0):.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                return f"[{R if fired else 'dim'}]{br.get('lbl', 'N/A')}:[/]{cur_s}{br.get('u', '')}[dim]/{thr_s}{br.get('u', '')}[/]"
-            fc  = R if fired else (Y if float(thr) > 0 and float(cur) / float(thr) >= 0.75 else G)
+                return f"[{R if fired else 'dim'}]{str(br.get('lbl', 'N/A'))}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
+            fc  = R if fired else (Y if float(thr or 0) > 0 and float(cur or 0) / float(thr or 1) >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
-            return f"[{fc}]{br.get('lbl', 'N/A')}:[/]{cur}{br.get('u', '')}[dim]/{thr:.0f}{br.get('u', '')}[/]{hbar(cur, thr, w=4)}{ind}"
+            return f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{str(cur or 0)}{str(br.get('u', ''))}[dim]/{float(thr or 0):.0f}{str(br.get('u', ''))}[/]{hbar(float(cur or 0), float(thr or 1), w=4)}{ind}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
@@ -380,11 +380,11 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             uvc    = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl   = (nh - nl) if (nh is not None and nl is not None) else None
             nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
-            adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
-            nhnl_s = f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else "[dim]NH-NL: --[/]"
+            adr_s  = f"  [dim]A/D:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
+            nhnl_s = f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]" if nhnl is not None else "[dim]NH-NL: --[/]"
             rows.append(Text.from_markup(
-                f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
-                f"[dim]NH:[/][{G}]{nh or '--'}[/] [dim]NL:[/][{R}]{nl or '--'}[/]  "
+                f"[dim]UpVol:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
+                f"[dim]NH:[/][{G}]{str(nh or '--')}[/] [dim]NL:[/][{R}]{str(nl or '--')}[/]  "
                 f"{nhnl_s}"
             ))
         pcr = mkt.get("pcr"); bmom = mkt.get("bmom"); ycs = mkt.get("ycs"); fed = mkt.get("fed")
