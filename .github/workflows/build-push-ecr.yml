@@ -9,6 +9,7 @@ on:
       - 'utils/**'
       - 'config/**'
       - 'algo/**'
+      - 'migrations/**'
       - 'requirements.txt'
       - 'Dockerfile'
   workflow_dispatch:
