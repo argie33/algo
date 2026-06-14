@@ -11,6 +11,7 @@ import logging
 import psycopg2.sql
 from typing import Optional, Dict, Any
 from functools import wraps
+from utils.error_handlers import make_error_response
 from routes.utils import error_response
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 

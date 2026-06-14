@@ -28,6 +28,7 @@ Body: {
 import json
 import logging
 from typing import Dict
+from utils.error_handlers import make_error_response
 from routes.utils import success_response, error_response
 import boto3
 

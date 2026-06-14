@@ -3,6 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging, re
 from datetime import datetime, timezone
+from utils.error_handlers import make_error_response
 from routes.utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 from collections import defaultdict
 from time import time

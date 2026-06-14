@@ -2,6 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging
+from utils.error_handlers import make_error_response
 from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
 
 logger = logging.getLogger(__name__)

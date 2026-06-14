@@ -3,6 +3,7 @@ import psycopg2
 from typing import Dict
 import logging
 from datetime import datetime, timezone
+from utils.error_handlers import make_error_response
 from routes.utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error, safe_json_serialize
 import sys
 import os

@@ -3,6 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, os, boto3
 from datetime import datetime, timedelta, date, timezone
+from utils.error_handlers import make_error_response
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, handle_db_error, db_route_handler, check_data_freshness, safe_json_serialize,
@@ -96,7 +97,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'handle admin')
             return error_response(code, error_type, message)
-@db_route_handler('get loader status', default_error_response={'status': 'error', 'message': 'Unable to fetch loader status', 'loaders': [], 'summary': {'total': 0, 'healthy': 0, 'stale': 0}})
+@db_route_handler('get loader status')
 def _get_loader_status(cur) -> Dict:
     """Get status of all data loaders from data_loader_status table.
 
@@ -167,7 +168,7 @@ def _get_loader_status(cur) -> Dict:
         },
         'data_freshness': freshness
     })
-@db_route_handler('get system health', default_error_response={'status': 'error', 'components': {}, 'timestamp': None})
+@db_route_handler('get system health')
 def _get_system_health(cur) -> Dict:
     """Get overall system health status."""
     health_data = {'status': 'healthy', 'components': {}}
@@ -227,7 +228,7 @@ def _get_system_health(cur) -> Dict:
     health_data['tables'] = table_counts
     health_data['timestamp'] = datetime.now(timezone.utc).isoformat()
     return json_response(200, health_data)
-@db_route_handler('get database stats', default_error_response={'active_connections': 0, 'total_database_size': 'unknown', 'table_count': 0, 'timestamp': None})
+@db_route_handler('get database stats')
 def _get_database_stats(cur) -> Dict:
     """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}

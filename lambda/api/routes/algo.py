@@ -7,6 +7,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
+from utils.error_handlers import make_error_response
 from routes.utils import (
     error_response, success_response, list_response, json_response,
     safe_limit, safe_days, safe_offset, handle_db_error, db_route_handler,
@@ -428,7 +429,7 @@ def _get_last_run(cur) -> Dict:
         'phases': phases,
     })
 
-@db_route_handler('fetch algo status', default_error_response={'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('fetch algo status')
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
         cur.execute("""
@@ -485,7 +486,7 @@ def _get_algo_status(cur) -> Dict:
             'data_freshness': freshness,
         })
 
-@db_route_handler('fetch algo trades', default_error_response={'items': [], 'pagination': {'total': 0, 'limit': 200, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('fetch algo trades')
 def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = None) -> Dict:
         """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
         where_parts = []
@@ -529,7 +530,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None, status: str = N
         sanitized = APIResponseValidator.sanitize_response(response_data)
         return json_response(200, sanitized)
 
-@db_route_handler('fetch algo positions', default_error_response={'items': [], 'sector_allocation': [], 'pagination': {'total': 0, 'limit': 10000, 'offset': 0}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('fetch algo positions')
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
         """Get current open positions with computed fields.
 
@@ -762,7 +763,7 @@ def _get_algo_performance(cur) -> Dict:
             logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Query pre-computed algo_performance_metrics\n  Endpoint: GET /api/algo/performance')
             return error_response(500, 'internal_error', 'Failed to fetch performance metrics')
 
-@db_route_handler('fetch dashboard signals', default_error_response={'n': 0, 'total': 0, 'date': None, 'buy_sigs': [], 'grades': {}, 'near': [], 'top_a': [], 'trend': [], 'data_freshness': {}, '_error': 'Data unavailable'})
+@db_route_handler('fetch dashboard signals')
 def _get_dashboard_signals(cur) -> Dict:
         """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
@@ -861,7 +862,7 @@ def _get_dashboard_signals(cur) -> Dict:
             code, error_type, message = handle_db_error(e, 'fetch dashboard signals')
             return error_response(code, error_type, message)
 
-@db_route_handler('fetch circuit breakers', default_error_response={'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}, '_error': 'Data unavailable'})
+@db_route_handler('fetch circuit breakers')
 def _get_circuit_breakers(cur) -> Dict:
         """Get real-time circuit breaker state with current values vs thresholds."""
         try:
@@ -2553,7 +2554,7 @@ def _categorize_config_key(key: str) -> str:
         else:
             return 'Other'
 
-@db_route_handler('fetch algo config', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
+@db_route_handler('fetch algo config')
 def _get_algo_config(cur) -> Dict:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
     from algo.algo_config import AlgoConfig
@@ -2582,7 +2583,7 @@ def _get_algo_config(cur) -> Dict:
 
     return list_response(config_items)
 
-@db_route_handler('fetch algo config key', default_error_response={'_error': 'Data unavailable'})
+@db_route_handler('fetch algo config key')
 def _get_algo_config_key(cur, key: str) -> Dict:
     """Return a single algo config key."""
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
@@ -2719,8 +2720,8 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
         return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=total, limit=limit, offset=offset)
 
 # FIXED Issue #6: Orchestrator execution history endpoints
-@db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
-@db_route_handler('fetch orchestrator execution recent', default_error_response={'items': [], 'total': 0, 'limit': 50})
+@db_route_handler('fetch orchestrator execution recent')
+@db_route_handler('fetch orchestrator execution recent')
 def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
     """Return recent orchestrator execution runs."""
     try:
@@ -2745,7 +2746,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
         logger.error(f'Orchestrator execution recent fetch error: {type(e).__name__}: {e}')
         return list_response([], total=0, limit=limit)
 
-@db_route_handler('fetch orchestrator execution failed', default_error_response={'items': [], 'total': 0, '_error': 'Data unavailable'})
+@db_route_handler('fetch orchestrator execution failed')
 def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
     """Return failed/halted orchestrator runs."""
     cur.execute("""
@@ -2758,7 +2759,7 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
     rows = cur.fetchall()
     return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))
 
-@db_route_handler('fetch orchestrator execution details', default_error_response={'data': {}, '_error': 'Data unavailable'})
+@db_route_handler('fetch orchestrator execution details')
 def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
     """Return full details of a specific orchestrator run."""
     cur.execute("""
@@ -2782,7 +2783,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
             result['phase_results'] = {}
     return success_response(result)
 
-@db_route_handler('fetch orchestrator execution patterns', default_error_response={'data': {'patterns': [], 'period_days': 0}, '_error': 'Data unavailable'})
+@db_route_handler('fetch orchestrator execution patterns')
 def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
     """Analyze halt patterns - which phases halt most often."""
     cur.execute("""
@@ -2808,7 +2809,7 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
     ]
     return success_response({'patterns': patterns, 'period_days': days})
 
-@db_route_handler('fetch orchestrator execution stats', default_error_response={'data': {'total_runs': 0, 'by_status': {}, 'success_rate': 'N/A', 'halt_rate': 'N/A', 'error_rate': 'N/A', 'period_days': 0}, '_error': 'Data unavailable'})
+@db_route_handler('fetch orchestrator execution stats')
 def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
     """Return execution statistics."""
     cur.execute("""
@@ -3036,7 +3037,7 @@ def _get_sentiment(cur) -> Dict:
         'data_freshness': freshness
     })
 
-@db_route_handler('get economic calendar', default_error_response=[])
+@db_route_handler('get economic calendar')
 def _get_economic_calendar(cur) -> Dict:
     """Get economic calendar data with freshness validation.
 

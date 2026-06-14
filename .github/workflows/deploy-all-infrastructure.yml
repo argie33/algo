@@ -705,6 +705,14 @@ jobs:
           terraform state rm "module.services.aws_lambda_function_event_invoke_config.api_async" 2>/dev/null || true
           echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
 
+      - name: Remove Orphaned S3 Config Bucket From State
+        run: |
+          # algo-config-bucket was removed from Terraform code but still exists in state.
+          # Remove it so Terraform doesn't try to delete the bucket (which fails if it's not empty).
+          terraform state rm "aws_s3_bucket.config[0]" 2>/dev/null || true
+          terraform state rm "aws_s3_bucket.config" 2>/dev/null || true
+          echo "[OK] Orphaned config bucket state entries removed (if they existed)"
+
       - name: Terraform Plan
         id: tf_plan
         run: |
