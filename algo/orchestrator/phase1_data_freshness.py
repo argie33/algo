@@ -152,6 +152,9 @@ def run(
                 logger.critical(f"[PHASE 1] CRITICAL DATA GAPS: {'; '.join(stale_tables)}")
                 log_phase_result_fn(1, 'signal_tables_stale', 'halt',
                                    f"Stale/missing signal data: {'; '.join(stale_tables[:3])}")
+                # Alert on signal staleness
+                from algo.reporting.notifications import notify_signal_staleness
+                notify_signal_staleness(stale_tables)
                 return PhaseResult(1, 'signal_tables_stale', 'halted', {}, True,
                                  f"Critical tables stale/missing: {stale_tables[0]}")
 

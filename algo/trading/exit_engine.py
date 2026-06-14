@@ -22,6 +22,7 @@ State tracked on algo_positions:
 """
 
 import os
+import requests
 from utils.db import DatabaseContext
 from datetime import datetime, timedelta, date as _date, timezone
 try:
@@ -33,6 +34,9 @@ from algo.signals import SignalComputer
 from utils.trading import TradeStatus, PositionStatus
 import logging
 from typing import Dict, List, Any, Optional, Tuple
+from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
+from config.credential_manager import get_alpaca_credentials
+from algo.infrastructure import get_alpaca_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -386,8 +390,84 @@ class ExitEngine:
 
     # ---------- Data helpers ----------
 
+    def _fetch_alpaca_quote(self, symbol: str) -> Optional[float]:
+        """Fetch real-time quote from Alpaca Data API.
+
+        Returns the current bid-ask midpoint if market is open, None if market closed or API fails.
+        """
+        try:
+            creds = get_alpaca_credentials()
+            key = creds.get("key")
+            secret = creds.get("secret")
+
+            if not key or not secret:
+                return None
+
+            data_url = get_alpaca_data_url()
+            # Use latest quotes endpoint for real-time midpoint price
+            response = requests.get(
+                f"{data_url}/v2/quotes/latest",
+                params={"symbols": symbol, "feed": "sip"},
+                headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
+                timeout=get_alpaca_timeout(),
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                quotes = data.get("quotes", {})
+                quote = quotes.get(symbol, {})
+
+                # Calculate midpoint from bid/ask
+                bid = quote.get("bp")
+                ask = quote.get("ap")
+                if bid is not None and ask is not None and bid > 0 and ask > 0:
+                    midpoint = (float(bid) + float(ask)) / 2.0
+                    return midpoint
+                # Fallback to last price if available
+                last_price = quote.get("lp")
+                if last_price is not None:
+                    return float(last_price)
+            elif response.status_code == 401:
+                logger.debug(f"Alpaca quote API auth failed for {symbol}")
+                return None
+            else:
+                logger.debug(f"Alpaca quote API returned {response.status_code} for {symbol}")
+                return None
+        except requests.Timeout:
+            logger.debug(f"Alpaca quote API timeout for {symbol}")
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to fetch Alpaca quote for {symbol}: {e}")
+            return None
+
     def _fetch_recent_prices(self, cur, symbol, current_date) -> tuple[float | None, float | None]:
-        """Return (current_close, previous_close) using closest available price <= current_date."""
+        """Return (current_price, previous_close) with intraday support.
+
+        Strategy:
+        1. Try to fetch real-time quote from Alpaca (for intraday stop checking)
+        2. If unavailable (market closed, API failure), fall back to daily closes
+
+        This ensures stop losses execute on current prices during market hours,
+        not stale daily closes from the previous day.
+        """
+        # Try real-time quote first (intraday pricing)
+        current_price = self._fetch_alpaca_quote(symbol)
+
+        if current_price is not None:
+            # Got real-time quote; fetch previous close from daily data
+            cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = %s AND date < %s
+                ORDER BY date DESC LIMIT 1
+                """,
+                (symbol, current_date),
+            )
+            prev_row = cur.fetchone()
+            prev_close = float(prev_row[0]) if prev_row and prev_row[0] is not None else None
+            return current_price, prev_close
+
+        # Fall back to daily closes (market closed or API unavailable)
         cur.execute(
             """
             SELECT date, close FROM price_daily

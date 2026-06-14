@@ -182,6 +182,9 @@ class DataPatrol:
             ('earnings_history', 'earnings_date', 'quarterly', 'patrol_staleness_earnings_history', INFO),
         ]
         today = _date.today()
+        critical_signal_tables = {'buy_sell_daily', 'signal_quality_scores', 'trend_template_data'}
+        stale_critical_signals = []
+
         for tbl, col, freq, config_key, sev_on_stale in sources:
             try:
                 # Get threshold from config (or hardcoded default if not found)
@@ -213,12 +216,19 @@ class DataPatrol:
                     self.log(cur, 'staleness', sev_on_stale, tbl,
                              f'{tbl} stale: {age}d > {max_days}d threshold (configured via {config_key})',
                              {'latest': str(latest), 'age_days': age, 'freq': freq, 'threshold_days': max_days})
+                    if tbl in critical_signal_tables:
+                        stale_critical_signals.append(tbl)
                 else:
                     self.log(cur, 'staleness', INFO, tbl,
                              f'{tbl} fresh ({age}d old, threshold {max_days}d)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
                 self.log(cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
+
+        # Alert if critical signal tables are stale
+        if stale_critical_signals:
+            from algo.reporting.notifications import notify_signal_staleness
+            notify_signal_staleness(stale_critical_signals)
 
     def check_null_anomalies(self, cur):
         """P2. Sudden spike in NULL values vs historical. Uses patrol_max_null_pct_threshold."""

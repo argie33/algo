@@ -194,10 +194,12 @@ def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = N
 
         message = f"Trading signals based on stale or unavailable data.\n\nAffected: {tables_str}"
 
-        notify(
-            severity="critical",
-            title="SIGNAL STALENESS ALERT",
+        service = TradeNotificationService()
+        service._send_notification(
+            subject="SIGNAL STALENESS ALERT",
             message=message,
+            kind="signal",
+            severity="critical",
             details={
                 "stale_tables": stale_tables,
                 "alert_type": "signal_staleness",

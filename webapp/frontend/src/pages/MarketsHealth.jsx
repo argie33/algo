@@ -129,6 +129,11 @@ function MarketsHealthPage() {
     () => api.get('/api/market/seasonality'),
     { refetchInterval: 1000 * 60 * 60 }
   );
+  const { data: notificationsData, loading: notifLoading } = useApiQuery(
+    ['signal-staleness-alerts'],
+    () => api.get('/api/algo/notifications?kind=signal&severity=critical'),
+    { refetchInterval: 60000 }
+  );
 
   useEffect(() => {
     const id = setInterval(() => setTs(new Date()), 30000);
@@ -139,6 +144,9 @@ function MarketsHealthPage() {
   const m = marketsData?.data || marketsData;
 
   const isPrimaryLoading = marketsLoading || sentimentLoading || moversLoading || technicalsLoading || seasonalityLoading;
+  const signalStalenessAlerts = Array.isArray(notificationsData?.items)
+    ? notificationsData.items.filter(n => n.kind === 'signal' && (n.details?.alert_type === 'signal_staleness' || n.title?.includes('STALENESS')))
+    : [];
 
   if (isPrimaryLoading && !m) {
     return (
@@ -168,6 +176,17 @@ function MarketsHealthPage() {
         </div>
       </div>
 
+      {signalStalenessAlerts.length > 0 && (
+        <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>
+          <AlertTriangle size={16} style={{marginRight: 8}} />
+          <strong>Signal Staleness Alert:</strong> Trading signals are based on stale data.
+          {signalStalenessAlerts[0]?.details?.stale_tables && (
+            <div style={{marginTop: 8, fontSize: 'var(--t-sm)'}}>
+              Affected: {signalStalenessAlerts[0].details.stale_tables.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
       {mkError && <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>Failed to load market data - some sections unavailable</div>}
       {!mkError && <ErrorBoundary><RegimeBanner markets={m} /></ErrorBoundary>}
       {!techError && <ErrorBoundary><IndicesStrip /></ErrorBoundary>}
