@@ -77,6 +77,22 @@ This fetches fresh credentials from IaC (Secrets Manager) and updates your local
 - Memory file = temporary context holder only, delete after commit
 - Steering doc = permanent procedure if discovery is useful long-term, otherwise leave it to git history
 
+## Rate Limiting Strategy
+
+**Unified rate limiting** is documented in `steering/rate-limiting-strategy.md`.
+
+Three-layer approach:
+1. **API Gateway:** 10,000 RPS global limit (Terraform-configured)
+2. **Application:** Per-endpoint limits in `utils/rate_limiting.py`
+   - Public endpoints: Global limits (prevent DoS)
+   - Admin endpoints: Per-user limits (prevent abuse of expensive operations)
+3. **External APIs:** yfinance/FRED limits in `utils/validation/rate_limit.py`
+
+Quick reference:
+- Add new endpoint limit: Edit `ADMIN_RATE_LIMITS` or `PUBLIC_RATE_LIMITS` in `utils/rate_limiting.py`
+- Enforce limit in route handler: `check_admin_rate_limit()` or `check_public_rate_limit()`
+- See `steering/rate-limiting-strategy.md` for endpoint list and rationale
+
 ## Security Baseline
 
 All projects follow:
