@@ -26,11 +26,30 @@ try {
     exit 1
 }
 
+# Fetch dashboard credentials from Secrets Manager
+$apiUrl = $null; $clientId = $null
+try {
+    $secretJson = aws secretsmanager get-secret-value `
+        --secret-id algo/dashboard-config `
+        --region us-east-1 `
+        --query SecretString `
+        --output text 2>&1
+    if ($LASTEXITCODE -eq 0 -and $secretJson) {
+        $secret = $secretJson | ConvertFrom-Json
+        $apiUrl   = $secret.api_url
+        $clientId = $secret.cognito_user_pool_client_id
+    }
+} catch {}
+if (-not $apiUrl) {
+    Write-Host "   [FAIL] Could not fetch API URL from Secrets Manager" -ForegroundColor Red
+    exit 1
+}
+
 # 2. Check API health
 Write-Host ""
 Write-Host "2. Testing API Gateway Health..." -ForegroundColor Yellow
 try {
-    $health = Invoke-WebRequest -Uri "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/health" `
+    $health = Invoke-WebRequest -Uri "$apiUrl/api/health" `
         -TimeoutSec 10 -ErrorAction Stop
     Write-Host "   [OK] API Gateway responding (Status $($health.StatusCode))" -ForegroundColor Green
 } catch {
@@ -47,7 +66,7 @@ import boto3
 try:
     cognito = boto3.client('cognito-idp', region_name='us-east-1')
     response = cognito.initiate_auth(
-        ClientId='6smb0vrcidd9kvhju2kn2a3qrl',
+        ClientId='$clientId',
         AuthFlow='USER_PASSWORD_AUTH',
         AuthParameters={
             'USERNAME': 'dashboardtest@example.com',
@@ -84,7 +103,7 @@ $headers = @{ Authorization = "Bearer $token" }
 
 foreach ($endpoint in $endpoints) {
     try {
-        $response = Invoke-WebRequest -Uri "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com$endpoint" `
+        $response = Invoke-WebRequest -Uri "$apiUrl$endpoint" `
             -Headers $headers -TimeoutSec 10 -ErrorAction SilentlyContinue
         Write-Host "   [OK] $endpoint - Status $($response.StatusCode)" -ForegroundColor Green
     } catch {

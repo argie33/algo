@@ -51,24 +51,56 @@ try {
 }
 
 Write-Host ""
-Write-Host "Fetching Terraform outputs..." -ForegroundColor Cyan
+Write-Host "Fetching dashboard credentials..." -ForegroundColor Cyan
 
-# Get Terraform outputs (with fallback for local development)
-Set-Location terraform
+$apiUrl = $null
+$poolId = $null
+$clientId = $null
+
+# Try Secrets Manager first (most reliable, works without local Terraform state)
 try {
-    $apiUrl    = & terraform output -raw api_url 2>$null
-    $poolId    = & terraform output -raw cognito_user_pool_id 2>$null
-    $clientId  = & terraform output -raw cognito_user_pool_client_id 2>$null
-} catch {}
-Set-Location ..
+    $secretJson = aws secretsmanager get-secret-value `
+        --secret-id algo/dashboard-config `
+        --region us-east-1 `
+        --query SecretString `
+        --output text 2>&1
+    if ($LASTEXITCODE -eq 0 -and $secretJson) {
+        $secret = $secretJson | ConvertFrom-Json
+        $apiUrl   = $secret.api_url
+        $poolId   = $secret.cognito_user_pool_id
+        $clientId = $secret.cognito_user_pool_client_id
+        if ($apiUrl) { Write-Host "Credentials from Secrets Manager" -ForegroundColor Green }
+    }
+} catch {
+    # Secrets Manager unavailable, will try Terraform
+}
 
-# Fall back to known-good deployed values if terraform outputs are unavailable
-# (Terraform state only exists after GitHub Actions deploy, not locally)
+# Fall back to Terraform outputs if Secrets Manager unavailable
 if (-not $apiUrl) {
-    Write-Host "Terraform outputs unavailable — using known deployment values" -ForegroundColor Yellow
-    $apiUrl   = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
-    $poolId   = "us-east-1_XJpLb9SKX"
-    $clientId = "6smb0vrcidd9kvhju2kn2a3qrl"
+    Write-Host "Secrets Manager unavailable -- trying Terraform..." -ForegroundColor Yellow
+    $tfDir = Join-Path $repoRoot "terraform"
+    if (Test-Path $tfDir) {
+        Push-Location $tfDir
+        try {
+            $apiUrl   = & terraform output -raw api_url 2>$null
+            $poolId   = & terraform output -raw cognito_user_pool_id 2>$null
+            $clientId = & terraform output -raw cognito_user_pool_client_id 2>$null
+            if ($apiUrl) { Write-Host "Credentials from Terraform" -ForegroundColor Green }
+        } catch {
+            # Terraform output failed, continue with empty values
+        }
+        Pop-Location
+    }
+}
+
+if (-not $apiUrl) {
+    Write-Host "[ERROR] Could not retrieve dashboard credentials." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "To fix this, ensure:" -ForegroundColor Yellow
+    Write-Host "  1. AWS credentials are valid:  scripts/refresh-aws-credentials.ps1" -ForegroundColor Yellow
+    Write-Host "  2. Terraform has been applied: cd terraform; terraform apply" -ForegroundColor Yellow
+    Write-Host "  3. algo/dashboard-config secret exists in Secrets Manager" -ForegroundColor Yellow
+    exit 1
 }
 
 $env:DASHBOARD_API_URL   = $apiUrl
@@ -83,4 +115,4 @@ Write-Host "Press 'q' or Ctrl+C to exit" -ForegroundColor Gray
 Write-Host ""
 
 # Run dashboard with passed arguments
-python "tools/dashboard/dashboard.py" @DashboardArgs
+& python tools/dashboard/dashboard.py @DashboardArgs

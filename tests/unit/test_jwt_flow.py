@@ -42,7 +42,7 @@ class TestJWTFlowIntegration:
             'email_verified': True,
             'cognito:groups': ['admin'],
             'token_use': 'access',
-            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XJpLb9SKX',
+            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId',
             'exp': 1719432000,
             'iat': 1719428400
         }
@@ -72,7 +72,7 @@ class TestJWTFlowIntegration:
             'email_verified': True,
             'cognito:groups': ['trader'],
             'token_use': 'access',
-            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XJpLb9SKX',
+            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId',
             'exp': 1719432000,
             'iat': 1719428400
         }
@@ -168,9 +168,9 @@ class TestCognitoConfiguration:
 
     def test_cognito_user_pool_configured(self):
         """Verify Cognito user pool ID is correct."""
-        expected_pool_id = "us-east-1_XJpLb9SKX"
+        expected_pool_id = "us-east-1_TestPoolId"
         # This matches the user pool ID in setup script and Lambda env
-        assert expected_pool_id == "us-east-1_XJpLb9SKX"
+        assert expected_pool_id == "us-east-1_TestPoolId"
 
     def test_cognito_region_configured(self):
         """Verify Cognito region is correct."""

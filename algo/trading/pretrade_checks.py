@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class PreTradeChecks:
     """Validation layer before executing trades."""
 
-    def __init__(self, config: Dict[str, Any], alpaca_base_url: str = None,
-                 alpaca_key: str = None, alpaca_secret: str = None):
+    def __init__(self, config: Dict[str, Any], alpaca_base_url: Optional[str] = None,
+                 alpaca_key: Optional[str] = None, alpaca_secret: Optional[str] = None):
         """Initialize pre-trade checks with configuration."""
         self.config = config
         self.alpaca_base_url = alpaca_base_url

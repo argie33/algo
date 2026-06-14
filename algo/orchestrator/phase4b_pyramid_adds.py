@@ -38,7 +38,7 @@ def run(
 
         if not recs:
             log_phase_result_fn('4b', 'pyramid_adds', 'success', 'No qualifying adds')
-            return PhaseResult('4b', 'pyramid_adds', 'ok', {'adds': []}, False, None)
+            return PhaseResult(4, 'pyramid_adds', 'ok', {'adds': []}, False, None)
 
         executed = 0
         for r in recs:

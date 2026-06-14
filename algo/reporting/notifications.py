@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
-    def __init__(self, config: Dict = None):
+    def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"

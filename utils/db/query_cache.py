@@ -310,7 +310,7 @@ if __name__ == "__main__":
     # Example usage
     print("Query Cache Example")
 
-    cache = QueryCache("test_cache", ttl_seconds=5, max_entries=100)
+    cache: QueryCache[int] = QueryCache("test_cache", ttl_seconds=5, max_entries=100)
 
     def expensive_computation(x: int) -> int:
         print(f"  [EXPENSIVE] Computing {x}^2...")

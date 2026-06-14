@@ -120,7 +120,7 @@ def run(
                           f"{len(attr_result)} components analyzed")
 
         # Step 3: Run weight optimization (if enough trades)
-        opt_result = {'changes': []}
+        opt_result: Dict[str, Any] = {'changes': []}
         try:
             from algo.orchestration import RegimeManager as _RegimeManager
             _current_regime = _RegimeManager().get_current_regime(run_date) or 'confirmed_uptrend'

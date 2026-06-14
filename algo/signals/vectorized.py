@@ -75,7 +75,7 @@ class VectorizedSignalGenerator:
                 rows = cur.fetchall()
 
                 # Organize by symbol into structured arrays
-                data_by_symbol = {}
+                data_by_symbol: Dict[str, List[Dict[str, Any]]] = {}
                 for row in rows:
                     symbol = row[0]
                     if symbol not in data_by_symbol:

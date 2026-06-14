@@ -16,7 +16,7 @@ class DailyFinanceReport:
     def __init__(self):
         self.regime_mgr = RegimeManager()
 
-    def generate(self, report_date: _date = None) -> Dict[str, Any]:
+    def generate(self, report_date: Optional[_date] = None) -> Dict[str, Any]:
         """
         Generate comprehensive daily report.
 

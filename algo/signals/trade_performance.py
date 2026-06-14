@@ -12,7 +12,7 @@ Enables Information Coefficient (IC) calculation per component.
 import logging
 import json
 from datetime import date as _date, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 from utils.db import DatabaseContext
 
@@ -61,7 +61,7 @@ class SignalTradePerformancePopulator:
                     }
 
                 inserted_count = 0
-                component_returns = {comp: [] for comp in [
+                component_returns: Dict[str, List[Tuple[float, float]]] = {comp: [] for comp in [
                     'setup_quality', 'trend_quality', 'momentum_rs', 'volume',
                     'fundamentals', 'sector_industry', 'multi_timeframe'
                 ]}

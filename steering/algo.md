@@ -130,20 +130,18 @@ What `setup-local-dev.ps1` does:
 **Legacy Setup (if automated setup doesn't work):**
 
 ```powershell
-# Option 1: Manual environment variables (one-session only)
-$env:DASHBOARD_API_URL = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
-$env:COGNITO_USER_POOL_ID = "us-east-1_XJpLb9SKX"
-$env:COGNITO_CLIENT_ID = "6smb0vrcidd9kvhju2kn2a3qrl"
-python tools/dashboard/dashboard.py
-
-# Option 2: AWS credentials bootstrap + auto-fetch from Secrets Manager
+# Option 1: AWS credentials bootstrap + auto-fetch from Secrets Manager
 scripts/refresh-aws-credentials.ps1  # creates ~/.aws/credentials with algo-developer profile
 python tools/dashboard/dashboard.py  # auto-fetches from Secrets Manager
 
-# Option 3: Local development without AWS infrastructure
+# Option 2: Local development without AWS infrastructure
 python scripts/api-proxy-server.py                    # Terminal 1: Local API proxy
 python tools/dashboard/dashboard.py --local -w 30    # Terminal 2: Dashboard
 ```
+
+Note: Never hardcode API URL or Cognito credentials. All values come from `algo/dashboard-config`
+in Secrets Manager (set by Terraform on deploy). Run `scripts/refresh-aws-credentials.ps1`
+if credential errors occur.
 
 **Local API Proxy Server (`scripts/api-proxy-server.py`):**
 - Runs on http://localhost:3001
@@ -615,13 +613,14 @@ This design tolerates incomplete upstream data and ensures signals always have t
 
 ### Browser Dashboard (Vite Dev Server)
 
-**One-time PowerShell profile setup:**
+**One-time PowerShell profile setup (run this, do not hardcode values):**
 ```powershell
-$env:VITE_PROXY_TARGET           = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
-$env:VITE_COGNITO_USER_POOL_ID   = "us-east-1_XJpLb9SKX"
-$env:VITE_COGNITO_CLIENT_ID      = "6smb0vrcidd9kvhju2kn2a3qrl"
-$env:VITE_COGNITO_DOMAIN         = "https://algo-dev.auth.us-east-1.amazoncognito.com"
+# This fetches all credentials dynamically from Secrets Manager:
+scripts/setup-local-dev.ps1
 ```
+
+The script writes `VITE_PROXY_TARGET`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, and other
+required vars to the PowerShell profile, sourced from `algo/dashboard-config` in Secrets Manager.
 
 **Run dev server:**
 ```powershell

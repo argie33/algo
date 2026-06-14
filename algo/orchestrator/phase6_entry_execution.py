@@ -99,9 +99,9 @@ def run(
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable,
-    qualified_trades: List[Dict[str, Any]] = None,
-    exposure_constraints: Dict = None,
-    check_halt_flag: Callable = None,
+    qualified_trades: Optional[List[Dict[str, Any]]] = None,
+    exposure_constraints: Optional[Dict] = None,
+    check_halt_flag: Optional[Callable] = None,
 ) -> PhaseResult:
     phase_start = time.time()
     logger.info("[PHASE 6] Starting entry execution")
@@ -182,6 +182,10 @@ def run(
     for signal in qualified_trades:
         try:
             symbol = signal.get('symbol')
+            if not symbol:
+                logger.warning("[PHASE 6] Signal missing symbol, skipping")
+                skipped_count += 1
+                continue
 
             # Re-check halt flag each iteration — this loop can run for minutes
             if check_halt_flag and check_halt_flag():
@@ -190,25 +194,27 @@ def run(
 
             # Liquidity: ADV, dollar volume, price history age
             entry_price_hint = signal.get('entry_price')
-            liq_ok, liq_reason = liquidity.run_all(symbol, entry_price_hint, run_date)
+            liq_ok, liq_reason = liquidity.run_all(str(symbol), float(entry_price_hint) if entry_price_hint else 0.0, run_date)
             if not liq_ok:
                 logger.debug(f"[PHASE 6] {symbol}: liquidity — {liq_reason}")
                 skipped_count += 1
                 continue
 
             # Compute price inputs anchored to run_date
-            atr = _compute_true_atr(symbol, run_date)
-            sma_50 = _compute_sma_50(symbol, run_date)
+            atr = _compute_true_atr(str(symbol), run_date)
+            sma_50 = _compute_sma_50(str(symbol), run_date)
             # CRITICAL: Always use latest market close, not signal's stale entry_price
             # Signal entry_price may be from old price_date if Phase 5 fell back to prior date
-            close = _get_latest_close(symbol, run_date)
+            close = _get_latest_close(str(symbol), run_date)
 
             if not all([atr, sma_50, close]):
                 logger.warning(f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping")
                 skipped_count += 1
                 continue
 
-            entry_price = float(close)
+            entry_price = float(close)  # type: ignore[arg-type]
+            atr = float(atr)  # type: ignore[arg-type]
+            sma_50 = float(sma_50)  # type: ignore[arg-type]
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
             # SMA_50 - ATR = below moving-average support.

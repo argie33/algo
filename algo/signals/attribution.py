@@ -10,7 +10,7 @@ Identifies alpha drivers, detects signal degradation, enables dynamic weight opt
 import json
 import logging
 from datetime import date as _date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import numpy as np
@@ -180,7 +180,7 @@ class SignalAttributionEngine:
         from algo.orchestration import RegimeManager
 
         regime_mgr = RegimeManager()
-        regime_results = {regime: {} for regime in RegimeManager.REGIMES}
+        regime_results: Dict[str, Dict[str, Dict[str, Any]]] = {regime: {} for regime in RegimeManager.REGIMES}
 
         try:
             with DatabaseContext('read') as cur:
@@ -205,7 +205,7 @@ class SignalAttributionEngine:
                     return regime_results
 
                 # Group trades by regime at entry date
-                trades_by_regime = {regime: [] for regime in RegimeManager.REGIMES}
+                trades_by_regime: Dict[str, List[Tuple[Any, ...]]] = {regime: [] for regime in RegimeManager.REGIMES}
 
                 for trade in trades:
                     trade_id, swing_score, swing_components, exit_r_multiple, exit_date, signal_date, symbol = trade
@@ -284,7 +284,7 @@ class SignalAttributionEngine:
             return regime_results
 
     def compute_ic_decay(
-        self, report_date: _date, horizons: List[int] = None
+        self, report_date: _date, horizons: Optional[List[int]] = None
     ) -> Dict[str, Dict[int, float]]:
         """
         Compute IC at different lookback horizons.
@@ -300,7 +300,7 @@ class SignalAttributionEngine:
         if horizons is None:
             horizons = [10, 20, 40]
 
-        decay_results = {}
+        decay_results: Dict[str, Dict[int, float]] = {}
 
         for horizon in horizons:
             ic_results = self.compute_ic(report_date, lookback_trades=horizon)

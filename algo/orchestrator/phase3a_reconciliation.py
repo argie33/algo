@@ -58,7 +58,7 @@ def run(
                 result.get('reason', 'reconciliation failed')
             )
 
-        return PhaseResult('3a', 'reconciliation', 'ok', result, False, None)
+        return PhaseResult(3, 'reconciliation', 'ok', result, False, None)
 
     except Exception as e:
         traceback.print_exc()

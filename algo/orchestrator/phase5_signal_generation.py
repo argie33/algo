@@ -165,8 +165,8 @@ def run(
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable,
-    exposure_constraints: Dict = None,
-    check_halt_flag: Callable = None,
+    exposure_constraints: Optional[Dict] = None,
+    check_halt_flag: Optional[Callable] = None,
     phase1_degraded: bool = False,
     config = None,
 ) -> PhaseResult:

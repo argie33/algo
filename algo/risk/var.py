@@ -334,8 +334,8 @@ class ValueAtRisk:
                 portfolio_value = float(portfolio_row[0])
 
                 top_holdings = []
-                sector_exposure = {}
-                industry_exposure = {}
+                sector_exposure: Dict[str, float] = {}
+                industry_exposure: Dict[str, float] = {}
 
                 for symbol, qty, cur_price, entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price

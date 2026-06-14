@@ -160,15 +160,15 @@ def panel_orch(run, cfg, risk=None):
     t1r       = cfg.get("t1_r")
     pyr       = cfg.get("pyramid", False)
 
-    score_s   = f"[dim]min score â‰¥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
+    score_s   = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
     slots_s   = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
-    sec_s     = f"[dim]sector â‰¤[/][white]{max_sec_n}[/]" if max_sec_n else ""
+    sec_s     = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s    = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
     t1r_s     = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r else ""
     pyr_s     = f"[{G}]pyramid on[/]" if pyr else ""
     config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s, pyr_s] if x)
 
-    # VaR line âE" only show if table is populated with real data
+    # VaR line — only show if table is populated with real data
     var_line = ""
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
@@ -426,7 +426,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             t1r       = cfg.get("t1_r")
             parts6    = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
             if pyr:       parts6.append(f"[{G}]pyrOK[/]")
-            if min_score: parts6.append(f"[dim]scoreâ‰¥[/][white]{min_score}[/]")
+            if min_score: parts6.append(f"[dim]score≥[/][white]{min_score}[/]")
             if max_n:     parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
             if base_risk: parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
             if t1r:       parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
@@ -502,7 +502,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         rows.append(Text.from_markup(
             f"[dim]VaR:[/][white]{(risk.get('var95') or 0):.2f}%[/]  "
             f"[dim]CVaR:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]  "
-            f"[dim]Î²:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
+            f"[dim]β:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
             f"[dim]Conc5:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
         ))
 
@@ -651,7 +651,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             if r_parts:
                 rows.append(Text.from_markup("  ".join(r_parts)))
 
-    # Recent closed trades âE" last 3 exits with result
+    # Recent closed trades — last 3 exits with result
     rec_items = rec.get("items", []) if isinstance(rec, dict) else rec if isinstance(rec, list) else []
     recent = [t for t in rec_items if isinstance(t, dict) and t.get("status") == "closed" and t.get("exit_date")][:3]
     if recent:
@@ -823,14 +823,14 @@ def panel_signals_compact(sig, sig_eval=None):
         t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
         return t[:12]
 
-    # ── Row 1: count  Â·  7-day sparkline  Â·  grade pool  Â·  date ─────────────
+    # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     trend = sig.get("trend") or []
     spark_s = ""
     if len(trend) >= 2:
         counts  = [int(t.get("buy_n") or 0) for t in reversed(trend)]
         max_b   = max(counts) if counts else 1
-        spark   = "".join("â-â-‚â-ƒâ-„â-...â-†â-‡â-ˆ"[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
+        spark   = "".join("a-a-‚a-ƒa-„a-...a-†a-‡a-ˆ"[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
     n_near = len(near)
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
@@ -863,7 +863,7 @@ def panel_signals_compact(sig, sig_eval=None):
             parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
-    # ── Row 3: Funnel arrow chain  Â·  avg score  Â·  top blockers ─────────────
+    # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not sig_eval.get("_error"):
         ev_tot = sig_eval.get("total", 0)
         ev_t1  = sig_eval.get("t1", 0)
@@ -884,7 +884,7 @@ def panel_signals_compact(sig, sig_eval=None):
         else:
             blocks_s = ""
         rows.append(Text.from_markup(
-            f"[dim]{ev_tot} â†'[/] [{ev_c}]{ev_t5} qualified[/]"
+            f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
             f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
         ))
 
@@ -1076,12 +1076,13 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
                 rows.append(Text.from_markup(f" {left}"))
 
     # Top sector rankings with 1-week and 4-week rank changes
-    valid_srank = [r for r in (srank or [])
-                   if not (isinstance(srank, dict) and srank.get("_error"))][:6]
+    srank_items = srank.get("items", []) if isinstance(srank, dict) and "items" in srank else (srank if isinstance(srank, list) else [])
+    srank_error = srank.get("_error") if isinstance(srank, dict) else None
+    valid_srank = [r for r in srank_items if not srank_error][:6]
     if valid_srank:
         if rows:
             rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Top sectors by rank (momentum score, â-²â-¼= rank change vs 1wk/4wk):[/]"))
+        rows.append(Text.from_markup("[dim]Top sectors by rank (momentum score, ↑↓= rank change vs 1wk/4wk):[/]"))
         for a, b in zip(valid_srank[::2], valid_srank[1::2] + [None]):
             na  = (a.get("sector_name") or "")[:10]
             mma = a.get("momentum_score")
@@ -1096,10 +1097,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
                 rows.append(Text.from_markup(f" {la}"))
 
     # Top industries (sub-sector groups)
-    valid_irank = irank if (irank and not (isinstance(irank, dict) and irank.get("_error"))) else []
+    irank_items = irank.get("items", []) if isinstance(irank, dict) and "items" in irank else (irank if isinstance(irank, list) else [])
+    irank_error = irank.get("_error") if isinstance(irank, dict) else None
+    valid_irank = irank_items if irank_items and not irank_error else []
     if valid_irank:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Top industries (sub-sector groups, â-²â-¼= vs 1wk):[/]"))
+        rows.append(Text.from_markup("[dim]Top industries (sub-sector groups, ↑↓= vs 1wk):[/]"))
         for a, b in zip(valid_irank[:4][::2], valid_irank[:4][1::2] + [None]):
             na  = (a.get("industry") or "")[:12]
             mma = a.get("momentum_score")
@@ -1206,7 +1209,9 @@ def panel_economic_pulse(eco, econ_cal=None):
     if extra: rows.append(Text.from_markup("  ".join(extra)))
 
     # Economic calendar (upcoming events)
-    valid_cal = econ_cal if (econ_cal and not (isinstance(econ_cal, dict) and econ_cal.get("_error"))) else []
+    econ_cal_items = econ_cal.get("items", []) if isinstance(econ_cal, dict) and "items" in econ_cal else (econ_cal if isinstance(econ_cal, list) else [])
+    econ_cal_error = econ_cal.get("_error") if isinstance(econ_cal, dict) else None
+    valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))
         IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
@@ -1248,7 +1253,7 @@ def panel_economic_pulse(eco, econ_cal=None):
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
-    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS â†' Exposure Score[/]",
+    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]",
                  border_style="bright_magenta", padding=(0, 1))
 
 
@@ -1372,7 +1377,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         sts = (
             f"[bold bright_green]OK COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
             else (f"[bold yellow]~ HALTED[/]" if (run_valid and run.get("halted"))
-            else (f"[bold bright_red]âœ˜ ERROR[/]" if (run_valid and run.get("errored"))
+            else (f"[bold bright_red]aœ˜ ERROR[/]" if (run_valid and run.get("errored"))
             else "[dim]RUN[/]"))
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
@@ -1387,10 +1392,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     rows.append(Text.from_markup(
         f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"
     ))
-    # Trading config params âE" visible context for position sizing decisions
+    # Trading config params — visible context for position sizing decisions
     cfg_parts = []
     if cfg_v.get("max_pos_n"):    cfg_parts.append(f"[dim]slots:[/][white]{cfg_v['max_pos_n']}[/]")
-    if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sectorâ‰¤4:[/][white]{cfg_v['max_sec_n']}[/]")
+    if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sector≤4:[/][white]{cfg_v['max_sec_n']}[/]")
     if cfg_v.get("base_risk"):   cfg_parts.append(f"[dim]risk:[/][white]{cfg_v['base_risk']}%[/]")
     if cfg_v.get("t1_r"):        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v['t1_r']}R[/]")
     if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyrOK[/]")
@@ -1403,7 +1408,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if isinstance(v, int):  return v
         return 0
 
-    # Execution history summary âE" last 7 runs
+    # Execution history summary — last 7 runs
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
         n_ok  = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
@@ -1431,10 +1436,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {body[:55]}[/]{ph_s}"))
+                rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
         rows.append(Rule(style="dim"))
 
-    # Current run status âE" shown prominently even when history is empty
+    # Current run status — shown prominently even when history is empty
     run_id = (run.get("run_id") or "") if run and not run.get("_error") else ""
     run_at = run.get("run_at") if run else None
     if not run_id and act and not act.get("_error"):
@@ -1460,7 +1465,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 err_s  = f"  [{R}]{n_err} errored[/]" if n_err else ""
                 rows.append(Text.from_markup(f"  {done_s}{hlt_s}{err_s}"))
 
-    # Phase detail âE" named phases from exec_log with per-phase status and key data
+    # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
     if run and not run.get("_error") and run.get("_source") == "exec_log":
         halt_r  = run.get("halt_reason") or ""
@@ -1468,7 +1473,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"[{Y}]â†³ {prefix}{detail[:60]}[/]"))
+                rows.append(Text.from_markup(f"[{Y}]a†³ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
@@ -1492,11 +1497,11 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                     logger.warning(f"Failed to parse phase data JSON: {e}")
                     pdata = {}
             if err and ps not in ("success", "completed", "ok"):
-                rows.append(Text.from_markup(f"  [{sc}]â†³ {err[:62]}[/]"))
+                rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
                 reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
                 if reason:
-                    rows.append(Text.from_markup(f"  [{Y}]â†³ {reason}[/]"))
+                    rows.append(Text.from_markup(f"  [{Y}]a†³ {reason}[/]"))
             elif ps in ("success", "completed", "ok") and pdata:
                 # Surface a key metric per phase if available
                 for key in ("signals_generated", "entries_executed", "exits_executed",
@@ -1554,12 +1559,12 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
 
     # Data health (stale tables only)
-    if hlth:
+    if hlth_items:
         rows.append(Rule(style="dim"))
-        stale = [r for r in hlth if r.get("st") != "ok"]
+        stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
         if not stale:
-            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth)} tables[/]"))
-            crit = [r for r in hlth if r.get("role") == "CRIT"]
+            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
+            crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
             if crit:
                 crit_parts = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
                 rows.append(Text.from_markup(f"  {crit_parts}"))
@@ -1643,7 +1648,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
-    # Audit log âE" most recent notable actions
+    # Audit log — most recent notable actions
     valid_audit = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
     if valid_audit:
         notable = [a for a in valid_audit
@@ -1668,7 +1673,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 @register_panel("health", endpoint_deps=["run", "activity", "health", "notifs", "algo_metrics", "audit", "exec_hist", "risk"], optional=True, description="Health")
 def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None, risk=None):
-    """Focused 'did the algo work?' panel: run outcome â†' what it did â†' system health."""
+    """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
     rows: list = []
 
     # Extract items from data dicts and check for errors
@@ -1705,7 +1710,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {prefix}{detail[:80]}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]a†³ {prefix}{detail[:80]}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
     elif act_valid:
@@ -1769,7 +1774,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     if not entries_exec: entries_exec = int(today_m.get("entries") or 0)
     if not exits_exec:   exits_exec   = int(today_m.get("exits")   or 0)
 
-    # "What did the algo do today?" summary âE" the core insight
+    # "What did the algo do today?" summary — the core insight
     action_parts = []
     if signals_gen > 0:
         action_parts.append(f"[dim]Signals found:[/][white]{signals_gen}[/]")
@@ -1794,7 +1799,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             ex  = int(m.get("exits")   or 0)
             e_c = G if en > 0 else DIM
             x_c = Y if ex > 0 else DIM
-            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}â-²[/][{x_c}]{ex}â-¼[/]")
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}a-²[/][{x_c}]{ex}a-¼[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
     rows.append(Rule(style="dim"))
@@ -1824,7 +1829,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {body[:68]}[/]{ph_s}"))
+                rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:68]}[/]{ph_s}"))
 
     rows.append(Rule(style="dim"))
 
@@ -1846,9 +1851,11 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             rows.append(Text.from_markup("[dim]Data stale:[/] " + "  ".join(stale_parts)))
 
     # Loader status (compact inline)
-    valid_loader   = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
-    problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
-    running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
+    loader_items = loader.get("items", []) if isinstance(loader, dict) and "items" in loader else (loader if isinstance(loader, list) else [])
+    loader_error = loader.get("_error") if isinstance(loader, dict) else None
+    valid_loader = loader_items if loader_items and not loader_error else []
+    problem_loader = [r for r in valid_loader if isinstance(r, dict) and (r.get("status") or "") in ("error", "failed", "stale")]
+    running_loader = [r for r in valid_loader if isinstance(r, dict) and (r.get("status") or "") == "loading"]
     ok_count       = len(valid_loader) - len(problem_loader) - len(running_loader)
     if problem_loader:
         ldr_parts = [f"[{R if (r.get('status') or '') in ('error','failed') else Y}]{(r.get('table_name') or '')[:12]}[/]"
@@ -1895,7 +1902,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             raw_t = n.get("title") or ""
             title = next((v for k, v in _SHORT.items() if k in raw_t.lower()), raw_t[:20])
             age   = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "Â·"
+            unread = "-" if not n.get("seen", True) else "·"
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
@@ -1904,7 +1911,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]", border_style="yellow", padding=(0, 1))
 
 
-# ── mascot panel (compact âE" dancing man only) ────────────────────────────────
+# ── mascot panel (compact — dancing man only) ────────────────────────────────
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 
@@ -1915,7 +1922,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
-    # No justify= âE" strings are pre-padded to exactly 11 chars (panel content width).
+    # No justify= — strings are pre-padded to exactly 11 chars (panel content width).
     return Panel(
         Group(
             Text(" " * 11),
@@ -1930,7 +1937,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     )
 
 
-# ── loading layout âE" mascot compact in top-right ──────────────────────────────
+# ── loading layout — mascot compact in top-right ──────────────────────────────
 
 def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
@@ -2129,6 +2136,10 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     """Full-screen algo health - complete run history, all data tables, all notifications."""
     rows: list = [Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"), Rule(style="dim")]
 
+    # Extract items from data dicts
+    hlth_items = hlth.get("items", []) if isinstance(hlth, dict) and "items" in hlth else (hlth if isinstance(hlth, list) else [])
+    hlth_error = hlth.get("_error") if isinstance(hlth, dict) else None
+
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
     run_at    = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
@@ -2145,7 +2156,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]â†³ {prefix}{detail}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]a†³ {prefix}{detail}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
@@ -2165,7 +2176,7 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
 
     rows.append(Rule(style="dim"))
 
-    # Full run history âE" all runs, untruncated halt reasons, with timestamps
+    # Full run history — all runs, untruncated halt reasons, with timestamps
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
         n_ok  = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
@@ -2181,16 +2192,16 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             lph  = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
-            hr_s = f"  [{Y}]â†³ {body}[/]{ph_s}" if body else ""
+            hr_s = f"  [{Y}]a†³ {body}[/]{ph_s}" if body else ""
             rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     rows.append(Rule(style="dim"))
 
-    # All data tables âE" ok and stale, with role and date
-    if hlth:
-        stale_count = sum(1 for r in hlth if r.get("st") != "ok")
-        rows.append(Text.from_markup(f"[dim]Data freshness ({len(hlth)} tables, {stale_count} stale):[/]"))
-        for r in hlth:
+    # All data tables — ok and stale, with role and date
+    if hlth_items:
+        stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
+        rows.append(Text.from_markup(f"[dim]Data freshness ({len(hlth_items)} tables, {stale_count} stale):[/]"))
+        for r in hlth_items:
             nm   = str(r.get("tbl") or "--")
             role = str(r.get("role") or "")
             age  = str(r.get("age") if r.get("age") is not None else "?")
@@ -2207,7 +2218,9 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     rows.append(Rule(style="dim"))
 
     # All loader statuses with full error messages
-    valid_loader = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
+    loader_items_exp = loader.get("items", []) if isinstance(loader, dict) and "items" in loader else (loader if isinstance(loader, list) else [])
+    loader_error_exp = loader.get("_error") if isinstance(loader, dict) else None
+    valid_loader = loader_items_exp if loader_items_exp and not loader_error_exp else []
     if valid_loader:
         rows.append(Text.from_markup("[dim]Data loaders:[/]"))
         for r in valid_loader:
@@ -2235,17 +2248,21 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
-    # All notifications âE" untruncated titles
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    # All notifications — untruncated titles
+    notifs_items_exp = notifs.get("items", []) if isinstance(notifs, dict) and "items" in notifs else (notifs if isinstance(notifs, list) else [])
+    notifs_error_exp = notifs.get("_error") if isinstance(notifs, dict) else None
+    valid_notifs = notifs_items_exp if notifs_items_exp and not notifs_error_exp else []
     if valid_notifs:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Notifications:[/]"))
         SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
         for n in valid_notifs:
+            if not isinstance(n, dict):
+                continue
             sc     = SEV_C.get(n.get("severity", "info"), DIM)
             title  = n.get("title") or ""
             age    = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "Â·"
+            unread = "-" if not n.get("seen", True) else "·"
             rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
     return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]", border_style="yellow", padding=(0, 1))
@@ -2307,10 +2324,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             ))
         rows.append(Rule(style="dim"))
 
-    # All sector rankings âE" one per row, full names, 1wk and 4wk changes
-    valid_srank = [r for r in (srank or []) if not (isinstance(srank, dict) and srank.get("_error"))]
+    # All sector rankings — one per row, full names, 1wk and 4wk changes
+    srank_items_exp = srank.get("items", []) if isinstance(srank, dict) and "items" in srank else (srank if isinstance(srank, list) else [])
+    srank_error_exp = srank.get("_error") if isinstance(srank, dict) else None
+    valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:
-        rows.append(Text.from_markup("[dim]All sectors  (rank  momentum  â-²â-¼1wk/4wk):[/]"))
+        rows.append(Text.from_markup("[dim]All sectors  (rank  momentum  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
             nm  = str(r.get("sector_name") or "")
             mm  = r.get("momentum_score")
@@ -2321,10 +2340,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             ))
         rows.append(Rule(style="dim"))
 
-    # All industries âE" full names, 1wk change
-    valid_irank = irank if (irank and not (isinstance(irank, dict) and irank.get("_error"))) else []
+    # All industries — full names, 1wk change
+    irank_items_exp = irank.get("items", []) if isinstance(irank, dict) and "items" in irank else (irank if isinstance(irank, list) else [])
+    irank_error_exp = irank.get("_error") if isinstance(irank, dict) else None
+    valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:
-        rows.append(Text.from_markup("[dim]All industries  (rank  momentum  â-²â-¼1wk):[/]"))
+        rows.append(Text.from_markup("[dim]All industries  (rank  momentum  ↑↓1wk):[/]"))
         for r in valid_irank:
             nm  = str(r.get("industry") or "")
             mm  = r.get("momentum_score")

@@ -3,7 +3,7 @@
 import logging
 import traceback
 from datetime import date as _date
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from utils.trading.status import PositionStatus
 from utils.db.context import DatabaseContext
@@ -21,7 +21,7 @@ def run(
     log_phase_result_fn: Callable,
     position_recs: List[Dict[str, Any]],
     exposure_actions: List[Dict[str, Any]],
-    check_halt_flag: Callable = None,
+    check_halt_flag: Optional[Callable] = None,
 ) -> PhaseResult:
     """Execute Phase 4: Exit Execution.
 
@@ -87,7 +87,7 @@ def run(
 
                 if action['action'] == 'force_exit':
                     # Fetch current price for accurate P&L
-                    cur_price = 0
+                    cur_price = 0.0
                     try:
                         with DatabaseContext('read') as cur_tmp:
                             cur_tmp.execute(
@@ -118,7 +118,7 @@ def run(
 
                 elif action['action'] == 'partial_exit':
                     # Need current price — fetch
-                    cur_price = 0
+                    cur_price = 0.0
                     try:
                         with DatabaseContext('read') as cur:
                             cur.execute(
