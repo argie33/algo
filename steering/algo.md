@@ -337,15 +337,17 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 
 ## Lambda API Configuration Status
 
-**Deployment Status:** ✓ DEPLOYED
+**Deployment Status:** ✓ DEPLOYED & OPERATIONAL
 - Function name: `algo-api-dev`
 - Runtime: Python 3.12
 - Memory: 256 MB
 - Timeout: 25 seconds (API Gateway hard limit: 29s)
-- Provisioned concurrency: 1 (keeps one container warm)
+- Provisioned concurrency: 1 (keeps one container warm, prevents cold-start 502 errors)
 - Reserved concurrency: 50 (supports 26 concurrent dashboard calls from MarketsHealth + headroom)
 - VPC: Enabled with 2 private subnets for RDS access
 - Layers: API dependencies + psycopg2 + shared (numpy/pandas/scipy)
+
+**Recent Fix (2026-06-14):** Resolved 503 "Database connection failed" errors by increasing Secrets Manager timeouts (2s→10s connect, 3s→15s read) to handle VPC cold-start latency. Lambda now successfully loads credentials and connects to database on first invocation.
 
 **Environment Configuration:**
 - DB_HOST: RDS Proxy endpoint (`algo-rds-proxy-dev.proxy-...rds.amazonaws.com`)
