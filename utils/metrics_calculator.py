@@ -17,7 +17,7 @@ All metrics are defined with:
 
 import logging
 import statistics
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
@@ -167,8 +167,8 @@ class MetricsCalculator:
         if not portfolio_values or len(portfolio_values) < 2:
             return None
         try:
-            peak = 0
-            max_dd = 0
+            peak = 0.0
+            max_dd = 0.0
             for value in portfolio_values:
                 if value > peak:
                     peak = value
@@ -350,7 +350,7 @@ class MetricsValidator:
     """Validates metric values for consistency and data quality."""
 
     @staticmethod
-    def validate_metrics(metrics: Dict[str, any]) -> Dict[str, any]:
+    def validate_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Validate a metrics dict and flag issues.
 
         Returns metrics with additional fields:
@@ -358,8 +358,8 @@ class MetricsValidator:
         - _warnings: List of warnings about unusual values
         - _confidence: High/Medium/Low based on data quality
         """
-        issues = []
-        warnings = []
+        issues: List[str] = []
+        warnings: List[str] = []
         confidence = "high"
 
         # Win rate should be 0-100
