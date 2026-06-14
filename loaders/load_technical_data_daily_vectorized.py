@@ -216,7 +216,8 @@ class VectorizedTechnicalLoader:
 
                         holidays = list(US_HOLIDAYS.keys())
                         cbd = CustomBusinessDay(holidays=holidays)
-                        spy_aligned = spy_closes.reindex(symbol_df['date'].values, freq=cbd)
+                        target_index = pd.DatetimeIndex(symbol_df['date'].values, freq=cbd)
+                        spy_aligned = spy_closes.reindex(target_index)
 
                         rs_line = symbol_df['close'].values / spy_aligned.values
                         rs_line_s = pd.Series(rs_line, index=symbol_df.index)

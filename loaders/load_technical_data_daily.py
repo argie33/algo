@@ -237,7 +237,8 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
             holidays = list(US_HOLIDAYS.keys())
             cbd = CustomBusinessDay(holidays=holidays)
-            spy_aligned = spy_closes.reindex(df["date"].values, freq=cbd)
+            target_index = pd.DatetimeIndex(df["date"].values, freq=cbd)
+            spy_aligned = spy_closes.reindex(target_index)
             rs_line = df["close"].values / spy_aligned.values
             rs_line_s = pd.Series(rs_line, index=df.index)
             rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
