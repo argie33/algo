@@ -131,3 +131,65 @@ class ContactSubmissionRequest(BaseModel):
                 raise ValueError(f'{field_name} contains invalid content')
 
         return v
+
+
+class VerifyUserEmailRequest(BaseModel):
+    """Request model for POST /api/admin/verify-user-email - Verify user email in Cognito."""
+    username: str = Field(..., description="Cognito username to verify", min_length=1, max_length=256)
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        """Validate username format - alphanumeric, dash, underscore, email format allowed."""
+        # Allow email format or standard username format
+        if not re.match(r'^[a-zA-Z0-9._\-@+]+$', v):
+            raise ValueError('Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +')
+        return v
+
+
+class ManualTradeRequest(BaseModel):
+    """Request model for POST /api/trades/manual - Manually log a trade entry."""
+    symbol: str = Field(..., description="Stock ticker symbol (1-10 chars)", min_length=1, max_length=10)
+    trade_type: str = Field(default='buy', description="Trade type: buy or sell")
+    quantity: int = Field(..., description="Trade quantity (must be positive)", gt=0)
+    price: float = Field(..., description="Trade price per share (must be positive)", gt=0)
+    execution_date: Optional[str] = Field(None, description="Trade execution date (YYYY-MM-DD format, defaults to today)")
+    stop_loss_price: Optional[float] = Field(None, description="Stop loss price (optional)")
+
+    @field_validator('symbol')
+    @classmethod
+    def validate_symbol(cls, v: str) -> str:
+        """Validate symbol format - alphanumeric with optional dash/caret."""
+        if not re.match(r'^[A-Z0-9\-\^]{1,10}$', v.upper()):
+            raise ValueError('Symbol must be 1-10 alphanumeric characters, dashes, or carets')
+        return v.upper()
+
+    @field_validator('trade_type')
+    @classmethod
+    def validate_trade_type(cls, v: str) -> str:
+        """Validate trade type is buy or sell."""
+        v_lower = v.lower()
+        if v_lower not in ('buy', 'sell'):
+            raise ValueError('Trade type must be "buy" or "sell"')
+        return v_lower
+
+    @field_validator('execution_date')
+    @classmethod
+    def validate_execution_date(cls, v: Optional[str]) -> Optional[str]:
+        """Validate execution date format if provided."""
+        if v is not None:
+            try:
+                # Validate it's a valid date format (YYYY-MM-DD)
+                from datetime import datetime
+                datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                raise ValueError('Execution date must be in YYYY-MM-DD format')
+        return v
+
+    @field_validator('stop_loss_price')
+    @classmethod
+    def validate_stop_loss(cls, v: Optional[float], info) -> Optional[float]:
+        """Validate stop loss if provided (optional but must be > 0)."""
+        if v is not None and v <= 0:
+            raise ValueError('Stop loss price must be greater than 0')
+        return v

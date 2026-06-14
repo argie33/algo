@@ -29,6 +29,8 @@ from .requests import (
     TradePreviewRequest,
     PreTradeImpactRequest,
     ContactSubmissionRequest,
+    VerifyUserEmailRequest,
+    ManualTradeRequest,
 )
 
 __all__ = [
@@ -60,4 +62,6 @@ __all__ = [
     "TradePreviewRequest",
     "PreTradeImpactRequest",
     "ContactSubmissionRequest",
+    "VerifyUserEmailRequest",
+    "ManualTradeRequest",
 ]

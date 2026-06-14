@@ -3,8 +3,10 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, uuid
 from datetime import datetime, timedelta, date, timezone
+from pydantic import ValidationError
 from utils.error_handlers import make_error_response
 from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from models.requests import ManualTradeRequest
 
 logger = logging.getLogger(__name__)
 
@@ -94,26 +96,23 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _create_manual_trade(cur, body: Dict) -> Dict:
     """POST /api/trades/manual — manually log a trade entry."""
     try:
-        symbol = (body.get('symbol') or '').upper().strip()
-        trade_type = (body.get('trade_type') or 'buy').lower()
-        quantity = body.get('quantity')
-        price = body.get('price')
-        execution_date = body.get('execution_date') or date.today().isoformat()
-        stop_loss = body.get('stop_loss_price')
-
-        if not symbol:
-            return error_response(400, 'bad_request', 'symbol is required')
-        if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol):
-            return error_response(400, 'bad_request', 'Invalid symbol format')
-        if trade_type not in ('buy', 'sell'):
-            return error_response(400, 'bad_request', 'trade_type must be buy or sell')
         try:
-            quantity = int(float(quantity))
-            price = float(price)
-        except (TypeError, ValueError):
-            return error_response(400, 'bad_request', 'quantity and price must be numeric')
-        if quantity <= 0 or price <= 0:
-            return error_response(400, 'bad_request', 'quantity and price must be positive')
+            req = ManualTradeRequest(**body)
+        except ValidationError as e:
+            errors = e.errors()
+            if errors:
+                error_detail = errors[0]
+                field = error_detail.get('loc', ('unknown',))[0]
+                msg = error_detail.get('msg', 'Validation failed')
+                return error_response(400, 'bad_request', f"Invalid {field}: {msg}")
+            return error_response(400, 'bad_request', 'Invalid request')
+
+        symbol = req.symbol
+        trade_type = req.trade_type
+        quantity = req.quantity
+        price = req.price
+        execution_date = req.execution_date or date.today().isoformat()
+        stop_loss = req.stop_loss_price
 
         trade_id = f"MANUAL-{uuid.uuid4().hex[:12].upper()}"
         trade_date = date.fromisoformat(execution_date)

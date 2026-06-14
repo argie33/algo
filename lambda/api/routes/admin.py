@@ -3,6 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re, os, boto3
 from datetime import datetime, timedelta, date, timezone
+from pydantic import ValidationError
 from utils.error_handlers import make_error_response
 from routes.utils import (
     error_response, success_response, list_response, json_response,
@@ -14,6 +15,7 @@ from routes.utils import (
 # so utils is already available in sys.path
 
 from utils.rate_limiting import check_admin_rate_limit, ADMIN_RATE_LIMITS
+from models.requests import VerifyUserEmailRequest
 
 logger = logging.getLogger(__name__)
 
@@ -292,8 +294,16 @@ def _get_data_quality(cur) -> Dict:
 
 def _verify_user_email(body: Dict = None) -> Dict:
     """Verify a user's email in Cognito (dev/testing only)."""
-    if not body or 'username' not in body:
-        return error_response(400, 'bad_request', 'username required')
+    try:
+        req = VerifyUserEmailRequest(**(body or {}))
+    except ValidationError as e:
+        errors = e.errors()
+        if errors:
+            error_detail = errors[0]
+            field = error_detail.get('loc', ('unknown',))[0]
+            msg = error_detail.get('msg', 'Validation failed')
+            return error_response(400, 'bad_request', f"Invalid {field}: {msg}")
+        return error_response(400, 'bad_request', 'Invalid request')
 
     try:
         cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
@@ -303,7 +313,7 @@ def _verify_user_email(body: Dict = None) -> Dict:
             return error_response(500, 'cognito_config_error', 'Cognito not configured')
 
         cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
-        username = body.get('username')
+        username = req.username
 
         # Update user attributes to mark email as verified
         cognito_client.admin_update_user_attributes(

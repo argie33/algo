@@ -440,6 +440,38 @@ def _get_paths():
                 }
             }
         },
+        "/api/trades/manual": {
+            "post": {
+                "tags": ["Trades", "Admin"],
+                "summary": "Manually log a trade",
+                "description": "Manually log a trade entry with request validation via Pydantic ManualTradeRequest (admin-only)",
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
+                                    "trade_type": {"type": "string", "description": "Trade type: buy or sell (default: buy)", "enum": ["buy", "sell"]},
+                                    "quantity": {"type": "integer", "description": "Trade quantity (must be positive)", "exclusiveMinimum": 0},
+                                    "price": {"type": "number", "description": "Trade price per share (must be positive)", "exclusiveMinimum": 0},
+                                    "execution_date": {"type": "string", "description": "Trade execution date (YYYY-MM-DD format, defaults to today)", "format": "date"},
+                                    "stop_loss_price": {"type": "number", "description": "Stop loss price (optional, must be positive)"}
+                                },
+                                "required": ["symbol", "quantity", "price"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {"description": "Trade created successfully", "content": {"application/json": {"schema": {"type": "object"}}}},
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "403": {"$ref": "#/components/responses/Forbidden"},
+                    "500": {"$ref": "#/components/responses/InternalError"}
+                }
+            }
+        },
         "/api/algo/preview": {
             "post": {
                 "tags": ["Algo", "Trading"],
@@ -493,6 +525,33 @@ def _get_paths():
                 "responses": {
                     "200": {"description": "Pre-trade impact analysis", "content": {"application/json": {"schema": {"type": "object"}}}},
                     "400": {"$ref": "#/components/responses/BadRequest"},
+                    "500": {"$ref": "#/components/responses/InternalError"}
+                }
+            }
+        },
+        "/api/admin/verify-user-email": {
+            "post": {
+                "tags": ["Admin"],
+                "summary": "Verify user email in Cognito",
+                "description": "Verify a user's email in Cognito (dev/testing only, admin-required) with request validation via Pydantic VerifyUserEmailRequest",
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "username": {"type": "string", "description": "Cognito username (alphanumeric, dots, dashes, underscores, @, + allowed)", "minLength": 1, "maxLength": 256}
+                                },
+                                "required": ["username"]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {"description": "Email verified successfully", "content": {"application/json": {"schema": {"type": "object"}}}},
+                    "400": {"$ref": "#/components/responses/BadRequest"},
+                    "403": {"$ref": "#/components/responses/Forbidden"},
                     "500": {"$ref": "#/components/responses/InternalError"}
                 }
             }

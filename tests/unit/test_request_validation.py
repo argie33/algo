@@ -20,6 +20,8 @@ from models.requests import (
     TradePreviewRequest,
     PreTradeImpactRequest,
     ContactSubmissionRequest,
+    VerifyUserEmailRequest,
+    ManualTradeRequest,
 )
 
 
@@ -429,6 +431,228 @@ class TestContactSubmissionRequest:
             message='Test'
         )
         assert req.phone is None
+
+
+class TestVerifyUserEmailRequest:
+    """Test POST /api/admin/verify-user-email request validation."""
+
+    def test_valid_request(self):
+        """Valid request with username."""
+        req = VerifyUserEmailRequest(username='testuser')
+        assert req.username == 'testuser'
+
+    def test_valid_with_email_format(self):
+        """Username can be in email format."""
+        req = VerifyUserEmailRequest(username='user@example.com')
+        assert req.username == 'user@example.com'
+
+    def test_valid_with_special_chars(self):
+        """Username can contain dots, dashes, underscores, +."""
+        req1 = VerifyUserEmailRequest(username='test.user')
+        assert req1.username == 'test.user'
+
+        req2 = VerifyUserEmailRequest(username='test-user')
+        assert req2.username == 'test-user'
+
+        req3 = VerifyUserEmailRequest(username='test_user')
+        assert req3.username == 'test_user'
+
+        req4 = VerifyUserEmailRequest(username='test+user')
+        assert req4.username == 'test+user'
+
+    def test_missing_username_rejected(self):
+        """Missing username is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            VerifyUserEmailRequest()
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'username' for err in errors)
+
+    def test_empty_username_rejected(self):
+        """Empty username is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            VerifyUserEmailRequest(username='')
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'username' for err in errors)
+
+    def test_username_with_invalid_chars_rejected(self):
+        """Username with invalid characters is rejected."""
+        invalid_usernames = ['test!user', 'test#user', 'test$user', 'test%user', 'test&user']
+        for username in invalid_usernames:
+            with pytest.raises(ValidationError):
+                VerifyUserEmailRequest(username=username)
+
+
+class TestManualTradeRequest:
+    """Test POST /api/trades/manual request validation."""
+
+    def test_valid_minimal_request(self):
+        """Valid request with required fields only."""
+        req = ManualTradeRequest(
+            symbol='AAPL',
+            quantity=100,
+            price=150.50
+        )
+        assert req.symbol == 'AAPL'
+        assert req.quantity == 100
+        assert req.price == 150.50
+        assert req.trade_type == 'buy'
+        assert req.execution_date is None
+        assert req.stop_loss_price is None
+
+    def test_valid_full_request(self):
+        """Valid request with all fields."""
+        req = ManualTradeRequest(
+            symbol='MSFT',
+            trade_type='sell',
+            quantity=50,
+            price=300.00,
+            execution_date='2026-06-14',
+            stop_loss_price=295.00
+        )
+        assert req.symbol == 'MSFT'
+        assert req.trade_type == 'sell'
+        assert req.quantity == 50
+        assert req.price == 300.00
+        assert req.execution_date == '2026-06-14'
+        assert req.stop_loss_price == 295.00
+
+    def test_symbol_normalized_to_uppercase(self):
+        """Symbol is normalized to uppercase."""
+        req = ManualTradeRequest(symbol='aapl', quantity=100, price=150.00)
+        assert req.symbol == 'AAPL'
+
+    def test_trade_type_normalized_to_lowercase(self):
+        """Trade type is normalized to lowercase."""
+        req = ManualTradeRequest(symbol='AAPL', trade_type='BUY', quantity=100, price=150.00)
+        assert req.trade_type == 'buy'
+
+    def test_missing_symbol_rejected(self):
+        """Missing symbol is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(quantity=100, price=150.00)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'symbol' for err in errors)
+
+    def test_missing_quantity_rejected(self):
+        """Missing quantity is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', price=150.00)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'quantity' for err in errors)
+
+    def test_missing_price_rejected(self):
+        """Missing price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', quantity=100)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'price' for err in errors)
+
+    def test_zero_quantity_rejected(self):
+        """Zero quantity is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', quantity=0, price=150.00)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'quantity' for err in errors)
+
+    def test_negative_quantity_rejected(self):
+        """Negative quantity is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', quantity=-100, price=150.00)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'quantity' for err in errors)
+
+    def test_zero_price_rejected(self):
+        """Zero price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', quantity=100, price=0)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'price' for err in errors)
+
+    def test_negative_price_rejected(self):
+        """Negative price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(symbol='AAPL', quantity=100, price=-150.00)
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'price' for err in errors)
+
+    def test_invalid_trade_type_rejected(self):
+        """Invalid trade type is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(
+                symbol='AAPL',
+                trade_type='invalid',
+                quantity=100,
+                price=150.00
+            )
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'trade_type' for err in errors)
+
+    def test_invalid_execution_date_format_rejected(self):
+        """Invalid execution date format is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(
+                symbol='AAPL',
+                quantity=100,
+                price=150.00,
+                execution_date='06-14-2026'
+            )
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'execution_date' for err in errors)
+
+    def test_valid_execution_date_format(self):
+        """Valid YYYY-MM-DD execution date is accepted."""
+        req = ManualTradeRequest(
+            symbol='AAPL',
+            quantity=100,
+            price=150.00,
+            execution_date='2026-06-14'
+        )
+        assert req.execution_date == '2026-06-14'
+
+    def test_zero_stop_loss_rejected(self):
+        """Zero stop loss is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(
+                symbol='AAPL',
+                quantity=100,
+                price=150.00,
+                stop_loss_price=0
+            )
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'stop_loss_price' for err in errors)
+
+    def test_negative_stop_loss_rejected(self):
+        """Negative stop loss is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            ManualTradeRequest(
+                symbol='AAPL',
+                quantity=100,
+                price=150.00,
+                stop_loss_price=-10.00
+            )
+        errors = exc_info.value.errors()
+        assert any(err['loc'][0] == 'stop_loss_price' for err in errors)
+
+    def test_positive_stop_loss_accepted(self):
+        """Positive stop loss is accepted."""
+        req = ManualTradeRequest(
+            symbol='AAPL',
+            quantity=100,
+            price=150.00,
+            stop_loss_price=145.00
+        )
+        assert req.stop_loss_price == 145.00
+
+    def test_stop_loss_can_be_above_price(self):
+        """Stop loss can be above entry price (for short selling scenarios)."""
+        req = ManualTradeRequest(
+            symbol='AAPL',
+            trade_type='sell',
+            quantity=100,
+            price=150.00,
+            stop_loss_price=155.00
+        )
+        assert req.stop_loss_price == 155.00
 
 
 if __name__ == '__main__':
