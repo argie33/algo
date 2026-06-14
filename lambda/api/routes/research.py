@@ -14,16 +14,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
-                cur.execute("SET LOCAL statement_timeout = '10000ms'")
-                cur.execute("""
+                backtests = execute_with_timeout(cur, """
                     SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
                            total_return AS total_return_pct, sharpe_ratio AS sharpe,
                            max_drawdown AS max_drawdown_pct, win_rate, num_trades AS total_trades
                     FROM backtest_runs
                     ORDER BY created_at DESC
                     LIMIT %s
-                """, (limit,))
-                backtests = cur.fetchall()
+                """, (limit,), timeout_sec=10)
                 freshness = check_data_freshness(cur, 'backtest_runs', 'created_at', warning_days=7)
                 return list_response([safe_json_serialize(dict(b)) for b in backtests] if backtests else [], data_freshness=freshness)
             elif path.startswith('/api/research/backtests/'):
@@ -33,8 +31,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 except ValueError:
                     return error_response(400, 'bad_request', 'Run ID must be numeric')
 
-                cur.execute("SET LOCAL statement_timeout = '8000ms'")
-                cur.execute("""
+                backtest_rows = execute_with_timeout(cur, """
                     SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
                            total_return AS total_return_pct, sharpe_ratio AS sharpe_annualized,
                            max_drawdown AS max_drawdown_pct, win_rate,
@@ -44,8 +41,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                            created_at, NULL AS notes
                     FROM backtest_runs
                     WHERE run_id = %s
-                """, (run_id_int,))
-                backtest = cur.fetchone()
+                """, (run_id_int,), timeout_sec=8)
+                backtest = backtest_rows[0] if backtest_rows else None
                 if not backtest:
                     return error_response(404, 'not_found', f'Backtest run {run_id} not found')
 
@@ -54,8 +51,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
                 offset = safe_offset(offset_str)
 
-                cur.execute("SET LOCAL statement_timeout = '6000ms'")
-                cur.execute("""
+                trades = execute_with_timeout(cur, """
                     SELECT trade_id, symbol, NULL AS signal_date, entry_date, entry_price,
                            quantity AS entry_quantity, exit_date, exit_price,
                            profit_loss_percent AS profit_loss_pct,
@@ -64,14 +60,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE run_id = %s
                     ORDER BY entry_date DESC
                     LIMIT %s OFFSET %s
-                """, (run_id_int, limit, offset))
-                trades = cur.fetchall()
+                """, (run_id_int, limit, offset), timeout_sec=6)
 
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
+                count_rows = execute_with_timeout(cur, """
                     SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
-                """, (run_id_int,))
-                total_trades_count = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
+                """, (run_id_int,), timeout_sec=3)
+                total_trades_count = next(iter(safe_json_serialize(dict(count_rows[0] or {}).values())), 0) if count_rows else 0
 
                 # Build response
                 run_dict = safe_json_serialize(dict(backtest))

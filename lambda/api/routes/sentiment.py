@@ -12,57 +12,53 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/sentiment/* endpoints."""
         try:
             if path == '/api/sentiment/summary':
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
+                fg_rows = execute_with_timeout(cur, """
                     SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
                            mh.put_call_ratio, mh.vix_level
                     FROM fear_greed_index fg
                     LEFT JOIN market_health_daily mh ON mh.date = fg.date
                     ORDER BY fg.date DESC
                     LIMIT 1
-                """)
-                row = cur.fetchone()
+                """, timeout_sec=3)
+                row = fg_rows[0] if fg_rows else None
                 fg_value = float(row['fear_greed_value']) if row and row['fear_greed_value'] else None
                 fg_label = row['fear_greed_label'] if row else None
 
                 aaii_row = None
                 try:
-                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
-                    cur.execute("""
+                    aaii_rows = execute_with_timeout(cur, """
                         SELECT bullish, neutral, bearish, date
                         FROM aaii_sentiment
                         ORDER BY date DESC
                         LIMIT 1
-                    """)
-                    aaii_row = cur.fetchone()
+                    """, timeout_sec=2)
+                    aaii_row = aaii_rows[0] if aaii_rows else None
                 except Exception as e:
                     logger.error(f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}")
 
                 naaim_row = None
                 try:
-                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
-                    cur.execute("""
+                    naaim_rows = execute_with_timeout(cur, """
                         SELECT naaim_number_mean, date
                         FROM naaim
                         ORDER BY date DESC
                         LIMIT 1
-                    """)
-                    naaim_row = cur.fetchone()
+                    """, timeout_sec=2)
+                    naaim_row = naaim_rows[0] if naaim_rows else None
                 except Exception as e:
                     logger.error(f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}")
 
                 analyst_row = None
                 try:
-                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
-                    cur.execute("""
+                    analyst_rows = execute_with_timeout(cur, """
                         SELECT SUM(analyst_count) AS analyst_count,
                                SUM(bullish_count) AS bullish_count,
                                SUM(bearish_count) AS bearish_count,
                                MAX(date) AS date
                         FROM analyst_sentiment_analysis
                         WHERE date = (SELECT date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1)
-                    """)
-                    analyst_row = cur.fetchone()
+                    """, timeout_sec=2)
+                    analyst_row = analyst_rows[0] if analyst_rows else None
                 except Exception as e:
                     logger.error(f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}")
 
@@ -81,20 +77,17 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 page_str = params.get('page', [None])[0] if params else None
                 page = safe_page(page_str, default=1)
                 offset = (page - 1) * limit
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                cur.execute("""
+                sentiment = execute_with_timeout(cur, """
                     SELECT symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
                     FROM analyst_sentiment_analysis
                     ORDER BY date DESC, symbol ASC
                     LIMIT %s OFFSET %s
-                """, (limit, offset))
-                sentiment = cur.fetchall()
+                """, (limit, offset), timeout_sec=5)
                 freshness = check_data_freshness(cur, 'analyst_sentiment_analysis', 'date', warning_days=7)
                 return list_response([safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [], data_freshness=freshness)
             elif path == '/api/sentiment/divergence':
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                cur.execute("""
+                rows = execute_with_timeout(cur, """
                     SELECT asa.symbol, asa.date,
                            asa.bullish_count, asa.bearish_count, asa.analyst_count,
                            asa.upside_downside_percent,
@@ -106,24 +99,21 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE asa.date >= CURRENT_DATE - INTERVAL '30 days'
                     ORDER BY asa.date DESC, asa.upside_downside_percent DESC NULLS LAST
                     LIMIT 2000
-                """)
-                rows = cur.fetchall()
+                """, timeout_sec=5)
                 return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/analyst/insights/'):
                 symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
                 # Validate symbol format: max 5 chars, alphanumeric + dash only
                 if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
                     return error_response(400, 'bad_request', 'Invalid symbol format')
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
+                rows = execute_with_timeout(cur, """
                     SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
                     FROM analyst_sentiment_analysis
                     WHERE symbol = %s
                     ORDER BY date DESC
                     LIMIT 12
-                """, (symbol,))
-                rows = cur.fetchall()
+                """, (symbol,), timeout_sec=3)
                 if not rows:
                     return json_response(200, {'metrics': None, 'priceTargets': [], 'momentum': None, 'coverage': None, 'recentUpgrades': []})
                 # Use latest row for metrics summary

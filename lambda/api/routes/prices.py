@@ -41,12 +41,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 table_name = _TABLE_MAP.get(timeframe, 'price_daily')
                 etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
 
-                # Set statement timeout for batch price queries (20s for non-blocking performance)
-                cur.execute("SET LOCAL statement_timeout = '20000ms'")
-
                 result = {sym: [] for sym in symbols}
 
-                batch_query = psycopg2.sql.SQL("""
+                batch_query = """
                     WITH ranked AS (
                         SELECT symbol, date, open, high, low, close, volume,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
@@ -57,17 +54,17 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     FROM ranked
                     WHERE rn <= %s
                     ORDER BY symbol, date DESC
-                """).format(psycopg2.sql.Identifier(table_name))
-                cur.execute(batch_query, [symbols, limit])
+                """.format(table_name)
+                rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
                 found_symbols = set()
-                for row in cur.fetchall():
+                for row in rows:
                     sym = row['symbol']
                     result[sym].append(safe_json_serialize(dict(row)))
                     found_symbols.add(sym)
 
                 missing = [s for s in symbols if s not in found_symbols]
                 if missing:
-                    etf_query = psycopg2.sql.SQL("""
+                    etf_query = """
                         WITH ranked AS (
                             SELECT symbol, date, open, high, low, close, volume,
                                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
@@ -78,9 +75,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         FROM ranked
                         WHERE rn <= %s
                         ORDER BY symbol, date DESC
-                    """).format(psycopg2.sql.Identifier(etf_table_name))
-                    cur.execute(etf_query, [missing, limit])
-                    for row in cur.fetchall():
+                    """.format(etf_table_name)
+                    rows = execute_with_timeout(cur, etf_query, [missing, limit], timeout_sec=20)
+                    for row in rows:
                         sym = row['symbol']
                         result[sym].append(safe_json_serialize(dict(row)))
 
@@ -103,46 +100,37 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
             table_name = _TABLE_MAP.get(timeframe, 'price_daily')
 
-            where_parts = [psycopg2.sql.SQL("symbol = %s")]
+            where_clause = "symbol = %s"
             qparams = [symbol]
 
             if days_str:
                 try:
                     days_int = max(1, min(int(days_str), 3650))
-                    where_parts.append(psycopg2.sql.SQL("date >= CURRENT_DATE - INTERVAL %s"))
-                    qparams.append(f"{days_int} days")
+                    where_clause += f" AND date >= CURRENT_DATE - INTERVAL '{days_int} days'"
                 except ValueError:
                     pass
 
             # Query stock price table first; fall back to ETF table if no results
             etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
-            query = psycopg2.sql.SQL("""
+            query = """
                 SELECT date, open, high, low, close, volume
                 FROM {}
                 WHERE {}
                 ORDER BY date DESC
                 LIMIT %s
-            """).format(
-                psycopg2.sql.Identifier(table_name),
-                psycopg2.sql.SQL(" AND ").join(where_parts),
-            )
-            cur.execute(query, qparams + [limit])
-            rows = cur.fetchall()
+            """.format(table_name, where_clause)
+            rows = execute_with_timeout(cur, query, qparams + [limit], timeout_sec=10)
             used_table = table_name
             if not rows:
                 # No data in stock table — try ETF table
-                etf_query = psycopg2.sql.SQL("""
+                etf_query = """
                     SELECT date, open, high, low, close, volume
                     FROM {}
                     WHERE {}
                     ORDER BY date DESC
                     LIMIT %s
-                """).format(
-                    psycopg2.sql.Identifier(etf_table_name),
-                    psycopg2.sql.SQL(" AND ").join(where_parts),
-                )
-                cur.execute(etf_query, qparams + [limit])
-                rows = cur.fetchall()
+                """.format(etf_table_name, where_clause)
+                rows = execute_with_timeout(cur, etf_query, qparams + [limit], timeout_sec=10)
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, 'date', warning_days=1)
             return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [], data_freshness=freshness)

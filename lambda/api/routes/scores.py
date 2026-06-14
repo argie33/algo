@@ -45,7 +45,6 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
-            cur.execute("SET LOCAL statement_timeout = '25000ms'")
             allowed_sorts = {
                 'composite_score': 'sc.composite_score',
                 'momentum_score': 'sc.momentum_score',
@@ -155,8 +154,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LIMIT %s OFFSET %s
             """
             params_list.extend([limit, offset])
-            cur.execute(query, params_list)
-            scores = cur.fetchall()
+            scores = execute_with_timeout(cur, query, params_list, timeout_sec=25)
 
             def _f(v):
                 return float(v) if v is not None else None

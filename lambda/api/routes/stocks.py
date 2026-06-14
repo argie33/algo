@@ -43,11 +43,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
                 return list_response([])
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
-                return list_response([])
+                logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
+                code, error_type, message = handle_db_error(e, 'deep-value check')
+                return error_response(code, error_type, message)
             except Exception as e:
-                logger.warning(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
-                return list_response([])
+                logger.error(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
+                code, error_type, message = handle_db_error(e, 'deep-value check')
+                return error_response(code, error_type, message)
             try:
                 deep_value_query = """
                 WITH value_stocks AS (

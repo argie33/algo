@@ -53,8 +53,7 @@ def _industry_list(cur, params):
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
-    cur.execute("SET LOCAL statement_timeout = '25000ms'")
-    cur.execute("""
+    industries_data = execute_with_timeout(cur, """
         WITH latest_d AS (
             SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
         ),
@@ -140,15 +139,14 @@ def _industry_list(cur, params):
         LEFT JOIN industry_price_perf ipp ON ipp.industry = r.industry
         ORDER BY r.current_rank, r.stock_count DESC
         LIMIT %s OFFSET %s
-    """, (limit, offset))
+    """, (limit, offset), timeout_sec=25)
 
-    industries_data = cur.fetchall()
-    cur.execute("""
+    count_rows = execute_with_timeout(cur, """
         SELECT COUNT(DISTINCT industry) AS cnt
         FROM company_profile
         WHERE industry IS NOT NULL AND TRIM(industry) != ''
-    """)
-    total = int((cur.fetchone() or {}).get('cnt', 0))
+    """, timeout_sec=10)
+    total = int((count_rows[0].get('cnt', 0) if count_rows else {})) if count_rows else 0
 
     industries = []
     for idx, row in enumerate(industries_data):
