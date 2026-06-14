@@ -999,10 +999,11 @@ jobs:
           )
 
           # Create or update the secret — fail if this doesn't work
-          aws secretsmanager put-secret-value \
-            --secret-id algo/dashboard-config \
+          aws secretsmanager create-secret \
+            --name algo/dashboard-config \
             --secret-string "$SECRET_JSON" \
-            --region $AWS_REGION || exit 1
+            --region $AWS_REGION \
+            --overwrite-existing-secret 2>/dev/null || exit 1
 
           echo "[OK] Dashboard credentials saved to algo/dashboard-config in Secrets Manager"
 
