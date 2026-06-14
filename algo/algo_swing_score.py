@@ -973,9 +973,11 @@ class SwingTraderScore:
         monthly_above_ma = False
         try:
             # Weekly BUY signal in last 90 days (~13 weeks, captures most active uptrends)
+            thresholds = self._load_date_thresholds(cur)
+            medium_lookback = thresholds['swing_score_medium_lookback_days']
             cur.execute(
-                """SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal_type = 'BUY'
-                   AND date >= %s::date - INTERVAL '90 days' AND date <= %s LIMIT 1""",
+                f"""SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal_type = 'BUY'
+                   AND date >= %s::date - INTERVAL '{medium_lookback} days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
             weekly_buy = cur.fetchone() is not None
@@ -997,9 +999,10 @@ class SwingTraderScore:
                 weekly_above_ma = float(row[0]) > float(row[1])
 
             # Monthly BUY in last 270 days (~9 months — long-term confirmation window)
+            long_lookback = thresholds['swing_score_long_lookback_days']
             cur.execute(
-                """SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal_type = 'BUY'
-                   AND date >= %s::date - INTERVAL '270 days' AND date <= %s LIMIT 1""",
+                f"""SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal_type = 'BUY'
+                   AND date >= %s::date - INTERVAL '{long_lookback} days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
             monthly_up = cur.fetchone() is not None

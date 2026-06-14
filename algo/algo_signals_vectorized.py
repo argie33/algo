@@ -27,8 +27,19 @@ class VectorizedSignalGenerator:
     """Parallel signal computation for all symbols."""
 
     def __init__(self):
-        self.lookback_days = 300  # 300 trading days ~ 1.2 years
+        self.lookback_days = 300  # Default: 300 trading days ~ 1.2 years (configurable)
         self.min_history = 50  # Minimum bars required for technical indicators
+
+    def _get_lookback_days(self, cur) -> int:
+        """Load lookback days from config, fall back to default."""
+        try:
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", ('signal_vectorized_lookback_days',))
+            result = cur.fetchone()
+            if result and result[0]:
+                return int(result[0])
+        except Exception:
+            pass
+        return self.lookback_days
 
     def fetch_all_price_data(self, symbols: List[str], eval_date: _date) -> Tuple[Dict[str, np.ndarray], _date]:
         """
@@ -60,13 +71,14 @@ class VectorizedSignalGenerator:
                             logger.info(f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)")
                             break
 
-                # Fetch 300 days of history for all symbols in ONE query
+                # Fetch lookback days of history for all symbols in ONE query
+                lookback = self._get_lookback_days(cur)
                 cur.execute(
-                    """
+                    f"""
                     SELECT symbol, date, close, high, low, volume, open
                     FROM price_daily
                     WHERE symbol = ANY(%s)
-                      AND date >= %s::date - INTERVAL '300 days'
+                      AND date >= %s::date - INTERVAL '{lookback} days'
                       AND date <= %s
                     ORDER BY symbol, date ASC
                     """,

@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
   // Vite proxy target for development
   // VITE_PROXY_TARGET: Set to AWS API Gateway endpoint to route local /api/* calls to AWS
   // Example: export VITE_PROXY_TARGET=https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
-  // If unset, defaults to localhost:3001 (mock server)
+  // If unset, defaults to localhost:3001 (api-proxy-server.py - real Lambda invoked locally)
   const proxyTarget = isDevelopment ? (env.VITE_PROXY_TARGET || "http://localhost:3001") : "";
 
   return {

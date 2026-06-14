@@ -427,14 +427,16 @@ class MarketExposure:
     def _has_follow_through_day(self, eval_date, cur):
         """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""
         cur.execute(
-            """
+            lookback = self.config.get('market_exposure_medium_lookback_days', 30)
+            cur.execute(
+            f"""
             WITH d AS (
                 SELECT date, close, volume,
                        LAG(close) OVER (ORDER BY date) AS prev_close,
                        LAG(volume) OVER (ORDER BY date) AS prev_vol
                 FROM price_daily
                 WHERE symbol = 'SPY' AND date <= %s
-                  AND date >= %s::date - INTERVAL '30 days'
+                  AND date >= %s::date - INTERVAL '{lookback} days'
             )
             SELECT 1 FROM d
             WHERE prev_close IS NOT NULL
@@ -505,6 +507,7 @@ class MarketExposure:
         each, too slow on t4g.micro).
         """
         bool_col = 'price_above_sma50' if ma_days == 50 else 'price_above_sma200'
+        lookback = self.config.get('market_exposure_short_lookback_days', 7)
         cur.execute(
             f"""
             SELECT
@@ -513,7 +516,7 @@ class MarketExposure:
             FROM (
                 SELECT DISTINCT ON (symbol) {bool_col}
                 FROM trend_template_data
-                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                WHERE date <= %s AND date >= %s::date - INTERVAL '{lookback} days'
                 ORDER BY symbol, date DESC
             ) latest
             """,

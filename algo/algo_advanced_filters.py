@@ -306,10 +306,11 @@ class AdvancedFilters:
 
         # Weekly alignment: if buy_sell_weekly also says BUY in last 30 days, bonus
         try:
+            lookback = self.config.get('advanced_filters_short_lookback_days', 30)
             cur.execute(
-                """SELECT 1 FROM buy_sell_weekly
+                f"""SELECT 1 FROM buy_sell_weekly
                    WHERE symbol = %s AND signal_type = 'BUY'
-                     AND date >= %s::date - INTERVAL '30 days'
+                     AND date >= %s::date - INTERVAL '{lookback} days'
                      AND date <= %s
                    LIMIT 1""",
                 (symbol, signal_date, signal_date),
@@ -486,13 +487,15 @@ class AdvancedFilters:
 
     def _analyst_score(self, symbol, signal_date, cur):
         cur.execute(
-            """
+            lookback = self.config.get('advanced_filters_very_long_lookback_days', 90)
+            cur.execute(
+            f"""
             SELECT
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('up','upgrade')),
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('down','downgrade'))
             FROM analyst_upgrade_downgrade
             WHERE symbol = %s
-              AND action_date >= %s::date - INTERVAL '90 days'
+              AND action_date >= %s::date - INTERVAL '{lookback} days'
               AND action_date <= %s
             """,
             (symbol, signal_date, signal_date),
@@ -508,14 +511,15 @@ class AdvancedFilters:
         return pts, net
 
     def _insider_score(self, symbol, signal_date, cur):
+        lookback = self.config.get('advanced_filters_long_lookback_days', 60)
         cur.execute(
-            """
+            f"""
             SELECT
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%buy%%' THEN value END), 0),
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%sale%%' OR LOWER(transaction_type) LIKE '%%sell%%' THEN value END), 0)
             FROM insider_transactions
             WHERE symbol = %s
-              AND transaction_date >= %s::date - INTERVAL '60 days'
+              AND transaction_date >= %s::date - INTERVAL '{lookback} days'
               AND transaction_date <= %s
               AND value IS NOT NULL
             """,
@@ -568,11 +572,12 @@ class AdvancedFilters:
         return self.W_RISK_EARNINGS_PROX * (days_to_earnings - block_window) / (30 - block_window)
 
     def _avg_dollar_volume(self, symbol, signal_date, cur):
+        lookback = self.config.get('advanced_filters_medium_lookback_days', 50)
         cur.execute(
-            """
+            f"""
             SELECT AVG(close * volume) FROM price_daily
             WHERE symbol = %s AND date <= %s
-              AND date >= %s::date - INTERVAL '50 days'
+              AND date >= %s::date - INTERVAL '{lookback} days'
               AND volume > 0
             """,
             (symbol, signal_date, signal_date),

@@ -1998,128 +1998,61 @@ _TIER_CONFIG = {
 }
 
 def _get_markets(cur) -> Dict:
-        """Get current market regime data and historical exposure."""
+        """Get active market indices (SPY, QQQ, IWM, DIA) with current prices and changes."""
+        INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^RUT', '^DJI']
+        INDEX_NAMES = {
+            '^GSPC': 'S&P 500',
+            '^IXIC': 'Nasdaq Composite',
+            '^RUT': 'Russell 2000',
+            '^DJI': 'Dow Jones Industrial',
+        }
         try:
-    
-            # EARLY VALIDATION: Check data freshness before processing
-            freshness = check_data_freshness(cur, 'market_exposure_daily', 'date', warning_days=1)
-            if freshness.get('is_stale'):
-                logger.error(f'CRITICAL: market_exposure_daily is stale (age: {freshness.get("data_age_days")} days)')
-
             cur.execute("""
-                SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
-                FROM market_exposure_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-            latest = cur.fetchone()
-            current = safe_json_serialize(safe_dict_convert(latest)) if latest else None
-
-            # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
-            if current:
-                if current.get('halt_reasons'):
-                    try:
-                        current['halt_reasons'] = json.loads(current['halt_reasons']) if isinstance(current['halt_reasons'], str) else current['halt_reasons']
-                    except (json.JSONDecodeError, TypeError):
-                        current['halt_reasons'] = []
-                else:
-                    current['halt_reasons'] = []
-
-                if current.get('factors'):
-                    try:
-                        current['factors'] = json.loads(current['factors']) if isinstance(current['factors'], str) else current['factors']
-                    except (json.JSONDecodeError, TypeError):
-                        current['factors'] = {}
-                else:
-                    current['factors'] = {}
-
-            active_tier = {}
-            if current:
-                tier_key = str(current.get('regime') or '').lower()
-                tier_conf = _TIER_CONFIG.get(tier_key, {})
-                active_tier = {'name': tier_key, **tier_conf}
-                active_tier['halt'] = bool(current.get('halt_reasons')) or tier_conf.get('halt', False)
-
-            cur.execute("""
-                SELECT date, exposure_pct, regime
-                FROM market_exposure_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                ORDER BY date ASC
-                LIMIT 250
-            """)
-            history = [safe_json_serialize(safe_dict_convert(h)) for h in cur.fetchall()]
-
-            try:
-                cur.execute("""
-                    SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
-                    FROM sector_ranking
-                    WHERE date = (SELECT MAX(date) FROM sector_ranking)
-                    ORDER BY current_rank
-                    LIMIT 20
-                """)
-                sectors = [safe_json_serialize(safe_dict_convert(s)) for s in cur.fetchall()]
-            except Exception as e:
-                logger.warning(f"[MARKETS] sector_ranking query failed: {e}")
-                sectors = []
-
-            market_health = {}
-            try:
-                cur.execute("SAVEPOINT market_health_check")
-                cur.execute("""
-                    SELECT market_trend, market_stage, vix_level,
-                           up_volume_percent, advance_decline_ratio, new_highs_count,
-                           new_lows_count, breadth_momentum_10d, put_call_ratio,
-                           yield_curve_slope, fed_rate_environment
-                    FROM market_health_daily
+                WITH latest_date AS (
+                    SELECT date AS d FROM price_daily WHERE symbol = ANY(%s) ORDER BY date DESC LIMIT 1
+                ),
+                prev_date AS (
+                    SELECT date AS d FROM price_daily
+                    WHERE symbol = ANY(%s) AND date < (SELECT d FROM latest_date)
                     ORDER BY date DESC LIMIT 1
-                """)
-                mh = cur.fetchone()
-                if mh:
-                    market_health = safe_json_serialize(safe_dict_convert(mh))
-                cur.execute("RELEASE SAVEPOINT market_health_check")
-            except Exception as e:
-                logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT market_health_check")
-                except Exception as rollback_err:
-                    logger.warning(f"[MARKETS] SAVEPOINT rollback failed: {type(rollback_err).__name__}: {rollback_err}")
+                ),
+                today AS (
+                    SELECT symbol, date, close FROM price_daily
+                    WHERE symbol = ANY(%s) AND date = (SELECT d FROM latest_date)
+                ),
+                yesterday AS (
+                    SELECT symbol, close AS prev_close FROM price_daily
+                    WHERE symbol = ANY(%s) AND date = (SELECT d FROM prev_date)
+                )
+                SELECT t.symbol, t.date, t.close,
+                       COALESCE(y.prev_close, t.close) AS prev_close
+                FROM today t
+                LEFT JOIN yesterday y ON t.symbol = y.symbol
+                ORDER BY t.symbol
+            """, (INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS))
+            latest = cur.fetchall()
 
-            spy_price = None
-            try:
-                cur.execute("""
-                    SELECT close FROM price_daily
-                    WHERE symbol = 'SPY'
-                    ORDER BY date DESC LIMIT 1
-                """)
-                spy_row = cur.fetchone()
-                if spy_row:
-                    spy_price = float(spy_row['close'])
-            except Exception as e:
-                logger.warning(f"[MARKETS] SPY price unavailable: {type(e).__name__}: {e}")
+            markets = []
+            for row in latest:
+                price = float(row['close']) if row['close'] else 0
+                prev_price = float(row['prev_close']) if row['prev_close'] else price
+                change = price - prev_price if prev_price > 0 else 0
+                change_pct = (change / prev_price * 100) if prev_price > 0 else 0
+
+                markets.append({
+                    'symbol': row['symbol'],
+                    'name': INDEX_NAMES.get(row['symbol'], row['symbol']),
+                    'date': str(row['date']),
+                    'price': round(price, 2),
+                    'change': round(change, 2),
+                    'changePercent': round(change_pct, 2),
+                })
 
             return json_response(200, {
                 'success': True,
-                'current': current,
-                'active_tier': active_tier,
-                'history': history,
-                'sectors': sectors,
-                'market_health': market_health,
-                'exposure_pct': current.get('exposure_pct') if current else None,
-                'halt_reasons': current.get('halt_reasons', []) if current else [],
-                'vix_level': market_health.get('vix_level') if market_health else None,
-                'distribution_days_4w': current.get('distribution_days') if current else None,
-                'market_stage': market_health.get('market_stage') if market_health else None,
-                'market_trend': market_health.get('market_trend') if market_health else None,
-                'spy_price': spy_price,
-                'up_volume_percent': market_health.get('up_volume_percent') if market_health else None,
-                'advance_decline_ratio': market_health.get('advance_decline_ratio') if market_health else None,
-                'new_highs_count': market_health.get('new_highs_count') if market_health else None,
-                'new_lows_count': market_health.get('new_lows_count') if market_health else None,
-                'put_call_ratio': market_health.get('put_call_ratio') if market_health else None,
-                'yield_curve_slope': market_health.get('yield_curve_slope') if market_health else None,
-                'breadth_momentum_10d': market_health.get('breadth_momentum_10d') if market_health else None,
-                'fed_rate_environment': market_health.get('fed_rate_environment') if market_health else None,
-                'data_freshness': freshness,
+                'data': {
+                    'markets': markets
+                }
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
