@@ -95,8 +95,19 @@ cd terraform && terraform output -json
 python tools/dashboard/dashboard.py  # fetches automatically
 
 # Option 3: Local development (no AWS)
-python tools/dashboard/dashboard.py --local  # uses localhost:3001
+# Terminal 1: Start local API proxy server (invokes real Lambda function locally)
+python scripts/api-proxy-server.py
+
+# Terminal 2: In a new terminal, run dashboard with --local flag
+python tools/dashboard/dashboard.py --local  # connects to localhost:3001 (api-proxy-server)
+python tools/dashboard/dashboard.py -w 30 --local  # watch mode with 30s refresh
 ```
+
+**Local API Proxy Server (`scripts/api-proxy-server.py`):**
+- Runs on http://localhost:3001
+- Forwards HTTP requests to the real Lambda function code (not mocked)
+- Uses actual database connections (configure DB credentials via environment or PowerShell profile)
+- Allows frontend/dashboard development without AWS credentials or deployed infrastructure
 
 **Local Database + Trading Credentials (PowerShell profile):**
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, ALPACA_PAPER_TRADING=true, APCA_API_BASE_URL=https://paper-api.alpaca.markets
