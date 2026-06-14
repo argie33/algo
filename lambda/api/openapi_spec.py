@@ -530,6 +530,42 @@ def _get_paths():
                 }
             }
         },
+        "/api/swagger": {
+            "get": {
+                "tags": ["API Documentation"],
+                "summary": "Swagger UI interactive documentation",
+                "description": "Interactive API documentation with Swagger UI",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Swagger UI HTML page",
+                        "content": {
+                            "text/html": {
+                                "schema": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/redoc": {
+            "get": {
+                "tags": ["API Documentation"],
+                "summary": "ReDoc interactive documentation",
+                "description": "Alternative interactive API documentation with ReDoc",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "ReDoc HTML page",
+                        "content": {
+                            "text/html": {
+                                "schema": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
     }
 
 
