@@ -107,12 +107,18 @@ export const safeGetFactors = (current) => {
  * Safely get sentiment data with null defaults
  */
 export const safeGetSentimentData = (data) => {
-  if (!data || typeof data !== 'object') return {};
+  const defaults = {
+    aaii: { history: [], data: [] },
+    naaim: { current: null },
+    fearGreed: { current: null },
+  };
+
+  if (!data || typeof data !== 'object') return defaults;
 
   return {
-    aaii: data.aaii && typeof data.aaii === 'object' ? data.aaii : { history: [], data: [] },
-    naaim: data.naaim && typeof data.naaim === 'object' ? data.naaim : { current: null },
-    fearGreed: data.fearGreed && typeof data.fearGreed === 'object' ? data.fearGreed : { current: null },
+    aaii: data.aaii && typeof data.aaii === 'object' ? data.aaii : defaults.aaii,
+    naaim: data.naaim && typeof data.naaim === 'object' ? data.naaim : defaults.naaim,
+    fearGreed: data.fearGreed && typeof data.fearGreed === 'object' ? data.fearGreed : defaults.fearGreed,
   };
 };
 
