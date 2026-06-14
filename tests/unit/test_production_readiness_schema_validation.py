@@ -50,7 +50,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.database_context.DatabaseContext') as mock_db:
+        with patch('utils.db.context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()
@@ -76,7 +76,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.database_context.DatabaseContext') as mock_db:
+        with patch('utils.db.context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()
@@ -103,7 +103,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         from utils.ops.production_readiness import ProductionReadinessCheck
 
-        with patch('utils.database_context.DatabaseContext') as mock_db:
+        with patch('utils.db.context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             check = ProductionReadinessCheck()

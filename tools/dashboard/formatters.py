@@ -79,8 +79,9 @@ def mkt_hours_str() -> tuple:
     try:
         from algo.algo_market_calendar import MarketCalendar
         return MarketCalendar.get_market_status_display()
-    except Exception:
-        pass
+    except Exception as market_err:
+        import logging
+        logging.debug(f"Could not get market status from calendar: {market_err}, using fallback")
 
     n  = datetime.now(ET)
     wd = n.weekday()

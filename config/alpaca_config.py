@@ -35,7 +35,8 @@ def get_alpaca_base_url() -> str:
         if paper_flag == 'false':
             return 'https://api.alpaca.markets'
     except Exception as e:
-        pass
+        import logging
+        logging.debug(f"Could not parse ALPACA_PAPER_TRADING: {e}, using default")
 
     return 'https://paper-api.alpaca.markets'
 

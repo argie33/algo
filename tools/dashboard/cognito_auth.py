@@ -121,8 +121,9 @@ def _get_or_create_test_user() -> Tuple[str, str]:
             with open(token_file, "r") as f:
                 creds = json.load(f)
                 return creds.get("username", ""), creds.get("password", "")
-        except Exception:
-            pass
+        except Exception as cred_err:
+            import logging
+            logging.debug(f"Could not load cached credentials: {cred_err}")
 
     # Return empty defaults (user will be prompted for real values)
     return "", ""

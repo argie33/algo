@@ -132,7 +132,7 @@ def error_response(code, typ, msg):
     except Exception:
         pass
 
-    return {"statusCode": code, "errorType": typ, "message": msg, "_error": typ}
+    return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
 def success_response(data, metadata=None):
     """Standardized success response for single object.
