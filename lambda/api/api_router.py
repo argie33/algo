@@ -24,7 +24,7 @@ _CRITICAL_ROUTES = {'health', 'algo'}  # Routes that must load for API to functi
 
 # Critical routes are imported statically above; these are optional routes with graceful fallback
 _OPTIONAL_ROUTE_MODULES = [
-    'financials', 'earnings', 'signals', 'prices', 'stocks',
+    'logs', 'financials', 'earnings', 'signals', 'prices', 'stocks',
     'sectors', 'industries', 'market', 'economic', 'sentiment',
     'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'risk_dashboard',
     'data_coverage'
@@ -79,6 +79,10 @@ if 'health' in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS['/health'] = _AVAILABLE_ROUTES['health']
 else:
     logger.error("CRITICAL: health route module failed to import - health endpoints will not work")
+
+# Frontend error logging endpoint (public, may be called before auth)
+if 'logs' in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS['/api/logs'] = _AVAILABLE_ROUTES['logs']
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 _HANDLER_CONFIG = [

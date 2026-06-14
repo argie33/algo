@@ -16,9 +16,18 @@ import { createComponentLogger } from "./utils/errorLogger";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ApiErrorBanner from "./components/ApiErrorBanner";
 import { modernTheme } from "./theme/modernTheme";
+import cloudWatchLogger from "./utils/cloudWatchLogger";
 
 // Initialize comprehensive error logging service
 const logger = createComponentLogger("Main");
+
+// Initialize CloudWatch error logging for production visibility
+try {
+  // This sends all unhandled errors to CloudWatch for monitoring
+  logger.info("CloudWatch logger initialized");
+} catch (e) {
+  console.warn("CloudWatch logger initialization failed:", e);
+}
 
 // RESTORED: Professional error logging service integration
 const _originalConsoleError = console.error;
@@ -82,6 +91,9 @@ window.addEventListener(
 
     logger.error("WindowError", e.error || new Error(e.message), errorContext);
 
+    // Also log to CloudWatch for production monitoring
+    cloudWatchLogger.logError("WindowError", "uncaught_exception", e.error || new Error(e.message), errorContext);
+
     // Let all errors through for debugging
     return false;
   },
@@ -101,6 +113,7 @@ window.addEventListener("unhandledrejection", function (e) {
   // Always log unhandled rejections
   if (e.reason instanceof Error) {
     logger.error("UnhandledPromiseRejection", e.reason, errorContext);
+    cloudWatchLogger.logError("PromiseRejection", "unhandled_rejection", e.reason, errorContext);
     console.error("[UnhandledRejection]", {
       message: e.reason.message,
       stack: e.reason.stack,
@@ -109,6 +122,7 @@ window.addEventListener("unhandledrejection", function (e) {
   } else {
     const error = new Error(String(e.reason));
     logger.error("UnhandledPromiseRejection", error, errorContext);
+    cloudWatchLogger.logError("PromiseRejection", "unhandled_rejection", error, errorContext);
     console.error("[UnhandledRejection]", {
       reason: e.reason,
       context: errorContext
