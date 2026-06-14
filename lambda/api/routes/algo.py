@@ -1818,8 +1818,8 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             return list_response([safe_json_serialize(safe_dict_convert(h)) for h in history])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {str(e)}', extra={'operation': 'get swing scores history'}, exc_info=True)
-            return error_response(500, 'internal_error', f'Failed to fetch swing scores history: {type(e).__name__}')
+            logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {str(e)}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
 def _get_rejection_reason_description(reason: str) -> str:
     """Generate human-readable description for rejection reason."""
     reason_lower = (reason or "").lower()
@@ -1956,7 +1956,7 @@ def _get_rejection_funnel(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch rejection funnel: {type(e).__name__}: {e}', extra={'operation': 'get rejection funnel'})
+            logger.error(f'Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel')
             return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}, 'rejected': []})
 _TIER_CONFIG = {
     'confirmed_uptrend': {
