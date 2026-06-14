@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 import sys
+from pathlib import Path
+
+# Add project root to sys.path BEFORE importing loaders module
+loader_dir = Path(__file__).parent
+project_root = loader_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 Analyst Ratings Loader - Optimal Pattern.

@@ -136,13 +136,30 @@ def _fetch_terraform_credentials():
             return (None, None, None)
 
         # Validate outputs are present and non-empty
-        api_url = outputs.get("api_url", {}).get("value", "").strip()
-        pool_id = outputs.get("cognito_user_pool_id", {}).get("value", "").strip()
-        client_id = outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
+        # Handle both JSON object format and raw value format
+        api_url = None
+        pool_id = None
+        client_id = None
+
+        if isinstance(outputs.get("api_url"), dict):
+            api_url = outputs.get("api_url", {}).get("value", "").strip()
+        else:
+            api_url = str(outputs.get("api_url", "")).strip()
+
+        if isinstance(outputs.get("cognito_user_pool_id"), dict):
+            pool_id = outputs.get("cognito_user_pool_id", {}).get("value", "").strip()
+        else:
+            pool_id = str(outputs.get("cognito_user_pool_id", "")).strip()
+
+        if isinstance(outputs.get("cognito_user_pool_client_id"), dict):
+            client_id = outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
+        else:
+            client_id = str(outputs.get("cognito_user_pool_client_id", "")).strip()
 
         if not all([api_url, pool_id, client_id]):
             logger.warning("Terraform outputs incomplete: url=%s, pool=%s, client=%s",
                          bool(api_url), bool(pool_id), bool(client_id))
+            logger.debug("Available outputs: %s", list(outputs.keys()))
             return (None, None, None)
 
         # Validate API URL format
@@ -395,12 +412,15 @@ def main():
                 logger.info("Credentials fetched from Terraform")
 
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials automatically")
+            CONSOLE.print("[bold red]ERROR:[/] Could not fetch AWS credentials from Terraform")
             CONSOLE.print("")
-            CONSOLE.print("[bold cyan]Quick fix:[/]")
-            CONSOLE.print("[cyan]   scripts/run-dashboard.ps1[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[dim]This launcher will automatically set up all credentials and start the dashboard.[/]")
+            CONSOLE.print("[bold cyan]To fix:[/]")
+            CONSOLE.print("[yellow]1. Ensure Terraform outputs exist:[/]")
+            CONSOLE.print("[cyan]   cd terraform && terraform output -json[/]")
+            CONSOLE.print("[yellow]2. If outputs missing, deploy infrastructure:[/]")
+            CONSOLE.print("[cyan]   cd terraform && terraform apply[/]")
+            CONSOLE.print("[yellow]3. Then run dashboard:[/]")
+            CONSOLE.print("[cyan]   python tools/dashboard/dashboard.py[/]")
             CONSOLE.print("")
             CONSOLE.print("[dim]Or manually set environment variables:[/]")
             CONSOLE.print("[cyan]   $env:DASHBOARD_API_URL = \"<api_url>\"[/]")

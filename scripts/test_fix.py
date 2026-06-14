@@ -27,7 +27,7 @@ try:
 
     print(f"Status: {response.get('statusCode')}")
     if response.get('statusCode') == 200:
-        print("✅ SUCCESS!")
+        print("[SUCCESS]")
     else:
         body = eval(response.get('body', '{}'))
         print(f"Error: {body.get('errorType')}")

@@ -37,19 +37,19 @@ def audit_dashboard_source():
     api_calls = len(re.findall(r'api_call\(', content))
     db_calls = len(re.findall(r'DatabaseContext|psycopg2|\.execute\(', content))
 
-    print(f"  ✓ API calls found: {api_calls}")
-    print(f"  {'✓' if db_calls == 0 else '❌'} Direct DB calls found: {db_calls}")
+    print(f"  [OK] API calls found: {api_calls}")
+    print(f"  {'[OK]' if db_calls == 0 else '[FAIL]'} Direct DB calls found: {db_calls}")
 
     # List all fetcher functions
     fetchers = re.findall(r'def (fetch_\w+)\(', content)
-    print(f"  ✓ Fetcher functions: {len(fetchers)}")
+    print(f"  [OK] Fetcher functions: {len(fetchers)}")
     for fetcher in fetchers[:5]:
         print(f"    - {fetcher}")
     if len(fetchers) > 5:
         print(f"    ... and {len(fetchers) - 5} more")
 
     if db_calls == 0:
-        print("  ✓ PASS: Dashboard uses API-only architecture")
+        print("  [OK] PASS: Dashboard uses API-only architecture")
         return True
     else:
         print(f"  ❌ FAIL: Dashboard has {db_calls} direct DB calls")
@@ -73,25 +73,25 @@ def audit_api_routes():
     has_import = 'from utils.database_context import DatabaseContext' in content
     db_context_calls = len(re.findall(r'with DatabaseContext\(', content))
 
-    print(f"  {'✓' if has_import else '❌'} DatabaseContext imported: {has_import}")
-    print(f"  ✓ DatabaseContext usage: {db_context_calls} context manager(s)")
+    print(f"  {'[OK]' if has_import else '[FAIL]'} DatabaseContext imported: {has_import}")
+    print(f"  [OK] DatabaseContext usage: {db_context_calls} context manager(s)")
 
     # Check that routes are using the database cursor
     algo_file = Path("lambda/api/routes/algo.py")
     if algo_file.exists():
         algo_content = algo_file.read_text(encoding='utf-8', errors='ignore')
         handlers = len(re.findall(r'def _(?:get|post|put|delete)_\w+\(cur\)', algo_content))
-        print(f"  ✓ Route handlers receiving cur parameter: {handlers}")
+        print(f"  [OK] Route handlers receiving cur parameter: {handlers}")
 
     # Check for fallback handling
     fallback_checks = len(re.findall(r'_is_fallback_data|_is_placeholder', content))
-    print(f"  ✓ Fallback data detection: {fallback_checks} locations")
+    print(f"  [OK] Fallback data detection: {fallback_checks} locations")
 
     if has_import and db_context_calls > 0:
-        print("  ✓ PASS: Lambda uses DatabaseContext for all AWS RDS access")
+        print("  [OK] PASS: Lambda uses DatabaseContext for all AWS RDS access")
         return True
     else:
-        print("  ❌ FAIL: DatabaseContext not properly configured")
+        print("  [FAIL] DatabaseContext not properly configured")
         return False
 
 
@@ -112,12 +112,12 @@ def audit_fallback_logging():
     has_triggers = 'FallbackTrigger' in content
     has_registry = 'get_hardcoded_fallback_values' in content
 
-    print(f"  {'✓' if has_logging else '❌'} Fallback logging: {has_logging}")
-    print(f"  {'✓' if has_triggers else '❌'} Fallback triggers: {has_triggers}")
-    print(f"  {'✓' if has_registry else '❌'} Fallback registry: {has_registry}")
+    print(f"  {'[OK]' if has_logging else '[FAIL]'} Fallback logging: {has_logging}")
+    print(f"  {'[OK]' if has_triggers else '[FAIL]'} Fallback triggers: {has_triggers}")
+    print(f"  {'[OK]' if has_registry else '[FAIL]'} Fallback registry: {has_registry}")
 
     if has_logging and has_triggers and has_registry:
-        print("  ✓ PASS: Fallback logging is properly configured")
+        print("  [OK] PASS: Fallback logging is properly configured")
         return True
     else:
         print("  ⚠ WARN: Fallback logging may be incomplete")
@@ -142,19 +142,19 @@ def audit_aws_configuration():
         if value:
             # Mask sensitive values
             display = value if var != 'DB_HOST' else f"***{value[-20:]}"
-            print(f"  ✓ {var}: {display}")
+            print(f"  [OK] {var}: {display}")
             configured += 1
         else:
-            print(f"  ⚠ {var}: NOT SET ({description})")
+            print(f"  [WARN] {var}: NOT SET ({description})")
 
-    print(f"  ✓ Configured: {configured}/{len(env_vars)}")
+    print(f"  [OK] Configured: {configured}/{len(env_vars)}")
 
     # Check for dev_server.py configuration
     dev_server = Path("lambda/api/dev_server.py")
     if dev_server.exists():
         content = dev_server.read_text(encoding='utf-8', errors='ignore')
         if 'AWS Secrets Manager' in content:
-            print("  ✓ Dev server: Configured for AWS Secrets Manager")
+            print("  [OK] Dev server: Configured for AWS Secrets Manager")
             return True
 
     return configured >= 2
@@ -190,7 +190,7 @@ def main():
     print(f"\nTotal: {passed}/{total} checks passed")
 
     if passed == total:
-        print("\n✓ All data flow audits passed!")
+        print("\n[OK] All data flow audits passed!")
         print("  Dashboard data flows entirely from AWS APIs")
         print("  System is ready for production")
         return 0

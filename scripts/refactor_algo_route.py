@@ -50,7 +50,7 @@ FUNCTION_MODULES = {
 # Constants that need to be extracted
 TIER_CONFIG = '_TIER_CONFIG'
 
-print("✓ Refactoring plan created")
+print("[OK] Refactoring plan created")
 print(f"  - {len(FUNCTION_MODULES)} modules to create")
 print(f"  - {sum(len(funcs) for funcs in FUNCTION_MODULES.values())} functions to extract")
 print("\nModule breakdown:")

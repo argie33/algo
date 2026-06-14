@@ -31,7 +31,7 @@ def test_sanitize_nested_dict_with_nulls():
     assert sanitized['profit_factor'] == 0, f"Expected 0, got {sanitized['profit_factor']}"
     assert sanitized['win_rate'] == 50.5, f"Expected 50.5, got {sanitized['win_rate']}"
     assert sanitized['trades']['avg_win'] == 0, f"Expected 0, got {sanitized['trades']['avg_win']}"
-    print("✓ test_sanitize_nested_dict_with_nulls passed")
+    print("[OK] test_sanitize_nested_dict_with_nulls passed")
 
 
 def test_sanitize_list_with_nulls():
@@ -49,7 +49,7 @@ def test_sanitize_list_with_nulls():
     assert len(sanitized) == 3, f"Expected 3 items, got {len(sanitized)}"
     # None price should be replaced with 0
     assert sanitized[1]['price'] == 0, f"Expected 0, got {sanitized[1]['price']}"
-    print("✓ test_sanitize_list_with_nulls passed")
+    print("[OK] test_sanitize_list_with_nulls passed")
 
 
 def test_success_response_sanitizes():
@@ -61,7 +61,7 @@ def test_success_response_sanitizes():
     assert response['statusCode'] == 200
     assert response['data']['profit_factor'] == 0
     assert response['data']['win_rate'] == 45.0
-    print("✓ test_success_response_sanitizes passed")
+    print("[OK] test_success_response_sanitizes passed")
 
 
 def test_list_response_sanitizes():
@@ -76,7 +76,7 @@ def test_list_response_sanitizes():
     assert response['statusCode'] == 200
     assert response['data']['total'] == 2
     assert response['data']['items'][1]['quantity'] == 0
-    print("✓ test_list_response_sanitizes passed")
+    print("[OK] test_list_response_sanitizes passed")
 
 
 def test_validate_no_nulls():
@@ -94,7 +94,7 @@ def test_validate_no_nulls():
     assert 'root.c.d' in nulls
     assert 'root.f[1]' in nulls
     assert len(nulls) == 3
-    print("✓ test_validate_no_nulls passed")
+    print("[OK] test_validate_no_nulls passed")
 
 
 def test_json_serializable():
@@ -118,7 +118,7 @@ def test_json_serializable():
     parsed = json.loads(json_str)
     assert parsed['profit_factor'] == 0
     assert len(parsed['items']) == 1  # None item filtered out
-    print("✓ test_json_serializable passed")
+    print("[OK] test_json_serializable passed")
 
 
 if __name__ == '__main__':
@@ -128,4 +128,4 @@ if __name__ == '__main__':
     test_list_response_sanitizes()
     test_validate_no_nulls()
     test_json_serializable()
-    print("\n✅ All tests passed!")
+    print("\n[SUCCESS] All tests passed!")
