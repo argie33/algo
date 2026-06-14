@@ -2,7 +2,7 @@
 """Load all 10,506 symbols to verify system works completely."""
 import logging
 from loaders.load_prices import PriceLoader
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 
 logging.basicConfig(level=logging.CRITICAL)
 

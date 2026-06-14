@@ -211,7 +211,7 @@ def test_db_connection():
     start_time = time.time()
 
     try:
-        from utils.db_connection import get_db_connection
+        from utils.db.connection import get_db_connection
         # Tolerates transient RDS Proxy issues: 3 attempts, 10s timeout per attempt
         # Exponential backoff: attempt 1 (0s), attempt 2 (1-2s wait), attempt 3 (2-4s wait)
         conn = get_db_connection(max_retries=2, timeout=10)

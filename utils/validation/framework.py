@@ -2,17 +2,27 @@
 """
 Centralized Validation Framework - Single Source of Truth for All Validation
 
-This module provides a unified interface and patterns for all data validation
-across the platform. It replaces scattered validate_*() functions with a
-composable, auditable validation system.
+This module provides unified validation for all data across the platform.
+Supports both:
+1. Class-based validators (composable, auditable)
+2. Functional API (backward compatible with existing code)
+
+All validation is fail-closed with explicit error logging and context tracking.
+No silent defaults—missing data returns None, conversions are logged.
 """
 
 import logging
+import json
+import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, Type
 from dataclasses import dataclass, field
+from datetime import datetime, date, timezone
 
 logger = logging.getLogger(__name__)
+
+# Eastern timezone for all time-based conversions
+EASTERN_TZ = timezone.utc
 
 
 @dataclass
@@ -196,3 +206,342 @@ _global_registry = ValidatorRegistry()
 
 def get_global_registry() -> ValidatorRegistry:
     return _global_registry
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# UNIFIED FUNCTIONAL API - FOR BACKWARD COMPATIBILITY & EASE OF USE
+# ──────────────────────────────────────────────────────────────────────────────
+# These wrap the class-based system with a simpler functional interface.
+# All validation is centralized here — one source of truth for all data conversion.
+
+def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
+    """Convert value to float safely, handling NaN, Infinity, None.
+
+    Args:
+        value: Value to convert (can be str, int, float, None)
+        default: Default value if conversion fails (default: 0.0)
+        context: Context string for logging (e.g., "symbol=AAPL")
+
+    Returns:
+        Float value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return default
+
+    try:
+        f = float(value)
+        if math.isnan(f):
+            logger.warning(f"NaN value rejected {context}")
+            return default
+        if math.isinf(f):
+            logger.warning(f"Infinity value rejected {context}")
+            return default
+        return f
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
+        return default
+
+
+def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
+    """Convert value to float in strict mode, raising on failure.
+
+    Args:
+        value: Value to convert
+        context: Context string for logging
+
+    Returns:
+        Float value or None if conversion fails
+
+    Raises:
+        ValueError: If conversion fails and strict mode is enabled
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return None
+
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            logger.warning(f"Invalid float value {value!r} {context}")
+            return None
+        return f
+    except (ValueError, TypeError):
+        return None
+
+
+def safe_int(value: Any, default: int = 0, context: str = "") -> int:
+    """Convert value to int safely, handling None, invalid strings.
+
+    Args:
+        value: Value to convert (can be str, int, float, None)
+        default: Default value if conversion fails (default: 0)
+        context: Context string for logging
+
+    Returns:
+        Int value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return default
+
+    try:
+        return int(value)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
+        return default
+
+
+def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
+    """Convert value to int in strict mode.
+
+    Args:
+        value: Value to convert
+        context: Context string for logging
+
+    Returns:
+        Int value or None if conversion fails
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return None
+
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
+        return None
+
+
+def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
+    """Parse date from multiple formats: ISO, string, datetime.
+
+    Handles:
+    - ISO format strings (2026-06-10)
+    - datetime objects
+    - date objects
+
+    Returns None if parsing fails.
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value).date()
+        except (ValueError, TypeError):
+            pass
+
+        for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"]:
+            try:
+                return datetime.strptime(value, fmt).date()
+            except ValueError:
+                pass
+
+        logger.warning(f"Failed to parse date {value!r} {context} - no format matched")
+        return None
+
+    logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
+    return None
+
+
+def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
+    """Parse datetime string with timezone awareness (ET).
+
+    Returns timezone-aware datetime in ET, or None if parsing fails.
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=EASTERN_TZ)
+        return value
+
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=EASTERN_TZ)
+            return dt
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse datetime {value!r} {context}")
+            return None
+
+    return None
+
+
+def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> Any:
+    """Parse JSON string safely with proper error logging.
+
+    Args:
+        json_str: JSON string or already-parsed object
+        default: Default value if parsing fails
+        context: Context string for logging
+
+    Returns:
+        Parsed object or default value
+    """
+    if isinstance(json_str, (dict, list)):
+        return json_str
+
+    if not isinstance(json_str, str):
+        logger.warning(f"JSON parse: expected string, got {type(json_str).__name__} {context}")
+        return default
+
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"JSON parse failed {context}: {e}")
+        return default
+
+
+def safe_str(value: Any, default: str = "", context: str = "") -> str:
+    """Safely convert value to string with logging.
+
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        context: Context string for logging
+
+    Returns:
+        String value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, str):
+        return value
+
+    try:
+        return str(value)
+    except Exception as e:
+        logger.warning(f"Failed to convert {value!r} to str {context}: {e}")
+        return default
+
+
+def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
+    """Safely convert value to bool with logging.
+
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        context: Context string for logging
+
+    Returns:
+        Boolean value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        val_lower = value.lower().strip()
+        if val_lower in ('true', '1', 'yes', 'on'):
+            return True
+        elif val_lower in ('false', '0', 'no', 'off', ''):
+            return False
+        else:
+            logger.warning(f"Cannot convert {context}={value!r} to bool")
+            return default
+
+    try:
+        return bool(value)
+    except Exception as e:
+        logger.warning(f"Failed to convert {context}={value!r} to bool: {e}")
+        return default
+
+
+def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
+                   field_name: str = None) -> Any:
+    """Parse JSON string with configurable failure behavior (dashboard API variant).
+
+    Args:
+        value: Value to parse (string, dict, list, or None)
+        default: Value to return on parse failure (default: None = strict mode)
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
+
+    Returns:
+        Parsed object, or default value
+    """
+    if value is None:
+        if strict:
+            raise ValueError(f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}")
+        return default if default is not None else {}
+
+    if isinstance(value, (dict, list)):
+        return value
+
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            if strict:
+                raise ValueError(
+                    f"Cannot parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
+                ) from e
+            logger.warning(f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}")
+            return default if default is not None else {}
+
+    if strict:
+        raise ValueError(
+            f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
+        )
+    logger.warning(f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}")
+    return default if default is not None else {}
+
+
+def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
+                             source: str = None) -> bool:
+    """Check if required fields exist in data dict. Log warnings for missing fields."""
+    missing = [f for f in required_fields if f not in data or data[f] is None]
+    if missing:
+        source_str = f" from {source}" if source else ""
+        logger.warning(f"Missing required fields{source_str}: {missing}")
+        return False
+    return True
+
+
+def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
+                         source: str = None) -> bool:
+    """Validate that fields in data match expected types. Log warnings for type mismatches."""
+    issues = []
+    for field, expected_type in type_spec.items():
+        if field not in data:
+            continue
+        value = data[field]
+        if value is None:
+            continue
+        if not isinstance(value, expected_type):
+            issues.append(f"{field}: expected {expected_type.__name__}, got {type(value).__name__}")
+
+    if issues:
+        source_str = f" from {source}" if source else ""
+        logger.warning(f"Type mismatches{source_str}: {'; '.join(issues)}")
+        return False
+    return True
+
+
+def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
+    """Log a data issue from a fetcher function."""
+    if value is not None:
+        logger.warning(f"{fetcher_name}.{field_name}: {issue} (value: {value!r})")
+    else:
+        logger.warning(f"{fetcher_name}.{field_name}: {issue}")

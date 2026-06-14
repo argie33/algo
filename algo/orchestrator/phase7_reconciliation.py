@@ -8,8 +8,8 @@ from typing import Any, Callable, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
-from utils.trade_recorder import TradeRecorder
-from utils.database_context import DatabaseContext
+from utils.trading.recorder import TradeRecorder
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

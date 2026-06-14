@@ -106,7 +106,7 @@ else:
 api_dir = os.path.dirname(os.path.abspath(__file__))
 lambda_dir = os.path.dirname(api_dir)
 root_dir = os.path.dirname(lambda_dir)
-# Add root_dir first so imports like "from utils.timezone_utils" find /root/utils
+# Add root_dir first so imports like "from utils.infrastructure.timezone" find /root/utils
 sys.path.insert(0, root_dir)
 sys.path.insert(1, lambda_dir)
 sys.path.insert(2, api_dir)

@@ -76,7 +76,7 @@ def lambda_handler(event, context):
         # Usage: {"seed_prices": [{"symbol": "SPY", "date": "2026-06-08", "open": 743.35,
         #          "high": 745.18, "low": 744.99, "close": 745.16, "volume": 50000}]}
         if event.get('seed_prices'):
-            from utils.database_context import DatabaseContext
+            from utils.db.context import DatabaseContext
             rows = event['seed_prices']
             inserted = []
             with DatabaseContext('write') as cur:
@@ -171,7 +171,7 @@ def lambda_handler(event, context):
         # Ensure sector_ranking schema is correct (has 'date' column, not 'date_recorded')
         # This is a failsafe for when migrations don't run properly
         try:
-            from utils.database_context import DatabaseContext
+            from utils.db.context import DatabaseContext
             with DatabaseContext('write') as cur:
                 # Check if date column exists
                 cur.execute("""

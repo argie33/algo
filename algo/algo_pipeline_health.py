@@ -8,8 +8,8 @@ from typing import Dict, List, Optional
 from enum import Enum
 
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

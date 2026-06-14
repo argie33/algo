@@ -9,7 +9,7 @@ Usage in loader scripts:
     setup_imports()
 
     # Now you can import from root packages
-    from utils.database_context import DatabaseContext
+    from utils.db.context import DatabaseContext
     from utils import ...
 """
 

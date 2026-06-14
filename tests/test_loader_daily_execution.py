@@ -34,7 +34,7 @@ import logging
 logger = logging.getLogger(__name__)
 EASTERN_TZ = ZoneInfo("America/New_York")
 
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 class TestCriticalLoaderDailyExecution:

@@ -98,7 +98,7 @@ class StockSymbolsLoader(OptimalLoader):
         never gets out of sync with the source.
         """
         try:
-            from utils.database_context import DatabaseContext
+            from utils.db.context import DatabaseContext
             with DatabaseContext('write') as cur:
                 # Truncate to clear stale ETF entries (e.g., from delistings)
                 cur.execute("TRUNCATE TABLE etf_symbols")

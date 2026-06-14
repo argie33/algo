@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
-from .conversion import safe_int, safe_float
+from .conversion import (
+    safe_int, safe_float, safe_int_strict, safe_float_strict,
+    safe_parse_date, safe_parse_datetime_et, safe_json_loads
+)
 from .timezone import EASTERN_TZ
 from .market_timing import (
     MARKET_OPEN_HOUR,
@@ -23,7 +26,12 @@ from .api_endpoints import (
 
 __all__ = [
     'safe_int',
+    'safe_int_strict',
     'safe_float',
+    'safe_float_strict',
+    'safe_parse_date',
+    'safe_parse_datetime_et',
+    'safe_json_loads',
     'EASTERN_TZ',
     'MARKET_OPEN_HOUR',
     'MARKET_CLOSE_HOUR',

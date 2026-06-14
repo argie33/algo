@@ -8,7 +8,7 @@ Tests that schema_validator correctly identifies schema mismatches
 
 import unittest
 from unittest.mock import Mock, MagicMock
-from utils.schema_validator import validate_table_schema, _types_compatible
+from utils.validation.schema import validate_table_schema, _types_compatible
 
 
 class TestTypesCompatible(unittest.TestCase):

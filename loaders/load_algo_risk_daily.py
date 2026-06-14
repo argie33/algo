@@ -20,8 +20,8 @@ from datetime import date, datetime, timezone
 from typing import Optional, List
 
 from utils.optimal_loader import OptimalLoader
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
@@ -169,8 +169,8 @@ class AlgoRiskDailyLoader(OptimalLoader):
                     spy_var = sum((r - spy_mean) ** 2 for r in spy_rets) / len(spy_rets)
                     if spy_var > 0:
                         portfolio_beta = round(covar / spy_var, 3)
-            except (ValueError, ZeroDivisionError):
-                pass
+            except (ValueError, ZeroDivisionError) as e:
+                logger.debug(f"Could not calculate portfolio beta: {e}")
 
         # Concentration: top 5 positions as % of total
         top_5_concentration = None

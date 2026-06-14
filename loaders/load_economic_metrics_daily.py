@@ -17,8 +17,8 @@ from datetime import date, datetime, timedelta
 from typing import Optional, List
 
 from utils.optimal_loader import OptimalLoader
-from utils.timezone_utils import EASTERN_TZ
-from utils.database_context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ

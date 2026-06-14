@@ -20,10 +20,10 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Dict
 
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.database_context import DatabaseContext
-from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.db.context import DatabaseContext
+from utils.loaders.config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class StabilityMetricsLoader(OptimalLoader):
     @staticmethod
     def _get_beta_yfinance(symbol: str) -> Optional[float]:
         """Fetch beta from yfinance via the rate-limiting wrapper."""
-        from utils.yfinance_wrapper import get_ticker
+        from utils.external.yfinance import get_ticker
 
         ticker = get_ticker(symbol)
         if not ticker:

@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import List, Optional
-from utils.loader_helpers import get_active_symbols
-from utils.sec_edgar_client import SecEdgarClient
+from utils.loaders.helpers import get_active_symbols
+from utils.external.sec_edgar import SecEdgarClient
 
 from utils.optimal_loader import OptimalLoader
-from utils.loader_config import get_parallelism
+from utils.loaders.config import get_parallelism
 
 _PERIOD_CONFIG = {
     "annual": {

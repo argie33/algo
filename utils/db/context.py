@@ -16,6 +16,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from utils.db import get_db_connection
+from utils.db.pooled_context_var import get_pooled_connection
 
 logger = logging.getLogger(__name__)
 __all__ = ['DatabaseContext']
@@ -136,6 +137,7 @@ class DatabaseContext:
             self.correlation_id = self._get_loader_correlation_id()
         self.conn = None
         self.cur = None
+        self._externally_managed = False  # Track if connection is from pooled context
 
     @staticmethod
     def _get_loader_correlation_id() -> Optional[str]:
@@ -148,9 +150,24 @@ class DatabaseContext:
             return None
 
     def __enter__(self):
-        """Enter context - get database connection."""
+        """Enter context - get database connection.
+
+        OPTIMIZATION: Check for a pooled connection first (set by OptimalLoader).
+        If available, reuse it. Otherwise, acquire from pool normally.
+        This reduces connection churn from 5-10 creates per loader to 1 create.
+        """
         try:
-            self.conn = get_db_connection(timeout=self.timeout)
+            # OPTIMIZATION: Try to reuse a pooled connection (held by OptimalLoader)
+            pooled_conn = get_pooled_connection()
+            if pooled_conn is not None:
+                self.conn = pooled_conn
+                self._externally_managed = True
+                logger.debug("[DB_CONTEXT] Reusing pooled connection from OptimalLoader")
+            else:
+                # Normal flow: acquire new connection from pool
+                self.conn = get_db_connection(timeout=self.timeout)
+                self._externally_managed = False
+
             self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
 
             # Set application_name for PostgreSQL audit log (loaders only)
@@ -169,19 +186,33 @@ class DatabaseContext:
             raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context - cleanup connection."""
+        """Exit context - cleanup connection.
+
+        OPTIMIZATION: If connection is externally managed (from pooled context),
+        don't close it - let OptimalLoader manage its lifecycle.
+        """
         try:
             if self.cur:
                 self.cur.close()
-            if self.conn:
+
+            if self.conn and not self._externally_managed:
+                # Only close connections we acquired (not pooled context connections)
                 if exc_type is None and self.role == 'write':
                     self.conn.commit()
                 elif exc_type is not None:
                     self.conn.rollback()
                 self.conn.close()
+            elif self.conn and self._externally_managed:
+                # Still commit/rollback, but don't close the connection
+                if exc_type is None and self.role == 'write':
+                    self.conn.commit()
+                elif exc_type is not None:
+                    self.conn.rollback()
+                logger.debug("[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)")
         except Exception as e:
-            logger.warning(f"[DB_CLEANUP_WARNING] Error closing database connection: {e}")
+            logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}")
         finally:
             self.cur = None
-            self.conn = None
+            if not self._externally_managed:
+                self.conn = None
 

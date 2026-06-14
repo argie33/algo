@@ -22,7 +22,7 @@ try:
 except ImportError:
     minimize = None  # type: ignore[assignment]
 
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 from algo.algo_signal_attribution import SignalAttributionEngine
 
 logger = logging.getLogger(__name__)

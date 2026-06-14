@@ -6,9 +6,9 @@ from datetime import date
 from typing import Optional, List
 
 from utils.optimal_loader import OptimalLoader
-from utils.loader_helpers import get_active_symbols
-from utils.yfinance_wrapper import get_ticker
-from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.external.yfinance import get_ticker
+from utils.loaders.config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 

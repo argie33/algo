@@ -13,8 +13,8 @@ Implements fail-safe protocols that override strategy logic.
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -249,7 +249,7 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-            from utils.database_context import DatabaseContext
+            from utils.db.context import DatabaseContext
             with DatabaseContext('write') as cur:
                 # Cancel any pending orders for this symbol
                 cur.execute(

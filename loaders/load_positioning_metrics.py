@@ -19,9 +19,9 @@ import os
 from datetime import date, datetime, timezone
 from typing import List, Optional, Dict
 
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class PositioningMetricsLoader(OptimalLoader):
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> Optional[Dict]:
         """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper."""
-        from utils.yfinance_wrapper import get_ticker
+        from utils.external.yfinance import get_ticker
 
         ticker = get_ticker(symbol)
         if not ticker:

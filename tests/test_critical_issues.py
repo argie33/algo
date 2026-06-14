@@ -28,7 +28,7 @@ class TestRDSConnectionPool:
 
     def test_pool_status_healthy(self):
         """RDS pool should be < 80% utilized."""
-        from utils.rds_pool_monitor import RDSPoolMonitor
+        from utils.db.pool_monitor import RDSPoolMonitor
 
         monitor = RDSPoolMonitor()
         status = monitor.get_connection_pool_status()
@@ -39,7 +39,7 @@ class TestRDSConnectionPool:
 
     def test_pool_predicts_safe_parallelism(self):
         """RDS monitor should predict max safe parallelism."""
-        from utils.rds_pool_monitor import RDSPoolMonitor
+        from utils.db.pool_monitor import RDSPoolMonitor
 
         monitor = RDSPoolMonitor()
         readiness = monitor.check_eod_readiness()
@@ -90,7 +90,7 @@ class TestSLAMonitoring:
 
     def test_sla_windows_defined(self):
         """All critical SLA windows should be defined."""
-        from utils.sla_monitor import SLAMonitor
+        from utils.logging.sla import SLAMonitor
 
         windows = SLAMonitor.SLA_WINDOWS
         window_names = [w[4] for w in windows]
@@ -102,7 +102,7 @@ class TestSLAMonitoring:
 
     def test_morning_prep_budget_hours(self):
         """Morning prep should have 7.5 hour budget (2 AM - 9:30 AM)."""
-        from utils.sla_monitor import SLAMonitor
+        from utils.logging.sla import SLAMonitor
 
         # Find morning prep window
         windows = {w[4]: w for w in SLAMonitor.SLA_WINDOWS}
@@ -113,7 +113,7 @@ class TestSLAMonitoring:
 
     def test_preclose_budget_minutes(self):
         """Pre-close should have 25 minute budget (2:50 PM - 3:15 PM)."""
-        from utils.sla_monitor import SLAMonitor
+        from utils.logging.sla import SLAMonitor
 
         windows = {w[4]: w for w in SLAMonitor.SLA_WINDOWS}
         preclose = windows.get('preclose_update')
@@ -127,7 +127,7 @@ class TestAPIRateLimiting:
 
     def test_yfinance_rate_limit_estimates(self):
         """yfinance rate limit estimate should be realistic."""
-        from utils.rate_limit_validator import RateLimitValidator
+        from utils.validation.rate_limit import RateLimitValidator
 
         validator = RateLimitValidator()
         estimate = validator.estimate_yfinance_calls_needed(5000)
@@ -161,7 +161,7 @@ class TestDynamoDBStateManagement:
 
     def test_dynamodb_health_check_exists(self):
         """DynamoDB health check utility should exist."""
-        from utils.dynamodb_health_check import DynamoDBHealthCheck
+        from utils.db.dynamo_health import DynamoDBHealthCheck
 
         checker = DynamoDBHealthCheck()
         assert hasattr(checker, 'check_dynamodb_connectivity'), \
@@ -209,7 +209,7 @@ class TestDatabaseConnectivity:
 
     def test_critical_tables_exist(self):
         """All critical tables should exist and be accessible."""
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
 
         tables = [
             'price_daily',
@@ -236,7 +236,7 @@ class TestProductionReadinessCheck:
 
     def test_readiness_check_runs(self):
         """Production readiness check should run without errors."""
-        from utils.production_readiness_check import ProductionReadinessCheck
+        from utils.ops.production_readiness import ProductionReadinessCheck
 
         checker = ProductionReadinessCheck()
         result = checker.run_all_checks()

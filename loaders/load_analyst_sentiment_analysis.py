@@ -39,13 +39,13 @@ setup_imports()
 import argparse
 import logging
 logger = logging.getLogger(__name__)
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 import os
 from datetime import date, timedelta
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
-from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_parallelism, get_default_parallelism
 
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
@@ -55,7 +55,7 @@ class AnalystSentimentLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch analyst recommendations from yfinance and aggregate into sentiment."""
         try:
-            from utils.yfinance_wrapper import get_ticker
+            from utils.external.yfinance import get_ticker
         except ImportError:
             return None
 

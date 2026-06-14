@@ -160,7 +160,7 @@ def check_db_positions():
     logger.info("="*70)
 
     try:
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
 
         with DatabaseContext('read') as cur:
             cur.execute("""

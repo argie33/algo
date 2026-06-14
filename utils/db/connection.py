@@ -145,13 +145,13 @@ class TrackedConnection:
                 logger.warning(f"[DB_POOL] Failed to return connection to pool: {e}, closing instead")
                 try:
                     self._conn.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"[DB_POOL] Could not close connection: {close_err}")
         else:
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.debug(f"[DB_POOL] Could not close connection: {close_err}")
 
 def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
     """Get a database connection from the connection pool with retries.

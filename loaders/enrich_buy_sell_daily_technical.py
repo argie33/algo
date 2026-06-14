@@ -18,7 +18,7 @@ import os
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

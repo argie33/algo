@@ -18,16 +18,16 @@ from typing import List, Optional
 import pandas as pd
 
 import logging
-from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.timezone_utils import EASTERN_TZ
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
-from utils.loader_config import get_parallelism, get_default_parallelism
-from utils.timezone_utils import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.safe_data_conversion import safe_parse_date
-from utils.timezone_utils import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             return []
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(
@@ -183,7 +183,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             return []
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(
@@ -328,7 +328,7 @@ def main():
 
 def _sync_scores_to_buy_sell():
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
-    from utils.database_context import DatabaseContext
+    from utils.db.context import DatabaseContext
     try:
         with DatabaseContext('write') as cur:
             cur.execute("""

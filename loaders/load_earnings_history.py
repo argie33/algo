@@ -15,14 +15,14 @@ setup_imports()
 import logging
 
 import argparse
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
-from utils.loader_config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_parallelism, get_default_parallelism
 
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
@@ -32,7 +32,7 @@ class EarningsHistoryLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch earnings history from yfinance earnings_dates."""
         try:
-            from utils.yfinance_wrapper import get_ticker
+            from utils.external.yfinance import get_ticker
             from datetime import datetime
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
             ticker = get_ticker(yf_symbol)

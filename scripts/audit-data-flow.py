@@ -70,7 +70,7 @@ def audit_api_routes():
     content = lambda_file.read_text(encoding='utf-8', errors='ignore')
 
     # Check for DatabaseContext import and usage
-    has_import = 'from utils.database_context import DatabaseContext' in content
+    has_import = 'from utils.db.context import DatabaseContext' in content
     db_context_calls = len(re.findall(r'with DatabaseContext\(', content))
 
     print(f"  {'[OK]' if has_import else '[FAIL]'} DatabaseContext imported: {has_import}")

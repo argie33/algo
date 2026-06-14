@@ -22,7 +22,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_alpaca_timeout
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 import os
 import json
 from decimal import Decimal, ROUND_HALF_UP

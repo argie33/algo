@@ -20,14 +20,14 @@ from typing import List, Optional
 import pandas as pd
 
 from algo.algo_sql_safety import assert_safe_table
-from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.timezone_utils import EASTERN_TZ
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
-from utils.loader_config import get_parallelism, get_default_parallelism
-from utils.timezone_utils import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.infrastructure.timezone import EASTERN_TZ
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -287,7 +287,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
 def main():
     import time
-    from utils.database_context import DatabaseContext
+    from utils.db.context import DatabaseContext
     from datetime import datetime
 
     start_time = time.time()

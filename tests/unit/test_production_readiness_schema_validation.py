@@ -48,7 +48,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         mock_cur = self._mock_cursor_with_schema(columns)
 
-        from utils.production_readiness_check import ProductionReadinessCheck
+        from utils.ops.production_readiness import ProductionReadinessCheck
 
         with patch('utils.database_context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
@@ -74,7 +74,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         mock_cur = self._mock_cursor_with_schema(columns)
 
-        from utils.production_readiness_check import ProductionReadinessCheck
+        from utils.ops.production_readiness import ProductionReadinessCheck
 
         with patch('utils.database_context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur
@@ -101,7 +101,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         mock_cur = self._mock_cursor_with_schema(columns)
 
-        from utils.production_readiness_check import ProductionReadinessCheck
+        from utils.ops.production_readiness import ProductionReadinessCheck
 
         with patch('utils.database_context.DatabaseContext') as mock_db:
             mock_db.return_value.__enter__.return_value = mock_cur

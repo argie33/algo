@@ -16,10 +16,10 @@ from typing import List, Optional
 import pandas as pd
 
 import logging
-from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
             return {}
         try:
-            from utils.yfinance_wrapper import YFinanceWrapper
+            from utils.external.yfinance import YFinanceWrapper
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
                 logger.warning("VIX ticker not available")
@@ -353,7 +353,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         logger.info(f"Market closed today ({today}) — skipping VIX/index yfinance fetch")
         return 0
     try:
-        from utils.yfinance_wrapper import YFinanceWrapper
+        from utils.external.yfinance import YFinanceWrapper
 
         records = []
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
@@ -435,7 +435,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         return 0
 
 def main():
-    from utils.loader_history_tracker import LoaderHistoryTracker
+    from utils.logging.history_tracker import LoaderHistoryTracker
 
     parser = argparse.ArgumentParser(description="Load market health daily metrics")
     parser.add_argument("--symbols", type=str, help="(Ignored - always uses SPY)")

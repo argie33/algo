@@ -19,7 +19,7 @@ import os
 from datetime import date, timedelta
 from typing import List, Optional
 
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 class AnalystRatingsLoader(OptimalLoader):
@@ -30,7 +30,7 @@ class AnalystRatingsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch analyst upgrades/downgrades from yfinance."""
         try:
-            from utils.yfinance_wrapper import get_ticker
+            from utils.external.yfinance import get_ticker
         except ImportError:
             return None
 

@@ -12,7 +12,7 @@ import psycopg2
 import psycopg2.sql
 
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -322,7 +322,7 @@ class OptimalLoader(ABC):
     @property
     def router(self):
         if self._router is None:
-            from utils.data_source_router import DataSourceRouter
+            from utils.data.source_router import DataSourceRouter
 
             self._router = DataSourceRouter()
         return self._router
@@ -854,7 +854,7 @@ class OptimalLoader(ABC):
         # DynamoDB locks are atomic, auto-expiring, and work across network boundaries.
         lock_manager = None
         try:
-            from utils.dynamodb_lock_manager import DynamoDBLockManager
+            from utils.db.dynamo_lock import DynamoDBLockManager
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -1094,7 +1094,7 @@ class OptimalLoader(ABC):
 
         lock_manager = None
         try:
-            from utils.dynamodb_lock_manager import DynamoDBLockManager
+            from utils.db.dynamo_lock import DynamoDBLockManager
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",

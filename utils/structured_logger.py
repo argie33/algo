@@ -76,7 +76,7 @@ class StructuredFormatter(logging.Formatter):
 
         # ISSUE #13 FIX: Auto-include correlation_id from context
         try:
-            from utils.correlation_context import get_correlation_id as get_corr_id
+            from utils.infrastructure.correlation import get_correlation_id as get_corr_id
             log_entry["correlation_id"] = get_corr_id()
         except (ImportError, Exception):
             pass  # correlation_context not available or not set

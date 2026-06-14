@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 def check_database_connection():
     """Test database connectivity."""

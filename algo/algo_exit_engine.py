@@ -22,7 +22,7 @@ State tracked on algo_positions:
 """
 
 import os
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 from datetime import datetime, timedelta, date as _date, timezone
 try:
     from trade_performance_auditor import TradePerformanceAuditor
@@ -30,7 +30,7 @@ except ImportError:
     TradePerformanceAuditor = None
 from algo.algo_trade_executor import TradeExecutor
 from algo.algo_signals import SignalComputer
-from utils.trade_status import TradeStatus, PositionStatus
+from utils.trading.status import TradeStatus, PositionStatus
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 

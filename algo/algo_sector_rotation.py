@@ -22,7 +22,7 @@ composite score by 5-10 points (handled in algo_market_exposure.py).
 import logging
 import os
 import json
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 from datetime import datetime, date as _date
 
 logger = logging.getLogger(__name__)

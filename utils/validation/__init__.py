@@ -1,10 +1,79 @@
 #!/usr/bin/env python3
+"""
+Unified Data Validation System - Single Source of Truth for All Validation
+
+This module consolidates all validation across the platform:
+- Functional API (safe_float, safe_int, safe_str, etc.) for backward compatibility
+- Class-based validators (Validator, ValidationResult) for composable validation
+- Specialized validators (AlpacaResponseValidator, APIResponseValidator)
+- Registry system for centralized validator management
+
+PRINCIPLE: All data validation must go through this module. Never use
+inline try/except or silent defaults elsewhere in the codebase.
+"""
+
+from .framework import (
+    # Validation classes
+    ValidationResult,
+    Validator,
+    TypeValidator,
+    EnumValidator,
+    PhaseValidator,
+    ValidatorRegistry,
+    get_global_registry,
+    # Functional API - numeric
+    safe_float,
+    safe_float_strict,
+    safe_int,
+    safe_int_strict,
+    # Functional API - temporal
+    safe_parse_date,
+    safe_parse_datetime_et,
+    # Functional API - strings & JSON
+    safe_str,
+    safe_bool,
+    safe_json_loads,
+    safe_json_parse,
+    # Functional API - helpers
+    validate_required_fields,
+    validate_field_types,
+    log_data_issue,
+    EASTERN_TZ,
+)
 
 from .freshness_config import get_freshness_rule
 from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 
 __all__ = [
+    # Core validation classes
+    'ValidationResult',
+    'Validator',
+    'TypeValidator',
+    'EnumValidator',
+    'PhaseValidator',
+    'ValidatorRegistry',
+    'get_global_registry',
+    # Numeric conversions
+    'safe_float',
+    'safe_float_strict',
+    'safe_int',
+    'safe_int_strict',
+    # Temporal conversions
+    'safe_parse_date',
+    'safe_parse_datetime_et',
+    # String & JSON conversions
+    'safe_str',
+    'safe_bool',
+    'safe_json_loads',
+    'safe_json_parse',
+    # Helper functions
+    'validate_required_fields',
+    'validate_field_types',
+    'log_data_issue',
+    # Constants
+    'EASTERN_TZ',
+    # Specialized validators
     'get_freshness_rule',
     'AlpacaResponseValidator',
     'APIResponseValidator',

@@ -36,7 +36,7 @@ from datetime import date as _date
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 from algo.algo_signals import SignalComputer
 from algo.algo_signals_vectorized import VectorizedSignalGenerator
 from algo.algo_swing_score import SwingTraderScore

@@ -12,7 +12,7 @@ import logging
 import threading
 from typing import Any
 from config.credential_validator import assert_credentials
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -374,8 +374,8 @@ class AlgoConfig:
                     f'Config: R-multiple targets not ordered (t1={t1} t2={t2} t3={t3}). '
                     f'Expected t1 < t2 < t3.'
                 )
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.debug(f"Failed to validate R-multiple ordering: {e}")
 
     def get(self, key, default=None):
         """Get configuration value with validation of hardcoded defaults.

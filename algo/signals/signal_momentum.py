@@ -4,7 +4,7 @@
 
 from typing import Dict, Any, Optional
 import logging
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

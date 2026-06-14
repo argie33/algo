@@ -17,7 +17,7 @@ from algo.algo_config import get_api_timeout, get_alpaca_timeout
 
 import os
 import json
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 import uuid
 from datetime import datetime, date, timedelta, timezone
 import requests
@@ -26,9 +26,9 @@ from decimal import Decimal, ROUND_HALF_UP
 import logging
 from typing import Dict, Any, Optional
 
-from utils.trade_status import TradeStatus, PositionStatus
-from utils.alpaca_response_validator import AlpacaResponseValidator
-from utils.db_retry_helper import OptimisticLockRetry, RetryConfig
+from utils.trading.status import TradeStatus, PositionStatus
+from utils.validation.alpaca import AlpacaResponseValidator
+from utils.db.retry import OptimisticLockRetry, RetryConfig
 from algo.algo_notifications import TradeNotificationService, notify
 
 logger = logging.getLogger(__name__)
@@ -1186,8 +1186,8 @@ class TradeExecutor:
                     error_data = response.json()
                     if 'message' in error_data:
                         logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                except (json.JSONDecodeError, ValueError) as json_err:
+                    logger.debug(f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}")
                 return {'success': False, 'message': f'Alpaca {response.status_code}: {error_text[:200]}'}
         except Exception as e:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")

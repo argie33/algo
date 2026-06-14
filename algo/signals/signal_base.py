@@ -12,8 +12,8 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 from datetime import datetime, timedelta, date as _date
 import logging
 from typing import Dict, List, Tuple, Optional, Any
-from utils.database_context import DatabaseContext
-from utils.query_cache import QueryCache, CacheStrategy
+from utils.db.context import DatabaseContext
+from utils.db.query_cache import QueryCache, CacheStrategy
 
 logger = logging.getLogger(__name__)
 

@@ -20,7 +20,7 @@ setup_imports()
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch and aggregate sentiment data from AAII and NAAIM."""
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
 
         try:
             with DatabaseContext('read') as cursor:

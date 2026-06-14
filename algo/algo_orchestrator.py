@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 from algo.algo_config import get_subprocess_timeout
-from utils.market_timing_constants import (
+from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
     ORCHESTRATOR_RUN_TIMES_TUPLE, ORCHESTRATOR_KILL_BUFFER_MINUTES
 )
-from utils.timezone_utils import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ
 
 import os
 import time
@@ -19,8 +19,8 @@ from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.algo_trade_executor import TradeExecutor
-from utils.database_context import DatabaseContext
-from utils.orchestrator_execution_tracker import get_tracker
+from utils.db.context import DatabaseContext
+from utils.logging.execution_tracker import get_tracker
 import logging
 from monitoring.metrics_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
@@ -50,7 +50,7 @@ class Orchestrator:
         self.execution_tracker = get_tracker()
         self.execution_tracker.set_run_context(self.run_id, self.run_date)
         # FIXED Issue #8: Use DynamoDB lock manager instead of filesystem lock for distributed locking in Fargate
-        from utils.dynamodb_lock_manager import DynamoDBLockManager
+        from utils.db.dynamo_lock import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
         # FIXED Issue #3: Halt flag now uses DynamoDB instead of /tmp (which is ephemeral in Lambda)
@@ -577,7 +577,7 @@ class Orchestrator:
             return
 
         try:
-            from utils.feature_flags import initialize_safe_defaults, create_feature_flags_table
+            from utils.infrastructure.feature_flags import initialize_safe_defaults, create_feature_flags_table
             # Ensure table exists
             create_feature_flags_table()
             initialize_safe_defaults()

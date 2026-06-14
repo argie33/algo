@@ -14,7 +14,7 @@ Rules:
 from algo.algo_config import get_alpaca_timeout
 import os
 from datetime import date as _date
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 import logging
 

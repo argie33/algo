@@ -31,7 +31,7 @@ def main():
     """Compute and persist market_exposure_daily for latest trading date."""
     try:
         from algo.algo_market_exposure import MarketExposure
-        from utils.database_context import DatabaseContext
+        from utils.db.context import DatabaseContext
 
         # Determine the latest trading date from price_daily
         latest_date = None

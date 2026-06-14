@@ -27,23 +27,23 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from algo.algo_sql_safety import assert_safe_table
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
-from utils.data_provenance_tracker import DataProvenanceTracker
-from utils.timezone_utils import EASTERN_TZ
-from utils.data_tick_validator import validate_price_tick
-from utils.timezone_utils import EASTERN_TZ
-from utils.data_watermark_manager import WatermarkManager
-from utils.timezone_utils import EASTERN_TZ
-from utils.loader_helpers import get_active_symbols
-from utils.timezone_utils import EASTERN_TZ
-from utils.correlation_context import set_correlation_id, get_correlation_id
-from utils.timezone_utils import EASTERN_TZ
-from utils.loader_config import get_parallelism
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.data.provenance import DataProvenanceTracker
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.data.tick_validator import validate_price_tick
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.data.watermark import WatermarkManager
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.infrastructure.correlation import set_correlation_id, get_correlation_id
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.config import get_parallelism
+from utils.infrastructure.timezone import EASTERN_TZ
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
-from utils.timezone_utils import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +188,8 @@ class PriceLoader(OptimalLoader):
         silent data corruption or runtime failures.
         """
         from loaders.schema_definitions import TABLE_SCHEMAS
-        from utils.schema_validator import validate_table_schema
-        from utils.database_context import DatabaseContext
+        from utils.validation.schema import validate_table_schema
+        from utils.db.context import DatabaseContext
 
         if self.table_name not in TABLE_SCHEMAS:
             logger.warning(f"[SCHEMA] No pre-defined schema for {self.table_name}, skipping validation")
@@ -371,7 +371,7 @@ class PriceLoader(OptimalLoader):
             config_used = 'default'
 
             try:
-                from utils.database_context import DatabaseContext
+                from utils.db.context import DatabaseContext
                 with DatabaseContext("read") as config_cur:
                     config_cur.execute(
                         "SELECT value FROM algo_config WHERE key = %s",
@@ -472,8 +472,8 @@ class PriceLoader(OptimalLoader):
                         metrics = MetricsPublisher()
                         metrics.put_metric('MarketCloseDataAvailable', 1, unit='Count', dimensions={'Status': 'success'})
                         metrics.flush()
-                    except Exception:
-                        pass
+                    except Exception as metric_err:
+                        logger.debug(f"Could not publish market close success metric: {metric_err}")
                     return True
             except Exception as e:
                 last_error_type = type(e).__name__
@@ -814,8 +814,8 @@ class PriceLoader(OptimalLoader):
                         'error_count': str(self._rate_limit_errors)
                     })
                     m.flush()
-                except Exception:
-                    pass
+                except Exception as metric_err:
+                    logger.debug(f"Could not publish batch fetch minimum size metric: {metric_err}")
                 return {s: None for s in symbols}
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
@@ -930,8 +930,8 @@ class PriceLoader(OptimalLoader):
                         dimensions={'Loader': 'stock_prices_daily'}
                     )
                     metrics.flush()
-                except Exception:
-                    pass
+                except Exception as metric_err:
+                    logger.debug(f"Could not publish rate limit metric: {metric_err}")
 
                 # Track batch size performance for future decisions
                 batch_size_key = len(symbols)
@@ -1768,7 +1768,7 @@ def main():
     # Advisory lock: only one price loader instance at a time.
     _lock_conn = None
     try:
-        from utils.db_connection import get_db_connection
+        from utils.db.connection import get_db_connection
         _lock_conn = get_db_connection(timeout=30)
         _lock_conn.autocommit = True
         with _lock_conn.cursor() as _cur:
@@ -1778,8 +1778,8 @@ def main():
             logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")
             try:
                 _lock_conn.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.debug(f"Could not close lock connection: {close_err}")
             _lock_conn = None
             return 0
     except Exception as _lock_err:
@@ -1842,7 +1842,7 @@ def main():
     total_stats = {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
     fail_count = 0
 
-    from utils.execution_timeout import ExecutionTimeout
+    from utils.infrastructure.timeout import ExecutionTimeout
 
     try:
         with ExecutionTimeout(max_seconds=execution_timeout_sec, label="stock_prices_daily"):
@@ -1939,8 +1939,8 @@ def main():
     if _lock_conn:
         try:
             _lock_conn.close()
-        except Exception:
-            pass
+        except Exception as close_err:
+            logger.debug(f"Could not close lock connection: {close_err}")
     return 0
 
 if __name__ == "__main__":

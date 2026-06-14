@@ -7,7 +7,7 @@ from typing import Optional, List
 import requests
 
 from utils.optimal_loader import OptimalLoader
-from utils.url_validator import validate_url
+from utils.infrastructure.url_validator import validate_url
 
 logger = logging.getLogger(__name__)
 

@@ -18,8 +18,8 @@ import logging
 import numpy as np
 from datetime import date as _date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
-from utils.database_context import DatabaseContext
-from utils.timezone_utils import EASTERN_TZ
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class VectorizedSignalGenerator:
             result = cur.fetchone()
             if result and result[0]:
                 return int(result[0])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[VECTORIZED] Failed to load signal_vectorized_lookback_days from config: {e}")
         return self.lookback_days
 
     def fetch_all_price_data(self, symbols: List[str], eval_date: _date) -> Tuple[Dict[str, np.ndarray], _date]:

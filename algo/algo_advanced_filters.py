@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import logging
-from utils.database_context import DatabaseContext
-from utils.grade_classifier import GradeClassifier
+from utils.db.context import DatabaseContext
+from utils.signals.grade_classifier import GradeClassifier
 from datetime import date as _date
 from algo.algo_signals import SignalComputer
 

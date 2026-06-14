@@ -2,7 +2,7 @@
 """Check why get_active_symbols only returns 5,256 instead of 10,506."""
 import psycopg2
 import os
-from utils.loader_helpers import get_active_symbols
+from utils.loaders.helpers import get_active_symbols
 
 # Check via function
 active_via_func = list(get_active_symbols())

@@ -6,7 +6,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 
 import logging
 from datetime import datetime, timedelta
-from utils.database_context import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
