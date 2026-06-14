@@ -3265,40 +3265,36 @@ def _get_holding_period_distribution(cur) -> Dict:
         logger.warning(f'[HOLDING_DISTRIBUTION] {type(e).__name__}: {e}')
         return json_response(200, {'buckets': [], '_is_placeholder': True})
 
-@db_route_handler('get stage distribution', default_error_response={'distribution': [], '_is_placeholder': True})
+@db_route_handler('get stage distribution', default_error_response={'distribution': []})
 def _get_stage_distribution(cur) -> Dict:
     """Return distribution of positions by Weinstein stage."""
-    try:
-        cur.execute("""
-            SELECT
-                COUNT(*) as count,
-                CASE
-                    WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
-                    WHEN weinstein_stage = 2 THEN
-                        CASE
-                            WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
-                            WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
-                            ELSE 'Mid Stage-2'
-                        END
-                    WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
-                    WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
-                    ELSE 'Unknown'
-                END as phase
-            FROM algo_positions_with_risk
-            GROUP BY phase, weinstein_stage
-            ORDER BY weinstein_stage ASC
-        """)
-        rows = cur.fetchall()
+    cur.execute("""
+        SELECT
+            COUNT(*) as count,
+            CASE
+                WHEN weinstein_stage = 1 THEN 'Stage 1 (base)'
+                WHEN weinstein_stage = 2 THEN
+                    CASE
+                        WHEN minervini_trend_score < 4 THEN 'Early Stage-2'
+                        WHEN minervini_trend_score >= 6 THEN 'Late Stage-2'
+                        ELSE 'Mid Stage-2'
+                    END
+                WHEN weinstein_stage = 3 THEN 'Stage 3 (top)'
+                WHEN weinstein_stage = 4 THEN 'Stage 4 (down)'
+                ELSE 'Unknown'
+            END as phase
+        FROM algo_positions_with_risk
+        GROUP BY phase, weinstein_stage
+        ORDER BY weinstein_stage ASC
+    """)
+    rows = cur.fetchall()
 
-        if not rows:
-            return json_response(200, {'distribution': [], '_is_placeholder': True})
+    if not rows:
+        return json_response(200, {'distribution': []})
 
-        distribution = [
-            {'phase': r['phase'], 'count': safe_int(r['count'])}
-            for r in rows
-        ]
+    distribution = [
+        {'phase': r['phase'], 'count': safe_int(r['count'])}
+        for r in rows
+    ]
 
-        return json_response(200, {'distribution': distribution})
-    except Exception as e:
-        logger.warning(f'[STAGE_DISTRIBUTION] {type(e).__name__}: {e}')
-        return json_response(200, {'distribution': [], '_is_placeholder': True})
+    return json_response(200, {'distribution': distribution})
