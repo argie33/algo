@@ -53,6 +53,13 @@ def _split_sql_statements(sql: str) -> list:
     while i < n:
         ch = sql[i]
 
+        # Skip line comments (-- ...) without treating their ; as statement separators
+        if dollar_tag is None and ch == '-' and i + 1 < n and sql[i + 1] == '-':
+            while i < n and sql[i] != '\n':
+                current.append(sql[i])
+                i += 1
+            continue
+
         if dollar_tag is None and ch == '$':
             # Scan potential dollar-quote opening tag: $identchars$
             j = i + 1
