@@ -368,6 +368,16 @@ jobs:
             exit 1
           fi
 
+          # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
+          echo "[DEBUG] Copying algo from $GITHUB_WORKSPACE/algo"
+          if [ -d "$GITHUB_WORKSPACE/algo" ]; then
+            cp -r $GITHUB_WORKSPACE/algo $PKG_DIR/algo
+            echo "[OK] algo/ copied ($(find $PKG_DIR/algo -name '*.py' | wc -l) .py files)"
+          else
+            echo "[ERROR] algo/ directory not found!"
+            exit 1
+          fi
+
           # Install dependencies into package directory
           if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
             python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
@@ -1301,6 +1311,8 @@ jobs:
           cp -r utils/ api-pkg/utils/
           # Copy config (credential_manager used by lambda_handler)
           cp -r config/ api-pkg/config/
+          # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
+          cp -r algo/ api-pkg/algo/
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
           cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
