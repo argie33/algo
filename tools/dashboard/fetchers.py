@@ -439,7 +439,7 @@ def fetch_positions(c):
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
     try:
-        data = api_call(_get_endpoint_path('trades', params={'limit': 10, 'status': 'closed'})
+        data = api_call(_get_endpoint_path('trades', params={'limit': 10, 'status': 'closed'}))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": [], "timestamp": datetime.now(timezone.utc)}
         result = data.get('data', {})
@@ -586,7 +586,7 @@ def fetch_algo_metrics(c):
 
 def fetch_notifications(c):
     try:
-        data = api_call(_get_endpoint_path('notifs')
+        data = api_call(_get_endpoint_path('notifs'))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         return {"items": data.get('data', []) if isinstance(data.get('data'), list) else []}
@@ -727,7 +727,7 @@ def fetch_industry_ranking(c):
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
     try:
-        data = api_call(_get_endpoint_path('exec_hist', params={'days': 7, 'limit': 10})
+        data = api_call(_get_endpoint_path('exec_hist', params={'days': 7, 'limit': 10}))
         if data.get('_error'):
             return {"_error": data.get('_error'), "items": []}
         executions = data.get('data', [])
