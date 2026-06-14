@@ -36,7 +36,7 @@ except ImportError as import_err:
     except ImportError:
         # Fallback 2: Environment-based credential loading
         # This allows the API to work even without the credential_manager module
-        def get_db_config():
+        def get_db_config():  # type: ignore[no-redef]
             return {
                 'host': os.getenv('DB_HOST'),
                 'port': os.getenv('DB_PORT'),
