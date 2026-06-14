@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import socket
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
 from config.api_endpoints import get_yahoo_finance_url
 from algo.infrastructure import get_market_data_timeout, get_alpaca_timeout
+from utils.infrastructure.timeout import ExecutionTimeout
 from algo.infrastructure.constants import (
     PATROL_SLOW_CHECK_THRESHOLD_SEC,
     STALENESS_WINDOW_PRICE_DAILY,
@@ -630,7 +632,7 @@ class DataPatrol:
     def check_yahoo_cross_validate(self, top_n=None):
         “””P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
-        Second-source verification â€” if our DB matches Alpaca but disagrees with
+        Second-source verification - if our DB matches Alpaca but disagrees with
         Yahoo, that's a real signal something's off. Yahoo's chart endpoint
         accepts unauthenticated requests for basic OHLC.
         “””
@@ -654,12 +656,20 @@ class DataPatrol:
         for sym in symbols:
             try:
                 url = f'{get_yahoo_finance_url()}/chart/{sym}'
-                resp = requests.get(
-                    url,
-                    headers={'User-Agent': 'Mozilla/5.0 (algo-patrol)'},
-                    params={'interval': '1d', 'range': '5d'},
-                    timeout=get_market_data_timeout(),
-                )
+                try:
+                    resp = requests.get(
+                        url,
+                        headers={'User-Agent': 'Mozilla/5.0 (algo-patrol)'},
+                        params={'interval': '1d', 'range': '5d'},
+                        timeout=get_market_data_timeout(),
+                    )
+                except requests.exceptions.Timeout:
+                    logger.debug(f"Yahoo API timeout for {sym}")
+                    continue
+                except requests.exceptions.ConnectionError:
+                    logger.debug(f"Yahoo API connection error for {sym}")
+                    continue
+
                 if resp.status_code != 200:
                     continue
                 try:
@@ -744,10 +754,18 @@ class DataPatrol:
         mismatches = []
         for sym in symbols:
             try:
-                resp = requests.get(
-                    f'{data_base}/v2/stocks/{sym}/bars/latest',
-                    headers=headers, timeout=get_alpaca_timeout(),
-                )
+                try:
+                    resp = requests.get(
+                        f'{data_base}/v2/stocks/{sym}/bars/latest',
+                        headers=headers, timeout=get_alpaca_timeout(),
+                    )
+                except requests.exceptions.Timeout:
+                    logger.debug(f"Alpaca API timeout for {sym}")
+                    continue
+                except requests.exceptions.ConnectionError:
+                    logger.debug(f"Alpaca API connection error for {sym}")
+                    continue
+
                 if resp.status_code != 200:
                     continue
                 try:
@@ -1378,6 +1396,9 @@ class DataPatrol:
                          f'Check skipped: {e}', None)
 
     def run(self, quick=False, validate_alpaca=False):
+        # Set socket-level timeout to catch hanging connections early
+        socket.setdefaulttimeout(30.0)
+
         self._run_id = f"PATROL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
         with DatabaseContext('write') as cur:
@@ -1496,18 +1517,26 @@ class DataPatrol:
         }
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Data integrity patrol')
-    parser.add_argument('--quick', action='store_true', help='Critical checks only')
-    parser.add_argument('--validate-alpaca', action='store_true', help='Cross-validate vs Alpaca')
-    parser.add_argument('--json', action='store_true', help='JSON output')
-    args = parser.parse_args()
+    try:
+        # Execution timeout: Full patrol with all checks + cross-validation typically takes 2-3 min
+        # Set limit to 10 min (600s) to catch hanging API calls early
+        with ExecutionTimeout(max_seconds=600, label="data_patrol"):
+            parser = argparse.ArgumentParser(description='Data integrity patrol')
+            parser.add_argument('--quick', action='store_true', help='Critical checks only')
+            parser.add_argument('--validate-alpaca', action='store_true', help='Cross-validate vs Alpaca')
+            parser.add_argument('--json', action='store_true', help='JSON output')
+            args = parser.parse_args()
 
-    p = DataPatrol()
-    summary = p.run(quick=args.quick, validate_alpaca=args.validate_alpaca)
+            p = DataPatrol()
+            summary = p.run(quick=args.quick, validate_alpaca=args.validate_alpaca)
 
-    if args.json:
-        logger.info(json.dumps(summary, default=str, indent=2))
+            if args.json:
+                logger.info(json.dumps(summary, default=str, indent=2))
 
-    import sys
-    sys.exit(0 if summary['ready'] else 1)
+            import sys
+            sys.exit(0 if summary['ready'] else 1)
+    except Exception as e:
+        logger.error(f"Data patrol execution failed: {e}", exc_info=True)
+        import sys
+        sys.exit(1)
 

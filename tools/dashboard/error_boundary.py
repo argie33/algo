@@ -37,18 +37,24 @@ def get_error_message(data: Any) -> Optional[str]:
 
 
 def safe_get(data: Any, key: str, default: Any = None) -> Any:
-    """Safely get nested value, returning default if data has error or key missing."""
+    """Safely get nested value, propagating errors instead of hiding them.
+
+    Returns error dict on error, default on missing key, or the value.
+    """
     if has_error(data):
-        return default
+        return data
     if isinstance(data, dict):
         return data.get(key, default)
     return default
 
 
 def safe_list(data: Any) -> List:
-    """Safely extract list from data, returning empty list on error."""
+    """Safely extract list from data, propagating errors instead of hiding them.
+
+    Returns error dict on error, items list otherwise.
+    """
     if has_error(data):
-        return []
+        return data
     if isinstance(data, dict):
         return data.get("items", []) if "items" in data else (data.get("data", []) if isinstance(data.get("data"), list) else [])
     if isinstance(data, list):

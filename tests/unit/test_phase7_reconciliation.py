@@ -2,11 +2,11 @@
 import pytest
 import inspect
 from unittest.mock import Mock, patch
-from algo.algo_daily_reconciliation import DailyReconciliation
+from algo.infrastructure.reconciliation import DailyReconciliation
 class TestDailyReconciliationDatabaseContext:
     """Test that DailyReconciliation properly uses DatabaseContext."""
 
-    @patch('algo.algo_daily_reconciliation.get_credential_manager')
+    @patch('algo.infrastructure.reconciliation.get_credential_manager')
     def test_compute_closed_trade_metrics_accepts_cursor(self, mock_get_cred):
         """Test compute_closed_trade_metrics accepts and uses cursor parameter."""
         mock_get_cred.return_value.get_alpaca_credentials.return_value = {
@@ -23,7 +23,7 @@ class TestDailyReconciliationDatabaseContext:
         assert 'updated' in result
         assert 'reason' in result
 
-    @patch('algo.algo_daily_reconciliation.get_credential_manager')
+    @patch('algo.infrastructure.reconciliation.get_credential_manager')
     def test_compute_analytics_metrics_accepts_cursor(self, mock_get_cred):
         """Test compute_analytics_metrics accepts and uses cursor parameter."""
         mock_get_cred.return_value.get_alpaca_credentials.return_value = {
@@ -41,7 +41,7 @@ class TestDailyReconciliationDatabaseContext:
         assert 'ic' in result
         assert 'expectancy' in result
 
-    @patch('algo.algo_daily_reconciliation.get_credential_manager')
+    @patch('algo.infrastructure.reconciliation.get_credential_manager')
     def test_sync_alpaca_positions_accepts_cursor(self, mock_get_cred):
         """Test sync_alpaca_positions accepts and uses cursor parameter."""
         mock_get_cred.return_value.get_alpaca_credentials.return_value = {

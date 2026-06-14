@@ -1717,7 +1717,8 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
                 duration_seconds
             ))
     except Exception as e:
-        logger.warning(f"Failed to log execution to data_loader_runs: {e}")
+        logger.critical(f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}")
+        raise
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
@@ -1732,7 +1733,10 @@ def main():
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
             logger.critical(f"[MAIN] Cache invalidation failed on environment error: {cache_err}")
-        log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
+        try:
+            log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
+        except Exception as log_err:
+            logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
         return 1
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
@@ -1809,7 +1813,10 @@ def main():
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
-                log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg='No symbols found', duration_seconds=round(time.time() - start_time, 2))
+                try:
+                    log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg='No symbols found', duration_seconds=round(time.time() - start_time, 2))
+                except Exception as log_err:
+                    logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
                 return 1
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
@@ -1817,7 +1824,10 @@ def main():
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
             logger.critical(f"[MAIN] Cache invalidation failed on symbols error: {cache_err}")
-        log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
+        try:
+            log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
+        except Exception as log_err:
+            logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
         return 1
 
     # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.

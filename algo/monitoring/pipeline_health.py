@@ -266,7 +266,8 @@ class PipelineHealth:
                         )
                     )
         except Exception as e:
-            logger.warning(f"Failed to log health check: {e}")
+            logger.error(f"[LOGGING_FAILURE] Could not log health check: {e}")
+            raise
 
     def assert_pipeline_ready(self) -> bool:
         """Check if pipeline is ready for trading.

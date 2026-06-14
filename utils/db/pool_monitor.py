@@ -56,7 +56,7 @@ class RDSPoolMonitor:
                 row = cur.fetchone()
                 if not row:
                     return {
-                        'error': 'Failed to query connection status',
+                        '_error': 'Failed to query connection status',
                         'timestamp': datetime.now().isoformat()
                     }
 
@@ -84,7 +84,7 @@ class RDSPoolMonitor:
         except Exception as e:
             logger.error(f"Failed to get RDS pool status: {e}")
             return {
-                'error': str(e),
+                '_error': str(e),
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -179,8 +179,8 @@ class RDSPoolMonitor:
         """Log current connection pool status with details."""
         status = self.get_connection_pool_status()
 
-        if 'error' in status:
-            logger.error(f"[RDS-POOL] Error: {status['error']}")
+        if '_error' in status:
+            logger.error(f"[RDS-POOL] Error: {status['_error']}")
             return
 
         emoji = {
@@ -226,10 +226,10 @@ class RDSPoolMonitor:
         """
         status = self.get_connection_pool_status()
 
-        if 'error' in status:
+        if '_error' in status:
             return {
                 'ready_for_eod': False,
-                'error': status['error'],
+                '_error': status['_error'],
                 'recommendations': ['Cannot check pool status - RDS may be unavailable']
             }
 

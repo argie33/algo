@@ -134,10 +134,10 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
 
 
 def _extract_items(data: any) -> list:
-    """Safely extract items list from data structure."""
+    """Safely extract items list from data structure, propagating errors."""
     if isinstance(data, dict):
         if data.get("_error"):
-            return []
+            return data
         if "items" in data:
             return data.get("items", [])
     elif isinstance(data, list):
@@ -2323,14 +2323,17 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
 
 def _extract_items(data: Any) -> list:
-    """Normalize data structure by extracting items list.
+    """Normalize data structure by extracting items list, propagating errors.
 
     Handles both formats:
+    - {"_error": "..."} → {"_error": "..."} (propagate error)
     - {"items": [...]} → [...]
     - [...] → [...]
     - {} or None → []
     """
     if isinstance(data, dict):
+        if data.get("_error"):
+            return data
         return data.get("items", []) if "items" in data else []
     if isinstance(data, list):
         return data

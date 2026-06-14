@@ -954,7 +954,7 @@ class OptimalLoader(ABC):
             )
 
             try:
-                from algo.algo_metrics import MetricsPublisher
+                from algo.reporting.metrics import MetricsPublisher
 
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, self._stats)

@@ -959,7 +959,8 @@ class TradeExecutor:
                     ),
                 )
             except Exception as audit_e:
-                logger.debug(f"Failed to audit log exit: {audit_e}")
+                logger.critical(f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {audit_e}")
+                raise
 
             try:
                 notif_service = TradeNotificationService()

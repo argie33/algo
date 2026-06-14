@@ -4,6 +4,7 @@ import sys
 import logging
 import os
 import json
+import socket
 from datetime import date, timedelta
 from typing import Optional, List
 import requests
@@ -16,6 +17,7 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
 from config.api_endpoints import get_fred_url
+from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ def _get_fred_api_key() -> str:
     return get_api_key('algo/fred', 'FRED_API_KEY') or ""
 
 def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -> List[date]:
-    """Fetch upcoming release dates for a FRED series via the releases endpoint."""
+    """Fetch upcoming release dates for a FRED series via the releases endpoint with timeout protection."""
     try:
         fred_base = get_fred_url()
 
@@ -82,45 +84,62 @@ def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -
             logger.error(f"SSRF prevention: Invalid FRED URL: {error_msg}")
             return []
 
-        # Get the release ID for this series
-        r = requests.get(
-            f"{fred_base}/series/release",
-            params={"series_id": series_id, "api_key": api_key, "file_type": "json"},
-            timeout=10,
-        )
-        r.raise_for_status()
-        data = r.json()
-        releases = data.get("releases", [])
-        if not releases:
+        # Get the release ID for this series with granular timeouts
+        try:
+            r = requests.get(
+                f"{fred_base}/series/release",
+                params={"series_id": series_id, "api_key": api_key, "file_type": "json"},
+                timeout=(5, 10),
+            )
+            r.raise_for_status()
+            data = r.json()
+            releases = data.get("releases", [])
+            if not releases:
+                return []
+            release_id = releases[0]["id"]
+        except requests.exceptions.Timeout:
+            logger.warning(f"FRED release ID fetch timeout for {series_id}")
             return []
-        release_id = releases[0]["id"]
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"FRED release ID fetch connection error for {series_id}")
+            return []
 
-        # Get upcoming release dates for this release
-        r2 = requests.get(
-            f"{fred_base}/release/dates",
-            params={
-                "release_id": release_id,
-                "api_key": api_key,
-                "file_type": "json",
-                "realtime_start": str(start),
-                "realtime_end": str(end),
-                "sort_order": "asc",
-                "limit": 12,
-            },
-            timeout=10,
-        )
-        r2.raise_for_status()
-        dates_data = r2.json()
-        return [
-            date.fromisoformat(d["date"])
-            for d in dates_data.get("release_dates", [])
-            if d.get("date")
-        ]
+        # Get upcoming release dates for this release with granular timeouts
+        try:
+            r2 = requests.get(
+                f"{fred_base}/release/dates",
+                params={
+                    "release_id": release_id,
+                    "api_key": api_key,
+                    "file_type": "json",
+                    "realtime_start": str(start),
+                    "realtime_end": str(end),
+                    "sort_order": "asc",
+                    "limit": 12,
+                },
+                timeout=(5, 10),
+            )
+            r2.raise_for_status()
+            dates_data = r2.json()
+            return [
+                date.fromisoformat(d["date"])
+                for d in dates_data.get("release_dates", [])
+                if d.get("date")
+            ]
+        except requests.exceptions.Timeout:
+            logger.warning(f"FRED release dates fetch timeout for {series_id}")
+            return []
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"FRED release dates fetch connection error for {series_id}")
+            return []
     except Exception as e:
         logger.debug(f"FRED release dates fetch failed for {series_id}: {e}")
         return []
 
 def _load_economic_calendar(today: date) -> int:
+    # Set socket-level timeout to catch hanging connections early
+    socket.setdefaulttimeout(15.0)
+
     api_key = _get_fred_api_key()
     if not api_key:
         logger.warning("FRED_API_KEY not available — skipping economic calendar load")
@@ -209,17 +228,20 @@ def _load_economic_calendar(today: date) -> int:
     return count
 
 def main():
-    today = date.today()
     try:
-        count = _load_economic_calendar(today)
-        if count > 0:
-            logger.info(f"SUCCESS: {count} economic calendar events loaded")
-            return 0
-        else:
-            logger.warning("COMPLETED: No economic calendar events loaded")
-            return 0
+        # Execution timeout: ~20 series, 1-2 requests each, ~1-2s per = 1-2 min normally
+        # Set limit to 10 min (600s) to catch hanging requests early
+        with ExecutionTimeout(max_seconds=600, label="load_economic_calendar"):
+            today = date.today()
+            count = _load_economic_calendar(today)
+            if count > 0:
+                logger.info(f"SUCCESS: {count} economic calendar events loaded")
+                return 0
+            else:
+                logger.warning("COMPLETED: No economic calendar events loaded")
+                return 0
     except Exception as e:
-        logger.error(f"Economic calendar load failed: {e}")
+        logger.error(f"Economic calendar load failed: {e}", exc_info=True)
         return 1
 
 if __name__ == "__main__":

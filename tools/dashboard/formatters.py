@@ -62,7 +62,7 @@ def tier_from_pct(p) -> str:
 def is_open() -> bool:
     """Check if market is currently open. Uses MarketCalendar for accurate trading hours."""
     try:
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         return MarketCalendar.is_market_open_now()
     except Exception:
         n = datetime.now(ET)
@@ -77,7 +77,7 @@ def mkt_hours_str() -> tuple:
     Falls back to hardcoded hours if calendar unavailable.
     """
     try:
-        from algo.algo_market_calendar import MarketCalendar
+        from algo.infrastructure import MarketCalendar
         return MarketCalendar.get_market_status_display()
     except Exception as market_err:
         import logging

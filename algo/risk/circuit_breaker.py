@@ -761,8 +761,9 @@ class CircuitBreaker:
                 (json.dumps(results),),
             )
         except Exception as e:
-            logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
-        # Surface to notifications for UI
+            logger.critical(f"[AUDIT_FAILURE] Could not log circuit breaker halt to audit log: {e}")
+            raise
+        # Surface to notifications for UI (non-critical, warn only)
         try:
             from algo.reporting import notify
             notify(

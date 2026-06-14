@@ -155,7 +155,8 @@ def run(
                         ('daily_report', run_date, 'PORTFOLIO', json.dumps(report)),
                     )
             except Exception as e:
-                logger.warning(f"Failed to log daily report to audit log: {e}")
+                logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
+                raise
 
             log_phase_result_fn(7, 'daily_report', 'success',
                               f"Portfolio ${report.get('portfolio', {}).get('current_value', 0):,.0f}, "

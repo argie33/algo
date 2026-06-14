@@ -218,7 +218,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/last-run")
         if "_error" in resp:
             logger.error(f"get_last_run failed: {resp['_error']}")
-            return {}
+            return resp
         return resp
 
     @staticmethod
@@ -227,7 +227,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/audit-log", params={"limit": limit, "offset": offset})
         if "_error" in resp:
             logger.error(f"get_audit_log failed: {resp['_error']}")
-            return {"items": [], "pagination": {}}
+            return resp
         return resp
 
     @staticmethod
@@ -236,7 +236,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/circuit-breakers")
         if "_error" in resp:
             logger.error(f"get_circuit_breakers failed: {resp['_error']}")
-            return {"breakers": [], "any_triggered": False}
+            return resp
         return resp
 
     @staticmethod
@@ -245,5 +245,5 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/sector-breadth")
         if "_error" in resp:
             logger.error(f"get_sector_breadth failed: {resp['_error']}")
-            return {}
+            return resp
         return resp
