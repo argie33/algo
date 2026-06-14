@@ -69,6 +69,23 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
+def _get_endpoint_path(fetcher_key: str, params: Optional[dict] = None) -> str:
+    """Map fetcher key to full endpoint path with optional query parameters.
+
+    Examples:
+      _get_endpoint_path('pos') → '/api/algo/positions'
+      _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
+    """
+    meta = FETCHER_METADATA.get(fetcher_key)
+    if not meta:
+        # For endpoints with direct paths (like '/api/algo/last-run')
+        return fetcher_key
+    endpoint = meta.get("endpoint", "")
+    if not endpoint:
+        return fetcher_key
+    return endpoint
+
+
 def fetch_run(c):
     try:
         data = api_call('/api/algo/last-run')
