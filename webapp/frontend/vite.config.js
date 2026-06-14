@@ -12,12 +12,15 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   // API URL configuration - read from process.env
-  // VITE_PROXY_TARGET must be set to AWS API Gateway endpoint
-  // Example: export VITE_PROXY_TARGET=https://abcd1234.execute-api.us-east-1.amazonaws.com
-  // Get endpoint from: cd terraform && terraform output api_gateway_endpoint
+  // VITE_API_URL: Full API URL for production (e.g., https://api.example.com)
+  // In development: leave empty to use Vite proxy
   const apiUrl = env.VITE_API_URL || "";
-  // Vite proxy target - routes /api/* to AWS API Gateway
-  const proxyTarget = env.VITE_PROXY_TARGET || "";
+
+  // Vite proxy target for development
+  // VITE_PROXY_TARGET: Set to AWS API Gateway endpoint to route local /api/* calls to AWS
+  // Example: export VITE_PROXY_TARGET=https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com
+  // If unset, defaults to localhost:3001 (mock server)
+  const proxyTarget = isDevelopment ? (env.VITE_PROXY_TARGET || "http://localhost:3001") : "";
 
   return {
     plugins: [
