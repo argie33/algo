@@ -936,7 +936,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt when today\'s loss â‰¥ {threshold_dl:.0f}%',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB2 (daily_loss) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'daily_loss', 'label': 'Daily Loss',
                     'triggered': False, 'current': 0, 'threshold': 2, 'unit': '%',
                     'description': 'No today snapshot yet'})
@@ -952,7 +952,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt after {threshold_cl} consecutive losing trades',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB3 (consecutive_losses) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'consecutive_losses', 'label': 'Consecutive Losses',
                     'triggered': False, 'current': 0, 'threshold': 3, 'unit': '',
                     'description': 'No closed trades yet'})
@@ -968,7 +968,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt when VIX â‰¥ {threshold_vix:.0f} (extreme fear)',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB4 (vix_spike) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'vix_spike', 'label': 'VIX Spike',
                     'triggered': False, 'current': 0, 'threshold': 35, 'unit': '',
                     'description': 'No market data yet'})
@@ -984,7 +984,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt when 7-day loss â‰¥ {threshold_wl:.0f}%',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB5 (weekly_loss) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'weekly_loss', 'label': 'Weekly Loss',
                     'triggered': False, 'current': 0, 'threshold': 5, 'unit': '%',
                     'description': 'No weekly data yet'})
@@ -999,7 +999,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': 'Halt when market enters Stage 4 (confirmed downtrend)',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB6 (market_stage) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
                     'description': 'No market data yet'})
@@ -1015,7 +1015,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': f'Halt when total open risk â‰¥ {threshold_risk:.0f}% of portfolio',
                 })
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB7 (total_risk) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'total_risk', 'label': 'Total Open Risk',
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '%',
                     'description': 'No positions data yet'})
@@ -1045,7 +1045,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 else:
                     raise ValueError("Insufficient price history")
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'intraday_health', 'label': 'Prior-Day Market Health',
                     'triggered': False, 'current': 0, 'threshold': -2.0, 'unit': '%',
                     'description': 'No price history yet'})
@@ -1079,7 +1079,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 else:
                     raise ValueError("No trade data")
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.error(f"CB9 (win_rate) computation failed: {type(e).__name__}: {e}")
                 breakers.append({'id': 'win_rate', 'label': 'Win Rate Floor',
                     'triggered': False, 'current': 0, 'threshold': 40, 'unit': '%',
                     'description': 'Insufficient closed trades (need 10+)'})
