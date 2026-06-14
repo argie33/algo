@@ -145,5 +145,5 @@ WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted');
 CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol
 ON algo_positions(symbol);
 
-COMMENT ON VIEW algo_positions_with_risk IS
+COMMENT ON MATERIALIZED VIEW algo_positions_with_risk IS
 'Enriched positions with stops, targets, sector, technical scores, and risk metrics. Single source of truth for dashboard.';
