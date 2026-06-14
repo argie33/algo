@@ -54,8 +54,12 @@ class SwingTraderScore:
             'swing_score_long_lookback_days': 270,
         }
         try:
-            keys = ', '.join([f"'{k}'" for k in thresholds.keys()])
-            cur.execute(f"SELECT key, value FROM algo_config WHERE key IN ({keys})")
+            # SEC-001 FIX: Use parameterized query to prevent SQL injection
+            import psycopg2.sql
+            keys_list = list(thresholds.keys())
+            placeholders = ', '.join(['%s'] * len(keys_list))
+            query = f"SELECT key, value FROM algo_config WHERE key IN ({placeholders})"
+            cur.execute(query, keys_list)
             for k, v in cur.fetchall():
                 thresholds[k] = int(v)
         except Exception as e:
