@@ -1673,6 +1673,10 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     realized_pnl_today DECIMAL(12, 2),
     unrealized_pnl_total DECIMAL(12, 2),
     unrealized_pnl_pct DECIMAL(8, 4),
+    unrealized_pnl_winning_count INTEGER,
+    unrealized_pnl_losing_count INTEGER,
+    unrealized_pnl_breakeven_count INTEGER,
+    unrealized_pnl_source VARCHAR(50),
     win_count_today INTEGER,
     loss_count_today INTEGER,
     daily_return_pct DECIMAL(8, 4),
@@ -1682,7 +1686,8 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     distribution_days_market INTEGER,
     market_health_status VARCHAR(50),
     cognito_sub VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Audit log for all algo actions (compliance + debugging)

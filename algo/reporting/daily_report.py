@@ -6,7 +6,6 @@ from datetime import date as _date
 from typing import Dict, Any, List, Optional
 
 from utils.db import DatabaseContext
-from algo.orchestration import RegimeManager
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +13,7 @@ class DailyFinanceReport:
     """Generate institutional daily finance report."""
 
     def __init__(self):
+        from algo.orchestration import RegimeManager
         self.regime_mgr = RegimeManager()
 
     def generate(self, report_date: Optional[_date] = None) -> Dict[str, Any]:

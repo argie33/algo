@@ -40,7 +40,7 @@ class CredentialManager:
     """Centralized credential fetcher with caching and TTL-based expiration."""
 
     def __init__(self):
-        self._cache: Dict[str, Tuple[str, float]] = {}  # key -> (value, timestamp)
+        self._cache: Dict[str, Tuple[Any, float]] = {}  # key -> (value, timestamp)
         self._is_aws = self._detect_aws()
         self._secrets_client = None
 
@@ -176,7 +176,9 @@ class CredentialManager:
 
         _DB_CREDS_CACHE_KEY = '__db_credentials__'
         if _DB_CREDS_CACHE_KEY in self._cache:
-            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]
+            cached_value: Dict[str, Any]
+            timestamp: float
+            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]  # type: ignore[misc]
             age = time.time() - timestamp
             if age < CREDENTIAL_CACHE_TTL_SECONDS:
                 return cached_value
@@ -324,7 +326,9 @@ class CredentialManager:
 
         # FIX H-3: Secrets Manager completely unavailable - check cache before failing
         if _ALPACA_CREDS_CACHE_KEY in self._cache:
-            cached_creds, timestamp = self._cache[_ALPACA_CREDS_CACHE_KEY]
+            cached_creds: Dict[str, str]
+            timestamp: float
+            cached_creds, timestamp = self._cache[_ALPACA_CREDS_CACHE_KEY]  # type: ignore[misc]
             age = time.time() - timestamp
             # Use cache even if expired (last resort when Secrets Manager is down)
             logger.warning(f"[CREDENTIALS_H3_FALLBACK] Secrets Manager unavailable, using cached Alpaca credentials (age={age:.0f}s)")
