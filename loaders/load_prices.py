@@ -1751,7 +1751,16 @@ def main():
     asset_classes = [x.strip() for x in asset_classes_str.split(",")]
 
     # Set execution timeout (ECS task timeout for price loader is 7200s = 2h)
+    # BLOCK-006 FIX: Add timeout enforcement with signal handler to prevent hanging
     execution_timeout_sec = 7200
+
+    import signal
+    def timeout_handler(signum, frame):
+        logger.critical(f"[TIMEOUT] Price loader exceeded {execution_timeout_sec}s timeout. Killing process.")
+        raise TimeoutError(f"Execution exceeded {execution_timeout_sec}s timeout")
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(execution_timeout_sec)
 
     # Validate
     valid_intervals = {"1d", "1wk", "1mo"}
