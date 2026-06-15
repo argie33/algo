@@ -209,7 +209,7 @@ function PortfolioDashboardPage() {
     ? tradesList.filter(t => t && t.status === 'closed')
     : [];
   const safeEquityCurve = equityCurve.length > 0
-    ? equityCurve.filter(item => item && typeof item === 'object' && item.date && (item.value != null || item.equity != null))
+    ? equityCurve.filter(item => item && typeof item === 'object' && item.snapshot_date && item.total_portfolio_value != null)
     : [];
 
   // Extract portfolio data with consistent nested access

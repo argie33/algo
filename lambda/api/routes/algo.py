@@ -256,8 +256,12 @@ def _dispatch(
             return error_response(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        logger.info(f"[PATROL-LOG] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}, jwt_claims={jwt_claims is not None}")
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        logger.info(
+            f"[PATROL-LOG] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}, jwt_claims={jwt_claims is not None}"
+        )
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -377,20 +381,50 @@ def _dispatch(
         if action_type:
             action_type = action_type.lower()
             VALID_ACTION_TYPES = {
-                "entry", "exit", "alert", "halt", "reconciliation", "error", "stop", "skip", "pass",
-                "phase_0_halt_flag_detected", "phase_0_oom_prevention", "phase_0_table_validation",
-                "phase_1_data_freshness", "phase_1_data_patrol", "phase_1_pipeline_health",
-                "phase_1_signal_quality_scores", "phase_2_circuit_breakers", "phase_2_market_circuit_breaker",
-                "phase_3_position_monitor", "phase_3_single_stock_halts", "phase_3_halt_check_error",
-                "phase_3a_reconciliation", "phase_3b_exposure_policy", "phase_4_exit_execution",
-                "phase_5_signal_generation", "phase_6_entry_execution", "phase_7_reconciliation",
-                "phase_7_daily_report", "phase_7_ic_computation", "phase_7_performance",
-                "phase_7_risk_metrics", "phase_7_signal_attribution", "phase_7_weight_optimization",
-                "halt_flag_detected", "position_review", "position_monitor", "pipeline_health",
-                "single_stock_halts", "halt_check_error"
+                "entry",
+                "exit",
+                "alert",
+                "halt",
+                "reconciliation",
+                "error",
+                "stop",
+                "skip",
+                "pass",
+                "phase_0_halt_flag_detected",
+                "phase_0_oom_prevention",
+                "phase_0_table_validation",
+                "phase_1_data_freshness",
+                "phase_1_data_patrol",
+                "phase_1_pipeline_health",
+                "phase_1_signal_quality_scores",
+                "phase_2_circuit_breakers",
+                "phase_2_market_circuit_breaker",
+                "phase_3_position_monitor",
+                "phase_3_single_stock_halts",
+                "phase_3_halt_check_error",
+                "phase_3a_reconciliation",
+                "phase_3b_exposure_policy",
+                "phase_4_exit_execution",
+                "phase_5_signal_generation",
+                "phase_6_entry_execution",
+                "phase_7_reconciliation",
+                "phase_7_daily_report",
+                "phase_7_ic_computation",
+                "phase_7_performance",
+                "phase_7_risk_metrics",
+                "phase_7_signal_attribution",
+                "phase_7_weight_optimization",
+                "halt_flag_detected",
+                "position_review",
+                "position_monitor",
+                "pipeline_health",
+                "single_stock_halts",
+                "halt_check_error",
             }
             if action_type not in VALID_ACTION_TYPES:
-                return error_response(400, "bad_request", f"Invalid action_type: {action_type}")
+                return error_response(
+                    400, "bad_request", f"Invalid action_type: {action_type}"
+                )
         return _get_algo_audit_log(cur, limit, offset, action_type)
         limit_str = params.get("limit", [None])[0] if params else None
         limit = safe_limit(limit_str, max_val=10000, default=100)
@@ -772,7 +806,7 @@ def _get_algo_trades(
     params.append(limit)
 
     cur.execute(
-        """
+        f"""
             SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
                    entry_quantity, entry_reason, exit_price, exit_date, exit_time,
                    exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
@@ -1127,7 +1161,7 @@ def _get_algo_performance(cur) -> Dict:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-    ) as e:
+    ):
         raise  # Let @db_route_handler return proper 503/504
     except Exception as e:
         logger.error(
@@ -1958,7 +1992,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
-        query = """
+        query = f"""
                 SELECT id, created_at, kind, severity, title, message, seen, seen_at, symbol, details
                 FROM algo_notifications
                 WHERE {where_sql}
@@ -2168,7 +2202,6 @@ def _trigger_data_patrol() -> Dict:
 
         cluster_arn = os.getenv("ECS_CLUSTER_ARN", "")
         task_def_arn = os.getenv("PATROL_TASK_DEFINITION_ARN", "")
-        container_name = os.getenv("PATROL_CONTAINER_NAME", "algo-data-patrol")
         subnet_ids = (
             os.getenv("PATROL_SUBNET_IDS", "").split(",")
             if os.getenv("PATROL_SUBNET_IDS")
@@ -3674,7 +3707,7 @@ def _get_exposure_policy(cur) -> Dict:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-    ) as e:
+    ):
         raise  # Let @db_route_handler return proper 503/504
     except Exception as e:
         logger.error(
@@ -4617,9 +4650,12 @@ def _get_trade_distribution(cur) -> Dict:
 def _get_holding_period_distribution(cur) -> Dict:
     """Return distribution of position holding periods in days."""
     cur.execute("""
-        SELECT trade_duration_days
+        SELECT CASE
+            WHEN trade_duration_days IS NOT NULL AND trade_duration_days > 0 THEN trade_duration_days
+            ELSE (exit_date - trade_date)::int
+        END AS trade_duration_days
         FROM algo_trades
-        WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
+        WHERE status = 'closed' AND exit_date IS NOT NULL
         ORDER BY exit_date DESC
         LIMIT 500
     """)
@@ -4634,7 +4670,7 @@ def _get_holding_period_distribution(cur) -> Dict:
         return json_response(200, {"buckets": []})
 
     buckets = [
-        {"range": "1-3 days", "count": 0},
+        {"range": "0-3 days", "count": 0},
         {"range": "4-7 days", "count": 0},
         {"range": "8-14 days", "count": 0},
         {"range": "15-30 days", "count": 0},
@@ -4701,8 +4737,13 @@ def _get_stage_distribution(cur) -> Dict:
 @db_route_handler("get market sentiment")
 def _get_market_sentiment(cur) -> Dict:
     """Return latest market sentiment score and trend."""
+    # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""
-        SELECT sentiment_score, bullish_pct, bearish_pct, neutral_pct, date
+        SELECT sentiment_score,
+               COALESCE(put_call_ratio, NULL::numeric) AS bullish_pct,
+               COALESCE(vix, NULL::numeric) AS bearish_pct,
+               NULL::numeric AS neutral_pct,
+               date
         FROM market_sentiment
         ORDER BY date DESC
         LIMIT 1
@@ -4718,9 +4759,9 @@ def _get_market_sentiment(cur) -> Dict:
         )
 
     sentiment_score = safe_float(row["sentiment_score"])
-    bullish = safe_float(row["bullish_pct"])
-    bearish = safe_float(row["bearish_pct"])
-    neutral = safe_float(row["neutral_pct"])
+    bullish = None  # Not available in market_sentiment view
+    bearish = None  # Not available in market_sentiment view
+    neutral = None  # Not available in market_sentiment view
 
     trend = None
     if sentiment_score is not None:
