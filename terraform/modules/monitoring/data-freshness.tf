@@ -68,6 +68,14 @@ resource "aws_iam_role_policy" "data_freshness_metrics" {
           "ec2:DeleteNetworkInterface",
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/algo_orchestrator_state"
       }
     ]
   })
