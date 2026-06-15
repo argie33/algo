@@ -756,7 +756,7 @@ class Orchestrator:
         required_tables = [
             "price_daily",  # Phase 1, Phase 5 signal generation
             "trend_template_data",  # Phase 5 (SignalComputer — Minervini, Weinstein)
-            "technical_data_daily",  # Phase 4 exit engine (ATR, EMA for trail/break checks)
+            "sector_ranking",  # Phase 3b (sector rotation)
             "market_health_daily",  # Phase 3b (exposure), Phase 4 (distribution days)
             "market_exposure_daily",  # Phase 3b (entry constraints)
             "algo_audit_log",  # Audit trail
