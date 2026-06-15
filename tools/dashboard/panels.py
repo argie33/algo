@@ -1098,7 +1098,16 @@ def panel_signals_compact(sig, sig_eval=None):
     raw = sig.get("n", 0)
     total = sig.get("total", 0)
     d = sig.get("date")
-    ds = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
+    if hasattr(d, "strftime"):
+        ds = d.strftime("%b %d")
+    elif d and isinstance(d, str) and len(d) >= 10:
+        try:
+            from datetime import date as _date
+            ds = _date.fromisoformat(str(d)[:10]).strftime("%b %d")
+        except (ValueError, TypeError):
+            ds = str(d)[:10]
+    else:
+        ds = "--"
     g = sig.get("grades") or {}
     ga, gb, gc, gd = (
         int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d")
@@ -2662,7 +2671,7 @@ def panel_algo_health(
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
     if problem_loader:
         ldr_parts = [
-            f"[{R if (r.get('status') or '') in ('error','failed') else Y}]{(r.get('table_name') or '')[:12]}[/]"
+            f"[{R if (r.get('status') or '') in ('error','failed') else Y}]{(r.get('table_name') or r.get('tbl') or r.get('name') or '')[:12]}[/]"
             for r in problem_loader[:3]
         ]
         rows.append(
@@ -2674,7 +2683,7 @@ def panel_algo_health(
     elif running_loader:
         rows.append(
             Text.from_markup(
-                f"[{CY}]Loading:[/] [dim]{running_loader[0].get('table_name','')[:16]}[/]"
+                f"[{CY}]Loading:[/] [dim]{(running_loader[0].get('table_name') or running_loader[0].get('tbl') or '')[:16]}[/]"
             )
         )
     else:
@@ -2881,7 +2890,16 @@ def panel_signals_expanded(sig, sig_eval=None):
     raw = sig.get("n", 0)
     total = sig.get("total", 0)
     d = sig.get("date")
-    ds = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
+    if hasattr(d, "strftime"):
+        ds = d.strftime("%b %d")
+    elif d and isinstance(d, str) and len(d) >= 10:
+        try:
+            from datetime import date as _date
+            ds = _date.fromisoformat(str(d)[:10]).strftime("%b %d")
+        except (ValueError, TypeError):
+            ds = str(d)[:10]
+    else:
+        ds = "--"
     g = sig.get("grades") or {}
     ga, gb, gc, gd = (
         int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d")
@@ -3210,8 +3228,8 @@ def panel_algo_health_expanded(
     if valid_loader:
         rows.append(Text.from_markup("[dim]Data loaders:[/]"))
         for r in valid_loader:
-            st = str(r.get("status") or "")
-            nm = str(r.get("table_name") or "--")
+            st = str(r.get("status") or r.get("st") or "")
+            nm = str(r.get("table_name") or r.get("tbl") or r.get("name") or "--")
             err = r.get("error_message") or ""
             sc = (
                 R
