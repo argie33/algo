@@ -89,14 +89,14 @@ def _handle_basic(cur) -> Dict:
         if not result:
             return error_response(503, "connection_error", "Database connection failed")
 
-        # Signal freshness check (fast indexed query, 2 second timeout)
+        # Signal freshness check (uses idx_signal_quality_scores_created_at)
         try:
             signal_check = execute_with_timeout(
                 cur,
                 """
-                SELECT MAX(created_at) as latest_signal
+                SELECT created_at AS latest_signal
                 FROM signal_quality_scores
-                WHERE created_at >= NOW() - INTERVAL '2 days'
+                ORDER BY created_at DESC
                 LIMIT 1
             """,
                 timeout_sec=2,
