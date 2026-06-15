@@ -43,11 +43,11 @@ except ImportError:
     )
     from contextlib import contextmanager
 
-    @contextmanager  # type: ignore[no-redef]
-    def TimeBlock(name, **kwargs):  # type: ignore[no-redef]
+    @contextmanager  # type: ignore[no-redef, misc]
+    def TimeBlock(name, **kwargs):  # type: ignore[no-redef, misc]
         yield
 
-    def log_metrics_summary() -> None:  # type: ignore[no-redef]
+    def log_metrics_summary() -> None:  # type: ignore[no-redef, misc]
         pass
 
 logger = logging.getLogger(__name__)
