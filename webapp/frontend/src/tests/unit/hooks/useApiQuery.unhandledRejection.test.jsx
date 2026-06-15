@@ -108,8 +108,8 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     const cachedData = { cached: true };
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
-    // Mock cache retrieval
-    dataCache.get.mockResolvedValue(cachedData);
+    // Mock cache retrieval (hook uses default export, not named export)
+    dataCache.default.get.mockResolvedValue(cachedData);
 
     const { result } = renderHook(
       () => useApiQuery(['test-key'], queryFn),
@@ -129,17 +129,18 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     const mockError = new Error('Network error');
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
-    // Mock cache retrieval to fail
-    dataCache.get.mockRejectedValue(new Error('Cache read failed'));
+    // Mock cache retrieval to fail (hook uses default export, not named export)
+    dataCache.default.get.mockRejectedValue(new Error('Cache read failed'));
 
     const { result } = renderHook(
       () => useApiQuery(['test-key'], queryFn),
       { wrapper }
     );
 
+    // 'Network error' triggers retries (200+400+800ms); wait long enough
     await waitFor(() => {
-      expect(result.current.error).toBeDefined();
-    });
+      expect(result.current.error).not.toBeNull();
+    }, { timeout: 5000 });
 
     // Both cache read and API call failed, but no unhandled rejections
     expect(unhandledRejections.length).toBe(0);
@@ -204,15 +205,16 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     const mockError = new Error('Paginated API failed');
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
-    dataCache.get.mockResolvedValue(null);
+    dataCache.default.get.mockResolvedValue(null);
 
     const { result } = renderHook(
       () => useApiPaginatedQuery(['test-paginated'], queryFn),
       { wrapper }
     );
 
+    // toBeDefined() passes for null; use not.toBeNull() to wait for actual error
     await waitFor(() => {
-      expect(result.current.error).toBeDefined();
+      expect(result.current.error).not.toBeNull();
     });
 
     expect(unhandledRejections.length).toBe(0);

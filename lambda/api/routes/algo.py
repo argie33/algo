@@ -256,7 +256,13 @@ def _dispatch(
             return error_response(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        return json_response(200, {"test": "patrol-log is being reached", "dev_bypass_auth": os.environ.get("DEV_BYPASS_AUTH")})
+        return json_response(
+            200,
+            {
+                "test": "patrol-log is being reached",
+                "dev_bypass_auth": os.environ.get("DEV_BYPASS_AUTH"),
+            },
+        )
     elif path == "/api/algo/sector-rotation":
         days_str = params.get("limit", [None])[0] if params else None
         days = safe_days(days_str, max_val=365, default=180)
@@ -1173,7 +1179,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 ORDER BY s.score DESC LIMIT 15""")
         near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Top A-grade stocks by name (radar display â€” score â‰¥ 80)
+        # Top A-grade stocks by name (radar display â€" score â‰¥ 80)
         cur.execute("""
                 SELECT s.symbol, s.score
                 FROM swing_trader_scores s
@@ -2363,11 +2369,11 @@ def _get_sector_breadth(cur) -> Dict:
 
     Uses pre-computed sma_50/sma_200 from technical_data_daily (fast indexed lookup)
     instead of recomputing window functions over 290 days of price_daily (too slow on
-    t4g.micro â€” caused 20s timeout). Joins latest tech row per symbol with company_profile.
+    t4g.micro â€" caused 20s timeout). Joins latest tech row per symbol with company_profile.
     """
     try:
         # SAVEPOINT isolation: sector breadth joins price_daily + technical_data_daily.
-        # Both tables receive heavy writes from ECS loaders â€” a timeout here must not
+        # Both tables receive heavy writes from ECS loaders â€" a timeout here must not
         # abort the outer transaction and break subsequent API requests in the same Lambda.
         cur.execute("SAVEPOINT sector_breadth_check")
         cur.execute("""
@@ -2830,7 +2836,7 @@ def _get_rejection_funnel(cur) -> Dict:
 
 _TIER_CONFIG = {
     "confirmed_uptrend": {
-        “description”: “Confirmed uptrend — full deployment”,
+        "description": "Confirmed uptrend - full deployment",
         "min_pct": 70,
         "max_pct": 100,
         "risk_mult": 1.0,
@@ -2844,7 +2850,7 @@ _TIER_CONFIG = {
         "min_swing_score": 60.0,
     },
     "uptrend_under_pressure": {
-        “description”: “Uptrend under pressure — reduced exposure”,
+        "description": "Uptrend under pressure - reduced exposure",
         "min_pct": 45,
         "max_pct": 70,
         "risk_mult": 0.6,
@@ -2858,7 +2864,7 @@ _TIER_CONFIG = {
         "min_swing_score": 65.0,
     },
     "caution": {
-        “description”: “Caution — entries halted unless exceptional”,
+        "description": "Caution - entries halted unless exceptional",
         "min_pct": 25,
         "max_pct": 45,
         "risk_mult": 0.3,
@@ -2872,7 +2878,7 @@ _TIER_CONFIG = {
         "min_swing_score": 75.0,
     },
     "correction": {
-        “description”: “Market correction — preserve capital”,
+        "description": "Market correction - preserve capital",
         "min_pct": 0,
         "max_pct": 25,
         "risk_mult": 0.2,
