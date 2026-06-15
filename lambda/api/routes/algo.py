@@ -3821,8 +3821,22 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
     try:
         cur.execute(
             """
-            SELECT run_id, run_date, started_at, completed_at, overall_status,
-                   phases_completed, phases_halted, phases_errored, summary
+            SELECT run_id, run_date, started_at, completed_at, overall_status, summary,
+                   COALESCE(ARRAY(
+                       SELECT 'P' || (p->>'phase')
+                       FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
+                       WHERE p->>'status' = 'success'
+                   ), ARRAY[]::text[]) AS phases_completed,
+                   COALESCE(ARRAY(
+                       SELECT 'P' || (p->>'phase')
+                       FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
+                       WHERE p->>'status' = 'halt'
+                   ), ARRAY[]::text[]) AS phases_halted,
+                   COALESCE(ARRAY(
+                       SELECT 'P' || (p->>'phase')
+                       FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
+                       WHERE p->>'status' = 'error'
+                   ), ARRAY[]::text[]) AS phases_errored
             FROM orchestrator_execution_log
             WHERE run_date >= CURRENT_DATE - %s
             ORDER BY started_at DESC
