@@ -78,10 +78,10 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
                 }
             except (TypeError, KeyError):
                 stored = {}
-            return json_response(200, {"data": {**_DEFAULTS, **stored}})
-        return json_response(200, {"data": dict(_DEFAULTS)})
+            return json_response(200, {**_DEFAULTS, **stored})
+        return json_response(200, dict(_DEFAULTS))
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return json_response(200, {"data": dict(_DEFAULTS)})
+        return json_response(200, dict(_DEFAULTS))
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "get settings")
         return error_response(code, error_type, message)
