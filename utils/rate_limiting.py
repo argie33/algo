@@ -192,6 +192,11 @@ ADMIN_RATE_LIMITS = {
         "window": 300,
         "description": "Trigger data validation scan across all tables",
     },
+    "/api/algo/pre-trade-impact": {
+        "max_requests": 20,
+        "window": 60,
+        "description": "Estimate market impact of potential trade",
+    },
     # Dashboard histogram endpoints (aggregation queries)
     "/api/algo/daily-return-histogram": {
         "max_requests": 20,

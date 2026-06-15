@@ -140,6 +140,33 @@ class VerifyUserEmailRequest(BaseModel):
         return v
 
 
+class PreTradeImpactRequest(BaseModel):
+    """Request model for POST /api/algo/pre-trade-impact - Estimate impact of a potential trade."""
+
+    symbol: str = Field(
+        ..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10
+    )
+    entry_price: Optional[float] = Field(
+        None, description="Proposed entry price for position", gt=0
+    )
+    position_dollars: Optional[float] = Field(
+        None, description="Position size in dollars (if specified)", gt=0
+    )
+    position_pct: Optional[float] = Field(
+        None, description="Position size as % of portfolio (0-100)", gt=0, le=100
+    )
+
+    @field_validator("symbol")
+    @classmethod
+    def validate_symbol(cls, v: str) -> str:
+        """Validate symbol format - alphanumeric with optional dash/caret."""
+        if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
+            raise ValueError(
+                "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
+            )
+        return v.upper()
+
+
 class ManualTradeRequest(BaseModel):
     """Request model for POST /api/trades/manual - Manually log a trade entry."""
 
