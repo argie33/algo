@@ -1030,7 +1030,7 @@ data "aws_iam_policy_document" "lambda_algo" {
     condition {
       test     = "StringEquals"
       variable = "cloudwatch:namespace"
-      values   = ["${var.project_name}/orchestrator"]
+      values   = ["${var.project_name}/orchestrator", "Algo/DataLoading"]
     }
   }
 
