@@ -367,12 +367,13 @@ function StockDetailContent() {
           <StatsTab scoreRow={scoreRow} km={km} marketCap={marketCap}
                     high52={high52} low52={low52} last={last?.close} />
         )}
-        {tab === 'algo' && <AlgoTab swing={swingScore} scoreRow={scoreRow} />}
+        {tab === 'algo' && <AlgoTab swing={swingScore} scoreRow={scoreRow} error={_swingScoreError} />}
         {tab === 'financials' && (
-          <FinancialsTab income={incomeData} balance={balanceData} cashflow={cashflowData} />
+          <FinancialsTab income={incomeData} balance={balanceData} cashflow={cashflowData}
+            incomeError={_incomeError} balanceError={_balanceError} cashflowError={_cashflowError} />
         )}
-        {tab === 'analysts' && <AnalystsTab data={analystData} last={last?.close} />}
-        {tab === 'signals' && <SignalsTab signals={signalsData} />}
+        {tab === 'analysts' && <AnalystsTab data={analystData} last={last?.close} error={_analystError} />}
+        {tab === 'signals' && <SignalsTab signals={signalsData} error={_signalsError} />}
       </div>
     </div>
   );
@@ -611,7 +612,8 @@ function ScoreBars({ scores }) {
 }
 
 // ─── Algo tab ──────────────────────────────────────────────────────────────
-function AlgoTab({ swing, scoreRow }) {
+function AlgoTab({ swing, scoreRow, error }) {
+  if (error) return <Empty wrap title="Failed to load algo evaluation" desc={error.responseData?.message || error.message || 'Service unavailable'} />;
   if (!swing) {
     return <Empty wrap title="No algo evaluation" desc="Stock not in latest swing-trader scoring run." />;
   }
@@ -700,7 +702,9 @@ function AlgoTab({ swing, scoreRow }) {
 }
 
 // ─── Financials tab ────────────────────────────────────────────────────────
-function FinancialsTab({ income, balance, cashflow }) {
+function FinancialsTab({ income, balance, cashflow, incomeError, balanceError, cashflowError }) {
+  const anyError = incomeError || balanceError || cashflowError;
+  if (anyError) return <Empty wrap title="Failed to load financials" desc={anyError.responseData?.message || anyError.message || 'Service unavailable'} />;
   const incItems = Array.isArray(income) ? income : (income?.financialData || income?.items || []);
   const bsItems = Array.isArray(balance) ? balance : (balance?.financialData || balance?.items || []);
   const cfItems = Array.isArray(cashflow) ? cashflow : (cashflow?.financialData || cashflow?.items || []);
@@ -849,7 +853,8 @@ function num1(v) {
 }
 
 // ─── Analysts tab ──────────────────────────────────────────────────────────
-function AnalystsTab({ data, last }) {
+function AnalystsTab({ data, last, error }) {
+  if (error) return <Empty wrap title="Failed to load analyst data" desc={error.responseData?.message || error.message || 'Service unavailable'} />;
   // data is {items: [{date, analyst_count, bullish_count, ...}]} — use most recent row
   const rows = Array.isArray(data) ? data : (data?.items || []);
   const metrics = rows[0] || data?.metrics || null;
@@ -951,7 +956,8 @@ function AnalystsTab({ data, last }) {
 }
 
 // ─── Signals tab ───────────────────────────────────────────────────────────
-function SignalsTab({ signals }) {
+function SignalsTab({ signals, error }) {
+  if (error) return <Empty wrap title="Failed to load signals" desc={error.responseData?.message || error.message || 'Service unavailable'} />;
   const items = Array.isArray(signals) ? signals : (signals?.items || []);
   if (!items.length) return <Empty wrap title="No signals" desc="No buy/sell signals in the last 60 sessions" />;
   return (
