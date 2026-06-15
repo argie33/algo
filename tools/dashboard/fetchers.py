@@ -158,10 +158,12 @@ def fetch_algo_config(c):
                 "base_risk": None,
                 "t1_r": None,
             }
-        cfg = data.get("data", {})
-        if "_error" in cfg:
+        raw = data.get("data", {})
+        if not isinstance(raw, dict):
+            raw = {}
+        if "_error" in raw:
             return {
-                "_error": cfg["_error"],
+                "_error": raw["_error"],
                 "enabled": False,
                 "mode": "unknown",
                 "max_pos_pct": None,
@@ -171,9 +173,15 @@ def fetch_algo_config(c):
                 "base_risk": None,
                 "t1_r": None,
             }
+        # API returns {items: [{key, value, value_type, ...}], total: N}
+        items = raw.get("items", [])
+        cfg = {i["key"]: i.get("value") for i in items if "key" in i}
+        # Boolean string conversion
+        en_raw = cfg.get("enable_algo", "true")
+        enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else True
         return {
-            "enabled": cfg.get("algo_enabled", True),
-            "mode": cfg.get("trade_mode", "unknown"),
+            "enabled": enabled,
+            "mode": cfg.get("execution_mode", "unknown"),
             "max_pos_pct": safe_float(cfg.get("max_position_size_pct")),
             "max_pos_n": safe_int(cfg.get("max_positions")),
             "max_sec_n": safe_int(cfg.get("max_positions_per_sector")),
@@ -805,13 +813,19 @@ def fetch_signals(c):
 
 
 def fetch_sector_ranking(c):
-    """Fetch sector rankings from API."""
+    """Fetch sector rankings from API.
+
+    Note: /api/algo/sector-rotation returns rotation history records (date,
+    defensive_lead_score, signal, etc.), not individual per-sector rankings
+    (sector_name, current_rank, momentum_score). The panel's sector-ranking
+    section requires a different API endpoint that is not currently available.
+    Returns empty items so the panel skips that section gracefully.
+    """
     try:
         data = api_call(_get_endpoint_path("srank"))
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        rankings = data.get("data", [])
-        return {"items": rankings if isinstance(rankings, list) else []}
+        return {"items": []}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
         logger.error(error_msg)
@@ -819,7 +833,12 @@ def fetch_sector_ranking(c):
 
 
 def fetch_activity(c):
-    """Fetch activity and audit log from API."""
+    """Fetch activity from audit log API.
+
+    API returns {items: [{id, action_type, symbol, action_date, details, actor,
+    status, error}], total, limit, offset}. Restructures into the activity format
+    the panel expects: {run_at, phases, recent_actions}.
+    """
     try:
         data = api_call(_get_endpoint_path("activity"))
         if data.get("_error"):
@@ -830,12 +849,15 @@ def fetch_activity(c):
                 "phases": [],
                 "recent_actions": [],
             }
-        result = data.get("data", {})
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else []
+        run_at = items[0].get("action_date") if items else None
+        phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
-            "run_id": result.get("run_id"),
-            "run_at": result.get("run_at"),
-            "phases": result.get("phases", []),
-            "recent_actions": result.get("recent_actions", []),
+            "run_id": None,
+            "run_at": run_at,
+            "phases": phases,
+            "recent_actions": items[:20],
         }
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
@@ -998,18 +1020,23 @@ def fetch_economic_pulse(c):
 
 
 def fetch_algo_metrics(c):
-    """Issue 3 FIX: API-only algo metrics."""
+    """Fetch algo metrics. API returns a single dict {date, total_actions,
+    entries, exits, avg_signal_score}; panel expects a flat list so it can
+    do valid_metrics[0] and iterate over multiple days."""
     try:
         data = api_call(_get_endpoint_path("algo_metrics"))
         if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
-        return {
-            "items": data.get("data", []) if isinstance(data.get("data"), list) else []
-        }
+            return {"_error": data.get("_error")}
+        d = data.get("data")
+        if isinstance(d, list):
+            return d
+        if isinstance(d, dict):
+            return [d]
+        return []
     except Exception as e:
         error_msg = _format_fetcher_error("algo_metrics", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_notifications(c):
@@ -1017,9 +1044,9 @@ def fetch_notifications(c):
         data = api_call(_get_endpoint_path("notifs"))
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        return {
-            "items": data.get("data", []) if isinstance(data.get("data"), list) else []
-        }
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
         logger.error(error_msg)
@@ -1061,14 +1088,15 @@ def fetch_sentiment(c):
 
 
 def fetch_economic_calendar(c):
-    """Issue 3 FIX: API-only economic calendar."""
+    """Fetch economic calendar events. API returns {items: [{event_date,
+    event_name, country, importance, category, ...}], total: N}."""
     try:
-        data = api_call(_get_endpoint_path("eco"))
+        data = api_call(_get_endpoint_path("econ_cal"))
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        return {
-            "items": data.get("data", []) if isinstance(data.get("data"), list) else []
-        }
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
         logger.error(error_msg)
@@ -1193,8 +1221,12 @@ def fetch_sector_rotation(c):
                 "def_score": 0,
                 "cyc_score": 0,
             }
-        row = data.get("data", {})
-        if not row:
+        # API returns {items: [{date, defensive_lead_score, cyclical_weak_score,
+        # spread, signal, weeks_persistent, _is_fallback}], total: N}.
+        # Use the most recent item (index 0).
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else []
+        if not items:
             return {
                 "_error": "No sector rotation data available",
                 "date": None,
@@ -1204,16 +1236,14 @@ def fetch_sector_rotation(c):
                 "def_score": 0,
                 "cyc_score": 0,
             }
-        details = safe_json_parse(
-            row.get("details"), default={}, field_name="fetch_sector_rotation.details"
-        )
+        row = items[0]
         return {
             "date": row.get("date"),
             "signal": row.get("signal", ""),
-            "strength": safe_float(row.get("strength"), default=None),
-            "weeks": details.get("weeks_persistent", 1),
-            "def_score": details.get("defensive_lead_score", 0),
-            "cyc_score": details.get("cyclical_weak_score", 0),
+            "strength": safe_float(row.get("spread"), default=None),
+            "weeks": row.get("weeks_persistent", 1),
+            "def_score": safe_float(row.get("defensive_lead_score"), default=0),
+            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=0),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)
@@ -1230,13 +1260,15 @@ def fetch_sector_rotation(c):
 
 
 def fetch_industry_ranking(c):
-    """Fetch industry rankings from API."""
+    """Fetch industry rankings. API returns {items: [{industry, sector,
+    current_rank, overall_rank, rank_1w_ago, rank_4w_ago}], total: N}."""
     try:
         data = api_call(_get_endpoint_path("irank"))
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        industries = data.get("data", [])
-        return {"items": industries if isinstance(industries, list) else []}
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("irank", e)
         logger.error(error_msg)
@@ -1244,34 +1276,44 @@ def fetch_industry_ranking(c):
 
 
 def fetch_exec_history(c):
-    """Fetch recent execution history from API."""
+    """Fetch recent execution history. Panel expects a flat list (not wrapped
+    in a dict) so it can do valid_hist[:7] directly."""
     try:
         data = api_call(
             _get_endpoint_path("exec_hist"),
             params={"days": 7, "limit": 10},
         )
         if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
-        executions = data.get("data", [])
-        return {"items": executions if isinstance(executions, list) else []}
+            return {"_error": data.get("_error")}
+        raw = data.get("data")
+        if isinstance(raw, dict):
+            return raw.get("items", [])
+        if isinstance(raw, list):
+            return raw
+        return []
     except Exception as e:
         error_msg = _format_fetcher_error("exec_hist", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_audit_log(c):
-    """Fetch audit log from API."""
+    """Fetch audit log entries. Panel expects a flat list (not wrapped in a
+    dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
     try:
-        data = api_call(_get_endpoint_path("activity"))
+        data = api_call(_get_endpoint_path("audit"))
         if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
-        log_entries = data.get("data", [])
-        return {"items": log_entries if isinstance(log_entries, list) else []}
+            return {"_error": data.get("_error")}
+        raw = data.get("data", {})
+        if isinstance(raw, dict):
+            return raw.get("items", [])
+        if isinstance(raw, list):
+            return raw
+        return []
     except Exception as e:
         error_msg = _format_fetcher_error("audit", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_circuit(c):

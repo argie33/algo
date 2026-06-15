@@ -109,8 +109,8 @@ def _get_signals_stocks(
                 s.components->>'grade' AS grade,
                 s.components->>'fail_reason' AS reason,
                 s.components AS components,
-                COALESCE(tech.sma_50, t.sma_50) AS sma_50,
-                COALESCE(tech.sma_200, t.sma_200) AS sma_200,
+                tech.sma_50 AS sma_50,
+                tech.sma_200 AS sma_200,
                 CASE t.weinstein_stage
                     WHEN 1 THEN 'Stage 1'
                     WHEN 2 THEN 'Stage 2 - Markup'
