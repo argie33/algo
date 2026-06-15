@@ -232,7 +232,7 @@ def _get_stock_scores(
                 {where_clause}
                 AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
                 AND (ss.etf IS NULL OR ss.etf NOT IN ('Y', 'y'))
-                AND (ss.market_category IS NULL OR ss.market_category NOT ILIKE '%ETF%')
+                AND (ss.market_category IS NULL OR ss.market_category NOT ILIKE '%%ETF%%')
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """
