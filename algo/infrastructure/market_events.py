@@ -27,6 +27,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class MarketEventHandler:
     """Detect and respond to market events and halts."""
 

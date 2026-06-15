@@ -34,6 +34,7 @@ except ImportError:
     def _keypress() -> str:
         return ""
 
+
 from rich.console import Group
 from rich.layout import Layout
 from rich.live import Live
@@ -66,6 +67,7 @@ from panels import (
 )
 from formatters import mkt_hours_str
 
+
 def _validate_watch_interval(value):
     """Validate watch interval is between 5 and 600 seconds."""
     try:
@@ -83,6 +85,7 @@ def _validate_watch_interval(value):
         raise argparse.ArgumentTypeError(
             f"Watch interval must be an integer (got {value})"
         )
+
 
 def _fetch_secrets_manager_credentials():
     """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
@@ -119,6 +122,7 @@ def _fetch_secrets_manager_credentials():
     except Exception as e:
         logger.debug(f"Secrets Manager access failed: {type(e).__name__}")
         return (None, None, None)
+
 
 def _fetch_terraform_credentials():
     """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
@@ -247,6 +251,7 @@ def _fetch_terraform_credentials():
         )
         return (None, None, None)
 
+
 def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     """Validate that panel dependencies are available in data.
 
@@ -262,6 +267,7 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
         panel_status[panel_name] = can_render
 
     return panel_status
+
 
 def render_dashboard(
     data: dict,
@@ -437,6 +443,7 @@ def render_dashboard(
 
     return outer
 
+
 def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single Live session: mascot stays in upper right through loading and live view."""
     result: list = [None]
@@ -491,6 +498,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 time.sleep(0.125)
         except KeyboardInterrupt:
             pass
+
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode: auto-refresh data every `interval` seconds, mascot dances continuously."""
@@ -554,6 +562,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 time.sleep(0.125)
         except KeyboardInterrupt:
             pass
+
 
 def main():
     pa = argparse.ArgumentParser(
@@ -650,6 +659,7 @@ def main():
         run_watch(max(10, args.watch), args.compact, data_source)
     else:
         run_once(args.compact, data_source)
+
 
 if __name__ == "__main__":
     main()

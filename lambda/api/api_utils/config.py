@@ -10,6 +10,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+
 class HealthCheckConfig:
     """Configuration for health check endpoints.
 
@@ -104,9 +105,11 @@ class HealthCheckConfig:
             )
             return default
 
+
 # Global singleton — initialized at Lambda cold start (thread-safe)
 _config = None
 _config_lock = threading.Lock()
+
 
 def get_config() -> HealthCheckConfig:
     """Get the global health check configuration (lazy initialized, thread-safe).

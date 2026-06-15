@@ -10,6 +10,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Initialize schema version tracking table"
 
+
 def up():
     """Create schema_version table."""
     sql = """
@@ -29,6 +30,7 @@ def up():
 
     with DatabaseContext("write") as cur:
         cur.execute(sql)
+
 
 def down():
     """Drop schema_version table."""

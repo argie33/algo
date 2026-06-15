@@ -8,6 +8,7 @@ token_blocklist_table = dynamodb.Table(
     os.environ.get("TOKEN_BLOCKLIST_TABLE", "algo-token-blocklist-dev")
 )
 
+
 def is_revoked(jti: str) -> bool:
     try:
         response = token_blocklist_table.get_item(Key={"jti": jti})
@@ -15,6 +16,7 @@ def is_revoked(jti: str) -> bool:
     except Exception as e:
         logger.warning(f"Blocklist lookup failed for {jti}: {e}")
         return False
+
 
 def revoke_token(jti: str, exp: int):
     token_blocklist_table.put_item(

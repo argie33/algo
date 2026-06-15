@@ -16,6 +16,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class OrchestratorExecutionTracker:
     """Logs orchestrator execution history for debugging and diagnostics."""
 
@@ -146,8 +147,10 @@ class OrchestratorExecutionTracker:
             logger.error(f"[EXECUTION_LOG] Failed to save run {self.run_id}: {e}")
             return False
 
+
 # Global instance (accessible from orchestrator)
 _tracker: Optional[OrchestratorExecutionTracker] = None
+
 
 def get_tracker() -> OrchestratorExecutionTracker:
     """Get or create the global execution tracker."""
@@ -155,6 +158,7 @@ def get_tracker() -> OrchestratorExecutionTracker:
     if _tracker is None:
         _tracker = OrchestratorExecutionTracker()
     return _tracker
+
 
 def reset_tracker() -> None:
     """Reset the tracker (mainly for testing)."""

@@ -15,6 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class TrendlineSupport:
     """Detect and validate 2-point support trendlines."""
 

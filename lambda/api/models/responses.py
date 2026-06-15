@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
+
 class DataFreshness(BaseModel):
     """Metadata about data freshness in a response."""
 
@@ -20,6 +21,7 @@ class DataFreshness(BaseModel):
         None, description="Days before warning"
     )
 
+
 class BaseResponse(BaseModel):
     """Base response wrapper for all API responses."""
 
@@ -28,11 +30,13 @@ class BaseResponse(BaseModel):
         None, description="Data freshness metadata"
     )
 
+
 class SuccessResponse(BaseResponse):
     """Success response for single object."""
 
     statusCode: int = Field(default=200, description="HTTP status code")
     data: Dict[str, Any] = Field(..., description="Response data")
+
 
 class ListResponseData(BaseModel):
     """Container for list response data."""
@@ -42,6 +46,7 @@ class ListResponseData(BaseModel):
     limit: Optional[int] = Field(None, description="Limit used in query")
     offset: Optional[int] = Field(None, description="Offset used in query")
 
+
 class ListResponse(BaseResponse):
     """Success response for paginated lists."""
 
@@ -49,6 +54,7 @@ class ListResponse(BaseResponse):
     data: ListResponseData = Field(
         ..., description="List data with pagination metadata"
     )
+
 
 class ErrorResponse(BaseResponse):
     """Error response."""
@@ -61,6 +67,7 @@ class ErrorResponse(BaseResponse):
         None, alias="_diagnostic", description="Diagnostic info for developers"
     )
 
+
 class HealthStatus(BaseModel):
     """Health check response."""
 
@@ -71,11 +78,13 @@ class HealthStatus(BaseModel):
     freshness: Optional[Dict[str, Any]] = Field(None)
     last_load_time: Optional[datetime] = Field(None)
 
+
 class HealthResponse(BaseResponse):
     """Health check response wrapper."""
 
     statusCode: int = Field(default=200)
     data: HealthStatus = Field(...)
+
 
 class StockProfile(BaseModel):
     """Stock profile response."""
@@ -88,10 +97,12 @@ class StockProfile(BaseModel):
     employees: Optional[int] = None
     exchange: Optional[str] = None
 
+
 class StockProfileResponse(SuccessResponse):
     """Stock profile response."""
 
     data: StockProfile
+
 
 class KeyMetrics(BaseModel):
     """Key financial metrics for a stock."""
@@ -114,8 +125,10 @@ class KeyMetrics(BaseModel):
     held_percent_insiders: Optional[float] = None
     held_percent_institutions: Optional[float] = None
 
+
 class KeyMetricsResponse(ListResponse):
     """Key metrics list response."""
+
 
 class Signal(BaseModel):
     """Trading signal."""
@@ -172,8 +185,10 @@ class Signal(BaseModel):
     industry: Optional[str] = None
     is_fallback: Optional[bool] = Field(None, alias="_is_fallback")
 
+
 class SignalsResponse(ListResponse):
     """Trading signals list response."""
+
 
 class IncomeStatement(BaseModel):
     """Annual or quarterly income statement."""
@@ -186,8 +201,10 @@ class IncomeStatement(BaseModel):
     operating_income: Optional[float] = None
     net_income: Optional[float] = None
 
+
 class IncomeStatementResponse(ListResponse):
     """Income statement list response."""
+
 
 class BalanceSheet(BaseModel):
     """Annual or quarterly balance sheet."""
@@ -199,8 +216,10 @@ class BalanceSheet(BaseModel):
     total_liabilities: Optional[float] = None
     stockholders_equity: Optional[float] = None
 
+
 class BalanceSheetResponse(ListResponse):
     """Balance sheet list response."""
+
 
 class PriceData(BaseModel):
     """Daily price data."""
@@ -214,8 +233,10 @@ class PriceData(BaseModel):
     volume: Optional[float] = None
     adjusted_close: Optional[float] = None
 
+
 class PriceDataResponse(ListResponse):
     """Price data list response."""
+
 
 class Sector(BaseModel):
     """Sector information."""
@@ -225,8 +246,10 @@ class Sector(BaseModel):
     average_pe: Optional[float] = None
     average_score: Optional[float] = None
 
+
 class SectorResponse(ListResponse):
     """Sector list response."""
+
 
 class Industry(BaseModel):
     """Industry information."""
@@ -236,8 +259,10 @@ class Industry(BaseModel):
     count: Optional[int] = None
     average_score: Optional[float] = None
 
+
 class IndustryResponse(ListResponse):
     """Industry list response."""
+
 
 class StockScore(BaseModel):
     """Stock quality score."""
@@ -247,8 +272,10 @@ class StockScore(BaseModel):
     percentile: Optional[float] = None
     components: Optional[Dict[str, Any]] = None
 
+
 class StockScoresResponse(ListResponse):
     """Stock scores list response."""
+
 
 class Trade(BaseModel):
     """Trading record."""
@@ -262,8 +289,10 @@ class Trade(BaseModel):
     quantity: Optional[int] = None
     status: Optional[str] = None
 
+
 class TradesResponse(ListResponse):
     """Trades list response."""
+
 
 class EarningsData(BaseModel):
     """Earnings report data."""
@@ -274,8 +303,10 @@ class EarningsData(BaseModel):
     revenue: Optional[float] = None
     guidance: Optional[str] = None
 
+
 class EarningsResponse(ListResponse):
     """Earnings list response."""
+
 
 class EconomicIndicator(BaseModel):
     """Economic indicator data."""
@@ -286,8 +317,10 @@ class EconomicIndicator(BaseModel):
     previous_value: Optional[float] = None
     forecast: Optional[float] = None
 
+
 class EconomicResponse(ListResponse):
     """Economic indicators list response."""
+
 
 class SearchResult(BaseModel):
     """Search result."""
@@ -297,8 +330,10 @@ class SearchResult(BaseModel):
     type: Optional[str] = None
     exchange: Optional[str] = None
 
+
 class SearchResponse(ListResponse):
     """Search results response."""
+
 
 class ContactSubmission(BaseModel):
     """Contact form submission."""
@@ -311,10 +346,12 @@ class ContactSubmission(BaseModel):
     status: Optional[str] = None
     created_at: Optional[datetime] = None
 
+
 class ContactResponse(SuccessResponse):
     """Contact form response."""
 
     data: ContactSubmission
+
 
 class Settings(BaseModel):
     """User settings."""
@@ -324,10 +361,12 @@ class Settings(BaseModel):
     language: Optional[str] = None
     timezone: Optional[str] = None
 
+
 class SettingsResponse(SuccessResponse):
     """Settings response."""
 
     data: Settings
+
 
 class DataCoverageStatus(BaseModel):
     """Data coverage and freshness status."""
@@ -338,6 +377,6 @@ class DataCoverageStatus(BaseModel):
     status: str
     last_updated: Optional[datetime] = None
 
+
 class DataCoverageResponse(ListResponse):
     """Data coverage status response."""
-

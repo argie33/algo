@@ -37,6 +37,7 @@ from monitoring.metrics_context import (
 
 logger = logging.getLogger(__name__)
 
+
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
@@ -1483,6 +1484,7 @@ class Orchestrator:
             logger.error("CloudWatch metric publish failed: %s", e)
 
         return result
+
 
 if __name__ == "__main__":
 

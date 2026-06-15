@@ -16,6 +16,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class RLadderDistributionDailyLoader(OptimalLoader):
     """Pre-compute daily R-ladder distribution across 6 risk buckets."""
 
@@ -154,6 +155,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
         else:
             return "> 2R"
 
+
 def main():
     loader = RLadderDistributionDailyLoader()
     result = loader.load_global()
@@ -164,6 +166,7 @@ def main():
     else:
         logger.warning("COMPLETED: No buckets computed")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

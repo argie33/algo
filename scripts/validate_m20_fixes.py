@@ -22,6 +22,7 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
 
+
 # Test data: realistic tuples that might come from database rows
 class TestData:
     """Example database query results with edge cases."""
@@ -46,6 +47,7 @@ class TestData:
         (0, 50.0, 51.0),  # Price=0 (edge case, legitimate in ETF portfolios)
         (100.0, None, 99.0),  # Missing fast MA (should be handled)
     ]
+
 
 def test_price_zero_not_none():
     """Test 1: Price=0 should NOT be treated as None."""
@@ -96,6 +98,7 @@ def test_price_zero_not_none():
 
     return passed == len(test_cases)
 
+
 def test_score_zero_not_none():
     """Test 2: Score=0 should NOT be treated as None."""
     logger.info("\n[TEST 2] Score=0 handling (implicit False → explicit is not None)")
@@ -134,6 +137,7 @@ def test_score_zero_not_none():
                 logger.error(f"  ✗ {description}: INCORRECTLY treated as invalid")
 
     return passed == len(test_cases)
+
 
 def test_regime_exposure_zero():
     """Test 3: Market exposure=0 should NOT be treated as None (halt signal logic)."""
@@ -180,6 +184,7 @@ def test_regime_exposure_zero():
 
     return passed == len(test_cases)
 
+
 def test_ma_crossover_zero_price():
     """Test 4: MA crossover with price=0 (e.g., in portfolio distance calculations)."""
     logger.info("\n[TEST 4] MA crossover with price=0 (movement detection logic)")
@@ -221,6 +226,7 @@ def test_ma_crossover_zero_price():
                 logger.error(f"  ✗ {description}: INCORRECTLY rejected valid data")
 
     return passed == len(test_cases)
+
 
 def test_distance_averaging_with_zero():
     """Test 5: Portfolio distance averaging with zero values."""
@@ -266,6 +272,7 @@ def test_distance_averaging_with_zero():
 
     return passed == len(distances)
 
+
 def main():
     """Run all M20 NULL handling validation tests."""
     logger.info("=" * 80)
@@ -299,6 +306,7 @@ def main():
     else:
         logger.error(f"\n✗ {total - passed} tests failed")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

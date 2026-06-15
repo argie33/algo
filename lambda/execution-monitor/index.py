@@ -18,6 +18,7 @@ if os.path.exists("/opt/python"):
     sys.path.insert(0, "/opt/python")
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+
 def get_rds_credentials():
     """Get RDS credentials from credential_manager."""
     try:
@@ -27,6 +28,7 @@ def get_rds_credentials():
     except Exception as e:
         logger.error(f"Failed to get RDS credentials: {e}")
         return None
+
 
 def query_rds_signals(credentials):
     """Query RDS for today's signals."""
@@ -68,6 +70,7 @@ def query_rds_signals(credentials):
     except Exception as e:
         return {"error": str(e), "status": "failed"}
 
+
 def get_alpaca_credentials():
     """Get Alpaca credentials from credential_manager."""
     from config.alpaca_config import get_alpaca_base_url
@@ -89,6 +92,7 @@ def get_alpaca_credentials():
             "secret_key": None,
             "base_url": base_url,
         }
+
 
 def get_alpaca_trades():
     """Get Alpaca trades (paper account)."""
@@ -139,6 +143,7 @@ def get_alpaca_trades():
     except Exception as e:
         return {"error": str(e), "status": "failed"}
 
+
 def lambda_handler(event, context):
     """Monitor execution status."""
 
@@ -162,6 +167,7 @@ def lambda_handler(event, context):
         "statusCode": 200,
         "body": json.dumps(result, default=str),
     }
+
 
 if __name__ == "__main__":
     lambda_handler({}, {})

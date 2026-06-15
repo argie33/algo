@@ -24,6 +24,7 @@ from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
 
+
 class TrendCriteriaLoader(OptimalLoader):
     table_name = "trend_template_data"
     primary_key = ("symbol", "date")
@@ -255,6 +256,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         return results
 
+
 def main():
     parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
@@ -279,6 +281,7 @@ def main():
     except Exception as e:
         logger.error(f"Trend criteria data load failed: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

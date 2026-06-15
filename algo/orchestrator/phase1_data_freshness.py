@@ -2,17 +2,17 @@
 """
 PHASE 1: DATA FRESHNESS CHECK
 
-Verify ALL signal-critical tables are fresh before trading:
-1. price_daily: Must have last trading day data (75%+ symbol coverage)
-2. buy_sell_daily: Buy/sell signals for last trading day
-3. technical_data_daily: Technical indicators for last trading day
-4. swing_trader_scores: Swing scoring (must be <24h old)
-5. signal_quality_scores: Signal quality ratings (must be <24h old)
-6. market_exposure_daily: Market exposure limits (must be present and fresh)
-7. sector_ranking: Sector data for last trading day
+Verify pipeline-loaded tables are fresh before trading:
+1. price_daily: Must have last trading day data (75%+ symbol coverage) — HALT if stale
+2. market_health_daily: Market breadth metrics — HALT if stale
+3. trend_template_data: Minervini/Weinstein criteria — HALT if stale
+4. market_exposure_daily: Market regime / exposure limits — HALT if stale
+5. swing_trader_scores: Swing scoring (must be <24h old) — WARNING if stale
+6. sector_ranking: Sector data for last trading day — WARNING if stale
 
-If ANY critical table is stale or missing, halt trading to prevent degraded signal generation.
-No partial trading with incomplete data: all-or-nothing freshness gate.
+NOTE: buy_sell_daily, technical_data_daily, signal_quality_scores are NOT checked here.
+Phase 5 generates signals on-the-fly from price_daily (no dependency on pre-computed tables).
+Those tables are auxiliary and loaded separately; staleness there does not block trading.
 """
 
 import logging
@@ -25,6 +25,7 @@ from algo.reporting import AlertManager
 from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
+
 
 def run(
     config: Any,
@@ -138,44 +139,53 @@ def run(
                     f"Insufficient price coverage: {coverage_pct:.1f}%",
                 )
 
-            # Check all critical signal tables
-            critical_tables = {
-                "buy_sell_daily": "Buy/sell signals",
-                "technical_data_daily": "Technical indicators",
-                "swing_trader_scores": "Swing trader scores",
-                "signal_quality_scores": "Signal quality scores",
+            # Check tables that the pipeline actually loads (fail-closed on these)
+            # Phase 5 generates signals on-the-fly from price_daily; buy_sell_daily,
+            # technical_data_daily, and signal_quality_scores are not pipeline-loaded.
+            halt_tables = {
+                "market_health_daily": "Market health (breadth/regime)",
+                "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "market_exposure_daily": "Market exposure limits",
+            }
+            # Warning-only tables: stale → logged, not a halt
+            warn_tables = {
+                "swing_trader_scores": "Swing trader scores",
                 "sector_ranking": "Sector rankings",
             }
+            critical_tables = {**halt_tables, **warn_tables}
 
             now_utc = datetime.now(timezone.utc)
-            stale_tables = []
+            halt_stale = []   # pipeline-loaded tables — stale = HALT
+            warn_stale = []   # auxiliary tables — stale = WARNING only
 
             for table_name, description in critical_tables.items():
+                is_halt_table = table_name in halt_tables
                 try:
-                    # Check if table exists and has recent data
                     cur.execute(f"SELECT MAX(date) FROM {table_name}")
                     table_max_date = cur.fetchone()[0]
 
                     if table_max_date is None:
-                        logger.critical(
-                            f"[PHASE 1] {description} ({table_name}) is EMPTY"
-                        )
-                        stale_tables.append(f"{description} is empty")
+                        msg = f"{description} is empty"
+                        if is_halt_table:
+                            logger.critical(f"[PHASE 1] {msg}")
+                            halt_stale.append(msg)
+                        else:
+                            logger.warning(f"[PHASE 1] {msg}")
+                            warn_stale.append(msg)
                         continue
 
-                    # Check staleness
                     if table_max_date < max_date:
                         days_behind = (max_date - table_max_date).days
-                        logger.warning(
-                            f"[PHASE 1] {description} is {days_behind} day(s) behind prices"
-                        )
-                        stale_tables.append(
-                            f"{description} is {days_behind} day(s) stale"
-                        )
+                        msg = f"{description} is {days_behind} day(s) stale"
+                        if is_halt_table:
+                            logger.critical(f"[PHASE 1] {msg}")
+                            halt_stale.append(msg)
+                        else:
+                            logger.warning(f"[PHASE 1] {msg}")
+                            warn_stale.append(msg)
 
-                    # For time-based freshness (swing/quality scores updated frequently)
-                    if table_name in ["swing_trader_scores", "signal_quality_scores"]:
+                    # Time-based freshness for swing_trader_scores (pipeline-loaded)
+                    if table_name == "swing_trader_scores":
                         cur.execute(f"SELECT MAX(created_at) FROM {table_name}")
                         max_created = cur.fetchone()[0]
                         if max_created:
@@ -183,38 +193,45 @@ def run(
                                 max_created = max_created.replace(tzinfo=timezone.utc)
                             age_hours = (now_utc - max_created).total_seconds() / 3600
                             if age_hours > max_stale_hours:
-                                logger.critical(
-                                    f"[PHASE 1] {description} is {age_hours:.1f}h old (max {max_stale_hours}h)"
-                                )
-                                stale_tables.append(
-                                    f"{description} is {age_hours:.1f}h old"
-                                )
+                                msg = f"{description} is {age_hours:.1f}h old"
+                                logger.warning(f"[PHASE 1] {msg}")
+                                warn_stale.append(msg)
 
                 except Exception as e:
-                    logger.warning(f"[PHASE 1] Could not check {description}: {e}")
-                    stale_tables.append(f"{description} check failed: {str(e)[:50]}")
+                    msg = f"{description} check failed: {str(e)[:50]}"
+                    if is_halt_table:
+                        logger.warning(f"[PHASE 1] {msg}")
+                        halt_stale.append(msg)
+                    else:
+                        logger.warning(f"[PHASE 1] {msg}")
+                        warn_stale.append(msg)
 
-            if stale_tables:
+            if warn_stale:
+                logger.warning(
+                    f"[PHASE 1] Non-critical staleness (auxiliary tables, trading continues): "
+                    f"{'; '.join(warn_stale)}"
+                )
+
+            if halt_stale:
                 logger.critical(
-                    f"[PHASE 1] CRITICAL DATA GAPS: {'; '.join(stale_tables)}"
+                    f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}"
                 )
                 log_phase_result_fn(
                     1,
                     "signal_tables_stale",
                     "halt",
-                    f"Stale/missing signal data: {'; '.join(stale_tables[:3])}",
+                    f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
                 )
-                # Alert on signal staleness
                 from algo.reporting.notifications import notify_signal_staleness
 
-                notify_signal_staleness(stale_tables)
+                notify_signal_staleness(halt_stale)
                 return PhaseResult(
                     1,
                     "signal_tables_stale",
                     "halted",
                     {},
                     True,
-                    f"Critical tables stale/missing: {stale_tables[0]}",
+                    f"Critical pipeline tables stale/missing: {halt_stale[0]}",
                 )
 
             elapsed = time.time() - phase_start
@@ -233,11 +250,12 @@ def run(
                 else:
                     sla_status = " [SLA WARNING: Past 9:30 AM]"
 
-            logger.info(f"[PHASE 1] PASS - ALL CRITICAL DATA FRESH{sla_status}")
+            warn_suffix = f" ({len(warn_stale)} auxiliary warnings)" if warn_stale else ""
+            logger.info(f"[PHASE 1] PASS - PIPELINE DATA FRESH{sla_status}{warn_suffix}")
             logger.info(
                 f"  - Prices: {max_date} ({symbols_loaded} symbols, {coverage_pct:.1f}%)"
             )
-            logger.info("  - All signal tables verified fresh and complete")
+            logger.info("  - All pipeline tables (market_health, trend_template, market_exposure) fresh")
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
             log_phase_result_fn(

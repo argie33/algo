@@ -25,6 +25,7 @@ from psycopg2.extras import DictCursor
 
 logger = logging.getLogger(__name__)
 
+
 class PooledDatabaseContext:
     """Cursor context for pre-acquired pooled connections.
 

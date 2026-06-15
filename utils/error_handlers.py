@@ -22,6 +22,7 @@ from utils.exceptions import (
 
 logger = logging.getLogger(__name__)
 
+
 def classify_exception(e: Exception) -> Tuple[int, str, str]:
     """Map any exception to (statusCode, errorType, message).
 
@@ -81,6 +82,7 @@ def classify_exception(e: Exception) -> Tuple[int, str, str]:
     # Default to 500 internal error
     return (500, "internal_error", "An error occurred")
 
+
 def log_error_with_context(
     e: Exception,
     operation: str,
@@ -112,6 +114,7 @@ def log_error_with_context(
     else:
         logger_instance.warning(log_msg)
 
+
 def sanitize_error_message(msg: str) -> str:
     """Remove sensitive info (credentials, SQL, internal details) from message.
 
@@ -137,6 +140,7 @@ def sanitize_error_message(msg: str) -> str:
         msg = "Database operation failed"
 
     return msg
+
 
 def extract_error_context(e: Exception) -> Dict[str, Any]:
     """Extract query, params, table_name, etc from exception for logging.
@@ -165,6 +169,7 @@ def extract_error_context(e: Exception) -> Dict[str, Any]:
     context["exception_type"] = type(e).__name__
 
     return context
+
 
 def retry_with_backoff(
     func,
@@ -218,6 +223,7 @@ def retry_with_backoff(
 
     if last_error:
         raise last_error
+
 
 def make_error_response(
     e: Exception,

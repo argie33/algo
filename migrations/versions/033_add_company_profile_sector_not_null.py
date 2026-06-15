@@ -13,6 +13,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add NOT NULL constraint to company_profile.sector"
 
+
 def up():
     with DatabaseContext("write") as cur:
         # First, check if there are any NULL values
@@ -32,6 +33,7 @@ def up():
             ALTER TABLE company_profile
             ALTER COLUMN sector SET NOT NULL
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

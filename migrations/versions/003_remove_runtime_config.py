@@ -14,6 +14,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Remove unused algo_runtime_config and algo_runtime_config_audit tables"
 
+
 def up():
     """Drop the runtime config tables."""
     with DatabaseContext("write") as cur:
@@ -21,6 +22,7 @@ def up():
         cur.execute("DROP TABLE IF EXISTS algo_runtime_config_audit CASCADE")
         # Main config table
         cur.execute("DROP TABLE IF EXISTS algo_runtime_config CASCADE")
+
 
 def down():
     """Recreate the runtime config tables with original schema and seed data."""

@@ -12,6 +12,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get recent orchestrator runs.
 
@@ -55,6 +56,7 @@ def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str
     except Exception as e:
         logger.error(f"Error querying recent runs: {e}")
         return []
+
 
 def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
     """Get full details of a specific run, including phase-by-phase results.
@@ -103,6 +105,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Error querying run {run_id}: {e}")
         return None
 
+
 def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
     """Get all failed/halted runs in the past N days.
 
@@ -139,6 +142,7 @@ def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error querying failed runs: {e}")
         return []
+
 
 def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
     """Analyze halt patterns — which phases halt most often and why.
@@ -187,6 +191,7 @@ def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error analyzing halt patterns: {e}")
         return []
+
 
 def get_success_rate(days: int = 7) -> Dict[str, Any]:
     """Get success/fail statistics for the past N days.
@@ -239,6 +244,7 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
         logger.error(f"Error computing success rate: {e}")
         return {}
 
+
 def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
     """Log recent orchestrator runs."""
     runs = get_recent_runs(days, limit)
@@ -263,6 +269,7 @@ def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
             f"{ok}/{halt}/{err:<10} {summary:<50}"
         )
 
+
 def print_failed_runs(days: int = 30) -> None:
     """Log failed/halted runs."""
     runs = get_failed_runs(days)
@@ -280,6 +287,7 @@ def print_failed_runs(days: int = 30) -> None:
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {reason:<60}"
         )
 
+
 def print_halt_patterns(days: int = 30) -> None:
     """Log phase halt patterns."""
     patterns = get_halt_patterns(days)
@@ -296,6 +304,7 @@ def print_halt_patterns(days: int = 30) -> None:
             logger.info(f"  • {reason[:60]}")
         logger.info("")
 
+
 def print_success_rate(days: int = 7) -> None:
     """Log success rate stats."""
     stats = get_success_rate(days)
@@ -311,6 +320,7 @@ def print_success_rate(days: int = 7) -> None:
     logger.info("  By status:")
     for status, count in stats["by_status"].items():
         logger.info(f"    {status:10s}: {count}")
+
 
 if __name__ == "__main__":
     import sys

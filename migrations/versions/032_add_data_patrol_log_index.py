@@ -31,6 +31,7 @@ _INDEXES = [
     "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_data_patrol_log_created_at ON data_patrol_log(created_at DESC)",
 ]
 
+
 def _connect_autocommit():
     """Open an autocommit connection for CREATE INDEX CONCURRENTLY.
 
@@ -62,6 +63,7 @@ def _connect_autocommit():
     conn.autocommit = True
     return conn
 
+
 def up():
     """Add index on data_patrol_log.created_at (DESC)."""
     conn = _connect_autocommit()
@@ -76,6 +78,7 @@ def up():
 
     cur.close()
     conn.close()
+
 
 def down():
     """Remove index on data_patrol_log.created_at."""

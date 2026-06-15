@@ -18,6 +18,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"
 
+
 def up():
     """Update all 'admin-user' references to real admin Cognito sub."""
     admin_cognito_sub = os.getenv("ADMIN_COGNITO_SUB", "").strip()
@@ -64,6 +65,7 @@ def up():
                 raise
 
     print("Admin Cognito sub replaced in all tables: " + admin_cognito_sub)
+
 
 def down():
     """Revert to 'admin-user' placeholder (rollback only)."""

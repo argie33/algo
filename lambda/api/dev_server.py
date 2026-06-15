@@ -17,6 +17,7 @@ from urllib.parse import urlparse, parse_qs
 os.environ["DEV_BYPASS_AUTH"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 
+
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
 def _load_db_credentials():
     """Load DB credentials from AWS Secrets Manager if available, else environment variables.
@@ -99,6 +100,7 @@ def _load_db_credentials():
         print("[DEV_SERVER]", flush=True)
         sys.exit(1)
 
+
 creds = _load_db_credentials()
 os.environ["DB_HOST"] = creds["host"]
 os.environ["DB_PORT"] = str(creds["port"])
@@ -153,6 +155,7 @@ try:
         f.flush()
 except (IOError, OSError):
     pass
+
 
 class APIHandler(BaseHTTPRequestHandler):
     """HTTP request handler that routes to Lambda function."""
@@ -334,6 +337,7 @@ class APIHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         """Suppress default HTTP logging."""
 
+
 def run_dev_server(port=3001):
     """Run the development server."""
     server_address = ("", port)
@@ -346,6 +350,7 @@ def run_dev_server(port=3001):
     except KeyboardInterrupt:
         logger.info("Shutting down...")
         httpd.shutdown()
+
 
 if __name__ == "__main__":
     port = int(os.getenv("API_PORT", 3001))

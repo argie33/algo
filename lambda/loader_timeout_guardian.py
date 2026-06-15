@@ -35,8 +35,10 @@ MAX_RUNTIME_SECONDS = {
     "DEFAULT": 1 * 3600,  # 1 hour max
 }
 
+
 def get_max_runtime(loader_name):
     return MAX_RUNTIME_SECONDS.get(loader_name, MAX_RUNTIME_SECONDS["DEFAULT"])
+
 
 def lambda_handler(event, context):
     """Monitor and kill indefinitely-running loaders."""
@@ -129,6 +131,7 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Guardian check failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": str(e)}
+
 
 def kill_loader_task(loader_name):
     """Find and kill ECS task running this loader."""

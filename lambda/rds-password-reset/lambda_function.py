@@ -14,6 +14,7 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def lambda_handler(event, context):
     """Reset RDS master password by retrieving credentials from Secrets Manager."""
 

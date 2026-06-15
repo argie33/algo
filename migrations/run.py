@@ -25,6 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def _has_sql_content(stmt: str) -> bool:
     """Return True if stmt has any SQL beyond whitespace and -- line comments."""
     for line in stmt.splitlines():
@@ -32,6 +33,7 @@ def _has_sql_content(stmt: str) -> bool:
         if s and not s.startswith("--"):
             return True
     return False
+
 
 def _split_sql_statements(sql: str) -> list:
     """Split SQL into individual statements on ';', respecting dollar-quoted strings.
@@ -90,6 +92,7 @@ def _split_sql_statements(sql: str) -> list:
 
     return statements
 
+
 def _load_credentials():
     """Load database credentials from environment or stdin.
 
@@ -135,6 +138,7 @@ def _load_credentials():
         os.getenv("DB_NAME", "algo"),
     )
 
+
 # Database connection details from environment or stdin
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME = _load_credentials()
 
@@ -149,6 +153,7 @@ _ssl_map = {
 DB_SSL = _ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
 
 MIGRATIONS_DIR = Path(__file__).parent / "versions"
+
 
 class MigrationRunner:
     """Manages schema migrations with versioning."""
@@ -370,6 +375,7 @@ class MigrationRunner:
 
         return success
 
+
 def main():
     """CLI entry point."""
     # Filter out --credentials-from-stdin from sys.argv for cleaner argument parsing
@@ -426,6 +432,7 @@ def main():
 
     finally:
         runner.disconnect()
+
 
 if __name__ == "__main__":
     main()

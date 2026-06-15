@@ -29,6 +29,7 @@ from utils.loaders.helpers import get_active_symbols
 
 logger = logging.getLogger(__name__)
 
+
 class VectorizedSwingScoresLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
 
@@ -120,18 +121,13 @@ class VectorizedSwingScoresLoader:
         """Fetch signal quality scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                placeholders = ",".join(["%s"] * len(symbols))
+                ph = ",".join(["%s"] * len(symbols))
                 cur.execute(
-                    """
-                    SELECT symbol, date, composite_sqs
-                    FROM signal_quality_scores
-                    WHERE symbol IN ({placeholders})
-                    AND date >= %s AND date <= %s
-                    ORDER BY symbol, date DESC
-                """,
+                    "SELECT symbol, date, composite_sqs FROM signal_quality_scores"
+                    " WHERE symbol IN (" + ph + ")"
+                    " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     symbols + [start_date, end_date],
                 )
-
                 return pd.DataFrame(
                     cur.fetchall(), columns=["symbol", "date", "composite_sqs"]
                 )
@@ -145,18 +141,13 @@ class VectorizedSwingScoresLoader:
         """Fetch technical indicators for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                placeholders = ",".join(["%s"] * len(symbols))
+                ph = ",".join(["%s"] * len(symbols))
                 cur.execute(
-                    """
-                    SELECT symbol, date, rsi, atr_14, volume_ma_50
-                    FROM technical_data_daily
-                    WHERE symbol IN ({placeholders})
-                    AND date >= %s AND date <= %s
-                    ORDER BY symbol, date DESC
-                """,
+                    "SELECT symbol, date, rsi, atr_14, volume_ma_50 FROM technical_data_daily"
+                    " WHERE symbol IN (" + ph + ")"
+                    " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     symbols + [start_date, end_date],
                 )
-
                 return pd.DataFrame(
                     cur.fetchall(),
                     columns=["symbol", "date", "rsi", "atr_14", "volume_ma_50"],
@@ -171,18 +162,14 @@ class VectorizedSwingScoresLoader:
         """Fetch trend template scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                placeholders = ",".join(["%s"] * len(symbols))
+                ph = ",".join(["%s"] * len(symbols))
                 cur.execute(
-                    """
-                    SELECT symbol, date, weinstein_stage, minervini_trend_score, trend_direction
-                    FROM trend_template_data
-                    WHERE symbol IN ({placeholders})
-                    AND date >= %s AND date <= %s
-                    ORDER BY symbol, date DESC
-                """,
+                    "SELECT symbol, date, weinstein_stage, minervini_trend_score, trend_direction"
+                    " FROM trend_template_data"
+                    " WHERE symbol IN (" + ph + ")"
+                    " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     symbols + [start_date, end_date],
                 )
-
                 return pd.DataFrame(
                     cur.fetchall(),
                     columns=[
@@ -229,7 +216,9 @@ class VectorizedSwingScoresLoader:
                     float(tech.get("rsi", 50)) if tech is not None else 50.0
                 )
                 volume_score = 70.0  # From price ROC
-                fundamentals_score = float(sig.get("composite_sqs", 50)) if sig is not None else 50.0
+                fundamentals_score = (
+                    float(sig.get("composite_sqs", 50)) if sig is not None else 50.0
+                )
 
                 total_score = (
                     setup_score * 0.25
@@ -336,6 +325,7 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 
+
 def _update_swing_loader_status(status: str, error_message: str = None):
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
@@ -367,6 +357,7 @@ def _update_swing_loader_status(status: str, error_message: str = None):
                 (status, error_message, "swing_trader_scores"),
             )
 
+
 def _swing_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
@@ -383,6 +374,7 @@ def _swing_heartbeat_worker(stop_event):
                 )
         except Exception as e:
             logger.debug(f"Swing scores heartbeat failed: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -479,6 +471,7 @@ def main():
         # Stop heartbeat thread
         stop_heartbeat.set()
         heartbeat_thread.join(timeout=5)
+
 
 if __name__ == "__main__":
     logging.basicConfig(

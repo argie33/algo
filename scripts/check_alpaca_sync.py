@@ -16,6 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def check_alpaca_connection():
     """Test Alpaca API connection."""
     logger.info("\n" + "=" * 70)
@@ -70,6 +71,7 @@ def check_alpaca_connection():
 
         logger.debug(traceback.format_exc())
         return False
+
 
 def check_alpaca_positions():
     """Check what positions Alpaca shows."""
@@ -152,6 +154,7 @@ def check_alpaca_positions():
         logger.error(f"Error fetching Alpaca positions: {e}")
         return []
 
+
 def check_db_positions():
     """Check what positions are in the database."""
     logger.info("\n" + "=" * 70)
@@ -189,6 +192,7 @@ def check_db_positions():
     except Exception as e:
         logger.error(f"Error reading DB positions: {e}")
         return []
+
 
 def check_position_drift():
     """Compare Alpaca vs DB positions."""
@@ -236,6 +240,7 @@ def check_position_drift():
 
     except Exception as e:
         logger.error(f"Error analyzing drift: {e}")
+
 
 if __name__ == "__main__":
     try:

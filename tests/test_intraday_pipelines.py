@@ -17,6 +17,7 @@ import os
 project_root = str(os.path.dirname(__file__).rsplit("/", 1)[0])
 sys.path.insert(0, project_root)
 
+
 def test_morning_pipeline_timing():
     """Verify morning pipeline completes before 9:30 AM (7.5h before is 2:00 AM)"""
     print("\n=== TEST: Morning Pipeline Timing ===")
@@ -30,6 +31,7 @@ def test_morning_pipeline_timing():
     print("Check CloudWatch logs for /ecs/algo-*-loader timestamps")
     print("Requirement: Ready 7.5 hours before 9:30 AM market open [OK]")
 
+
 def test_afternoon_update_pipeline():
     """Verify afternoon update pipeline triggers before 1 PM and completes by 1:05 PM"""
     print("\n=== TEST: Afternoon Update Pipeline (1 PM) ===")
@@ -42,6 +44,7 @@ def test_afternoon_update_pipeline():
     print("1. Check CloudWatch: /ecs/algo-swing_trader_scores_vectorized-loader")
     print("2. Look for INTRADAY_MODE=true in logs at 12:50 PM")
     print("3. Confirm 'computed_at' timestamp in swing_trader_scores is ~1 PM")
+
 
 def test_preclose_update_pipeline():
     """Verify pre-close update pipeline completes before 3:15 PM SLA"""
@@ -59,6 +62,7 @@ def test_preclose_update_pipeline():
     print("3. Confirm completion BEFORE 3:15 PM")
     print("4. Verify 'computed_at' timestamp in swing_trader_scores is ~3 PM")
 
+
 def test_fresh_scores_used_by_orchestrator():
     """Verify orchestrators use fresh scores from intraday updates"""
     print("\n=== TEST: Orchestrator Uses Fresh Scores ===")
@@ -72,6 +76,7 @@ def test_fresh_scores_used_by_orchestrator():
     print("  - Should query swing_trader_scores with computed_at ~ 2:50 PM")
     print("  - NOT morning's 2:00 AM scores")
     print("  - Check orchestrator Phase 5 logs for score lookup timestamp")
+
 
 def test_no_database_conflicts():
     """Verify concurrent loader runs don't conflict"""
@@ -88,6 +93,7 @@ def test_no_database_conflicts():
     print("1. No lock timeouts in CloudWatch logs")
     print("2. No 'database connection pool exhausted' errors")
     print("3. All loaders complete successfully")
+
 
 def test_failure_scenarios():
     """Test what happens if pipelines fail"""
@@ -106,6 +112,7 @@ def test_failure_scenarios():
     print("  Expected: 9:30 AM orchestrator uses previous day's scores (or halts)")
     print("  Expected: Afternoon/pre-close orchestrators fail or use fallback")
     print("  Check: Phase 1 halt detection in orchestrator logs")
+
 
 def validate_intraday_mode_support():
     """Check that loaders support INTRADAY_MODE environment variable"""
@@ -131,6 +138,7 @@ def validate_intraday_mode_support():
 
     return True
 
+
 def validate_terraform_state_machines():
     """Check that Terraform state machines were created"""
     print("\n=== TEST: Terraform Step Functions State Machines ===")
@@ -153,6 +161,7 @@ def validate_terraform_state_machines():
     print("4. Check execution history for each")
     return True
 
+
 def validate_eventbridge_rules():
     """Check that EventBridge scheduler rules exist"""
     print("\n=== TEST: EventBridge Scheduler Rules ===")
@@ -174,6 +183,7 @@ def validate_eventbridge_rules():
     print("3. Verify all 4 rules exist and are ENABLED")
     print("4. Check timezone: America/New_York")
     return True
+
 
 def main():
     """Run all tests"""
@@ -220,6 +230,7 @@ Success Criteria:
     """)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

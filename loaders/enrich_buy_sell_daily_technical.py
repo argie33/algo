@@ -23,6 +23,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 def enrich_technical_data(
     since: Optional[date] = None, symbols: Optional[List[str]] = None
 ) -> dict:
@@ -153,6 +154,7 @@ def enrich_technical_data(
         logger.error(f"Enrichment failed: {e}")
         raise
 
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -197,6 +199,7 @@ def main():
     except Exception as e:
         logger.error(f"Failed: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

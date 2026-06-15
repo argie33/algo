@@ -84,11 +84,13 @@ _PERIOD_CONFIG = {
     },
 }
 
+
 def _resolve_period(cli_arg: Optional[str]) -> str:
     """Resolve period from CLI arg or LOADER_PERIOD env var (not LOADER_TYPE)."""
     if cli_arg:
         return cli_arg
     return os.getenv("LOADER_PERIOD", "annual")
+
 
 class IncomeStatementLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -185,6 +187,7 @@ class IncomeStatementLoader(OptimalLoader):
 
         return True
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Income statement loader (annual/quarterly)"
@@ -224,6 +227,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

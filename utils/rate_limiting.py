@@ -26,9 +26,11 @@ logger = logging.getLogger(__name__)
 _admin_rate_limits: Dict[str, list] = {}  # {user_endpoint: [timestamps, ...]}
 _public_rate_limits: Dict[str, list] = {}  # {endpoint: [timestamps, ...]}
 
+
 def _get_admin_rate_limit_key(user_id: str, endpoint: str) -> str:
     """Generate a unique key for per-user, per-endpoint rate limit tracking."""
     return f"{user_id}:{endpoint}"
+
 
 # =====================================================================
 # PUBLIC ENDPOINTS (No Authentication Required)
@@ -80,6 +82,7 @@ PUBLIC_RATE_LIMITS = {
     },
 }
 
+
 def check_public_rate_limit(
     endpoint: str, max_requests: int = 100, window_seconds: int = 60
 ) -> Tuple[bool, Optional[str]]:
@@ -117,6 +120,7 @@ def check_public_rate_limit(
 
     _public_rate_limits[endpoint].append(now)
     return True, None
+
 
 # =====================================================================
 # ADMIN ENDPOINTS (Authentication Required: Admin Group)
@@ -263,6 +267,7 @@ ADMIN_RATE_LIMITS = {
     },
 }
 
+
 def check_admin_rate_limit(
     user_id: str,
     endpoint: str,
@@ -296,6 +301,7 @@ def check_admin_rate_limit(
             user_id, endpoint, max_requests, window_start, now
         )
 
+
 def _check_memory_rate_limit(
     user_id: str,
     endpoint: str,
@@ -326,6 +332,7 @@ def _check_memory_rate_limit(
 
     _admin_rate_limits[key].append(now)
     return True, None
+
 
 def _check_dynamodb_rate_limit(
     user_id: str,

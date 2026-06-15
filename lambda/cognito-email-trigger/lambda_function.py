@@ -22,6 +22,7 @@ logger.setLevel(logging.INFO)
 _ses_client = None
 _ses_client_lock = threading.Lock()
 
+
 def get_ses_client():
     """Lazy-load SES client to avoid credential loading during imports (thread-safe)."""
     global _ses_client
@@ -32,9 +33,11 @@ def get_ses_client():
                 _ses_client = boto3.client("ses", region_name="us-east-1")
     return _ses_client
 
+
 # Configuration
 SENDER_EMAIL = "argeropolos@gmail.com"
 SENDER_NAME = "Bullseye Trading"
+
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle Cognito custom message trigger."""
@@ -71,6 +74,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Return event unchanged (Cognito won't send its default email)
     return event
 
+
 def send_email(recipient: str, subject: str, html_body: str) -> None:
     """Send email via AWS SES."""
     get_ses_client().send_email(
@@ -81,6 +85,7 @@ def send_email(recipient: str, subject: str, html_body: str) -> None:
             "Body": {"Html": {"Data": html_body, "Charset": "UTF-8"}},
         },
     )
+
 
 def build_signup_email(email: str, code: str) -> tuple[str, str]:
     """Build sign-up confirmation email."""
@@ -103,6 +108,7 @@ def build_signup_email(email: str, code: str) -> tuple[str, str]:
     """
     return subject, html
 
+
 def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
     """Build password reset email."""
     subject = "Reset Your Bullseye Trading Password"
@@ -124,6 +130,7 @@ def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
     """
     return subject, html
 
+
 def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
     """Build resend confirmation code email."""
     subject = "Your Bullseye Trading Confirmation Code"
@@ -142,6 +149,7 @@ def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
     </html>
     """
     return subject, html
+
 
 def build_admin_create_user_email(email: str, code: str) -> tuple[str, str]:
     """Build admin-created user welcome email."""

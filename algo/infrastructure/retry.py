@@ -37,6 +37,7 @@ from algo.infrastructure.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 def retry(
     max_attempts: int = 3,
     base_delay: float = RETRY_BASE_DELAY_SEC,
@@ -93,6 +94,7 @@ def retry(
 
     return decorator
 
+
 class RateLimiter:
     """
     Token-bucket rate limiter — thread-safe.
@@ -120,6 +122,7 @@ class RateLimiter:
             if elapsed < self._min_interval:
                 time.sleep(self._min_interval - elapsed)
             self._last_call = time.monotonic()
+
 
 # ── Pre-built limiters for known providers ────────────────────────────────────
 # See algo.infrastructure.constants for CPM values and rationale

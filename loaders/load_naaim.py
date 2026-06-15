@@ -16,6 +16,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class NAAIMExposureLoader(OptimalLoader):
     """Load NAAIM fund manager exposure index."""
 
@@ -114,6 +115,7 @@ class NAAIMExposureLoader(OptimalLoader):
             logger.error(f"Failed to fetch NAAIM data: {e}")
             return None
 
+
 def main():
     loader = NAAIMExposureLoader()
     result = loader.load_global()
@@ -124,6 +126,7 @@ def main():
     else:
         logger.warning("COMPLETED: No NAAIM data loaded")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

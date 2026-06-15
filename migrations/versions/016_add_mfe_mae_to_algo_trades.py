@@ -12,6 +12,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add mfe_pct and mae_pct columns to algo_trades table"
 
+
 def up():
     with DatabaseContext("write") as cur:
         # Add mfe_pct column (Maximum Favorable Excursion percentage)
@@ -31,6 +32,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_trades_mfe_mae
             ON algo_trades(mfe_pct, mae_pct) WHERE mfe_pct IS NOT NULL AND mae_pct IS NOT NULL
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

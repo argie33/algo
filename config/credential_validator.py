@@ -16,8 +16,10 @@ from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 class CredentialValidationError(Exception):
     """Raised when required credentials are missing."""
+
 
 def validate_credentials() -> Tuple[bool, List[str]]:
     """Validate that all required credentials are present and complete.
@@ -154,6 +156,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
 
     return len(errors) == 0, errors + warnings
 
+
 def assert_credentials(on_failure: str = "raise") -> bool:
     """
     Assert that all required credentials are present.
@@ -196,6 +199,7 @@ def assert_credentials(on_failure: str = "raise") -> bool:
         return False
 
     return is_valid
+
 
 if __name__ == "__main__":
     # Test the validator

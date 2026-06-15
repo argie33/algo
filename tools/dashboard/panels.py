@@ -22,6 +22,7 @@ except ImportError as e:
             return args[0]
         return lambda fn: fn
 
+
 from rich import box
 from rich.align import Align
 from rich.console import Group
@@ -62,11 +63,13 @@ from formatters import (
     next_run_str,
 )
 
+
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
         return seq[(frame // 2) % len(seq)]
     return LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+
 
 def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
@@ -114,6 +117,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         found.append(("", top_level))
     return found
 
+
 def _fmt_phases_halted(phases_halted) -> str:
     """Turn a phases_halted array into a compact human-readable label."""
     if not phases_halted:
@@ -136,6 +140,7 @@ def _fmt_phases_halted(phases_halted) -> str:
         names.append(PHASE_NAMES.get(base, raw.replace("phase_", "P")))
     return ", ".join(names[:3])
 
+
 def _error_panel(data_name: str, data, title: str, border="magenta"):
     """Create a panel showing granular error info for failed data sources."""
     if not data:
@@ -157,6 +162,7 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
 
     return None
 
+
 def _extract_items(data: any) -> list:
     """Safely extract items list from data structure, propagating errors."""
     if isinstance(data, dict):
@@ -168,7 +174,9 @@ def _extract_items(data: any) -> list:
         return data
     return []
 
+
 # ── panel builders ────────────────────────────────────────────────────────────
+
 
 def panel_orch(run, cfg, risk=None):
     next_run = next_run_str()
@@ -306,6 +314,7 @@ def panel_orch(run, cfg, risk=None):
         body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1)
     )
 
+
 def panel_market_full(mkt, sentiment=None):
     """Market regime + internals combined."""
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
@@ -405,6 +414,7 @@ def panel_market_full(mkt, sentiment=None):
     txt = Text.from_markup("\n".join(lines))
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
+
 @register_panel(
     "circuit",
     endpoint_deps=["cb"],
@@ -459,6 +469,7 @@ def panel_circuit(cb, risk=None):
         border_style="blue",
         padding=(0, 1),
     )
+
 
 @register_panel(
     "header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header"
@@ -587,6 +598,7 @@ def panel_header_market(
         Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1)
     )
 
+
 @register_panel(
     "portfolio",
     endpoint_deps=["port", "cfg", "risk", "perf"],
@@ -696,6 +708,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         padding=(0, 1),
     )
 
+
 def _calculate_adjusted_win_rate(perf, pos):
     """E10 Fix: Include losing open positions in win rate calculation.
 
@@ -723,6 +736,7 @@ def _calculate_adjusted_win_rate(perf, pos):
 
     adjusted_wr = (closed_wins / total_trades) * 100
     return adjusted_wr, closed_wins, closed_losses + losing_open
+
 
 @register_panel(
     "performance",
@@ -883,6 +897,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         border_style="green",
         padding=(0, 1),
     )
+
 
 @register_panel(
     "positions", endpoint_deps=["pos", "trades"], optional=True, description="Positions"
@@ -1058,6 +1073,7 @@ def panel_positions(pos, compact=False, trades=None):
         border_style=border,
         padding=(0, 0),
     )
+
 
 @register_panel(
     "signals", endpoint_deps=["sig", "sig_eval"], optional=True, description="Signals"
@@ -1296,6 +1312,7 @@ def panel_signals_compact(sig, sig_eval=None):
         padding=(0, 1),
     )
 
+
 @register_panel("trades", endpoint_deps=["trades"], optional=True, description="Trades")
 def panel_recent_trades(trades):
     # Closed/recent trade history - sits alongside positions panel
@@ -1387,6 +1404,7 @@ def panel_recent_trades(trades):
     )
     return Panel(content, title=f"{title}{age_s}", border_style=border, padding=(0, 0))
 
+
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
     """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding."""
     cur, old = r.get("current_rank", 0), r.get(wk)
@@ -1405,6 +1423,7 @@ def _rdelta(r, wk="rank_1w_ago", wk4=None):
             )
             return f"{s1}[dim]/[/]{s4}"
     return s1
+
 
 @register_panel(
     "sectors",
@@ -1538,6 +1557,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         border_style="cyan",
         padding=(0, 1),
     )
+
 
 @register_panel(
     "economic", endpoint_deps=["eco", "econ_cal"], optional=True, description="Economic"
@@ -1708,6 +1728,7 @@ def panel_economic_pulse(eco, econ_cal=None):
         padding=(0, 1),
     )
 
+
 @register_panel(
     "exposure", endpoint_deps=["exp_factors"], optional=True, description="Exposure"
 )
@@ -1836,6 +1857,7 @@ def panel_exposure_compact(exp_f):
         border_style="blue",
         padding=(0, 1),
     )
+
 
 def panel_status(
     act,
@@ -2316,6 +2338,7 @@ def panel_status(
         padding=(0, 1),
     )
 
+
 @register_panel(
     "health",
     endpoint_deps=[
@@ -2727,11 +2750,13 @@ def panel_algo_health(
         padding=(0, 1),
     )
 
+
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 
 MASCOT_H = 8
+
 
 def mascot_compact(data: dict, frame: int) -> Panel:
     fi = mascot_pose(data, frame)
@@ -2751,7 +2776,9 @@ def mascot_compact(data: dict, frame: int) -> Panel:
         padding=(0, 0),
     )
 
+
 # ── loading layout — mascot compact in top-right ──────────────────────────────
+
 
 def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
@@ -2810,7 +2837,9 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     layout["main"].update(main_panel)
     return layout
 
+
 # ── expanded panel helpers ────────────────────────────────────────────────────
+
 
 def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Layout:
     """Shared skeleton: market header row on top, one full-height panel below."""
@@ -2826,6 +2855,7 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
     exp["etop"]["emsc"].update(mascot_panel)
     exp["emain"].update(main_panel)
     return exp
+
 
 @register_panel(
     "signals_expanded",
@@ -2988,6 +3018,7 @@ def panel_signals_expanded(sig, sig_eval=None):
         border_style=border,
         padding=(0, 1),
     )
+
 
 @register_panel(
     "health_expanded",
@@ -3248,6 +3279,7 @@ def panel_algo_health_expanded(
         padding=(0, 1),
     )
 
+
 @register_panel(
     "sectors_expanded",
     endpoint_deps=["srank", "pos", "port", "sec_rot", "irank"],
@@ -3383,6 +3415,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         padding=(0, 1),
     )
 
+
 def _extract_items(data: Any) -> list:
     """Normalize data structure by extracting items list, propagating errors.
 
@@ -3399,5 +3432,6 @@ def _extract_items(data: Any) -> list:
     if isinstance(data, list):
         return data
     return []
+
 
 # ── dashboard layout ──────────────────────────────────────────────────────────

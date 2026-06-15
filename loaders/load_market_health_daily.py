@@ -21,6 +21,7 @@ from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
 
+
 class MarketHealthDailyLoader(OptimalLoader):
     table_name = "market_health_daily"
     primary_key = ("date",)
@@ -381,6 +382,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return results
 
+
 # Index symbols stored in price_daily to power frontend charts that call /api/prices/history/{sym}
 # VIX family: VolTermStructureCard in MarketsHealth
 # Market indices: IndicesStrip sparklines + Distribution Days timeline
@@ -395,6 +397,7 @@ INDEX_SYMBOLS_FOR_PRICE_DAILY = [
     "^DJI",
     "^RUT",
 ]
+
 
 def _write_vix_family_prices(start: date, end: date) -> int:
     """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
@@ -510,6 +513,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         logger.error(f"VIX family price write failed: {e}")
         return 0
 
+
 def main():
     from utils.logging.history_tracker import LoaderHistoryTracker
 
@@ -541,6 +545,7 @@ def main():
         logger.error(f"Market health daily load failed: {e}")
         tracker.failed(error_message=str(e))
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

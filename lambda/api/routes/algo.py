@@ -1,8 +1,14 @@
 ﻿"""Route: algo"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, json, os
+import logging
+import re
+import json
+import os
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
@@ -44,6 +50,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
+
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
@@ -52,6 +59,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     if groups is None:
         groups = []
     return "admin" in groups
+
 
 def handle(
     cur,
@@ -69,6 +77,7 @@ def handle(
         return error_response(
             500, "internal_error", "An error occurred while processing your request"
         )
+
 
 def _dispatch(
     cur,
@@ -93,7 +102,9 @@ def _dispatch(
 
     if method == "PATCH" and path.endswith("/read") and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1].replace("/read", "")
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -131,7 +142,9 @@ def _dispatch(
             return error_response(code, error_type, message)
     if method == "DELETE" and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1]
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -161,7 +174,9 @@ def _dispatch(
             logger.error(f"Failed to delete notification: {error_type} - {message}")
             return error_response(code, error_type, message)
     if method == "POST" and path == "/api/algo/patrol":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -179,7 +194,9 @@ def _dispatch(
                 return error_response(429, "too_many_requests", error_msg)
         return _trigger_data_patrol()
     if method == "POST" and path == "/api/algo/pre-trade-impact":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -240,7 +257,12 @@ def _dispatch(
             return error_response(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        dev_bypass = os.environ.get("DEV_BYPASS_AUTH")
+        print(f"[PATROL-LOG DEBUG] DEV_BYPASS_AUTH={dev_bypass}, type={type(dev_bypass)}, jwt_claims={jwt_claims}", flush=True)
+        logger.info(f"[PATROL-LOG] DEV_BYPASS_AUTH={dev_bypass}")
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -325,7 +347,9 @@ def _dispatch(
         # Config accessible to authenticated users
         return _get_algo_config(cur)
     elif path.startswith("/api/algo/config/"):
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -343,7 +367,9 @@ def _dispatch(
         # Last run accessible to authenticated users
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -404,7 +430,9 @@ def _dispatch(
         return _get_algo_audit_log(cur, limit, offset, action_type)
     elif path == "/api/algo/execution/recent":
         # FIXED Issue #6: View recent orchestrator execution history
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -416,7 +444,9 @@ def _dispatch(
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
         # View failed/halted runs for diagnostics
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -426,7 +456,9 @@ def _dispatch(
         return _get_orchestrator_execution_failed(cur, days)
     elif path.startswith("/api/algo/execution/details/"):
         # View details of a specific orchestrator run
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -435,7 +467,9 @@ def _dispatch(
         return _get_orchestrator_execution_details(cur, run_id)
     elif path == "/api/algo/execution/patterns":
         # Analyze halt patterns - which phases halt most often
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -445,7 +479,9 @@ def _dispatch(
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
         # View execution statistics
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
@@ -556,6 +592,7 @@ def _dispatch(
     else:
         return error_response(404, "not_found", f"No algo handler for {path}")
 
+
 @db_route_handler("get last run")
 def _get_last_run(cur) -> Dict:
     """Get the most recent orchestrator run with per-phase status."""
@@ -603,6 +640,7 @@ def _get_last_run(cur) -> Dict:
             "phases": phases,
         },
     )
+
 
 @db_route_handler("fetch algo status")
 def _get_algo_status(cur) -> Dict:
@@ -690,6 +728,7 @@ def _get_algo_status(cur) -> Dict:
         },
     )
 
+
 @db_route_handler("fetch algo trades")
 def _get_algo_trades(
     cur, limit: int = 200, user_id: str = None, status: str = None
@@ -738,6 +777,7 @@ def _get_algo_trades(
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
     return json_response(200, sanitized)
+
 
 @db_route_handler("fetch algo positions")
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
@@ -894,6 +934,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
     return json_response(200, sanitized)
+
 
 @db_route_handler("calculate performance")
 def _get_algo_performance(cur) -> Dict:
@@ -1078,6 +1119,7 @@ def _get_algo_performance(cur) -> Dict:
             500, "internal_error", "Failed to fetch performance metrics"
         )
 
+
 @db_route_handler("fetch dashboard signals")
 def _get_dashboard_signals(cur) -> Dict:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
@@ -1190,6 +1232,7 @@ def _get_dashboard_signals(cur) -> Dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch dashboard signals")
         return error_response(code, error_type, message)
+
 
 @db_route_handler("fetch circuit breakers")
 def _get_circuit_breakers(cur) -> Dict:
@@ -1664,6 +1707,7 @@ def _get_circuit_breakers(cur) -> Dict:
         )
         return error_response(500, "internal_error", "Failed to fetch circuit breakers")
 
+
 def _get_equity_curve(cur, days: int = 180) -> Dict:
     """Get equity curve for last N days."""
     try:
@@ -1728,6 +1772,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             exc_info=True,
         )
         return error_response(500, "internal_error", "Failed to fetch equity curve")
+
 
 def _get_data_status(cur) -> Dict:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
@@ -1851,6 +1896,7 @@ def _get_data_status(cur) -> Dict:
         )
         return error_response(500, "internal_error", "Failed to fetch data status")
 
+
 def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
@@ -1920,6 +1966,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             exc_info=True,
         )
         return error_response(500, "internal_error", "Failed to fetch notifications")
+
 
 @db_route_handler("analyze trade impact")
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
@@ -2000,6 +2047,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             },
         },
     )
+
 
 def _calculate_trade_preview(cur, body: Dict) -> Dict:
     """Calculate position preview before trade entry.
@@ -2093,6 +2141,7 @@ def _calculate_trade_preview(cur, body: Dict) -> Dict:
         return error_response(
             500, "internal_error", f"Preview calculation failed: {str(e)[:100]}"
         )
+
 
 def _trigger_data_patrol() -> Dict:
     """Trigger async data patrol ECS task."""
@@ -2214,6 +2263,7 @@ def _trigger_data_patrol() -> Dict:
         )
         return error_response(500, "internal_error", "Failed to trigger data patrol")
 
+
 @db_route_handler("get patrol log")
 def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
     """Get data patrol findings with pagination."""
@@ -2234,6 +2284,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
     return list_response(
         [safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total
     )
+
 
 @db_route_handler("get sector rotation")
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
@@ -2321,6 +2372,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
     rotation = cur.fetchall()
     return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
 
+
 def _get_sector_breadth(cur) -> Dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -2405,6 +2457,7 @@ def _get_sector_breadth(cur) -> Dict:
             exc_info=True,
         )
         return error_response(500, "internal_error", "Failed to fetch sector breadth")
+
 
 def _get_sector_position_warnings(cur) -> Dict:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
@@ -2498,6 +2551,7 @@ def _get_sector_position_warnings(cur) -> Dict:
             f"Failed to fetch sector position warnings: {type(e).__name__}",
         )
 
+
 def _get_swing_scores(
     cur, limit: int = 100, min_score: float = None, symbol: str = None
 ) -> Dict:
@@ -2549,6 +2603,7 @@ def _get_swing_scores(
         )
         return error_response(500, "internal_error", "Failed to fetch swing scores")
 
+
 def _get_swing_scores_history(cur, days: int = 30) -> Dict:
     """Get swing scores historical data."""
     try:
@@ -2587,6 +2642,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             500, "internal_error", "Failed to fetch swing scores history"
         )
 
+
 def _get_rejection_reason_description(reason: str) -> str:
     """Generate human-readable description for rejection reason."""
     reason_lower = (reason or "").lower()
@@ -2612,6 +2668,7 @@ def _get_rejection_reason_description(reason: str) -> str:
             return desc
 
     return reason or "Unknown rejection reason"
+
 
 def _get_rejection_funnel(cur) -> Dict:
     """Get signal rejection funnel with detailed breakdown by filter."""
@@ -2785,6 +2842,7 @@ def _get_rejection_funnel(cur) -> Dict:
             },
         )
 
+
 _TIER_CONFIG = {
     "confirmed_uptrend": {
         "description": "Confirmed uptrend â€” full deployment",
@@ -2843,6 +2901,7 @@ _TIER_CONFIG = {
         "min_swing_score": 100.0,
     },
 }
+
 
 def _get_markets(cur) -> Dict:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
@@ -3002,6 +3061,7 @@ def _get_markets(cur) -> Dict:
             503, "service_unavailable", "Failed to fetch markets data"
         )
 
+
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -3121,6 +3181,7 @@ def _get_market(cur) -> Dict:
         )
         return error_response(503, "service_unavailable", "Failed to fetch market data")
 
+
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
     try:
@@ -3183,6 +3244,7 @@ def _get_market_factors(cur) -> Dict:
         return error_response(
             503, "service_unavailable", "Failed to fetch market factors"
         )
+
 
 def _get_algo_evaluate(cur) -> Dict:
     """Get comprehensive signal evaluation with candidate analysis and constraints."""
@@ -3343,6 +3405,7 @@ def _get_algo_evaluate(cur) -> Dict:
             },
         )
 
+
 def _get_data_quality(cur) -> Dict:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
@@ -3452,6 +3515,7 @@ def _get_data_quality(cur) -> Dict:
         code, error_type, message = handle_db_error(e, "check data quality")
         logger.error(f"Failed to check data quality: {error_type} - {message}")
         return error_response(code, error_type, message)
+
 
 @db_route_handler("fetch exposure policy")
 def _get_exposure_policy(cur) -> Dict:
@@ -3602,6 +3666,7 @@ def _get_exposure_policy(cur) -> Dict:
             503, "service_unavailable", "Market exposure data temporarily unavailable"
         )
 
+
 def _get_sector_stage2(cur) -> Dict:
     """Get percentage of stocks in Stage 2 by sector."""
     try:
@@ -3648,6 +3713,7 @@ def _get_sector_stage2(cur) -> Dict:
     except Exception as e:
         logger.error(f"Sector stage2 unexpected error: {e}")
         return error_response(500, "internal_error", "Failed to fetch sector stage2")
+
 
 def _categorize_config_key(key: str) -> str:
     """Categorize configuration key for TIER 3 visibility grouping."""
@@ -3779,6 +3845,7 @@ def _categorize_config_key(key: str) -> str:
     else:
         return "Other"
 
+
 @db_route_handler("fetch algo config")
 def _get_algo_config(cur) -> Dict:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
@@ -3812,6 +3879,7 @@ def _get_algo_config(cur) -> Dict:
 
     return list_response(config_items)
 
+
 @db_route_handler("fetch algo config key")
 def _get_algo_config_key(cur, key: str) -> Dict:
     """Return a single algo config key."""
@@ -3823,6 +3891,7 @@ def _get_algo_config_key(cur, key: str) -> Dict:
     return json_response(
         200, safe_json_serialize(safe_dict_convert(row)) if row else {}
     )
+
 
 @db_route_handler("update algo config key")
 def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
@@ -3894,6 +3963,7 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         },
     )
 
+
 @db_route_handler("reset algo config key")
 def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
@@ -3946,6 +4016,7 @@ def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
         },
     )
 
+
 @db_route_handler("get algo audit log")
 def _get_algo_audit_log(
     cur, limit: int = 100, offset: int = 0, action_type: str = None
@@ -3991,6 +4062,7 @@ def _get_algo_audit_log(
         offset=offset,
     )
 
+
 # FIXED Issue #6: Orchestrator execution history endpoints
 @db_route_handler("fetch orchestrator execution recent")
 @db_route_handler("fetch orchestrator execution recent")
@@ -4025,6 +4097,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
         )
         return list_response([], total=0, limit=limit)
 
+
 @db_route_handler("fetch orchestrator execution failed")
 def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
     """Return failed/halted orchestrator runs."""
@@ -4042,6 +4115,7 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
     return list_response(
         [safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows)
     )
+
 
 @db_route_handler("fetch orchestrator execution details")
 def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
@@ -4069,6 +4143,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
             logger.warning(f"Failed to parse phase_results JSON: {e}")
             result["phase_results"] = {}
     return success_response(result)
+
 
 @db_route_handler("fetch orchestrator execution patterns")
 def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
@@ -4098,6 +4173,7 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
         for r in rows
     ]
     return success_response({"patterns": patterns, "period_days": days})
+
 
 @db_route_handler("fetch orchestrator execution stats")
 def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
@@ -4134,6 +4210,7 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
             "period_days": days,
         }
     )
+
 
 @db_route_handler("get algo portfolio")
 def _get_algo_portfolio(cur) -> Dict:
@@ -4205,6 +4282,7 @@ def _get_algo_portfolio(cur) -> Dict:
         logger.error(f"Portfolio fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Portfolio data unavailable")
 
+
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
     try:
@@ -4238,6 +4316,7 @@ def _get_algo_metrics(cur) -> Dict:
     except Exception as e:
         logger.error(f"Metrics fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Metrics unavailable")
+
 
 @db_route_handler("get risk metrics")
 def _get_risk_metrics(cur) -> Dict:
@@ -4276,6 +4355,7 @@ def _get_risk_metrics(cur) -> Dict:
     except Exception as e:
         logger.error(f"Risk metrics fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Risk metrics unavailable")
+
 
 @db_route_handler("get performance analytics")
 def _get_performance_analytics(cur) -> Dict:
@@ -4321,6 +4401,7 @@ def _get_performance_analytics(cur) -> Dict:
             503, "service_unavailable", "Performance analytics unavailable"
         )
 
+
 @db_route_handler("get sentiment")
 def _get_sentiment(cur) -> Dict:
     """Get market sentiment data.
@@ -4361,6 +4442,7 @@ def _get_sentiment(cur) -> Dict:
             "data_freshness": freshness,
         }
     )
+
 
 @db_route_handler("get economic calendar")
 def _get_economic_calendar(cur) -> Dict:
@@ -4407,6 +4489,7 @@ def _get_economic_calendar(cur) -> Dict:
         return error_response(
             503, "service_unavailable", "Economic calendar unavailable"
         )
+
 
 @db_route_handler("get daily return histogram")
 def _get_daily_return_histogram(cur) -> Dict:
@@ -4461,6 +4544,7 @@ def _get_daily_return_histogram(cur) -> Dict:
 
     return json_response(200, {"buckets": buckets, "stats": stats})
 
+
 @db_route_handler("get trade distribution")
 def _get_trade_distribution(cur) -> Dict:
     """Return distribution of trade outcomes by R-multiple."""
@@ -4509,6 +4593,7 @@ def _get_trade_distribution(cur) -> Dict:
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
     return json_response(200, {"buckets": filtered_buckets})
+
 
 @db_route_handler("get holding period distribution")
 def _get_holding_period_distribution(cur) -> Dict:
@@ -4562,6 +4647,7 @@ def _get_holding_period_distribution(cur) -> Dict:
     filtered_buckets = [b for b in buckets if b["count"] > 0]
     return json_response(200, {"buckets": filtered_buckets})
 
+
 @db_route_handler("get stage distribution")
 def _get_stage_distribution(cur) -> Dict:
     """Return distribution of positions by Weinstein stage."""
@@ -4592,6 +4678,7 @@ def _get_stage_distribution(cur) -> Dict:
     distribution = [{"phase": r["phase"], "count": safe_int(r["count"])} for r in rows]
 
     return json_response(200, {"distribution": distribution})
+
 
 @db_route_handler("get market sentiment")
 def _get_market_sentiment(cur) -> Dict:
@@ -4637,6 +4724,7 @@ def _get_market_sentiment(cur) -> Dict:
         },
     )
 
+
 @db_route_handler("get trend criteria")
 def _get_trend_criteria(cur) -> Dict:
     """Return trend criteria analysis with passing count."""
@@ -4659,6 +4747,7 @@ def _get_trend_criteria(cur) -> Dict:
     ]
 
     return json_response(200, {"criteria": criteria})
+
 
 @db_route_handler("get performance metrics endpoint")
 def _get_performance_metrics_endpoint(cur) -> Dict:
@@ -4690,6 +4779,7 @@ def _get_performance_metrics_endpoint(cur) -> Dict:
             ),
         },
     )
+
 
 @db_route_handler("get portfolio summary")
 def _get_portfolio_summary(cur) -> Dict:

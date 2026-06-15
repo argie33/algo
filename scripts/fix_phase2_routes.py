@@ -15,6 +15,7 @@ from typing import Tuple
 REPO_ROOT = Path(__file__).parent.parent
 ROUTES_DIR = REPO_ROOT / "lambda" / "api" / "routes"
 
+
 def fix_routes_file(filepath: Path) -> Tuple[int, str]:
     """Fix a single route file. Returns (changes_made, warnings)."""
     with open(filepath, "r", encoding="utf-8") as f:
@@ -57,6 +58,7 @@ def fix_routes_file(filepath: Path) -> Tuple[int, str]:
     else:
         return 0, f"No changes needed for {filepath.name}"
 
+
 def main():
     """Apply fixes to all route files."""
     route_files = sorted(
@@ -79,6 +81,7 @@ def main():
     print("\n" + "=" * 70)
     print(f"Total changes applied: {total_changes}")
     print("=" * 70 + "\n")
+
 
 if __name__ == "__main__":
     main()

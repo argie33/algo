@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from routes.utils import error_response, json_response, success_response, list_response
 
+
 class TestErrorResponseFormat:
     """Test that all error responses follow the standardized format."""
 
@@ -121,6 +122,7 @@ class TestErrorResponseFormat:
             assert response["_error"] == f"Message {code}"
             assert len(response) == 4
 
+
 class TestErrorResponseInConsistentScenarios:
     """Test edge cases and inconsistent scenarios that should still work."""
 
@@ -157,6 +159,7 @@ class TestErrorResponseInConsistentScenarios:
 
         assert response["_error"] == "Error: café ☕ 中文"
         assert response["message"] == "Error: café ☕ 中文"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

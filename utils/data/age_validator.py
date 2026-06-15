@@ -14,6 +14,7 @@ from utils.validation.freshness_config import get_freshness_rule
 
 logger = logging.getLogger(__name__)
 
+
 class DataAgeValidator:
     """Single source of truth for data freshness checks."""
 
@@ -232,6 +233,7 @@ class DataAgeValidator:
             logger.error(f"Could not record watermark: {e}")
             return False
 
+
 # Backwards compatibility wrappers
 def is_fresh(
     last_loaded_date: Optional[Any],
@@ -256,6 +258,7 @@ def is_fresh(
         return age <= 3
     except Exception:
         return False
+
 
 def check_freshness(
     last_loaded_date: Optional[Any],

@@ -19,6 +19,7 @@ ERRORS = []
 WARNINGS = []
 PASSES = []
 
+
 def run_check(name, command, should_have=None, should_not_have=None):
     """Run a grep-based check."""
     try:
@@ -40,6 +41,7 @@ def run_check(name, command, should_have=None, should_not_have=None):
     except Exception as e:
         ERRORS.append(f"[FAIL] {name}: Check failed - {e}")
         return False
+
 
 def verify_database_schema():
     """Verify critical database constraints are in place."""
@@ -74,6 +76,7 @@ def verify_database_schema():
     else:
         ERRORS.append("[FAIL] Missing UNIQUE constraint on algo_trades")
 
+
 def verify_validation_patterns():
     """Verify critical code uses correct validation patterns."""
     print("\n[2/4] Verifying Code Validation Patterns...")
@@ -105,6 +108,7 @@ def verify_validation_patterns():
         "grep -rn 'Decimal.*ROUND_HALF_UP' algo/ --include='*.py' | wc -l",
         should_have=True,
     )
+
 
 def verify_no_dangerous_patterns():
     """Verify no dangerous fallback patterns exist."""
@@ -151,6 +155,7 @@ def verify_no_dangerous_patterns():
     else:
         PASSES.append("[OK] No silent failures found")
 
+
 def verify_logging_coverage():
     """Verify comprehensive logging in critical paths."""
     print("\n[4/4] Verifying Logging Coverage...")
@@ -180,6 +185,7 @@ def verify_logging_coverage():
         "grep -rn 'logger.critical' algo/ --include='*.py' | wc -l",
         should_have=True,
     )
+
 
 def print_results():
     """Print verification results."""
@@ -211,6 +217,7 @@ def print_results():
     print("=" * 70)
 
     return 0 if not ERRORS else 1
+
 
 if __name__ == "__main__":
     print("Starting Financial Data Integrity Verification...")

@@ -18,6 +18,7 @@ from utils.db.sql_safety import assert_safe_table
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def get_db_connection():
     try:
         conn = psycopg2.connect(
@@ -32,6 +33,7 @@ def get_db_connection():
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
+
 
 def check_critical_table_freshness() -> Dict:
     """Check freshness of all critical trading tables.
@@ -134,6 +136,7 @@ def check_critical_table_freshness() -> Dict:
     except Exception as e:
         logger.error(f"Data freshness check failed: {e}")
         return {"status": "error", "error": str(e)[:100], "age_details": {}}
+
 
 def lambda_handler(event, context):
     """Monitor data freshness and set halt flag if critical."""

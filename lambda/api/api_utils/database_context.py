@@ -35,6 +35,7 @@ from utils.db.context import DatabaseContext as _DatabaseContext
 
 __all__ = ["DatabaseContext"]
 
+
 class DatabaseContext(_DatabaseContext):
     """REST API database context with disabled correlation tracking.
 

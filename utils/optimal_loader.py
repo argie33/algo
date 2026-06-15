@@ -16,6 +16,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class OptimalLoader(ABC):
     """Base class for production-grade loaders.
 

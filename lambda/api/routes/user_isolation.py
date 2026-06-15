@@ -16,6 +16,7 @@ from utils.db.sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
+
 def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
     """Extract user ID (Cognito sub) from JWT claims.
 
@@ -33,6 +34,7 @@ def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
         logger.debug(f"[USER] Authenticated as {user_id}")
     return user_id
 
+
 def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
     """Require user to be authenticated, return user ID.
 
@@ -49,6 +51,7 @@ def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
     if not user_id:
         raise ValueError("Authentication required for this endpoint")
     return user_id
+
 
 def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, dict]:
     """Add user scoping WHERE clause to SQL query.
@@ -83,6 +86,7 @@ def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, d
         scoped_sql = sql + " WHERE cognito_sub = %s"
 
     return scoped_sql, {"user_id": user_id}
+
 
 def get_user_alpaca_credentials(
     cur, user_id: str, default_to_shared: bool = True
@@ -123,6 +127,7 @@ def get_user_alpaca_credentials(
                 )
                 return None
         return None
+
 
 def validate_user_resource_access(
     cur, user_id: str, resource_type: str, resource_id: str
@@ -173,6 +178,7 @@ def validate_user_resource_access(
         )
         return False
 
+
 def require_user_resource_access(
     cur, user_id: str, resource_type: str, resource_id: str
 ) -> bool:
@@ -190,6 +196,7 @@ def require_user_resource_access(
     if not validate_user_resource_access(cur, user_id, resource_type, resource_id):
         raise PermissionError(f"Access denied to {resource_type} {resource_id}")
     return True
+
 
 # Decorator for route handlers that require user authentication
 def requires_auth(handler_func):
@@ -210,6 +217,7 @@ def requires_auth(handler_func):
             return error_response(401, "unauthorized", str(e))
 
     return wrapper
+
 
 # Decorator for route handlers that handle both authenticated and public requests
 def optional_auth(handler_func):

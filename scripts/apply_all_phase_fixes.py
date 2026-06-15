@@ -14,6 +14,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
 
+
 def apply_phase3_loaders():
     """Phase 3: Add LoaderErrorContext imports and pattern hints."""
     loaders_dir = REPO_ROOT / "loaders"
@@ -46,6 +47,7 @@ def apply_phase3_loaders():
                 f.write(modified)
 
     return changes
+
 
 def apply_phase4_database_ops():
     """Phase 4: Add transactional imports for multi-statement operations."""
@@ -82,6 +84,7 @@ def apply_phase4_database_ops():
                 f.write(modified)
 
     return changes
+
 
 def apply_phase5_external_apis():
     """Phase 5: Ensure all requests.get/post have timeout parameter."""
@@ -132,6 +135,7 @@ def apply_phase5_external_apis():
 
     return changes
 
+
 def apply_phase6_utilities():
     """Phase 6: Add centralized error classification to utility modules."""
     utils_dir = REPO_ROOT / "utils"
@@ -176,6 +180,7 @@ def apply_phase6_utilities():
 
     return changes
 
+
 def main():
     """Apply all phase fixes."""
     print("\n" + "=" * 70)
@@ -202,6 +207,7 @@ def main():
     print("=" * 70)
     print(f"Total changes: {total}")
     print("=" * 70 + "\n")
+
 
 if __name__ == "__main__":
     main()

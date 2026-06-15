@@ -32,6 +32,7 @@ DYNAMODB_FAILURE_THRESHOLD = 3  # Failures before circuit breaker trips
 DYNAMODB_FAILURE_WINDOW_SEC = 300  # 5-minute window for failure counting
 DYNAMODB_FALLBACK_TIMEOUT_SEC = 15  # Timeout for DynamoDB operations
 
+
 class HaltFlagManager:
     """Manages halt flag with DynamoDB + RDS redundancy."""
 
@@ -275,9 +276,7 @@ class HaltFlagManager:
             )
             return True
 
-        logger.error(
-            "[HALT_FLAG_SET_FAILED] Could not set halt flag in either storage"
-        )
+        logger.error("[HALT_FLAG_SET_FAILED] Could not set halt flag in either storage")
         return False
 
     def _set_halt_flag_dynamodb(self, halt_data: Dict, now_utc: datetime) -> bool:
@@ -396,8 +395,10 @@ class HaltFlagManager:
             logger.warning(f"[HALT_FLAG] Failed to clear in RDS: {e}")
             return False
 
+
 # Singleton instance
 _halt_flag_manager = None
+
 
 def get_halt_flag_manager() -> HaltFlagManager:
     """Get singleton instance of halt flag manager."""

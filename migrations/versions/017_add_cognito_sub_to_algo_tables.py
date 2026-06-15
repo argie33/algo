@@ -12,6 +12,7 @@ DESCRIPTION = (
     "Add cognito_sub column to algo_trades and algo_positions for user isolation"
 )
 
+
 def up():
     with DatabaseContext("write") as cur:
         # Add cognito_sub to algo_trades (nullable for backward compatibility)
@@ -37,6 +38,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_positions_cognito_sub
             ON algo_positions(cognito_sub) WHERE cognito_sub IS NOT NULL
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

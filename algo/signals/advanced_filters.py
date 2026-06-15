@@ -8,6 +8,7 @@ from algo.signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
+
 class AdvancedFilters:
     """Quality boosters that turn 'qualifying' signals into 'best' signals."""
 

@@ -8,6 +8,7 @@ Prevents silent failures from hard-coded status string typos.
 
 from enum import Enum
 
+
 class TradeStatus(Enum):
     """All possible trade execution statuses."""
 
@@ -60,6 +61,7 @@ class TradeStatus(Enum):
             return False
         return True
 
+
 class PositionStatus(Enum):
     """All possible position statuses in algo_positions table."""
 
@@ -78,6 +80,7 @@ class PositionStatus(Enum):
     def is_active(cls, status: str) -> bool:
         """Check if position is still exposed to market movement."""
         return status in cls.all_active()
+
 
 # Export for convenience
 __all__ = ["TradeStatus", "PositionStatus"]

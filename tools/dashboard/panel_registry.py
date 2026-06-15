@@ -44,6 +44,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class PanelDefinition:
     """Definition of a dashboard panel."""
@@ -53,6 +54,7 @@ class PanelDefinition:
     render_fn: Optional[Callable] = None  # Function to call to render panel
     optional: bool = False  # If True, dashboard renders without this panel
     description: str = ""  # Human-readable description
+
 
 class PanelRegistry:
     """Central registry for dashboard panels.
@@ -229,12 +231,15 @@ class PanelRegistry:
         """Get optional panels (dashboard can render without them)."""
         return [name for name, panel in self._panels.items() if panel.optional]
 
+
 # Global singleton instance
 _registry = PanelRegistry()
+
 
 def get_panel_registry() -> PanelRegistry:
     """Get the global panel registry instance."""
     return _registry
+
 
 def register_panel(
     name: str,

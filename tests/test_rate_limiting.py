@@ -17,6 +17,7 @@ from utils.rate_limiting import (
     _public_rate_limits,
 )
 
+
 def test_admin_rate_limit_basic():
     """Test admin rate limit with low threshold."""
     _admin_rate_limits.clear()
@@ -42,6 +43,7 @@ def test_admin_rate_limit_basic():
 
     print("[OK] Admin rate limit basic test passed")
 
+
 def test_public_rate_limit_basic():
     """Test public rate limit with low threshold."""
     _public_rate_limits.clear()
@@ -61,6 +63,7 @@ def test_public_rate_limit_basic():
     assert "Rate limit exceeded" in msg
 
     print("[OK] Public rate limit basic test passed")
+
 
 def test_admin_rate_limits_configured():
     """Test that admin endpoints have rate limit config."""
@@ -82,6 +85,7 @@ def test_admin_rate_limits_configured():
 
     print("[OK] Admin rate limits configured correctly")
 
+
 def test_public_rate_limits_configured():
     """Test that public endpoints have rate limit config."""
     critical_endpoints = [
@@ -99,6 +103,7 @@ def test_public_rate_limits_configured():
         assert "description" in config, f"{endpoint} missing description"
 
     print("[OK] Public rate limits configured correctly")
+
 
 def test_different_users_independent():
     """Test that rate limits are independent per user."""
@@ -120,6 +125,7 @@ def test_different_users_independent():
     assert allowed is True, "User 2 should have independent rate limit"
 
     print("[OK] Per-user rate limits are independent")
+
 
 if __name__ == "__main__":
     test_admin_rate_limit_basic()

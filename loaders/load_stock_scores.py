@@ -28,6 +28,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class StockScoresLoader(OptimalLoader):
     """Compute and load multi-factor stock scores."""
 
@@ -553,6 +554,7 @@ class StockScoresLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"RS percentile batch update failed: {e}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Load stock scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -598,6 +600,7 @@ def main():
     except Exception as e:
         logger.error(f"Stock scores load failed: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -12,6 +12,7 @@ from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+
 class TestAdminEndpointProtection:
     """Test that admin-only endpoints properly enforce permissions."""
 
@@ -169,6 +170,7 @@ class TestAdminEndpointProtection:
             is_authorized is False
         ), "Trader should be denied access to /api/algo/data-status"
 
+
 class TestPublicEndpointAccess:
     """Test that public endpoints allow all authenticated users."""
 
@@ -228,6 +230,7 @@ class TestPublicEndpointAccess:
         # The endpoint itself doesn't enforce admin-only access
         assert True, "/api/prices is public (verified by code review)"
 
+
 class TestLiveEndpointAccess:
     """Tests for actual API endpoint access (requires live deployment and JWT tokens).
 
@@ -272,6 +275,7 @@ class TestLiveEndpointAccess:
     def test_manual_trader_login_required(self):
         """Manual test: Trader user login and endpoint access."""
         pytest.skip("Manual testing required - requires interactive Cognito login")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

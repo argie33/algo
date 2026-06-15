@@ -20,6 +20,7 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
 dynamodb = boto3.resource("dynamodb")
 
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         loader_name = event.get("loader_name", "unknown")

@@ -53,6 +53,7 @@ from datetime import date as _date
 
 logger = logging.getLogger(__name__)
 
+
 class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
@@ -1165,6 +1166,7 @@ class MarketExposure:
             logger.error(
                 f"persist market_exposure failed for {eval_date}: {e}", exc_info=True
             )
+
 
 if __name__ == "__main__":
     import argparse

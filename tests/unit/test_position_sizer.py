@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from algo.trading import PositionSizer
 
+
 @pytest.fixture
 def mock_config():
     """Create mock configuration."""
@@ -21,11 +22,13 @@ def mock_config():
         "max_positions": 12,
     }
 
+
 @pytest.fixture
 def position_sizer(mock_config):
     """Create PositionSizer instance with mocked database."""
     with patch("algo.trading.position_sizer.DatabaseContext"):
         return PositionSizer(mock_config)
+
 
 class TestPositionSizerInit:
     """Test PositionSizer initialization."""
@@ -39,6 +42,7 @@ class TestPositionSizerInit:
         """Test initialization creates instance."""
         sizer = PositionSizer(mock_config)
         assert sizer.config == mock_config
+
 
 class TestPositionSizerBasic:
     """Test basic PositionSizer functionality."""
@@ -79,6 +83,7 @@ class TestPositionSizerBasic:
             drawdown = position_sizer.get_current_drawdown()
             assert drawdown == 5.0
 
+
 class TestPositionSizerCalculations:
     """Test position sizing calculations."""
 
@@ -99,6 +104,7 @@ class TestPositionSizerCalculations:
         with patch.object(position_sizer, "get_current_drawdown", return_value=20.0):
             adjustment = position_sizer.get_risk_adjustment()
             assert adjustment == 0.0
+
 
 class TestPositionSizerVIX:
     """Test VIX-based multiplier logic."""

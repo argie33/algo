@@ -23,7 +23,9 @@ except ImportError:
     def pearsonr(x, y):  # type: ignore[misc]
         return (float("nan"), float("nan"))
 
+
 logger = logging.getLogger(__name__)
+
 
 class SignalTradePerformancePopulator:
     """Extract component attribution from closed trades."""

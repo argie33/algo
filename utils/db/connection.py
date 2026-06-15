@@ -68,6 +68,7 @@ except ImportError:
     def on_disconnect():
         pass
 
+
 def _get_connection_pool():
     """Get or create the module-level connection pool (thread-safe).
 
@@ -132,6 +133,7 @@ def _get_connection_pool():
 
     return _connection_pool
 
+
 class TrackedConnection:
     """Wraps psycopg2 connection to track pool utilization and return to pool.
 
@@ -172,6 +174,7 @@ class TrackedConnection:
                 self._conn.close()
             except Exception as close_err:
                 logger.debug(f"[DB_POOL] Could not close connection: {close_err}")
+
 
 def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
     """Get a database connection from the connection pool with retries.

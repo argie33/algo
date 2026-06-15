@@ -14,6 +14,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add user_id to algo_notifications table for row-level access control"
 
+
 def up():
     with DatabaseContext("write") as cur:
         # Add user_id column (nullable for backward compatibility with existing notifications)
@@ -33,6 +34,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_notifications_user_created
             ON algo_notifications(user_id, created_at DESC) WHERE user_id IS NOT NULL
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

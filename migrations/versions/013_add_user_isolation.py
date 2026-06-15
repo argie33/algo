@@ -12,6 +12,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"
 
+
 def up():
     """Add user isolation columns to remaining trading tables."""
     with DatabaseContext("write") as cur:
@@ -58,6 +59,7 @@ def up():
         """,
             (admin_cognito_sub,),
         )
+
 
 def down():
     """Remove user isolation columns."""

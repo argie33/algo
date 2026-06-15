@@ -21,8 +21,10 @@ NASDAQ_PATTERN = re.compile(
     r"^[A-Z]{1,5}$|^[A-Z\d]{3}\.[A-Z]$"
 )  # More strict NASDAQ format
 
+
 class ValidationError(ValueError):
     """Raised when validation fails"""
+
 
 def validate_symbol(symbol: str, strict: bool = False) -> str:
     """
@@ -55,6 +57,7 @@ def validate_symbol(symbol: str, strict: bool = False) -> str:
 
     return symbol
 
+
 def validate_percentage(
     value: Union[int, float, str], min_pct: float = 0, max_pct: float = 100
 ) -> float:
@@ -83,6 +86,7 @@ def validate_percentage(
         )
 
     return pct
+
 
 def validate_price(
     price: Union[int, float, str], min_price: float = 0.01, max_price: float = 1_000_000
@@ -117,6 +121,7 @@ def validate_price(
 
     return price_decimal
 
+
 def validate_quantity(
     qty: Union[int, str], min_qty: int = 1, max_qty: int = 1_000_000
 ) -> int:
@@ -147,6 +152,7 @@ def validate_quantity(
 
     return quantity
 
+
 def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
     """
     Validate R-multiple (risk/reward ratio).
@@ -173,6 +179,7 @@ def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
 
     return r
 
+
 def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
     """
     Validate date string format.
@@ -196,6 +203,7 @@ def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
         raise ValidationError(
             f"Invalid date format: {date_str} (expected {format_str})"
         )
+
 
 def validate_integer_range(
     value: Union[int, str],
@@ -231,6 +239,7 @@ def validate_integer_range(
 
     return int_val
 
+
 def validate_float_range(
     value: Union[int, float, str],
     min_val: float = None,
@@ -265,6 +274,7 @@ def validate_float_range(
 
     return float_val
 
+
 def validate_email(email: str) -> str:
     """
     Validate email address format (basic).
@@ -289,6 +299,7 @@ def validate_email(email: str) -> str:
 
     return email
 
+
 def validate_order_type(order_type: str) -> str:
     """
     Validate order type against allowed values.
@@ -312,6 +323,7 @@ def validate_order_type(order_type: str) -> str:
 
     return order_type
 
+
 def validate_position_side(side: str) -> str:
     """
     Validate position side (long/short).
@@ -334,6 +346,7 @@ def validate_position_side(side: str) -> str:
 
     return side
 
+
 # Safe conversion wrappers that return defaults instead of raising
 def safe_symbol(value: Optional[str], default: str = None) -> Optional[str]:
     """Safe symbol conversion with default fallback."""
@@ -342,6 +355,7 @@ def safe_symbol(value: Optional[str], default: str = None) -> Optional[str]:
     except ValidationError:
         logger.warning(f"Invalid symbol: {value}, using default: {default}")
         return default
+
 
 def safe_percentage(
     value: Optional[Union[int, float, str]], default: float = 50
@@ -352,6 +366,7 @@ def safe_percentage(
     except ValidationError:
         logger.warning(f"Invalid percentage: {value}, using default: {default}")
         return default
+
 
 def safe_price(
     value: Optional[Union[int, float, str]], default: Decimal = None

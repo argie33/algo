@@ -85,9 +85,11 @@ SERIES = [
     "DSPIC96",  # Real Disposable Personal Income (level; displayed as YoY %)
 ]
 
+
 def get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager, fall back to env var."""
     return get_api_key("algo/fred", "FRED_API_KEY") or ""
+
 
 class FredEconomicDataLoader(OptimalLoader):
     """Load FRED economic time-series data (market-wide)."""
@@ -234,6 +236,7 @@ class FredEconomicDataLoader(OptimalLoader):
 
         return all_rows if all_rows else None
 
+
 def main():
     try:
         # Execution timeout: FRED has ~40 series, 5s delay between + 30s per request = ~5-10 min normally
@@ -251,6 +254,7 @@ def main():
     except Exception as e:
         logger.error(f"FRED economic data load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -12,6 +12,7 @@ from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 
+
 def check_database_connection():
     """Test database connectivity."""
     try:
@@ -23,6 +24,7 @@ def check_database_connection():
     except Exception as e:
         print(f"[FAIL] Database connection: {e}")
         return False
+
 
 def check_loader_status():
     """Check status of critical loaders."""
@@ -55,6 +57,7 @@ def check_loader_status():
     except Exception as e:
         print(f"[ERROR] Could not check loader status: {e}")
         return False
+
 
 def check_critical_tables():
     """Check if critical tables have recent data."""
@@ -91,6 +94,7 @@ def check_critical_tables():
     except Exception as e:
         print(f"[ERROR] Could not check tables: {e}")
         return False
+
 
 def check_data_freshness():
     """Check if data is current (updated today)."""
@@ -140,6 +144,7 @@ def check_data_freshness():
         print(f"[ERROR] Could not check freshness: {e}")
         return False
 
+
 def check_orchestrator_status():
     """Check if orchestrator ran recently."""
     print("\n=== ORCHESTRATOR ===")
@@ -165,6 +170,7 @@ def check_orchestrator_status():
     except Exception as e:
         print(f"[ERROR] Could not check orchestrator: {e}")
         return False
+
 
 def main():
     print("=" * 70)
@@ -195,6 +201,7 @@ def main():
     else:
         print("\n[FAIL] System has issues - see above for details")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

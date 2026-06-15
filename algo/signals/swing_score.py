@@ -8,6 +8,7 @@ from typing import Dict, Tuple, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
 
@@ -1179,6 +1180,7 @@ class SwingTraderScore:
                 )
         except Exception as e:
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
+
 
 if __name__ == "__main__":
     from algo.infrastructure.config import get_config

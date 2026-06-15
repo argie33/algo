@@ -9,7 +9,8 @@ Endpoints:
   /api/algo/risk-dashboard/exit-rules — Which exit rules fired most
 """
 
-import json, os
+import json
+import os
 from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from routes.utils import (
 
 logger = logging.getLogger(__name__)
 
+
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
@@ -33,6 +35,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     if groups is None:
         groups = []
     return "admin" in groups
+
 
 def handle(
     cur,
@@ -43,7 +46,9 @@ def handle(
     jwt_claims: Dict = None,
 ) -> Dict:
     """Route risk dashboard endpoints."""
-    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        jwt_claims
+    ):
         return error_response(403, "forbidden", "Admin access required")
     if path == "/api/algo/risk-dashboard":
         return _get_comprehensive_risk_dashboard(cur)
@@ -65,6 +70,7 @@ def handle(
         return _get_exit_rules_distribution(cur, days_int)
     else:
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
+
 
 def _get_comprehensive_risk_dashboard(cur) -> Dict:
     """Get all current risk metrics in one view."""
@@ -200,6 +206,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         )
         return error_response(code, error_type, message)
 
+
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds.
 
@@ -245,6 +252,7 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
         "caveat": "Intraday gaps invisible - only EOD snapshots tracked",
     }
 
+
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
     try:
@@ -283,6 +291,7 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
         "position_size_multiplier": 1.0,
     }
 
+
 def _get_drawdown_metrics(cur) -> Dict:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
@@ -292,6 +301,7 @@ def _get_drawdown_metrics(cur) -> Dict:
         code, error_type, message = handle_db_error(e, "fetch drawdown metrics")
         return error_response(code, error_type, message)
 
+
 def _get_exposure_tier_info(cur) -> Dict:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
@@ -300,6 +310,7 @@ def _get_exposure_tier_info(cur) -> Dict:
     except Exception as e:
         code, error_type, message = handle_db_error(e, "fetch exposure tier info")
         return error_response(code, error_type, message)
+
 
 def _get_position_sizing_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
@@ -364,6 +375,7 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
         code, error_type, message = handle_db_error(e, "fetch position sizing audit")
         return error_response(code, error_type, message)
 
+
 def _get_stop_loss_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
@@ -419,6 +431,7 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
         code, error_type, message = handle_db_error(e, "fetch stop loss audit")
         return error_response(code, error_type, message)
 
+
 def _get_exit_rules_distribution(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
@@ -467,6 +480,7 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
     except Exception as e:
         code, error_type, message = handle_db_error(e, "fetch exit rules distribution")
         return error_response(code, error_type, message)
+
 
 def _get_drawdown_status(drawdown_pct: float) -> str:
     """Determine drawdown status."""

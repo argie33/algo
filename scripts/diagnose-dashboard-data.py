@@ -14,6 +14,7 @@ from utils.db.sql_safety import assert_safe_table, assert_safe_column
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+
 def get_db_connection():
     """Create database connection from environment variables."""
     return psycopg2.connect(
@@ -23,6 +24,7 @@ def get_db_connection():
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
     )
+
 
 # Key tables the dashboard queries
 CRITICAL_TABLES = {
@@ -37,6 +39,7 @@ CRITICAL_TABLES = {
     "signal_quality_scores": "Signal quality scores",
     "algo_positions": "Algo positions (base)",
 }
+
 
 def check_table_exists(conn, table_name):
     """Check if table exists and return row count + max date."""
@@ -103,6 +106,7 @@ def check_table_exists(conn, table_name):
         except (Exception, AttributeError):
             pass
         return {"exists": False, "error": str(e)}
+
 
 def main():
     try:
@@ -190,6 +194,7 @@ def main():
             f"  - DB_PASSWORD: {'SET' if os.getenv('DB_PASSWORD') else 'NOT SET'}"
         )
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

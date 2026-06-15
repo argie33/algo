@@ -15,6 +15,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class GradeClassifier:
     """Unified grade classification with configurable thresholds."""
 

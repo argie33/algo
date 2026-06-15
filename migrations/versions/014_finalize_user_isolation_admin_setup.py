@@ -11,6 +11,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
 
+
 def up():
     """Verify admin user isolation preconditions."""
     with DatabaseContext("write") as cur:
@@ -50,6 +51,7 @@ def up():
         print("  1. Get admin Cognito sub from AWS Cognito console")
         print("  2. Set ADMIN_COGNITO_SUB environment variable")
         print("  3. Run: python -m alembic upgrade head")
+
 
 def down():
     """Revert precondition check (no-op)."""

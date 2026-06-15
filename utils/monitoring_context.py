@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Global metrics buffer (persisted per session or sent to CloudWatch)
 _metrics_buffer: Dict[str, list] = {}
 
+
 class TimeBlock:
     """Context manager for operation timing and alerting on slow operations."""
 
@@ -98,6 +99,7 @@ class TimeBlock:
 
         return False  # Don't suppress exceptions
 
+
 @contextmanager
 def time_operation(operation_name: str, log_level: str = "info"):
     """
@@ -109,6 +111,7 @@ def time_operation(operation_name: str, log_level: str = "info"):
     """
     with TimeBlock(operation_name, log_level) as timer:
         yield timer
+
 
 def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
     """
@@ -145,6 +148,7 @@ def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
         }
     return summary
 
+
 def log_metrics_summary():
     """Log a summary of all recorded metrics."""
     summary = get_metrics_summary()
@@ -166,6 +170,7 @@ def log_metrics_summary():
             f"slow={stats['slow_count']:2d}/{stats['count']} ({stats['slow_pct']:5.1f}%)"
         )
     logger.info("=" * 80)
+
 
 def clear_metrics_buffer():
     """Clear all recorded metrics."""

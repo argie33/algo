@@ -11,6 +11,7 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+
 class RateLimitValidator:
     """Validate API rate limits and graceful degradation."""
 

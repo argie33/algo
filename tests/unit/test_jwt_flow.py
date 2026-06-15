@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from routes.algo import _check_admin_access
 import api_router
 
+
 class TestJWTFlowIntegration:
     """Test JWT flow through the complete request pipeline."""
 
@@ -167,6 +168,7 @@ class TestJWTFlowIntegration:
             trader_for_public is True
         ), "Trader blocked from admin endpoints (but public endpoints not gated)"
 
+
 class TestCognitoConfiguration:
     """Verify Cognito environment is configured correctly."""
 
@@ -193,6 +195,7 @@ class TestCognitoConfiguration:
         assert (
             code_admin_group in setup_groups
         ), "Code checks for 'admin' group that setup script creates"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

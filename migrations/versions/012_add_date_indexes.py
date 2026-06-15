@@ -28,6 +28,7 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date DESC)",
 ]
 
+
 def _connect_autocommit():
     """Open an autocommit connection using the same env vars as the migration runner.
 
@@ -59,6 +60,7 @@ def _connect_autocommit():
     conn.autocommit = True  # required for CREATE INDEX CONCURRENTLY
     return conn
 
+
 def up():
     conn = _connect_autocommit()
     cur = conn.cursor()
@@ -67,6 +69,7 @@ def up():
         cur.execute(sql)
     cur.close()
     conn.close()
+
 
 def down():
     conn = _connect_autocommit()

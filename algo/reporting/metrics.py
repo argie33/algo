@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 NAMESPACE = "AlgoTrading"
 REGION = os.getenv("AWS_REGION", "us-east-1")
 
+
 class MetricsPublisher:
     """Thin wrapper around CloudWatch put_metric_data with batching."""
 

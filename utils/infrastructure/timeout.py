@@ -20,12 +20,15 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class TimeoutError(Exception):
     """Raised when execution exceeds timeout limit."""
+
 
 def _timeout_handler_unix(signum, frame):
     """Signal handler for Unix-based timeout (SIGALRM)."""
     raise TimeoutError("Execution timeout: exceeded maximum allowed time")
+
 
 @contextmanager
 def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):

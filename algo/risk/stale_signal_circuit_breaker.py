@@ -8,6 +8,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class StaleSignalCircuitBreaker:
     """Prevent trading when signals are based on stale price data.
 
@@ -91,6 +92,7 @@ class StaleSignalCircuitBreaker:
         if not is_safe:
             logger.critical(f"HALTING TRADING: {message}")
             raise RuntimeError(f"CIRCUIT BREAKER: {message}")
+
 
 def protect_trading_operation(func):
     """Decorator to halt trading operations if signals are stale."""

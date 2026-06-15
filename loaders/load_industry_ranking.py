@@ -15,6 +15,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class IndustryRankingLoader(OptimalLoader):
     """Rank industries by composite score from stock_scores + company_profile."""
 
@@ -116,6 +117,7 @@ class IndustryRankingLoader(OptimalLoader):
             logger.error(f"Failed to compute industry rankings: {e}")
             return None
 
+
 def main():
     loader = IndustryRankingLoader()
     result = loader.load_global()
@@ -126,6 +128,7 @@ def main():
     else:
         logger.warning("COMPLETED: No rankings computed")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

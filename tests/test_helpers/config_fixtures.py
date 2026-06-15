@@ -200,6 +200,7 @@ BASE_CONFIG: Dict[str, Any] = {
     "failsafe_grace_period_minutes": 240,
 }
 
+
 def bull_market_config() -> Dict[str, Any]:
     """Configuration for aggressive bull market trading (high confidence, high risk).
 
@@ -225,6 +226,7 @@ def bull_market_config() -> Dict[str, Any]:
     )
     return config
 
+
 def correction_config() -> Dict[str, Any]:
     """Configuration for correction/consolidation (cautious, balanced).
 
@@ -248,6 +250,7 @@ def correction_config() -> Dict[str, Any]:
         }
     )
     return config
+
 
 def crisis_config() -> Dict[str, Any]:
     """Configuration for crisis/bear market (very cautious, capital preservation).
@@ -277,6 +280,7 @@ def crisis_config() -> Dict[str, Any]:
     )
     return config
 
+
 def minimal_config() -> Dict[str, Any]:
     """Minimal configuration with only essential keys for unit tests."""
     return {
@@ -288,6 +292,7 @@ def minimal_config() -> Dict[str, Any]:
         "execution_mode": "paper",
         "enable_algo": True,
     }
+
 
 def strict_risk_config() -> Dict[str, Any]:
     """Configuration with very tight risk limits for testing circuit breakers."""
@@ -305,6 +310,7 @@ def strict_risk_config() -> Dict[str, Any]:
     )
     return config
 
+
 def relaxed_risk_config() -> Dict[str, Any]:
     """Configuration with relaxed risk limits for testing edge cases."""
     config = deepcopy(BASE_CONFIG)
@@ -321,6 +327,7 @@ def relaxed_risk_config() -> Dict[str, Any]:
     )
     return config
 
+
 def sandbox_config() -> Dict[str, Any]:
     """Configuration for sandbox/testing with no actual trading."""
     config = deepcopy(BASE_CONFIG)
@@ -333,6 +340,7 @@ def sandbox_config() -> Dict[str, Any]:
         }
     )
     return config
+
 
 def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     """Merge configuration overrides into a base config.
@@ -347,6 +355,7 @@ def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, 
     config = deepcopy(base)
     config.update(overrides)
     return config
+
 
 def validate_config(config: Dict[str, Any], required_keys: list = None) -> bool:
     """Validate that config has all required keys.

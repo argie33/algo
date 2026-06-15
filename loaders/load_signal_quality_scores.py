@@ -24,6 +24,7 @@ from utils.validation import safe_parse_date
 
 logger = logging.getLogger(__name__)
 
+
 class SignalQualityScoresLoader(OptimalLoader):
     table_name = "signal_quality_scores"
     primary_key = ("symbol", "date")
@@ -383,6 +384,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.warning(f"Error computing quality scores for {symbol}: {e}")
             return []
 
+
 def main():
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -437,6 +439,7 @@ def main():
         logger.error(f"Signal quality scores load failed: {e}")
         return 1
 
+
 def _sync_scores_to_buy_sell():
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
     from utils.db.context import DatabaseContext
@@ -457,6 +460,7 @@ def _sync_scores_to_buy_sell():
                 logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
     except Exception as e:
         logger.warning(f"Failed to sync signal quality scores: {e}")
+
 
 if __name__ == "__main__":
     sys.exit(main())

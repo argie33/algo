@@ -1,6 +1,9 @@
 """Route: sentiment"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 from routes.utils import (
@@ -15,6 +18,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,
@@ -432,6 +436,7 @@ def handle(
             "internal_error",
             "An unexpected error occurred while fetching sentiment data.",
         )
+
 
 def _get_vix_data(cur) -> Dict:
     """Get latest VIX data and historical trend."""

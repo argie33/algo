@@ -23,6 +23,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class LambdaAPIClient:
     """Client for invoking algo-api-dev Lambda function directly."""
 
@@ -118,9 +119,11 @@ class LambdaAPIClient:
                 "_source": "lambda_direct",
             }
 
+
 # Singleton instance (thread-safe)
 _client = None
 _client_lock = threading.Lock()
+
 
 def get_lambda_client() -> LambdaAPIClient:
     """Get the global Lambda API client (thread-safe).
@@ -134,6 +137,7 @@ def get_lambda_client() -> LambdaAPIClient:
             if _client is None:
                 _client = LambdaAPIClient()
     return _client
+
 
 def invoke_api(
     path: str, method: str = "GET", query_params: Optional[Dict] = None

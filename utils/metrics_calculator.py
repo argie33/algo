@@ -21,6 +21,7 @@ from typing import Optional, Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
+
 class MetricsCalculator:
     """Centralized performance metrics calculation engine."""
 
@@ -345,6 +346,7 @@ class MetricsCalculator:
         except (ValueError, TypeError):
             return None
 
+
 class MetricsValidator:
     """Validates metric values for consistency and data quality."""
 
@@ -416,34 +418,42 @@ class MetricsValidator:
 
         return metrics
 
+
 # Convenience functions for direct use
 def calculate_win_rate(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_win_rate"""
     return MetricsCalculator.calculate_win_rate(*args, **kwargs)
 
+
 def calculate_sharpe_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_sharpe_ratio"""
     return MetricsCalculator.calculate_sharpe_ratio(*args, **kwargs)
+
 
 def calculate_sortino_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_sortino_ratio"""
     return MetricsCalculator.calculate_sortino_ratio(*args, **kwargs)
 
+
 def calculate_max_drawdown(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_max_drawdown"""
     return MetricsCalculator.calculate_max_drawdown(*args, **kwargs)
+
 
 def calculate_calmar_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_calmar_ratio"""
     return MetricsCalculator.calculate_calmar_ratio(*args, **kwargs)
 
+
 def calculate_profit_factor(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_profit_factor"""
     return MetricsCalculator.calculate_profit_factor(*args, **kwargs)
 
+
 def calculate_expectancy(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_expectancy"""
     return MetricsCalculator.calculate_expectancy(*args, **kwargs)
+
 
 def calculate_avg_r_multiple(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_avg_r_multiple"""

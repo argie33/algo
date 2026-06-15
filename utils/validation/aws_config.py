@@ -21,6 +21,7 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+
 class AWSProductionConfigValidator:
     """Validates all configuration for production AWS deployment."""
 

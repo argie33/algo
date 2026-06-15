@@ -28,6 +28,7 @@ from utils.validation import (
 
 logger = logging.getLogger(__name__)
 
+
 class AlpacaOrderValidator(Validator):
     """Validates Alpaca order creation/status responses.
 
@@ -128,6 +129,7 @@ class AlpacaOrderValidator(Validator):
             validator_name=self.name,
         )
 
+
 class AlpacaOrderStatusValidator(Validator):
     """Validates Alpaca order status response (GET /v2/orders/{order_id})."""
 
@@ -201,6 +203,7 @@ class AlpacaOrderStatusValidator(Validator):
             validator_name=self.name,
         )
 
+
 class AlpacaAccountValidator(Validator):
     """Validates Alpaca account response."""
 
@@ -255,6 +258,7 @@ class AlpacaAccountValidator(Validator):
             validator_name=self.name,
         )
 
+
 class AlpacaPositionValidator(Validator):
     """Validates Alpaca position response (GET /v2/positions/{symbol})."""
 
@@ -307,6 +311,7 @@ class AlpacaPositionValidator(Validator):
             context=context,
             validator_name=self.name,
         )
+
 
 class DatabaseSchemaValidator(Validator):
     """Validates database table schema and data presence.
@@ -427,6 +432,7 @@ class DatabaseSchemaValidator(Validator):
             return any(t in actual for t in ["char", "text", "varchar"])
         return False
 
+
 class TableDataValidator(Validator):
     """Validates row data against type constraints (can convert types).
 
@@ -508,6 +514,7 @@ class TableDataValidator(Validator):
             validator_name=self.name,
         )
 
+
 class PhaseResultsValidator(Validator):
     """Validates list of phase results with consistent structure.
 
@@ -547,6 +554,7 @@ class PhaseResultsValidator(Validator):
             context=context,
             validator_name=self.name,
         )
+
 
 def create_default_registry():
     """Create a registry with common validators pre-registered.

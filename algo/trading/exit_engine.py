@@ -40,6 +40,7 @@ from algo.infrastructure import get_alpaca_timeout
 
 logger = logging.getLogger(__name__)
 
+
 class ExitEngine:
     """Monitor and execute position exits."""
 
@@ -856,6 +857,7 @@ class ExitEngine:
         except Exception as e:
             logger.warning(f"Warning: _compute_gain_last_n_days({symbol}) failed: {e}")
             return None
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

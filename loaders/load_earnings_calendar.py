@@ -13,6 +13,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class EarningsCalendarLoader(OptimalLoader):
     """Load upcoming earnings dates for all symbols."""
 
@@ -70,6 +71,7 @@ class EarningsCalendarLoader(OptimalLoader):
             logger.debug(f"yfinance fetch failed for {symbol}: {e}")
             return None
 
+
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument(
@@ -100,6 +102,7 @@ def main():
             f"COMPLETED: No earnings loaded (rows_fetched={result['rows_fetched']})"
         )
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,7 +13,9 @@ For use in dashboard and automated monitoring.
 """
 
 import logging
-import psycopg2, psycopg2.errors, psycopg2.extras
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
 from datetime import datetime, date as _date
 from typing import Dict, Any
 from routes.utils import (
@@ -25,6 +27,7 @@ from routes.utils import (
 from utils.db.sql_safety import assert_safe_table
 
 logger = logging.getLogger(__name__)
+
 
 def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
@@ -94,6 +97,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
             500, "data_processing_error", "Failed to retrieve data coverage"
         )
 
+
 def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
     try:
@@ -153,6 +157,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
             500, "data_processing_error", "Failed to retrieve data coverage"
         )
 
+
 def get_market_data_coverage(cur) -> Dict[str, Any]:
     """Get market_health_daily and other market data coverage."""
     try:
@@ -208,6 +213,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
         return error_response(
             500, "data_processing_error", "Failed to retrieve data coverage"
         )
+
 
 def get_loader_health(cur) -> Dict[str, Any]:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
@@ -291,6 +297,7 @@ def get_loader_health(cur) -> Dict[str, Any]:
     except Exception as e:
         raise Exception(f"Failed to retrieve loader health: {e}")
 
+
 def _safe_call(cur, fn) -> Dict[str, Any]:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
 
@@ -347,6 +354,7 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
         )
         return error_response(500, "data_processing_error", str(e))
 
+
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""
     summary = {
@@ -387,6 +395,7 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
         summary["overall_health"] = "healthy"
 
     return summary
+
 
 def handle(
     cur,

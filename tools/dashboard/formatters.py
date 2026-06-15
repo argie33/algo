@@ -17,6 +17,7 @@ import time
 _schedule_cache = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300
 
+
 def fmt_age(ts):
     if ts is None:
         return "--"
@@ -33,6 +34,7 @@ def fmt_age(ts):
         return f"{m // 60}h{m % 60:02d}m ago"
     return f"{m // 1440}d ago"
 
+
 def fmt_money(v):
     if v is None:
         return "--"
@@ -44,6 +46,7 @@ def fmt_money(v):
     if av >= 1e3:
         return f"{s}${av:,.0f}"
     return f"{s}${av:.2f}"
+
 
 def fmt_money_short(v):
     """Compact dollar format: $45K, $1.2M, $850 - for narrow table columns."""
@@ -58,6 +61,7 @@ def fmt_money_short(v):
         return f"{s}${av/1e3:.0f}K"
     return f"{s}${av:.0f}"
 
+
 def grade(s):
     s = float(s)
     if s >= 90:
@@ -69,6 +73,7 @@ def grade(s):
     if s >= 60:
         return "C"
     return "D"
+
 
 def tier_from_pct(p) -> str:
     if p is None:
@@ -84,6 +89,7 @@ def tier_from_pct(p) -> str:
         return "caution"
     return "correction"
 
+
 def is_open() -> bool:
     """Check if market is currently open. Uses MarketCalendar for accurate trading hours."""
     try:
@@ -96,6 +102,7 @@ def is_open() -> bool:
             return False
         t = n.hour * 60 + n.minute
         return 570 <= t <= 960
+
 
 def mkt_hours_str() -> tuple:
     """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed.
@@ -164,6 +171,7 @@ def mkt_hours_str() -> tuple:
     diff_m = max(0, int((open_dt - n).total_seconds() / 60))
     return "[dim]- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
+
 def next_run_str() -> str:
     """Return next orchestrator run time. Fetches schedule from API if available, falls back to hardcoded."""
     now = time.time()
@@ -193,6 +201,7 @@ def next_run_str() -> str:
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
     return result
+
 
 def _next_run_from_schedule(schedule: list) -> str:
     """Calculate next run from dynamic schedule (list of {hour, minute} dicts)."""
@@ -259,6 +268,7 @@ def _next_run_from_schedule(schedule: list) -> str:
         return f"orch {fmt(run_dt)}"
     return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
 
+
 def _next_run_hardcoded() -> str:
     """Fallback: Calculate next run using hardcoded schedule (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)."""
     now = datetime.now(ET)
@@ -292,16 +302,19 @@ def _next_run_hardcoded() -> str:
     tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
     return f"prep {fmt(tgt)}"
 
+
 def hbar(cur, thr, w=6):
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
     c = R if r >= 1 else (Y if r >= 0.75 else G)
     return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
 
+
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
     return f"[{tc}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
+
 
 def mini_bar(pts, max_pts, w=5):
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
@@ -309,8 +322,10 @@ def mini_bar(pts, max_pts, w=5):
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
     return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
 
+
 def sign(v) -> str:
     return "+" if float(v) >= 0 else ""
+
 
 def sparkline(values: list, width: int = 24) -> str:
     vals = [v for v in (values or []) if v is not None and float(v) > 0]

@@ -8,6 +8,7 @@ Supports both paper and live trading modes.
 
 import os
 
+
 def get_alpaca_base_url() -> str:
     """Get Alpaca base URL (paper or live based on trading mode).
 
@@ -41,6 +42,7 @@ def get_alpaca_base_url() -> str:
         logging.debug(f"Could not parse ALPACA_PAPER_TRADING: {e}, using default")
 
     return "https://paper-api.alpaca.markets"
+
 
 def get_alpaca_data_url() -> str:
     """Get Alpaca Data API URL.

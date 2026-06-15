@@ -1,6 +1,8 @@
 """Route: earnings"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
 from typing import Dict
 import logging
 from routes.utils import (
@@ -14,6 +16,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,

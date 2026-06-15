@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Re-export from new unified validator for backwards compatibility
 from utils.data.age_validator import check_freshness
 
+
 def get_staleness_threshold_days() -> int:
     """DEPRECATED: Get max data staleness from config.
 
@@ -31,6 +32,7 @@ def get_staleness_threshold_days() -> int:
         return get_config().get("max_data_staleness_days", 3)
     except Exception:
         return 3
+
 
 def assert_fresh(
     last_loaded_date: Optional[Any],

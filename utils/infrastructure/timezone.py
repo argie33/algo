@@ -11,6 +11,7 @@ from typing import Union
 # Single source of truth for Eastern timezone
 EASTERN_TZ = ZoneInfo("America/New_York")
 
+
 def normalize_to_utc_datetime(dt: Union[datetime, date, None]) -> datetime:
     """Convert any datetime or date to UTC-aware datetime.
 
@@ -33,11 +34,13 @@ def normalize_to_utc_datetime(dt: Union[datetime, date, None]) -> datetime:
 
     return datetime.now(timezone.utc)
 
+
 def to_eastern_time(dt: datetime) -> datetime:
     """Convert UTC-aware datetime to Eastern time (aware)."""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(EASTERN_TZ)
+
 
 def from_eastern_time(dt: datetime) -> datetime:
     """Convert Eastern time datetime to UTC (aware).

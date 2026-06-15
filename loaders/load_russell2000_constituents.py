@@ -12,6 +12,7 @@ from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
+
 class Russell2000ConstituentsLoader(OptimalLoader):
     """Load and mark Russell 2000 constituent symbols."""
 
@@ -76,6 +77,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             logger.error(f"Failed to fetch Russell 2000: {e}")
             return None
 
+
 def main():
     try:
         # Execution timeout: Fetch + parse typically takes 10-20s
@@ -93,6 +95,7 @@ def main():
     except Exception as e:
         logger.error(f"Russell 2000 constituents load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

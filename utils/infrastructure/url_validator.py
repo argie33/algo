@@ -16,6 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def is_private_ip(ip_str: str) -> bool:
     """Check if IP address is private/reserved."""
     try:
@@ -30,6 +31,7 @@ def is_private_ip(ip_str: str) -> bool:
         )
     except ValueError:
         return False
+
 
 def validate_url(url: str, allowed_domains: Optional[List[str]] = None) -> tuple:
     """
@@ -90,6 +92,7 @@ def validate_url(url: str, allowed_domains: Optional[List[str]] = None) -> tuple
         return False, "Path traversal detected in URL"
 
     return True, None
+
 
 def validate_redirect_url(
     original_url: str, redirect_url: str, allowed_domains: Optional[List[str]] = None

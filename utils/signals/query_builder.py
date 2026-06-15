@@ -4,7 +4,7 @@
 Signal data sources with defined priority hierarchy:
 
 PRIMARY: buy_sell_daily — stock trading signals
-SUPPLEMENTARY: signal_quality_scores, company_profile — enrichment  
+SUPPLEMENTARY: signal_quality_scores, company_profile — enrichment
 CONTEXT: algo_performance_daily, algo_portfolio_snapshots — strategy performance
 """
 

@@ -20,6 +20,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"
 
+
 def up():
     with DatabaseContext("write") as cur:
         cur.execute("""
@@ -34,6 +35,7 @@ def up():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

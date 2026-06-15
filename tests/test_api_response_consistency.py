@@ -11,6 +11,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools", "dashboard"))
 from api_data_layer import _unwrap_api_response
 
+
 def test_unwrap_single_object_response():
     """Test unwrapping json_response format."""
     response = {
@@ -27,6 +28,7 @@ def test_unwrap_single_object_response():
     assert unwrapped["run_id"] == "test-123"
     print("[OK] Single object response unwrapping works")
 
+
 def test_unwrap_list_response():
     """Test unwrapping list_response format."""
     response = {
@@ -40,6 +42,7 @@ def test_unwrap_list_response():
     assert "items" in unwrapped, "items field should remain"
     assert len(unwrapped["items"]) == 2
     print("[OK] List response unwrapping works")
+
 
 def test_unwrap_direct_fields_response():
     """Test unwrapping response with direct fields."""
@@ -57,6 +60,7 @@ def test_unwrap_direct_fields_response():
     assert len(unwrapped["buy_sigs"]) == 1
     print("[OK] Direct fields response unwrapping works")
 
+
 def test_unwrap_preserves_metadata():
     """Test that data_freshness and other metadata is preserved."""
     response = {
@@ -70,12 +74,14 @@ def test_unwrap_preserves_metadata():
     assert "data_freshness" in unwrapped
     print("[OK] Metadata preservation works")
 
+
 def test_unwrap_empty_response():
     """Test unwrapping empty response."""
     response = {"statusCode": 200}
     unwrapped = _unwrap_api_response(response)
     assert unwrapped == {}
     print("[OK] Empty response unwrapping works")
+
 
 def test_data_fetcher_pattern():
     """Test the pattern used by data fetchers: resp.get("data", resp)"""
@@ -91,6 +97,7 @@ def test_data_fetcher_pattern():
     payload = unwrapped.get("data", unwrapped)  # Falls back to unwrapped itself
     assert payload == {"key": "value"}
     print("[OK] Data fetcher unwrapping pattern works")
+
 
 if __name__ == "__main__":
     try:

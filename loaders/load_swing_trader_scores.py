@@ -37,6 +37,7 @@ from utils.db.context import DatabaseContext
 from utils.loaders.config import get_default_parallelism
 from utils.signals.grade_classifier import GradeClassifier
 
+
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
     primary_key = ("symbol", "date")
@@ -444,6 +445,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             )
             raise
 
+
 def main():
     import time
     from utils.db.context import DatabaseContext
@@ -517,6 +519,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

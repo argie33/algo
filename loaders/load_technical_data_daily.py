@@ -35,6 +35,7 @@ from loaders.technical_indicators import (
 
 logger = logging.getLogger(__name__)
 
+
 class TechnicalDataDailyLoader(OptimalLoader):
     table_name = "technical_data_daily"
     primary_key = ("symbol", "date")
@@ -349,6 +350,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         return records
 
+
 def main():
     import time
     from utils.db.context import DatabaseContext
@@ -458,6 +460,7 @@ def main():
             logger.error(f"Failed to log failure: {log_err}")
 
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

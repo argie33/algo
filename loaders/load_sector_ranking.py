@@ -11,6 +11,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class SectorRankingLoader(OptimalLoader):
     """Rank sectors by composite score from stock_scores + company_profile."""
 
@@ -133,6 +134,7 @@ class SectorRankingLoader(OptimalLoader):
             logger.error(f"Failed to compute sector rankings: {e}")
             return None
 
+
 def main():
     loader = SectorRankingLoader()
     result = loader.load_global()
@@ -143,6 +145,7 @@ def main():
     else:
         logger.warning("COMPLETED: No sector rankings computed")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

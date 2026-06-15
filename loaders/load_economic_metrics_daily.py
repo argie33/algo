@@ -21,6 +21,7 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
 
+
 class EconomicMetricsDailyLoader(OptimalLoader):
     """Compute derived economic metrics daily."""
 
@@ -182,6 +183,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute economic metrics: {e}")
             return None
 
+
 def main():
     loader = EconomicMetricsDailyLoader()
     result = loader.load_global()
@@ -192,6 +194,7 @@ def main():
     else:
         logger.warning("COMPLETED: No economic metrics computed (insufficient data)")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

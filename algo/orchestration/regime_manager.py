@@ -37,6 +37,7 @@ from algo.infrastructure.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 class RegimeManager:
     """Market regime detection and parameter adaptation."""
 
@@ -272,6 +273,7 @@ class RegimeManager:
                 f"Failed to fetch market exposure confidence: {e} — defaulting to neutral 0.5"
             )
             return 0.5
+
 
 if __name__ == "__main__":
     rm = RegimeManager()

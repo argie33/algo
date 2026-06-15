@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
+
 class SLAMonitor:
     """Track and log SLA compliance for critical pipelines."""
 

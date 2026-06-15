@@ -8,6 +8,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class DailyFinanceReport:
     """Generate institutional daily finance report."""
 
@@ -423,6 +424,7 @@ class DailyFinanceReport:
         except Exception as e:
             logger.warning(f"Exception: {e}")
             return 0
+
 
 if __name__ == "__main__":
     report_gen = DailyFinanceReport()

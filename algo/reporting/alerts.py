@@ -31,6 +31,7 @@ try:
 except ImportError:
     TWILIO_AVAILABLE = False
 
+
 def _validate_webhook_url(url: str) -> bool:
     """Validate webhook URL is safe (not SSRF attack).
 
@@ -104,6 +105,7 @@ def _validate_webhook_url(url: str) -> bool:
         f"Webhook URL validation failed: domain not whitelisted - {hostname}"
     )
     return False
+
 
 class AlertManager:
     """Send alerts via email and webhook."""
@@ -428,6 +430,7 @@ class AlertManager:
                 logger.info(f"SMS sent to {phone}")
             except Exception as e:
                 logger.error(f"SMS to {phone} failed: {e}")
+
 
 if __name__ == "__main__":
     # Test alerts

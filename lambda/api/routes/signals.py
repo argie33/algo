@@ -1,6 +1,9 @@
 """Route: signals"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict, Optional
 import logging
 from routes.utils import (
@@ -14,6 +17,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,
@@ -56,6 +60,7 @@ def handle(
     ) as e:
         code, error_type, message = handle_db_error(e, "handle signals")
         return error_response(code, error_type, message)
+
 
 @db_route_handler("fetch stock signals")
 def _get_signals_stocks(
@@ -146,6 +151,7 @@ def _get_signals_stocks(
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch stock signals")
         return error_response(code, error_type, message)
+
 
 @db_route_handler("fetch ETF signals")
 def _get_signals_etf(cur, limit: int = 500) -> Dict:

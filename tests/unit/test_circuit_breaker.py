@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from algo.risk import CircuitBreaker
 
+
 @pytest.fixture
 def mock_config():
     """Create mock configuration."""
@@ -20,6 +21,7 @@ def mock_config():
         "drawdown_limit": -20,
     }
 
+
 @pytest.fixture
 def mock_connection():
     """Create mock database connection."""
@@ -28,10 +30,12 @@ def mock_connection():
     mock_conn.cursor.return_value = mock_cur
     return mock_conn, mock_cur
 
+
 @pytest.fixture
 def circuit_breaker(mock_config):
     """Create CircuitBreaker instance with mocked database."""
     return CircuitBreaker(config=mock_config)
+
 
 class TestCircuitBreakerInit:
     """Test CircuitBreaker initialization."""
@@ -40,6 +44,7 @@ class TestCircuitBreakerInit:
         """Test initialization with configuration."""
         cb = CircuitBreaker(config=mock_config)
         assert cb.config == mock_config
+
 
 class TestCircuitBreakerBasic:
     """Test basic CircuitBreaker functionality."""
@@ -81,6 +86,7 @@ class TestCircuitBreakerBasic:
                 for p in patches:
                     p.stop()
 
+
 class TestCircuitBreakerVIX:
     """Test VIX-based circuit breaker logic."""
 
@@ -92,6 +98,7 @@ class TestCircuitBreakerVIX:
             assert isinstance(result, dict)
             assert "halted" in result
             assert "vix_level" in result
+
 
 class TestCircuitBreakerAll:
     """Test combined circuit breaker checks."""

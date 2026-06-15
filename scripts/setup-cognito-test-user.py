@@ -7,6 +7,7 @@ import json
 import boto3
 from botocore.exceptions import ClientError
 
+
 def setup_test_user():
     """Create or reset Cognito test user."""
 
@@ -98,6 +99,7 @@ def setup_test_user():
     except Exception as e:
         print(f"[ERROR] Unexpected error: {e}")
         return False
+
 
 if __name__ == "__main__":
     # Set env vars from Terraform if not already set

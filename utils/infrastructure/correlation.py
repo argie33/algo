@@ -28,6 +28,7 @@ _correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.Context
     "correlation_id", default=None
 )
 
+
 def set_correlation_id(correlation_id: str) -> None:
     """Set the correlation ID for this execution context.
 
@@ -38,6 +39,7 @@ def set_correlation_id(correlation_id: str) -> None:
         correlation_id: Unique ID to trace this execution
     """
     _correlation_id_var.set(correlation_id)
+
 
 def get_correlation_id() -> str:
     """Get the current correlation ID, or generate a new one if not set.
@@ -50,6 +52,7 @@ def get_correlation_id() -> str:
         cid = f"GEN-{str(uuid.uuid4())[:8]}"
         _correlation_id_var.set(cid)
     return cid
+
 
 @contextmanager
 def correlation_context(correlation_id: str):
@@ -71,6 +74,7 @@ def correlation_context(correlation_id: str):
         yield correlation_id
     finally:
         _correlation_id_var.reset(token)
+
 
 def reset_correlation_id() -> None:
     """Clear the correlation ID (for testing or manual cleanup)."""

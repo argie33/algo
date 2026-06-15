@@ -15,6 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def sanitize_for_csv(value) -> str:
     """
     Sanitize value for safe CSV/Excel export.
@@ -47,6 +48,7 @@ def sanitize_for_csv(value) -> str:
 
     return str_val
 
+
 def sanitize_dict_for_csv(record: dict) -> dict:
     """
     Sanitize all values in a dictionary for CSV export.
@@ -58,6 +60,7 @@ def sanitize_dict_for_csv(record: dict) -> dict:
         New dictionary with all values sanitized
     """
     return {key: sanitize_for_csv(value) for key, value in record.items()}
+
 
 def sanitize_list_for_csv(records: list) -> list:
     """

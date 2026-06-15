@@ -1,8 +1,12 @@
 """Route: trades"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
-import logging, os
+import logging
+import os
 import uuid
 from datetime import date
 from pydantic import ValidationError
@@ -20,6 +24,7 @@ from models.requests import ManualTradeRequest
 
 logger = logging.getLogger(__name__)
 
+
 def _check_admin_access(jwt_claims: Dict) -> bool:
     if not jwt_claims:
         return False
@@ -27,6 +32,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     if groups is None:
         groups = []
     return "admin" in groups
+
 
 def handle(
     cur,
@@ -39,11 +45,15 @@ def handle(
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+                jwt_claims
+            ):
                 return error_response(403, "forbidden", "Admin access required")
             return _create_manual_trade(cur, body or {})
         if path == "/api/trades":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+                jwt_claims
+            ):
                 return error_response(403, "forbidden", "Admin access required")
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=5000, default=500)
@@ -105,7 +115,9 @@ def handle(
                 data_freshness=freshness,
             )
         elif path == "/api/trades/summary":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+                jwt_claims
+            ):
                 return error_response(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
             cur.execute("""
@@ -133,6 +145,7 @@ def handle(
     ) as e:
         code, error_type, message = handle_db_error(e, "handle trades")
         return error_response(code, error_type, message)
+
 
 def _create_manual_trade(cur, body: Dict) -> Dict:
     """POST /api/trades/manual — manually log a trade entry."""

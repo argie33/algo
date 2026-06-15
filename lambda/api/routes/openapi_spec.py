@@ -6,6 +6,7 @@ from openapi_spec import generate_openapi_spec
 
 logger = logging.getLogger(__name__)
 
+
 def handle(
     cur,
     path: str,
@@ -34,6 +35,7 @@ def handle(
             "_error": "not_found",
         }
 
+
 def _handle_openapi_json() -> Dict:
     """Serve the OpenAPI specification as JSON.
 
@@ -61,6 +63,7 @@ def _handle_openapi_json() -> Dict:
             "message": "Failed to generate OpenAPI specification",
             "_error": "internal_error",
         }
+
 
 def _handle_swagger_ui() -> Dict:
     """Serve Swagger UI for interactive API documentation.
@@ -109,6 +112,7 @@ def _handle_swagger_ui() -> Dict:
         "body": html,
         "headers": {"Content-Type": "text/html; charset=utf-8"},
     }
+
 
 def _handle_redoc_ui() -> Dict:
     """Serve ReDoc UI for API documentation.

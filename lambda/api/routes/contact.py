@@ -1,8 +1,12 @@
 """Route: contact"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
 from typing import Dict
-import logging, re, os
+import logging
+import re
+import os
 from datetime import datetime, timezone
 from pydantic import ValidationError
 from routes.utils import (
@@ -16,6 +20,7 @@ from routes.utils import (
 from models.requests import ContactSubmissionRequest
 from time import time
 
+
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
@@ -24,6 +29,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     if groups is None:
         groups = []
     return "admin" in groups
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,7 @@ _EMAIL_RE = re.compile(
 
 CONTACT_RATE_LIMIT_REQUESTS = 5
 CONTACT_RATE_LIMIT_WINDOW = 3600
+
 
 def _is_contact_spam(email: str) -> bool:
     """Check if email has exceeded contact form submission rate limit.
@@ -118,6 +125,7 @@ def _is_contact_spam(email: str) -> bool:
         logger.error(f"DynamoDB rate limit error: {e}. Rejecting request for safety.")
         return True  # Fail safe: reject if we can't verify rate limit
 
+
 def handle(
     cur,
     path: str,
@@ -131,7 +139,9 @@ def handle(
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
                 return error_response(401, "unauthorized", "Authentication required")
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+                jwt_claims
+            ):
                 logger.warning(
                     f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}"
                 )
@@ -151,6 +161,7 @@ def handle(
         return error_response(
             500, "internal_error", "An error occurred processing your request"
         )
+
 
 def _submit_contact(cur, body: Dict) -> Dict:
     """Store a contact form submission."""
@@ -229,6 +240,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
     except Exception as e:
         code, error_type, message = handle_db_error(e, "submit_contact")
         return error_response(code, error_type, message)
+
 
 def _get_submissions(cur, params: Dict) -> Dict:
     """Get contact submissions (admin-only)."""

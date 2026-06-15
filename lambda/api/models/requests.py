@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 import re
 
+
 class TradePreviewRequest(BaseModel):
     """Request model for POST /api/algo/preview - Calculate position preview before trade entry."""
 
@@ -34,6 +35,7 @@ class TradePreviewRequest(BaseModel):
             if v >= entry_price:
                 raise ValueError("Stop loss price must be below entry price")
         return v
+
 
 class PreTradeImpactRequest(BaseModel):
     """Request model for POST /api/algo/pre-trade-impact - Analyze impact of potential trade."""
@@ -85,6 +87,7 @@ class PreTradeImpactRequest(BaseModel):
             if v <= 0 or v > 100:
                 raise ValueError("Position percentage must be between 0 and 100")
         return v
+
 
 class ContactSubmissionRequest(BaseModel):
     """Request model for POST /api/contact - Submit contact form."""
@@ -169,6 +172,7 @@ class ContactSubmissionRequest(BaseModel):
 
         return v
 
+
 class VerifyUserEmailRequest(BaseModel):
     """Request model for POST /api/admin/verify-user-email - Verify user email in Cognito."""
 
@@ -186,6 +190,7 @@ class VerifyUserEmailRequest(BaseModel):
                 "Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +"
             )
         return v
+
 
 class ManualTradeRequest(BaseModel):
     """Request model for POST /api/trades/manual - Manually log a trade entry."""

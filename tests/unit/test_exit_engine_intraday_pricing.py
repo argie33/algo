@@ -10,11 +10,13 @@ from datetime import date as _date
 from unittest.mock import Mock, patch
 from algo.trading.exit_engine import ExitEngine
 
+
 @pytest.fixture
 def exit_engine(mock_config_minimal):
     """Create ExitEngine instance with minimal config."""
     with patch("algo.trading.exit_engine.TradeExecutor"):
         return ExitEngine(mock_config_minimal)
+
 
 class TestAlpacaQuoteFetching:
     """Test fetching real-time quotes from Alpaca."""
@@ -121,6 +123,7 @@ class TestAlpacaQuoteFetching:
 
             assert quote is None
 
+
 class TestFetchRecentPrices:
     """Test the updated _fetch_recent_prices method with intraday support."""
 
@@ -189,6 +192,7 @@ class TestFetchRecentPrices:
             assert current_price is None
             assert prev_close is None
 
+
 class TestStopExecutionWithIntradayPrices:
     """Integration tests for stop execution using intraday prices."""
 
@@ -211,6 +215,7 @@ class TestStopExecutionWithIntradayPrices:
             # Should use intraday price (144.50), not stale daily close
             assert current_price == 144.50
             assert current_price < stop_price  # Stop should trigger
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

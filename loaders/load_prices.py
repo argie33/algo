@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 _correlation_id = os.getenv("PHASE1_CORRELATION_ID") or f"AUTO-{str(uuid.uuid4())[:8]}"
 set_correlation_id(_correlation_id)
 
+
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
 
@@ -2056,6 +2057,7 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted
             self._stats["symbols_processed"] += 1
 
+
 def _invalidate_phase1_cache():
     """Invalidate Phase 1 cache to force fresh status check on next run.
 
@@ -2128,6 +2130,7 @@ def _invalidate_phase1_cache():
         "Halting loader to prevent silent stale-data corruption."
     )
 
+
 def log_loader_execution(
     loader_name,
     table_name,
@@ -2174,6 +2177,7 @@ def log_loader_execution(
             f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}"
         )
         raise
+
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
@@ -2534,6 +2538,7 @@ def main():
         except Exception as close_err:
             logger.debug(f"Could not close lock connection: {close_err}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

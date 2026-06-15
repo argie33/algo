@@ -39,6 +39,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 import functools
 import threading
 
+
 class _RateLimiter:
     """Rate limiter for yfinance API requests."""
 
@@ -56,6 +57,7 @@ class _RateLimiter:
             if elapsed < self._min_interval:
                 time.sleep(self._min_interval - elapsed)
             self._last_call = time.monotonic()
+
 
 # Lazy import to avoid "No module named 'algo'" errors when sys.path isn't set up yet
 # Loaders set sys.path.insert(0, parent_dir) at module top, which happens before utils imports
@@ -87,7 +89,8 @@ except ImportError:
                     except exceptions as e:
                         if attempt == max_attempts:
                             raise
-                        import time, random
+                        import time
+                        import random
 
                         sleep = min(delay, max_delay)
                         if jitter:
@@ -118,6 +121,7 @@ logger = logging.getLogger(__name__)
 _GLOBAL_YFINANCE_LIMITER = None
 _GLOBAL_LIMITER_LOCK = threading.Lock()
 
+
 def get_global_yfinance_limiter():
     """Get or create the global yfinance rate limiter (shared across all loaders).
 
@@ -139,6 +143,7 @@ def get_global_yfinance_limiter():
                     _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=30)
     return _GLOBAL_YFINANCE_LIMITER
 
+
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
     for attempt in range(retries):
@@ -156,6 +161,7 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
     raise TimeoutError(
         f"Function call exceeded {timeout_sec}s timeout after {retries} retries"
     )
+
 
 @dataclass
 class SourceHealth:
@@ -193,6 +199,7 @@ class SourceHealth:
                     self.success_rate * 100,
                     error,
                 )
+
 
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""

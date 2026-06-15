@@ -4,6 +4,7 @@
 import ast
 from pathlib import Path
 
+
 def get_exports_from_module(filepath: Path) -> list:
     """Extract all top-level class and function definitions from a Python file."""
     try:
@@ -20,6 +21,7 @@ def get_exports_from_module(filepath: Path) -> list:
                 exports.append(node.name)
 
     return list(set(exports))
+
 
 def create_init_file(dir_path: Path):
     """Create __init__.py for a submodule directory."""
@@ -50,6 +52,7 @@ def create_init_file(dir_path: Path):
 
     (dir_path / "__init__.py").write_text(init_content)
     print(f"[+] Created {dir_path}/__init__.py")
+
 
 def main():
     repo_root = Path(".")
@@ -86,6 +89,7 @@ def main():
         submod_path = repo_root / "utils" / submod
         if submod_path.exists():
             create_init_file(submod_path)
+
 
 if __name__ == "__main__":
     main()

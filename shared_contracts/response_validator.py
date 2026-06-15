@@ -11,8 +11,10 @@ from .dashboard_api_contract import DASHBOARD_ENDPOINTS
 
 logger = logging.getLogger(__name__)
 
+
 class ResponseValidationError(Exception):
     """Raised when response doesn't match schema."""
+
 
 class ResponseValidator:
     """Validate API responses against contract schemas."""

@@ -6,6 +6,7 @@ Centralizes endpoint configuration to support:
 - Rate limit and feature parity considerations
 """
 
+
 def get_yahoo_finance_url() -> str:
     """Return Yahoo Finance API base URL.
 
@@ -13,6 +14,7 @@ def get_yahoo_finance_url() -> str:
     Pattern: https://query1.finance.yahoo.com
     """
     return "https://query1.finance.yahoo.com"
+
 
 def get_fred_url() -> str:
     """Return FRED (Federal Reserve Economic Data) API base URL.
@@ -22,6 +24,7 @@ def get_fred_url() -> str:
     Requires: FRED_API_KEY environment variable or credential manager
     """
     return "https://api.stlouisfed.org/fred"
+
 
 def get_aaii_sentiment_url() -> str:
     """Return AAII (American Association of Individual Investors) sentiment URL.

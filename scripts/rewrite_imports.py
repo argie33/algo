@@ -107,6 +107,7 @@ IMPORT_MAPPING = {
     "from utils.ops import": "from utils.ops import",
 }
 
+
 def update_file(filepath: Path) -> bool:
     """Update imports in a single file."""
     try:
@@ -127,6 +128,7 @@ def update_file(filepath: Path) -> bool:
             return False
 
     return False
+
 
 def main():
     repo_root = Path(".")
@@ -149,6 +151,7 @@ def main():
             print(f"  [+] Updated {rel_path}")
 
     print(f"\n[OK] Updated {updated_count} files")
+
 
 if __name__ == "__main__":
     main()

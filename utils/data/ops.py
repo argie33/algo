@@ -12,6 +12,7 @@ from utils.db import get_or_create_cache
 
 logger = logging.getLogger(__name__)
 
+
 def load_with_freshness(
     fetch_fn: Callable[[], Any],
     data_type: str,
@@ -35,6 +36,7 @@ def load_with_freshness(
 
     return (data, freshness)
 
+
 def get_or_cache(
     key: Any,
     compute_fn: Callable[[], Any],
@@ -56,6 +58,7 @@ def get_or_cache(
         logger.error(f"Cache operation failed: {e}")
         return None
 
+
 def validate_and_log(
     record: Dict[str, Any],
     schema: Dict[str, str],
@@ -67,6 +70,7 @@ def validate_and_log(
     except Exception as e:
         logger.error(f"Record validation failed: {e}")
         return record
+
 
 def check_data_fresh(
     last_updated: Optional[Any],

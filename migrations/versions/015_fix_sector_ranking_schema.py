@@ -17,6 +17,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"
 
+
 def up():
     with DatabaseContext("write") as cur:
         # Check what columns exist in sector_ranking
@@ -67,6 +68,7 @@ def up():
                 CREATE INDEX IF NOT EXISTS idx_sector_ranking_date
                 ON sector_ranking(date DESC)
             """)
+
 
 def down():
     with DatabaseContext("write") as cur:

@@ -19,6 +19,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class ValueMetricsLoader(OptimalLoader):
     """Load value metrics (PE, PB, PS, etc) from yfinance."""
 
@@ -91,6 +92,7 @@ class ValueMetricsLoader(OptimalLoader):
 
         return None
 
+
 def _apply_schema_migrations():
     """Add columns that were missing from initial schema deployment."""
     from utils.db.context import DatabaseContext
@@ -108,6 +110,7 @@ def _apply_schema_migrations():
                 cur.execute(sql)
     except Exception as e:
         logger.warning(f"Schema migration failed (non-fatal): {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Value Metrics Loader")
@@ -141,6 +144,7 @@ def main():
             f"COMPLETED: No metrics loaded (rows_fetched={result['rows_fetched']})"
         )
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

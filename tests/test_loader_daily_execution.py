@@ -35,6 +35,7 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 
 from utils.db.context import DatabaseContext
 
+
 class TestCriticalLoaderDailyExecution:
     """Verify critical loaders run daily and update data_loader_status."""
 
@@ -132,6 +133,7 @@ class TestCriticalLoaderDailyExecution:
             for loader_name, reason in stale.items():
                 error_msg += f"  {loader_name}: {reason}\n"
             pytest.fail(error_msg)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

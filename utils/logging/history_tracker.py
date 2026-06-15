@@ -20,6 +20,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class LoaderHistoryTracker:
     """Track and log loader execution to database."""
 

@@ -77,11 +77,13 @@ _PERIOD_CONFIG = {
     },
 }
 
+
 def _resolve_period(cli_arg: Optional[str]) -> str:
     if cli_arg:
         return cli_arg
     period_env = os.getenv("LOADER_PERIOD", "annual")
     return period_env
+
 
 class CashFlowLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -177,6 +179,7 @@ class CashFlowLoader(OptimalLoader):
 
         return True
 
+
 def main():
     parser = argparse.ArgumentParser(description="Cash flow loader (annual/quarterly)")
     parser.add_argument(
@@ -214,6 +217,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

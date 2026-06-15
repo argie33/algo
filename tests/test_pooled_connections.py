@@ -20,6 +20,7 @@ from utils.db.pooled_context_var import (
     has_pooled_connection,
 )
 
+
 class TestPoolSemaphore(unittest.TestCase):
     """Test PoolSemaphore for backpressure control."""
 
@@ -83,6 +84,7 @@ class TestPoolSemaphore(unittest.TestCase):
         self.assertEqual(len(results), 10)
         self.assertEqual(sum(results), 10)
 
+
 class TestPooledConnectionManager(unittest.TestCase):
     """Test PooledConnectionManager lifecycle."""
 
@@ -138,6 +140,7 @@ class TestPooledConnectionManager(unittest.TestCase):
         # Second release should not crash
         manager.release()
 
+
 class TestPooledContextVar(unittest.TestCase):
     """Test context variable storage of pooled connections."""
 
@@ -181,6 +184,7 @@ class TestPooledContextVar(unittest.TestCase):
         # Each thread should see its own context
         self.assertTrue(results[1])
         self.assertTrue(results[2])
+
 
 class TestDatabaseContextIntegration(unittest.TestCase):
     """Test DatabaseContext reuse of pooled connections."""
@@ -226,6 +230,7 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_fresh.assert_called()
         mock_fresh.close.assert_called_once()
 
+
 class TestConnectionChurnReduction(unittest.TestCase):
     """Integration test verifying connection churn reduction."""
 
@@ -267,6 +272,7 @@ class TestConnectionChurnReduction(unittest.TestCase):
         self.assertEqual(mock_pool.getconn.call_count, 1)
         # Verify: only 1 putconn call
         self.assertEqual(mock_pool.putconn.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

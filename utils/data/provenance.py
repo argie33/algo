@@ -40,6 +40,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class DataProvenanceTracker:
     """Tracks provenance of all loaded data for audit and replay."""
 

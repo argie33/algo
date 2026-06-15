@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 

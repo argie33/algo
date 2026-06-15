@@ -13,6 +13,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class CompanyProfileLoader(OptimalLoader):
     """Load company profiles with sector and industry from yfinance."""
 
@@ -51,6 +52,7 @@ class CompanyProfileLoader(OptimalLoader):
             logger.debug(f"Could not fetch yfinance data for {symbol}: {e}")
             return None
 
+
 def main():
     import argparse
 
@@ -83,6 +85,7 @@ def main():
             f"COMPLETED: No profiles loaded (rows_fetched={result['rows_fetched']})"
         )
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

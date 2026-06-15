@@ -5,6 +5,7 @@ API Endpoint Configuration
 Provides URL construction for external data APIs used by the system.
 """
 
+
 def get_alpaca_data_url() -> str:
     """Get the Alpaca Data API base URL.
 

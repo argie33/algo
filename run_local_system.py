@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import argparse
 
+
 def run_command(cmd, description, env=None):
     """Run a command and report status."""
     print(f"\n{'=' * 60}")
@@ -40,6 +41,7 @@ def run_command(cmd, description, env=None):
         print(f"✗ ERROR: {description}")
         print(f"Error: {e}")
         return False
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -200,6 +202,7 @@ def main():
     """)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

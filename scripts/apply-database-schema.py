@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.extensions
 from pathlib import Path
 
+
 def get_db_connection():
     """Create database connection from environment variables."""
     required_vars = ["DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]
@@ -31,6 +32,7 @@ def get_db_connection():
         print("[ERROR] Database connection failed: {}".format(e))
         sys.exit(1)
 
+
 def load_schema(schema_file):
     """Load schema SQL from file."""
     try:
@@ -39,6 +41,7 @@ def load_schema(schema_file):
     except FileNotFoundError:
         print("[ERROR] Schema file not found: {}".format(schema_file))
         sys.exit(1)
+
 
 def apply_schema(conn, schema_sql):
     """Apply schema to database using psycopg2."""
@@ -69,6 +72,7 @@ def apply_schema(conn, schema_sql):
         if cur:
             cur.close()
 
+
 def main():
     print("=" * 70)
     print("DATABASE SCHEMA INITIALIZATION")
@@ -94,6 +98,7 @@ def main():
         print("  python scripts/diagnose-dashboard-data.py")
 
     print("=" * 70)
+
 
 if __name__ == "__main__":
     main()

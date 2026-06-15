@@ -59,6 +59,7 @@ EARLY_CLOSES = {
     _date(2027, 11, 26): "Day after Thanksgiving",
 }
 
+
 class MarketCalendar:
     """Check market status and trading hours."""
 
@@ -220,6 +221,7 @@ class MarketCalendar:
             iterations += 1
 
         return next_date if iterations < max_iterations else None
+
 
 if __name__ == "__main__":
     from datetime import timedelta

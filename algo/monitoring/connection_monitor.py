@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionPoolMonitor:
     """Monitor RDS connection pool utilization and emit alerts."""
 
@@ -118,9 +119,11 @@ class ConnectionPoolMonitor:
                 "Check for: infinite loops, deadlocks, network timeouts, or query hangs."
             )
 
+
 # Global monitor instance
 _monitor: Optional[ConnectionPoolMonitor] = None
 _monitor_lock = threading.Lock()
+
 
 def get_monitor() -> ConnectionPoolMonitor:
     """Get or create the global connection monitor."""
@@ -136,17 +139,21 @@ def get_monitor() -> ConnectionPoolMonitor:
                 )
     return _monitor
 
+
 def on_connect() -> None:
     """Hook called when connection is acquired (from db_connection.py)."""
     get_monitor().on_connect()
+
 
 def on_disconnect() -> None:
     """Hook called when connection is released (from db_connection.py)."""
     get_monitor().on_disconnect()
 
+
 def get_pool_status() -> Dict[str, Any]:
     """Get current RDS pool status (for monitoring/debugging)."""
     return get_monitor().get_status()
+
 
 def check_stuck_connections() -> None:
     """Check for and alert on stuck connections."""

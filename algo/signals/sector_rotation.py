@@ -49,6 +49,7 @@ SECTOR_ETF = {
     "Real Estate": "XLRE",
 }
 
+
 class SectorRotationDetector:
     """Detect defensive sector leadership patterns."""
 
@@ -248,6 +249,7 @@ class SectorRotationDetector:
             logger.error(
                 f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True
             )
+
 
 if __name__ == "__main__":
     d = SectorRotationDetector()

@@ -12,6 +12,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+
 def test_parallelism():
     """Test that get_parallelism returns correct values for critical loaders."""
     from utils.loaders.config import get_parallelism
@@ -38,6 +39,7 @@ def test_parallelism():
 
     print("=" * 60)
 
+
 def test_imports():
     """Test that all critical modules can import without errors."""
     print("\nTesting module imports...")
@@ -59,6 +61,7 @@ def test_imports():
             raise AssertionError(f"Failed to import {module_name}: {e}") from e
 
     print("=" * 60)
+
 
 def test_loaders_syntax():
     """Test that loader files have valid Python syntax."""
@@ -87,6 +90,7 @@ def test_loaders_syntax():
             raise AssertionError(f"Syntax error in {loader_file}: {e}") from e
 
     print("=" * 60)
+
 
 def main():
     """Run all tests."""
@@ -119,6 +123,7 @@ def main():
     print("=" * 60)
 
     return 0 if all_pass else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

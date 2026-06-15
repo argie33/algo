@@ -235,6 +235,7 @@ UTILS_FILES_TO_MOVE = [
     ("utils/orchestrator_query.py", "utils/ops/orchestrator_query.py", "ops"),
 ]
 
+
 def main():
     repo_root = Path(".")
 
@@ -255,6 +256,7 @@ def main():
             print(f"    [SKIP] {old_path} does not exist")
 
     print("[*] Done!")
+
 
 if __name__ == "__main__":
     main()

@@ -9,6 +9,7 @@ the transition to dependency injection.
 
 from typing import Protocol, Any, Union, runtime_checkable
 
+
 @runtime_checkable
 class ConfigProtocol(Protocol):
     """Interface for configuration objects used in dependency injection.
@@ -28,6 +29,7 @@ class ConfigProtocol(Protocol):
     def to_dict(self) -> dict:
         """Export configuration as dictionary."""
         ...
+
 
 ConfigType = Union[ConfigProtocol, dict]
 """Type alias for configuration objects accepted in dependency injection."""

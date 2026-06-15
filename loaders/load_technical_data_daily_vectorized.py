@@ -39,6 +39,7 @@ from loaders.technical_indicators import (
 
 logger = logging.getLogger(__name__)
 
+
 class VectorizedTechnicalLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
 
@@ -393,6 +394,7 @@ class VectorizedTechnicalLoader:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 
+
 def _update_tech_loader_status(status: str, error_message: str = None):
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
@@ -424,6 +426,7 @@ def _update_tech_loader_status(status: str, error_message: str = None):
                 (status, error_message, "technical_data_daily"),
             )
 
+
 def _tech_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
@@ -440,6 +443,7 @@ def _tech_heartbeat_worker(stop_event):
                 )
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
@@ -543,6 +547,7 @@ def main():
         # Stop heartbeat thread
         stop_heartbeat.set()
         heartbeat_thread.join(timeout=5)
+
 
 if __name__ == "__main__":
     logging.basicConfig(

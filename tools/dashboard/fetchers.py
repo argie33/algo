@@ -70,6 +70,7 @@ FETCHER_METADATA = {
     },
 }
 
+
 def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     """Format fetcher error with endpoint context for better troubleshooting.
 
@@ -91,6 +92,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     else:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
+
 def _get_endpoint_path(fetcher_key: str, params: Optional[dict] = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
@@ -106,6 +108,7 @@ def _get_endpoint_path(fetcher_key: str, params: Optional[dict] = None) -> str:
     if not endpoint:
         return fetcher_key
     return endpoint
+
 
 def fetch_run(c):
     try:
@@ -133,6 +136,7 @@ def fetch_run(c):
         error_msg = _format_fetcher_error("run", e)
         logger.error(error_msg)
         return {"_error": error_msg}
+
 
 def fetch_algo_config(c):
     """AWS-only algo configuration (no local fallback)."""
@@ -187,6 +191,7 @@ def fetch_algo_config(c):
             "base_risk": None,
             "t1_r": None,
         }
+
 
 def fetch_market(c):
     """Issue 3 FIX: API-only market data.
@@ -349,6 +354,7 @@ def fetch_market(c):
             "fed": None,
         }
 
+
 def fetch_exposure_factors(c):
     """Issue 3 FIX: API-only exposure factors."""
     try:
@@ -381,6 +387,7 @@ def fetch_exposure_factors(c):
             "factors": {},
         }
 
+
 def _validate_required_fields(data_dict, required_fields, source_name):
     """Validate that all required fields exist in response dict. Return error dict if missing."""
     if not isinstance(data_dict, dict):
@@ -392,6 +399,7 @@ def _validate_required_fields(data_dict, required_fields, source_name):
         logger.warning(f"{source_name}: missing required fields: {missing}")
         return {"_error": f"{source_name}: missing fields {missing}"}
     return None
+
 
 def _check_data_freshness(
     timestamp_str: str, max_age_seconds: int = 3600, source_name: str = "data"
@@ -426,6 +434,7 @@ def _check_data_freshness(
             f"Could not parse {source_name} timestamp '{timestamp_str}': {e}"
         )
         return True, None
+
 
 def fetch_portfolio(c):
     """Fetch portfolio snapshot from API. Fails clean if unavailable.
@@ -570,6 +579,7 @@ def fetch_portfolio(c):
             "data_age_seconds": None,
         }
 
+
 def fetch_perf(c):
     """AWS-only performance data (no local fallback).
 
@@ -609,9 +619,7 @@ def fetch_perf(c):
         )
         if not is_fresh:
             logger.warning(freshness_error)
-            record_data_quality_issue(
-                "per", "timestamp", "data_stale", freshness_error
-            )
+            record_data_quality_issue("per", "timestamp", "data_stale", freshness_error)
             return {
                 "_error": freshness_error,
                 "_data_stale": True,
@@ -663,7 +671,7 @@ def fetch_perf(c):
         try:
             n = safe_int_strict(perf["total_trades"], "perf.total_trades")
             w = safe_int_strict(perf["winning_trades"], "perf.winning_trades")
-            l = safe_int_strict(perf["losing_trades"], "perf.losing_trades")
+            losing = safe_int_strict(perf["losing_trades"], "perf.losing_trades")
         except StrictValidationError as e:
             error_msg = f"Performance data conversion failed: {str(e)}"
             logger.error(error_msg)
@@ -692,7 +700,7 @@ def fetch_perf(c):
         return {
             "n": n,
             "w": w,
-            "l": l,
+            "l": losing,
             "wr": safe_float(perf.get("win_rate_pct"), default=None),
             "open_count": safe_int(perf.get("open_positions"), default=None),
             "pnl": safe_float(perf.get("total_pnl_dollars"), default=None),
@@ -731,6 +739,7 @@ def fetch_perf(c):
             "recent_rets": [],
         }
 
+
 def fetch_positions(c):
     """Fetch positions via AWS API only (no local database fallback)."""
     try:
@@ -756,6 +765,7 @@ def fetch_positions(c):
             "items": [],
             "timestamp": datetime.now(timezone.utc),
         }
+
 
 def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
@@ -784,6 +794,7 @@ def fetch_recent_trades(c):
             "items": [],
             "timestamp": datetime.now(timezone.utc),
         }
+
 
 def fetch_signals(c):
     """Fetch dashboard signals from API."""
@@ -843,6 +854,7 @@ def fetch_signals(c):
             "timestamp": datetime.now(timezone.utc),
         }
 
+
 def fetch_sector_ranking(c):
     """Fetch sector rankings from API."""
     try:
@@ -855,6 +867,7 @@ def fetch_sector_ranking(c):
         error_msg = _format_fetcher_error("srank", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_activity(c):
     """Fetch activity and audit log from API."""
@@ -886,6 +899,7 @@ def fetch_activity(c):
             "recent_actions": [],
         }
 
+
 def _get_data_status_cached():
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
 
@@ -911,6 +925,7 @@ def _get_data_status_cached():
             _data_status_cache["result"] = error_result
             return error_result
 
+
 def fetch_health(c):
     """Fetch data loader health status from API. Uses cached data-status."""
     try:
@@ -923,6 +938,7 @@ def fetch_health(c):
         error_msg = _format_fetcher_error("health", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_economic_pulse(c):
     try:
@@ -995,6 +1011,7 @@ def fetch_economic_pulse(c):
             "umcsent": None,
         }
 
+
 def fetch_algo_metrics(c):
     """Issue 3 FIX: API-only algo metrics."""
     try:
@@ -1009,6 +1026,7 @@ def fetch_algo_metrics(c):
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
 
+
 def fetch_notifications(c):
     try:
         data = api_call(_get_endpoint_path("notifs"))
@@ -1021,6 +1039,7 @@ def fetch_notifications(c):
         error_msg = _format_fetcher_error("notifs", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_sentiment(c):
     """Issue 3 FIX: API-only sentiment data."""
@@ -1055,6 +1074,7 @@ def fetch_sentiment(c):
             "color": CY,
         }
 
+
 def fetch_economic_calendar(c):
     """Issue 3 FIX: API-only economic calendar."""
     try:
@@ -1068,6 +1088,7 @@ def fetch_economic_calendar(c):
         error_msg = _format_fetcher_error("econ_cal", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_risk_metrics(c):
     """Issue 3 FIX: API-only risk metrics."""
@@ -1104,6 +1125,7 @@ def fetch_risk_metrics(c):
             "beta": None,
             "conc5": None,
         }
+
 
 def fetch_perf_analytics(c):
     """Issue 3 FIX: API-only performance analytics."""
@@ -1147,6 +1169,7 @@ def fetch_perf_analytics(c):
             "maxdd": None,
         }
 
+
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
     try:
@@ -1169,6 +1192,7 @@ def fetch_signal_eval(c):
         error_msg = _format_fetcher_error("sig_eval", e)
         logger.error(error_msg)
         return {"_error": error_msg}
+
 
 def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API."""
@@ -1219,6 +1243,7 @@ def fetch_sector_rotation(c):
             "cyc_score": 0,
         }
 
+
 def fetch_industry_ranking(c):
     """Fetch industry rankings from API."""
     try:
@@ -1231,6 +1256,7 @@ def fetch_industry_ranking(c):
         error_msg = _format_fetcher_error("irank", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_exec_history(c):
     """Fetch recent execution history from API."""
@@ -1247,6 +1273,7 @@ def fetch_exec_history(c):
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
 
+
 def fetch_audit_log(c):
     """Fetch audit log from API."""
     try:
@@ -1259,6 +1286,7 @@ def fetch_audit_log(c):
         error_msg = _format_fetcher_error("audit", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
 
 def fetch_circuit(c):
     """Fetch circuit breakers from API."""
@@ -1289,6 +1317,7 @@ def fetch_circuit(c):
         logger.error(error_msg)
         return {"_error": error_msg, "bs": [], "any": False, "n": 0}
 
+
 FETCHERS = {
     "run": fetch_run,
     "cfg": fetch_algo_config,
@@ -1316,6 +1345,7 @@ FETCHERS = {
     "audit": fetch_audit_log,
     "exec_hist": fetch_exec_history,
 }
+
 
 def load_all() -> dict:
     """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.

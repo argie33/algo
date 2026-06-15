@@ -8,6 +8,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class SignalMomentumMixin:
     """Momentum and breakout signals."""
 

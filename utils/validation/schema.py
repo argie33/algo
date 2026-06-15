@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 def validate_table_schema(
     cur,
     table_name: str,
@@ -109,6 +110,7 @@ def validate_table_schema(
     except Exception as e:
         return False, [f"Schema validation for '{table_name}' failed: {e}"]
 
+
 def _types_compatible(actual: str, expected: str) -> bool:
     """Check if actual PostgreSQL type is compatible with expected type.
 
@@ -164,6 +166,7 @@ def _types_compatible(actual: str, expected: str) -> bool:
     expected_type = type_map.get(expected.lower(), expected.lower())
 
     return actual_type == expected_type
+
 
 def validate_row_data_types(row: Dict, table_name: str = "") -> List[str]:
     """Validate that row data can be converted to expected types.

@@ -36,6 +36,7 @@ API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 10
 API_MAX_RETRIES = 3
 
+
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with retry logic and standardized response unwrapping.
 
@@ -96,6 +97,7 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
     return {"_error": "API max retries exceeded"}
 
+
 def _unwrap_api_response(response: Dict) -> Dict:
     """Unwrap standardized API response wrapper.
 
@@ -122,6 +124,7 @@ def _unwrap_api_response(response: Dict) -> Dict:
         k: v for k, v in response.items() if k not in ("statusCode", "headers")
     }
     return unwrapped if unwrapped else {}
+
 
 class DashboardDataAPI:
     """Consolidated API data layer for all dashboard fetchers."""

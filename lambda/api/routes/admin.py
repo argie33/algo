@@ -28,6 +28,7 @@ from models.requests import VerifyUserEmailRequest
 
 logger = logging.getLogger(__name__)
 
+
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only.
 
@@ -45,6 +46,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
             f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}"
         )
     return is_admin
+
 
 def _audit_log_admin_action(
     cur, user_id: str, endpoint: str, status: str = "success", details: str = ""
@@ -75,6 +77,7 @@ def _audit_log_admin_action(
     except Exception as e:
         logger.warning(f"[AUDIT_LOG] Unexpected error: {type(e).__name__}: {e}")
 
+
 def handle(
     cur,
     path: str,
@@ -86,7 +89,9 @@ def handle(
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Require admin role for all admin endpoints (bypass in dev mode)
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+            jwt_claims
+        ):
             user_id = (jwt_claims or {}).get("sub", "unknown")
             _audit_log_admin_action(
                 cur, user_id, path, "denied", "insufficient permissions"
@@ -148,6 +153,7 @@ def handle(
     ) as e:
         code, error_type, message = handle_db_error(e, "handle admin")
         return error_response(code, error_type, message)
+
 
 @db_route_handler("get loader status")
 def _get_loader_status(cur) -> Dict:
@@ -234,12 +240,13 @@ def _get_loader_status(cur) -> Dict:
             "loaders": loaders,
             "summary": {
                 "total": len(loaders),
-                "healthy": len([l for l in loaders if l["health"] == "fresh"]),
-                "stale": len([l for l in loaders if l["health"] == "stale"]),
+                "healthy": len([loader for loader in loaders if loader["health"] == "fresh"]),
+                "stale": len([loader for loader in loaders if loader["health"] == "stale"]),
             },
             "data_freshness": freshness,
         },
     )
+
 
 @db_route_handler("get system health")
 def _get_system_health(cur) -> Dict:
@@ -316,6 +323,7 @@ def _get_system_health(cur) -> Dict:
     health_data["timestamp"] = datetime.now(timezone.utc).isoformat()
     return json_response(200, health_data)
 
+
 @db_route_handler("get database stats")
 def _get_database_stats(cur) -> Dict:
     """Get database statistics (schema-safe version - no table name exposure)."""
@@ -353,6 +361,7 @@ def _get_database_stats(cur) -> Dict:
 
     stats["timestamp"] = datetime.now(timezone.utc).isoformat()
     return json_response(200, stats)
+
 
 @db_route_handler("get data quality")
 def _get_data_quality(cur) -> Dict:
@@ -403,6 +412,7 @@ def _get_data_quality(cur) -> Dict:
     quality["status"] = "healthy" if invalid_prices == 0 else "degraded"
 
     return json_response(200, quality)
+
 
 def _verify_user_email(body: Dict = None) -> Dict:
     """Verify a user's email in Cognito (dev/testing only)."""

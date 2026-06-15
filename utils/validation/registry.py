@@ -77,6 +77,7 @@ VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {
     "json": safe_json_loads,
 }
 
+
 def get_validator(field_type: str) -> Optional[ValidatorFunc]:
     """Get validator function by type name.
 
@@ -85,6 +86,7 @@ def get_validator(field_type: str) -> Optional[ValidatorFunc]:
         price = validator(row['price'], context="AAPL price")
     """
     return VALIDATORS_BY_TYPE.get(field_type)
+
 
 def validate_record(
     record: Dict[str, Any], schema: Dict[str, str], context: str = ""
@@ -121,6 +123,7 @@ def validate_record(
         validated[field_name] = validator(value, context=field_context)
 
     return validated
+
 
 if __name__ == "__main__":
     # Example: validate price data

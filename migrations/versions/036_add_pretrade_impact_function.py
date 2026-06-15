@@ -9,6 +9,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add pre-trade impact calculation function"
 
+
 def up():
     """Create the pre-trade impact calculation function."""
     with DatabaseContext("write") as cur:
@@ -134,6 +135,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_company_profile_ticker_sector
               ON company_profile(ticker, sector)
         """)
+
 
 def down():
     """Remove the pre-trade impact calculation function."""

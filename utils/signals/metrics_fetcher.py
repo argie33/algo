@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+
 class AlgoMetricsFetcher:
     """Unified fetcher for performance metrics and positions from database."""
 

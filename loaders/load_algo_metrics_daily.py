@@ -12,6 +12,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class AlgoMetricsDailyLoader(OptimalLoader):
     """Compute and store daily algo performance metrics."""
 
@@ -67,6 +68,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute daily metrics: {e}")
             return None
 
+
 def main():
     loader = AlgoMetricsDailyLoader()
     result = loader.load_global()
@@ -77,6 +79,7 @@ def main():
     else:
         logger.warning("COMPLETED: No metrics computed")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

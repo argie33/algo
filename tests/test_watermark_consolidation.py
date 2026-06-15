@@ -16,6 +16,7 @@ from utils.validation.freshness_config import (
     FRESHNESS_RULES,
 )
 
+
 class TestWatermarkConsolidation:
     """Verify unified watermark/freshness system."""
 
@@ -102,6 +103,7 @@ class TestWatermarkConsolidation:
         assert "age_days" in result
         assert "message" in result
 
+
 class TestDataAgeValidator:
     """Test new unified DataAgeValidator interface."""
 
@@ -139,6 +141,7 @@ class TestDataAgeValidator:
         #   'messages': [list],
         # }
 
+
 class TestConsolidationRemovesRedundancy:
     """Verify consolidation eliminates redundant systems."""
 
@@ -155,6 +158,7 @@ class TestConsolidationRemovesRedundancy:
         # DataAgeValidator.get_loader_watermark() should work
         # DataAgeValidator.record_loader_watermark() should work
         # These are thin wrappers around WatermarkManager
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

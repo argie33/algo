@@ -21,6 +21,7 @@ if sys.platform == "win32":
 
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
+
 def audit_dashboard_source():
     """Audit dashboard.py to ensure API-only data access."""
     print("\n[1/4] Auditing dashboard data sources...")
@@ -56,6 +57,7 @@ def audit_dashboard_source():
     else:
         print(f"  ❌ FAIL: Dashboard has {db_calls} direct DB calls")
         return False
+
 
 def audit_api_routes():
     """Audit API handler infrastructure to ensure DatabaseContext is used."""
@@ -99,6 +101,7 @@ def audit_api_routes():
         print("  [FAIL] DatabaseContext not properly configured")
         return False
 
+
 def audit_fallback_logging():
     """Audit fallback data logging."""
     print("\n[3/4] Auditing fallback logging...")
@@ -126,6 +129,7 @@ def audit_fallback_logging():
     else:
         print("  ⚠ WARN: Fallback logging may be incomplete")
         return False
+
 
 def audit_aws_configuration():
     """Audit AWS environment configuration."""
@@ -161,6 +165,7 @@ def audit_aws_configuration():
             return True
 
     return configured >= 2
+
 
 def main():
     """Run all audits."""
@@ -200,6 +205,7 @@ def main():
         print(f"\n❌ {total - passed} audit(s) failed")
         print("  Please review the issues above")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

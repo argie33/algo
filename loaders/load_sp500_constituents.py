@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
+
 class SP500ConstituentsLoader(OptimalLoader):
     """Load and mark S&P 500 constituent symbols."""
 
@@ -67,6 +68,7 @@ class SP500ConstituentsLoader(OptimalLoader):
             logger.error(f"Failed to fetch S&P 500 list: {e}")
             return None
 
+
 def main():
     try:
         # Execution timeout: Fetch + parse typically takes 10-20s
@@ -84,6 +86,7 @@ def main():
     except Exception as e:
         logger.error(f"S&P 500 constituents load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

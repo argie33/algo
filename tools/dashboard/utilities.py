@@ -117,14 +117,17 @@ API_TIMEOUT = 20  # Increased from 10s to handle network latency + slow response
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
 
+
 def set_api_url(url: str):
     """Set API base URL at runtime (used by -local mode)."""
     global API_BASE_URL
     API_BASE_URL = url
 
+
 def get_api_url() -> str:
     """Get the current API base URL."""
     return API_BASE_URL
+
 
 # HTTP session with connection pooling (reuse TCP connections across 25+ parallel fetchers)
 _http_session = requests.Session()
@@ -147,11 +150,13 @@ _sector_cache_maxsize = 100
 _cognito_auth = None
 _cognito_auth_lock = threading.Lock()
 
+
 def set_cognito_auth(auth):
     """Set the Cognito authentication instance for API calls."""
     global _cognito_auth
     with _cognito_auth_lock:
         _cognito_auth = auth
+
 
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
@@ -254,6 +259,7 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
             _record_api_failure()
             return {"_error": str(e)}
 
+
 def normalize_positions_data(data):
     """Unified normalization of positions data structure.
 
@@ -271,6 +277,7 @@ def normalize_positions_data(data):
         return data, None, False
     else:
         return [], None, False
+
 
 def compute_sector_agg(pos, port):
     """
@@ -340,6 +347,7 @@ def compute_sector_agg(pos, port):
 
     return sorted_secs, total_secs, pv
 
+
 def extract_items_and_error(data):
     """Extract items array and error message from data dict or list.
 
@@ -355,6 +363,7 @@ def extract_items_and_error(data):
         return data, None
     else:
         return [], None
+
 
 def validate_data_freshness(
     data: dict, max_age_hours: int = 24, field_name: str = "timestamp"
@@ -386,6 +395,7 @@ def validate_data_freshness(
         return False
     return True
 
+
 _response_cache = {}
 _response_cache_lock = threading.Lock()
 
@@ -395,6 +405,7 @@ _circuit_breaker_lock = threading.Lock()
 _circuit_breaker_reset_time = None
 CIRCUIT_BREAKER_THRESHOLD = 3
 CIRCUIT_BREAKER_RESET_SECONDS = 60
+
 
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
@@ -413,6 +424,7 @@ def _check_circuit_breaker():
             return False
         return True
 
+
 def _record_api_failure():
     """Record API failure, open circuit breaker if threshold exceeded."""
     global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
@@ -426,6 +438,7 @@ def _record_api_failure():
                 _circuit_breaker_state = "open"
                 _circuit_breaker_reset_time = time.time()
 
+
 def _record_api_success():
     """Record API success, close circuit breaker if in half-open state."""
     global _circuit_breaker_state, _circuit_breaker_failures
@@ -434,6 +447,7 @@ def _record_api_success():
             logger.info("Circuit breaker CLOSED - API recovered")
             _circuit_breaker_state = "closed"
             _circuit_breaker_failures = 0
+
 
 def cache_response(endpoint: str, data: dict) -> None:
     """Cache successful API response for fallback during outages."""
@@ -444,6 +458,7 @@ def cache_response(endpoint: str, data: dict) -> None:
             "data": data,
             "timestamp": datetime.now(timezone.utc),
         }
+
 
 def get_cached_response(endpoint: str) -> Optional[dict]:
     """Get cached response if available, mark as stale if > 30 minutes old."""
@@ -464,10 +479,12 @@ def get_cached_response(endpoint: str) -> Optional[dict]:
         cached_data = {**cached_data, "_cached": True}
     return cached_data
 
+
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
 
 _data_quality_issues = []
 _data_quality_lock = threading.Lock()
+
 
 def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any = None):
     """Record a data quality issue for dashboarding and alerting.
@@ -496,6 +513,7 @@ def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any =
         + (f" (value: {value!r})" if value is not None else "")
     )
 
+
 def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
     """Get data quality issues from the last N minutes.
 
@@ -506,6 +524,7 @@ def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
     with _data_quality_lock:
         recent = [i for i in _data_quality_issues if i["timestamp"] >= cutoff]
     return recent
+
 
 def clear_data_quality_issues():
     """Clear the data quality issue history."""

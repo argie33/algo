@@ -25,6 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     """Compute and persist market_exposure_daily for latest trading date."""
     try:
@@ -71,6 +72,7 @@ def main():
     except Exception as e:
         logger.error(f"Market exposure loader failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

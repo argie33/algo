@@ -11,6 +11,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add idempotency_key column to algo_trades table"
 
+
 def up():
     with DatabaseContext("write") as cur:
         cur.execute("""
@@ -23,6 +24,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_trades_idempotency_key
             ON algo_trades(idempotency_key)
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

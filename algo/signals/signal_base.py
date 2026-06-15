@@ -16,6 +16,7 @@ from utils.db.query_cache import QueryCache, CacheStrategy
 
 logger = logging.getLogger(__name__)
 
+
 class SignalBase:
     """Base class for all signal computations -- connection, cache, helpers."""
 

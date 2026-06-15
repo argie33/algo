@@ -23,6 +23,7 @@ from typing import Optional
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
+
 class AnalystRatingsLoader(OptimalLoader):
     table_name = "analyst_upgrade_downgrade"
     primary_key = ("symbol", "date")
@@ -71,6 +72,7 @@ class AnalystRatingsLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_ratings loader")
     parser.add_argument(
@@ -91,6 +93,7 @@ def main():
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

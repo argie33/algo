@@ -18,6 +18,7 @@ from config.api_endpoints import get_aaii_sentiment_url
 
 logger = logging.getLogger(__name__)
 
+
 class AAIISentimentLoader(OptimalLoader):
     """Load AAII investor sentiment survey data (market-wide, non-symbol based)."""
 
@@ -173,6 +174,7 @@ class AAIISentimentLoader(OptimalLoader):
 
         return None
 
+
 def main():
     try:
         # Execution timeout: AAII Excel download + parsing typically takes 30-60s
@@ -190,6 +192,7 @@ def main():
     except Exception as e:
         logger.error(f"AAII sentiment load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

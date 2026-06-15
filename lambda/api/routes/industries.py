@@ -1,6 +1,9 @@
 """Route: industries"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 from routes.utils import (
@@ -16,6 +19,7 @@ from routes.utils import (
 
 logger = logging.getLogger(__name__)
 
+
 def _sf(v):
     """Safe float conversion — returns None for null/missing values."""
     if v is None:
@@ -24,6 +28,7 @@ def _sf(v):
         return float(v)
     except (TypeError, ValueError):
         return None
+
 
 def handle(
     cur,
@@ -77,6 +82,7 @@ def handle(
         return error_response(
             500, "internal_error", f"Failed to fetch industries: {type(e).__name__}"
         )
+
 
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""
@@ -268,6 +274,7 @@ def _industry_list(cur, params):
         },
     )
 
+
 def _industry_detail(cur, industry_name):
     """Return detail for a single industry."""
     cur.execute(
@@ -308,6 +315,7 @@ def _industry_detail(cur, industry_name):
             "stability_score": _sf(r.get("stability_score")),
         },
     )
+
 
 def _industry_trend(cur, industry_name, params):
     """Return daily price series for an industry (from price_daily, indexed to 100)."""

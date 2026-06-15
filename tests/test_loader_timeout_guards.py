@@ -7,6 +7,7 @@ Tests that ExecutionTimeout and socket-level timeouts are configured.
 import sys
 import os
 
+
 def check_loader_has_timeout_guard(loader_file_path: str) -> tuple[bool, str]:
     """Check if a loader file has ExecutionTimeout import and usage."""
     try:
@@ -34,6 +35,7 @@ def check_loader_has_timeout_guard(loader_file_path: str) -> tuple[bool, str]:
         return (passed == total, status)
     except Exception as e:
         return (False, f"Error reading file: {e}")
+
 
 def test_critical_loaders():
     """Verify critical API-calling loaders have timeout protection."""
@@ -67,6 +69,7 @@ def test_critical_loaders():
 
         assert has_timeout, f"Timeout guards missing for {loader_file}: {status}"
 
+
 def test_socket_timeout_utility():
     """Verify loader_helper has socket timeout setup function."""
     print("=" * 70)
@@ -92,6 +95,7 @@ def test_socket_timeout_utility():
     print("[OK] loader_helper.py has setup_loader_timeouts() function")
     print("[OK] socket module is imported")
     print()
+
 
 def test_execution_timeout_utility():
     """Verify ExecutionTimeout utility is available."""
@@ -121,6 +125,7 @@ def test_execution_timeout_utility():
     print("[OK] ExecutionTimeout utility is available")
     print("[OK] Provides context manager for timeout handling")
     print()
+
 
 def main():
     results = []
@@ -159,6 +164,7 @@ def main():
         print("[FAILED] SOME TIMEOUT GUARDS ARE MISSING")
         print("=" * 70)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

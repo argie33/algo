@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Global metrics buffer (persisted per session or sent to CloudWatch)
 _metrics_buffer: Dict[str, list] = {}
 
+
 def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> None:
     """Emit duration metric to CloudWatch if AWS SDK available."""
     try:
@@ -46,6 +47,7 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
         )
     except Exception as e:
         logger.debug(f"Could not emit CloudWatch metric for {operation_name}: {e}")
+
 
 class TimeBlock:
     """Context manager for operation timing and alerting on slow operations."""
@@ -126,6 +128,7 @@ class TimeBlock:
 
         return False  # Don't suppress exceptions
 
+
 @contextmanager
 def time_operation(operation_name: str, log_level: str = "info"):
     """
@@ -137,6 +140,7 @@ def time_operation(operation_name: str, log_level: str = "info"):
     """
     with TimeBlock(operation_name, log_level) as timer:
         yield timer
+
 
 def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
     """
@@ -173,6 +177,7 @@ def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
         }
     return summary
 
+
 def log_metrics_summary():
     """Log a summary of all recorded metrics."""
     summary = get_metrics_summary()
@@ -194,6 +199,7 @@ def log_metrics_summary():
             f"slow={stats['slow_count']:2d}/{stats['count']} ({stats['slow_pct']:5.1f}%)"
         )
     logger.info("=" * 80)
+
 
 def clear_metrics_buffer():
     """Clear all recorded metrics."""

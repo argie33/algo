@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Import the orchestrator
 from algo.algo_orchestrator import Orchestrator
 
+
 def lambda_handler(event, context):
     """
     Lambda entry point for Algo Orchestrator.

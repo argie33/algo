@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 # Eastern timezone for all time-based conversions
 EASTERN_TZ = timezone.utc
 
+
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode."""
+
 
 @dataclass
 class ValidationResult:
@@ -48,6 +50,7 @@ class ValidationResult:
         ctx = f" [{self.context}]" if self.context else ""
         return f"{status}{detail}{ctx}"
 
+
 class Validator(ABC):
     """Base class for all validators."""
 
@@ -61,6 +64,7 @@ class Validator(ABC):
 
     def __call__(self, data: Any, context: str = "") -> ValidationResult:
         return self.validate(data, context or self.context)
+
 
 class TypeValidator(Validator):
     """Validates data type and optionally range/length constraints."""
@@ -135,6 +139,7 @@ class TypeValidator(Validator):
         except (ValueError, TypeError):
             return None, f"{context}: cannot convert {data!r} to int"
 
+
 class EnumValidator(Validator):
     """Validates that value is one of allowed enum values."""
 
@@ -160,6 +165,7 @@ class EnumValidator(Validator):
         return ValidationResult(
             is_valid=False, errors=errors, data=data, context=context
         )
+
 
 class PhaseValidator(Validator):
     """Validates orchestrator phase objects with name and status fields."""
@@ -211,6 +217,7 @@ class PhaseValidator(Validator):
             validator_name=self.name,
         )
 
+
 class ValidatorRegistry:
     """Central registry of all validators."""
 
@@ -237,16 +244,20 @@ class ValidatorRegistry:
     def get_validator(self, name: str) -> Optional[Validator]:
         return self._validators.get(name)
 
+
 _global_registry = ValidatorRegistry()
+
 
 def get_global_registry() -> ValidatorRegistry:
     return _global_registry
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # UNIFIED FUNCTIONAL API - FOR BACKWARD COMPATIBILITY & EASE OF USE
 # ──────────────────────────────────────────────────────────────────────────────
 # These wrap the class-based system with a simpler functional interface.
 # All validation is centralized here — one source of truth for all data conversion.
+
 
 def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
     """Convert value to float safely, handling NaN, Infinity, None.
@@ -278,6 +289,7 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
         return default
 
+
 def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
     """Convert value to float in strict mode, raising on failure.
 
@@ -306,6 +318,7 @@ def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
     except (ValueError, TypeError):
         return None
 
+
 def safe_int(value: Any, default: int = 0, context: str = "") -> int:
     """Convert value to int safely, handling None, invalid strings.
 
@@ -329,6 +342,7 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
         return default
 
+
 def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     """Convert value to int in strict mode.
 
@@ -350,6 +364,7 @@ def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     except (ValueError, TypeError):
         logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
         return None
+
 
 def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     """Parse date from multiple formats: ISO, string, datetime.
@@ -388,6 +403,7 @@ def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
     return None
 
+
 def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
     """Parse datetime string with timezone awareness (ET).
 
@@ -412,6 +428,7 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
             return None
 
     return None
+
 
 def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> Any:
     """Parse JSON string safely with proper error logging.
@@ -439,6 +456,7 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         logger.warning(f"JSON parse failed {context}: {e}")
         return default
 
+
 def safe_str(value: Any, default: str = "", context: str = "") -> str:
     """Safely convert value to string with logging.
 
@@ -461,6 +479,7 @@ def safe_str(value: Any, default: str = "", context: str = "") -> str:
     except Exception as e:
         logger.warning(f"Failed to convert {value!r} to str {context}: {e}")
         return default
+
 
 def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
     """Safely convert value to bool with logging.
@@ -494,6 +513,7 @@ def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
     except Exception as e:
         logger.warning(f"Failed to convert {context}={value!r} to bool: {e}")
         return default
+
 
 def safe_json_parse(
     value: Any,
@@ -545,6 +565,7 @@ def safe_json_parse(
     )
     return default if default is not None else {}
 
+
 def validate_required_fields(
     data: Dict[str, Any], required_fields: List[str], source: Optional[str] = None
 ) -> bool:
@@ -555,6 +576,7 @@ def validate_required_fields(
         logger.warning(f"Missing required fields{source_str}: {missing}")
         return False
     return True
+
 
 def validate_field_types(
     data: Dict[str, Any], type_spec: Dict[str, Type], source: Optional[str] = None
@@ -577,6 +599,7 @@ def validate_field_types(
         logger.warning(f"Type mismatches{source_str}: {'; '.join(issues)}")
         return False
     return True
+
 
 def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
     """Log a data issue from a fetcher function."""

@@ -22,6 +22,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class TCAEngine:
     """Transaction Cost Analysis for every trade execution."""
 

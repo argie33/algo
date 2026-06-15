@@ -16,6 +16,7 @@ from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger(__name__)
 
+
 class FinancialDataValidator:
     """Validates financial data with fail-closed behavior."""
 
@@ -221,6 +222,7 @@ class FinancialDataValidator:
         r_multiple = (exit_price - entry) / risk
 
         return True, r_multiple, ""
+
 
 # Convenience function for common validation pattern
 def validate_trade_entry_prices(

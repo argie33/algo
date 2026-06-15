@@ -26,6 +26,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class PositionSyncChecker:
     """Check data consistency between algo_trades and algo_positions."""
 
@@ -174,6 +175,7 @@ DATA INTEGRITY CHECKS: {len(issues)} issues found
             },
         }
 
+
 def main():
     """Run checker and log report."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -181,6 +183,7 @@ def main():
     report = checker.check_consistency()
     logger.info(report["summary"])
     return 0 if report["is_consistent"] else 1
+
 
 if __name__ == "__main__":
     exit(main())

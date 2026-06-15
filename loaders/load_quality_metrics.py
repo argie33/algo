@@ -28,6 +28,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class QualityMetricsLoader(OptimalLoader):
     table_name = "quality_metrics"
     primary_key = ("symbol",)
@@ -193,6 +194,7 @@ class QualityMetricsLoader(OptimalLoader):
         """No transformation needed."""
         return rows
 
+
 def main():
     parser = argparse.ArgumentParser(description="Quality metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
@@ -220,6 +222,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

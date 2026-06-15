@@ -14,6 +14,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+
 def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.
 
@@ -65,10 +66,12 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
     )
     return None
 
+
 # Cache for active symbols to reduce database load under parallelism
 _symbols_cache = {}
 _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
+
 
 def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
@@ -151,6 +154,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
 
+
 def _resolve_timeframe(cli_arg: str = None) -> str:
     """Resolve timeframe from CLI arg or environment variable.
 
@@ -164,6 +168,7 @@ def _resolve_timeframe(cli_arg: str = None) -> str:
         return cli_arg
     loader_type = os.getenv("LOADER_TYPE", "")
     return "monthly" if "monthly" in loader_type else "weekly"
+
 
 def _resolve_period(cli_arg: str = None) -> str:
     """Resolve period from CLI arg or environment variable.

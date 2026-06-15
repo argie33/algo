@@ -32,6 +32,7 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_date ON swing_trader_scores(date DESC)",
 ]
 
+
 def _connect_autocommit():
     """Open an autocommit connection for CREATE INDEX CONCURRENTLY.
 
@@ -63,6 +64,7 @@ def _connect_autocommit():
     conn.autocommit = True
     return conn
 
+
 def up():
     conn = _connect_autocommit()
     cur = conn.cursor()
@@ -76,6 +78,7 @@ def up():
 
     cur.close()
     conn.close()
+
 
 def down():
     conn = _connect_autocommit()

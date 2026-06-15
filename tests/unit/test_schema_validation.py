@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import Mock
 from utils.validation.schema import validate_table_schema, _types_compatible
 
+
 class TestTypesCompatible(unittest.TestCase):
     """Test PostgreSQL type compatibility checking."""
 
@@ -50,6 +51,7 @@ class TestTypesCompatible(unittest.TestCase):
         self.assertTrue(_types_compatible("TEXT", "text"))
         self.assertTrue(_types_compatible("Numeric", "NUMERIC"))
         self.assertTrue(_types_compatible("INT4", "integer"))
+
 
 class TestValidateTableSchema(unittest.TestCase):
     """Test validate_table_schema function."""
@@ -153,6 +155,7 @@ class TestValidateTableSchema(unittest.TestCase):
         self.assertTrue(is_valid)
         self.assertEqual(errors, [])
 
+
 class TestSchemaMisdetection(unittest.TestCase):
     """Test that schema mismatches are properly detected."""
 
@@ -193,6 +196,7 @@ class TestSchemaMisdetection(unittest.TestCase):
         self.assertTrue(
             any("text" in err.lower() and "numeric" in err.lower() for err in errors)
         )
+
 
 if __name__ == "__main__":
     unittest.main()

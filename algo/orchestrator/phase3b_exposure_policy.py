@@ -9,6 +9,7 @@ from algo.reporting import AlertManager
 
 logger = logging.getLogger(__name__)
 
+
 def run(
     config: Any,
     run_date: _date,

@@ -12,6 +12,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
@@ -190,6 +191,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         except Exception as e:
             logger.error(f"[NOTIF] Send failed: {e}")
 
+
 def notify(
     severity: str,
     title: str,
@@ -210,6 +212,7 @@ def notify(
         )
     except Exception as e:
         logger.error(f"notify() failed: {e}")
+
 
 def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = None):
     """Alert when trading signals become stale or unavailable.

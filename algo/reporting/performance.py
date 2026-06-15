@@ -23,6 +23,7 @@ from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
+
 def safe_float(value, default=None):
     """Safely convert value to float, returning default if conversion fails.
 
@@ -35,6 +36,7 @@ def safe_float(value, default=None):
         return float(value)
     except (ValueError, TypeError):
         return default
+
 
 class LivePerformance:
     """Compute live performance metrics for institutional comparison."""

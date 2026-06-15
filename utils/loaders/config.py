@@ -19,6 +19,7 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class LoaderConfigManager:
     """Thread-safe dynamic loader configuration manager with RDS-aware adaptive parallelism.
 
@@ -324,9 +325,11 @@ class LoaderConfigManager:
         # Default to enabled
         return True
 
+
 # Global instance for convenience (thread-safe)
 _global_manager = None
 _global_manager_lock = threading.Lock()
+
 
 def get_config_manager() -> LoaderConfigManager:
     """Get the global configuration manager instance (thread-safe).
@@ -341,13 +344,16 @@ def get_config_manager() -> LoaderConfigManager:
                 _global_manager = LoaderConfigManager()
     return _global_manager
 
+
 def get_parallelism(loader_name: str) -> int:
     """Get adaptive parallelism for a loader (convenience function)."""
     return get_config_manager().get_parallelism(loader_name)
 
+
 def is_enabled(loader_name: str) -> bool:
     """Check if a loader is enabled (convenience function)."""
     return get_config_manager().is_enabled(loader_name)
+
 
 def get_default_parallelism(loader_name: str, fallback: int = 1) -> int:
     """

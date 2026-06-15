@@ -138,6 +138,7 @@ FRESHNESS_RULES = {
     },
 }
 
+
 def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
     """Get freshness rule for a table.
 
@@ -148,6 +149,7 @@ def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
         Rule dict with 'max_age_days', 'critical', 'description', or None if not found
     """
     return FRESHNESS_RULES.get(table_name)
+
 
 def is_table_fresh(
     table_name: str,
@@ -219,6 +221,7 @@ def is_table_fresh(
 
     return is_fresh, age_minutes, message
 
+
 def check_multiple_tables(
     tables_and_dates: Dict[str, Optional[Any]],
     current_date: Optional[date] = None,
@@ -247,6 +250,7 @@ def check_multiple_tables(
 
     return all_fresh, stale_tables, messages
 
+
 def get_max_age_minutes(table_name: str) -> Optional[int]:
     """Get max age in minutes for a table (convenience function).
 
@@ -261,6 +265,7 @@ def get_max_age_minutes(table_name: str) -> Optional[int]:
         return rule["max_age_days"] * 24 * 60
     return None
 
+
 def is_critical_table(table_name: str) -> bool:
     """Check if a table is critical (halt if stale).
 
@@ -273,9 +278,11 @@ def is_critical_table(table_name: str) -> bool:
     rule = get_freshness_rule(table_name)
     return rule.get("critical", False) if rule else False
 
+
 # ============================================================================
 # TIMESTAMP HELPERS
 # ============================================================================
+
 
 def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
     """Calculate minutes elapsed since a timestamp.
@@ -307,6 +314,7 @@ def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
         return elapsed.total_seconds() / 60
 
     return None
+
 
 # ============================================================================
 # COMMON QUERIES (SQL templates for checking table freshness)

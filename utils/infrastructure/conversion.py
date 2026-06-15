@@ -43,6 +43,7 @@ __all__ = [
     "log_loader_completion",
 ]
 
+
 def log_data_fetch(
     source: str,
     count: int,
@@ -58,6 +59,7 @@ def log_data_fetch(
         logger.warning(f"[{source}] Returned 0 rows{time_str}")
     else:
         logger.info(f"[{source}] Fetched {count} rows{time_str}")
+
 
 def log_loader_completion(
     table_name: str,

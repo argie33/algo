@@ -1,6 +1,9 @@
 """Route: economic"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 from routes.utils import (
@@ -13,6 +16,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,
@@ -141,6 +145,7 @@ def handle(
             "internal_error",
             "An unexpected error occurred while fetching economic data.",
         )
+
 
 def _get_leading_indicators(cur) -> Dict:
     """Get leading economic indicators formatted for EconomicDashboard."""
@@ -352,6 +357,7 @@ def _get_leading_indicators(cur) -> Dict:
             "internal_error",
             "An unexpected error occurred while fetching economic indicators.",
         )
+
 
 def _get_yield_curve_full(cur) -> Dict:
     """Get yield curve and credit spread data formatted for EconomicDashboard."""

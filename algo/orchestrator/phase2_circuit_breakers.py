@@ -10,6 +10,7 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
+
 def run(
     config: Any,
     run_date: _date,

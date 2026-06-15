@@ -21,6 +21,7 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class ThresholdConfig:
     """Unified threshold configuration — delegates to algo_config."""
 

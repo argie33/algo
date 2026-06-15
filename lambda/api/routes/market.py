@@ -1,6 +1,9 @@
 """Route: market"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 from datetime import datetime, timedelta, timezone
@@ -16,6 +19,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,
@@ -1032,6 +1036,7 @@ def handle(
         code, error_type, message = handle_db_error(e, "handle market")
         return error_response(code, error_type, message)
 
+
 @db_route_handler("get fear greed history")
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
     """Get fear/greed index history with signals."""
@@ -1129,6 +1134,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
             },
         )
 
+
 @db_route_handler("get market latest")
 def _get_market_latest(cur) -> Dict:
     """Get latest market data including indices, breadth, and sentiment."""
@@ -1169,11 +1175,13 @@ def _get_market_latest(cur) -> Dict:
 
     return json_response(200, result if result else {})
 
+
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
         return int((params.get("range", [None])[0] or params.get("days", [default])[0]))
     except (ValueError, TypeError, IndexError):
         return default
+
 
 @db_route_handler("get correlation matrix")
 def _get_correlation_matrix(cur) -> Dict:
@@ -1380,6 +1388,7 @@ def _get_correlation_matrix(cur) -> Dict:
         data_freshness=freshness,
     )
 
+
 @db_route_handler("get cap distribution")
 def _get_cap_distribution(cur) -> Dict:
     """Get market cap distribution across market cap buckets and sectors."""
@@ -1509,6 +1518,7 @@ def _get_cap_distribution(cur) -> Dict:
         data_freshness=freshness,
     )
 
+
 INDEX_SYMBOLS = ["^GSPC", "^IXIC", "^NYA", "^RUT"]
 INDEX_NAMES = {
     "^GSPC": "S&P 500",
@@ -1517,6 +1527,7 @@ INDEX_NAMES = {
     "^DJI": "Dow Jones",
     "^RUT": "Russell 2000",
 }
+
 
 @db_route_handler("get market indices")
 def _get_markets(cur) -> Dict:
@@ -1626,6 +1637,7 @@ def _get_markets(cur) -> Dict:
         "fallback_symbols": fallback_symbols if fallback_symbols else None,
     }
     return json_response(200, result)
+
 
 @db_route_handler("get sector overview")
 def _get_sector_overview(cur) -> Dict:

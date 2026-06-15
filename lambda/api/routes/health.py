@@ -22,7 +22,9 @@ except (ImportError, ModuleNotFoundError):
     def get_api_import_status():
         return {"failed_routes": 0, "critical_failures": []}
 
+
 logger = logging.getLogger(__name__)
+
 
 def handle(
     cur,
@@ -50,6 +52,7 @@ def handle(
     else:
         # Basic health check (default for /api/health)
         return _handle_basic(cur)
+
 
 def _handle_basic(cur) -> Dict:
     """Basic health check - PUBLIC, no auth required.
@@ -157,6 +160,7 @@ def _handle_basic(cur) -> Dict:
         code, error_type, message = handle_db_error(e, "health check")
         return error_response(code, error_type, message)
 
+
 def _handle_cognito(cur) -> Dict:
     """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
 
@@ -262,6 +266,7 @@ def _handle_cognito(cur) -> Dict:
         logger.error(f"Cognito health check error: {str(e)[:100]}")
         return error_response(503, "health_check_error", str(e)[:100])
 
+
 def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
@@ -295,6 +300,7 @@ def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
         logger.error(f"[HEALTH_DETAILED_ERROR] {e}", exc_info=True)
         code, error_type, message = handle_db_error(e, "detailed health check")
         return error_response(code, error_type, message)
+
 
 def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""

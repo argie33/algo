@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 logs_client = boto3.client("logs")
 LOG_GROUP = "/aws/frontend/algo-trading-dashboard"
 
+
 def ensure_log_stream(stream_name: str):
     """Ensure CloudWatch log stream exists."""
     try:
@@ -45,6 +46,7 @@ def ensure_log_stream(stream_name: str):
         pass  # Stream already exists
     except Exception as e:
         logger.warning(f"Could not create log stream {stream_name}: {e}")
+
 
 def handle(
     cur,

@@ -11,6 +11,7 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class SentimentLoader(OptimalLoader):
     """Load market sentiment from available sources."""
 
@@ -57,6 +58,7 @@ class SentimentLoader(OptimalLoader):
             logger.error(f"Failed to fetch sentiment: {e}")
             return None
 
+
 def main():
     loader = SentimentLoader()
     result = loader.load_global()
@@ -67,6 +69,7 @@ def main():
     else:
         logger.warning("COMPLETED: No sentiment loaded")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

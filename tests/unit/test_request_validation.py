@@ -24,6 +24,7 @@ from models.requests import (
     ManualTradeRequest,
 )
 
+
 class TestTradePreviewRequest:
     """Test POST /api/algo/preview request validation."""
 
@@ -116,6 +117,7 @@ class TestTradePreviewRequest:
         req2 = TradePreviewRequest(symbol="SPY^X", entry_price=400.00)
         assert req2.symbol == "SPY^X"
 
+
 class TestPreTradeImpactRequest:
     """Test POST /api/algo/pre-trade-impact request validation."""
 
@@ -199,6 +201,7 @@ class TestPreTradeImpactRequest:
             PreTradeImpactRequest(symbol="AAPL", position_pct=0)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "position_pct" for err in errors)
+
 
 class TestContactSubmissionRequest:
     """Test POST /api/contact request validation."""
@@ -381,6 +384,7 @@ class TestContactSubmissionRequest:
         )
         assert req.phone is None
 
+
 class TestVerifyUserEmailRequest:
     """Test POST /api/admin/verify-user-email request validation."""
 
@@ -434,6 +438,7 @@ class TestVerifyUserEmailRequest:
         for username in invalid_usernames:
             with pytest.raises(ValidationError):
                 VerifyUserEmailRequest(username=username)
+
 
 class TestManualTradeRequest:
     """Test POST /api/trades/manual request validation."""
@@ -586,6 +591,7 @@ class TestManualTradeRequest:
             stop_loss_price=155.00,
         )
         assert req.stop_loss_price == 155.00
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

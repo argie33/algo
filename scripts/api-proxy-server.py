@@ -53,6 +53,7 @@ except Exception as _err:
     logger.error("Failed to import lambda_function: %s", _err, exc_info=True)
     _handler = None
 
+
 class _MockContext:
     function_name = "algo-api-local"
     function_version = "$LATEST"
@@ -64,6 +65,7 @@ class _MockContext:
 
     def get_remaining_time_in_millis(self):
         return 28000
+
 
 class _APIHandler(BaseHTTPRequestHandler):
 
@@ -178,6 +180,7 @@ class _APIHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         status = args[1] if len(args) >= 2 else "?"
         logger.info("%s %s -> %s", self.command, self.path, status)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("LOCAL_API_PORT", "3001"))

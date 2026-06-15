@@ -9,15 +9,18 @@ from rich.panel import Panel
 from rich.text import Text
 from utilities import R, Y, DIM
 
+
 def has_error(data: Any) -> bool:
     """Check if data has error marker (includes stale data as error state)."""
     if not isinstance(data, dict):
         return False
     return "_error" in data or data.get("_data_stale", False)
 
+
 def is_data_stale(data: Any) -> bool:
     """Check if data is marked as stale (too old to be reliable)."""
     return isinstance(data, dict) and data.get("_data_stale", False)
+
 
 def get_error_message(data: Any) -> Optional[str]:
     """Extract error message from data if present.
@@ -32,6 +35,7 @@ def get_error_message(data: Any) -> Optional[str]:
         return data.get("_error", "Unknown error")
     return None
 
+
 def safe_get(data: Any, key: str, default: Any = None) -> Any:
     """Safely get nested value, propagating errors instead of hiding them.
 
@@ -42,6 +46,7 @@ def safe_get(data: Any, key: str, default: Any = None) -> Any:
     if isinstance(data, dict):
         return data.get(key, default)
     return default
+
 
 def safe_list(data: Any) -> List:
     """Safely extract list from data, propagating errors instead of hiding them.
@@ -59,6 +64,7 @@ def safe_list(data: Any) -> List:
     if isinstance(data, list):
         return data
     return []
+
 
 def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
     """Generate a panel showing all failed data fetchers and stale data.
@@ -98,6 +104,7 @@ def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
         border_style=border_color,
         padding=(0, 1),
     )
+
 
 def make_panel_safe(panel_fn):
     """Decorator to wrap panel functions with error handling.

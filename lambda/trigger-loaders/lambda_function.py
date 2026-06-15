@@ -16,6 +16,7 @@ ecs = boto3.client("ecs")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def lambda_handler(event, context):
     """
     Trigger ECS loader task.

@@ -26,6 +26,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class SignalAttributionEngine:
     """Computes and persists Information Coefficient per swing score component."""
 
@@ -446,6 +447,7 @@ class SignalAttributionEngine:
         except Exception as e:
             logger.error(f"Failed to get trailing IC: {e}")
             return []
+
 
 if __name__ == "__main__":
     engine = SignalAttributionEngine()

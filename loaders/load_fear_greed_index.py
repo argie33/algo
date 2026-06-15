@@ -14,6 +14,7 @@ from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
+
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
 
@@ -140,6 +141,7 @@ class FearGreedIndexLoader(OptimalLoader):
         )
         return None
 
+
 def main():
     try:
         # Execution timeout: CNN API typically responds in 1-5s
@@ -157,6 +159,7 @@ def main():
     except Exception as e:
         logger.error(f"Fear & Greed load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

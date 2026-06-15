@@ -38,6 +38,7 @@ _yf_ban_lock = threading.Lock()
 _yf_ban_until = [0.0]
 _YF_BAN_COOLDOWN_SECS = 120  # Increased from 30s to 120s (2 min) when Yahoo bans our IP
 
+
 def _throttled_yf_request(fn):
     """Call fn() under global rate limiting (semaphore + min interval)."""
     with _yf_semaphore:
@@ -47,6 +48,7 @@ def _throttled_yf_request(fn):
                 time.sleep(_YF_MIN_INTERVAL_SECS - elapsed)
             _yf_last_request_time[0] = time.time()
         return fn()
+
 
 class YFinanceWrapper:
     """Wrapper for yfinance with AWS VPC compatibility."""
@@ -186,6 +188,7 @@ class YFinanceWrapper:
 
         logger.error(f"Failed to get ticker for {symbol} after {max_retries} attempts")
         return None
+
 
 def get_ticker(symbol: str) -> Optional[object]:
     """Convenience function to get yfinance ticker with retry logic."""

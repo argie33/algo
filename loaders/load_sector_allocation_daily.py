@@ -16,6 +16,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class SectorAllocationDailyLoader(OptimalLoader):
     """Pre-compute daily sector allocations from current positions."""
 
@@ -92,6 +93,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
             logger.error(f"Failed to compute sector allocations: {e}", exc_info=True)
             return None
 
+
 def main():
     loader = SectorAllocationDailyLoader()
     result = loader.load_global()
@@ -102,6 +104,7 @@ def main():
     else:
         logger.warning("COMPLETED: No allocations computed")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

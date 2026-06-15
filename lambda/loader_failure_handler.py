@@ -20,6 +20,7 @@ CRITICAL_LOADERS = {
     "swing_trader_scores",  # Needed for Phase 5 signal generation; blocks trading
 }
 
+
 def lambda_handler(event, context):
     """Log loader failure and decide whether to halt (fail-closed) or continue (fail-open).
 

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Import response validator to sanitize None values in API responses (Issue #14)
 from utils.validation import APIResponseValidator
 
+
 def normalize_to_utc_datetime(dt):
     """Convert date or naive/aware datetime to UTC-aware datetime.
 
@@ -41,6 +42,7 @@ def normalize_to_utc_datetime(dt):
 
     return None
 
+
 def safe_limit(limit_str, max_val=5000, default=500):
     """Parse and validate limit parameter."""
     if not limit_str:
@@ -49,6 +51,7 @@ def safe_limit(limit_str, max_val=5000, default=500):
         return min(int(limit_str), max_val)
     except (ValueError, TypeError):
         return default
+
 
 def safe_offset(offset_str, max_val=1000000, default=0):
     """Parse and validate offset parameter."""
@@ -60,6 +63,7 @@ def safe_offset(offset_str, max_val=1000000, default=0):
     except (ValueError, TypeError):
         return default
 
+
 def safe_days(days_str, max_val=365, default=30):
     """Parse and validate days parameter."""
     if not days_str:
@@ -69,6 +73,7 @@ def safe_days(days_str, max_val=365, default=30):
     except (ValueError, TypeError):
         return default
 
+
 def safe_page(page_str, default=1):
     """Parse and validate page parameter."""
     if not page_str:
@@ -77,6 +82,7 @@ def safe_page(page_str, default=1):
         return max(1, int(page_str))
     except (ValueError, TypeError):
         return default
+
 
 def safe_int(int_str, default=0, min_val=None, max_val=None):
     """Parse and validate integer parameter."""
@@ -92,6 +98,7 @@ def safe_int(int_str, default=0, min_val=None, max_val=None):
     except (ValueError, TypeError):
         return default
 
+
 def safe_float(float_str, default=0.0, min_val=None, max_val=None):
     """Parse and validate float parameter."""
     if float_str is None or float_str == "":
@@ -105,6 +112,7 @@ def safe_float(float_str, default=0.0, min_val=None, max_val=None):
         return value
     except (ValueError, TypeError):
         return default
+
 
 def safe_string(value_str, allowed_values=None, default=None, max_length=100):
     """Validate and sanitize string parameter.
@@ -132,6 +140,7 @@ def safe_string(value_str, allowed_values=None, default=None, max_length=100):
 
     return str(value_str)
 
+
 def safe_symbol(symbol_str):
     """Validate stock symbol (alphanumeric + dash + caret for indices)."""
     if not symbol_str:
@@ -146,6 +155,7 @@ def safe_symbol(symbol_str):
         return None
 
     return symbol
+
 
 def error_response(code, typ, msg):
     """Standardized error response.
@@ -164,6 +174,7 @@ def error_response(code, typ, msg):
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
+
 def success_response(data, metadata=None):
     """Standardized success response for single object.
 
@@ -176,6 +187,7 @@ def success_response(data, metadata=None):
     if metadata:
         response.update(metadata)
     return response
+
 
 def list_response(items, total=None, data_freshness=None, limit=None, offset=None):
     """Standardized list response for paginated data.
@@ -199,6 +211,7 @@ def list_response(items, total=None, data_freshness=None, limit=None, offset=Non
     if data_freshness:
         response["data_freshness"] = data_freshness
     return response
+
 
 def execute_with_timeout(
     cur,
@@ -286,6 +299,7 @@ def execute_with_timeout(
         )
         raise last_error
 
+
 def check_data_freshness(
     cur, table_name: str, date_column: str = "date", warning_days: int = None
 ) -> dict:
@@ -363,6 +377,7 @@ def check_data_freshness(
             "warning": "Unable to determine data freshness",
         }
 
+
 def json_response(code, data, data_freshness=None):
     """Standardized JSON response wrapper for single objects.
 
@@ -386,6 +401,7 @@ def json_response(code, data, data_freshness=None):
         if "_error" not in response and has_non_none_message:
             response["_error"] = sanitized_data["message"]
         return response
+
 
 def safe_dict_convert(row):
     """Safely convert DictCursor row to dictionary, handling schema mismatches.
@@ -419,6 +435,7 @@ def safe_dict_convert(row):
             logger.error(f"Fallback dict conversion also failed: {fallback_err}")
         return {}
 
+
 def safe_json_serialize(obj):
     """Convert database objects to JSON-serializable format.
 
@@ -449,6 +466,7 @@ def safe_json_serialize(obj):
         return str(obj)
     else:
         return obj
+
 
 def handle_db_error(error, context="database operation", query=None, params=None):
     """Unified database error handler for all route handlers.
@@ -488,6 +506,7 @@ def handle_db_error(error, context="database operation", query=None, params=None
     logger.error(log_msg)
 
     return status_code, error_type, message
+
 
 def db_route_handler(operation_name: str, default_error_response=None):
     """Decorator for route handlers to standardize database error handling.

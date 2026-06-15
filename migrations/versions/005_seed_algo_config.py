@@ -284,6 +284,7 @@ _DEFAULTS = [
     ),
 ]
 
+
 def up():
     with DatabaseContext("write") as cur:
         for key, value, value_type, description in _DEFAULTS:
@@ -295,6 +296,7 @@ def up():
                 """,
                 (key, value, value_type, description),
             )
+
 
 def down():
     with DatabaseContext("write") as cur:

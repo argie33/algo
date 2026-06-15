@@ -50,6 +50,7 @@ CHECK_LABELS = {
     "data_freshness": "Data Staleness Check",
 }
 
+
 def _safe_float(value, default=None, context=""):
     """Convert to float safely, rejecting NaN/Infinity.
 
@@ -67,6 +68,7 @@ def _safe_float(value, default=None, context=""):
     except (ValueError, TypeError):
         logger.warning(f"Failed to convert {value!r} to float {context}")
         return default
+
 
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
@@ -889,6 +891,7 @@ class CircuitBreaker:
             )
         except Exception as e:
             logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

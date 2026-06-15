@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.db.context import DatabaseContext
 
+
 class TestIntegration:
     """Test integrated functionality across modules."""
 

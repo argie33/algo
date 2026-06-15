@@ -23,6 +23,7 @@ FOMC_DATES_2026 = [
     ("2026-12-16", "FOMC Meeting Decision"),
 ]
 
+
 def _load_economic_calendar(today: date) -> int:
     """Load economic calendar events: FOMC, CPI, NFP, GDP, etc."""
     end = today + timedelta(days=90)
@@ -199,6 +200,7 @@ def _load_economic_calendar(today: date) -> int:
             logger.error(f"Failed to upsert economic calendar events: {e}")
             raise
 
+
 def main():
     today = date.today()
     try:
@@ -212,6 +214,7 @@ def main():
     except Exception as e:
         logger.error(f"Economic calendar loader failed: {e}")
         return 1
+
 
 if __name__ == "__main__":
     logging.basicConfig(

@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from routes.algo import _check_admin_access
 
+
 class TestAdminAccessCheck:
     """Test _check_admin_access function with various JWT claims."""
 
@@ -85,6 +86,7 @@ class TestAdminAccessCheck:
         }
         assert _check_admin_access(trader_claims) is False
 
+
 class TestCognitoGroupConfiguration:
     """Test that the Cognito groups are properly configured."""
 
@@ -111,6 +113,7 @@ class TestCognitoGroupConfiguration:
         """Verify expected trader user email."""
         expected_trader_email = "argeropolos@gmail.com"
         assert expected_trader_email == "argeropolos@gmail.com"
+
 
 class TestEndpointAccessControl:
     """Test that protected endpoints are properly guarded."""
@@ -148,6 +151,7 @@ class TestEndpointAccessControl:
         """
         # Public endpoints don't call _check_admin_access
         # All authenticated users can access them
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

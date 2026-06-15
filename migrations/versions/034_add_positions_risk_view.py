@@ -9,6 +9,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add positions with risk materialized view"
 
+
 def up():
     """Create the materialized view with all risk calculations."""
     with DatabaseContext("write") as cur:
@@ -145,6 +146,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_position_id
               ON algo_positions_with_risk(position_id)
         """)
+
 
 def down():
     """Drop the materialized view."""

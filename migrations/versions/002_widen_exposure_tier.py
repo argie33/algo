@@ -11,12 +11,14 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Widen market_exposure_daily.exposure_tier to VARCHAR(50)"
 
+
 def up():
     with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE market_exposure_daily
                 ALTER COLUMN exposure_tier TYPE VARCHAR(50)
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

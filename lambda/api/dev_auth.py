@@ -14,6 +14,7 @@ from typing import Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 def is_local_dev_mode() -> bool:
     """
     Check if we're in local development mode (NOT Lambda).
@@ -36,6 +37,7 @@ def is_local_dev_mode() -> bool:
         )
 
     return is_dev
+
 
 def get_dev_claims(token: Optional[str]) -> Optional[Dict]:
     """
@@ -75,6 +77,7 @@ def get_dev_claims(token: Optional[str]) -> Optional[Dict]:
         f"[DEV_AUTH] Generated dev claims for token: {token[:10]}..., groups: {groups}"
     )
     return claims
+
 
 def validate_dev_token(
     token: Optional[str],

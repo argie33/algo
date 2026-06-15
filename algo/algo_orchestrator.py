@@ -16,7 +16,7 @@ import psycopg2
 import psycopg2.extensions
 import psycopg2.sql
 from datetime import datetime, date as _date, timedelta, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR,
@@ -36,6 +36,7 @@ from monitoring.metrics_context import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
@@ -1322,6 +1323,7 @@ class Orchestrator:
             logger.error("CloudWatch metric publish failed: %s", e)
 
         return result
+
 
 if __name__ == "__main__":
 

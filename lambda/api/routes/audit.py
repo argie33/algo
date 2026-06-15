@@ -1,6 +1,9 @@
 """Route: audit"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 import os
@@ -15,6 +18,7 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims.
@@ -34,6 +38,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
         )
     return is_admin
 
+
 def handle(
     cur,
     path: str,
@@ -44,7 +49,9 @@ def handle(
 ) -> Dict:
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
-    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        jwt_claims
+    ):
         return error_response(
             403, "forbidden", "Admin access required to view audit logs"
         )

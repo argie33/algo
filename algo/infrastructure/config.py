@@ -16,6 +16,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 def validate_environment():
     """Validate that all required environment variables are set."""
     try:
@@ -24,11 +25,13 @@ def validate_environment():
         logger.error(f"Credential validation failed: {e}")
         raise RuntimeError(f"Critical credential error: {e}")
 
+
 try:
     validate_environment()
 except Exception as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
     raise
+
 
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""
@@ -866,9 +869,11 @@ class AlgoConfig:
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"
 
+
 # Global config instance (thread-safe)
 _instance = None
 _instance_lock = threading.Lock()
+
 
 def get_config():
     """Get or create global config instance (thread-safe).
@@ -882,6 +887,7 @@ def get_config():
             if _instance is None:
                 _instance = AlgoConfig()
     return _instance
+
 
 def reset_config() -> None:
     """Reset singleton — call at Lambda invocation start so config is fresh each run.
@@ -897,6 +903,7 @@ def reset_config() -> None:
         "[AlgoConfig] Singleton reset — will reload from DB on next get_config() call"
     )
 
+
 def get_api_timeout() -> int:
     """Get API request timeout in seconds.
 
@@ -906,6 +913,7 @@ def get_api_timeout() -> int:
     if env_val:
         return int(env_val)
     return get_config().get("api_request_timeout_seconds", 5)
+
 
 def get_db_timeout() -> int:
     """Get database connection timeout in seconds.
@@ -917,21 +925,26 @@ def get_db_timeout() -> int:
         return int(env_val)
     return get_config().get("db_connection_timeout_seconds", 15)
 
+
 def get_market_data_timeout() -> int:
     """Get market data API timeout in seconds."""
     return int(os.getenv("MARKET_DATA_TIMEOUT", "10"))
+
 
 def get_alpaca_timeout() -> int:
     """Get Alpaca API timeout in seconds."""
     return int(os.getenv("ALPACA_TIMEOUT", "5"))
 
+
 def get_webhook_timeout() -> int:
     """Get webhook timeout in seconds."""
     return int(os.getenv("WEBHOOK_TIMEOUT", "5"))
 
+
 def get_subprocess_timeout() -> int:
     """Get subprocess timeout in seconds."""
     return int(os.getenv("SUBPROCESS_TIMEOUT", "5"))
+
 
 def get_alpaca_base_url() -> str:
     """Get Alpaca API base URL from unified config.
@@ -941,6 +954,7 @@ def get_alpaca_base_url() -> str:
     from config.alpaca_config import get_alpaca_base_url as get_unified_url
 
     return get_unified_url()
+
 
 if __name__ == "__main__":
     config = get_config()

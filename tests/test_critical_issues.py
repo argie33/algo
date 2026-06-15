@@ -20,6 +20,7 @@ sys.path.insert(0, project_root)
 import pytest
 from utils.db.sql_safety import assert_safe_table
 
+
 class TestRDSConnectionPool:
     """Test RDS connection pool doesn't saturate with 5000+ symbols."""
 
@@ -44,6 +45,7 @@ class TestRDSConnectionPool:
 
         assert "ready_for_eod" in readiness, "EOD readiness check missing"
         assert readiness["max_parallelism"] >= 1, "Max parallelism should be at least 1"
+
 
 class TestLoaderParallelism:
     """Test loaders support 5000+ symbols with auto-scaling."""
@@ -86,6 +88,7 @@ class TestLoaderParallelism:
             loader.table_name == "swing_trader_scores"
         ), f"Wrong table name: {loader.table_name}"
 
+
 class TestSLAMonitoring:
     """Test SLA monitoring tracks critical deadlines."""
 
@@ -124,6 +127,7 @@ class TestSLAMonitoring:
         assert preclose is not None, "Pre-close window not found"
         assert preclose[5] == 25, f"Pre-close budget {preclose[5]}m, expected 25m"
 
+
 class TestAPIRateLimiting:
     """Test API rate limiting handles 5000+ symbols."""
 
@@ -161,6 +165,7 @@ class TestAPIRateLimiting:
             threshold >= 180
         ), f"Circuit breaker threshold {threshold}s too aggressive (min 180s)"
 
+
 class TestDynamoDBStateManagement:
     """Test DynamoDB state management for halt flags."""
 
@@ -176,6 +181,7 @@ class TestDynamoDBStateManagement:
             checker, "get_halt_flag_status"
         ), "Halt flag status check not found"
         assert hasattr(checker, "check_lock_status"), "Lock status check not found"
+
 
 class TestOrchestratorPhases:
     """Test orchestrator executes all 7 phases."""
@@ -206,6 +212,7 @@ class TestOrchestratorPhases:
 
         assert hasattr(phase7_reconciliation, "run"), "Phase 7 run function not found"
 
+
 class TestDatabaseConnectivity:
     """Test database has all required tables."""
 
@@ -233,6 +240,7 @@ class TestDatabaseConnectivity:
                 except Exception as e:
                     pytest.fail(f"Table {table} not accessible: {e}")
 
+
 class TestProductionReadinessCheck:
     """Test production readiness validator works."""
 
@@ -252,6 +260,7 @@ class TestProductionReadinessCheck:
         assert (
             result["total_passed"] >= 1
         ), "Readiness check: 0 checks passed, expected at least 1"
+
 
 class TestAPISecurity:
     """Test API security configuration."""
@@ -276,6 +285,7 @@ class TestAPISecurity:
         # File may not exist in all environments, just verify directory structure
         api_dir = os.path.join(project_root, "lambda", "api")
         assert os.path.exists(api_dir), f"Lambda API directory not found: {api_dir}"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

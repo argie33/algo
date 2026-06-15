@@ -3,6 +3,7 @@ import inspect
 from unittest.mock import Mock, patch
 from algo.infrastructure.reconciliation import DailyReconciliation
 
+
 class TestDailyReconciliationDatabaseContext:
     """Test that DailyReconciliation properly uses DatabaseContext."""
 
@@ -58,6 +59,7 @@ class TestDailyReconciliationDatabaseContext:
         assert "imported" in result
         assert "orphaned" in result
 
+
 class TestPhase7MethodSignatures:
     """Test that Phase 7 methods have correct signatures."""
 
@@ -85,6 +87,7 @@ class TestPhase7MethodSignatures:
         params = list(sig.parameters.keys())
         assert "self" in params
         assert "cur" in params
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

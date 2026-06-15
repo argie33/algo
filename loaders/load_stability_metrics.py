@@ -24,6 +24,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class StabilityMetricsLoader(OptimalLoader):
     """Compute volatility and beta metrics."""
 
@@ -164,6 +165,7 @@ class StabilityMetricsLoader(OptimalLoader):
             return False
         return row.get("symbol") is not None
 
+
 def main():
     parser = argparse.ArgumentParser(description="Stability Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -191,6 +193,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

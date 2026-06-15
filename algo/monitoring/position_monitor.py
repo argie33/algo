@@ -31,6 +31,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
@@ -972,6 +973,7 @@ class PositionMonitor:
             except Exception as e:
                 logger.warning(f"Failed to fetch open positions: {e}")
                 return []
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

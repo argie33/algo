@@ -20,6 +20,7 @@ DB_POOL_TIMEOUT_SEC = 300
 
 logger = logging.getLogger(__name__)
 
+
 class RDSPoolMonitor:
     """Monitor PostgreSQL RDS connection pool saturation."""
 

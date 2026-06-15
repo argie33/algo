@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode (required for finance paths)."""
+
 
 def safe_float(
     value: Any,
@@ -68,6 +70,7 @@ def safe_float(
             )
         return default
 
+
 def safe_int(
     value: Any,
     *,
@@ -117,6 +120,7 @@ def safe_int(
                 f"Failed to convert {field_name or 'value'}={value!r} to int (returning {default}): {e}"
             )
         return default
+
 
 def safe_json_parse(
     value: Any, *, default: Any = None, strict: bool = False, field_name: str = None
@@ -168,6 +172,7 @@ def safe_json_parse(
     )
     return default if default is not None else {}
 
+
 def safe_bool(value: Any, default: bool = False, field_name: str = None) -> bool:
     """Safely convert value to bool with logging."""
     if value is None:
@@ -198,6 +203,7 @@ def safe_bool(value: Any, default: bool = False, field_name: str = None) -> bool
             logger.warning(f"Failed to convert {value!r} to bool: {e}")
         return default
 
+
 def safe_str(value: Any, default: str = "", field_name: str = None) -> str:
     """Safely convert value to string with logging."""
     if value is None:
@@ -215,6 +221,7 @@ def safe_str(value: Any, default: str = "", field_name: str = None) -> str:
             logger.warning(f"Failed to convert {value!r} to str: {e}")
         return default
 
+
 def validate_required_fields(
     data: Dict[str, Any], required_fields: List[str], source: str = None
 ) -> bool:
@@ -225,6 +232,7 @@ def validate_required_fields(
         logger.warning(f"Missing required fields{source_str}: {missing}")
         return False
     return True
+
 
 def validate_field_types(
     data: Dict[str, Any], type_spec: Dict[str, Type], source: str = None
@@ -248,6 +256,7 @@ def validate_field_types(
         return False
     return True
 
+
 def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
     """Log a data issue from a fetcher function."""
     if value is not None:
@@ -255,21 +264,27 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
     else:
         logger.warning(f"{fetcher_name}.{field_name}: {issue}")
 
+
 # ── Strict-mode convenience functions for finance paths ────────────────────────
+
 
 def safe_float_strict(value: Any, field_name: str = None) -> float:
     """Convert value to float in strict mode. Raises StrictValidationError if fails."""
     return safe_float(value, strict=True, field_name=field_name)
 
+
 def safe_int_strict(value: Any, field_name: str = None) -> int:
     """Convert value to int in strict mode. Raises StrictValidationError if fails."""
     return safe_int(value, strict=True, field_name=field_name)
+
 
 def safe_json_parse_strict(value: Any, field_name: str = None) -> Any:
     """Parse JSON in strict mode. Raises StrictValidationError if fails."""
     return safe_json_parse(value, strict=True, field_name=field_name)
 
+
 # ── Audit and Migration Helpers ────────────────────────────────────────────
+
 
 def audit_fallback_usage() -> Dict[str, Any]:
     """Audit codebase for remaining safe_* calls with problematic defaults.

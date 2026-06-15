@@ -45,8 +45,10 @@ EXCLUSION_PATTERNS = [
     r"\binverse\b",
 ]
 
+
 def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
+
 
 class StockSymbolsLoader(OptimalLoader):
     """Load stock symbols from NASDAQ and NYSE."""
@@ -156,6 +158,7 @@ class StockSymbolsLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Failed to refresh etf_symbols: {e}")
 
+
 def main():
     try:
         # Execution timeout: Fetch 2 files + parse typically takes 10-20s
@@ -173,6 +176,7 @@ def main():
     except Exception as e:
         logger.error(f"Stock symbols load failed: {e}", exc_info=True)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

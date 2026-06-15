@@ -14,6 +14,7 @@ from datetime import date
 
 logger = logging.getLogger(__name__)
 
+
 class SignalScorer:
     """Unified interface for scoring all signal types."""
 

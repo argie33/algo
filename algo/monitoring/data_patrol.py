@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # Severity levels
 INFO, WARN, ERROR, CRIT = "info", "warn", "error", "critical"
 
+
 class DataPatrol:
     """Comprehensive data integrity patrol."""
 
@@ -2471,6 +2472,7 @@ class DataPatrol:
             "all_results": self.results,
             "elapsed_seconds": elapsed_seconds,
         }
+
 
 if __name__ == "__main__":
     try:

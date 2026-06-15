@@ -20,6 +20,7 @@ import psycopg2.pool
 
 logger = logging.getLogger(__name__)
 
+
 class PoolSemaphore:
     """Semaphore-style gating for connection pool availability.
 
@@ -90,10 +91,12 @@ class PoolSemaphore:
                 "available_slots": self.max_concurrent - self._active_count,
             }
 
+
 # Global pool semaphore - enforces max concurrent loaders
 # Set to 10 to safely support 10 concurrent loaders holding connections,
 # with room for 10 more in the SimpleConnectionPool for API/internal use
 _pool_semaphore = PoolSemaphore(max_concurrent=10, timeout_sec=30)
+
 
 class PooledConnectionManager:
     """Manages a single persistent connection for a loader's entire lifecycle.
@@ -250,6 +253,7 @@ class PooledConnectionManager:
         """Context manager exit."""
         self.release()
         return False
+
 
 def get_pool_status() -> dict:
     """Get current pool and semaphore status for monitoring."""

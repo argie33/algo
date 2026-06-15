@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 dynamodb = boto3.resource("dynamodb")
 
+
 def get_db_credentials():
     """Fetch database credentials from credential_manager (centralized)."""
     try:
@@ -59,6 +60,7 @@ def get_db_credentials():
         except Exception as e:
             logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
             raise
+
 
 def get_portfolio_pnl(max_attempts: int = 3):
     """Query current portfolio P&L and calculate intraday variance.
@@ -131,6 +133,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
     )
     return None, None, None
 
+
 def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
     item = {
         "key": "orchestrator_halt",
@@ -141,6 +144,7 @@ def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
     ts_key = "triggered_at" if halt else "reset_at"
     item[ts_key] = datetime.now(timezone.utc).isoformat()
     table.put_item(Item=item)
+
 
 def lambda_handler(event, context):
     """Circuit breaker trigger - halt trading if variance too high."""

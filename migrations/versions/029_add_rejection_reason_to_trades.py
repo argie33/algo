@@ -5,6 +5,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add rejection_reason column to algo_trades"
 
+
 def up():
     with DatabaseContext("write") as cur:
         cur.execute("""
@@ -14,6 +15,7 @@ def up():
         cur.execute("""
             COMMENT ON COLUMN algo_trades.rejection_reason IS 'Error message from Alpaca API when order is rejected'
         """)
+
 
 def down():
     with DatabaseContext("write") as cur:

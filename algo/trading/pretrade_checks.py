@@ -16,6 +16,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class PreTradeChecks:
     """Validation layer before executing trades."""
 

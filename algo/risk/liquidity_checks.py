@@ -10,6 +10,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class LiquidityChecks:
     """Verify sufficient liquidity and spreads for trade execution."""
 

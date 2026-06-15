@@ -13,6 +13,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Lower min_trend_template_score from 7 to 6 for broader T3 signal capture"
 
+
 def up():
     with DatabaseContext("write") as cur:
         # Use CAST comparison so '7.0' and '7' both match. Only lower the threshold
@@ -23,6 +24,7 @@ def up():
             WHERE key = 'min_trend_template_score'
               AND CAST(value AS NUMERIC) >= 7
             """)
+
 
 def down():
     with DatabaseContext("write") as cur:

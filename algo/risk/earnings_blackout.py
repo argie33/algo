@@ -23,6 +23,7 @@ except ImportError:
         def critical(self, *args, **kwargs):
             pass
 
+
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
 
@@ -123,6 +124,7 @@ class EarningsBlackout:
         except Exception as e:
             logger.warning(f"Failed to fetch earnings for {symbol}: {e}")
             return []
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

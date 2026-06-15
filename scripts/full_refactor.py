@@ -7,6 +7,7 @@ This script handles the complete refactoring in one pass.
 import shutil
 from pathlib import Path
 
+
 def get_file_mapping():
     """Return (old_path, new_path) tuples for all files to move."""
     mapping = {
@@ -113,6 +114,7 @@ def get_file_mapping():
     }
     return mapping
 
+
 def move_files(mapping):
     """Move all files to new locations."""
     for old_path, new_path in mapping.items():
@@ -124,6 +126,7 @@ def move_files(mapping):
             print(f"[+] {old_path} -> {new_path}")
         else:
             print(f"[-] {old_path} not found")
+
 
 if __name__ == "__main__":
     mapping = get_file_mapping()

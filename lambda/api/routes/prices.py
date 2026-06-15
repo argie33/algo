@@ -1,6 +1,9 @@
 """Route: prices"""
 
-import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
+import psycopg2.sql
 from typing import Dict
 import logging
 from routes.utils import (
@@ -26,6 +29,7 @@ _ETF_TABLE_MAP = {
     "weekly": "etf_price_weekly",
     "monthly": "etf_price_monthly",
 }
+
 
 def handle(
     cur,

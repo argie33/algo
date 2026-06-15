@@ -83,6 +83,7 @@ EXPOSURE_TIERS: List[Dict[str, Any]] = [
     },
 ]
 
+
 def tier_for_exposure(exposure_pct):
     """Return the active policy tier for a given exposure %.
 
@@ -106,6 +107,7 @@ def tier_for_exposure(exposure_pct):
             return tier
 
     return EXPOSURE_TIERS[-1] if exposure_pct < 0 else EXPOSURE_TIERS[0]
+
 
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""
@@ -297,6 +299,7 @@ class ExposurePolicy:
             "halt_new_entries": tier["halt_new_entries"],
             "max_concentration_pct": tier["max_concentration_pct"],
         }
+
 
 if __name__ == "__main__":
     p = ExposurePolicy()

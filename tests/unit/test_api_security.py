@@ -14,6 +14,7 @@ import pytest
 import os
 from unittest.mock import patch
 
+
 # Test API authentication and authorization
 class TestAPIAuthentication:
     """Test authentication enforcement on protected endpoints"""
@@ -62,6 +63,7 @@ class TestAPIAuthentication:
         is_valid, claims, error = validate_dev_token("no-prefix")
         assert not is_valid or error is not None
 
+
 class TestAPIAuthorization:
     """Test role-based access control"""
 
@@ -77,6 +79,7 @@ class TestAPIAuthorization:
     def test_config_changes_logged_to_audit(self):
         """Verify configuration changes are audited"""
         # All config updates should be logged with actor, timestamp, old/new values
+
 
 class TestInputValidation:
     """Test input validation and sanitization"""
@@ -147,6 +150,7 @@ class TestInputValidation:
         assert safe_float("invalid") == 0.0
         assert safe_int("invalid") == 0
 
+
 class TestCORSSecurity:
     """Test CORS configuration security"""
 
@@ -186,6 +190,7 @@ class TestCORSSecurity:
         # Should set SameSite cookie attribute
         # Should use Credentials only with specific origins
 
+
 class TestResponseSecure:
     """Test that responses are secure (no data leakage)"""
 
@@ -209,6 +214,7 @@ class TestResponseSecure:
     def test_sensitive_headers_not_logged(self):
         """Verify auth headers are not logged"""
         # Authorization, Cookie, X-API-Key should be redacted in logs
+
 
 class TestRateLimiting:
     """Test rate limiting effectiveness"""
@@ -234,6 +240,7 @@ class TestRateLimiting:
         """Verify rate limit headers are in response"""
         # Response should include X-RateLimit-Limit, X-RateLimit-Remaining
 
+
 class TestDatabaseSecurity:
     """Test database-related security"""
 
@@ -250,6 +257,7 @@ class TestDatabaseSecurity:
         """Verify SQL queries have timeouts"""
         # Should have DB_STATEMENT_TIMEOUT_MS set
         # Long-running queries should fail fast
+
 
 class TestAuthenticationBypass:
     """Test authentication cannot be bypassed"""
@@ -272,6 +280,7 @@ class TestAuthenticationBypass:
         """Verify Cognito cannot be disabled in production"""
         # If COGNITO_USER_POOL_ID is not set, should fail authentication
         # Not fall back to dev mode
+
 
 class TestInjectionAttacks:
     """Test protection against injection attacks"""
@@ -310,6 +319,7 @@ class TestInjectionAttacks:
         for path in invalid_paths:
             assert path not in AlgoConfig.DEFAULTS
 
+
 class TestCredentialHandling:
     """Test that credentials are handled securely"""
 
@@ -334,6 +344,7 @@ class TestCredentialHandling:
     def test_session_tokens_not_logged(self):
         """Verify session tokens are not logged"""
         # Authorization header should be redacted in logs
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

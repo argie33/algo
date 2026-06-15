@@ -14,6 +14,7 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class DynamoDBHealthCheck:
     """Monitor DynamoDB availability and state consistency."""
 

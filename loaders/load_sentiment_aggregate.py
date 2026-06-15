@@ -14,6 +14,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class SentimentAggregateLoader(OptimalLoader):
     """Aggregate AAII and NAAIM sentiment into unified metric."""
 
@@ -72,6 +73,7 @@ class SentimentAggregateLoader(OptimalLoader):
             logger.error(f"Sentiment aggregation failed: {e}")
             return None
 
+
 def main():
     loader = SentimentAggregateLoader()
     result = loader.load_global()
@@ -82,6 +84,7 @@ def main():
     else:
         logger.warning("COMPLETED: No sentiment aggregated")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

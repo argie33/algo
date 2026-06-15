@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
+
 class CognitoAuth:
     """Handle Cognito authentication and token lifecycle."""
 
@@ -114,6 +115,7 @@ class CognitoAuth:
         """Check if user has valid credentials."""
         return bool(self.access_token) and not self.is_token_expired()
 
+
 def _get_or_create_test_user() -> Tuple[str, str]:
     """Try to get test user credentials from various sources."""
     # Try environment variables
@@ -137,6 +139,7 @@ def _get_or_create_test_user() -> Tuple[str, str]:
     # Return empty defaults (user will be prompted for real values)
     return "", ""
 
+
 def _get_aws_cfn_output(key: str) -> Optional[str]:
     """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
     try:
@@ -154,6 +157,7 @@ def _get_aws_cfn_output(key: str) -> Optional[str]:
     except Exception as e:
         logger.debug(f"Failed to get CFN output: {e}")
     return None
+
 
 def get_cognito_auth(
     require_auth: bool = True, interactive: bool = True
@@ -287,6 +291,7 @@ def get_cognito_auth(
         "[Cognito] No credentials available — run deploy workflow to provision credentials in Secrets Manager"
     )
     return auth
+
 
 def save_tokens(auth: CognitoAuth) -> None:
     """Save tokens and credentials for future use with restricted file permissions."""

@@ -41,6 +41,7 @@ STAGE_PHASE_MAPPING = {
     "late": 3,
 }
 
+
 def _redact_for_logs(message: str) -> str:
     """Redact sensitive trade data from log messages. Masks prices and shares."""
     import re
@@ -52,6 +53,7 @@ def _redact_for_logs(message: str) -> str:
     # Mask slippage: +1.23% → +***%
     message = re.sub(r"([+-]\d+\.\d+)%", "***%", message)
     return message
+
 
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""

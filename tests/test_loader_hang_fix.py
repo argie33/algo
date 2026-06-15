@@ -4,6 +4,7 @@ Test script to verify the loader hang fixes work correctly.
 Tests the key logic changes without requiring database access.
 """
 
+
 def test_exponential_backoff_reduction():
     """Verify exponential backoff is reduced from 5s to 2s base."""
     print("TEST 1: Exponential Backoff Reduction")
@@ -32,6 +33,7 @@ def test_exponential_backoff_reduction():
         )
     )
     print()
+
 
 def test_batch_timeout_reduction():
     """Verify max_single_batch_wait is reduced."""
@@ -62,6 +64,7 @@ def test_batch_timeout_reduction():
     print("  [PASS]")
     print()
 
+
 def test_market_close_timeout():
     """Verify market close check uses 10s timeout instead of 1800s."""
     print("TEST 3: Market Close Timeout Reduction")
@@ -76,6 +79,7 @@ def test_market_close_timeout():
         "  [PASS] Reduced by {}s ({:.0f} min saved)".format(reduction, reduction / 60)
     )
     print()
+
 
 def test_batch_one_rate_limit_abort():
     """Verify batch=1 aborts after 2 rate limit errors."""
@@ -108,6 +112,7 @@ def test_batch_one_rate_limit_abort():
 
     print("  [FAIL] Should have aborted after 2 errors")
 
+
 def test_market_close_non_blocking():
     """Verify market close check doesn't block loader startup."""
     print("TEST 5: Market Close Non-Blocking Behavior")
@@ -123,6 +128,7 @@ def test_market_close_non_blocking():
     print("  ")
     print("  [PASS] Loader never blocks waiting for market close check")
     print()
+
 
 def main():
     print("=" * 70)
@@ -147,6 +153,7 @@ def main():
     print("  Timeout bounds:      More aggressive failure detection")
     print()
     print("Ready for production testing!")
+
 
 if __name__ == "__main__":
     main()

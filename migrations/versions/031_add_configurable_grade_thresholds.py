@@ -19,6 +19,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add configurable grade thresholds to algo_config"
 
+
 def up():
     """Add configurable grade thresholds to algo_config."""
     with DatabaseContext("write") as cur:
@@ -37,6 +38,7 @@ def up():
                 ('advanced_filters_grade_threshold_d', '50', 'int', 'Advanced filters: D grade threshold (score >= this value)', 'migration')
             ON CONFLICT (key) DO NOTHING
         """)
+
 
 def down():
     """Remove configurable grade thresholds from algo_config."""

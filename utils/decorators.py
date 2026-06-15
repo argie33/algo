@@ -16,6 +16,7 @@ from typing import Optional, Callable, Type
 
 logger = logging.getLogger(__name__)
 
+
 def db_route_handler(
     operation_name: str,
     default_error_response=None,
@@ -59,6 +60,7 @@ def db_route_handler(
         return wrapper
 
     return decorator
+
 
 def external_api_handler(
     operation_name: str,
@@ -124,6 +126,7 @@ def external_api_handler(
 
     return decorator
 
+
 def validation_handler(
     operation_name: str,
     schema_class: Optional[Type] = None,
@@ -186,6 +189,7 @@ def validation_handler(
 
     return decorator
 
+
 def timeout_handler(
     operation_name: str,
     timeout_sec: int = 25,
@@ -240,6 +244,7 @@ def timeout_handler(
 
     return decorator
 
+
 def transactional(
     operation_name: str,
     should_rollback: bool = True,
@@ -287,6 +292,7 @@ def transactional(
         return wrapper
 
     return decorator
+
 
 def loader_operation(
     table_name: str,
@@ -348,6 +354,7 @@ def loader_operation(
 
     return decorator
 
+
 def rate_limit_handler(
     operation_name: str,
     max_requests: int = 10,
@@ -404,6 +411,7 @@ def rate_limit_handler(
         return wrapper
 
     return decorator
+
 
 def circuit_breaker(
     operation_name: str,

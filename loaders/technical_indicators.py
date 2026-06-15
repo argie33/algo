@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Dict
 
+
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     """Compute Relative Strength Index using Wilder's EMA smoothing."""
     deltas = closes.diff()
@@ -20,6 +21,7 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+
 def compute_macd(
     closes: pd.Series, fast: int = 12, slow: int = 26, signal_period: int = 9
 ) -> Tuple[pd.Series, pd.Series]:
@@ -29,6 +31,7 @@ def compute_macd(
     macd_line = ema_fast - ema_slow
     signal_line = macd_line.ewm(span=signal_period).mean()
     return macd_line, signal_line
+
 
 def compute_moving_averages(closes: pd.Series) -> Dict[str, pd.Series]:
     """Compute all standard moving averages."""
@@ -41,6 +44,7 @@ def compute_moving_averages(closes: pd.Series) -> Dict[str, pd.Series]:
         "ema_21": closes.ewm(span=21).mean(),
         "ema_26": closes.ewm(span=26).mean(),
     }
+
 
 def compute_atr(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
@@ -57,6 +61,7 @@ def compute_atr(
     atr = tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
     return atr
 
+
 def compute_bollinger_bands(
     closes: pd.Series, period: int = 20, std_dev: float = 2.0
 ) -> Dict[str, pd.Series]:
@@ -69,9 +74,11 @@ def compute_bollinger_bands(
         "bb_lower": sma - (std * std_dev),
     }
 
+
 def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
     """Compute volume moving average."""
     return volume.rolling(period).mean()
+
 
 def compute_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
@@ -110,6 +117,7 @@ def compute_adx(
     adx = dx.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
 
     return plus_di, minus_di, adx
+
 
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Compute all technical indicators and add to dataframe.

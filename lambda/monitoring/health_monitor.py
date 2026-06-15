@@ -25,6 +25,7 @@ logger.setLevel(logging.INFO)
 cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")
 
+
 def get_db_connection():
     """Create database connection from environment variables."""
     try:
@@ -40,6 +41,7 @@ def get_db_connection():
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
+
 
 def check_loader_health() -> Tuple[str, List[Dict]]:
     """Check if critical loaders have run recently.
@@ -137,6 +139,7 @@ def check_loader_health() -> Tuple[str, List[Dict]]:
             {"problem": f"Health check error: {str(e)[:50]}", "status": "ERROR"}
         ]
 
+
 def check_data_freshness() -> Tuple[str, List[Dict]]:
     """Check if critical data tables have recent data.
 
@@ -203,6 +206,7 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
         logger.error(f"Data freshness check failed: {e}")
         return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
 
+
 def send_metric(
     metric_name: str, value: float, unit: str = "None", dimensions: Dict = None
 ):
@@ -225,6 +229,7 @@ def send_metric(
     except Exception as e:
         logger.error(f"Failed to send metric {metric_name}: {e}")
 
+
 def send_alert(subject: str, message: str):
     """Send SNS alert if configured."""
     sns_topic = os.environ.get("SNS_ALERT_TOPIC_ARN")
@@ -236,6 +241,7 @@ def send_alert(subject: str, message: str):
         sns.publish(TopicArn=sns_topic, Subject=subject, Message=message)
     except Exception as e:
         logger.error(f"Failed to send alert: {e}")
+
 
 def handler(event, context):
     """Health monitor Lambda handler."""

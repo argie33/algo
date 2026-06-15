@@ -7,6 +7,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class WatermarkManager:
     """Manages atomic watermark updates for incremental data loading."""
 

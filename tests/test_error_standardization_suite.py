@@ -32,6 +32,7 @@ from utils.error_handlers import classify_exception, sanitize_error_message
 # TEST SUITE: Exception Hierarchy
 # ============================================================================
 
+
 class TestExceptionHierarchy:
     """Test that exception hierarchy is properly defined."""
 
@@ -73,9 +74,11 @@ class TestExceptionHierarchy:
         assert "message" in response
         assert "context" in response
 
+
 # ============================================================================
 # TEST SUITE: Error Classification
 # ============================================================================
+
 
 class TestErrorClassification:
     """Test classify_exception() function."""
@@ -106,9 +109,11 @@ class TestErrorClassification:
         code, error_type, message = classify_exception(err)
         assert code == 500
 
+
 # ============================================================================
 # TEST SUITE: Message Sanitization
 # ============================================================================
+
 
 class TestMessageSanitization:
     """Test that sensitive info is removed from error messages."""
@@ -132,9 +137,11 @@ class TestMessageSanitization:
         sanitized = sanitize_error_message(msg)
         assert "/home/user" not in sanitized
 
+
 # ============================================================================
 # TEST SUITE: API Routes Response Format
 # ============================================================================
+
 
 class TestAPIRouteErrorFormat:
     """Test that API route errors follow standard format."""
@@ -176,9 +183,11 @@ class TestAPIRouteErrorFormat:
             assert response["statusCode"] == code
             assert response["statusCode"] >= 400
 
+
 # ============================================================================
 # TEST SUITE: Import Verification
 # ============================================================================
+
 
 class TestImportAvailability:
     """Test that all standardized modules are importable."""
@@ -235,9 +244,11 @@ class TestImportAvailability:
         assert LoaderErrorContext is not None
         assert TransactionContext is not None
 
+
 # ============================================================================
 # TEST SUITE: File Analysis
 # ============================================================================
+
 
 class TestFileStandardization:
     """Test that files have been updated with standardization."""
@@ -286,9 +297,11 @@ class TestFileStandardization:
                 # Should use some form of error handling
                 assert "try:" in content or "@" in content[:500]
 
+
 # ============================================================================
 # TEST SUITE: Integration Tests
 # ============================================================================
+
 
 class TestIntegration:
     """Integration tests for error handling across layers."""
@@ -328,15 +341,18 @@ class TestIntegration:
         assert "message" in response
         assert "_error" in response
 
+
 # ============================================================================
 # Pytest Hooks
 # ============================================================================
+
 
 def pytest_configure(config):
     """Add custom markers."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
+
 
 if __name__ == "__main__":
     # Run tests with pytest

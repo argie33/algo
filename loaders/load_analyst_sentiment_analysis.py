@@ -48,6 +48,7 @@ from typing import Optional
 from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
 
+
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
     primary_key = ("symbol", "date")
@@ -123,6 +124,7 @@ class AnalystSentimentLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
     parser.add_argument(
@@ -148,6 +150,7 @@ def main():
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

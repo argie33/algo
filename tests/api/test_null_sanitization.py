@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from utils.validation import APIResponseValidator
 from routes.utils import success_response, json_response, list_response
 
+
 def test_sanitize_nested_dict_with_nulls():
     """Test sanitizing nested dict with None values."""
     data = {
@@ -32,6 +33,7 @@ def test_sanitize_nested_dict_with_nulls():
     ), f"Expected 0, got {sanitized['trades']['avg_win']}"
     print("[OK] test_sanitize_nested_dict_with_nulls passed")
 
+
 def test_sanitize_list_with_nulls():
     """Test sanitizing list with None values (should filter them out)."""
     data = [
@@ -49,6 +51,7 @@ def test_sanitize_list_with_nulls():
     assert sanitized[1]["price"] == 0, f"Expected 0, got {sanitized[1]['price']}"
     print("[OK] test_sanitize_list_with_nulls passed")
 
+
 def test_success_response_sanitizes():
     """Test that success_response sanitizes None values."""
     data = {"profit_factor": None, "win_rate": 45.0}
@@ -59,6 +62,7 @@ def test_success_response_sanitizes():
     assert response["data"]["profit_factor"] == 0
     assert response["data"]["win_rate"] == 45.0
     print("[OK] test_success_response_sanitizes passed")
+
 
 def test_list_response_sanitizes():
     """Test that list_response sanitizes None values."""
@@ -71,6 +75,7 @@ def test_list_response_sanitizes():
     assert response["data"]["items"][1]["quantity"] == 0
     print("[OK] test_list_response_sanitizes passed")
 
+
 def test_validate_no_nulls():
     """Test null detection."""
     data = {"a": 1, "b": None, "c": {"d": None, "e": 2}, "f": [1, None, 3]}
@@ -82,6 +87,7 @@ def test_validate_no_nulls():
     assert "root.f[1]" in nulls
     assert len(nulls) == 3
     print("[OK] test_validate_no_nulls passed")
+
 
 def test_json_serializable():
     """Test that sanitized data is JSON serializable."""
@@ -103,6 +109,7 @@ def test_json_serializable():
     assert len(parsed["items"]) == 1  # None item filtered out
     print("[OK] test_json_serializable passed")
 
+
 def test_json_response_sanitizes_success():
     """Test that json_response sanitizes None values for success (200) responses."""
     data = {"ratio": None, "value": 42}
@@ -113,6 +120,7 @@ def test_json_response_sanitizes_success():
     assert response["data"]["ratio"] == 0
     assert response["data"]["value"] == 42
     print("[OK] test_json_response_sanitizes_success passed")
+
 
 def test_json_response_sanitizes_errors():
     """Test that json_response sanitizes None values for error responses."""
@@ -134,6 +142,7 @@ def test_json_response_sanitizes_errors():
     assert response["nested"]["status"] == "error"
     print("[OK] test_json_response_sanitizes_errors passed")
 
+
 def test_no_null_in_json_output():
     """Test that serialized responses contain no null values."""
     responses = [
@@ -152,6 +161,7 @@ def test_no_null_in_json_output():
         ), f"Found null in response: {response}"
 
     print("[OK] test_no_null_in_json_output passed")
+
 
 if __name__ == "__main__":
     test_sanitize_nested_dict_with_nulls()

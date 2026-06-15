@@ -23,6 +23,7 @@ from typing import Optional
 from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
 
+
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
     primary_key = ("symbol", "quarter")
@@ -111,6 +112,7 @@ class EarningsHistoryLoader(OptimalLoader):
             return False
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))
 
+
 def main():
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
     parser.add_argument(
@@ -142,6 +144,7 @@ def main():
         )
         return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

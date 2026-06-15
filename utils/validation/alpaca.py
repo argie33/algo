@@ -13,6 +13,7 @@ from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
+
 class AlpacaResponseValidator:
     """Validates Alpaca API responses for required fields and types."""
 
@@ -304,5 +305,6 @@ class AlpacaResponseValidator:
         """
         for error in errors:
             logger.error(f"[Alpaca {response_type} Validation] {error} {context}")
+
 
 __all__ = ["AlpacaResponseValidator"]

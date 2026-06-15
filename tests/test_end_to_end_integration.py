@@ -43,6 +43,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 class EndToEndIntegrationTest:
     """Full pipeline integration test with all deployed fixes."""
 
@@ -488,6 +489,7 @@ class EndToEndIntegrationTest:
             print("\n[INCONCLUSIVE] Some issues incomplete - see details above")
             return True  # Still acceptable for initial integration test
 
+
 def main():
     """Run end-to-end integration test."""
     test = EndToEndIntegrationTest(subset_size=500, dry_run=True)
@@ -506,6 +508,7 @@ def main():
     print("=" * 80 + "\n")
 
     return 0 if success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -11,6 +11,7 @@ After fix: check_database_connectivity() validates column types using validate_t
 import unittest
 from unittest.mock import Mock, patch
 
+
 class TestProductionReadinessSchemaValidation(unittest.TestCase):
     """Test that production readiness check validates column types."""
 
@@ -126,6 +127,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
             self.assertFalse(result)
             self.assertTrue(any("schema INVALID" in msg for msg in check.checks_failed))
+
 
 if __name__ == "__main__":
     unittest.main()

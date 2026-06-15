@@ -27,6 +27,7 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
+
 def _compute_true_atr(
     symbol: str, run_date: _date, period: int = 14
 ) -> Optional[float]:
@@ -63,6 +64,7 @@ def _compute_true_atr(
         logger.warning(f"Could not compute ATR for {symbol}: {e}")
         return None
 
+
 def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
     """50-day SMA anchored to run_date."""
     try:
@@ -83,6 +85,7 @@ def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
         logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
         return None
 
+
 def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
     """Latest close price at or before run_date."""
     try:
@@ -96,6 +99,7 @@ def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
     except Exception as e:
         logger.warning(f"Could not get close for {symbol}: {e}")
         return None
+
 
 def run(
     config: Any,

@@ -20,6 +20,7 @@ UPDATE PROTOCOL:
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
+
 @dataclass
 class ResponseSchema:
     """Schema for API response validation."""
@@ -29,6 +30,7 @@ class ResponseSchema:
     field_types: Dict[str, type]
     nested_schema: Optional[Dict[str, Any]] = None
     description: str = ""
+
 
 # ============================================================================
 # DASHBOARD ENDPOINTS - AUTHORITATIVE DEFINITIONS
@@ -653,6 +655,7 @@ DASHBOARD_PANELS = {
     },
 }
 
+
 class EndpointRegistry:
     """Registry for querying endpoint definitions dynamically."""
 
@@ -689,6 +692,7 @@ class EndpointRegistry:
         """Get data freshness threshold in seconds for endpoint."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
         return endpoint.get("freshness_max_age_seconds") if endpoint else None
+
 
 class PanelRegistry:
     """Registry for querying panel definitions."""

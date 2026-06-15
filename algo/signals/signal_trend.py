@@ -14,6 +14,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 

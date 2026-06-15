@@ -202,6 +202,7 @@ SAFE_COLUMNS = {
     "result",
 }
 
+
 def validate_identifier(
     identifier: str, whitelist: set, identifier_type: str = "table"
 ) -> str:
@@ -238,13 +239,16 @@ def validate_identifier(
 
     return identifier
 
+
 def assert_safe_table(table: str) -> str:
     """Assertion wrapper for table name validation."""
     return validate_identifier(table, SAFE_TABLES, "table")
 
+
 def assert_safe_column(column: str) -> str:
     """Assertion wrapper for column name validation."""
     return validate_identifier(column, SAFE_COLUMNS, "column")
+
 
 # For backwards compatibility - direct safe execution
 def safe_execute(cur, query_template: str, **kwargs) -> None:
@@ -276,6 +280,7 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
 
     query = query_template.format(**safe_kwargs)
     cur.execute(query)
+
 
 def safe_select_count(
     cur,

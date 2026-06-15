@@ -13,6 +13,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 class LoaderConflictDetector:
     """Detect and alert on loader conflicts during concurrent pipeline runs."""
 

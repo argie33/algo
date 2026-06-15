@@ -15,6 +15,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseErrorContext:
     """Context manager for database operations with standardized error handling.
 
@@ -62,6 +63,7 @@ class DatabaseErrorContext:
 
         log_error_with_context(exc_val, self.operation, context)
         return False  # Re-raise exception
+
 
 class LoaderErrorContext:
     """Context manager for loader operations with status tracking.
@@ -129,6 +131,7 @@ class LoaderErrorContext:
         log_error_with_context(exc_val, f"loader[{self.table_name}]", context)
         return False
 
+
 @contextmanager
 def ExternalAPIContext(
     api_name: str,
@@ -177,6 +180,7 @@ def ExternalAPIContext(
             logger.warning(f"API error from {api_name}, might retry: {e}")
 
         raise
+
 
 @contextmanager
 def TimeoutContext(
@@ -228,6 +232,7 @@ def TimeoutContext(
                 f"{operation} nearing timeout: {elapsed:.1f}s / {timeout_sec}s"
             )
 
+
 @contextmanager
 def TransactionContext(
     cur,
@@ -266,6 +271,7 @@ def TransactionContext(
                 )
 
         raise
+
 
 class CircuitBreaker:
     """Reusable circuit breaker for fail-fast behavior.

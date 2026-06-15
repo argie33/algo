@@ -8,6 +8,7 @@ Provides complete OpenAPI 3.0 spec for:
 - Data freshness metadata
 """
 
+
 def generate_openapi_spec():
     """Generate complete OpenAPI 3.0 specification.
 
@@ -66,6 +67,7 @@ def generate_openapi_spec():
     }
     return spec
 
+
 def _get_paths():
     """Generate API paths for all endpoints."""
     return {
@@ -80,9 +82,7 @@ def _get_paths():
                         "description": "API is healthy",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$re": "#/components/schemas/HealthResponse"
-                                }
+                                "schema": {"$re": "#/components/schemas/HealthResponse"}
                             }
                         },
                     },
@@ -751,6 +751,7 @@ def _get_paths():
         },
     }
 
+
 def _get_schemas():
     """Generate JSON schemas for all response types."""
     return {
@@ -882,6 +883,7 @@ def _get_schemas():
             },
         },
     }
+
 
 def _get_common_responses():
     """Generate common response definitions."""

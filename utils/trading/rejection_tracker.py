@@ -7,6 +7,7 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class RejectionTracker:
     """Track signal rejections through filter pipeline for explainability."""
 

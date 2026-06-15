@@ -17,6 +17,7 @@ from utils.db.context import DatabaseContext
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def check_orphaned_records():
     """Check for records that would violate the new FKs."""
     with DatabaseContext("read") as cur:
@@ -80,6 +81,7 @@ def check_orphaned_records():
             "✗ Orphaned records detected. Fix these before applying FK constraints."
         )
         return False
+
 
 if __name__ == "__main__":
     success = check_orphaned_records()

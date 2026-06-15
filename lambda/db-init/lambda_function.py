@@ -22,6 +22,7 @@ DEFAULT_DB_PORT = 5432
 # Add project root to path for importing config module
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+
 def get_credentials():
     """Get DB credentials from Secrets Manager or env vars via credential_manager."""
     try:
@@ -65,6 +66,7 @@ def get_credentials():
             "user": os.environ.get("DB_USER"),
             "password": os.environ.get("DB_PASSWORD"),
         }
+
 
 def split_sql_statements(sql):
     """Split SQL into statements, respecting dollar-quoted blocks (DO $$ ... $$).
@@ -111,6 +113,7 @@ def split_sql_statements(sql):
         statements.append(stmt)
 
     return statements
+
 
 def lambda_handler(event, context):
     """Initialize RDS database schema and ensure stocks user exists."""

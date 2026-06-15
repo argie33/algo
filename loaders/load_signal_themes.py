@@ -15,6 +15,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+
 class SignalThemesLoader(OptimalLoader):
     """Load signal themes from signal quality scores (market-wide aggregate)."""
 
@@ -76,6 +77,7 @@ class SignalThemesLoader(OptimalLoader):
             logger.error(f"Error fetching signal themes: {e}")
             return None
 
+
 def main():
     loader = SignalThemesLoader()
     result = loader.load_global()
@@ -86,6 +88,7 @@ def main():
     else:
         logger.warning("COMPLETED: No themes loaded")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

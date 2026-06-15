@@ -21,6 +21,7 @@ from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
+
 class SignalsDailyLoader(OptimalLoader):
     """Daily signals loader that generates buy/sell signals from technical indicators."""
 
@@ -672,6 +673,7 @@ class SignalsDailyLoader(OptimalLoader):
                 )
         return rows
 
+
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -795,6 +797,7 @@ def main():
     except Exception as e:
         logger.error(f"Daily signals load failed: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

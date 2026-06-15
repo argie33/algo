@@ -19,6 +19,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Soften T3 RS-slope and volume-decay gates from hard-reject to warn-only"
 
+
 def up():
     with DatabaseContext("write") as cur:
         cur.execute("""
@@ -31,6 +32,7 @@ def up():
             SET value = 'false', updated_by = 'migration-007'
             WHERE key = 'volume_decay_gate_enabled' AND value = 'true'
             """)
+
 
 def down():
     with DatabaseContext("write") as cur:

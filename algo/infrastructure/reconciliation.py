@@ -12,6 +12,7 @@ from algo.reporting import notify
 
 logger = logging.getLogger(__name__)
 
+
 class DailyReconciliation:
     """Daily reconciliation and portfolio snapshot creation."""
 
@@ -1555,6 +1556,7 @@ class DailyReconciliation:
         raise ValueError(
             "Cannot determine initial capital: Alpaca history unavailable and no database snapshots found"
         )
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

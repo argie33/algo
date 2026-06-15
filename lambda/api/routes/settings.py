@@ -1,6 +1,8 @@
 """Route: settings — user preferences stored per authenticated Cognito user."""
 
-import psycopg2, psycopg2.extras, psycopg2.errors
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
 import json
 import logging
 from typing import Dict
@@ -23,6 +25,7 @@ _DEFAULTS = {
     },
 }
 
+
 def handle(
     cur,
     path: str,
@@ -43,6 +46,7 @@ def handle(
     if method in ("POST", "PUT", "PATCH"):
         return _save_settings(cur, body or {}, jwt_claims)
     return error_response(405, "method_not_allowed", f"{method} not supported")
+
 
 def _get_settings(cur, jwt_claims: Dict) -> Dict:
     """Return user settings, falling back to defaults."""
@@ -81,6 +85,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "get settings")
         return error_response(code, error_type, message)
+
 
 def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
     """Persist user settings (theme, notifications, other preferences)."""

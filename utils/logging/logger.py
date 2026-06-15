@@ -44,10 +44,12 @@ from typing import Optional
 # Global trace ID (set once at orchestrator start)
 _trace_id: Optional[str] = None
 
+
 def set_trace_id(trace_id: str) -> None:
     """Set the global trace ID for this run. Called by orchestrator at startup."""
     global _trace_id
     _trace_id = trace_id
+
 
 def get_trace_id() -> str:
     """Get current trace ID, or generate one."""
@@ -55,6 +57,7 @@ def get_trace_id() -> str:
     if _trace_id is None:
         _trace_id = f"TRACE-{uuid.uuid4().hex[:8]}"
     return _trace_id
+
 
 class StructuredFormatter(logging.Formatter):
     """Custom JSON formatter - no external dependencies.
@@ -114,6 +117,7 @@ class StructuredFormatter(logging.Formatter):
 
         return json.dumps(log_entry, default=str)
 
+
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Get a structured logger."""
     logger = logging.getLogger(name)
@@ -132,6 +136,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     logger.propagate = False
 
     return logger
+
 
 # Convenience: get logger for main orchestrator
 orchestrator_logger = get_logger("algo_orchestrator")

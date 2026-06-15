@@ -22,6 +22,7 @@ from migrations.migration_helper import DatabaseContext
 
 DESCRIPTION = "Add missing target and risk columns to algo_positions table"
 
+
 def up():
     """Add columns and populate from algo_trades data."""
     with DatabaseContext("write") as cur:
@@ -208,6 +209,7 @@ def up():
             CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol
             ON algo_positions_with_risk(symbol)
         """)
+
 
 def down():
     """Remove columns and restore view."""

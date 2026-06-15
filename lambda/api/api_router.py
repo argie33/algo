@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _CLOUDFRONT_DOMAIN_CACHE = None
 _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()
 
+
 def fetch_cloudfront_domain_from_secrets():
     """Fetch CloudFront domain from AWS Secrets Manager (thread-safe).
 
@@ -71,6 +72,7 @@ def fetch_cloudfront_domain_from_secrets():
                 f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
             )
             return None, f"Error: {e}"
+
 
 # health is the only truly critical route — if it fails the API can't self-report its own status
 try:
@@ -230,6 +232,7 @@ if _SKIPPED_ROUTES:
         f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}"
     )
 
+
 def _wrap_response(response):
     """Standardize response format for consistent client handling.
 
@@ -307,6 +310,7 @@ def _wrap_response(response):
 
     return response
 
+
 def _add_cors_headers(response):
     """Add CORS headers to response with origin whitelist.
 
@@ -348,6 +352,7 @@ def _add_cors_headers(response):
         response["headers"]["Access-Control-Allow-Credentials"] = "true"
 
     return response
+
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
@@ -423,6 +428,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
         )
     )
 
+
 def get_import_status():
     """Return structured import status for monitoring/diagnostics.
 
@@ -454,6 +460,7 @@ def get_import_status():
         "skipped_routes": _SKIPPED_ROUTES,
         "has_critical_failures": len(critical_failures) > 0,
     }
+
 
 def _publish_import_metrics():
     """Publish API route import status to CloudWatch metrics.
@@ -496,11 +503,13 @@ def _publish_import_metrics():
             f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}"
         )
 
+
 # Publish metrics at startup
 try:
     _publish_import_metrics()
 except Exception as e:
     logger.warning(f"Metrics publishing failed at startup: {e}")
+
 
 def _format_handler_error(e):
     """Format exception as error response with diagnostic error types.

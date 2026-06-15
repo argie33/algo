@@ -20,6 +20,7 @@ from utils.db.pooled_context_var import get_pooled_connection
 logger = logging.getLogger(__name__)
 __all__ = ["DatabaseContext"]
 
+
 class _CorrelationIdCursor:
     """Wraps cursor to auto-include correlation_id in SQL comments for audit trails.
 
@@ -92,6 +93,7 @@ class _CorrelationIdCursor:
 
     def __getattr__(self, name):
         return getattr(self.cursor, name)
+
 
 class DatabaseContext:
     """Thread-safe database context with optional correlation_id tracking.

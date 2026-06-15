@@ -19,6 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""
 

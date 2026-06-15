@@ -15,6 +15,7 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+
 def record_loader_run(
     loader_name: str, run_date: date, success: bool, error_message: Optional[str] = None
 ) -> None:
@@ -79,6 +80,7 @@ def record_loader_run(
 
     except Exception as e:
         logger.warning(f"[FAILURE_TRACKING] Could not record loader run: {e}")
+
 
 def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
     """Calculate rolling failure rates for a loader (7-day and 30-day).
@@ -154,6 +156,7 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
         )
         return None
 
+
 def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
     """Check all loaders for chronic failures (failure_rate_7day > threshold).
 
@@ -205,6 +208,7 @@ def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
     except Exception as e:
         logger.warning(f"[FAILURE_TRACKING] Could not check chronic failures: {e}")
         return [], {}
+
 
 def get_failure_alert_summary() -> str:
     """Generate a summary of loader failure trends for alerting.

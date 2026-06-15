@@ -22,6 +22,7 @@ import argparse
 # Root directory
 REPO_ROOT = Path(__file__).parent.parent
 
+
 def find_files_with_try_except(directory: Path, pattern: str = "*.py") -> List[Path]:
     """Find all Python files with try/except blocks."""
     files = []
@@ -36,13 +37,16 @@ def find_files_with_try_except(directory: Path, pattern: str = "*.py") -> List[P
                 files.append(py_file)
     return sorted(files)
 
+
 def count_try_except_blocks(content: str) -> int:
     """Count try/except blocks in code."""
     return content.count("try:")
 
+
 # ============================================================================
 # PHASE 2: API Routes
 # ============================================================================
+
 
 def standardize_api_routes(dry_run: bool = True) -> Tuple[int, int]:
     """Apply standardization to API route files.
@@ -81,6 +85,7 @@ def standardize_api_routes(dry_run: bool = True) -> Tuple[int, int]:
 
     return modified, blocks
 
+
 def _apply_route_standardization(content: str) -> str:
     """Apply standardization patterns to route handlers."""
     # This is complex - we'll do selective replacements
@@ -98,9 +103,11 @@ def _apply_route_standardization(content: str) -> str:
 
     return content
 
+
 # ============================================================================
 # PHASE 3: Loaders
 # ============================================================================
+
 
 def standardize_loaders(dry_run: bool = True) -> Tuple[int, int]:
     """Apply standardization to loader files.
@@ -132,6 +139,7 @@ def standardize_loaders(dry_run: bool = True) -> Tuple[int, int]:
 
     return modified, blocks
 
+
 def _apply_loader_standardization(content: str, filename: str) -> str:
     """Apply standardization patterns to loaders."""
     # Pattern: Add LoaderErrorContext to existing try/except blocks
@@ -144,9 +152,11 @@ def _apply_loader_standardization(content: str, filename: str) -> str:
 
     return content
 
+
 # ============================================================================
 # PHASE 4: Database Operations
 # ============================================================================
+
 
 def standardize_db_operations(dry_run: bool = True) -> Tuple[int, int]:
     """Apply standardization to database operation files.
@@ -181,9 +191,11 @@ def standardize_db_operations(dry_run: bool = True) -> Tuple[int, int]:
 
     return modified, blocks
 
+
 # ============================================================================
 # PHASE 5: External API Calls
 # ============================================================================
+
 
 def standardize_external_apis(dry_run: bool = True) -> Tuple[int, int]:
     """Apply standardization to external API calls.
@@ -222,9 +234,11 @@ def standardize_external_apis(dry_run: bool = True) -> Tuple[int, int]:
 
     return modified, blocks
 
+
 # ============================================================================
 # PHASE 6: Utilities
 # ============================================================================
+
 
 def standardize_utilities(dry_run: bool = True) -> Tuple[int, int]:
     """Apply standardization to utility modules.
@@ -252,9 +266,11 @@ def standardize_utilities(dry_run: bool = True) -> Tuple[int, int]:
 
     return modified, blocks
 
+
 # ============================================================================
 # Main
 # ============================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -341,6 +357,7 @@ def main():
     if dry_run:
         print("DRY RUN COMPLETE - No files modified")
         print("Run with --dry-run=false to make actual changes\n")
+
 
 if __name__ == "__main__":
     main()
