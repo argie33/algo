@@ -575,13 +575,16 @@ def panel_header_market(
             ec = G if cfg.get("enabled", True) else R
             min_score = cfg.get("min_score")
             max_n = cfg.get("max_pos_n")
+            max_sec = cfg.get("max_sec_n")
             base_risk = cfg.get("base_risk")
             t1r = cfg.get("t1_r")
             parts6 = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
             if min_score:
-                parts6.append(f"[dim]score≥[/][white]{min_score}[/]")
+                parts6.append(f"[dim]score≥[/][white]{float(min_score):.0f}[/]")
             if max_n:
                 parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
+            if max_sec:
+                parts6.append(f"[dim]sec≤[/][white]{max_sec}[/]")
             if base_risk:
                 parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
             if t1r:
@@ -1292,7 +1295,7 @@ def panel_recent_trades(trades):
         )
         return Panel(
             Text("no closed trades yet", style="dim"),
-            title=f"[bold cyan]RECENT TRADES[/]{age_s}",
+            title=f"[bold cyan]RECENT TRADES[/]{age_s}  [dim][t] expand[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -1312,6 +1315,7 @@ def panel_recent_trades(trades):
     t.add_column("P&L%", justify="right", no_wrap=True, min_width=6)
     t.add_column("R", justify="right", no_wrap=True, min_width=5)
     t.add_column("Days", justify="right", no_wrap=True, min_width=4)
+    t.add_column("Grd", justify="center", no_wrap=True, min_width=3)
 
     def _fmt_date(d):
         if hasattr(d, "strftime"):
@@ -1343,6 +1347,8 @@ def panel_recent_trades(trades):
         has_pnl = pnl_p is not None
         pc = G if (pnl_d or pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
+        grade = tr.get("swing_grade") or "--"
+        grade_c = G if grade in ("A", "A+", "A-") else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
 
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
@@ -1352,12 +1358,13 @@ def panel_recent_trades(trades):
             Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if has_pnl else "--", style=pc),
             Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
             Text(f"{dur}d" if dur is not None else "--", style="dim"),
+            Text(grade, style=grade_c),
         )
 
     age_s = (
         f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     )
-    return Panel(t, title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}", border_style="cyan", padding=(0, 0))
+    return Panel(t, title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}  [dim][t] expand[/]", border_style="cyan", padding=(0, 0))
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -1403,7 +1410,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             if def_s or cyc_s
             else ""
         )
-        str_s = f" [dim]strength:{strength:.0%}[/]" if strength else ""
+        str_s = f" [dim]spread:{strength:.1f}[/]" if strength else ""
         rows.append(
             Text.from_markup(
                 f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:20]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
@@ -2498,6 +2505,12 @@ def panel_algo_health(
         action_parts.append(f"[dim]Exits executed:[/][{Y}]{exits_exec}[/]")
     else:
         action_parts.append(f"[dim]Exits:[/][{DIM}]0[/]")
+    avg_sig_score = today_m.get("avg_signal_score")
+    if avg_sig_score is not None:
+        avg_sig_v = float(avg_sig_score)
+        if avg_sig_v > 0:
+            sc_c = G if avg_sig_v >= 80 else (Y if avg_sig_v >= 65 else "white")
+            action_parts.append(f"[dim]Avg score:[/][{sc_c}]{avg_sig_v:.0f}[/]")
     if action_parts:
         rows.append(Text.from_markup("  ".join(action_parts)))
 
@@ -3423,7 +3436,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         rows.append(
             Text.from_markup(
                 f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
-                f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  strength:{strength:.0%}[/]"
+                f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]"
             )
         )
         rows.append(Rule(style="dim"))
