@@ -415,7 +415,7 @@ def panel_market_full(mkt, sentiment=None):
     optional=False,
     description="Circuit breaker status",
 )
-def panel_circuit(cb, risk=None):
+def panel_circuit(cb):
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
@@ -443,17 +443,16 @@ def panel_circuit(cb, risk=None):
                 thr_s = "--" if thr is None else f"{float(thr or 0):.0f}"
                 cur_s = "--" if cur is None else str(cur)
                 return f"[{R if fired else 'dim'}]{str(br.get('lbl', 'N/A'))}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
-            fc = (
-                R
-                if fired
-                else (
-                    Y
-                    if float(thr or 0) > 0 and float(cur or 0) / float(thr or 1) >= 0.75
-                    else G
-                )
-            )
+            thr_f = float(thr or 1)
+            cur_f = float(cur or 0)
+            util = cur_f / thr_f if thr_f > 0 else 0
+            fc = R if fired else (Y if util >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
-            return f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{str(cur or 0)}{str(br.get('u', ''))}[dim]/{float(thr or 0):.0f}{str(br.get('u', ''))}[/]{hbar(float(cur or 0), float(thr or 1), w=4)}{ind}"
+            pct_s = f"[dim] {util*100:.0f}%[/]" if not fired else ""
+            return (
+                f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{str(cur or 0)}{str(br.get('u', ''))}"
+                f"[dim]/{thr_f:.0f}{str(br.get('u', ''))}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
+            )
 
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
@@ -2903,15 +2902,22 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         ev_t5 = sig_eval.get("t5") or 0
         ev_avg = sig_eval.get("avg_score") or 0
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        t1 = sig_eval.get("t1") or 0
-        t2 = sig_eval.get("t2") or 0
-        t3 = sig_eval.get("t3") or 0
-        t4 = sig_eval.get("t4") or 0
-        funnel = (
-            f"[dim]Funnel  T1:[/]{t1} [dim]T2:[/]{t2} "
-            f"[dim]T3:[/]{t3} [dim]T4:[/]{t4} "
-            f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}"
-        )
+        t1 = sig_eval.get("t1")
+        t2 = sig_eval.get("t2")
+        t3 = sig_eval.get("t3")
+        t4 = sig_eval.get("t4")
+        has_full = all(v is not None for v in [t1, t2, t3, t4])
+        if has_full:
+            funnel = (
+                f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{t1}[dim]→[/]{t2}"
+                f"[dim]→[/]{t3}[dim]→[/]{t4}[dim]→[/][{ev_c}]{ev_t5} qualified[/]"
+                f"  [dim]avg score:[/]{ev_avg:.0f}"
+            )
+        else:
+            funnel = (
+                f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]"
+                f"  [dim]avg score:[/]{ev_avg:.0f}"
+            )
         rejected = sig_eval.get("rejected") or []
         if rejected:
             block_items = []
