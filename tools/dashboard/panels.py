@@ -866,8 +866,6 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     exp = perf.get("expectancy")
     exp_c = G if (exp is None or exp >= 0) else R
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
-    avg_r = perf.get("avg_r")
-    avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
     sharpe_v = perf.get("sharpe")
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
@@ -894,8 +892,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             + (f"  [dim]Unrlzd:[/][{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]" if unrlzd is not None else "")
             + f"  [dim]ProfFact:[/][{pf_c}]{pf_s}[/]  "
             f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
-            f"[dim]Expect:[/][{exp_c}]{exp_s}[/]  "
-            f"[dim]Avg R:[/][white]{avg_r_s}[/]"
+            f"[dim]Expect:[/][{exp_c}]{exp_s}[/]"
         ),
         Text.from_markup(
             f"[dim]AvgWin:[/][{G}]{avg_win_s}[/]  "
@@ -1529,7 +1526,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         str_s = f" [dim]spread:{strength:.1f}[/]" if strength else ""
         rows.append(
             Text.from_markup(
-                f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:20]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
+                f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
             )
         )
 
@@ -1573,7 +1570,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if rows:
             rows.append(Rule(style="dim"))
         rows.append(
-            Text.from_markup("[dim]Sector rankings (mom, ↑↓= vs 1wk/4wk):[/]")
+            Text.from_markup("[dim]Sector rankings by momentum  ↑↓= rank change vs 1wk/4wk:[/]")
         )
         srank_tbl = Table.grid(padding=(0, 2), expand=True)
         srank_tbl.add_column("a", ratio=1)
@@ -1604,7 +1601,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if valid_irank:
         rows.append(Rule(style="dim"))
         rows.append(
-            Text.from_markup("[dim]Industries (↑↓= vs 1wk):[/]")
+            Text.from_markup("[dim]Top industries by momentum  ↑↓= vs 1wk:[/]")
         )
         irank_tbl = Table.grid(padding=(0, 2), expand=True)
         irank_tbl.add_column("a", ratio=1)
@@ -4393,7 +4390,6 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         pf = perf.get("profit_factor")
         sharpe_v = perf.get("sharpe")
         exp = perf.get("expectancy")
-        avg_r = perf.get("avg_r")
         dd_v = perf.get("maxdd") or 0
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
@@ -4432,7 +4428,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         perfblk.add_row(
             "Expectancy:", Text(f"{exp:.2f}R" if exp is not None else "--", style=exp_c),
-            "Avg R/Trade:", Text(f"{avg_r:.2f}R" if avg_r else "--", style="white"),
+            "", Text(""),
         )
         perfblk.add_row(
             "Avg Win:", Text(f"{avg_win:.1f}%" if avg_win else "--", style=G),
@@ -4499,7 +4495,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Calmar:", Text(f"{calmar:.2f}" if calmar else "--",
                 style=G if (calmar or 0) >= 0.5 else (Y if (calmar or 0) >= 0 else R)),
             "Win Rate (50T):", Text(f"{wr50:.0f}%" if wr50 else "--",
-                style=G if (wr50 or 0) >= 55 else (Y if (wr50 or 0) >= 45 else R)),
+                style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R)),
         )
         anl.add_row(
             "Avg Win R (50T):", Text(f"{avg_w_r:.2f}R" if avg_w_r else "--", style=G),
