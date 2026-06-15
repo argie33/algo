@@ -1096,7 +1096,7 @@ function HoldingPeriodHistogram({ holding_data }) {
         {buckets.length === 0 || isPlaceholder ? (
           <Empty title="No closed trades yet" desc={isPlaceholder ? "Holding period distribution will appear after trades close." : undefined} />
         ) : (
-          <div style={{ height: 240 }}>
+          <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={buckets} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -1244,7 +1244,7 @@ function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
         ) : data.length === 0 ? (
           <Empty title="No risk data" desc="Positions need stop levels." />
         ) : (
-          <div style={{ height: 240 }}>
+          <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={data} dataKey="risk" nameKey="symbol"
@@ -1290,7 +1290,7 @@ function SectorConcentration({ sector_allocation, loading }) {
         ) : data.length === 0 ? (
           <Empty title="No sector data" />
         ) : (
-          <div style={{ height: 240 }}>
+          <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} layout="vertical"
                         margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
@@ -1347,7 +1347,7 @@ function StagePhaseDonut({ distribution, loading }) {
         ) : data.length === 0 ? (
           <Empty title="No stage data" desc="Positions need trend_template_data coverage." />
         ) : (
-          <div style={{ height: 240 }}>
+          <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={data} dataKey="count" nameKey="phase"
