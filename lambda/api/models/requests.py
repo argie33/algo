@@ -1,4 +1,4 @@
-"""Pydantic models for API request bodies - single source of truth for request validation."""
+﻿"""Pydantic models for API request bodies - single source of truth for request validation."""
 
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
@@ -19,7 +19,6 @@ class TradePreviewRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        """Validate symbol format - alphanumeric with optional dash/caret."""
         if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
             raise ValueError(
                 "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
@@ -29,7 +28,6 @@ class TradePreviewRequest(BaseModel):
     @field_validator("stop_loss_price")
     @classmethod
     def validate_stop_loss(cls, v: Optional[float], info) -> Optional[float]:
-        """Validate that stop loss is below entry price if provided."""
         if v is not None and "entry_price" in info.data:
             entry_price = info.data["entry_price"]
             if v >= entry_price:
@@ -53,7 +51,6 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        """Validate email format using RFC 5322 simplified pattern."""
         # Same pattern used in contact.py for consistency
         email_pattern = re.compile(
             r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
@@ -65,7 +62,6 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
-        """Validate phone number format if provided."""
         if v is not None and v.strip():
             # Pattern: +1-800-555-0123, (800) 555-0123, etc.
             if not re.match(r"^\+?[\d\s\-\(\)]{10,15}$", v):
@@ -76,7 +72,6 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("name", "message", "subject")
     @classmethod
     def strip_whitespace(cls, v: Optional[str]) -> Optional[str]:
-        """Strip leading/trailing whitespace from string fields."""
         if v is not None:
             v = v.strip()
         return v
@@ -131,7 +126,6 @@ class VerifyUserEmailRequest(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
-        """Validate username format - alphanumeric, dash, underscore, email format allowed."""
         # Allow email format or standard username format
         if not re.match(r"^[a-zA-Z0-9._\-@+]+$", v):
             raise ValueError(
@@ -159,7 +153,6 @@ class PreTradeImpactRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        """Validate symbol format - alphanumeric with optional dash/caret."""
         if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
             raise ValueError(
                 "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
@@ -188,7 +181,6 @@ class ManualTradeRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        """Validate symbol format - alphanumeric with optional dash/caret."""
         if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
             raise ValueError(
                 "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
@@ -198,7 +190,6 @@ class ManualTradeRequest(BaseModel):
     @field_validator("trade_type")
     @classmethod
     def validate_trade_type(cls, v: str) -> str:
-        """Validate trade type is buy or sell."""
         v_lower = v.lower()
         if v_lower not in ("buy", "sell"):
             raise ValueError('Trade type must be "buy" or "sell"')
@@ -207,7 +198,6 @@ class ManualTradeRequest(BaseModel):
     @field_validator("execution_date")
     @classmethod
     def validate_execution_date(cls, v: Optional[str]) -> Optional[str]:
-        """Validate execution date format if provided."""
         if v is not None:
             try:
                 # Validate it's a valid date format (YYYY-MM-DD)
@@ -221,7 +211,7 @@ class ManualTradeRequest(BaseModel):
     @field_validator("stop_loss_price")
     @classmethod
     def validate_stop_loss(cls, v: Optional[float], info) -> Optional[float]:
-        """Validate stop loss if provided (optional but must be > 0)."""
         if v is not None and v <= 0:
             raise ValueError("Stop loss price must be greater than 0")
         return v
+

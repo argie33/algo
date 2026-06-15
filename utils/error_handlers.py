@@ -8,13 +8,8 @@ import logging
 import re
 from typing import Tuple, Dict, Any, Optional
 
-try:
-    import psycopg2
-    import psycopg2.errors
-
-    HAS_PSYCOPG2 = True
-except ImportError:
-    HAS_PSYCOPG2 = False
+import psycopg2
+import psycopg2.errors
 
 from utils.exceptions import (
     BaseAPIException,
@@ -41,21 +36,20 @@ def classify_exception(e: Exception) -> Tuple[int, str, str]:
     error_str = str(e)
 
     # Database errors
-    if HAS_PSYCOPG2:
-        if isinstance(e, psycopg2.errors.UndefinedTable):
-            return (503, "schema_error", "Database schema issue")
-        elif isinstance(e, psycopg2.errors.UndefinedColumn):
-            return (503, "schema_error", "Database schema issue")
-        elif isinstance(e, psycopg2.errors.UniqueViolation):
-            return (409, "constraint_violation", "Data constraint violated")
-        elif isinstance(e, psycopg2.errors.ForeignKeyViolation):
-            return (409, "constraint_violation", "Data constraint violated")
-        elif isinstance(e, psycopg2.errors.QueryCanceled):
-            return (504, "timeout", "Database query exceeded timeout")
-        elif isinstance(e, psycopg2.OperationalError):
-            return (503, "connection_error", "Database connection failed")
-        elif isinstance(e, psycopg2.DatabaseError):
-            return (503, "query_error", "Database query failed")
+    if isinstance(e, psycopg2.errors.UndefinedTable):
+        return (503, "schema_error", "Database schema issue")
+    elif isinstance(e, psycopg2.errors.UndefinedColumn):
+        return (503, "schema_error", "Database schema issue")
+    elif isinstance(e, psycopg2.errors.UniqueViolation):
+        return (409, "constraint_violation", "Data constraint violated")
+    elif isinstance(e, psycopg2.errors.ForeignKeyViolation):
+        return (409, "constraint_violation", "Data constraint violated")
+    elif isinstance(e, psycopg2.errors.QueryCanceled):
+        return (504, "timeout", "Database query exceeded timeout")
+    elif isinstance(e, psycopg2.OperationalError):
+        return (503, "connection_error", "Database connection failed")
+    elif isinstance(e, psycopg2.DatabaseError):
+        return (503, "query_error", "Database query failed")
 
     # Timeout errors
     if "timeout" in error_type_name.lower():

@@ -28,7 +28,6 @@ _public_rate_limits: Dict[str, list] = {}  # {endpoint: [timestamps, ...]}
 
 
 def _get_admin_rate_limit_key(user_id: str, endpoint: str) -> str:
-    """Generate a unique key for per-user, per-endpoint rate limit tracking."""
     return f"{user_id}:{endpoint}"
 
 
@@ -309,7 +308,6 @@ def _check_memory_rate_limit(
     window_start: float,
     now: float,
 ) -> Tuple[bool, Optional[str]]:
-    """Check rate limit using in-memory tracking."""
     global _admin_rate_limits  # noqa: F824
 
     key = _get_admin_rate_limit_key(user_id, endpoint)
@@ -341,7 +339,6 @@ def _check_dynamodb_rate_limit(
     window_seconds: int,
     window_start: float,
 ) -> Tuple[bool, Optional[str]]:
-    """Check rate limit using DynamoDB (distributed across Lambda instances)."""
     try:
         import boto3
 

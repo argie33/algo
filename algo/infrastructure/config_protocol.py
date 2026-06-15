@@ -12,14 +12,9 @@ from typing import Protocol, Any, Union, runtime_checkable
 
 @runtime_checkable
 class ConfigProtocol(Protocol):
-    """Interface for configuration objects used in dependency injection.
-
-    Supports both AlgoConfig instances (with .get() method) and plain dicts.
-    Classes should accept this type and use config.get(key, default) for access.
-    """
+    """Allows both AlgoConfig and plain dicts for maximum flexibility during DI transition."""
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get configuration value with optional default."""
         ...
 
     def override(self, key: str, value: Any) -> None:
@@ -27,7 +22,6 @@ class ConfigProtocol(Protocol):
         ...
 
     def to_dict(self) -> dict:
-        """Export configuration as dictionary."""
         ...
 
 

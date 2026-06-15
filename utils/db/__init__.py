@@ -17,7 +17,7 @@ from .pooled_context_var import (
     has_pooled_connection,
 )
 from .query_cache import QueryCache
-from .retry import OptimisticLockRetry, RetryConfig
+from .retry import OptimisticLockRetry
 from .sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 
 __all__ = [
@@ -35,7 +35,6 @@ __all__ = [
     "has_pooled_connection",
     "QueryCache",
     "OptimisticLockRetry",
-    "RetryConfig",
     "assert_safe_table",
     "assert_safe_column",
     "safe_select_count",

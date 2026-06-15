@@ -20,10 +20,7 @@ from data_validation import (
     safe_float,
 )
 
-try:
-    from rich.console import Console
-except ImportError:
-    sys.exit("pip install rich>=13.0.0")
+from rich.console import Console
 
 # ── globals ───────────────────────────────────────────────────────────────────
 ET = ZoneInfo("America/New_York")

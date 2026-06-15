@@ -28,7 +28,7 @@ from typing import Dict, Any, Optional
 
 from utils.trading import TradeStatus, PositionStatus
 from utils.validation import AlpacaResponseValidator
-from utils.db import OptimisticLockRetry, RetryConfig
+from utils.db import OptimisticLockRetry
 from algo.reporting import TradeNotificationService, notify
 
 logger = logging.getLogger(__name__)
@@ -892,8 +892,6 @@ class TradeExecutor:
         Handles concurrent updates by re-reading position before each retry.
         Returns: (success: bool, message: str or None)
         """
-        retry_config = RetryConfig(max_attempts=3, base_delay_ms=100)
-
         def do_update():
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
@@ -945,7 +943,8 @@ class TradeExecutor:
         success = OptimisticLockRetry.retry_on_race_condition(
             do_update,
             operation_name=f"update_position_{position_id}",
-            config=retry_config,
+            max_attempts=3,
+            base_delay_ms=100,
         )
 
         if success:

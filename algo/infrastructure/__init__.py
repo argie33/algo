@@ -15,7 +15,7 @@ from .config import (
 )
 from .market_calendar import MarketCalendar
 from .market_events import MarketEventHandler
-from .retry import retry, RateLimiter
+from .retry import retry, RateLimiter, YFINANCE_LIMITER
 
 __all__ = [
     "AlgoConfig",
@@ -33,4 +33,5 @@ __all__ = [
     "MarketEventHandler",
     "retry",
     "RateLimiter",
+    "YFINANCE_LIMITER",
 ]

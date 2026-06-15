@@ -14,10 +14,7 @@ import logging
 from typing import Optional
 import requests
 
-try:
-    import yfinance as yf
-except ImportError:
-    yf = None
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
