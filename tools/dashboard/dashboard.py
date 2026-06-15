@@ -15,10 +15,16 @@ Modes:
 
 import argparse
 import sys
+import os
 import threading
 import time
 from datetime import datetime
 from typing import Optional
+
+# Ensure tools/dashboard is in the Python path for imports
+_dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+if _dashboard_dir not in sys.path:
+    sys.path.insert(0, _dashboard_dir)
 
 try:
     import msvcrt

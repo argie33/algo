@@ -101,7 +101,7 @@ if ($LocalOnly) {
             }
         }
     } catch {
-        Write-Host "[WARN] Could not fetch Cognito IDs — authenticated endpoints will be unavailable locally" -ForegroundColor Yellow
+        Write-Host "[WARN] Could not fetch Cognito IDs - authenticated endpoints will be unavailable locally" -ForegroundColor Yellow
     }
     if (-not $PoolId) { $PoolId = "" }
     if (-not $ClientId) { $ClientId = "" }

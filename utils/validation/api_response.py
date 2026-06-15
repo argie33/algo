@@ -2,16 +2,10 @@
 """
 API Response Validation and Sanitization
 
-Prevents None/null values in JSON responses that can break frontend code.
-When None values are encountered, replaces them with sensible defaults:
-- None numeric fields → 0
-- None string fields → "" (empty string)
-- None boolean fields → False
-- None in arrays → filtered out
-- None in nested objects → recursively sanitized
-
-This catches the issue where database NULL values get serialized as JSON null,
-causing frontend code like Number(null) to become NaN and break charts.
+Sanitizes API response data:
+- None dict values → preserved as None (JSON null) — nullable fields are valid
+- None list items → filtered out (null array elements cause frontend iteration bugs)
+- Nested structures → recursively processed
 """
 
 import logging
@@ -35,20 +29,16 @@ class APIResponseValidator:
             Sanitized data with None values replaced by defaults
         """
         if data is None:
-            logger.warning(
-                f"[NULL_FOUND] {path}: Found None value in response, replacing with default"
-            )
-            return 0  # Default for unknown types
+            return None
 
         if isinstance(data, dict):
             sanitized_dict: Dict[str, Any] = {}
             for key, value in data.items():
                 new_path = f"{path}.{key}"
                 if value is None:
-                    logger.warning(
-                        f"[NULL_FOUND] {new_path}: Found None value in dict, replacing with default"
-                    )
-                    sanitized_dict[key] = 0  # Conservative default for None in dicts
+                    # Preserve null — many fields are legitimately nullable (e.g. seen_at on
+                    # unread notifications). JSON null is valid; the frontend must handle it.
+                    sanitized_dict[key] = None
                 else:
                     sanitized_dict[key] = APIResponseValidator.sanitize_response(
                         value, new_path
@@ -60,10 +50,7 @@ class APIResponseValidator:
             for i, item in enumerate(data):
                 new_path = f"{path}[{i}]"
                 if item is None:
-                    logger.warning(
-                        f"[NULL_FOUND] {new_path}: Found None value in list, skipping"
-                    )
-                    continue  # Filter out None values from arrays
+                    continue  # Filter out None items from arrays
                 sanitized_list.append(
                     APIResponseValidator.sanitize_response(item, new_path)
                 )
