@@ -14,7 +14,7 @@ import logging
 from typing import Optional
 from psycopg2.extras import DictCursor
 
-from utils.db import get_db_connection
+from utils.db.connection import get_db_connection
 from utils.db.pooled_context_var import get_pooled_connection
 
 logger = logging.getLogger(__name__)

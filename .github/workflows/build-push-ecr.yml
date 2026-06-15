@@ -9,6 +9,7 @@ on:
       - 'utils/**'
       - 'config/**'
       - 'algo/**'
+      - 'monitoring/**'
       - 'migrations/**'
       - 'requirements.txt'
       - 'Dockerfile'

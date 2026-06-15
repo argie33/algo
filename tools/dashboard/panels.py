@@ -1045,20 +1045,20 @@ def panel_positions(pos, compact=False, trades=None):
 
 
 @register_panel(
-    "signals", endpoint_deps=["sig", "sig_eval"], optional=True, description="Signals"
+    "signals", endpoint_deps=["sig", "sig_eval", "scores"], optional=True, description="Signals"
 )
-def panel_signals_compact(sig, sig_eval=None):
-    """Signals & screening - actual BUY signals from buy_sell_daily with setup detail."""
+def panel_signals_compact(sig, sig_eval=None, scores=None):
+    """Signals & screening — composite score top candidates with pipeline funnel context."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
 
-    # Only consider data placeholder if no signals are available due to data issues
-    # If we have actual buy signals or screened stocks, it's real data
+    top_scores = (scores or {}).get("top") or []
     buy_sigs = sig.get("buy_sigs") or []
     total_screened = sig.get("total", 0)
     is_placeholder = (
-        not buy_sigs
+        not top_scores
+        and not buy_sigs
         and total_screened == 0
         and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
     )
@@ -1191,9 +1191,8 @@ def panel_signals_compact(sig, sig_eval=None):
 
     rows.append(Rule(style="dim"))
 
-    # ── Signal table (Rich Table for proper column alignment) ─────────────────
-    buy_sigs = sig.get("buy_sigs") or []
-    if buy_sigs:
+    # ── Composite score candidate table ──────────────────────────────────────
+    if top_scores:
         t = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -1203,54 +1202,52 @@ def panel_signals_compact(sig, sig_eval=None):
             row_styles=["", "dim"],
         )
         t.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        t.add_column("Stg", justify="center", no_wrap=True, min_width=3)
-        t.add_column("Type", no_wrap=True, min_width=8)
-        t.add_column("Q", justify="right", no_wrap=True, min_width=3)
-        t.add_column("Swg", justify="right", no_wrap=True, min_width=3)
-        t.add_column("R:R", justify="right", no_wrap=True, min_width=4)
-        t.add_column("Entry", justify="right", no_wrap=True, min_width=6)
-        t.add_column("Stop", justify="right", no_wrap=True, min_width=6)
-        t.add_column("Vol%", justify="right", no_wrap=True, min_width=5)
-        for bs in buy_sigs[:15]:
-            sym = bs.get("symbol") or "--"
-            stg = bs.get("stage_number")
-            sig_t = _shorten_type(bs.get("signal_type") or "")
-            sq = bs.get("signal_quality_score") or bs.get("entry_quality_score")
-            swg = bs.get("swing_score")
-            rr = bs.get("risk_reward_ratio")
-            vsurge = bs.get("volume_surge_pct")
-            entry = bs.get("buylevel") or bs.get("close")
-            stop = bs.get("stoplevel")
-            sq_c = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
-            swg_c = G if (swg or 0) >= 80 else (Y if (swg or 0) >= 60 else "white")
-            rr_c = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
-            vs_c = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
-            stg_c = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
+        t.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Mom", justify="right", no_wrap=True, min_width=4)
+        t.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        t.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        t.add_column("RS%", justify="right", no_wrap=True, min_width=4)
+        t.add_column("Chg%", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Sector", no_wrap=True, max_width=12)
+        for sc in top_scores[:15]:
+            sym = sc.get("symbol") or "--"
+            comp = sc.get("composite_score")
+            mom = sc.get("momentum_score")
+            qual = sc.get("quality_score")
+            grwth = sc.get("growth_score")
+            stab = sc.get("stability_score")
+            rs_pct = sc.get("rs_percentile")
+            chg = sc.get("change_percent")
+            sector = (sc.get("sector") or "")[:12]
+            comp_v = float(comp) if comp is not None else 0
+            sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
+
+            def _sub(v):
+                fv = float(v) if v is not None else None
+                if fv is None:
+                    return Text("--", style=DIM)
+                c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+                return Text(f"{fv:.0f}", style=c)
+
+            chg_v = float(chg) if chg is not None else None
+            chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
             t.add_row(
                 sym,
-                Text(f"S{stg}" if stg else "──", style=stg_c),
-                Text(sig_t, style="dim"),
-                Text(f"{sq:.0f}" if sq is not None else "──", style=sq_c),
-                Text(f"{swg:.0f}" if swg is not None else "──", style=swg_c),
-                Text(f"{rr:.1f}" if rr is not None else "──", style=rr_c),
-                Text(
-                    f"${float(entry):.2f}" if entry is not None else "──", style="dim"
-                ),
-                Text(f"${float(stop):.2f}" if stop is not None else "──", style="dim"),
-                Text(f"{vsurge:+.0f}%" if vsurge is not None else "──", style=vs_c),
+                Text(f"{comp_v:.0f}", style=sc_c),
+                _sub(mom),
+                _sub(qual),
+                _sub(grwth),
+                _sub(stab),
+                Text(f"{float(rs_pct):.0f}" if rs_pct is not None else "--", style=G if (rs_pct or 0) >= 70 else DIM),
+                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
+                Text(sector, style=DIM),
             )
         rows.append(t)
     else:
-        if total == 0:
-            rows.append(
-                Text.from_markup(
-                    f"[{Y}]No signals -- buy_sell_daily may be stale (check Data Health)[/]"
-                )
-            )
-        else:
-            rows.append(
-                Text.from_markup(f"[dim]0 BUY signals from {total} screened[/]")
-            )
+        rows.append(
+            Text.from_markup(f"[{Y}]No composite score data — check Data Health[/]")
+        )
 
     # ── Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) ──
     if near and top_a:
@@ -1278,9 +1275,9 @@ def panel_signals_compact(sig, sig_eval=None):
     )
     border = "red" if is_placeholder else "magenta"
     title = (
-        "[bold red]BUY SIGNALS ⚠ PLACEHOLDER DATA[/]"
+        "[bold red]TOP SCORES ⚠ NO DATA[/]"
         if is_placeholder
-        else "[bold magenta]BUY SIGNALS & SCREENING[/]"
+        else "[bold magenta]TOP SCORES & SCREENING[/]"
     )
     return Panel(
         Group(*rows),
@@ -2794,7 +2791,7 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
         f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
         "  [dim]Connecting to database...[/]\n\n"
         "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
-        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]q[/][dim] quit[/]"
+        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]c[/][dim] scores  [/][cyan]q[/][dim] quit[/]"
     )
     main_panel = Panel(
         Align(loading_body, align="left", vertical="middle"),
@@ -2838,21 +2835,22 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
 
 @register_panel(
     "signals_expanded",
-    endpoint_deps=["sig", "sig_eval"],
+    endpoint_deps=["sig", "sig_eval", "scores"],
     optional=True,
     description="Signals Expanded",
 )
-def panel_signals_expanded(sig, sig_eval=None):
-    """Full-screen buy signals - all signals, full text, breakout quality, base type."""
+def panel_signals_expanded(sig, sig_eval=None, scores=None):
+    """Full-screen composite score candidates with pipeline funnel context."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
 
-    # Only consider placeholder if no signals available due to data issues
+    top_scores = (scores or {}).get("top") or []
     buy_sigs = sig.get("buy_sigs") or []
     total = sig.get("total", 0)
     is_placeholder = (
-        not buy_sigs
+        not top_scores
+        and not buy_sigs
         and total == 0
         and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
     )
@@ -2930,79 +2928,95 @@ def panel_signals_expanded(sig, sig_eval=None):
         rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
-    buy_sigs = sig.get("buy_sigs") or []
-    if buy_sigs:
-        rows.append(
-            Text.from_markup(
-                "[dim]sym    stg  type           Q    R:R  vol%    entry    stop   RS  bk-qual   base[/]"
-            )
+    if top_scores:
+        sig_tbl = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 1),
+            expand=True,
+            row_styles=["", "dim"],
         )
-        for bs in buy_sigs:
-            sym = str(bs.get("symbol") or "--")
-            stg = bs.get("stage_number")
-            sig_t = (
-                str((bs.get("signal_type") or ""))
-                .replace("WEEKLY_", "W_")
-                .replace("STAGE_2", "S2")
-                .replace("STAGE2", "S2")
-                .replace("BREAKOUT", "BKT")
-                .replace("MOMENTUM", "MOM")
-                .replace("REVERSAL", "REV")
-                .replace("PULLBACK", "PB")
-                .replace("TREND", "TRD")
-                .replace("_FOLLOW", "")
-            )
-            sq = bs.get("signal_quality_score") or bs.get("entry_quality_score")
-            rr = bs.get("risk_reward_ratio")
-            vsurge = bs.get("volume_surge_pct")
-            rs = bs.get("rs_rating")
-            entry = bs.get("buylevel") or bs.get("close")
-            stop = bs.get("stoplevel")
-            bqual = str(bs.get("breakout_quality") or "")[:9]
-            btype = str(bs.get("base_type") or "")[:9]
-            sq_c = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
-            rr_c = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
-            vs_c = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
-            rows.append(
-                Text.from_markup(
-                    f"[{sq_c}]{sym:<6}[/][dim]{('S'+str(stg) if stg else '  ')} {sig_t:<14}[/]"
-                    f"[{sq_c}]{(f'{sq:.0f}' if sq is not None else '--'):>4}[/]"
-                    f"[{rr_c}]{(f'{rr:.1f}' if rr is not None else '--'):>4}[/]"
-                    f"[{vs_c}]{(f'{vsurge:+.0f}%' if vsurge is not None else '--'):>5}[/]"
-                    f" [dim]{(f'${float(entry):.2f}' if entry is not None else '--'):>8}"
-                    f" {(f'${float(stop):.2f}' if stop is not None else '--'):>8}"
-                    f" {(str(rs) if rs is not None else '--'):>3}  {bqual:<9} {btype}[/]"
-                )
-            )
-    else:
-        rows.append(Text.from_markup(f"[dim]No BUY signals from {total} screened[/]"))
+        sig_tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Pos", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Price", justify="right", no_wrap=True, min_width=7)
+        sig_tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
+        sig_tbl.add_column("vs50%", justify="right", no_wrap=True, min_width=6)
+        sig_tbl.add_column("vs200%", justify="right", no_wrap=True, min_width=7)
+        sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
+        for sc in top_scores:
+            sym = str(sc.get("symbol") or "--")
+            comp = sc.get("composite_score")
+            mom = sc.get("momentum_score")
+            qual = sc.get("quality_score")
+            val = sc.get("value_score")
+            grwth = sc.get("growth_score")
+            stab = sc.get("stability_score")
+            pos = sc.get("positioning_score")
+            rs_pct = sc.get("rs_percentile")
+            price = sc.get("current_price")
+            chg = sc.get("change_percent")
+            # price_vs_sma fields may be in momentum_inputs dict or top-level
+            mom_inputs = sc.get("momentum_inputs") or {}
+            vs50 = sc.get("price_vs_sma_50") or mom_inputs.get("price_vs_sma_50")
+            vs200 = sc.get("price_vs_sma_200") or mom_inputs.get("price_vs_sma_200")
+            sector = (sc.get("sector") or "")[:14]
+            comp_v = float(comp) if comp is not None else 0
+            sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
 
-    near = sig.get("near") or []
-    if near:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Near BUY threshold (swing score 55-69):[/]"))
-        parts = []
-        for a in near:
-            sc = float(a.get("score")) if a.get("score") is not None else None
-            sc_s = f"{sc:.0f}" if sc is not None else "--"
-            parts.append(f"[{CY}]{a['symbol']}[/][dim] {sc_s}[/]")
-        for i in range(0, len(parts), 4):
-            rows.append(Text.from_markup("  " + "    ".join(parts[i : i + 4])))
+            def _sub(v):
+                fv = float(v) if v is not None else None
+                if fv is None:
+                    return Text("--", style=DIM)
+                c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+                return Text(f"{fv:.0f}", style=c)
+
+            chg_v = float(chg) if chg is not None else None
+            chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
+            vs50_v = float(vs50) if vs50 is not None else None
+            vs200_v = float(vs200) if vs200 is not None else None
+            sig_tbl.add_row(
+                sym,
+                Text(f"{comp_v:.0f}", style=sc_c),
+                _sub(mom),
+                _sub(qual),
+                _sub(val),
+                _sub(grwth),
+                _sub(stab),
+                _sub(pos),
+                Text(f"{float(rs_pct):.0f}" if rs_pct is not None else "--",
+                     style=G if (rs_pct or 0) >= 70 else DIM),
+                Text(f"${float(price):.2f}" if price else "--", style=DIM),
+                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
+                Text(f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
+                     style=G if (vs50_v or 0) > 0 else R),
+                Text(f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
+                     style=G if (vs200_v or 0) > 0 else R),
+                Text(sector, style=DIM),
+            )
+        rows.append(sig_tbl)
+    else:
+        rows.append(Text.from_markup(f"[{Y}]No composite score data — check Data Health[/]"))
 
     # Add placeholder warning if needed
     if is_placeholder:
         rows.insert(
             0,
-            Text.from_markup(
-                "[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"
-            ),
+            Text.from_markup("[bold red]NO DATA - Scores unavailable[/]"),
         )
 
     border = "red" if is_placeholder else "magenta"
     title = (
-        "[bold red]BUY SIGNALS ⚠ PLACEHOLDER DATA[/]"
+        "[bold red]TOP SCORES ⚠ NO DATA[/]"
         if is_placeholder
-        else "[bold magenta]BUY SIGNALS - EXPANDED[/]"
+        else "[bold magenta]TOP SCORES - EXPANDED[/]"
     )
     return Panel(
         Group(*rows),
@@ -3404,6 +3418,193 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         Group(*rows),
         title="[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]  [dim][r] return[/]",
         border_style="cyan",
+        padding=(0, 1),
+    )
+
+
+@register_panel(
+    "scores",
+    endpoint_deps=["scores"],
+    optional=True,
+    description="Top & Bottom Scores",
+)
+def panel_scores(scores):
+    """Top and bottom stock scores — composite ranking across momentum, quality, growth, etc."""
+    err_panel = _error_panel("scores", scores, "SCORES", border="bright_cyan")
+    if err_panel:
+        return err_panel
+
+    top = scores.get("top", [])
+    bot = scores.get("bottom", [])
+
+    def _score_row(tbl, items, color):
+        for s in items:
+            sym = s.get("symbol") or "--"
+            sc = s.get("composite_score")
+            mom = s.get("momentum_score")
+            qual = s.get("quality_score")
+            grwth = s.get("growth_score")
+            stab = s.get("stability_score")
+            sector = (s.get("sector") or "")[:11]
+            chg = s.get("change_percent")
+            sc_v = float(sc) if sc is not None else 0
+            sc_c = G if sc_v >= 70 else (Y if sc_v >= 50 else R)
+            chg_c = G if (chg or 0) >= 0 else R
+
+            def _sub(v):
+                return f"{float(v):.0f}" if v is not None else "--"
+
+            tbl.add_row(
+                Text(sym, style=f"bold {color}"),
+                Text(f"{sc_v:.0f}", style=sc_c),
+                Text(_sub(mom), style="white"),
+                Text(_sub(qual), style="white"),
+                Text(_sub(grwth), style="white"),
+                Text(_sub(stab), style="white"),
+                Text(f"{chg:+.1f}%" if chg is not None else "--", style=chg_c),
+                Text(sector, style="dim"),
+            )
+
+    rows = []
+    if top:
+        tbl_top = Table(
+            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
+            padding=(0, 1), expand=True,
+        )
+        tbl_top.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        tbl_top.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        tbl_top.add_column("Mom", justify="right", no_wrap=True, min_width=3)
+        tbl_top.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        tbl_top.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        tbl_top.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        tbl_top.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
+        tbl_top.add_column("Sector", no_wrap=True, max_width=11)
+        rows.append(Text.from_markup(f"[{G}][bold]TOP {len(top)}[/][/]"))
+        _score_row(tbl_top, top, G)
+        rows.append(tbl_top)
+
+    if top and bot:
+        rows.append(Rule(style="dim"))
+
+    if bot:
+        tbl_bot = Table(
+            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
+            padding=(0, 1), expand=True,
+        )
+        tbl_bot.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        tbl_bot.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        tbl_bot.add_column("Mom", justify="right", no_wrap=True, min_width=3)
+        tbl_bot.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        tbl_bot.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        tbl_bot.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        tbl_bot.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
+        tbl_bot.add_column("Sector", no_wrap=True, max_width=11)
+        rows.append(Text.from_markup(f"[{R}][bold]BOTTOM {len(bot)}[/][/]"))
+        _score_row(tbl_bot, bot, R)
+        rows.append(tbl_bot)
+
+    if not rows:
+        return Panel(
+            Text("no score data", style="dim"),
+            title="[bold bright_cyan]STOCK SCORES[/]",
+            border_style="bright_cyan",
+            padding=(0, 1),
+        )
+    return Panel(
+        Group(*rows),
+        title="[bold bright_cyan]STOCK SCORES[/]  [dim][c] expand[/]",
+        border_style="bright_cyan",
+        padding=(0, 1),
+    )
+
+
+@register_panel(
+    "scores_expanded",
+    endpoint_deps=["scores"],
+    optional=True,
+    description="Scores Expanded",
+)
+def panel_scores_expanded(scores):
+    """Full-screen stock scores — all sub-scores, price data, sector breakdown."""
+    err_panel = _error_panel("scores", scores, "SCORES - EXPANDED", border="bright_cyan")
+    if err_panel:
+        return err_panel
+    rows = [
+        Text.from_markup("[dim]press [/][bold bright_cyan]c[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+
+    top = scores.get("top", [])
+    bot = scores.get("bottom", [])
+
+    def _score_section(items, label, color):
+        if not items:
+            return
+        rows.append(Text.from_markup(f"[{color}][bold]{label}[/][/]"))
+        tbl = Table(
+            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
+            padding=(0, 1), expand=True, row_styles=["", "dim"],
+        )
+        tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        tbl.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Pos", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Price", justify="right", no_wrap=True, min_width=7)
+        tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
+        tbl.add_column("Sector", no_wrap=True, max_width=14)
+        for s in items:
+            sym = s.get("symbol") or "--"
+            sc = s.get("composite_score")
+            mom = s.get("momentum_score")
+            qual = s.get("quality_score")
+            val = s.get("value_score")
+            grwth = s.get("growth_score")
+            stab = s.get("stability_score")
+            pos = s.get("positioning_score")
+            rs_pct = s.get("rs_percentile")
+            price = s.get("current_price")
+            chg = s.get("change_percent")
+            sector = (s.get("sector") or "")[:14]
+            sc_v = float(sc) if sc is not None else 0
+            sc_c = G if sc_v >= 70 else (Y if sc_v >= 50 else R)
+            chg_c = G if (chg or 0) >= 0 else R
+
+            def _sub(v):
+                return f"{float(v):.0f}" if v is not None else "--"
+
+            tbl.add_row(
+                Text(sym, style=f"bold {color}"),
+                Text(f"{sc_v:.0f}", style=sc_c),
+                Text(_sub(mom), style="white"),
+                Text(_sub(qual), style="white"),
+                Text(_sub(val), style="white"),
+                Text(_sub(grwth), style="white"),
+                Text(_sub(stab), style="white"),
+                Text(_sub(pos), style="white"),
+                Text(_sub(rs_pct), style="white"),
+                Text(f"${float(price):.2f}" if price else "--", style="dim"),
+                Text(f"{chg:+.1f}%" if chg is not None else "--", style=chg_c),
+                Text(sector, style="dim"),
+            )
+        rows.append(tbl)
+
+    _score_section(top, f"TOP {len(top)} SCORES", G)
+    if top and bot:
+        rows.append(Rule(style="dim"))
+    _score_section(bot, f"BOTTOM {len(bot)} SCORES", R)
+
+    if not (top or bot):
+        rows.append(Text("no score data", style="dim"))
+
+    return Panel(
+        Group(*rows),
+        title="[bold bright_cyan]STOCK SCORES - EXPANDED[/]  [dim][c] return[/]",
+        border_style="bright_cyan",
         padding=(0, 1),
     )
 

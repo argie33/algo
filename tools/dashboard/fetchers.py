@@ -69,6 +69,10 @@ FETCHER_METADATA = {
         "endpoint": "/api/algo/markets",
         "desc": "Market exposure factors (12-factor breakdown)",
     },
+    "scores": {
+        "endpoint": "/api/scores",
+        "desc": "Top and bottom stock scores",
+    },
 }
 
 
@@ -1317,6 +1321,33 @@ def fetch_exec_history(c):
         return {"_error": error_msg}
 
 
+def fetch_scores(c):
+    """Fetch top 10 and bottom 10 stock scores from /api/scores."""
+    try:
+        top_data = api_call("/api/scores", params={"limit": 10, "sortOrder": "desc"})
+        bot_data = api_call("/api/scores", params={"limit": 10, "sortOrder": "asc"})
+
+        def _extract(d):
+            if d.get("_error"):
+                return []
+            raw = d.get("data", {})
+            if isinstance(raw, dict):
+                return raw.get("items", [])
+            if isinstance(raw, list):
+                return raw
+            return []
+
+        top = _extract(top_data)
+        bot = _extract(bot_data)
+        if not top and not bot:
+            return {"_error": "No score data available", "top": [], "bottom": []}
+        return {"top": top, "bottom": bot}
+    except Exception as e:
+        error_msg = _format_fetcher_error("scores", e)
+        logger.error(error_msg)
+        return {"_error": error_msg, "top": [], "bottom": []}
+
+
 def fetch_audit_log(c):
     """Fetch audit log entries. Panel expects a flat list (not wrapped in a
     dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
@@ -1392,6 +1423,7 @@ FETCHERS = {
     "audit": fetch_audit_log,
     "exec_hist": fetch_exec_history,
     "exp_factors": fetch_exp_factors,
+    "scores": fetch_scores,
 }
 
 
@@ -1446,6 +1478,7 @@ def load_all() -> dict:
         "audit",
         "exec_hist",
         "exp_factors",
+        "scores",
     }
 
     def one(name, fn):

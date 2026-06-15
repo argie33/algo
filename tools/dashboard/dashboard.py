@@ -70,6 +70,8 @@ from panels import (
     panel_signals_expanded,
     panel_algo_health_expanded,
     panel_sectors_expanded,
+    panel_scores,
+    panel_scores_expanded,
 )
 from formatters import mkt_hours_str
 
@@ -320,6 +322,7 @@ def render_dashboard(
     loader = hlth
     audit = _extract_items(data.get("audit") or {})
     exec_hist = _extract_items(data.get("exec_hist") or {})
+    scores = data.get("scores") or {}
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
@@ -398,7 +401,7 @@ def render_dashboard(
     )
 
     outer["r3"].split_row(
-        Layout(panel_signals_compact(sig, sig_eval), ratio=3, name="signals"),
+        Layout(panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"),
         Layout(
             panel_sector_compact(srank, pos, port, sec_rot, irank),
             ratio=2,
@@ -408,6 +411,7 @@ def render_dashboard(
 
     outer["pos"].split_row(
         Layout(panel_positions(pos, compact, trades=rec), ratio=3, name="positions"),
+        Layout(panel_scores(scores), ratio=2, name="scores"),
         Layout(panel_recent_trades(rec), ratio=2, name="recent_trades"),
     )
 
@@ -432,7 +436,7 @@ def render_dashboard(
         )
 
     if view_mode == "signals":
-        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval))
+        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
 
     if view_mode == "health":
         return _expanded_layout(
@@ -455,6 +459,9 @@ def render_dashboard(
             *_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank)
         )
 
+    if view_mode == "scores":
+        return _expanded_layout(*_exp_top, panel_scores_expanded(scores))
+
     return outer
 
 
@@ -474,7 +481,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -533,7 +540,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:

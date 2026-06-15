@@ -152,34 +152,40 @@ def handle(
             offset = (page - 1) * limit
 
             # Set timeout for complex sector ranking query with multiple CTEs and joins
-            cur.execute("SET LOCAL statement_timeout = '20000ms'")
+            cur.execute("SET LOCAL statement_timeout = '24000ms'")
             cur.execute(
                 """
-                    WITH sector_perf_latest AS (
+                    WITH sp_exists AS (
+                        SELECT EXISTS(SELECT 1 FROM sector_performance LIMIT 1) AS has_data
+                    ),
+                    sr_exists AS (
+                        SELECT EXISTS(SELECT 1 FROM sector_ranking LIMIT 1) AS has_data
+                    ),
+                    sector_perf_latest AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS latest_ytd
                         FROM sector_performance
-                        WHERE (SELECT COUNT(*) FROM sector_performance) > 0
+                        WHERE (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_1d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '1 day'
-                          AND (SELECT COUNT(*) FROM sector_performance) > 0
+                          AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_5d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_5d
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '5 days'
-                          AND (SELECT COUNT(*) FROM sector_performance) > 0
+                          AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_ytd
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '20 days'
-                          AND (SELECT COUNT(*) FROM sector_performance) > 0
+                          AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
                     sector_perf AS (
@@ -194,7 +200,7 @@ def handle(
                         UNION ALL
                         SELECT DISTINCT cp.sector, 0 AS perf_1d, 0 AS perf_5d, 0 AS perf_20d
                         FROM company_profile cp
-                        WHERE (SELECT COUNT(*) FROM sector_performance) = 0
+                        WHERE NOT (SELECT has_data FROM sp_exists)
                           AND cp.sector IS NOT NULL
                     ),
                     sector_scores AS (
@@ -240,7 +246,7 @@ def handle(
                     latest_sector_ranking AS (
                         SELECT DISTINCT ON (sector_name) sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
-                        WHERE (SELECT COUNT(*) FROM sector_ranking) > 0
+                        WHERE (SELECT has_data FROM sr_exists)
                         ORDER BY sector_name, created_at DESC
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
