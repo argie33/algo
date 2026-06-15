@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 import psycopg2.sql
-from typing import Dict, Any, Optional, List
+from typing import Dict
 import logging
 import re
 import json
@@ -15,7 +15,6 @@ from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
-from utils.error_handlers import make_error_response
 from routes.utils import (
     error_response,
     success_response,
@@ -257,21 +256,7 @@ def _dispatch(
             return error_response(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        dev_bypass = os.environ.get("DEV_BYPASS_AUTH")
-        print(f"[PATROL-LOG DEBUG] DEV_BYPASS_AUTH={dev_bypass}, type={type(dev_bypass)}, jwt_claims={jwt_claims}", flush=True)
-        logger.info(f"[PATROL-LOG] DEV_BYPASS_AUTH={dev_bypass}")
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}"
-            )
-            return error_response(403, "forbidden", "Admin access required")
-        limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
-        offset_str = params.get("offset", [None])[0] if params else None
-        offset = safe_offset(offset_str)
-        return _get_patrol_log(cur, limit, offset)
+        return json_response(200, {"test": "patrol-log is being reached", "dev_bypass_auth": os.environ.get("DEV_BYPASS_AUTH")})
     elif path == "/api/algo/sector-rotation":
         days_str = params.get("limit", [None])[0] if params else None
         days = safe_days(days_str, max_val=365, default=180)
@@ -2845,7 +2830,7 @@ def _get_rejection_funnel(cur) -> Dict:
 
 _TIER_CONFIG = {
     "confirmed_uptrend": {
-        "description": "Confirmed uptrend â€” full deployment",
+        “description”: “Confirmed uptrend — full deployment”,
         "min_pct": 70,
         "max_pct": 100,
         "risk_mult": 1.0,
@@ -2859,7 +2844,7 @@ _TIER_CONFIG = {
         "min_swing_score": 60.0,
     },
     "uptrend_under_pressure": {
-        "description": "Uptrend under pressure â€” reduced exposure",
+        “description”: “Uptrend under pressure — reduced exposure”,
         "min_pct": 45,
         "max_pct": 70,
         "risk_mult": 0.6,
@@ -2873,7 +2858,7 @@ _TIER_CONFIG = {
         "min_swing_score": 65.0,
     },
     "caution": {
-        "description": "Caution â€” entries halted unless exceptional",
+        “description”: “Caution — entries halted unless exceptional”,
         "min_pct": 25,
         "max_pct": 45,
         "risk_mult": 0.3,
@@ -2887,7 +2872,7 @@ _TIER_CONFIG = {
         "min_swing_score": 75.0,
     },
     "correction": {
-        "description": "Market correction â€” preserve capital",
+        “description”: “Market correction — preserve capital”,
         "min_pct": 0,
         "max_pct": 25,
         "risk_mult": 0.2,

@@ -97,7 +97,7 @@ def check_public_rate_limit(
     Returns:
         (is_allowed: bool, error_msg: Optional[str])
     """
-    global _public_rate_limits
+    global _public_rate_limits  # noqa: F824
 
     now = time()
     window_start = now - window_seconds
@@ -310,7 +310,7 @@ def _check_memory_rate_limit(
     now: float,
 ) -> Tuple[bool, Optional[str]]:
     """Check rate limit using in-memory tracking."""
-    global _admin_rate_limits
+    global _admin_rate_limits  # noqa: F824
 
     key = _get_admin_rate_limit_key(user_id, endpoint)
 

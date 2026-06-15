@@ -907,7 +907,7 @@ def _get_data_status_cached():
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
     """
-    global _data_status_cache, _data_status_lock
+    global _data_status_cache, _data_status_lock  # noqa: F824
 
     if "result" in _data_status_cache:
         return _data_status_cache["result"]

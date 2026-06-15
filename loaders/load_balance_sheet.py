@@ -11,11 +11,9 @@ or --period CLI flag for manual runs.
 import logging
 import sys
 import argparse
-import sys
 
 logger = logging.getLogger(__name__)
 import os
-import sys
 from datetime import date
 from typing import Optional
 from utils.loaders.helpers import get_active_symbols

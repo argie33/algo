@@ -409,7 +409,7 @@ CIRCUIT_BREAKER_RESET_SECONDS = 60
 
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
-    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
+    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time  # noqa: F824
     with _circuit_breaker_lock:
         if _circuit_breaker_state != "open":
             return False

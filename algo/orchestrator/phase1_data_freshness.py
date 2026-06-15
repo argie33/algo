@@ -35,11 +35,13 @@ def run(
     verbose: bool,
     log_phase_result_fn: Callable,
 ) -> PhaseResult:
-    """Execute Phase 1: Verify ALL signal-critical tables are fresh.
+    """Execute Phase 1: Verify pipeline-loaded tables are fresh.
 
-    Checks that price_daily, buy_sell_daily, technical_data_daily, swing_trader_scores,
-    signal_quality_scores, market_exposure_daily, and sector_ranking are all recent
-    and complete. No trading without all critical data fresh.
+    Checks that price_daily coverage is sufficient, and that market_health_daily,
+    trend_template_data, and market_exposure_daily are current (pipeline-loaded tables).
+    swing_trader_scores and sector_ranking are checked with warning-only (not halt).
+    buy_sell_daily, technical_data_daily, signal_quality_scores are NOT checked
+    (not pipeline-loaded; Phase 5 generates signals on-the-fly from price_daily).
     """
     phase_start = time.time()
 

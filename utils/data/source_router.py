@@ -37,7 +37,6 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 
 # Rate limiter class - used globally for all yfinance requests
 import functools
-import threading
 
 
 class _RateLimiter:

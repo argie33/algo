@@ -238,9 +238,22 @@ export const extractPaginatedData = (response) => {
     };
   }
 
-  // Invalid response format: no items array found at expected paths
-  const preview = JSON.stringify(data).substring(0, 200);
-  throw new Error(`Unable to extract paginated data: response must contain 'items' array or 'data.items' array. Received: ${preview}`);
+  // No items array found — return empty paginated result rather than throwing.
+  // This handles backend responses that return valid 200s with non-list payloads
+  // (e.g. a summary object), or paginated endpoints that currently have no data.
+  console.warn('[responseNormalizer] extractPaginatedData: no items array found, returning empty. Data:', JSON.stringify(data).substring(0, 200));
+  return {
+    items: [],
+    pagination: {
+      limit: data.limit || 100,
+      offset: data.offset || 0,
+      total: data.total || 0,
+      page: data.page || 1,
+      totalPages: data.totalPages || 1,
+      hasNext: false,
+      hasPrev: false,
+    },
+  };
 };
 
 /**

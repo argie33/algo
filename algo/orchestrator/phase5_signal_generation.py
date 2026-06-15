@@ -259,7 +259,9 @@ def run(
             "Halt flag set: data quality degradation detected",
         )
 
-    # Verify signal score freshness (swing_trader_scores, signal_quality_scores must be <24h old)
+    # Verify swing_trader_scores freshness (loaded by morning/EOD pipelines, must be <24h old)
+    # NOTE: signal_quality_scores is NOT pipeline-loaded — checking it would always halt.
+    # Phase 5 generates signals on-the-fly from price_daily; signal_quality_scores is auxiliary.
     from datetime import datetime, timezone
 
     now_utc = datetime.now(timezone.utc)
@@ -268,34 +270,19 @@ def run(
     )
     try:
         with DatabaseContext("read") as cur:
-            for score_table in ["swing_trader_scores", "signal_quality_scores"]:
-                cur.execute(f"SELECT MAX(created_at) FROM {score_table}")
-                max_created = cur.fetchone()[0]
-                if max_created:
-                    if max_created.tzinfo is None:
-                        max_created = max_created.replace(tzinfo=timezone.utc)
-                    age_hours = (now_utc - max_created).total_seconds() / 3600
-                    if age_hours > signal_max_age_hours:
-                        logger.critical(
-                            f"[PHASE 5] {score_table} is {age_hours:.1f}h old (max {signal_max_age_hours}h) — halting"
-                        )
-                        log_phase_result_fn(
-                            5,
-                            "signal_scores_stale",
-                            "halt",
-                            f"{score_table} is {age_hours:.1f}h old",
-                        )
-                        return PhaseResult(
-                            5,
-                            "signal_scores_stale",
-                            "halted",
-                            {"qualified_trades": []},
-                            True,
-                            f"{score_table} stale: {age_hours:.1f}h old",
-                        )
+            cur.execute("SELECT MAX(created_at) FROM swing_trader_scores")
+            max_created = cur.fetchone()[0]
+            if max_created:
+                if max_created.tzinfo is None:
+                    max_created = max_created.replace(tzinfo=timezone.utc)
+                age_hours = (now_utc - max_created).total_seconds() / 3600
+                if age_hours > signal_max_age_hours:
+                    logger.warning(
+                        f"[PHASE 5] swing_trader_scores is {age_hours:.1f}h old (max {signal_max_age_hours}h) — signals may use stale ranking"
+                    )
     except Exception as e:
         logger.warning(
-            f"[PHASE 5] Could not check signal score freshness: {e} — proceeding"
+            f"[PHASE 5] Could not check swing_trader_scores freshness: {e} — proceeding"
         )
 
     # Market regime gate

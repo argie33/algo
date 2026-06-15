@@ -161,17 +161,6 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
         )
 
     return None
-
-
-def _extract_items(data: any) -> list:
-    """Safely extract items list from data structure, propagating errors."""
-    if isinstance(data, dict):
-        if data.get("_error"):
-            return data
-        if "items" in data:
-            return data.get("items", [])
-    elif isinstance(data, list):
-        return data
     return []
 
 

@@ -138,7 +138,7 @@ class PositionSyncChecker:
 
         # Build report
         is_consistent = len(issues) == 0
-        summary = """
+        summary = f"""
 == ALGO_TRADES DATA INTEGRITY CHECK ==
 {datetime.now(timezone.utc).isoformat()}
 

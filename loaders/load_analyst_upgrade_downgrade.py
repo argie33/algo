@@ -13,10 +13,8 @@ Run:
 import argparse
 import sys
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
-import sys
 from datetime import date
 from typing import Optional
 
