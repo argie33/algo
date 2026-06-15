@@ -344,13 +344,13 @@ function AlgoTradingDashboardContent() {
               <div className="card-title flex items-center gap-2">
                 <Shield size={16} /> Circuit Breakers
               </div>
-              <div className="card-sub">Trading halt conditions</div>
+              <div className="card-sub">Trading halt conditions · current vs threshold</div>
             </div>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             {breakersLoading ? (
               <div style={{ padding: 'var(--space-4)' }}>
-                {[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 32, marginBottom: 8 }} />)}
+                {[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 44, marginBottom: 8 }} />)}
               </div>
             ) : breakerList.length === 0 ? (
               <div className="empty-state">
@@ -359,26 +359,40 @@ function AlgoTradingDashboardContent() {
                 <p className="empty-sub">Run the circuit breakers loader to populate</p>
               </div>
             ) : (
-              <div style={{ overflowY: 'auto', maxHeight: 200 }}>
-                {breakerList.map((b, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: 'var(--space-2) var(--space-4)',
-                    borderBottom: i < breakerList.length - 1 ? '1px solid var(--border-soft)' : 'none',
-                  }}>
-                    <span style={{ fontSize: 'var(--t-xs)', fontWeight: 'var(--w-medium)' }}>
-                      {b.label || b.id || `Breaker ${i + 1}`}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                      <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {b.current != null ? `${Number(b.current).toFixed(2)}${b.unit || ''}` : '—'}
-                      </span>
-                      <span className={`badge ${b.triggered ? 'badge-danger' : 'badge-success'}`}>
-                        {b.triggered ? 'TRIGGERED' : 'OK'}
-                      </span>
+              <div style={{ overflowY: 'auto', maxHeight: 260 }}>
+                {breakerList.map((b, i) => {
+                  const cur = b.current != null ? Number(b.current) : null;
+                  const thr = b.threshold != null ? Number(b.threshold) : null;
+                  const barPct = b.triggered ? 100
+                    : (cur != null && thr != null && thr !== 0
+                      ? Math.min(100, Math.max(0, Math.abs(cur) / Math.abs(thr) * 100))
+                      : 0);
+                  const barTone = b.triggered ? 'danger' : barPct >= 80 ? 'warn' : 'success';
+                  return (
+                    <div key={i} style={{
+                      padding: 'var(--space-2) var(--space-4)',
+                      borderBottom: i < breakerList.length - 1 ? '1px solid var(--border-soft)' : 'none',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 'var(--t-xs)', fontWeight: 'var(--w-medium)', color: b.triggered ? 'var(--danger)' : 'var(--text)' }}>
+                          {b.label || b.id || `Breaker ${i + 1}`}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                          <span style={{ fontSize: 'var(--t-2xs)', color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                            {cur != null ? `${cur.toFixed(1)}${b.unit || ''}` : '—'}
+                            {thr != null ? ` / ${thr.toFixed(1)}${b.unit || ''}` : ''}
+                          </span>
+                          <span className={`badge ${b.triggered ? 'badge-danger' : 'badge-success'}`}>
+                            {b.triggered ? 'HALT' : 'OK'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bar">
+                        <div className={`bar-fill ${barTone}`} style={{ width: `${barPct}%` }} />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

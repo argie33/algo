@@ -108,9 +108,9 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
                 MAX(date) as latest_date,
                 COUNT(*) as total_rows,
                 COUNT(CASE WHEN rsi IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as rsi_coverage,
-                COUNT(CASE WHEN ema_21 IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as ema50_coverage,
+                COUNT(CASE WHEN ema_12 IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as ema50_coverage,
                 COUNT(CASE WHEN atr IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as atr_coverage,
-                COUNT(CASE WHEN rsi IS NULL OR ema_21 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
+                COUNT(CASE WHEN rsi IS NULL OR ema_12 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
             FROM technical_data_daily
             WHERE date > NOW() - INTERVAL '7 days'
         """)
@@ -260,11 +260,10 @@ def get_loader_health(cur) -> Dict[str, Any]:
         for table in tables_to_check:
             try:
                 table_safe = assert_safe_table(table)
-                cur.execute("""
-                    SELECT MAX(updated_at) as last_update, COUNT(*) as row_count
+                cur.execute(f"""
+                    SELECT MAX(date) as last_update, COUNT(*) as row_count
                     FROM {table_safe}
-                    WHERE updated_at > NOW() - INTERVAL '30 days' OR updated_at IS NULL
-                """)
+                """)  # nosec B608 — table_safe is sanitized by assert_safe_table
                 result = cur.fetchone()
                 if result:
                     last_update, count = result

@@ -60,7 +60,7 @@ def handle(
                     qm.net_margin AS profit_margin,
                     qm.current_ratio,
                     qm.quick_ratio,
-                    cp.market_cap,
+                    vm.market_cap,
                     pm.insider_ownership AS held_percent_insiders,
                     pm.institutional_ownership AS held_percent_institutions
                 FROM value_metrics vm

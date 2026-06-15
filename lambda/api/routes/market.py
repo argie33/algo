@@ -1488,7 +1488,7 @@ def _get_cap_distribution(cur) -> Dict:
             ),
         }
 
-    freshness = check_data_freshness(cur, "stock_symbols", "updated_at", warning_days=7)
+    freshness = check_data_freshness(cur, "stock_symbols", "created_at", warning_days=7)
     return json_response(
         200,
         {

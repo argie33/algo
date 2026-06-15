@@ -4180,7 +4180,16 @@ def _get_algo_metrics(cur) -> Dict:
 @db_route_handler("get risk metrics")
 def _get_risk_metrics(cur) -> Dict:
     """Get portfolio risk metrics."""
+    _null_response = {
+        "report_date": None,
+        "var_pct_95": None,
+        "cvar_pct_95": None,
+        "stressed_var_pct": None,
+        "portfolio_beta": None,
+        "top_5_concentration": None,
+    }
     try:
+        cur.execute("SAVEPOINT risk_metrics")
         cur.execute("""
             SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
                    portfolio_beta, top_5_concentration
@@ -4189,17 +4198,9 @@ def _get_risk_metrics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+        cur.execute("RELEASE SAVEPOINT risk_metrics")
         if row is None:
-            return success_response(
-                {
-                    "report_date": None,
-                    "var_pct_95": None,
-                    "cvar_pct_95": None,
-                    "stressed_var_pct": None,
-                    "portfolio_beta": None,
-                    "top_5_concentration": None,
-                }
-            )
+            return success_response(_null_response)
         data = safe_dict_convert(row)
         return success_response(
             {
@@ -4211,7 +4212,17 @@ def _get_risk_metrics(cur) -> Dict:
                 "top_5_concentration": safe_float(data.get("top_5_concentration")),
             }
         )
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
+        except Exception:
+            pass
+        return success_response(_null_response)
     except Exception as e:
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
+        except Exception:
+            pass
         logger.error(f"Risk metrics fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Risk metrics unavailable")
 
@@ -4219,7 +4230,18 @@ def _get_risk_metrics(cur) -> Dict:
 @db_route_handler("get performance analytics")
 def _get_performance_analytics(cur) -> Dict:
     """Get performance analytics data."""
+    _null_response = {
+        "rolling_sharpe_252d": None,
+        "rolling_sortino_252d": None,
+        "calmar_ratio": None,
+        "win_rate_50t": None,
+        "avg_win_r_50t": None,
+        "avg_loss_r_50t": None,
+        "expectancy": None,
+        "max_drawdown_pct": None,
+    }
     try:
+        cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
             SELECT rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                    win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy, max_drawdown_pct
@@ -4228,19 +4250,9 @@ def _get_performance_analytics(cur) -> Dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+        cur.execute("RELEASE SAVEPOINT perf_analytics")
         if row is None:
-            return success_response(
-                {
-                    "rolling_sharpe_252d": None,
-                    "rolling_sortino_252d": None,
-                    "calmar_ratio": None,
-                    "win_rate_50t": None,
-                    "avg_win_r_50t": None,
-                    "avg_loss_r_50t": None,
-                    "expectancy": None,
-                    "max_drawdown_pct": None,
-                }
-            )
+            return success_response(_null_response)
         data = safe_dict_convert(row)
         return success_response(
             {
@@ -4254,7 +4266,17 @@ def _get_performance_analytics(cur) -> Dict:
                 "max_drawdown_pct": safe_float(data.get("max_drawdown_pct")),
             }
         )
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
+        except Exception:
+            pass
+        return success_response(_null_response)
     except Exception as e:
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
+        except Exception:
+            pass
         logger.error(f"Performance analytics fetch error: {type(e).__name__}: {e}")
         return error_response(
             503, "service_unavailable", "Performance analytics unavailable"
