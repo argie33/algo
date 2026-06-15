@@ -247,15 +247,14 @@ class Orchestrator:
             with DatabaseContext("read") as cur:
                 cur.execute("SET statement_timeout = 10000")  # 10s timeout
 
-                # Check key table freshness
+                # Check key table freshness (tables populated by current pipelines)
                 tables_to_check = [
                     ("price_daily", "SPY prices"),
                     ("market_health_daily", "Market health"),
-                    ("technical_data_daily", "Technicals"),
-                    ("buy_sell_daily", "Buy/sell signals"),
-                    ("signal_quality_scores", "Signal quality"),
-                    ("swing_trader_scores", "Swing scores"),
                     ("trend_template_data", "Trend template"),
+                    ("swing_trader_scores", "Swing scores"),
+                    ("sector_ranking", "Sector ranking"),
+                    ("market_exposure_daily", "Market exposure"),
                 ]
 
                 logger.info("  Table Freshness Status:")
@@ -428,11 +427,16 @@ class Orchestrator:
                 "stability_metrics",
                 "value_metrics",
             }
+            # Loaders actually in morning/EOD pipelines. signal_quality_scores,
+            # buy_sell_daily, technical_data_daily were removed from both pipelines;
+            # orchestrator computes signals on-the-fly from trend_template_data.
             critical_path_loaders = {
-                "signal_quality_scores",
-                "swing_trader_scores",
-                "buy_sell_daily",
-                "technical_data_daily",
+                "swing_trader_scores_vectorized",
+                "trend_template_data",
+                "sector_ranking",
+                "market_health_daily",
+                "market_exposure_daily",
+                "algo_metrics_daily",
             }
             monitored_loaders = analytics_loaders | critical_path_loaders
 

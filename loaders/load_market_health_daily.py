@@ -98,6 +98,11 @@ class MarketHealthDailyLoader(OptimalLoader):
         for m in health_metrics:
             m["vix_level"] = vix.get(m["date"])
 
+        # Merge yield curve slope from economic_metrics_daily (10Y-2Y spread loaded by FRED loader)
+        yield_curve = self._fetch_yield_curve_data(start, end)
+        for m in health_metrics:
+            m["yield_curve_slope"] = yield_curve.get(m["date"])
+
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
             since_str = since.isoformat()
@@ -144,6 +149,25 @@ class MarketHealthDailyLoader(OptimalLoader):
             return result
         except Exception as e:
             logger.warning(f"VIX fetch failed (circuit breaker will use None): {e}")
+            return {}
+
+    def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
+        """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT date, yield_curve_slope_10y2y FROM economic_metrics_daily"
+                    " WHERE date >= %s AND date <= %s AND yield_curve_slope_10y2y IS NOT NULL"
+                    " ORDER BY date",
+                    (start, end),
+                )
+                rows = cur.fetchall()
+            result = {str(row[0]): float(row[1]) for row in rows}
+            if result:
+                logger.info(f"Fetched yield curve data: {len(result)} days")
+            return result
+        except Exception as e:
+            logger.warning(f"Yield curve fetch failed: {e}")
             return {}
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
