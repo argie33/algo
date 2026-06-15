@@ -30,23 +30,18 @@ class TrendCriteriaLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date] = None):
+    def _prepare_batch_context(self) -> None:
+        """Cache max price date once per run (avoids one SELECT per symbol)."""
         from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
 
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
-        # If today is not a trading day, use yesterday instead
-        # (prevents computing criteria for non-trading days when no new data exists)
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
-        # CRITICAL: Check if price data exists for end date. If not, use the most recent available.
-        # This prevents the loader from trying to compute trends for dates with no price data.
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -56,11 +51,25 @@ class TrendCriteriaLoader(OptimalLoader):
                 max_price_date = cur.fetchone()[0]
                 if max_price_date and max_price_date < end:
                     logger.info(
-                        f"[TrendCriteria] Price data only available to {max_price_date}, using that instead of {end}"
+                        f"[TrendCriteria] Price data only available to {max_price_date}, using that as end date"
                     )
                     end = max_price_date
         except Exception as e:
             logger.warning(f"Could not check max price date: {e}")
+
+        self._batch_context = {"end_date": end}
+
+    def fetch_incremental(self, symbol: str, since: Optional[date] = None):
+        # Use end date cached at batch start (avoids per-symbol SELECT on price_daily)
+        end = (self._batch_context or {}).get("end_date")
+        if end is None:
+            from algo.infrastructure import MarketCalendar
+            from datetime import datetime, timezone
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                end = end - timedelta(days=1)
 
         # When since is None (e.g. first call after an ECS task restart), read the actual
         # DB max date to skip recomputing years of already-loaded history. Without this,
