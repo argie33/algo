@@ -92,6 +92,10 @@ export class DevAuthHelper {
     }
   }
 
+  static isDevAuthenticated() {
+    return this.getDevUser() !== null;
+  }
+
   static clearDevAuth() {
     localStorage.removeItem('dev_session');
     localStorage.removeItem('dev_users');
