@@ -1240,7 +1240,7 @@ def _get_dashboard_signals(cur) -> Dict:
                 ORDER BY s.score DESC LIMIT 15""")
         near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Top A-grade stocks by name (radar display â€" score â‰¥ 80)
+        # Top A-grade stocks by name (radar display â€" score ≥ 80)
         cur.execute("""
                 SELECT s.symbol, s.score
                 FROM swing_trader_scores s
@@ -1421,7 +1421,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     "current": dd,
                     "threshold": threshold_dd,
                     "unit": "%",
-                    "description": f"Halt when drawdown from peak â‰¥ {threshold_dd:.0f}%",
+                    "description": f"Halt when drawdown from peak ≥ {threshold_dd:.0f}%",
                 }
             )
         except Exception as e:
@@ -1450,7 +1450,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     "current": daily_loss,
                     "threshold": threshold_dl,
                     "unit": "%",
-                    "description": f"Halt when today's loss â‰¥ {threshold_dl:.0f}%",
+                    "description": f"Halt when today's loss ≥ {threshold_dl:.0f}%",
                 }
             )
         except Exception as e:
@@ -1512,7 +1512,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     "current": vix,
                     "threshold": threshold_vix,
                     "unit": "",
-                    "description": f"Halt when VIX â‰¥ {threshold_vix:.0f} (extreme fear)",
+                    "description": f"Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)",
                 }
             )
         except Exception as e:
@@ -1541,7 +1541,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     "current": weekly_loss,
                     "threshold": threshold_wl,
                     "unit": "%",
-                    "description": f"Halt when 7-day loss â‰¥ {threshold_wl:.0f}%",
+                    "description": f"Halt when 7-day loss ≥ {threshold_wl:.0f}%",
                 }
             )
         except Exception as e:
@@ -1602,7 +1602,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     "current": risk_pct,
                     "threshold": threshold_risk,
                     "unit": "%",
-                    "description": f"Halt when total open risk â‰¥ {threshold_risk:.0f}% of portfolio",
+                    "description": f"Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio",
                 }
             )
         except Exception as e:
@@ -2807,7 +2807,7 @@ def _get_rejection_funnel(cur) -> Dict:
 
                 funnel.append(
                     {
-                        "stage": "High-Quality Candidates (SQS â‰¥ 60)",
+                        "stage": "High-Quality Candidates (SQS ≥ 60)",
                         "count": high_quality_count,
                         "pct": hq_pct,
                         "rejection_reason": "Low signal quality score (SQS < 60)",
@@ -3958,7 +3958,6 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
     if row is None:
         return error_response(404, "not_found", f"Config key not found: {key}")
 
-    value_type = row["value_type"]
     new_value = body.get("value")
 
     # Validate the new value against AlgoConfig constraints
@@ -4734,6 +4733,7 @@ def _get_stage_distribution(cur) -> Dict:
     return json_response(200, {"distribution": distribution})
 
 
+@db_route_handler("get market sentiment")
 @db_route_handler("get market sentiment")
 def _get_market_sentiment(cur) -> Dict:
     """Return latest market sentiment score and trend."""

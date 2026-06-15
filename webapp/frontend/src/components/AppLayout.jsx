@@ -53,9 +53,6 @@ const NAV_SECTIONS = [
     items: [
       { text: 'Portfolio',           icon: Wallet,        path: '/app/portfolio' },
       { text: 'Trade Tracker',       icon: History,       path: '/app/trades' },
-      { text: 'Pre-Trade Impact',    icon: AlertCircle,   path: '/app/pre-trade-impact' },
-      { text: 'Risk Analytics',      icon: Shield,        path: '/app/risk-analytics' },
-      { text: 'Exposure Policy',     icon: Activity,      path: '/app/exposure-policy' },
     ],
   },
   {

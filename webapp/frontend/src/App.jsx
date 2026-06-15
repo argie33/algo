@@ -22,9 +22,6 @@ const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter")
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
 const ConfigurationViewer = React.lazy(() => import("./pages/ConfigurationViewer"));
-const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
-const RiskAnalytics = React.lazy(() => import("./pages/RiskAnalytics"));
-const ExposurePolicy = React.lazy(() => import("./pages/ExposurePolicy"));
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -123,9 +120,6 @@ function App() {
             {/* Portfolio & Trading */}
             <Route path="/app/portfolio" element={<ErrorBoundary><ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/trades" element={<ErrorBoundary><ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/app/pre-trade-impact" element={<ErrorBoundary><ProtectedRoute requireAuth><PreTradeSimulator /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/app/risk-analytics" element={<ErrorBoundary><ProtectedRoute requireAuth><RiskAnalytics /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/app/exposure-policy" element={<ErrorBoundary><ProtectedRoute requireAuth><ExposurePolicy /></ProtectedRoute></ErrorBoundary>} />
 
             {/* Algo */}
             <Route path="/app/algo-dashboard" element={<ErrorBoundary><ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute></ErrorBoundary>} />
