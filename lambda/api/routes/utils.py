@@ -273,7 +273,10 @@ def execute_with_timeout(
                 if params:
                     log_msg += f"\n  Params: {str(params)[:200]}"
                 logger.warning(log_msg)
-                # Raise the timeout error so routes can handle it properly
+                try:
+                    cur.connection.rollback()
+                except Exception as rollback_err:
+                    logger.debug(f"Failed to rollback after final timeout: {rollback_err}")
                 raise e
         except Exception as e:
             last_error = e

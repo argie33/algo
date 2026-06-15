@@ -417,11 +417,10 @@ class Orchestrator:
                 tables_to_check = [
                     ("price_daily", "SPY prices"),
                     ("market_health_daily", "Market health"),
-                    ("technical_data_daily", "Technicals"),
-                    ("buy_sell_daily", "Buy/sell signals"),
-                    ("signal_quality_scores", "Signal quality"),
                     ("swing_trader_scores", "Swing scores"),
                     ("trend_template_data", "Trend template"),
+                    ("sector_ranking", "Sector ranking"),
+                    ("market_exposure_daily", "Market exposure"),
                 ]
 
                 logger.info("  Table Freshness Status:")
@@ -471,7 +470,7 @@ class Orchestrator:
                     cur.execute("""
                         SELECT table_name, status, last_updated
                         FROM data_loader_status
-                        WHERE table_name IN ('price_daily', 'swing_trader_scores', 'signal_quality_scores')
+                        WHERE table_name IN ('price_daily', 'swing_trader_scores', 'trend_template_data', 'market_health_daily')
                         ORDER BY table_name
                     """)
                     logger.info("  Loader Status:")
@@ -567,9 +566,10 @@ class Orchestrator:
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
         iterate 5000+ symbols with yfinance rate limits and can run 6+ hours.
 
-        Critical-path loaders (signal_quality_scores, swing_trader_scores, buy_sell_daily, technical_data_daily)
-        should complete within 30-90 minutes (per steering doc line 91). If still running 15 min
-        before next orchestrator run, they're hung and consuming RDS connections.
+        Critical-path loaders (swing_trader_scores_vectorized, trend_template_data, sector_ranking,
+        market_health_daily, market_exposure_daily, algo_metrics_daily) should complete within
+        30-90 minutes. If still running 15 min before next orchestrator run, they're hung and
+        consuming RDS connections.
 
         If any is still running when orchestrator fires, RDS connection pool exhaustion occurs.
         This check prevents that.
@@ -578,8 +578,7 @@ class Orchestrator:
         Orchestrator runs at: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET (Mon-Fri only)
 
         ISSUE #5 FIX: Verifies task termination to prevent hung tasks consuming RDS connections.
-        ISSUE #1 FIX: Added critical-path loaders to kill check (swing_trader_scores, buy_sell_daily,
-                      signal_quality_scores, technical_data_daily).
+        ISSUE #1 FIX: Added critical-path loaders to kill check.
         """
         try:
             import boto3
@@ -595,10 +594,12 @@ class Orchestrator:
                 "value_metrics",
             }
             critical_path_loaders = {
-                "signal_quality_scores",
-                "swing_trader_scores",
-                "buy_sell_daily",
-                "technical_data_daily",
+                "swing_trader_scores_vectorized",
+                "trend_template_data",
+                "sector_ranking",
+                "market_health_daily",
+                "market_exposure_daily",
+                "algo_metrics_daily",
             }
             monitored_loaders = analytics_loaders | critical_path_loaders
 
