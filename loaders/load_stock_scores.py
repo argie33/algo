@@ -44,7 +44,7 @@ class StockScoresLoader(OptimalLoader):
                 return [score_result]
             return []
         except Exception as e:
-            logger.debug(f"Stock score computation error for {symbol}: {e}")
+            logger.warning(f"Stock score computation error for {symbol}: {e}")
             return []
 
     def _compute_stock_score(self, symbol: str) -> Optional[Dict]:
@@ -649,7 +649,7 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
         for key, w in WEIGHTS.items():
-            if metrics.get(key):
+            if metrics.get(key) is not None:
                 weighted_sum += self._pct_to_score(metrics[key]) * w
                 total_weight += w
 
