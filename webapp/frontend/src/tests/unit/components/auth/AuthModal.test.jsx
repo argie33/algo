@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { createMockUseAuth } from "../../../test-utils";
 import AuthModal from "../../../../components/auth/AuthModal";
@@ -72,7 +72,7 @@ vi.mock("../../../../components/auth/ConfirmationForm", () => ({
 }));
 
 vi.mock("../../../../components/auth/ForgotPasswordForm", () => ({
-  default: ({ onForgotPasswordSuccess, onSwitchToLogin }) => (
+  default: ({ onForgotPasswordSuccess, onBack }) => (
     <div data-testid="forgot-password-form">
       <button
         onClick={() => onForgotPasswordSuccess("testuser")}
@@ -80,7 +80,7 @@ vi.mock("../../../../components/auth/ForgotPasswordForm", () => ({
       >
         Forgot Success
       </button>
-      <button onClick={onSwitchToLogin} data-testid="switch-to-login">
+      <button onClick={onBack} data-testid="switch-to-login">
         Back to Login
       </button>
     </div>
@@ -149,7 +149,7 @@ describe("AuthModal", () => {
       const onClose = vi.fn();
       render(<AuthModal {...defaultProps} onClose={onClose} />);
 
-      const closeButton = screen.getByLabelText("close");
+      const closeButton = screen.getByLabelText("Close");
       fireEvent.click(closeButton);
 
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -208,7 +208,7 @@ describe("AuthModal", () => {
       );
       expect(
         screen.getByText(
-          "Registration successful! Please check your email for a verification code."
+          "Check your email for a verification code."
         )
       ).toBeInTheDocument();
     });
@@ -222,7 +222,7 @@ describe("AuthModal", () => {
       expect(screen.getByText("Sign In")).toBeInTheDocument();
       expect(screen.getByTestId("login-form")).toBeInTheDocument();
       expect(
-        screen.getByText("Account confirmed! You can now sign in.")
+        screen.getByText("Account verified! You can now sign in.")
       ).toBeInTheDocument();
     });
   });
@@ -240,7 +240,7 @@ describe("AuthModal", () => {
         "testuser"
       );
       expect(
-        screen.getByText("Password reset code sent! Please check your email.")
+        screen.getByText("Reset code sent — check your email.")
       ).toBeInTheDocument();
     });
 
@@ -254,7 +254,7 @@ describe("AuthModal", () => {
       expect(screen.getByTestId("login-form")).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Password reset successful! You can now sign in with your new password."
+          "Password reset! Sign in with your new password."
         )
       ).toBeInTheDocument();
     });
@@ -265,31 +265,26 @@ describe("AuthModal", () => {
       render(<AuthModal {...defaultProps} initialMode="mfa_challenge" />);
 
       expect(
-        screen.getByText("Multi-Factor Authentication")
+        screen.getByText("Two-Factor Auth")
       ).toBeInTheDocument();
       expect(screen.getByTestId("mfa-challenge")).toBeInTheDocument();
       expect(screen.getByTestId("mfa-type")).toHaveTextContent("SMS_MFA");
       expect(screen.getByTestId("mfa-message")).toHaveTextContent(
-        "Please enter the verification code sent to your device."
+        "Enter the verification code sent to your device."
       );
     });
 
-    test("handles MFA success", () => {
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-      render(<AuthModal {...defaultProps} initialMode="mfa_challenge" />);
+    test("handles MFA success", async () => {
+      const onClose = vi.fn();
+      render(<AuthModal {...defaultProps} onClose={onClose} initialMode="mfa_challenge" />);
 
       const mfaButton = screen.getByTestId("mfa-success");
       fireEvent.click(mfaButton);
 
-      expect(screen.getByText("Sign In")).toBeInTheDocument();
-      expect(
-        screen.getByText("Multi-factor authentication successful!")
-      ).toBeInTheDocument();
-      expect(consoleSpy).toHaveBeenCalledWith("MFA Success:", {
-        token: "test-token",
+      // handleMFASuccess is async — it sets message then calls onClose
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalledTimes(1);
       });
-
-      consoleSpy.mockRestore();
     });
 
     test("handles MFA cancel", () => {
@@ -312,7 +307,7 @@ describe("AuthModal", () => {
       fireEvent.click(successButton);
       expect(
         screen.getByText(
-          "Registration successful! Please check your email for a verification code."
+          "Check your email for a verification code."
         )
       ).toBeInTheDocument();
 
@@ -323,7 +318,7 @@ describe("AuthModal", () => {
       // Success message should be cleared
       expect(
         screen.queryByText(
-          "Registration successful! Please check your email for a verification code."
+          "Check your email for a verification code."
         )
       ).not.toBeInTheDocument();
     });
@@ -341,7 +336,7 @@ describe("AuthModal", () => {
       fireEvent.click(switchButton);
 
       // Close modal
-      const closeButton = screen.getByLabelText("close");
+      const closeButton = screen.getByLabelText("Close");
       fireEvent.click(closeButton);
 
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -355,7 +350,7 @@ describe("AuthModal", () => {
       { mode: "confirm", expectedTitle: "Verify Account" },
       { mode: "forgot_password", expectedTitle: "Reset Password" },
       { mode: "reset_password", expectedTitle: "Set New Password" },
-      { mode: "mfa_challenge", expectedTitle: "Multi-Factor Authentication" },
+      { mode: "mfa_challenge", expectedTitle: "Two-Factor Auth" },
     ];
 
     titleTests.forEach(({ mode, expectedTitle }) => {

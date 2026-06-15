@@ -5,6 +5,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+// The global setup.js mocks ../config/amplify — unmock it so this test uses the real module.
+vi.unmock("../../../config/amplify");
+vi.unmock("../../../config/amplify.js");
+
 // Mock Amplify
 const mockAmplify = {
   configure: vi.fn(),
@@ -19,6 +23,7 @@ const consoleMock = {
   log: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  debug: vi.fn(),
 };
 
 global.console = consoleMock;
@@ -34,19 +39,13 @@ const windowMock = {
 global.window = windowMock;
 
 describe("Amplify Configuration", () => {
-  let originalImportMetaEnv;
-
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    originalImportMetaEnv = globalThis.import?.meta?.env;
-    vi.stubGlobal("import.meta", {
-      env: {
-        VITE_COGNITO_USER_POOL_ID: "",
-        VITE_COGNITO_CLIENT_ID: "",
-        VITE_AWS_REGION: "us-east-1",
-      },
-    });
+    // vi.stubGlobal("import.meta") doesn't work for import.meta.env — use vi.stubEnv instead
+    vi.stubEnv("VITE_COGNITO_USER_POOL_ID", "");
+    vi.stubEnv("VITE_COGNITO_CLIENT_ID", "");
+    vi.stubEnv("VITE_AWS_REGION", "us-east-1");
 
     windowMock.__CONFIG__ = undefined;
     vi.resetModules();
@@ -54,9 +53,7 @@ describe("Amplify Configuration", () => {
   });
 
   afterEach(() => {
-    if (originalImportMetaEnv) {
-      vi.stubGlobal("import.meta", { env: originalImportMetaEnv });
-    }
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -286,8 +283,9 @@ describe("Amplify Configuration", () => {
 
       configureAmplify();
 
-      expect(consoleMock.warn).toHaveBeenCalledWith(
-        expect.stringContaining("fallback")
+      // Component calls console.debug (not warn) when using dummy/dev config
+      expect(consoleMock.debug).toHaveBeenCalledWith(
+        expect.stringContaining("dummy")
       );
     });
 

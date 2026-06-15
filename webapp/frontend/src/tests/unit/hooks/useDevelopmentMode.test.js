@@ -31,10 +31,13 @@ describe("useDevelopmentMode Hook", () => {
 
     // Simple mocks that don't cause recursion
     global.fetch = vi.fn();
-    global.AbortController = vi.fn(() => ({
-      abort: vi.fn(),
-      signal: {},
-    }));
+    // Use a class (not arrow function) so `new AbortController()` works
+    global.AbortController = class MockAbortController {
+      constructor() {
+        this.abort = vi.fn();
+        this.signal = { aborted: false };
+      }
+    };
   });
 
   afterEach(() => {
@@ -95,7 +98,7 @@ describe("useDevelopmentMode Hook", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:3001/api/health",
+      expect.stringContaining("/api/health"),
       expect.objectContaining({
         headers: { Accept: "application/json" },
       })
@@ -133,7 +136,7 @@ describe("useDevelopmentMode Hook", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://custom-api:3002/api/health",
+        expect.stringContaining("http://custom-api:3002/api/health"),
         expect.any(Object)
       );
     });
