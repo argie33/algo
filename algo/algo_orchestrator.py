@@ -30,10 +30,25 @@ from algo.infrastructure import MarketCalendar
 from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
 from utils.logging.execution_tracker import get_tracker
-from monitoring.metrics_context import (
-    TimeBlock,
-    log_metrics_summary,
-)
+try:
+    from monitoring.metrics_context import (
+        TimeBlock,
+        log_metrics_summary,
+    )
+except ImportError:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "[MONITORING] monitoring.metrics_context not available — timing metrics disabled. "
+        "Rebuild Docker image to include monitoring/ package."
+    )
+    from contextlib import contextmanager
+
+    @contextmanager
+    def TimeBlock(name, **kwargs):
+        yield
+
+    def log_metrics_summary():
+        pass
 
 logger = logging.getLogger(__name__)
 

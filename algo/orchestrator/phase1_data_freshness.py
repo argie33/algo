@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-PHASE 1: DATA FRESHNESS CHECK
+PHASE 5: DATA FRESHNESS CHECK
 
 Verify pipeline-loaded tables are fresh before trading:
 1. price_daily: Must have last trading day data (75%+ symbol coverage) — HALT if stale
 2. market_health_daily: Market breadth metrics — HALT if stale
-3. trend_template_data: Minervini/Weinstein criteria — HALT if stale
-4. market_exposure_daily: Market regime / exposure limits — HALT if stale
-5. swing_trader_scores: Swing scoring (must be <24h old) — WARNING if stale
-6. sector_ranking: Sector data for last trading day — WARNING if stale
+3. market_exposure_daily: Market regime / exposure limits — HALT if stale
+4. buy_sell_daily: Entry triggers for Phase 5 — HALT if stale
+5. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
+6. swing_trader_scores: Legacy scoring (still loaded, no longer used by Phase 5) — WARNING if stale
+7. stock_scores: Composite scores for ranking — WARNING if stale (weekly refresh is acceptable)
+8. sector_ranking: Sector data for last trading day — WARNING if stale
 
-NOTE: buy_sell_daily, technical_data_daily, signal_quality_scores are NOT checked here.
-Phase 5 generates signals on-the-fly from price_daily (no dependency on pre-computed tables).
-Those tables are auxiliary and loaded separately; staleness there does not block trading.
+Phase 5 uses buy_sell_daily BUY signals + stock_scores composite ranking.
+Technical data (technical_data_daily, signal_quality_scores) is auxiliary and not checked here.
 """
 
 import logging
@@ -37,11 +38,10 @@ def run(
 ) -> PhaseResult:
     """Execute Phase 1: Verify pipeline-loaded tables are fresh.
 
-    Checks that price_daily coverage is sufficient, and that market_health_daily,
-    trend_template_data, and market_exposure_daily are current (pipeline-loaded tables).
-    swing_trader_scores and sector_ranking are checked with warning-only (not halt).
-    buy_sell_daily, technical_data_daily, signal_quality_scores are NOT checked
-    (not pipeline-loaded; Phase 5 generates signals on-the-fly from price_daily).
+    Halts if price_daily, market_health_daily, market_exposure_daily, or buy_sell_daily
+    are stale — these are required for Phase 5 signal generation and regime gating.
+    Issues warnings for trend_template_data, swing_trader_scores, stock_scores, and
+    sector_ranking — stale but trading can continue.
     """
     phase_start = time.time()
 
@@ -141,17 +141,17 @@ def run(
                     f"Insufficient price coverage: {coverage_pct:.1f}%",
                 )
 
-            # Check tables that the pipeline actually loads (fail-closed on these)
-            # Phase 5 generates signals on-the-fly from price_daily; buy_sell_daily,
-            # technical_data_daily, and signal_quality_scores are not pipeline-loaded.
+            # Halt-critical tables: Phase 5 cannot generate signals without these
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
-                "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "market_exposure_daily": "Market exposure limits",
+                "buy_sell_daily": "Buy/sell entry triggers (Phase 5 input)",
             }
-            # Warning-only tables: stale → logged, not a halt
+            # Warning-only tables: stale → logged, trading continues
             warn_tables = {
-                "swing_trader_scores": "Swing trader scores",
+                "trend_template_data": "Trend template (Minervini/Weinstein)",
+                "swing_trader_scores": "Swing trader scores (legacy, warning only)",
+                "stock_scores": "Composite scores for ranking (weekly refresh OK)",
                 "sector_ranking": "Sector rankings",
             }
             critical_tables = {**halt_tables, **warn_tables}
@@ -160,7 +160,11 @@ def run(
             halt_stale = []   # pipeline-loaded tables — stale = HALT
             warn_stale = []   # auxiliary tables — stale = WARNING only
 
-            for table_name, description in critical_tables.items():
+            # Tables checked by MAX(date) vs price_daily latest date
+            date_checked_tables = {k: v for k, v in critical_tables.items() if k != "stock_scores"}
+            # stock_scores has no date column — checked separately by updated_at
+
+            for table_name, description in date_checked_tables.items():
                 is_halt_table = table_name in halt_tables
                 try:
                     cur.execute(f"SELECT MAX(date) FROM {table_name}")
@@ -186,18 +190,18 @@ def run(
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
 
-                    # Time-based freshness for swing_trader_scores (pipeline-loaded)
-                    if table_name == "swing_trader_scores":
-                        cur.execute(f"SELECT MAX(created_at) FROM {table_name}")
+                    # Time-based freshness for buy_sell_daily (Phase 5 requires recent data)
+                    if table_name == "buy_sell_daily":
+                        cur.execute("SELECT MAX(created_at) FROM buy_sell_daily")
                         max_created = cur.fetchone()[0]
                         if max_created:
                             if max_created.tzinfo is None:
                                 max_created = max_created.replace(tzinfo=timezone.utc)
                             age_hours = (now_utc - max_created).total_seconds() / 3600
                             if age_hours > max_stale_hours:
-                                msg = f"{description} is {age_hours:.1f}h old"
-                                logger.warning(f"[PHASE 1] {msg}")
-                                warn_stale.append(msg)
+                                msg = f"{description} is {age_hours:.1f}h old (max {max_stale_hours}h)"
+                                logger.critical(f"[PHASE 1] {msg}")
+                                halt_stale.append(msg)
 
                 except Exception as e:
                     msg = f"{description} check failed: {str(e)[:50]}"
@@ -207,6 +211,25 @@ def run(
                     else:
                         logger.warning(f"[PHASE 1] {msg}")
                         warn_stale.append(msg)
+
+            # stock_scores: check by updated_at (no date column; weekly refresh is acceptable)
+            try:
+                cur.execute("SELECT MAX(updated_at) FROM stock_scores")
+                ss_updated = cur.fetchone()[0]
+                stock_scores_max_age_days = 7
+                if ss_updated is None:
+                    logger.warning("[PHASE 1] stock_scores is empty — composite score ranking unavailable")
+                    warn_stale.append("Composite scores (stock_scores) is empty")
+                else:
+                    if ss_updated.tzinfo is None:
+                        ss_updated = ss_updated.replace(tzinfo=timezone.utc)
+                    age_days = (now_utc - ss_updated).total_seconds() / 86400
+                    if age_days > stock_scores_max_age_days:
+                        msg = f"Composite scores (stock_scores) is {age_days:.1f} days old (max {stock_scores_max_age_days}d)"
+                        logger.warning(f"[PHASE 1] {msg}")
+                        warn_stale.append(msg)
+            except Exception as e:
+                logger.warning(f"[PHASE 1] stock_scores check failed: {str(e)[:50]}")
 
             if warn_stale:
                 logger.warning(

@@ -296,15 +296,11 @@ def run(
                 skipped_count += 1
                 continue
 
-            swing_info = (
-                f" swing={signal.get('swing_score', '?')}{signal.get('swing_grade', '')}"
-                if "swing_score" in signal
-                else ""
-            )
             logger.info(
                 f"[PHASE 6] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
-                f"quality={signal.get('quality_score', 0)}{swing_info}"
+                f"composite={signal.get('composite_score', '?')} "
+                f"rs_pct={signal.get('rs_percentile', '?')}"
             )
 
             if not dry_run:

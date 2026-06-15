@@ -415,12 +415,13 @@ class Orchestrator:
 
                 # Check key table freshness
                 tables_to_check = [
-                    ("price_daily", "SPY prices"),
+                    ("price_daily", "Prices"),
                     ("market_health_daily", "Market health"),
-                    ("swing_trader_scores", "Swing scores"),
+                    ("market_exposure_daily", "Market exposure"),
+                    ("buy_sell_daily", "Buy/sell signals (Phase 5)"),
                     ("trend_template_data", "Trend template"),
                     ("sector_ranking", "Sector ranking"),
-                    ("market_exposure_daily", "Market exposure"),
+                    ("swing_trader_scores", "Swing scores (legacy)"),
                 ]
 
                 logger.info("  Table Freshness Status:")
@@ -470,7 +471,7 @@ class Orchestrator:
                     cur.execute("""
                         SELECT table_name, status, last_updated
                         FROM data_loader_status
-                        WHERE table_name IN ('price_daily', 'swing_trader_scores', 'trend_template_data', 'market_health_daily')
+                        WHERE table_name IN ('price_daily', 'buy_sell_daily', 'market_health_daily', 'market_exposure_daily')
                         ORDER BY table_name
                     """)
                     logger.info("  Loader Status:")

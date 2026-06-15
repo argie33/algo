@@ -2,37 +2,31 @@
 """
 PHASE 5: SIGNAL GENERATION
 
-Computes signals on-the-fly from price_daily — no dependency on pre-computed
-technical_data_daily or buy_sell_daily tables.
+Reads pre-computed buy_sell_daily BUY signals as entry triggers, ranked by
+composite_score from stock_scores (multi-factor: quality, growth, value,
+momentum, positioning, stability).
 
 Pipeline:
 1. Check market regime: halt if entries not allowed per market_exposure_daily
-2. Fetch all symbols with price data for run_date
-3. For each symbol, compute: Minervini trend template, Weinstein stage,
-   VCP pattern, base detection, power trend
-4. Hard gate: skip symbol if Minervini trend template does not pass (all 8 criteria)
-5. Score quality 0-100 from remaining signals (Stage 2 only — Stage 3 is distribution)
-6. Run liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
-7. Run SwingScore 7-component deep-quality ranking on top _SWING_SCORE_LIMIT
-   liquidity-passed candidates; filter/re-rank by swing_score
-8. Return swing-score-ranked candidates to Phase 6
+2. Check halt flag (data freshness gate)
+3. Verify buy_sell_daily freshness
+4. Fetch BUY signals from buy_sell_daily at or before run_date
+5. Filter: close > sma_50 (price must be in uptrend above 50-day MA)
+6. Enrich with composite_score from stock_scores
+7. Hard gate: skip symbols below min_composite_score
+8. Close quality gate: skip weak closes (bottom of day's range = distribution)
+9. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
+10. Return composite-score-ranked candidates to Phase 6
 
-Quality scoring (max 100):
-  30-40  Minervini trend template (score-scaled: 5/8=30, 6/8=33, 7/8=37, 8/8=40)
-     20  Weinstein Stage 2 confirmed uptrend (+5 if Stage 1 base-building)
-     20  VCP (Volatility Contraction Pattern)
-     15  Base detection (consolidation before breakout)
-      5  Power trend (21-day return >= 20%)
-
-Final ranking: SwingScore (7 components: setup, trend, momentum, volume,
-fundamentals, sector, multi-TF). Min threshold: _MIN_SWING_SCORE (grade C).
-Regime tier can impose a stricter floor via exposure_constraints['min_swing_score'].
+Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
+positioning 15%, stability 12%, momentum 8%) — fundamentals determine rank,
+buy_sell_daily breakout signal determines timing.
 """
 
 import logging
 import time
-from datetime import date as _date
-from typing import Callable, Dict, Optional, Tuple
+from datetime import date as _date, datetime, timezone
+from typing import Callable, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.db.context import DatabaseContext
@@ -42,34 +36,16 @@ from config.thresholds import ThresholdConfig
 
 logger = logging.getLogger(__name__)
 
-# Performance optimization limits (can be overridden by config)
-# WARNING: These are performance trade-offs, not intentional feature disables.
-# _SWING_SCORE_LIMIT = 0 disables SwingScore 7-component ranking (issue #10)
-# This means signals are ranked only by quality score, not by deep swing trading metrics.
-# To enable: set phase5_swing_score_limit in algo_config (non-zero value enables scoring)
 _LIQUIDITY_CHECK_LIMIT = 10
-_SWING_SCORE_LIMIT = (
-    0  # Disabled by default (too slow for 60s SLA), enabled if config>0
-)
 _MAX_WORKERS = 4
-_MIN_QUALITY = 50  # Pre-swing-score quality gate
-_MIN_SWING_SCORE = 35  # Grade D+ minimum (A+=85, A=75, B=65, C=55, D=45, D+=35)
+_MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0–100 scale)
 
 
 def _check_market_regime(run_date: _date) -> Dict:
-    """Return current market regime from market_exposure_daily.
-
-    Returns dict with: is_entry_allowed, exposure_pct, regime, halt_reasons.
-    Defaults to permissive if no data (don't block trading on missing data).
-    PATH_B_OVERRIDE: If BYPASS_MARKET_REGIME is set, force is_entry_allowed=True.
-    """
+    """Return current market regime from market_exposure_daily."""
     import os
 
-    bypass_regime = os.getenv("BYPASS_MARKET_REGIME", "").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
+    bypass_regime = os.getenv("BYPASS_MARKET_REGIME", "").lower() in ("true", "1", "yes")
     if bypass_regime:
         logger.critical(
             "[PATH_B] BYPASS_MARKET_REGIME=true — forcing is_entry_allowed=True"
@@ -89,7 +65,7 @@ def _check_market_regime(run_date: _date) -> Dict:
                 FROM market_exposure_daily
                 WHERE date <= %s
                 ORDER BY date DESC LIMIT 1
-            """,
+                """,
                 (run_date,),
             )
             row = cur.fetchone()
@@ -113,9 +89,7 @@ def _check_market_regime(run_date: _date) -> Dict:
                 "halt_reasons": halt_reasons,
             }
     except Exception as e:
-        logger.warning(
-            f"[PHASE 5] Could not read market regime: {e} — proceeding permissively"
-        )
+        logger.warning(f"[PHASE 5] Could not read market regime: {e} — proceeding permissively")
         return {
             "is_entry_allowed": True,
             "exposure_pct": 50,
@@ -133,74 +107,104 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
             logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
         return candidate, liq_ok
     except Exception as e:
-        logger.debug(
-            f"[PHASE 5] {candidate['symbol']}: liquidity check error — {str(e)[:50]}"
-        )
+        logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity check error — {str(e)[:50]}")
         return candidate, False
 
 
-def _compute_swing_score_parallel(
-    candidate: Dict, run_date: _date, min_swing: int, config
-) -> Tuple[Dict, bool]:
-    """Compute swing score for a single candidate. Returns (candidate_with_score, passed).
+def _get_buy_signals(run_date: _date) -> Tuple[List[Dict], Optional[_date]]:
+    """Fetch BUY signals from buy_sell_daily at or before run_date.
 
-    Args:
-        config: Required configuration object (dependency injection)
+    Returns (signals, signal_date) — signal_date is the most recent date
+    with BUY signals found.
     """
     try:
-        if config is None:
-            raise ValueError(
-                "_compute_swing_score_parallel requires config parameter (dependency injection)"
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s AND signal_type = 'BUY'",
+                (run_date,),
             )
-        from algo.signals import SwingTraderScore
-        swing_scorer = SwingTraderScore(config)
-        result = swing_scorer.compute(candidate["symbol"], run_date)
-        if result and result.get("pass") and result.get("swing_score", 0) >= min_swing:
-            candidate["swing_score"] = result["swing_score"]
-            candidate["swing_grade"] = result.get("grade", "F")
-            return candidate, True
-        return candidate, False
+            row = cur.fetchone()
+            signal_date = row[0] if row and row[0] else None
+
+            if not signal_date:
+                return [], None
+
+            cur.execute(
+                """
+                SELECT symbol, strength, close, high, low, sma_50, buylevel, stoplevel
+                FROM buy_sell_daily
+                WHERE date = %s AND signal_type = 'BUY'
+                ORDER BY strength DESC NULLS LAST
+                """,
+                (signal_date,),
+            )
+            rows = cur.fetchall()
+
+        signals = []
+        for r in rows:
+            close = float(r[2]) if r[2] is not None else None
+            high = float(r[3]) if r[3] is not None else None
+            low = float(r[4]) if r[4] is not None else None
+            sma_50 = float(r[5]) if r[5] is not None else None
+            signals.append({
+                "symbol": r[0],
+                "signal_strength": float(r[1]) if r[1] is not None else 0.5,
+                "close": close,
+                "high": high,
+                "low": low,
+                "sma_50": sma_50,
+                "entry_price": close,
+            })
+
+        return signals, signal_date
     except Exception as e:
-        logger.debug(
-            f"[PHASE 5] {candidate['symbol']}: swing score error — {str(e)[:50]}"
-        )
-        return candidate, False
+        logger.warning(f"[PHASE 5] Error fetching buy signals: {e}")
+        return [], None
 
 
-def _score_signal(
-    minervini: Dict, weinstein: Dict, vcp: Dict, base: Dict, power: Dict
-) -> int:
-    """Compute 0-100 quality score. Returns 0 if Minervini template does not pass.
+def _enrich_composite_scores(signals: List[Dict]) -> List[Dict]:
+    """Enrich signals with composite_score from stock_scores.
 
-    Weinstein Stage 2 = confirmed uptrend (buy zone).
-    Stage 3 = distribution/topping — never reward it.
-    Stage 4 = downtrend — never reward it.
+    Sets composite_score on each signal dict (None if symbol not found).
     """
-    if not minervini.get("pass"):
-        return 0  # Hard gate
+    if not signals:
+        return signals
 
-    # Minervini 5/8→30 pts, 6/8→33, 7/8→37, 8/8→40 — differentiates marginal from ideal setups
-    _minervini_pts = {5: 30, 6: 33, 7: 37, 8: 40}
-    quality = _minervini_pts.get(minervini.get("score", 5), 30)
+    symbols = [s["symbol"] for s in signals]
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol, composite_score, quality_score, growth_score,
+                       momentum_score, rs_percentile
+                FROM stock_scores
+                WHERE symbol = ANY(%s)
+                """,
+                (symbols,),
+            )
+            score_map = {
+                r[0]: {
+                    "composite_score": float(r[1]) if r[1] is not None else None,
+                    "quality_score": float(r[2]) if r[2] is not None else None,
+                    "growth_score": float(r[3]) if r[3] is not None else None,
+                    "momentum_score": float(r[4]) if r[4] is not None else None,
+                    "rs_percentile": float(r[5]) if r[5] is not None else None,
+                }
+                for r in cur.fetchall()
+            }
+    except Exception as e:
+        logger.warning(f"[PHASE 5] Could not fetch composite scores: {e}")
+        score_map = {}
 
-    stage = weinstein.get("stage", 0)
-    if stage == 2:
-        quality += 20  # Confirmed Stage 2 uptrend
-    elif stage == 1:
-        quality += 5  # Stage 1 base-building: potential but unconfirmed
+    for sig in signals:
+        scores = score_map.get(sig["symbol"], {})
+        sig["composite_score"] = scores.get("composite_score")
+        sig["quality_score"] = scores.get("quality_score")
+        sig["growth_score"] = scores.get("growth_score")
+        sig["momentum_score"] = scores.get("momentum_score")
+        sig["rs_percentile"] = scores.get("rs_percentile")
 
-    if vcp.get("is_vcp"):
-        quality += 20
-
-    if base.get("in_base"):
-        quality += 15
-
-    if power.get(
-        "power_trend", False
-    ):  # power_trend() key is 'power_trend', not 'power_trend_pct'
-        quality += 5
-
-    return quality
+    return signals
 
 
 def run(
@@ -214,64 +218,39 @@ def run(
     config=None,
 ) -> PhaseResult:
     import os
-    from algo.signals import SignalComputer, VectorizedSignalGenerator
 
-    # Enforce config parameter for dependency injection
     if config is None:
         raise ValueError(
             "phase5_signal_generation.run() requires explicit config parameter (dependency injection). "
             "Get config at orchestrator level and pass it explicitly."
         )
+
     phase_start = time.time()
     logger.info("[PHASE 5] Starting signal generation")
 
-    # Load configurable thresholds
-    min_close_quality = (
-        ThresholdConfig.min_close_quality_pct() / 100.0
-    )  # Convert percent to decimal
-
-    # Allow SwingScore to be enabled/disabled via config (ISSUE #10)
-    # phase5_swing_score_limit: 0=disabled (fast path), >0=number of candidates to score
-    swing_score_limit = (
-        config.get("phase5_swing_score_limit", _SWING_SCORE_LIMIT)
-        if config
-        else _SWING_SCORE_LIMIT
+    min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0
+    min_composite_score = (
+        config.get("phase5_min_composite_score", _MIN_COMPOSITE_SCORE)
+        if config else _MIN_COMPOSITE_SCORE
     )
-    if swing_score_limit != _SWING_SCORE_LIMIT:
-        logger.info(
-            f"[PHASE 5] SwingScore limit overridden by config: {_SWING_SCORE_LIMIT} → {swing_score_limit}"
-        )
 
-    # ISSUE #8 FIX: Check halt flag before generating signals
-    # If Phase 1 detected stale data, don't generate full-intensity signals
+    # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
         logger.critical(
             "[PHASE 5] Halt flag set by Phase 1 — data quality degradation detected. Halting signal generation."
         )
-        log_phase_result_fn(
-            5, "signal_generation", "halt", "Halt flag set: data quality degradation"
-        )
+        log_phase_result_fn(5, "signal_generation", "halt", "Halt flag set: data quality degradation")
         return PhaseResult(
-            5,
-            "signal_generation",
-            "halted",
-            {"qualified_trades": []},
-            True,
+            5, "signal_generation", "halted", {"qualified_trades": []}, True,
             "Halt flag set: data quality degradation detected",
         )
 
-    # Verify swing_trader_scores freshness (loaded by morning/EOD pipelines, must be <24h old)
-    # NOTE: signal_quality_scores is NOT pipeline-loaded — checking it would always halt.
-    # Phase 5 generates signals on-the-fly from price_daily; signal_quality_scores is auxiliary.
-    from datetime import datetime, timezone
-
+    # Check buy_sell_daily freshness
     now_utc = datetime.now(timezone.utc)
-    signal_max_age_hours = (
-        config.get("phase5_signal_max_age_hours", 24) if config else 24
-    )
+    signal_max_age_hours = config.get("phase5_signal_max_age_hours", 24) if config else 24
     try:
         with DatabaseContext("read") as cur:
-            cur.execute("SELECT MAX(created_at) FROM swing_trader_scores")
+            cur.execute("SELECT MAX(created_at) FROM buy_sell_daily")
             max_created = cur.fetchone()[0]
             if max_created:
                 if max_created.tzinfo is None:
@@ -279,12 +258,10 @@ def run(
                 age_hours = (now_utc - max_created).total_seconds() / 3600
                 if age_hours > signal_max_age_hours:
                     logger.warning(
-                        f"[PHASE 5] swing_trader_scores is {age_hours:.1f}h old (max {signal_max_age_hours}h) — signals may use stale ranking"
+                        f"[PHASE 5] buy_sell_daily is {age_hours:.1f}h old (max {signal_max_age_hours}h) — signals may be stale"
                     )
     except Exception as e:
-        logger.warning(
-            f"[PHASE 5] Could not check swing_trader_scores freshness: {e} — proceeding"
-        )
+        logger.warning(f"[PHASE 5] Could not check buy_sell_daily freshness: {e} — proceeding")
 
     # Market regime gate
     regime = _check_market_regime(run_date)
@@ -294,189 +271,108 @@ def run(
         f"entry_allowed={regime['is_entry_allowed']}"
     )
     if not regime["is_entry_allowed"]:
-        reasons = (
-            "; ".join(regime["halt_reasons"])
-            if regime["halt_reasons"]
-            else "no halt reasons logged"
-        )
+        reasons = "; ".join(regime["halt_reasons"]) if regime["halt_reasons"] else "no halt reasons logged"
         logger.warning(f"[PHASE 5] Entries halted by market regime: {reasons}")
-        log_phase_result_fn(
-            5,
-            "signal_generation",
-            "halt",
-            f"Market regime halted entries: {reasons[:100]}",
-        )
+        log_phase_result_fn(5, "signal_generation", "halt", f"Market regime halted entries: {reasons[:100]}")
         return PhaseResult(
-            5,
-            "signal_generation",
-            "halted",
-            {"qualified_trades": []},
-            True,
-            reasons[:100],
+            5, "signal_generation", "halted", {"qualified_trades": []}, True, reasons[:100]
         )
 
     # Exposure policy gate
-    bypass_exposure = os.getenv("BYPASS_EXPOSURE_POLICY", "").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    if (
-        exposure_constraints
-        and exposure_constraints.get("halt_new_entries")
-        and not bypass_exposure
-    ):
-        reason = exposure_constraints.get(
-            "halt_reason", "Exposure policy halted new entries"
-        )
+    bypass_exposure = os.getenv("BYPASS_EXPOSURE_POLICY", "").lower() in ("true", "1", "yes")
+    if exposure_constraints and exposure_constraints.get("halt_new_entries") and not bypass_exposure:
+        reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
         logger.warning(f"[PHASE 5] {reason}")
         log_phase_result_fn(5, "signal_generation", "halt", reason)
-        return PhaseResult(
-            5, "signal_generation", "halted", {"qualified_trades": []}, True, reason
-        )
-    elif (
-        bypass_exposure
-        and exposure_constraints
-        and exposure_constraints.get("halt_new_entries")
-    ):
-        logger.critical(
-            "[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt"
-        )
+        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
+    elif bypass_exposure and exposure_constraints and exposure_constraints.get("halt_new_entries"):
+        logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
 
-    # Verify price data coverage
-    with DatabaseContext("read") as cur:
-        cur.execute(
-            "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-            (run_date,),
-        )
-        symbol_count = cur.fetchone()[0] or 0
+    # Fetch BUY signals from buy_sell_daily
+    raw_signals, signal_date = _get_buy_signals(run_date)
 
-    price_date = run_date
-    if symbol_count < 1000:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT date, COUNT(DISTINCT symbol) FROM price_daily "
-                "GROUP BY date ORDER BY date DESC LIMIT 5"
-            )
-            for row in cur.fetchall():
-                if row[1] >= 1000:
-                    price_date = row[0]
-                    symbol_count = row[1]
-                    break
+    if not raw_signals:
+        msg = f"No BUY signals in buy_sell_daily at or before {run_date}"
+        logger.warning(f"[PHASE 5] {msg}")
+        log_phase_result_fn(5, "signal_generation", "halt", msg)
+        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
-    if symbol_count == 0:
-        log_phase_result_fn(5, "signal_generation", "halt", "No price data available")
-        return PhaseResult(5, "signal_generation", "halted", {}, True, "No price data")
-
-    if price_date != run_date:
+    if signal_date != run_date:
         logger.info(
-            f"[PHASE 5] run_date={run_date} has partial coverage; using price_date={price_date} ({symbol_count} symbols)"
+            f"[PHASE 5] No buy_sell_daily data for {run_date}; using most recent signals from {signal_date}"
         )
 
-    with DatabaseContext("read") as cur:
-        cur.execute(
-            "SELECT symbol, close, high, low FROM price_daily WHERE date = %s ORDER BY symbol ASC",
-            (price_date,),
-        )
-        rows = cur.fetchall()
-        symbols = [r[0] for r in rows]
-        # Cache OHLC for close quality gate (free — already fetched, no extra queries)
-        _ohlc = {
-            r[0]: {
-                "close": float(r[1]) if r[1] else None,
-                "high": float(r[2]) if r[2] else None,
-                "low": float(r[3]) if r[3] else None,
-            }
-            for r in rows
-        }
+    logger.info(f"[PHASE 5] {len(raw_signals)} BUY signals from buy_sell_daily on {signal_date}")
 
-    if not symbols:
-        log_phase_result_fn(5, "signal_generation", "halt", "No symbols in price_daily")
-        return PhaseResult(
-            5, "signal_generation", "halted", {}, True, "No symbols found"
-        )
+    # Filter: price must be above 50-day moving average (basic uptrend requirement)
+    trend_filtered = []
+    trend_skipped = 0
+    for sig in raw_signals:
+        close = sig.get("close")
+        sma_50 = sig.get("sma_50")
+        if close and sma_50 and close < sma_50:
+            trend_skipped += 1
+            logger.debug(f"[PHASE 5] {sig['symbol']}: close {close:.2f} < sma_50 {sma_50:.2f} — skip")
+            continue
+        trend_filtered.append(sig)
 
     logger.info(
-        f"[PHASE 5] Generating signals for {len(symbols)} symbols (Minervini gate active)"
+        f"[PHASE 5] Trend filter (close > SMA50): {len(trend_filtered)} passed, {trend_skipped} skipped"
     )
 
-    start_compute = time.time()
+    # Enrich with composite scores from stock_scores
+    enriched = _enrich_composite_scores(trend_filtered)
 
-    # VECTORIZED: Compute Minervini + Weinstein + power_trend in parallel for ALL symbols
-    vectorized_gen = VectorizedSignalGenerator()
-    vectorized_signals = vectorized_gen.run(symbols, run_date)
+    # Filter by composite_score
+    score_filtered = []
+    no_score_count = 0
+    for sig in enriched:
+        score = sig.get("composite_score")
+        if score is None:
+            no_score_count += 1
+            logger.debug(f"[PHASE 5] {sig['symbol']}: no composite score in stock_scores — skip")
+            continue
+        if score < min_composite_score:
+            logger.debug(
+                f"[PHASE 5] {sig['symbol']}: composite_score {score:.1f} < {min_composite_score} — skip"
+            )
+            continue
+        score_filtered.append(sig)
 
-    minervini_results = vectorized_signals.get("minervini", {})
-    weinstein_results = vectorized_signals.get("weinstein", {})
-    power_results = vectorized_signals.get("power", {})
+    logger.info(
+        f"[PHASE 5] Composite score filter (>={min_composite_score}): "
+        f"{len(score_filtered)} passed, {no_score_count} had no score"
+    )
 
-    # Count passes before detailed scoring
-    minervini_pass_count = sum(1 for r in minervini_results.values() if r.get("pass"))
-
-    candidates = []
-    errors = []
-    signal_computer = SignalComputer()  # Only used for base/vcp on passing symbols
-
-    for symbol in symbols:
-        try:
-            minervini = minervini_results.get(symbol, {"pass": False})
-
-            # Hard gate: skip immediately if Minervini template fails (saves ~3 DB queries per symbol)
-            if not minervini.get("pass"):
-                continue
-
-            # For passing Minervini symbols, compute base + VCP details (still per-symbol but only on ~500-1000 candidates)
-            base = signal_computer.base_detection(symbol, run_date)
-            vcp = signal_computer.vcp_detection(symbol, run_date)
-            weinstein = weinstein_results.get(symbol, {})
-            power = power_results.get(symbol, {})
-
-            quality = _score_signal(minervini, weinstein, vcp, base, power)
-
-            if quality >= _MIN_QUALITY:
-                # Close quality gate (configurable via min_close_quality_pct).
-                # A weak close (near day lows) on signal day indicates distribution — not a buy setup.
-                ohlc = _ohlc.get(symbol, {})
-                c, h, lo = ohlc.get("close"), ohlc.get("high"), ohlc.get("low")
-                if h and lo and c and h > lo:
-                    close_position = (c - lo) / (h - lo)
-                    if close_position < min_close_quality:
-                        logger.debug(
-                            f"[PHASE 5] {symbol}: weak close {close_position:.0%} of range (threshold={min_close_quality:.0%}) — skip"
-                        )
-                        continue
-
-                candidates.append(
-                    {
-                        "symbol": symbol,
-                        "date": run_date.isoformat(),
-                        "quality_score": quality,
-                        "minervini_score": minervini.get("score", 0),
-                        "weinstein_stage": weinstein.get("stage"),
-                        "base_detected": base.get("in_base", False),
-                        "vcp_pattern": vcp.get("is_vcp", False),
-                        "power_trend": power.get("power_trend", False),
-                        "return_21d": power.get("return_21d"),
-                        "entry_price": c,  # Today's close from already-fetched OHLC
-                    }
+    # Close quality gate: skip if close is in bottom of day's range (distribution signal)
+    quality_filtered = []
+    weak_close_count = 0
+    for sig in score_filtered:
+        close = sig.get("close")
+        high = sig.get("high")
+        low = sig.get("low")
+        if high and low and close and high > low:
+            close_position = (close - low) / (high - low)
+            if close_position < min_close_quality:
+                weak_close_count += 1
+                logger.debug(
+                    f"[PHASE 5] {sig['symbol']}: weak close {close_position:.0%} of range "
+                    f"(threshold={min_close_quality:.0%}) — skip"
                 )
+                continue
+        quality_filtered.append(sig)
 
-        except Exception as e:
-            errors.append(f"{symbol}: {str(e)[:50]}")
-
-    compute_elapsed = time.time() - start_compute
     logger.info(
-        f"[PHASE 5] Signal compute: {len(symbols)} symbols in {compute_elapsed:.1f}s (vectorized), "
-        f"{minervini_pass_count} passed Minervini gate, {len(candidates)} scored >={_MIN_QUALITY}"
+        f"[PHASE 5] Close quality gate: {len(quality_filtered)} passed, {weak_close_count} weak closes skipped"
     )
 
-    # Sort by quality before liquidity checks
-    candidates.sort(key=lambda s: s["quality_score"], reverse=True)
+    # Sort by composite_score descending
+    quality_filtered.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
 
-    # Liquidity checks on top candidates — PARALLELIZED for speed
+    # Liquidity checks on top candidates — parallelized
     liq_passed = []
     liq_checked = 0
-    to_check = candidates[:_LIQUIDITY_CHECK_LIMIT]
+    to_check = quality_filtered[:_LIQUIDITY_CHECK_LIMIT]
 
     if to_check:
         with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
@@ -484,7 +380,6 @@ def run(
                 executor.submit(_check_liquidity_parallel, cand, run_date): cand
                 for cand in to_check
             }
-
             for future in as_completed(futures):
                 liq_checked += 1
                 candidate, passed = future.result()
@@ -493,87 +388,26 @@ def run(
 
     logger.info(
         f"[PHASE 5] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
-        f"{len(candidates) - liq_checked} unchecked candidates dropped."
+        f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 
-    # SwingScore: 7-component deep-quality ranking — PARALLELIZED
-    # Respects tier's min_swing_score when regime requires a stricter threshold.
-    tier_min_swing = (
-        exposure_constraints.get("min_swing_score", _MIN_SWING_SCORE)
-        if exposure_constraints
-        else _MIN_SWING_SCORE
-    )
-    effective_min_swing = max(_MIN_SWING_SCORE, tier_min_swing)
-
-    swing_scored = []
-    swing_errors = 0
-    to_score = liq_passed[:swing_score_limit]
-
-    if to_score:
-        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(
-                    _compute_swing_score_parallel,
-                    cand,
-                    run_date,
-                    effective_min_swing,
-                    config,
-                ): cand
-                for cand in to_score
-            }
-
-            for future in as_completed(futures):
-                candidate, passed = future.result()
-                if passed:
-                    swing_scored.append(candidate)
-                elif not candidate.get("swing_score"):
-                    swing_errors += 1
-
-    swing_checked = len(to_score)
-    swing_error_rate = swing_errors / swing_checked if swing_checked > 0 else 0
-
-    logger.info(
-        f"[PHASE 5] SwingScore: {swing_checked} checked, {len(swing_scored)} passed "
-        f"(>={effective_min_swing:.0f}), {swing_errors} errors"
-    )
-
-    # If swing scoring is disabled (limit=0), or >80% of swing scores errored,
-    # fall back to quality-ranked liquidity-passed candidates rather than blocking trades.
-    if swing_score_limit == 0 or (swing_error_rate > 0.8 and swing_checked >= 5):
-        if swing_score_limit == 0:
-            logger.info(
-                "[PHASE 5] SwingScore disabled (phase5_swing_score_limit=0) — using quality-ranked candidates"
-            )
-        else:
-            logger.warning(
-                f"[PHASE 5] SwingScore error rate {swing_error_rate:.0%} — "
-                "falling back to quality-scored candidates"
-            )
-        # Sort by quality score for consistent ranking
-        liq_passed.sort(key=lambda c: c.get("quality_score", 0), reverse=True)
-        final_candidates = liq_passed
-    else:
-        swing_scored.sort(key=lambda s: s.get("swing_score", 0), reverse=True)
-        final_candidates = swing_scored
+    # Final ranking by composite_score
+    liq_passed.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
 
     logger.info("[PHASE 5] Top 10 qualified signals:")
-    for i, sig in enumerate(final_candidates[:10]):
-        swing_info = (
-            f" swing={sig.get('swing_score', '?')}{sig.get('swing_grade', '')}"
-            if "swing_score" in sig
-            else ""
-        )
+    for i, sig in enumerate(liq_passed[:10]):
         logger.info(
-            f"  {i+1}. {sig['symbol']:6s} quality={sig['quality_score']:3d} "
-            f"stage={sig['weinstein_stage']} vcp={sig['vcp_pattern']} base={sig['base_detected']}{swing_info}"
+            f"  {i+1}. {sig['symbol']:6s} composite={sig.get('composite_score', '?'):.1f} "
+            f"quality={sig.get('quality_score', '?'):.1f} "
+            f"momentum={sig.get('momentum_score', '?'):.1f} "
+            f"rs_pct={sig.get('rs_percentile', '?'):.1f} "
+            f"strength={sig.get('signal_strength', '?'):.2f}"
         )
 
     elapsed = time.time() - phase_start
     log_phase_result_fn(
-        5,
-        "signal_generation",
-        "success",
-        f"{len(final_candidates)} signals qualified ({len(errors)} errors)",
+        5, "signal_generation", "success",
+        f"{len(liq_passed)} signals qualified from {len(raw_signals)} BUY triggers",
     )
 
     return PhaseResult(
@@ -581,15 +415,15 @@ def run(
         "signal_generation",
         "ok",
         {
-            "qualified_trades": final_candidates,
-            "total_evaluated": len(symbols),
-            "minervini_pass": minervini_pass_count,
-            "quality_passed": len(candidates),
+            "qualified_trades": liq_passed,
+            "total_buy_signals": len(raw_signals),
+            "trend_filtered": len(trend_filtered),
+            "score_filtered": len(score_filtered),
+            "quality_filtered": len(quality_filtered),
             "liquidity_passed": len(liq_passed),
-            "swing_scored": len(swing_scored),
-            "errors": errors,
+            "signal_date": signal_date.isoformat() if signal_date else None,
             "regime": regime,
         },
         False,
-        f"Generated {len(final_candidates)} signals in {elapsed:.1f}s",
+        f"Generated {len(liq_passed)} signals in {elapsed:.1f}s",
     )
