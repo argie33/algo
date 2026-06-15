@@ -44,7 +44,7 @@ from utils.validation import (
     safe_int_strict,
     APIResponseValidator,
 )
-from models.requests import TradePreviewRequest
+from models.requests import TradePreviewRequest, PreTradeImpactRequest
 import math
 
 logger = logging.getLogger(__name__)
@@ -196,6 +196,10 @@ def _dispatch(
         if not body:
             return error_response(400, "bad_request", "Request body required")
         return _calculate_trade_preview(cur, body)
+    if method == "POST" and path == "/api/algo/pre-trade-impact":
+        if not body:
+            return error_response(400, "bad_request", "Request body required")
+        return _calculate_pre_trade_impact(cur, body)
     if path == "/api/algo/status":
         # Status is accessible to authenticated users (Portfolio Dashboard)
         return _get_algo_status(cur)
@@ -2041,6 +2045,104 @@ def _calculate_trade_preview(cur, body: Dict) -> Dict:
         return error_response(
             500, "internal_error", f"Preview calculation failed: {str(e)[:100]}"
         )
+
+
+def _calculate_pre_trade_impact(cur, body: Dict) -> Dict:
+    """Estimate portfolio impact before entering a trade.
+
+    Input: { symbol, entry_price?, position_dollars?, position_pct? }
+    Output: sector concentration, available slots, projected position size.
+    """
+    try:
+        try:
+            req = PreTradeImpactRequest(**body)
+        except ValidationError as e:
+            error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
+            return error_response(
+                400,
+                "bad_request",
+                f"Invalid request: {error_details.get('msg', 'Validation failed')}",
+            )
+
+        symbol = req.symbol
+
+        # Portfolio snapshot
+        cur.execute("""
+            SELECT total_portfolio_value, position_count FROM algo_portfolio_snapshots
+            ORDER BY snapshot_date DESC LIMIT 1
+        """)
+        port_row = cur.fetchone()
+        portfolio_value = safe_float(port_row["total_portfolio_value"]) if port_row else None
+        open_positions = safe_int(port_row["position_count"]) if port_row else 0
+
+        if not portfolio_value or portfolio_value <= 0:
+            return error_response(503, "service_unavailable", "Portfolio value unavailable")
+
+        # Determine position size
+        entry_price = req.entry_price
+        if req.position_dollars:
+            position_dollars = req.position_dollars
+        elif req.position_pct:
+            position_dollars = portfolio_value * (req.position_pct / 100)
+        else:
+            position_dollars = portfolio_value * 0.0075  # default 0.75% risk unit
+
+        shares = int(position_dollars / entry_price) if entry_price and entry_price > 0 else 0
+        actual_dollars = shares * entry_price if entry_price else position_dollars
+        pct_of_portfolio = (actual_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
+
+        # Symbol sector
+        cur.execute("""
+            SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
+        """, (symbol,))
+        profile_row = cur.fetchone()
+        sector = profile_row["sector"] if profile_row else None
+
+        # Current sector exposure
+        sector_exposure = {}
+        try:
+            cur.execute("""
+                SELECT cp.sector, SUM(ap.position_value) AS sector_value
+                FROM algo_positions ap
+                JOIN company_profile cp ON cp.ticker = ap.symbol
+                WHERE ap.status = 'open'
+                GROUP BY cp.sector
+            """)
+            for sr in cur.fetchall():
+                if sr["sector"]:
+                    sector_exposure[sr["sector"]] = safe_float(sr["sector_value"]) or 0.0
+        except Exception:
+            pass
+
+        current_sector_dollars = sector_exposure.get(sector, 0.0) if sector else 0.0
+        projected_sector_dollars = current_sector_dollars + actual_dollars
+        projected_sector_pct = (projected_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
+
+        max_positions = 12
+        available_slots = max(0, max_positions - (open_positions or 0))
+        sector_warning = sector and projected_sector_pct > 30
+
+        return json_response(200, {
+            "symbol": symbol,
+            "sector": sector,
+            "entry_price": round(entry_price, 2) if entry_price else None,
+            "shares": shares,
+            "position_dollars": round(actual_dollars, 2),
+            "pct_of_portfolio": round(pct_of_portfolio, 2),
+            "portfolio_value": round(portfolio_value, 2),
+            "open_positions": open_positions,
+            "available_slots": available_slots,
+            "sector_exposure": {
+                "current_pct": round((current_sector_dollars / portfolio_value * 100), 2) if portfolio_value > 0 else 0,
+                "projected_pct": round(projected_sector_pct, 2),
+                "warning": sector_warning,
+                "warning_msg": f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)" if sector_warning else None,
+            },
+        })
+
+    except Exception as e:
+        logger.error(f"Pre-trade impact calculation failed: {type(e).__name__}: {e}", exc_info=True)
+        return error_response(500, "internal_error", "Impact calculation failed")
 
 
 @db_route_handler("trigger data patrol")

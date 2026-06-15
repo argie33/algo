@@ -242,10 +242,13 @@ class VectorizedSwingScoresLoader:
                 else:
                     grade = "F"
 
+                # Use trend_template_data date as primary (it's always in pipeline).
+                # signal_quality_scores date is a secondary source and may be absent.
+                score_date = trend["date"] if trend is not None else (sig["date"] if sig is not None else end_date)
                 results.append(
                     {
                         "symbol": symbol,
-                        "date": sig["date"],
+                        "date": score_date,
                         "setup_score": setup_score,
                         "trend_score": trend_score,
                         "momentum_score": momentum_score,

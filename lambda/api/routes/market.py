@@ -66,14 +66,16 @@ def handle(
             breadth = []
             freshness = {}
 
+            # MATERIALIZED CTEs force one evaluation each; explicit NOT LIKE on y lets
+            # PostgreSQL use the idx_price_daily_date_symbol partial index for both joins.
             breadth_query = """
-                WITH trading_dates AS (
+                WITH trading_dates AS MATERIALIZED (
                     SELECT DISTINCT date
                     FROM price_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '25 days'
                     ORDER BY date DESC LIMIT 12
                 ),
-                date_pairs AS (
+                date_pairs AS MATERIALIZED (
                     SELECT d1.date AS d, MAX(d2.date) AS prev_d
                     FROM trading_dates d1
                     JOIN trading_dates d2 ON d2.date < d1.date
@@ -86,18 +88,19 @@ def handle(
                     COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
                     COUNT(t.symbol) AS total
                 FROM date_pairs dp
-                JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
+                JOIN price_daily t ON t.date = dp.d
+                    AND t.symbol NOT LIKE '^%%' AND t.close IS NOT NULL
                 JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
+                    AND y.symbol NOT LIKE '^%%' AND y.close IS NOT NULL
                 GROUP BY dp.d
                 ORDER BY dp.d DESC
                 LIMIT 10
             """
 
-            # Single 15s attempt — self-join on 9000 symbols × 12 dates needs headroom.
-            # Lambda timeout is 25s; kept to single attempt to avoid hitting 28s APIGW limit.
+            # 20s timeout — Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
             try:
                 breadth = execute_with_timeout(
-                    cur, breadth_query, timeout_sec=15, max_attempts=1
+                    cur, breadth_query, timeout_sec=20, max_attempts=1
                 )
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}")

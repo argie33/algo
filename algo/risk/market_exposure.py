@@ -301,7 +301,7 @@ class MarketExposure:
             score = max(0.0, min(100.0, score))
 
             try:
-                from algo.signals import SectorRotationDetector
+                from algo.signals.sector_rotation import SectorRotationDetector
 
                 detector = SectorRotationDetector()
                 # Use detector's own connection (don't share) to avoid transaction abort propagation
