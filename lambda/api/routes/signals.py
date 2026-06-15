@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
 from utils.error_handlers import make_error_response
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from routes.utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize, db_route_handler
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             code, error_type, message = handle_db_error(e, 'handle signals')
             return error_response(code, error_type, message)
 
+@db_route_handler('fetch stock signals')
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with all available technical and analytical data."""
         try:
@@ -104,6 +105,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             code, error_type, message = handle_db_error(e, 'fetch stock signals')
             return error_response(code, error_type, message)
 
+@db_route_handler('fetch ETF signals')
 def _get_signals_etf(cur, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
         try:
