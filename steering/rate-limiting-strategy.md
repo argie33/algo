@@ -58,7 +58,7 @@ Accessible to users with valid JWT. Per-user limits to prevent abuse of authenti
 /api/algo/data-status (100 req/min) — Data freshness info
 ```
 
-Enforcement: No enforcement currently (should be added).
+Enforcement: Add to `/api/algo/*` route handlers to gate requests via `check_public_rate_limit()`.
 
 #### 3. Admin Endpoints
 Accessible only to users in the 'admin' Cognito group. Per-user, per-endpoint limits due to expensive operations.
@@ -170,7 +170,7 @@ for i in range(101):
 
 ## Future Improvements
 
-- [ ] DynamoDB rate limit table provisioning (currently optional)
+- [ ] DynamoDB rate limit table provisioning (optional enhancement)
 - [ ] Per-client-IP rate limiting for anonymous users (besides per-endpoint)
 - [ ] Rate limit reset headers (Retry-After, X-RateLimit-*)
 - [ ] Dashboard widget for rate limit metrics

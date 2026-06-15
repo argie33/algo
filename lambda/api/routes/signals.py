@@ -109,8 +109,8 @@ def _get_signals_stocks(
                 s.components->>'grade' AS grade,
                 s.components->>'fail_reason' AS reason,
                 s.components AS components,
-                t.sma_50,
-                t.sma_200,
+                COALESCE(tech.sma_50, t.sma_50) AS sma_50,
+                COALESCE(tech.sma_200, t.sma_200) AS sma_200,
                 CASE t.weinstein_stage
                     WHEN 1 THEN 'Stage 1'
                     WHEN 2 THEN 'Stage 2 - Markup'
@@ -122,11 +122,11 @@ def _get_signals_stocks(
                 p.volume,
                 COALESCE(cp.sector, 'Unknown') AS sector,
                 COALESCE(cp.industry, 'Unknown') AS industry,
-                NULL::numeric AS rsi,
+                tech.rsi,
                 NULL::numeric AS ema_21,
-                NULL::numeric AS atr,
-                NULL::numeric AS adx,
-                NULL::numeric AS mansfield_rs,
+                tech.atr,
+                tech.adx,
+                tech.mansfield_rs,
                 NULL::numeric AS rs_rating,
                 NULL::numeric AS volume_surge_pct,
                 NULL::numeric AS risk_reward_ratio,
@@ -159,6 +159,12 @@ def _get_signals_stocks(
                 ORDER BY date DESC
                 LIMIT 1
             ) p ON true
+            LEFT JOIN LATERAL (
+                SELECT td.sma_50, td.sma_200, td.rsi_14 AS rsi, td.atr, td.adx, td.mansfield_rs
+                FROM technical_data_daily td
+                WHERE td.symbol = s.symbol
+                ORDER BY td.date DESC LIMIT 1
+            ) tech ON true
             LEFT JOIN company_profile cp ON cp.ticker = s.symbol
             WHERE s.date >= CURRENT_DATE - INTERVAL '90 days'
             {symbol_clause}

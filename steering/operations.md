@@ -1,8 +1,6 @@
 # Operational Runbook & Monitoring Guide
 
-**Last Updated:** 2026-06-14  
-**Owner:** Platform Operations  
-**Purpose:** Complete guide to monitoring system health and responding to alerts
+**Purpose:** Procedures for monitoring system health, diagnosing failures, and executing recovery steps.
 
 ---
 
@@ -70,27 +68,7 @@ curl https://api.example.com/api/health
 
 **Endpoint:** `GET /api/health` (public, no auth required)
 
-**What it shows:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-06-14T12:00:00Z",
-  "checks": {
-    "database": {"status": "ok", "latency_ms": 45},
-    "loaders": {
-      "status": "ok",
-      "last_run": "2026-06-14T04:05:00Z",
-      "recent_failures": 0,
-      "stale_loaders": []
-    },
-    "critical_data": {
-      "status": "ok",
-      "stale_tables": []
-    }
-  },
-  "alerts": []
-}
-```
+**What it shows:** JSON object with health status, database latency, loader execution times, data freshness, and active alerts.
 
 **Use when:** You want to verify system is healthy before running trades
 
@@ -310,7 +288,7 @@ curl https://api.example.com/api/health | jq '.checks.critical_data'
 - `sector_ranking` → CRITICAL (stop trading)
 - `buy_sell_daily` → HIGH (signals may be wrong)
 - `technical_data_daily` → MEDIUM (quality degradation)
-- `analyst_ratings` → LOW (just affects filtering)
+- `analyst_ratings` → LOW (affects symbol filtering only)
 
 **Response:**
 1. **For CRITICAL tables:** Pause auto-trading immediately

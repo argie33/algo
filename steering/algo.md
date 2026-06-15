@@ -360,7 +360,6 @@ unzip -l terraform/lambda_api.zip | head -30
 - `open_positions` view: filtered for OPEN/PARTIALLY_EXITED only
 - Legacy `positions` table DROPPED (was empty, replaced by algo_positions in Phase 3)
 
-**Data flow:** Orchestrator Phase 6 updates position state → Phase 7 calls `compute_position_metrics()` → Dashboard queries enriched view
 
 ## Data Architecture: Market Exposure
 
@@ -368,7 +367,6 @@ unzip -l terraform/lambda_api.zip | head -30
 - Computed TWICE per trading day: **morning prep (3:30 AM ET) + EOD (4:05 PM ET)**
 - All orchestrator runs use most recent computation (morning regime for 9:30 AM/1 PM/3 PM, EOD regime for 5:30 PM)
 - This dual-computation eliminates single point of failure (was: EOD-only)
-- Used by: Dashboard MarketsHealth page (market regime display + McClellan oscillator), Phase 3b entry constraints, Phase 7's WeightOptimizer (regime-based weight adjustments)
 
 **Data flow (REDUNDANT):**
 1. Morning pipeline (2:15 AM ET) → market_health_daily + trend_template → **market_exposure_daily (3:30 AM)** → 9:30/1 PM/3 PM orchestrators
