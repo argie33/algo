@@ -16,10 +16,7 @@ import os
 import threading
 from typing import Dict, Any, Optional
 
-try:
-    import boto3
-except ImportError:
-    boto3 = None
+import boto3
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +31,7 @@ class LambdaAPIClient:
 
     def _get_client(self):
         """Get or create Lambda client."""
-        if self.client is None and boto3:
+        if self.client is None:
             try:
                 self.client = boto3.client("lambda", region_name=self.region)
             except Exception as e:
@@ -56,9 +53,6 @@ class LambdaAPIClient:
         Returns:
             Response dict with 'statusCode' and 'body' (JSON parsed)
         """
-        if not boto3:
-            return {"statusCode": 500, "body": {"_error": "boto3 not available"}}
-
         try:
             # Build the Lambda event (API Gateway v2 format)
             event = {

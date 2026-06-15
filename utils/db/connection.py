@@ -57,16 +57,7 @@ logger = logging.getLogger(__name__)
 _connection_pool = None
 _pool_lock = threading.Lock()
 
-# Import connection monitor - integrates pool health tracking
-try:
-    from algo.monitoring import on_connect, on_disconnect  # type: ignore[attr-defined]
-except ImportError:
-    # Fallback if monitor unavailable
-    def on_connect():
-        pass
-
-    def on_disconnect():
-        pass
+from algo.monitoring import on_connect, on_disconnect  # type: ignore[attr-defined]
 
 
 def _get_connection_pool():

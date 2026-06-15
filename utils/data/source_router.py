@@ -35,80 +35,10 @@ from utils.infrastructure import EASTERN_TZ
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-# Rate limiter class - used globally for all yfinance requests
 import functools
 
-
-class _RateLimiter:
-    """Rate limiter for yfinance API requests."""
-
-    def __init__(self, calls_per_minute):
-        self._min_interval = 60.0 / calls_per_minute
-        self._lock = threading.Lock()
-        self._last_call = 0.0
-
-    def wait(self):
-        import time
-
-        with self._lock:
-            now = time.monotonic()
-            elapsed = now - self._last_call
-            if elapsed < self._min_interval:
-                time.sleep(self._min_interval - elapsed)
-            self._last_call = time.monotonic()
-
-
-# Lazy import to avoid "No module named 'algo'" errors when sys.path isn't set up yet
-# Loaders set sys.path.insert(0, parent_dir) at module top, which happens before utils imports
-_MODULE_YFINANCE_LIMITER = None  # Will be set below
-
-try:
-    from algo.infrastructure import retry, YFINANCE_LIMITER
-
-    _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
-except ImportError:
-    # Fallback implementations if algo module not available
-    def retry(
-        max_attempts=3,
-        base_delay=1.0,
-        max_delay=60.0,
-        backoff=2.0,
-        jitter=True,
-        exceptions=(Exception,),
-    ):
-        """Simple retry decorator."""
-
-        def decorator(fn):
-            @functools.wraps(fn)
-            def wrapper(*args, **kwargs):
-                delay = base_delay
-                for attempt in range(1, max_attempts + 1):
-                    try:
-                        return fn(*args, **kwargs)
-                    except exceptions as e:
-                        if attempt == max_attempts:
-                            raise
-                        import time
-                        import random
-
-                        sleep = min(delay, max_delay)
-                        if jitter:
-                            sleep *= 0.75 + random.random() * 0.5
-                        time.sleep(sleep)
-                        delay *= backoff
-
-            return wrapper
-
-        return decorator
-
-    # Create a shared global instance for all loaders when algo module not available
-    # This provides a fallback rate limiter with calls_per_minute=400
-    _MODULE_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=400)
-
-try:
-    import yfinance as yf
-except ImportError:
-    yf = None  # type: ignore[assignment]
+from algo.infrastructure import retry, YFINANCE_LIMITER, RateLimiter
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
@@ -131,15 +61,10 @@ def get_global_yfinance_limiter():
     if _GLOBAL_YFINANCE_LIMITER is None:
         with _GLOBAL_LIMITER_LOCK:
             if _GLOBAL_YFINANCE_LIMITER is None:
-                try:
-                    # For per-process rate limiting, create a conservative limiter
-                    # Don't use _MODULE_YFINANCE_LIMITER (400/min) as it's too aggressive
-                    # Each ECS loader task has its own process, and when 4 run concurrently,
-                    # 400 calls/min per task = 1600 total, which triggers rate limits
-                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=30)
-                except Exception:
-                    # Fallback if _RateLimiter not available
-                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=30)
+                # For per-process rate limiting, create a conservative limiter
+                # Each ECS loader task has its own process, and when 4 run concurrently,
+                # we need to stay under global yfinance rate limits
+                _GLOBAL_YFINANCE_LIMITER = RateLimiter(calls_per_minute=30)
     return _GLOBAL_YFINANCE_LIMITER
 
 

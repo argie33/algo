@@ -12,10 +12,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-try:
-    import boto3
-except ImportError:
-    boto3 = None
+import boto3
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +40,15 @@ class DynamoDBLockManager:
         self.lock_duration_seconds = lock_duration_seconds
         self.lock_id = str(uuid.uuid4())
         self.acquired = False
-        self.is_available = False  # Track if DynamoDB is actually usable
-
-        if not boto3:
-            logger.warning("boto3 not available — falling back to noop lock manager")
-            self.dynamodb = None
-            return
 
         try:
             self.dynamodb = boto3.resource("dynamodb")
             self.table = self.dynamodb.Table(self.table_name)
-            self.is_available = True  # Successfully initialized
         except Exception as e:
-            # DynamoDB unavailable due to permissions, network, or missing tables
-            logger.warning(
-                f"DynamoDB lock manager unavailable: {e}. Will skip distributed locking."
+            logger.error(
+                f"DynamoDB lock manager initialization failed: {e}"
             )
-            self.dynamodb = None
-            self.is_available = False
+            raise
 
     def acquire(
         self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5
@@ -150,7 +138,7 @@ class DynamoDBLockManager:
 
         Returns: True if released, False on error
         """
-        if not self.dynamodb or not self.acquired:
+        if not self.acquired:
             return True  # No lock to release
 
         try:
