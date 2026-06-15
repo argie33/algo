@@ -699,8 +699,7 @@ def _get_algo_performance(cur) -> Dict:
                 metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
                 win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
                 best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
-                max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak,
-                updated_at
+                max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak
             FROM algo_performance_metrics
             ORDER BY metric_date DESC
             LIMIT 1

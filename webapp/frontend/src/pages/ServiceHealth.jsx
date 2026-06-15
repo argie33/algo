@@ -67,14 +67,16 @@ function ServiceHealthContent() {
 
   const isLoading = dsLoading || plLoading || statusLoading;
 
-  if (dsError || plError) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError || plError}</div>;
+  const plAccessDenied = plError?.status === 403 || (typeof plError === 'string' && plError.includes('Authentication'));
+
+  if (dsError) {
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError?.message || dsError}</div>;
   }
 
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };
   const sources = dataStatus?.sources || [];
   const ready = dataStatus?.ready_to_trade;
-  const findings = Array.isArray(patrolLog) ? patrolLog : (patrolLog?.items || []);
+  const findings = plAccessDenied ? [] : (Array.isArray(patrolLog) ? patrolLog : (patrolLog?.items || []));
 
   return (
     <div className="main-content">
@@ -196,7 +198,9 @@ function ServiceHealthContent() {
             </div>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            {findings.length === 0 ? (
+            {plAccessDenied ? (
+              <Empty title="Admin access required" desc="Patrol log requires admin permissions." icon={AlertTriangle} />
+            ) : findings.length === 0 ? (
               <Empty title="All clear" desc="No recent patrol findings." icon={CheckCircle} />
             ) : (
               <div style={{ maxHeight: '60vh', overflow: 'auto' }}>

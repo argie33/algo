@@ -3080,7 +3080,7 @@ router.get('/metrics', async (req, res) => {
 
     const [circuitResult, perfResult] = await Promise.all([
       pool.query(`SELECT * FROM circuit_breaker_status ORDER BY date DESC LIMIT 1`),
-      pool.query(`SELECT * FROM algo_performance_metrics WHERE metric_date = CURRENT_DATE LIMIT 1`)
+      pool.query(`SELECT * FROM algo_performance_metrics ORDER BY metric_date DESC LIMIT 1`)
     ]);
 
     return sendSuccess(res, {
