@@ -1,4 +1,4 @@
-"""Panel rendering functions for the dashboard display.
+﻿"""Panel rendering functions for the dashboard display.
 
 Panels self-register with the panel registry via @register_panel decorator
 to enable dynamic discovery and extensibility.
@@ -42,6 +42,7 @@ from utilities import (
     PHASE_NAMES,
     TIER_COLOR,
     TIER_SHORT,
+    SPARKLINE_CHARS,
     compute_sector_agg,
     normalize_positions_data,
     G,
@@ -161,7 +162,6 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
         )
 
     return None
-    return []
 
 
 # ── panel builders ────────────────────────────────────────────────────────────
@@ -1133,7 +1133,7 @@ def panel_signals_compact(sig, sig_eval=None):
         counts = [int(t.get("buy_n") or 0) for t in reversed(trend)]
         max_b = max(counts) if counts else 1
         spark = "".join(
-            "a-a-‚a-ƒa-„a-...a-†a-‡a-ˆ"[min(7, int(v / max(max_b, 1) * 7.9))]
+            SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))]
             for v in counts
         )
         spark_s = f"  [{CY}]{spark}[/]"
@@ -2388,7 +2388,7 @@ def panel_algo_health(
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]a†³ {prefix}{detail[:80]}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]→ {prefix}{detail[:80]}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
     elif act_valid:
@@ -2516,7 +2516,7 @@ def panel_algo_health(
             ex = int(m.get("exits") or 0)
             e_c = G if en > 0 else DIM
             x_c = Y if ex > 0 else DIM
-            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}a-²[/][{x_c}]{ex}a-¼[/]")
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}↑[/][{x_c}]{ex}↓[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
     rows.append(Rule(style="dim"))
@@ -2573,7 +2573,7 @@ def panel_algo_health(
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:68]}[/]{ph_s}"))
+                rows.append(Text.from_markup(f"  [{Y}]→ {body[:68]}[/]{ph_s}"))
 
     rows.append(Rule(style="dim"))
 
@@ -3048,7 +3048,7 @@ def panel_algo_health_expanded(
         if run.get("halted") or halt_r:
             for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]a†³ {prefix}{detail}[/]"))
+                rows.append(Text.from_markup(f"  [{Y}]→ {prefix}{detail}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
@@ -3118,7 +3118,7 @@ def panel_algo_health_expanded(
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
-            hr_s = f"  [{Y}]a†³ {body}[/]{ph_s}" if body else ""
+            hr_s = f"  [{Y}]→ {body}[/]{ph_s}" if body else ""
             rows.append(
                 Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}")
             )

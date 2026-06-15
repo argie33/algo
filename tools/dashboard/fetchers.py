@@ -1247,7 +1247,8 @@ def fetch_exec_history(c):
     """Fetch recent execution history from API."""
     try:
         data = api_call(
-            _get_endpoint_path("exec_hist", params={"days": 7, "limit": 10})
+            _get_endpoint_path("exec_hist"),
+            params={"days": 7, "limit": 10},
         )
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}

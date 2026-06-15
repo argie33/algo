@@ -186,7 +186,7 @@ def handle(
                     vm.market_cap,
                     lp.current_price,
                     (lp.current_price IS NULL OR s52.high_52w IS NULL OR s52.low_52w IS NULL) AS _is_fallback,
-                    (qm.symbol IS NULL) AS _financial_data_unavailable,
+                    (qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
                     ROUND((
                         sc.value_score * 0.5 +
                         sc.quality_score * 0.3 +

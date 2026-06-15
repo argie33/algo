@@ -68,7 +68,9 @@ from panels import (
 from formatters import mkt_hours_str
 
 try:
-    from panels import _REGISTRY_AVAILABLE, PANEL_REGISTRY
+    from panel_registry import get_panel_registry as _get_panel_registry
+    PANEL_REGISTRY = _get_panel_registry()
+    _REGISTRY_AVAILABLE = True
 except ImportError:
     _REGISTRY_AVAILABLE = False
     PANEL_REGISTRY = None

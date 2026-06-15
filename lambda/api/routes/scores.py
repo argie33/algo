@@ -154,6 +154,7 @@ def _get_stock_scores(
                     COALESCE(lp.current_close, 0) AS current_price,
                     COALESCE(lp.current_close, 0) AS price,
                     (lp.current_close IS NULL) AS _is_fallback,
+                    (qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
                     ROUND(CASE
                         WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL
