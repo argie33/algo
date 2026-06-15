@@ -2705,6 +2705,22 @@ def panel_algo_health(
         )
         ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
         stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"]
+
+        def _age_h(r):
+            ah = r.get("age_hours")
+            if ah is not None:
+                return float(ah)
+            ad = r.get("age")
+            if ad is not None:
+                return float(ad) * 24
+            return None
+
+        def _age_fmt(r):
+            h = _age_h(r)
+            if h is None:
+                return "?"
+            return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
+
         if not stale:
             crit = [r for r in hlth_list if r.get("role") == "CRIT"]
             if ready_to_trade is False:
@@ -2713,22 +2729,15 @@ def panel_algo_health(
                 rtt_badge = f"[{G}]✓ READY TO TRADE[/]"
             else:
                 rtt_badge = f"[{G}]✓ Data OK[/]"
-            crit_parts = []
-            for r in crit[:5]:
-                nm = (r.get("tbl") or "")[:10]
-                age_hours = r.get("age_hours")
-                age_days = r.get("age")
-                if age_hours is not None:
-                    age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
-                elif age_days is not None:
-                    age_s = f"{float(age_days):.1f}d"
-                else:
-                    age_s = ""
-                crit_parts.append(f"[{G}]✓[/][dim]{nm}[/]" + (f"[dim] {age_s}[/]" if age_s else ""))
-            ok_s = "  ".join(crit_parts)
+            n_total = len(hlth_list)
+            n_crit = len(crit)
+            # Find oldest table for a freshness sanity check
+            ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
+            oldest_s = f"  [dim]oldest: {_age_fmt(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
+            crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
             rows.append(
                 Text.from_markup(
-                    f"{rtt_badge}  [dim]{len(hlth_list)} tables[/]  {ok_s}"
+                    f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
                 )
             )
         else:
@@ -2738,22 +2747,16 @@ def panel_algo_health(
             elif crit_stale:
                 rtt_pfx = f"[bold {R}]CRIT STALE[/]  "
             else:
-                rtt_pfx = ""
+                rtt_pfx = f"[{Y}]{len(stale)} stale[/]  "
             stale_parts = []
-            for r in stale[:5]:
-                nm = (r.get("tbl") or "--")[:13]
-                age_hours = r.get("age_hours")
-                age_days = r.get("age")
-                if age_hours is not None:
-                    age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
-                elif age_days is not None:
-                    age_s = f"{float(age_days):.1f}d"
-                else:
-                    age_s = "?"
-                cc = "bold white" if r.get("role") == "CRIT" else "white"
-                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/][dim]{age_s}[/]")
+            # Show critical stale first, then others, up to 4 total
+            ordered = crit_stale + [r for r in stale if r not in crit_stale]
+            for r in ordered[:4]:
+                nm = (r.get("tbl") or "--")[:16]
+                cc = f"bold {R}" if r.get("role") == "CRIT" else R
+                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt(r)}[/]")
             rows.append(
-                Text.from_markup(f"{rtt_pfx}[dim]Stale:[/] " + "  ".join(stale_parts))
+                Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts))
             )
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
