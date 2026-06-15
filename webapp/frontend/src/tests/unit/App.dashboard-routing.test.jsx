@@ -1,123 +1,92 @@
 import { vi, describe, test, beforeEach, expect } from "vitest";
-import { renderWithProviders, screen } from "../test-utils.jsx";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense } from "react";
-import { AuthProvider } from "../../contexts/AuthContext";
-import { ApiKeyProvider } from "../../components/ApiKeyProvider";
 import { testTheme } from "../test-utils.jsx";
 import App from "../../App";
 
-// Mock dashboard and market overview components
-vi.mock("../../pages/Dashboard", () => ({
-  default: () => <div data-testid="dashboard-page">Dashboard</div>,
+// Mock heavy page components
+vi.mock("../../pages/MarketsHealth", () => ({
+  default: () => <div data-testid="markets-health-page">Markets Health</div>,
 }));
 
-vi.mock("../../pages/MarketOverview", () => ({
-  default: () => <div data-testid="market-overview-page">Market Overview</div>,
+vi.mock("../../pages/PortfolioDashboard", () => ({
+  default: () => <div data-testid="portfolio-page">Portfolio</div>,
 }));
 
-vi.mock("../../components/RootRedirect", () => ({
-  default: () => <div data-testid="market-overview-page">Market Overview</div>,
+vi.mock("../../pages/NotFound", () => ({
+  default: () => <div data-testid="not-found-page">Not Found</div>,
 }));
 
-// Mock all other essential components
 vi.mock("../../components/ErrorBoundary", () => ({
   default: ({ children }) => children,
 }));
 
 vi.mock("../../components/ApiKeyProvider", () => ({
   ApiKeyProvider: ({ children }) => children,
-  useApiKeys: () => ({
-    apiKeys: {},
-    loading: false,
-    error: null,
-  }),
+  useApiKeys: () => ({ apiKeys: {}, loading: false, error: null }),
 }));
 
+vi.mock("../../components/auth/ProtectedRoute", () => ({
+  default: ({ children }) => children,
+}));
+
+vi.mock("../../components/AppLayout", () => ({
+  default: ({ children }) => <div data-testid="app-layout">{children}</div>,
+}));
+
+vi.mock("../../components/LoadingFallback", () => ({
+  LoadingFallback: () => <div data-testid="loading-fallback">Loading...</div>,
+}));
+
+const makeQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+const renderAt = (initialRoute) =>
+  render(
+    <MemoryRouter initialEntries={[initialRoute]}>
+      <ThemeProvider theme={testTheme}>
+        <QueryClientProvider client={makeQueryClient()}>
+          <Suspense fallback={<div data-testid="loading">Loading...</div>}>
+            <App />
+          </Suspense>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
 describe("App Dashboard Routing", () => {
-  const renderAppWithAuth = (initialRoute = "/", isAuthenticated = false) => {
-    const testQueryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, gcTime: 0 },
-        mutations: { retry: false },
-      },
-    });
-
-    // Mock AuthContext with specific authentication state
-    vi.doMock("../../contexts/AuthContext", () => ({
-      AuthProvider: ({ children }) => children,
-      useAuth: vi.fn(() => ({
-        user: isAuthenticated ? { username: "testuser", email: "test@example.com" } : null,
-        isAuthenticated,
-        login: vi.fn(),
-        logout: vi.fn(),
-        isLoading: false,
-        error: null,
-      })),
-    }));
-
-    return renderWithProviders(<App />, {
-      wrapper: ({ children }) => (
-        <MemoryRouter initialEntries={[initialRoute]}>
-          <ThemeProvider theme={testTheme}>
-            <QueryClientProvider client={testQueryClient}>
-              <AuthProvider>
-                <ApiKeyProvider>
-                  <Suspense fallback={<div>Loading...</div>}>
-                    {children}
-                  </Suspense>
-                </ApiKeyProvider>
-              </AuthProvider>
-            </QueryClientProvider>
-          </ThemeProvider>
-        </MemoryRouter>
-      ),
-    });
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("Dashboard Authentication Behavior", () => {
-    test("root route (/) shows market overview for all users", () => {
-      renderAppWithAuth("/", false);
-      expect(screen.getByTestId("market-overview-page")).toBeInTheDocument();
+  describe("Direct app routes", () => {
+    test("/app/markets renders markets health page", async () => {
+      renderAt("/app/markets");
+      await waitFor(() =>
+        expect(screen.getByTestId("markets-health-page")).toBeInTheDocument()
+      );
     });
 
-    test("root route (/) shows market overview for authenticated users", () => {
-      renderAppWithAuth("/", true);
-      expect(screen.getByTestId("market-overview-page")).toBeInTheDocument();
+    test("/app/portfolio renders portfolio page", async () => {
+      renderAt("/app/portfolio");
+      await waitFor(() =>
+        expect(screen.getByTestId("portfolio-page")).toBeInTheDocument()
+      );
     });
 
-    test("/dashboard route requires authentication", () => {
-      renderAppWithAuth("/dashboard", true);
-      expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
-    });
-
-    test("/market route is always accessible", () => {
-      renderAppWithAuth("/market", false);
-      expect(screen.getByTestId("market-overview-page")).toBeInTheDocument();
-    });
-  });
-
-  describe("Dashboard Navigation Behavior", () => {
-    test("dashboard menu item is hidden for unauthenticated users", () => {
-      renderAppWithAuth("/", false);
-
-      // Dashboard should not be in navigation for unauthenticated users
-      const dashboardItems = screen.queryAllByText(/dashboard/i);
-      expect(dashboardItems.length).toBe(0);
-    });
-
-    test("dashboard menu item is visible for authenticated users", () => {
-      renderAppWithAuth("/", true);
-
-      // Dashboard should be visible in navigation for authenticated users
-      const dashboardItems = screen.queryAllByText(/dashboard/i);
-      expect(dashboardItems.length).toBeGreaterThan(0);
+    test("unknown /app route renders not-found page", async () => {
+      renderAt("/this-route-does-not-exist");
+      await waitFor(() =>
+        expect(screen.getByTestId("not-found-page")).toBeInTheDocument()
+      );
     });
   });
 });

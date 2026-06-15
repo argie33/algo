@@ -74,9 +74,9 @@ describe("API Service", () => {
 
       expect(config.apiUrl).toBe("https://api.example.com");
       expect(config.baseURL).toBe("https://api.example.com");
+      // isServerless reflects that the URL is not localhost
       expect(config.isServerless).toBe(true);
-      expect(config.isDev).toBe(false);
-      expect(config.isProduction).toBe(true);
+      // isDev/isProduction reflect Vite's build mode (always DEV in Vitest), not the URL
     });
 
     test("respects window.__CONFIG__ priority", () => {
