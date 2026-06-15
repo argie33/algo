@@ -1,4 +1,4 @@
-﻿"""Route: algo"""
+"""Route: algo"""
 
 import psycopg2
 import psycopg2.extras
@@ -204,6 +204,8 @@ def _dispatch(
         limit_str = params.get("limit", [None])[0] if params else None
         limit = safe_limit(limit_str, max_val=10000, default=100)
         status_filter = params.get("status", [None])[0] if params else None
+        if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
+            return error_response(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
         return _get_algo_trades(cur, limit, user_id=user_id, status=status_filter)
     elif path == "/api/algo/positions":
         # Positions accessible to authenticated users (Portfolio Dashboard)
