@@ -192,25 +192,6 @@ def _dispatch(
             if not is_allowed:
                 return error_response(429, "too_many_requests", error_msg)
         return _trigger_data_patrol()
-    if method == "POST" and path == "/api/algo/pre-trade-impact":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}"
-            )
-            return error_response(403, "forbidden", "Admin access required")
-        if path in ADMIN_RATE_LIMITS:
-            limits = ADMIN_RATE_LIMITS[path]
-            is_allowed, error_msg = check_admin_rate_limit(
-                user_id,
-                path,
-                max_requests=limits["max_requests"],
-                window_seconds=limits["window"],
-            )
-            if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
-        return _analyze_pre_trade_impact(cur, body)
     if method == "POST" and path == "/api/algo/preview":
         if not body:
             return error_response(400, "bad_request", "Request body required")
@@ -337,9 +318,6 @@ def _dispatch(
     elif path == "/api/algo/data-quality":
         # Data quality accessible to authenticated users
         return _get_data_quality(cur)
-    elif path == "/api/algo/exposure-policy":
-        # Exposure policy accessible to authenticated users
-        return _get_exposure_policy(cur)
     elif path == "/api/algo/sector-stage2":
         return _get_sector_stage2(cur)
     elif path == "/api/algo/config":
