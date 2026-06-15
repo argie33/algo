@@ -770,6 +770,10 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
+    avg_win_v = perf.get("avg_win")
+    avg_loss_v = perf.get("avg_loss")
+    avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
+    avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
     rows = [
         Text.from_markup(
             f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
@@ -786,8 +790,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             f"[dim]AvgR:[/][white]{avg_r_s}[/]"
         ),
         Text.from_markup(
-            f"[dim]AvgWin:[/][{G}]{f'{perf.get(\"avg_win\"):.1f}%' if perf.get('avg_win') is not None else '--'}[/]  "
-            f"[dim]AvgLoss:[/][{R}]{f'{perf.get(\"avg_loss\"):.1f}%' if perf.get('avg_loss') is not None else '--'}[/]"
+            f"[dim]AvgWin:[/][{G}]{avg_win_s}[/]  "
+            f"[dim]AvgLoss:[/][{R}]{avg_loss_s}[/]"
         ),
     ]
 

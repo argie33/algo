@@ -87,7 +87,7 @@ class SwingTraderScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute swing trader scores with 7-component breakdown.
 
-        FIX #5: Validates all 4 source tables before computing scores.
+        Validates all 3 source tables before computing scores.
         """
         from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
@@ -391,7 +391,7 @@ class SwingTraderScoresLoader(OptimalLoader):
     def _validate_source_dependencies(
         self, symbol: str, end_date: date
     ) -> Optional[List[str]]:
-        """Validate all 4 source tables have data for THIS SYMBOL on end_date.
+        """Validate all 3 source tables have data for THIS SYMBOL on end_date.
 
         Per-symbol check only — no batch coverage check. Reason: batch coverage
         against all active symbols (10,000+) would always fail since source tables
