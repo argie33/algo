@@ -111,6 +111,11 @@ class StockSymbolsLoader(OptimalLoader):
                     if r.get("Financial Status", "").strip() == "D":
                         continue
 
+                    # Exclude by security name as well (catches mislabeled ETFs)
+                    if "etf" in name.lower() or "fund" in name.lower():
+                        logger.debug(f"Excluding {sym} ({name}) by security name pattern")
+                        continue
+
                     rows.append(
                         {
                             "symbol": sym,

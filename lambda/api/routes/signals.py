@@ -214,8 +214,8 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
                 NULL::text AS reason,
                 pd.close,
                 NULL::numeric AS rsi,
-                tt.sma_50,
-                tt.sma_200,
+                NULL::numeric AS sma_50,
+                NULL::numeric AS sma_200,
                 CASE tt.weinstein_stage
                     WHEN 1 THEN 'Stage 1'
                     WHEN 2 THEN 'Stage 2 - Markup'
