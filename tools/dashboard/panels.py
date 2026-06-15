@@ -1789,12 +1789,12 @@ def panel_exposure_compact(exp_f):
         ("distribution_days","Sell Pressure",  10),
         ("vix_regime",       "VIX + Struct",   10),
         ("credit_spread",    "Credit Spread",  10),
-        ("put_call_ratio",   "Put/Call Ratio",  8),
+        ("put_call_ratio",   "Put/Call Rat",    8),
         ("new_highs_lows",   "New Hi vs Lo",    7),
         ("ad_line",          "Adv/Dec Line",    6),
         ("breadth_50dma",    "Breadth 50MA",    6),
-        ("naaim",            "NAAIM Exposure",  5),
-        ("aaii_sentiment",   "AAII Sentiment",  3),
+        ("naaim",            "NAAIM Exposr",    5),
+        ("aaii_sentiment",   "AAII Sentmnt",    3),
     ]
 
     tbl = Table.grid(padding=(0, 1), expand=True)
@@ -1810,7 +1810,7 @@ def panel_exposure_compact(exp_f):
         det = factor_detail(key)
         det_markup = f"[dim]{det}[/]" if det else ""
         items.append(
-            f"[{fc}]{str(label):<6}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}"
+            f"[{fc}]{str(label)[:13]:<13}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}"
         )
 
     sr = factors.get("sector_rotation") or {}
