@@ -942,7 +942,67 @@ def _get_algo_performance(cur) -> Dict:
     row = cur.fetchone()
 
     if not row:
-        return error_response(503, "no_data", "Performance metrics not yet available")
+        # Fallback: compute basic stats directly from algo_trades when pre-computed table is empty
+        try:
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS total_trades,
+                    COUNT(*) FILTER (WHERE profit_loss_pct > 0) AS winning_trades,
+                    COUNT(*) FILTER (WHERE profit_loss_pct < 0) AS losing_trades,
+                    COUNT(*) FILTER (WHERE profit_loss_pct = 0) AS breakeven_trades,
+                    ROUND(AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct END)::numeric, 2) AS avg_win_pct,
+                    ROUND(AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END)::numeric, 2) AS avg_loss_pct,
+                    ROUND(COALESCE(SUM(profit_loss_dollars), 0)::numeric, 2) AS total_pnl_dollars,
+                    ROUND(AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END)::numeric, 3) AS avg_win_r,
+                    ROUND(AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END)::numeric, 3) AS avg_loss_r,
+                    ROUND(MAX(profit_loss_pct)::numeric, 2) AS best_trade_pct,
+                    ROUND(MIN(profit_loss_pct)::numeric, 2) AS worst_trade_pct
+                FROM algo_trades
+                WHERE status = 'closed' AND exit_date IS NOT NULL
+            """)
+            fb = cur.fetchone()
+            fb = safe_dict_convert(fb) if fb else {}
+            total_fb = int(fb.get("total_trades") or 0)
+            if total_fb == 0:
+                return error_response(503, "no_data", "Performance metrics not yet available")
+            winning_fb = int(fb.get("winning_trades") or 0)
+            losing_fb = int(fb.get("losing_trades") or 0)
+            wr_fb = round(winning_fb / total_fb * 100, 1) if total_fb else None
+            avg_win_r = safe_float(fb.get("avg_win_r"))
+            avg_loss_r = safe_float(fb.get("avg_loss_r"))
+            exp_r = None
+            if wr_fb is not None and avg_win_r is not None and avg_loss_r is not None:
+                exp_r = round((wr_fb / 100) * avg_win_r + (1 - wr_fb / 100) * avg_loss_r, 3)
+            pf_fb = None
+            if avg_win_r is not None and avg_loss_r is not None and avg_loss_r != 0:
+                pf_fb = round(abs(avg_win_r / avg_loss_r), 2)
+            fallback_data = {
+                "total_trades": total_fb,
+                "winning_trades": winning_fb,
+                "losing_trades": losing_fb,
+                "breakeven_trades": int(fb.get("breakeven_trades") or 0),
+                "win_rate_pct": wr_fb,
+                "win_rate": wr_fb,
+                "profit_factor": pf_fb,
+                "total_pnl_dollars": safe_float(fb.get("total_pnl_dollars")),
+                "avg_win_pct": safe_float(fb.get("avg_win_pct")),
+                "avg_loss_pct": safe_float(fb.get("avg_loss_pct")),
+                "avg_win_r": avg_win_r,
+                "avg_loss_r": avg_loss_r,
+                "best_trade_pct": safe_float(fb.get("best_trade_pct")),
+                "worst_trade_pct": safe_float(fb.get("worst_trade_pct")),
+                "sharpe_annualized": None,
+                "max_drawdown_pct": None,
+                "expectancy_r": exp_r,
+                "current_streak": 0,
+                "equity_vals": [],
+                "recent_rets": [],
+                "data_freshness": {"is_stale": False},
+            }
+            return json_response(200, APIResponseValidator.sanitize_response(fallback_data))
+        except Exception as fb_err:
+            logger.warning(f"Performance fallback from algo_trades failed: {fb_err}")
+            return error_response(503, "no_data", "Performance metrics not yet available")
 
     try:
 

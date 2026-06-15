@@ -200,6 +200,7 @@ def _get_leading_indicators(cur) -> Dict:
         "RSXFS",
         "PAYEMS",
         "HOUST",
+        "CPIAUCSL",
         "PCEPILFE",
         "DSPIC96",
         "AHETPI",

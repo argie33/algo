@@ -797,6 +797,7 @@ def fetch_signals(c):
             "near": near,
             "top_a": top_a,
             "trend": result.get("trend", []),
+            "date": result.get("date"),
             "timestamp": datetime.now(timezone.utc),
         }
     except Exception as e:

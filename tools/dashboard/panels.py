@@ -829,24 +829,24 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         if parts:
             rows.append(Text.from_markup("  ".join(parts)))
 
-    # Rolling analytics from algo_performance_daily (only show if populated)
+    # Rolling analytics from algo_performance_daily (only show if populated with non-zero values)
     if perf_anl and not perf_anl.get("_error"):
         anl_parts = []
         sharpe252 = perf_anl.get("sharpe252")
         sortino = perf_anl.get("sortino")
         calmar = perf_anl.get("calmar")
         wr50 = perf_anl.get("wr50")
-        if sharpe252 is not None:
+        if sharpe252 is not None and sharpe252 != 0.0:
             sc = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             anl_parts.append(f"[dim]Sharpe (1Y):[/][{sc}]{sharpe252:.2f}[/]")
-        if sortino is not None:
+        if sortino is not None and sortino != 0.0:
             sc = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
             anl_parts.append(f"[dim]Sortino:[/][{sc}]{sortino:.2f}[/]")
-        if calmar is not None:
+        if calmar is not None and calmar != 0.0:
             sc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             anl_parts.append(f"[dim]Calmar:[/][{sc}]{calmar:.2f}[/]")
         total_trades = perf.get("n", 0) if perf else 0
-        if wr50 is not None and (total_trades >= 10 or wr50 > 0):
+        if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
             wrc = G if wr50 >= 55 else (Y if wr50 >= 45 else R)
             anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
         if anl_parts:
@@ -1186,10 +1186,9 @@ def panel_signals_compact(sig, sig_eval=None):
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not sig_eval.get("_error"):
-        ev_tot = sig_eval.get("total", 0)
-        sig_eval.get("t1", 0)
-        ev_t5 = sig_eval.get("t5", 0)
-        ev_avg = sig_eval.get("avg_score", 0)
+        ev_tot = sig_eval.get("total") or 0
+        ev_t5 = sig_eval.get("t5") or 0
+        ev_avg = sig_eval.get("avg_score") or 0
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         rejected = sig_eval.get("rejected") or []
         if rejected:
@@ -1357,11 +1356,16 @@ def panel_recent_trades(trades):
     for tr in trades_list[:10]:
         sym = tr.get("symbol") or "--"
         date = tr.get("exit_date") or tr.get("trade_date")
-        date_s = (
-            date.strftime("%b%d")
-            if hasattr(date, "strftime")
-            else str(date or "--")[:5]
-        )
+        if hasattr(date, "strftime"):
+            date_s = date.strftime("%b%d")
+        elif isinstance(date, str) and len(date) >= 7:
+            try:
+                from datetime import datetime as _dt
+                date_s = _dt.fromisoformat(date.replace("Z", "+00:00")).strftime("%b%d")
+            except (ValueError, TypeError):
+                date_s = date[5:10]
+        else:
+            date_s = str(date or "--")[:5]
         pnl_d = float(tr.get("profit_loss_dollars") or 0)
         pnl_p = float(tr.get("profit_loss_pct") or 0)
         rmul = tr.get("exit_r_multiple")
@@ -2908,13 +2912,17 @@ def panel_signals_expanded(sig, sig_eval=None):
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not sig_eval.get("_error"):
-        ev_tot = sig_eval.get("total", 0)
-        ev_t5 = sig_eval.get("t5", 0)
-        ev_avg = sig_eval.get("avg_score", 0)
+        ev_tot = sig_eval.get("total") or 0
+        ev_t5 = sig_eval.get("t5") or 0
+        ev_avg = sig_eval.get("avg_score") or 0
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
+        t1 = sig_eval.get("t1") or 0
+        t2 = sig_eval.get("t2") or 0
+        t3 = sig_eval.get("t3") or 0
+        t4 = sig_eval.get("t4") or 0
         funnel = (
-            f"[dim]Funnel  T1:[/]{sig_eval.get('t1',0)} [dim]T2:[/]{sig_eval.get('t2',0)} "
-            f"[dim]T3:[/]{sig_eval.get('t3',0)} [dim]T4:[/]{sig_eval.get('t4',0)} "
+            f"[dim]Funnel  T1:[/]{t1} [dim]T2:[/]{t2} "
+            f"[dim]T3:[/]{t3} [dim]T4:[/]{t4} "
             f"[dim]T5:[/][{ev_c}]{ev_t5}[/][dim]/{ev_tot}  avg score:[/]{ev_avg:.0f}"
         )
         rejected = sig_eval.get("rejected") or []
