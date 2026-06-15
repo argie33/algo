@@ -39,7 +39,7 @@ FETCHER_METADATA = {
     "sig": {"endpoint": "/api/algo/dashboard-signals", "desc": "Dashboard signals"},
     "health": {"endpoint": "/api/algo/data-status", "desc": "Data loader health"},
     "cb": {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},
-    "srank": {"endpoint": "/api/algo/sector-rotation", "desc": "Sector rankings"},
+    "srank": {"endpoint": "/api/sectors", "desc": "Sector rankings"},
     "activity": {"endpoint": "/api/algo/audit-log", "desc": "Activity log"},
     "eco": {"endpoint": "/api/economic/yield-curve-full + /api/economic/indicators", "desc": "Economic macro indicators"},
     "notifs": {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
@@ -253,8 +253,7 @@ def fetch_market(c):
                 if vix_raw is not None
                 else None
             )
-            # SPY price is not in /api/algo/markets response; leave as None
-            spy = None
+            spy = safe_float(current.get("spy_close"), default=None)
         except StrictValidationError as e:
             error_msg = f"Critical market data missing: {str(e)}"
             logger.error(error_msg)
@@ -401,7 +400,6 @@ def fetch_portfolio(c):
                 "snapshot_date": None,
                 "total_portfolio_value": None,
                 "total_cash": None,
-                "total_buying_power": None,
                 "position_count": None,
                 "daily_return_pct": None,
                 "unrealized_pnl_pct": None,
@@ -494,13 +492,10 @@ def fetch_portfolio(c):
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
-            "total_buying_power": safe_float(
-                port.get("total_buying_power"), default=None
-            ),
             "position_count": pc,
             "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
             "unrealized_pnl_pct": safe_float(
-                port.get("unrealized_pnl_pct"), default=None
+                (port.get("unrealized_pnl") or {}).get("total_pct"), default=None
             ),
             "cumulative_return_pct": safe_float(
                 port.get("cumulative_return_pct"), default=None
@@ -817,19 +812,18 @@ def fetch_signals(c):
 
 
 def fetch_sector_ranking(c):
-    """Fetch sector rankings from API.
+    """Fetch per-sector rankings from /api/sectors.
 
-    Note: /api/algo/sector-rotation returns rotation history records (date,
-    defensive_lead_score, signal, etc.), not individual per-sector rankings
-    (sector_name, current_rank, momentum_score). The panel's sector-ranking
-    section requires a different API endpoint that is not currently available.
-    Returns empty items so the panel skips that section gracefully.
+    Returns items with sector_name, current_rank, momentum_score, rank_1w_ago,
+    rank_4w_ago fields that the sector panel needs.
     """
     try:
-        data = api_call(_get_endpoint_path("srank"))
+        data = api_call("/api/sectors")
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        return {"items": []}
+        raw = data.get("data", {})
+        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
         logger.error(error_msg)

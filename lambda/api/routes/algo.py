@@ -3059,7 +3059,7 @@ def _get_markets(cur) -> Dict:
         market_health = {}
         try:
             cur.execute("""
-                    SELECT market_trend, market_stage, vix_level,
+                    SELECT market_trend, market_stage, vix_level, spy_change_pct,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
@@ -3071,6 +3071,20 @@ def _get_markets(cur) -> Dict:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
         except Exception as mhe:
             logger.warning(f"Could not fetch market_health_daily: {mhe}")
+
+        # Fetch latest SPY close for dashboard header
+        spy_close = None
+        try:
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC LIMIT 1
+            """)
+            spy_row = cur.fetchone()
+            if spy_row:
+                spy_close = safe_float(spy_row["close"]) if spy_row["close"] else None
+        except Exception as spy_e:
+            logger.warning(f"Could not fetch SPY price: {spy_e}")
 
         current_date = row.get("date")
         return json_response(
@@ -3091,6 +3105,7 @@ def _get_markets(cur) -> Dict:
                     "halt_reasons": halt_reasons,
                     "distribution_days": row.get("distribution_days", 0),
                     "factors": factors,
+                    "spy_close": spy_close,
                     "date": (
                         current_date.isoformat()
                         if hasattr(current_date, "isoformat")

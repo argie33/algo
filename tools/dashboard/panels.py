@@ -613,7 +613,6 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     mxdd = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
-    bp = safe_float(port.get("total_buying_power"), default=None)
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
     if max_n:
         _sb = mini_bar(npos, max_n, w=5)
@@ -627,12 +626,11 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     # Line 1: portfolio value + snapshot age
     rows.append(Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}"))
 
-    # Line 2: cash + positions (slot bar) + buying power
+    # Line 2: cash + open positions
     rows.append(
         Text.from_markup(
             f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  "
-            f"{pos_s}  "
-            f"[dim]BP:[/][white]{fmt_money(bp)}[/]"
+            f"{pos_s}"
         )
     )
 

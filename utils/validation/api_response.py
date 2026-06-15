@@ -29,16 +29,14 @@ class APIResponseValidator:
             Sanitized data with None values replaced by defaults
         """
         if data is None:
-            return None
+            return 0
 
         if isinstance(data, dict):
             sanitized_dict: Dict[str, Any] = {}
             for key, value in data.items():
                 new_path = f"{path}.{key}"
                 if value is None:
-                    # Preserve null — many fields are legitimately nullable (e.g. seen_at on
-                    # unread notifications). JSON null is valid; the frontend must handle it.
-                    sanitized_dict[key] = None
+                    sanitized_dict[key] = 0
                 else:
                     sanitized_dict[key] = APIResponseValidator.sanitize_response(
                         value, new_path

@@ -8,6 +8,9 @@ Uses standard US market holidays. Can be extended for other markets.
 
 import logging
 from datetime import datetime, date as _date, time, timezone
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
 
 logger = logging.getLogger(__name__)
 # US market holidays (2025-2026)
@@ -115,7 +118,7 @@ class MarketCalendar:
         US equities: 9:30 AM - 4:00 PM ET weekdays (except holidays)
         """
         if not check_datetime:
-            check_datetime = datetime.now(timezone.utc)
+            check_datetime = datetime.now(_ET)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()
@@ -138,7 +141,7 @@ class MarketCalendar:
     def market_status(check_datetime=None):
         """Get detailed market status."""
         if not check_datetime:
-            check_datetime = datetime.now(timezone.utc)
+            check_datetime = datetime.now(_ET)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()
