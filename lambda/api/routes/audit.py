@@ -66,7 +66,7 @@ def handle(
         if path == "/api/audit/trail" or path.startswith("/api/audit/trail?"):
             cur.execute(
                 """
-                    SELECT id, created_at AS timestamp, action_type AS action,
+                    SELECT id, created_at, action_type AS action,
                            actor AS user_id, status, details
                     FROM algo_audit_log
                     ORDER BY created_at DESC
@@ -91,7 +91,7 @@ def handle(
         elif path == "/api/audit/trades" or path.startswith("/api/audit/trades?"):
             cur.execute(
                 """
-                    SELECT id, created_at AS timestamp, action_type,
+                    SELECT id, created_at, action_type,
                            symbol, actor, status, error_message, details
                     FROM algo_audit_log
                     WHERE action_type IN ('entry', 'exit', 'partial_exit')
@@ -120,7 +120,7 @@ def handle(
         elif path == "/api/audit/config" or path.startswith("/api/audit/config?"):
             cur.execute(
                 """
-                    SELECT id, created_at AS timestamp, action_type,
+                    SELECT id, created_at, action_type,
                            actor, status, error_message, details
                     FROM algo_audit_log
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
@@ -151,7 +151,7 @@ def handle(
         ):
             cur.execute(
                 """
-                    SELECT id, created_at AS timestamp, action_type,
+                    SELECT id, created_at, action_type,
                            actor, status, error_message, details
                     FROM algo_audit_log
                     WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')

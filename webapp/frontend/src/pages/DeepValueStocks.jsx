@@ -444,7 +444,7 @@ const DeepValueStocksContent = () => {
             <label style={{ fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', fontWeight: 'var(--w-bold)', textTransform: 'uppercase' }}>Sort By</label>
             <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(0); }} className="input">
               <option value="generational_score">Generational Score</option>
-              <option value="discount_vs_historical_pe_pct">Historical Discount</option>
+              <option value="discount_vs_sector_pe_pct">Sector PE Discount</option>
               <option value="roe_pct">ROE</option>
               <option value="trailing_pe">P/E Ratio</option>
               <option value="op_margin_pct">Op. Margin</option>
