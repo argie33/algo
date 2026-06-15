@@ -1,4 +1,4 @@
-﻿"""Add user isolation (cognito_sub) to portfolio and trading tables.
+"""Add user isolation (cognito_sub) to portfolio and trading tables.
 
 Enables per-user portfolio isolation so each authenticated user only sees/trades their own account.
 

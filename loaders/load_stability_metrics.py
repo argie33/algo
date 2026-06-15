@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Stability Metrics Loader - Volatility (from price_daily) and Beta (from yfinance).
 
 Computes:

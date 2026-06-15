@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 002: Widen market_exposure_daily.exposure_tier VARCHAR(20) -> VARCHAR(50)
 

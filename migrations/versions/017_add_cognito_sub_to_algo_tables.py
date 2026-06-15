@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 011: Add cognito_sub column to algo_trades and algo_positions tables.
 

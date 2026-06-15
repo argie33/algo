@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Migration: Add avg_r column to algo_performance_daily.
 
 HIGH-SEVERITY ISSUE FIX: Ensures avg_r (average R-multiple) is pre-computed in the database

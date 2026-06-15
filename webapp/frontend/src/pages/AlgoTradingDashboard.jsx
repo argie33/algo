@@ -76,11 +76,18 @@ const fmtDate = (ts) => {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+function toPhaseSet(val) {
+  if (!val) return new Set();
+  if (Array.isArray(val)) return new Set(val.map(s => String(s).trim()).filter(Boolean));
+  if (typeof val === 'number') return new Set(); // API returns count, not phase names
+  return new Set(String(val).split(',').map(s => s.trim()).filter(Boolean));
+}
+
 function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
   const phases = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
-  const halted = new Set((phasesHalted || '').split(',').map(s => s.trim()).filter(Boolean));
-  const errored = new Set((phasesErrored || '').split(',').map(s => s.trim()).filter(Boolean));
-  const completed = new Set((phasesCompleted || '').split(',').map(s => s.trim()).filter(Boolean));
+  const halted = toPhaseSet(phasesHalted);
+  const errored = toPhaseSet(phasesErrored);
+  const completed = toPhaseSet(phasesCompleted);
 
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Migration 036: Move pre-trade impact calculations from JavaScript to database.
 
 Creates a function to calculate all pre-trade constraint impacts.

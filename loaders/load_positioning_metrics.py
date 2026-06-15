@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Positioning Metrics Loader - Institutional ownership and short interest from yfinance.
 
 Fetches:

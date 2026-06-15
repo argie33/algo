@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Signal Data Source Hierarchy and Unified Query Builder (Issue #7)
 
 Signal data sources with defined priority hierarchy:

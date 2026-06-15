@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 009: Seed T3 configurable gate flags into algo_config.
 

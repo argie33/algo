@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 012: Add date-leading indexes on high-traffic tables.
 

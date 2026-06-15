@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 033: Add NOT NULL constraint to company_profile.sector
 

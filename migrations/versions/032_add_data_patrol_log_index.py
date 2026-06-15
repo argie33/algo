@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 032: Add index on data_patrol_log(created_at DESC) to fix COUNT(*) timeouts.
 

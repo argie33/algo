@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 015: Fix sector_ranking schema - rename date_recorded to date.
 

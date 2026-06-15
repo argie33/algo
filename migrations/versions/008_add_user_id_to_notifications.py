@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 008: Add user_id to algo_notifications for row-level access control.
 

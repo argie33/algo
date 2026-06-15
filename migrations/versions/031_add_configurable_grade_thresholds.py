@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Migration: Add configurable grade thresholds to algo_config.
 
 ISSUE #31 FIX: Make hardcoded grade thresholds configurable via the algo_config database table.

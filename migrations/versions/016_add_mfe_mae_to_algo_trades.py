@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 010: Add mfe_pct and mae_pct columns to algo_trades table.
 

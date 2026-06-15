@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 006: Lower min_trend_template_score from 7 to 6.
 

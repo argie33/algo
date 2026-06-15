@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 007: Soften T3 RS-slope and volume-decay hard gates.
 

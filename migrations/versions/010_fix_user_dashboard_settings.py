@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 010: Fix user_dashboard_settings for Cognito authentication.
 

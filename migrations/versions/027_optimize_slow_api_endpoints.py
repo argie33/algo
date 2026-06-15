@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 027: Optimize extremely slow API endpoints (23-26 seconds each).
 

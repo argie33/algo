@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Migration 034: Move position-level risk calculations from API to database.
 
 Creates a materialized view that pre-computes all risk metrics.

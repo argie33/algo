@@ -116,22 +116,25 @@ def fetch_run(c):
         data = api_call("/api/algo/last-run")
         if data.get("_error"):
             return data
+        # api_call returns {statusCode, data: {...}} — unwrap inner data
+        inner = data.get("data", {}) if isinstance(data.get("data"), dict) else data
+        phases = inner.get("phases") or []
+        halted_phases = [p for p in phases if p.get("status") == "halt"]
+        errored_phases = [p for p in phases if p.get("status") == "error"]
+        completed_phases = [p for p in phases if p.get("status") == "success"]
+        halt_reason = halted_phases[0].get("summary") if halted_phases else None
         return {
-            "run_id": data.get("run_id"),
-            "run_at": data.get("completed_at") or data.get("started_at"),
-            "success": data.get("success", False),
-            "halted": data.get("halted", False),
-            "errored": data.get("errored", False),
-            "summary": data.get("summary"),
-            "halt_reason": data.get("halt_reason"),
-            "phases_completed": data.get("phases_completed") or [],
-            "phases_halted": data.get("phases_halted") or [],
-            "phases_errored": data.get("phases_errored") or [],
-            "phase_results": safe_json_parse(
-                data.get("phase_results"),
-                default=[],
-                field_name="fetch_run.phase_results",
-            ),
+            "run_id": inner.get("run_id"),
+            "run_at": inner.get("run_at") or inner.get("completed_at") or inner.get("started_at"),
+            "success": inner.get("success", False),
+            "halted": inner.get("halted", False),
+            "errored": inner.get("errored", False),
+            "summary": inner.get("summary"),
+            "halt_reason": halt_reason,
+            "phases_completed": [p.get("action_type") for p in completed_phases],
+            "phases_halted": [p.get("action_type") for p in halted_phases],
+            "phases_errored": [p.get("action_type") for p in errored_phases],
+            "phase_results": phases,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("run", e)
@@ -398,11 +401,12 @@ def fetch_portfolio(c):
             }
         port = data.get("data", {})
 
-        # Check data freshness before validation (portfolio data > 3 days old is stale;
-        # algo only runs on trading days so weekend data is legitimately 48-72h old)
+        # Check data freshness before validation (portfolio data > 5 days old is stale;
+        # algo only runs on trading days so a long weekend + Monday holiday can mean
+        # 4 calendar days between runs)
         snapshot_date = port.get("last_run")
         is_fresh, freshness_error = _check_data_freshness(
-            snapshot_date, max_age_seconds=259200, source_name="Portfolio"
+            snapshot_date, max_age_seconds=432000, source_name="Portfolio"
         )
         if not is_fresh:
             logger.warning(freshness_error)
@@ -524,6 +528,15 @@ def fetch_perf(c):
     try:
         data = api_call("/api/algo/performance")
         if data.get("_error"):
+            # 503 means no performance data yet (no completed trades) — not a true error
+            if "503" in str(data.get("_error", "")):
+                return {
+                    "_no_data": True,
+                    "n": 0, "w": 0, "l": 0, "wr": None, "pnl": None,
+                    "streak": None, "sharpe": None, "maxdd": None,
+                    "avg_win": None, "avg_loss": None, "profit_factor": None,
+                    "expectancy": None, "avg_r": None, "equity_vals": [], "recent_rets": [],
+                }
             record_data_quality_issue(
                 "per", "api_call", "api_error", data.get("_error")
             )

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 013: Re-seed algo_config table for deployments where migration 005 ran but
 the ON CONFLICT DO NOTHING clause left rows missing (e.g., if the table was empty at

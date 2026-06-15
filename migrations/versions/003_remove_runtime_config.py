@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Migration 003: Remove algo_runtime_config and algo_runtime_config_audit tables.
 

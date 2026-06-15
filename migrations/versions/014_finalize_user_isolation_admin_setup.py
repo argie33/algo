@@ -1,4 +1,4 @@
-﻿"""Finalize user isolation setup - ensure admin user is properly configured.
+"""Finalize user isolation setup - ensure admin user is properly configured.
 
 This migration verifies that the admin user isolation is properly set up.
 The actual migration from 'admin-user' placeholder to real Cognito sub
