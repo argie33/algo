@@ -403,7 +403,7 @@ def panel_market_full(mkt, sentiment=None):
         fg_bar = int(fg_v / 100 * 8)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
         lines.append(
-            f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
+            f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
         )
 
     txt = Text.from_markup("\n".join(lines))
@@ -668,7 +668,7 @@ def panel_header_market(
             fg_c = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
-            line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
+            line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
             mode = cfg.get("mode", "?")
