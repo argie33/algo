@@ -403,7 +403,6 @@ class SwingTraderScoresLoader(OptimalLoader):
         failures = []
         source_tables = [
             ("signal_quality_scores", "composite_sqs"),
-            ("buy_sell_daily", "signal"),
             ("trend_template_data", "minervini_trend_score"),
             ("technical_data_daily", "rsi"),
         ]

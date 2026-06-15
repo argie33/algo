@@ -273,16 +273,19 @@ def panel_orch(run, cfg, risk=None):
             else:
                 extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
         else:
-            # audit_log fallback: only phase number available
-            for p in run.get("phases", []):
+            # audit_log fallback: phase_N or phase_N_name format
+            for p in (run.get("phase_results") or run.get("phases") or []):
                 at = p.get("action_type", "")
                 if not at.startswith("phase_"):
                     continue
                 parts = at.split("_")
-                if len(parts) > 2:
-                    continue  # skip sub-phases; only top-level
                 num = parts[1] if len(parts) > 1 else "?"
-                short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
+                if not num.isdigit():
+                    continue
+                phase_key = f"phase_{num}"
+                name_parts = parts[2:] if len(parts) > 2 else []
+                default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
+                short = PHASE_NAMES.get(phase_key, default_short)[:9]
                 ps = p.get("status", "")
                 pc = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
                 pi = (
@@ -324,7 +327,7 @@ def panel_market_full(mkt, sentiment=None):
     dist = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
     spy = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
-    (mkt.get("trend") or "").upper()
+    trend_s = (mkt.get("trend") or "").upper()
     halts = mkt.get("halts") or []
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc = Y if halts else DIM
@@ -356,7 +359,9 @@ def panel_market_full(mkt, sentiment=None):
     spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]  {spy_s}",
+        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
+        + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend_s else "")
+        + (f"  {spy_s}" if spy_s else ""),
     ]
     if upvol is not None:
         adr_s = (
@@ -395,7 +400,7 @@ def panel_market_full(mkt, sentiment=None):
         fg_lbl = (sentiment.get("label") or "")[:16]
         fg_c = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
-        fg_bar_s = f"[{fg_c}]{'#' * fg_bar}[/][dim]{'#' * (8 - fg_bar)}[/]"
+        fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
         lines.append(
             f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
         )
@@ -558,7 +563,7 @@ def panel_header_market(
             fg_lbl = (sentiment.get("label") or "")[:14]
             fg_c = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
-            fg_bar_s = f"[{fg_c}]{'#' * fg_bar}[/][dim]{'#' * (6 - fg_bar)}[/]"
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
             line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} % {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
@@ -751,10 +756,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         if pf is not None and pf >= 1.5
         else (Y if pf is not None and pf >= 1.0 else R)
     )
-    exp = perf.get("expectancy") if perf.get("expectancy") is not None else 0
-    exp_c = G if exp >= 0 else R
+    exp = perf.get("expectancy")
+    exp_c = G if (exp is None or exp >= 0) else R
+    exp_s = f"{exp:.2f}R" if exp is not None else "--"
     avg_r = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
+    sharpe_v = perf.get("sharpe")
+    sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
     wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
     dd_v = perf.get("maxdd") or 0
@@ -773,13 +781,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         Text.from_markup(
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
             f"[dim]PF:[/][{pf_c}]{pf_s}[/]  "
-            f"[dim]Sharpe:[/][white]{perf.get('sharpe') or '--'}[/]  "
-            f"[dim]Exp:[/][{exp_c}]{fmt_money(exp)}[/]  "
+            f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
+            f"[dim]Exp:[/][{exp_c}]{exp_s}[/]  "
             f"[dim]AvgR:[/][white]{avg_r_s}[/]"
         ),
         Text.from_markup(
-            f"[dim]AvgWin:[/][{G}]{fmt_money(perf.get('avg_win'))}[/]  "
-            f"[dim]AvgLoss:[/][{R}]{fmt_money(perf.get('avg_loss'))}[/]"
+            f"[dim]AvgWin:[/][{G}]{f'{perf.get(\"avg_win\"):.1f}%' if perf.get('avg_win') is not None else '--'}[/]  "
+            f"[dim]AvgLoss:[/][{R}]{f'{perf.get(\"avg_loss\"):.1f}%' if perf.get('avg_loss') is not None else '--'}[/]"
         ),
     ]
 
@@ -1456,7 +1464,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc = G if avg_pnl >= 0 else R
             bar_f = int(min(pct, 30) / 30 * 3)
-            bar_s = f"[{pc}]{'#' * bar_f}[/][dim]{'-' * (3 - bar_f)}[/]"
+            bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (3 - bar_f)}[/]"
             return (
                 f"[white]{sec[:11]:<11}[/]{bar_s}"
                 f"[dim]{pct:.0f}%[/] [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}%[/]"
@@ -2119,10 +2127,13 @@ def panel_status(
             if not at.startswith("phase_"):
                 continue
             parts = at.split("_")
-            if len(parts) > 2:
-                continue
             num = parts[1] if len(parts) > 1 else "?"
-            short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
+            if not num.isdigit():
+                continue
+            phase_key = f"phase_{num}"
+            name_parts = parts[2:] if len(parts) > 2 else []
+            default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
+            short = PHASE_NAMES.get(phase_key, default_short)[:9]
             st = p.get("status", "")
             sc = (
                 G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
@@ -2195,7 +2206,7 @@ def panel_status(
                 age = str(r.get("age") or "?")
                 rc = r.get("role", "")
                 cc = "bold white" if rc == "CRIT" else "white"
-                lat = r.get("latest")
+                lat = r.get("last_updated") or r.get("latest")
                 lat_s = (
                     f" ({lat.strftime('%m/%d') if hasattr(lat, 'strftime') else str(lat)[:5]})"
                     if lat
@@ -2464,15 +2475,19 @@ def panel_algo_health(
                 exits_exec = max(exits_exec, int(xe))
     elif run_valid or act_valid:
         src = run if run_valid else act
-        for p in src.get("phases") or []:
+        for p in (src.get("phase_results") or src.get("phases") or []):
             at = p.get("action_type", "")
             if not at.startswith("phase_"):
                 continue
             parts_p = at.split("_")
-            if len(parts_p) > 2:
-                continue
             num = parts_p[1] if len(parts_p) > 1 else "?"
-            short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:8]
+            if not num.isdigit():
+                continue
+            # "phase_1_data_freshness" → base "phase_1", name from remaining parts
+            phase_key = f"phase_{num}"
+            name_parts = parts_p[2:] if len(parts_p) > 2 else []
+            default_short = ("_".join(name_parts)[:7] if name_parts else f"P{num}")
+            short = PHASE_NAMES.get(phase_key, default_short)[:8]
             st = p.get("status", "")
             sc = (
                 G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
@@ -2590,8 +2605,12 @@ def panel_algo_health(
 
     # ── D: Data health (compact) ──────────────────────────────────────────────
     if hlth:
-        hlth_list = [r for r in hlth if isinstance(r, dict)]
-        stale = [r for r in hlth_list if r.get("st") != "ok"]
+        hlth_list = (
+            hlth.get("items", [])
+            if isinstance(hlth, dict) and "items" in hlth
+            else (hlth if isinstance(hlth, list) else [])
+        )
+        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"]
         if not stale:
             crit = [r for r in hlth_list if r.get("role") == "CRIT"]
             ok_s = "  ".join(
@@ -3150,7 +3169,7 @@ def panel_algo_health_expanded(
             nm = str(r.get("tbl") or "--")
             role = str(r.get("role") or "")
             age = str(r.get("age") if r.get("age") is not None else "?")
-            lat = r.get("latest")
+            lat = r.get("last_updated") or r.get("latest")
             lat_s = (
                 lat.strftime("%b %d")
                 if hasattr(lat, "strftime")
@@ -3319,7 +3338,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc = G if avg_pnl >= 0 else R
             bar_f = int(min(pct, 25) / 25 * 8)
-            bar_s = f"[{pc}]{'#' * bar_f}[/][dim]{'-' * (8 - bar_f)}[/]"
+            bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
             rows.append(
                 Text.from_markup(
                     f"  [white]{str(sec):<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"

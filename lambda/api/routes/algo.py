@@ -205,12 +205,16 @@ def _dispatch(
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
         # Trades accessible to authenticated users (Portfolio Dashboard)
+        # Admins see all trades — algo-generated trades have no cognito_sub so
+        # filtering by user_id would return zero results for the portfolio owner.
         limit_str = params.get("limit", [None])[0] if params else None
         limit = safe_limit(limit_str, max_val=10000, default=100)
         status_filter = params.get("status", [None])[0] if params else None
         if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
             return error_response(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
-        return _get_algo_trades(cur, limit, user_id=user_id, status=status_filter)
+        is_admin = _check_admin_access(jwt_claims)
+        effective_user_id = None if is_admin else user_id
+        return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
     elif path == "/api/algo/positions":
         # Positions accessible to authenticated users (Portfolio Dashboard)
         return _get_algo_positions(cur, user_id=user_id)
@@ -1186,15 +1190,17 @@ def _get_dashboard_signals(cur) -> Dict:
 
         freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
+        # Count qualifying buy signals (score >= 70) for the "n BUY" display
+        qualifying_buy_count = sum(1 for s in buy_sigs if (s.get("signal_quality_score") or 0) >= 70)
         return json_response(
             200,
             {
-                "n": int(sig["n"] or 0) if sig else 0,
+                "n": qualifying_buy_count,
                 "total": total_n,
                 "date": sig["d"] if sig else None,
-                "buy_sigs": buy_sigs[:5] if buy_sigs else [],
-                "near": near[0:5] if len(near) > 0 else [],
-                "top_a": top_a[:3] if top_a else [],
+                "buy_sigs": buy_sigs[:15] if buy_sigs else [],
+                "near": near[:8] if near else [],
+                "top_a": top_a[:20] if top_a else [],
                 "grades": grades,
                 "trend": trend,
                 "data_freshness": freshness,
@@ -2514,14 +2520,7 @@ def _get_sector_position_warnings(cur) -> Dict:
                     }
                 )
 
-        return json_response(
-            200,
-            {
-                "warnings": warnings,
-                "at_cap": at_cap,
-                "data": {"warnings": warnings, "at_cap": at_cap},
-            },
-        )
+        return success_response({"warnings": warnings, "at_cap": at_cap})
 
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
         logger.error(
@@ -4351,20 +4350,10 @@ def _get_economic_calendar(cur) -> Dict:
         rows = cur.fetchall()
         events = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
 
-        response = {
-            "statusCode": 200,
-            "items": events,
-            "total": len(events),
-            "data_freshness": freshness,
-        }
-
         if freshness.get("is_stale"):
-            response["_warning"] = (
-                f"Economic calendar data is stale: {freshness.get('warning')}"
-            )
             logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
 
-        return response
+        return list_response(events, total=len(events), data_freshness=freshness)
     except Exception as e:
         logger.error(f"Economic calendar fetch error: {type(e).__name__}: {e}")
         return error_response(

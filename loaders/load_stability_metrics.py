@@ -146,11 +146,15 @@ class StabilityMetricsLoader(OptimalLoader):
 
         try:
             info = ticker.info
+            beta = None
             if "beta" in info and info["beta"] is not None:
-                return float(info["beta"])
-            if "beta3Year" in info and info["beta3Year"] is not None:
-                return float(info["beta3Year"])
-            return None
+                beta = float(info["beta"])
+            elif "beta3Year" in info and info["beta3Year"] is not None:
+                beta = float(info["beta3Year"])
+            if beta is not None and abs(beta) > 200:
+                logger.debug(f"Dropping extreme beta for {symbol}: {beta}")
+                return None
+            return beta
         except Exception as e:
             logger.debug(f"Could not read beta for {symbol}: {e}")
             return None

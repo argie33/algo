@@ -95,7 +95,7 @@ def is_open() -> bool:
     try:
         from algo.infrastructure import MarketCalendar
 
-        return MarketCalendar.is_market_open_now()
+        return MarketCalendar.is_market_open()
     except Exception:
         n = datetime.now(ET)
         if n.weekday() >= 5:
@@ -113,7 +113,18 @@ def mkt_hours_str() -> tuple:
     try:
         from algo.infrastructure import MarketCalendar
 
-        return MarketCalendar.get_market_status_display()
+        status = MarketCalendar.market_status()
+        status_val = status.get("status", "UNKNOWN")
+        reason = status.get("reason", "")
+
+        if status_val == "OPEN":
+            return "[bold bright_green]- OPEN[/]", reason
+        elif status_val == "PRE_MARKET":
+            return "[yellow]- PRE-MKT[/]", reason
+        elif status_val == "AFTER_HOURS":
+            return "[dim]- AFTER-HRS[/]", reason
+        else:
+            return "[dim]- CLOSED[/]", reason
     except Exception as market_err:
         import logging
 
@@ -307,20 +318,20 @@ def hbar(cur, thr, w=6):
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
     c = R if r >= 1 else (Y if r >= 0.75 else G)
-    return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
+    return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
-    return f"[{tc}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
+    return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
 def mini_bar(pts, max_pts, w=5):
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
     f = int(r * w)
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
-    return f"[{c}]{'#' * f}[/][dim]{'-' * (w - f)}[/]"
+    return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
 def sign(v) -> str:
@@ -330,10 +341,10 @@ def sign(v) -> str:
 def sparkline(values: list, width: int = 24) -> str:
     vals = [v for v in (values or []) if v is not None and float(v) > 0]
     if len(vals) < 2:
-        return f"[{DIM}]{'#' * width}[/]"
+        return f"[{DIM}]{'▁' * width}[/]"
     mn, mx = min(vals), max(vals)
     if mx == mn:
-        return f"[{CY}]{'#' * width}[/]"
+        return f"[{CY}]{'▄' * width}[/]"
     rng = mx - mn
     if len(vals) > width:
         idxs = [int(i * (len(vals) - 1) / (width - 1)) for i in range(width)]

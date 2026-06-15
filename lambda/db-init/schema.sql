@@ -503,11 +503,11 @@ CREATE TABLE IF NOT EXISTS growth_metrics (
 -- Stability metrics
 CREATE TABLE IF NOT EXISTS stability_metrics (
     symbol VARCHAR(20) PRIMARY KEY,
-    volatility_30d DECIMAL(8, 4),
-    volatility_60d DECIMAL(8, 4),
-    volatility_252d DECIMAL(8, 4),
-    beta DECIMAL(8, 4),
-    debt_to_assets DECIMAL(8, 4),
+    volatility_30d DECIMAL(14, 4),
+    volatility_60d DECIMAL(14, 4),
+    volatility_252d DECIMAL(14, 4),
+    beta DECIMAL(14, 4),
+    debt_to_assets DECIMAL(14, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -516,14 +516,14 @@ CREATE TABLE IF NOT EXISTS value_metrics (
     symbol VARCHAR(20) PRIMARY KEY,
     date DATE,
     market_cap BIGINT,
-    pe_ratio DECIMAL(8, 4),
-    pb_ratio DECIMAL(8, 4),
-    ps_ratio DECIMAL(8, 4),
-    peg_ratio DECIMAL(8, 4),
-    dividend_yield DECIMAL(8, 4),
-    fcf_yield DECIMAL(8, 4),
-    held_percent_insiders DECIMAL(8, 4),
-    held_percent_institutions DECIMAL(8, 4),
+    pe_ratio DECIMAL(14, 4),
+    pb_ratio DECIMAL(14, 4),
+    ps_ratio DECIMAL(14, 4),
+    peg_ratio DECIMAL(14, 4),
+    dividend_yield DECIMAL(14, 4),
+    fcf_yield DECIMAL(14, 4),
+    held_percent_insiders DECIMAL(14, 4),
+    held_percent_institutions DECIMAL(14, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

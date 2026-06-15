@@ -58,15 +58,18 @@ class ValueMetricsLoader(OptimalLoader):
                 if fcf and mkt_cap and mkt_cap > 0:
                     fcf_yield = float(fcf) / float(mkt_cap)
 
+                def _cap(val, limit=9_999_999):
+                    return min(float(val), limit) if val else None
+
                 return [
                     {
                         "symbol": symbol,
                         "date": date.today(),
                         "market_cap": int(mkt_cap) if mkt_cap else None,
-                        "pe_ratio": float(pe) if pe and pe > 0 else None,
-                        "pb_ratio": float(pb) if pb and pb > 0 else None,
-                        "ps_ratio": float(ps) if ps and ps > 0 else None,
-                        "peg_ratio": float(peg) if peg and peg > 0 else None,
+                        "pe_ratio": _cap(pe) if pe and pe > 0 else None,
+                        "pb_ratio": _cap(pb) if pb and pb > 0 else None,
+                        "ps_ratio": _cap(ps) if ps and ps > 0 else None,
+                        "peg_ratio": _cap(peg) if peg and peg > 0 else None,
                         "dividend_yield": float(div) if div else None,
                         "fcf_yield": fcf_yield,
                         "held_percent_insiders": (

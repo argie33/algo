@@ -41,7 +41,7 @@ FETCHER_METADATA = {
     "cb": {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},
     "srank": {"endpoint": "/api/algo/sector-rotation", "desc": "Sector rankings"},
     "activity": {"endpoint": "/api/algo/audit-log", "desc": "Activity log"},
-    "eco": {"endpoint": "/api/algo/economic-calendar", "desc": "Economic calendar"},
+    "eco": {"endpoint": "/api/economic/yield-curve-full + /api/economic/indicators", "desc": "Economic macro indicators"},
     "notifs": {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
     "sentiment": {"endpoint": "/api/algo/sentiment", "desc": "Market sentiment"},
     "econ_cal": {
@@ -973,75 +973,75 @@ def fetch_exp_factors(c):
 
 
 def fetch_economic_pulse(c):
+    """Fetch economic macro indicators from yield-curve and leading-indicator endpoints.
+
+    The eco panel expects treasury yield levels, spreads, CPI, unemployment, etc.
+    These come from FRED data at /api/economic/* — NOT from /api/algo/economic-calendar
+    which returns upcoming calendar events, not macro indicator values.
+    """
+    _empty = {
+        "t10": None, "t2": None, "t3m": None, "t6m": None,
+        "yc_10_2": None, "yc_10_3m": None, "hy": None, "ig": None,
+        "oil": None, "nfci": None, "fed_funds": None, "cpi_yoy": None,
+        "unrate": None, "be10": None, "be5": None, "dxy": None,
+        "mortgage": None, "umcsent": None,
+    }
     try:
-        data = api_call(_get_endpoint_path("eco"))
-        if data.get("_error"):
-            return {
-                "_error": data.get("_error"),
-                "t10": None,
-                "t2": None,
-                "t3m": None,
-                "t6m": None,
-                "yc_10_2": None,
-                "yc_10_3m": None,
-                "hy": None,
-                "ig": None,
-                "oil": None,
-                "nfci": None,
-                "fed_funds": None,
-                "cpi_yoy": None,
-                "unrate": None,
-                "be10": None,
-                "be5": None,
-                "dxy": None,
-                "mortgage": None,
-                "umcsent": None,
+        # Fetch yield curve (treasury yields + credit spreads + breakevens)
+        yc_data = api_call("/api/economic/yield-curve-full")
+        # Fetch macro indicators (CPI, unemployment, fed funds, oil, DXY, etc.)
+        ind_data = api_call("/api/economic/indicators")
+
+        t10 = t2 = t3m = t6m = yc_10_2 = yc_10_3m = hy = ig = None
+        if not yc_data.get("_error"):
+            d = yc_data.get("data", {})
+            curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
+            spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
+            credit = d.get("credit", {}) if isinstance(d, dict) else {}
+            credit_latest = credit.get("currentSpreads", {}) if isinstance(credit, dict) else {}
+            be_latest = (d.get("breakevens", {}) or {}).get("current", {}) if isinstance(d, dict) else {}
+            t10 = safe_float(curve.get("10Y"), default=None)
+            t2 = safe_float(curve.get("2Y"), default=None)
+            t3m = safe_float(curve.get("3M"), default=None)
+            t6m = safe_float(curve.get("6M"), default=None)
+            yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None)
+            yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None)
+            hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None)
+            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
+
+        fed_funds = cpi_yoy = unrate = be10 = be5 = None
+        oil = nfci = dxy = mortgage = umcsent = None
+        if not ind_data.get("_error"):
+            d2 = ind_data.get("data", {})
+            indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
+            by_series = {
+                i["series_id"]: safe_float(i.get("rawValue"), default=None)
+                for i in indicators
+                if isinstance(i, dict) and i.get("series_id")
             }
-        econ = data.get("data", {})
+            fed_funds = by_series.get("FEDFUNDS")
+            cpi_yoy = by_series.get("CPIAUCSL")
+            unrate = by_series.get("UNRATE")
+            be10 = by_series.get("T10YIE")
+            be5 = by_series.get("T5YIE")
+            dxy = by_series.get("DTWEXBGS")
+            oil = by_series.get("DCOILWTICO")
+            nfci = by_series.get("ANFCI") if by_series.get("ANFCI") is not None else by_series.get("STLFSI4")
+            umcsent = by_series.get("UMCSENT")
+            mortgage = by_series.get("MORTGAGE30US")
+
         return {
-            "t10": econ.get("t10"),
-            "t2": econ.get("t2"),
-            "t3m": econ.get("t3m"),
-            "t6m": econ.get("t6m"),
-            "yc_10_2": econ.get("yc_10_2"),
-            "yc_10_3m": econ.get("yc_10_3m"),
-            "hy": econ.get("hy"),
-            "ig": econ.get("ig"),
-            "oil": econ.get("oil"),
-            "nfci": econ.get("nfci"),
-            "fed_funds": econ.get("fed_funds"),
-            "cpi_yoy": econ.get("cpi_yoy"),
-            "unrate": econ.get("unrate"),
-            "be10": econ.get("be10"),
-            "be5": econ.get("be5"),
-            "dxy": econ.get("dxy"),
-            "mortgage": econ.get("mortgage"),
-            "umcsent": econ.get("umcsent"),
+            "t10": t10, "t2": t2, "t3m": t3m, "t6m": t6m,
+            "yc_10_2": yc_10_2, "yc_10_3m": yc_10_3m,
+            "hy": hy, "ig": ig, "oil": oil, "nfci": nfci,
+            "fed_funds": fed_funds, "cpi_yoy": cpi_yoy, "unrate": unrate,
+            "be10": be10, "be5": be5, "dxy": dxy,
+            "mortgage": mortgage, "umcsent": umcsent,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("eco", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "t10": None,
-            "t2": None,
-            "t3m": None,
-            "t6m": None,
-            "yc_10_2": None,
-            "yc_10_3m": None,
-            "hy": None,
-            "ig": None,
-            "oil": None,
-            "nfci": None,
-            "fed_funds": None,
-            "cpi_yoy": None,
-            "unrate": None,
-            "be10": None,
-            "be5": None,
-            "dxy": None,
-            "mortgage": None,
-            "umcsent": None,
-        }
+        return {"_error": error_msg, **_empty}
 
 
 def fetch_algo_metrics(c):

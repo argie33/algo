@@ -152,7 +152,7 @@ class OptimalLoader(ABC):
             set_pooled_connection(None)
             try:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
-                    cur.execute("SET LOCAL statement_timeout = 0")  # no timeout for status writes
+                    cur.execute("SET statement_timeout = 0")  # no timeout for status writes
                     if status == "RUNNING":
                         cur.execute(
                             "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
@@ -803,10 +803,29 @@ class OptimalLoader(ABC):
                 )
                 result = cur.fetchone()
                 if not result:
-                    # No upstream status — assume upstream hasn't run yet
+                    # No status record — check if the table has recent data as fallback.
+                    # technical_data_daily sometimes fails to write its final status due to
+                    # statement timeouts, but the data itself is present and valid.
+                    try:
+                        cur.execute(
+                            psycopg2.sql.SQL(
+                                "SELECT COUNT(DISTINCT symbol) FROM {} "
+                                "WHERE date >= CURRENT_DATE - INTERVAL '3 days'"
+                            ).format(psycopg2.sql.Identifier(upstream_table)),
+                        )
+                        count_row = cur.fetchone()
+                        recent_count = count_row[0] if count_row else 0
+                    except Exception:
+                        recent_count = 0
+                    if recent_count > 100:
+                        logger.warning(
+                            f"[UPSTREAM] {self.table_name}: {upstream_table} has no status record "
+                            f"but contains {recent_count} symbols with data in last 3 days — proceeding"
+                        )
+                        return True
                     logger.error(
                         f"[UPSTREAM] {self.table_name} requires {upstream_table}, but {upstream_table} "
-                        "has no status. Aborting to prevent silent data loss."
+                        "has no status and no recent data. Aborting to prevent silent data loss."
                     )
                     return False
 
@@ -827,7 +846,7 @@ class OptimalLoader(ABC):
                         set_pooled_connection(None)
                         try:
                             with DatabaseContext("write", enable_correlation_tracking=False) as write_cur:
-                                write_cur.execute("SET LOCAL statement_timeout = 0")
+                                write_cur.execute("SET statement_timeout = 0")
                                 write_cur.execute(
                                     "UPDATE data_loader_status SET status = %s WHERE table_name = %s",
                                     ("FAILED", self.table_name),
@@ -876,7 +895,7 @@ class OptimalLoader(ABC):
             set_pooled_connection(None)
             try:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
-                    cur.execute("SET LOCAL statement_timeout = 0")
+                    cur.execute("SET statement_timeout = 0")
                     cur.execute(
                         """
                         INSERT INTO loader_execution_history
@@ -1095,7 +1114,7 @@ class OptimalLoader(ABC):
                 set_pooled_connection(None)
                 try:
                     with DatabaseContext("write", enable_correlation_tracking=False) as cur:
-                        cur.execute("SET LOCAL statement_timeout = 0")  # no timeout for status writes
+                        cur.execute("SET statement_timeout = 0")  # no timeout for status writes
                         cur.execute(
                             "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
                             (self.table_name,),
@@ -1341,7 +1360,7 @@ class OptimalLoader(ABC):
                         if hasattr(latest_date, "date"):
                             latest_date = latest_date.date()
                     with DatabaseContext("write", enable_correlation_tracking=False) as cur:
-                        cur.execute("SET LOCAL statement_timeout = 0")
+                        cur.execute("SET statement_timeout = 0")
                         cur.execute(
                             "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
                             (self.table_name,),

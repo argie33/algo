@@ -51,7 +51,7 @@ class PriceLoader(OptimalLoader):
     ):
         """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
         assert interval in ("1d", "1wk", "1mo"), f"Invalid interval: {interval}"
-        assert asset_class in ("stock", "et"), f"Invalid asset_class: {asset_class}"
+        assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
 
         self.interval = interval
         self.asset_class = asset_class

@@ -664,11 +664,11 @@ locals {
     # Computed metrics — CPU bound, process 5000+ symbols, reduced parallelism to avoid DB connection pool exhaustion
     # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
     # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
-    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
+    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 2 }
     "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
-    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
+    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 2 }
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
-    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 2 }
     "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
 
     # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
@@ -763,7 +763,11 @@ locals {
     "algo_metrics_daily",
     "stock_scores",
     "buy_sell_daily",
-    "signal_quality_scores"
+    "signal_quality_scores",
+    # Metrics loaders: long-running yfinance API calls; Spot interruptions prevent completion
+    "growth_metrics",
+    "value_metrics",
+    "stability_metrics"
   ])
 }
 
