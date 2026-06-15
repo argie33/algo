@@ -186,6 +186,7 @@ def handle(
                     vm.market_cap,
                     lp.current_price,
                     (lp.current_price IS NULL OR s52.high_52w IS NULL OR s52.low_52w IS NULL) AS _is_fallback,
+                    (qm.symbol IS NULL) AS _financial_data_unavailable,
                     ROUND((
                         sc.value_score * 0.5 +
                         sc.quality_score * 0.3 +
@@ -204,6 +205,8 @@ def handle(
                     ROUND(qm.roa::numeric, 2) AS roa_pct,
                     qm.debt_to_equity AS debt_to_equity,
                     qm.current_ratio AS current_ratio,
+                    qm.quick_ratio AS quick_ratio,
+                    qm.interest_coverage AS interest_coverage,
                     s52.high_52w AS high_52w,
                     s52.low_52w AS low_52w,
                     NULL::numeric AS high_3y,
