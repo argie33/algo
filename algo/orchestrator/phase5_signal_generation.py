@@ -2,30 +2,26 @@
 """
 PHASE 5: SIGNAL GENERATION
 
-Reads pre-computed buy_sell_daily BUY signals as entry triggers, ranked by
-composite_score from stock_scores (multi-factor: quality, growth, value,
-momentum, positioning, stability).
+Generates candidate signals on-the-fly from stock_scores + price_daily.
+buy_sell_daily was removed from the EOD pipeline; Phase 5 now queries live data.
 
 Pipeline:
-1. Check market regime: halt if entries not allowed per market_exposure_daily
-2. Check halt flag (data freshness gate)
-3. Verify buy_sell_daily freshness
-4. Fetch BUY signals from buy_sell_daily at or before run_date
-5. Filter: close > sma_50 (price must be in uptrend above 50-day MA)
-6. Enrich with composite_score from stock_scores
-7. Hard gate: skip symbols below min_composite_score
-8. Close quality gate: skip weak closes (bottom of day's range = distribution)
-9. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
-10. Return composite-score-ranked candidates to Phase 6
+1. Check halt flag (data freshness gate)
+2. Check market regime: halt if entries not allowed per market_exposure_daily
+3. Fetch candidates: stock_scores (composite ranking) + price_daily (latest prices + SMA_50)
+4. Filter: close > sma_50 (price must be in uptrend above 50-day MA)
+5. Filter: composite_score >= min threshold
+6. Close quality gate: skip weak closes (bottom of day's range = distribution)
+7. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
+8. Return composite-score-ranked candidates to Phase 6
 
 Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
-positioning 15%, stability 12%, momentum 8%) — fundamentals determine rank,
-buy_sell_daily breakout signal determines timing.
+positioning 15%, stability 12%, momentum 8%).
 """
 
 import logging
 import time
-from datetime import date as _date, datetime, timezone
+from datetime import date as _date
 from typing import Callable, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -111,100 +107,74 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
         return candidate, False
 
 
-def _get_buy_signals(run_date: _date) -> Tuple[List[Dict], Optional[_date]]:
-    """Fetch BUY signals from buy_sell_daily at or before run_date.
+def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
+    """Fetch candidate symbols from stock_scores with current prices from price_daily.
 
-    Returns (signals, signal_date) — signal_date is the most recent date
-    with BUY signals found.
+    Computes on-the-fly: no pre-computed buy_sell_daily needed.
+    Returns symbols ranked by composite_score with latest price data.
     """
     try:
         with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s AND signal_type = 'BUY'",
-                (run_date,),
-            )
-            row = cur.fetchone()
-            signal_date = row[0] if row and row[0] else None
-
-            if not signal_date:
-                return [], None
-
+            cur.execute("SET LOCAL statement_timeout = '15000ms'")
             cur.execute(
                 """
-                SELECT symbol, strength, close, high, low, sma_50, buylevel, stoplevel
-                FROM buy_sell_daily
-                WHERE date = %s AND signal_type = 'BUY'
-                ORDER BY strength DESC NULLS LAST
+                SELECT
+                    ss.symbol,
+                    ss.composite_score,
+                    ss.quality_score,
+                    ss.growth_score,
+                    ss.momentum_score,
+                    ss.rs_percentile,
+                    p.close,
+                    p.high,
+                    p.low,
+                    sma.avg_close AS sma_50
+                FROM stock_scores ss
+                JOIN LATERAL (
+                    SELECT close, high, low
+                    FROM price_daily
+                    WHERE symbol = ss.symbol AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                ) p ON TRUE
+                JOIN LATERAL (
+                    SELECT AVG(close) AS avg_close
+                    FROM (
+                        SELECT close FROM price_daily
+                        WHERE symbol = ss.symbol AND date <= %s
+                        ORDER BY date DESC LIMIT 50
+                    ) t
+                ) sma ON TRUE
+                WHERE ss.composite_score >= %s
+                ORDER BY ss.composite_score DESC NULLS LAST
+                LIMIT %s
                 """,
-                (signal_date,),
+                (run_date, run_date, min_score, limit),
             )
             rows = cur.fetchall()
 
-        signals = []
+        candidates = []
         for r in rows:
-            close = float(r[2]) if r[2] is not None else None
-            high = float(r[3]) if r[3] is not None else None
-            low = float(r[4]) if r[4] is not None else None
-            sma_50 = float(r[5]) if r[5] is not None else None
-            signals.append({
+            close = float(r[6]) if r[6] is not None else None
+            candidates.append({
                 "symbol": r[0],
-                "signal_strength": float(r[1]) if r[1] is not None else 0.5,
+                "composite_score": float(r[1]) if r[1] is not None else None,
+                "quality_score": float(r[2]) if r[2] is not None else None,
+                "growth_score": float(r[3]) if r[3] is not None else None,
+                "momentum_score": float(r[4]) if r[4] is not None else None,
+                "rs_percentile": float(r[5]) if r[5] is not None else None,
                 "close": close,
-                "high": high,
-                "low": low,
-                "sma_50": sma_50,
+                "high": float(r[7]) if r[7] is not None else None,
+                "low": float(r[8]) if r[8] is not None else None,
+                "sma_50": float(r[9]) if r[9] is not None else None,
                 "entry_price": close,
+                "signal_strength": (float(r[1]) / 100.0) if r[1] is not None else 0.5,
             })
 
-        return signals, signal_date
+        logger.info(f"[PHASE 5] {len(candidates)} candidates from stock_scores + price_daily")
+        return candidates
     except Exception as e:
-        logger.warning(f"[PHASE 5] Error fetching buy signals: {e}")
-        return [], None
-
-
-def _enrich_composite_scores(signals: List[Dict]) -> List[Dict]:
-    """Enrich signals with composite_score from stock_scores.
-
-    Sets composite_score on each signal dict (None if symbol not found).
-    """
-    if not signals:
-        return signals
-
-    symbols = [s["symbol"] for s in signals]
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT symbol, composite_score, quality_score, growth_score,
-                       momentum_score, rs_percentile
-                FROM stock_scores
-                WHERE symbol = ANY(%s)
-                """,
-                (symbols,),
-            )
-            score_map = {
-                r[0]: {
-                    "composite_score": float(r[1]) if r[1] is not None else None,
-                    "quality_score": float(r[2]) if r[2] is not None else None,
-                    "growth_score": float(r[3]) if r[3] is not None else None,
-                    "momentum_score": float(r[4]) if r[4] is not None else None,
-                    "rs_percentile": float(r[5]) if r[5] is not None else None,
-                }
-                for r in cur.fetchall()
-            }
-    except Exception as e:
-        logger.warning(f"[PHASE 5] Could not fetch composite scores: {e}")
-        score_map = {}
-
-    for sig in signals:
-        scores = score_map.get(sig["symbol"], {})
-        sig["composite_score"] = scores.get("composite_score")
-        sig["quality_score"] = scores.get("quality_score")
-        sig["growth_score"] = scores.get("growth_score")
-        sig["momentum_score"] = scores.get("momentum_score")
-        sig["rs_percentile"] = scores.get("rs_percentile")
-
-    return signals
+        logger.error(f"[PHASE 5] Error fetching candidates: {e}", exc_info=True)
+        return []
 
 
 def run(
@@ -245,24 +215,6 @@ def run(
             "Halt flag set: data quality degradation detected",
         )
 
-    # Check buy_sell_daily freshness
-    now_utc = datetime.now(timezone.utc)
-    signal_max_age_hours = config.get("phase5_signal_max_age_hours", 24) if config else 24
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute("SELECT MAX(created_at) FROM buy_sell_daily")
-            max_created = cur.fetchone()[0]
-            if max_created:
-                if max_created.tzinfo is None:
-                    max_created = max_created.replace(tzinfo=timezone.utc)
-                age_hours = (now_utc - max_created).total_seconds() / 3600
-                if age_hours > signal_max_age_hours:
-                    logger.warning(
-                        f"[PHASE 5] buy_sell_daily is {age_hours:.1f}h old (max {signal_max_age_hours}h) — signals may be stale"
-                    )
-    except Exception as e:
-        logger.warning(f"[PHASE 5] Could not check buy_sell_daily freshness: {e} — proceeding")
-
     # Market regime gate
     regime = _check_market_regime(run_date)
     logger.info(
@@ -288,26 +240,19 @@ def run(
     elif bypass_exposure and exposure_constraints and exposure_constraints.get("halt_new_entries"):
         logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
 
-    # Fetch BUY signals from buy_sell_daily
-    raw_signals, signal_date = _get_buy_signals(run_date)
+    # Fetch candidates from stock_scores + price_daily (on-the-fly, no buy_sell_daily)
+    raw_candidates = _get_candidates(run_date, min_composite_score)
 
-    if not raw_signals:
-        msg = f"No BUY signals in buy_sell_daily at or before {run_date}"
+    if not raw_candidates:
+        msg = f"No candidates in stock_scores with composite_score >= {min_composite_score} for {run_date}"
         logger.warning(f"[PHASE 5] {msg}")
         log_phase_result_fn(5, "signal_generation", "halt", msg)
         return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
-    if signal_date != run_date:
-        logger.info(
-            f"[PHASE 5] No buy_sell_daily data for {run_date}; using most recent signals from {signal_date}"
-        )
-
-    logger.info(f"[PHASE 5] {len(raw_signals)} BUY signals from buy_sell_daily on {signal_date}")
-
     # Filter: price must be above 50-day moving average (basic uptrend requirement)
     trend_filtered = []
     trend_skipped = 0
-    for sig in raw_signals:
+    for sig in raw_candidates:
         close = sig.get("close")
         sma_50 = sig.get("sma_50")
         if close and sma_50 and close < sma_50:
@@ -320,29 +265,8 @@ def run(
         f"[PHASE 5] Trend filter (close > SMA50): {len(trend_filtered)} passed, {trend_skipped} skipped"
     )
 
-    # Enrich with composite scores from stock_scores
-    enriched = _enrich_composite_scores(trend_filtered)
-
-    # Filter by composite_score
-    score_filtered = []
-    no_score_count = 0
-    for sig in enriched:
-        score = sig.get("composite_score")
-        if score is None:
-            no_score_count += 1
-            logger.debug(f"[PHASE 5] {sig['symbol']}: no composite score in stock_scores — skip")
-            continue
-        if score < min_composite_score:
-            logger.debug(
-                f"[PHASE 5] {sig['symbol']}: composite_score {score:.1f} < {min_composite_score} — skip"
-            )
-            continue
-        score_filtered.append(sig)
-
-    logger.info(
-        f"[PHASE 5] Composite score filter (>={min_composite_score}): "
-        f"{len(score_filtered)} passed, {no_score_count} had no score"
-    )
+    # composite_score already populated from stock_scores in _get_candidates
+    score_filtered = trend_filtered
 
     # Close quality gate: skip if close is in bottom of day's range (distribution signal)
     quality_filtered = []
@@ -410,7 +334,7 @@ def run(
     elapsed = time.time() - phase_start
     log_phase_result_fn(
         5, "signal_generation", "success",
-        f"{len(liq_passed)} signals qualified from {len(raw_signals)} BUY triggers",
+        f"{len(liq_passed)} signals qualified from {len(raw_candidates)} candidates",
     )
 
     return PhaseResult(
@@ -419,12 +343,11 @@ def run(
         "ok",
         {
             "qualified_trades": liq_passed,
-            "total_buy_signals": len(raw_signals),
+            "total_candidates": len(raw_candidates),
             "trend_filtered": len(trend_filtered),
             "score_filtered": len(score_filtered),
             "quality_filtered": len(quality_filtered),
             "liquidity_passed": len(liq_passed),
-            "signal_date": signal_date.isoformat() if signal_date else None,
             "regime": regime,
         },
         False,

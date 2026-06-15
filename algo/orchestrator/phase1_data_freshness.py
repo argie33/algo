@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-PHASE 5: DATA FRESHNESS CHECK
+PHASE 1: DATA FRESHNESS CHECK
 
 Verify pipeline-loaded tables are fresh before trading:
 1. price_daily: Must have last trading day data (75%+ symbol coverage) — HALT if stale
 2. market_health_daily: Market breadth metrics — HALT if stale
 3. market_exposure_daily: Market regime / exposure limits — HALT if stale
-4. buy_sell_daily: Entry triggers for Phase 5 — HALT if stale
-5. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
-6. swing_trader_scores: Legacy scoring (still loaded, no longer used by Phase 5) — WARNING if stale
-7. stock_scores: Composite scores for ranking — WARNING if stale (weekly refresh is acceptable)
-8. sector_ranking: Sector data for last trading day — WARNING if stale
+4. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
+5. swing_trader_scores: Legacy scoring — WARNING if stale
+6. stock_scores: Composite scores for ranking — WARNING if stale (weekly refresh is acceptable)
+7. sector_ranking: Sector data for last trading day — WARNING if stale
 
-Phase 5 uses buy_sell_daily BUY signals + stock_scores composite ranking.
-Technical data (technical_data_daily, signal_quality_scores) is auxiliary and not checked here.
+Phase 5 generates signals on-the-fly from stock_scores + price_daily.
+Technical data (technical_data_daily, buy_sell_daily) no longer in pipeline — not checked here.
 """
 
 import logging
@@ -38,8 +37,8 @@ def run(
 ) -> PhaseResult:
     """Execute Phase 1: Verify pipeline-loaded tables are fresh.
 
-    Halts if price_daily, market_health_daily, market_exposure_daily, or buy_sell_daily
-    are stale — these are required for Phase 5 signal generation and regime gating.
+    Halts if price_daily, market_health_daily, or market_exposure_daily are stale —
+    these are required for Phase 5 signal generation and regime gating.
     Issues warnings for trend_template_data, swing_trader_scores, stock_scores, and
     sector_ranking — stale but trading can continue.
     """
@@ -147,10 +146,7 @@ def run(
                 "market_exposure_daily": "Market exposure limits",
             }
             # Warning-only tables: stale → logged, trading continues
-            # buy_sell_daily intentionally removed from EOD pipeline (Phase 5 falls back
-            # to stock_scores + price_daily when buy_sell_daily is empty/stale)
             warn_tables = {
-                "buy_sell_daily": "Buy/sell entry triggers (warning: loader removed from pipeline)",
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "swing_trader_scores": "Swing trader scores (legacy, warning only)",
                 "stock_scores": "Composite scores for ranking (weekly refresh OK)",
@@ -191,19 +187,6 @@ def run(
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
-
-                    # Time-based freshness for buy_sell_daily (warning only — loader removed from pipeline)
-                    if table_name == "buy_sell_daily":
-                        cur.execute("SELECT MAX(created_at) FROM buy_sell_daily")
-                        max_created = cur.fetchone()[0]
-                        if max_created:
-                            if max_created.tzinfo is None:
-                                max_created = max_created.replace(tzinfo=timezone.utc)
-                            age_hours = (now_utc - max_created).total_seconds() / 3600
-                            if age_hours > max_stale_hours:
-                                msg = f"{description} is {age_hours:.1f}h old (max {max_stale_hours}h)"
-                                logger.warning(f"[PHASE 1] {msg}")
-                                warn_stale.append(msg)
 
                 except Exception as e:
                     msg = f"{description} check failed: {str(e)[:50]}"
