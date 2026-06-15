@@ -275,9 +275,10 @@ def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
     try:
         _HEALTH_TABLES = (
             "price_daily",
-            "buy_sell_daily",
+            "swing_trader_scores",
             "stock_scores",
-            "technical_data_daily",
+            "market_health_daily",
+            "market_exposure_daily",
         )
         rows = execute_with_timeout(
             cur,
@@ -308,7 +309,9 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         return error_response(401, "unauthorized", "Authentication required")
 
     try:
-        # Query freshness of critical data loaders (15 second timeout for this larger query)
+        # Query freshness of current pipeline critical tables (15s timeout)
+        # buy_sell_daily and technical_data_daily were removed from pipelines;
+        # signal_quality_scores is computed on-the-fly by orchestrator, not a pipeline table.
         query = """
             SELECT
                 'price_daily' as table_name,
@@ -317,22 +320,34 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
             FROM price_daily
             UNION ALL
             SELECT
-                'buy_sell_daily',
+                'swing_trader_scores',
                 COUNT(*),
                 EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
-            FROM buy_sell_daily
+            FROM swing_trader_scores
             UNION ALL
             SELECT
-                'technical_data_daily',
+                'market_health_daily',
                 COUNT(*),
-                EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
-            FROM technical_data_daily
+                EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
+            FROM market_health_daily
             UNION ALL
             SELECT
-                'signal_quality_scores',
+                'trend_template_data',
                 COUNT(*),
-                EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
-            FROM signal_quality_scores
+                EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
+            FROM trend_template_data
+            UNION ALL
+            SELECT
+                'market_exposure_daily',
+                COUNT(*),
+                EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
+            FROM market_exposure_daily
+            UNION ALL
+            SELECT
+                'sector_ranking',
+                COUNT(*),
+                EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
+            FROM sector_ranking
         """
         rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
         rows = [safe_json_serialize(dict(row)) for row in rows]
