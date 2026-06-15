@@ -124,7 +124,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                             if last_sqs < end:
                                 end = last_sqs
                 except Exception as e:
-                    logging.debug(
+                    logger.debug(
                         f"Could not check signal_quality_scores max date: {e}"
                     )
 
@@ -143,7 +143,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                             else date.fromisoformat(str(wm_row[0]))
                         )
                 except Exception as e:
-                    logging.warning(
+                    logger.warning(
                         f"Could not read swing_trader_scores watermark for {symbol}: {e}"
                     )
 
@@ -168,7 +168,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             if validation_failures:
                 for failure_reason in validation_failures:
                     self._log_rejection_if_available(symbol, end, failure_reason)
-                logging.debug(
+                logger.debug(
                     f"{symbol}: Swing score skipped due to source data: {validation_failures}"
                 )
                 return None
@@ -209,7 +209,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
                 return all_scores if all_scores else None
         except Exception as e:
-            logging.debug(f"Swing score computation error for {symbol}: {e}")
+            logger.debug(f"Swing score computation error for {symbol}: {e}")
             return None
 
     def _load_config_val(self, key: str, default):
@@ -220,7 +220,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:
-            logging.debug(f"_load_config_val({key}) failed: {e}")
+            logger.debug(f"_load_config_val({key}) failed: {e}")
             return default
 
     def _compute_swing_score(self, row) -> Optional[Dict]:
@@ -370,7 +370,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                 ),
             }
         except Exception as e:
-            logging.debug(f"Score computation failed: {e}")
+            logger.debug(f"Score computation failed: {e}")
             return None
 
     def transform(self, rows):
@@ -428,7 +428,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         return failures if failures else None
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
-        """FIX #9: Log signal rejection to signal_rejection_log for observability."""
+        """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -440,10 +440,9 @@ class SwingTraderScoresLoader(OptimalLoader):
                     ("swing_trader_scores", reason, symbol, signal_date, "loader"),
                 )
         except Exception as e:
-            logger.error(
+            logger.debug(
                 f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
             )
-            raise
 
 
 def main():

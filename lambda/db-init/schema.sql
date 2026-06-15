@@ -17,6 +17,8 @@ CREATE INDEX IF NOT EXISTS idx_stock_symbols_etf ON stock_symbols(etf);
 CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(active);
 -- Migration: add active column if table was created before it was in the schema
 ALTER TABLE stock_symbols ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+-- Migration: add russell2000 flag (used by load_russell2000_constituents.py loader)
+ALTER TABLE stock_symbols ADD COLUMN IF NOT EXISTS is_russell2000 BOOLEAN DEFAULT FALSE;
 
 -- Daily OHLCV price data
 CREATE TABLE IF NOT EXISTS price_daily (
@@ -2091,6 +2093,20 @@ CREATE TABLE IF NOT EXISTS filter_rejection_log (
     is_age_driven_rejection BOOLEAN,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Signal Rejection Log - Track which symbols were skipped by loaders and why
+CREATE TABLE IF NOT EXISTS signal_rejection_log (
+    id SERIAL PRIMARY KEY,
+    signal_source_table VARCHAR(100) NOT NULL,
+    rejection_reason TEXT,
+    symbol VARCHAR(20) NOT NULL,
+    signal_date DATE,
+    rejected_at_tier VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_signal_rejection_symbol ON signal_rejection_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_signal_rejection_date ON signal_rejection_log(signal_date DESC);
+CREATE INDEX IF NOT EXISTS idx_signal_rejection_source ON signal_rejection_log(signal_source_table);
 
 -- Order Execution Audit Trail - Track every order attempt, fill, rejection
 CREATE TABLE IF NOT EXISTS order_execution_log (

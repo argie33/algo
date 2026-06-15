@@ -583,15 +583,15 @@ def validate_field_types(
 ) -> bool:
     """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
-    for field, expected_type in type_spec.items():
-        if field not in data:
+    for field_name, expected_type in type_spec.items():
+        if field_name not in data:
             continue
-        value = data[field]
+        value = data[field_name]
         if value is None:
             continue
         if not isinstance(value, expected_type):
             issues.append(
-                f"{field}: expected {expected_type.__name__}, got {type(value).__name__}"
+                f"{field_name}: expected {expected_type.__name__}, got {type(value).__name__}"
             )
 
     if issues:

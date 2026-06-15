@@ -26,7 +26,7 @@ if project_root not in sys.path:
 # Try importing with fallback strategies
 try:
     from config.credential_manager import get_db_config
-except ImportError as import_err:
+except ImportError:
     # Fallback 1: Direct import from config directory
     try:
         config_path = str(

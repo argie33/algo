@@ -2364,40 +2364,6 @@ def panel_algo_health(
     """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
     rows: list = []
 
-    # Extract items from data dicts and check for errors
-    hlth_items = (
-        hlth.get("items", [])
-        if isinstance(hlth, dict) and "items" in hlth
-        else (hlth if isinstance(hlth, list) else [])
-    )
-    hlth.get("_error") if isinstance(hlth, dict) else None
-    algo_metrics_items = (
-        algo_metrics.get("items", [])
-        if isinstance(algo_metrics, dict) and "items" in algo_metrics
-        else (algo_metrics if isinstance(algo_metrics, list) else [])
-    )
-    algo_metrics_error = (
-        algo_metrics.get("_error") if isinstance(algo_metrics, dict) else None
-    )
-    loader_items = (
-        loader.get("items", [])
-        if isinstance(loader, dict) and "items" in loader
-        else (loader if isinstance(loader, list) else [])
-    )
-    loader_error = loader.get("_error") if isinstance(loader, dict) else None
-    audit_items = (
-        audit.get("items", [])
-        if isinstance(audit, dict) and "items" in audit
-        else (audit if isinstance(audit, list) else [])
-    )
-    audit.get("_error") if isinstance(audit, dict) else None
-    exec_hist_items = (
-        exec_hist.get("items", [])
-        if isinstance(exec_hist, dict) and "items" in exec_hist
-        else (exec_hist if isinstance(exec_hist, list) else [])
-    )
-    exec_hist.get("_error") if isinstance(exec_hist, dict) else None
-
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")

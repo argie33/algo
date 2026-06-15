@@ -361,7 +361,7 @@ class OptimalLoader(ABC):
 
             self._watermark = WatermarkStore()
         except Exception as e:
-            logger.warning("Watermark unavailable (%s) �� running full refresh", e)
+            logger.warning("Watermark unavailable (%s) - running full refresh", e)
             self._watermark = False
         return self._watermark if self._watermark else None
 
@@ -459,7 +459,7 @@ class OptimalLoader(ABC):
                     )
                     return
 
-            # No matching constraint or unique index found � create one
+            # No matching constraint or unique index found - create one
             constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
             try:
                 logger.info(

@@ -273,8 +273,7 @@ class SignalsDailyLoader(OptimalLoader):
         return None
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
-        """Log signal rejection to signal_rejection_log if available.
-        FIX #9: Track signal rejections per symbol for observability."""
+        """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -286,10 +285,9 @@ class SignalsDailyLoader(OptimalLoader):
                     ("buy_sell_daily", reason, symbol, signal_date, "loader"),
                 )
         except Exception as e:
-            logger.error(
+            logger.debug(
                 f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
             )
-            raise
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""

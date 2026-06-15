@@ -179,7 +179,7 @@ class FredEconomicDataLoader(OptimalLoader):
                     )
                     break  # Success, exit retry loop
 
-                except requests.exceptions.Timeout as e:
+                except requests.exceptions.Timeout:
                     # Timeout error - retry with backoff
                     if attempt < max_retries - 1:
                         delay = base_delay * (2**attempt)
@@ -192,7 +192,7 @@ class FredEconomicDataLoader(OptimalLoader):
                             f"  {series_id}: FAILED after {max_retries} retries with timeout errors"
                         )
                         failed_series.append(series_id)
-                except requests.exceptions.ConnectionError as e:
+                except requests.exceptions.ConnectionError:
                     # Connection error - retry with backoff
                     if attempt < max_retries - 1:
                         delay = base_delay * (2**attempt)

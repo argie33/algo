@@ -66,8 +66,8 @@ FETCHER_METADATA = {
         "desc": "Execution history",
     },
     "exp_factors": {
-        "endpoint": "/api/algo/market-factors",
-        "desc": "Market exposure factors",
+        "endpoint": "/api/algo/markets",
+        "desc": "Market exposure factors (12-factor breakdown)",
     },
 }
 
@@ -226,54 +226,21 @@ def fetch_market(c):
                 "ycs": None,
                 "fed": None,
             }
+        # API returns: {data: {current: {...}, active_tier: {...}, market_health: {...}, ...}}
         data = mkt.get("data", {})
+        current = data.get("current", {})
+        market_health = data.get("market_health", {})
 
-        # Check data freshness (market data > 5 minutes old is stale during market hours)
-        mkt_timestamp = data.get("timestamp") or data.get("last_updated")
-        is_fresh, freshness_error = _check_data_freshness(
-            mkt_timestamp, max_age_seconds=300, source_name="Market"
-        )
-        if not is_fresh:
-            logger.warning(freshness_error)
-            record_data_quality_issue(
-                "market", "timestamp", "data_stale", freshness_error
-            )
-            return {
-                "_error": freshness_error,
-                "_data_stale": True,
-                "pct": None,
-                "tier": "unknown",
-                "halts": [],
-                "vix": None,
-                "stage": None,
-                "trend": None,
-                "dist": None,
-                "spy": None,
-                "spy_chg": None,
-                "upvol": None,
-                "adr": None,
-                "nh": None,
-                "nl": None,
-                "pcr": None,
-                "bmom": None,
-                "ycs": None,
-                "fed": None,
-            }
-
-        # Strict conversion for critical price fields
-        # API returns spy_price (not spy_close), vix_level at top level of data dict
+        # VIX is under market_health, not top-level data
         try:
-            spy_raw = data.get("spy_price") or data.get("spy_close")
-            spy = (
-                safe_float_strict(spy_raw, "market.spy_price")
-                if spy_raw is not None
-                else None
-            )
+            vix_raw = market_health.get("vix_level")
             vix = (
-                safe_float_strict(data.get("vix_level"), "market.vix_level")
-                if data.get("vix_level") is not None
+                safe_float_strict(vix_raw, "market.vix_level")
+                if vix_raw is not None
                 else None
             )
+            # SPY price is not in /api/algo/markets response; leave as None
+            spy = None
         except StrictValidationError as e:
             error_msg = f"Critical market data missing: {str(e)}"
             logger.error(error_msg)
@@ -302,33 +269,32 @@ def fetch_market(c):
             }
 
         # regime is nested under data.current; fall back to active_tier.name
-        current = data.get("current", {})
         tier = (
             current.get("regime")
             or data.get("active_tier", {}).get("name")
-            or data.get("regime", "unknown")
+            or "unknown"
         )
 
         return {
-            "pct": safe_float(data.get("exposure_pct"), default=None),
+            "pct": safe_float(current.get("exposure_pct"), default=None),
             "tier": tier,
             "halts": safe_json_parse(
-                data.get("halt_reasons"), default=[], field_name="halt_reasons"
+                current.get("halt_reasons"), default=[], field_name="halt_reasons"
             ),
             "vix": vix,
-            "stage": data.get("market_stage"),
-            "trend": data.get("market_trend"),
-            "dist": safe_int(data.get("distribution_days_4w"), default=None),
+            "stage": market_health.get("market_stage"),
+            "trend": market_health.get("market_trend"),
+            "dist": safe_int(current.get("distribution_days"), default=None),
             "spy": spy,
-            "spy_chg": safe_float(data.get("spy_change_pct"), default=None),
-            "upvol": safe_float(data.get("up_volume_percent"), default=None),
-            "adr": safe_float(data.get("advance_decline_ratio"), default=None),
-            "nh": safe_int(data.get("new_highs_count"), default=None),
-            "nl": safe_int(data.get("new_lows_count"), default=None),
-            "pcr": safe_float(data.get("put_call_ratio"), default=None),
-            "bmom": safe_float(data.get("breadth_momentum_10d"), default=None),
-            "ycs": safe_float(data.get("yield_curve_slope"), default=None),
-            "fed": data.get("fed_rate_environment"),
+            "spy_chg": safe_float(market_health.get("spy_change_pct"), default=None),
+            "upvol": safe_float(market_health.get("up_volume_percent"), default=None),
+            "adr": safe_float(market_health.get("advance_decline_ratio"), default=None),
+            "nh": safe_int(market_health.get("new_highs_count"), default=None),
+            "nl": safe_int(market_health.get("new_lows_count"), default=None),
+            "pcr": safe_float(market_health.get("put_call_ratio"), default=None),
+            "bmom": safe_float(market_health.get("breadth_momentum_10d"), default=None),
+            "ycs": safe_float(market_health.get("yield_curve_slope"), default=None),
+            "fed": market_health.get("fed_rate_environment"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("mkt", e)
@@ -881,8 +847,6 @@ def _get_data_status_cached():
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
     """
-    global _data_status_cache, _data_status_lock
-
     if "result" in _data_status_cache:
         return _data_status_cache["result"]
 
@@ -922,20 +886,25 @@ def fetch_health(c):
 
 
 def fetch_exp_factors(c):
-    """Fetch 12-factor market exposure data from /api/algo/market-factors."""
+    """Fetch 12-factor market exposure data. Uses /api/algo/markets (public, already fetched).
+
+    Extracts factors from data.current.factors which has the full 12-factor breakdown
+    needed by the exposure panel.
+    """
     try:
-        data = api_call(_get_endpoint_path("exp_factors"))
+        data = api_call("/api/algo/markets")
         if data.get("_error"):
             return {"_error": data.get("_error")}
-        # Response: {statusCode, data: {exposure_pct, raw_score, regime, factors}}
+        # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
         inner = data.get("data", {})
         if not isinstance(inner, dict):
-            return {"_error": "Unexpected response format from market-factors"}
+            return {"_error": "Unexpected response format from markets endpoint"}
+        current = inner.get("current") or {}
         return {
-            "exposure_pct": safe_float(inner.get("exposure_pct"), default=None),
-            "raw_score": safe_float(inner.get("raw_score"), default=None),
-            "regime": inner.get("regime"),
-            "factors": inner.get("factors") or {},
+            "exposure_pct": safe_float(current.get("exposure_pct"), default=None),
+            "raw_score": safe_float(current.get("raw_score"), default=None),
+            "regime": current.get("regime"),
+            "factors": current.get("factors") or {},
         }
     except Exception as e:
         error_msg = _format_fetcher_error("exp_factors", e)
