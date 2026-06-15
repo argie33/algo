@@ -70,7 +70,7 @@ function ServiceHealthContent() {
   const plAccessDenied = plError?.status === 403 || (typeof plError === 'string' && plError.includes('Authentication'));
 
   if (dsError) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError?.message || dsError}</div>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError?.message || 'Failed to load service health data'}</div>;
   }
 
   const summary = dataStatus?.summary || { ok: 0, stale: 0, empty: 0, error: 0 };

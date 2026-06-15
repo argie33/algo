@@ -123,7 +123,7 @@ def _get_stock_scores(
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
 
-        query = """
+        query = f"""
                 WITH latest_d AS (
                     SELECT date AS cur_date FROM price_daily ORDER BY date DESC LIMIT 1
                 ),

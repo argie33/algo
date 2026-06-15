@@ -360,14 +360,14 @@ function AlgoTradingDashboardContent() {
                     borderBottom: i < breakerList.length - 1 ? '1px solid var(--border-soft)' : 'none',
                   }}>
                     <span style={{ fontSize: 'var(--t-xs)', fontWeight: 'var(--w-medium)' }}>
-                      {b.breaker_name || b.metric_name || b.name || `Breaker ${i + 1}`}
+                      {b.label || b.id || `Breaker ${i + 1}`}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                       <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {b.current_value != null ? Number(b.current_value).toFixed(2) : '—'}
+                        {b.current != null ? `${Number(b.current).toFixed(2)}${b.unit || ''}` : '—'}
                       </span>
-                      <span className={`badge ${(b.triggered || b.is_triggered) ? 'badge-danger' : 'badge-success'}`}>
-                        {(b.triggered || b.is_triggered) ? 'TRIGGERED' : 'OK'}
+                      <span className={`badge ${b.triggered ? 'badge-danger' : 'badge-success'}`}>
+                        {b.triggered ? 'TRIGGERED' : 'OK'}
                       </span>
                     </div>
                   </div>

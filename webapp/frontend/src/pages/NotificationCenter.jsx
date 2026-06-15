@@ -33,14 +33,13 @@ const NotificationCenterContent = () => {
       if (unreadOnly) params.set('unread', 'true');
       params.set('limit', filters.limit);
 
-      const response = await api.get(`/api/algo/notifications?${params.toString()}`);
-      return response.data;
+      return api.get(`/api/algo/notifications?${params.toString()}`);
     },
     { refetchInterval: 15000 }
   );
 
   if (notifError) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{notifError}</div>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{notifError?.message || 'Failed to load notifications'}</div>;
   }
 
   const items = notifs?.items || [];

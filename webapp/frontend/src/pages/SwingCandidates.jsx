@@ -138,7 +138,7 @@ export default function SwingCandidates() {
         <div className="page-head"><div><div className="page-head-title">Swing Candidates</div></div></div>
         <div className="alert alert-danger" style={{ margin: 'var(--space-4)' }}>
           <div className="strong">Failed to load candidates</div>
-          <div className="t-xs muted" style={{ marginTop: 4 }}>{itemsError}</div>
+          <div className="t-xs muted" style={{ marginTop: 4 }}>{itemsError?.message || 'Unknown error'}</div>
           <button onClick={() => refetch()} className="btn btn-outline btn-xs" style={{ marginTop: 'var(--space-2)' }}>Retry</button>
         </div>
       </div>
