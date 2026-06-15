@@ -14,6 +14,15 @@ import psycopg2.sql
 from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
 
+# Configure root logger so INFO+ messages appear in CloudWatch (via stdout).
+# Without this, Python's lastResort handler only emits WARNING+ to stderr with no timestamp.
+if not logging.root.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        stream=None,  # defaults to sys.stderr, captured by awslogs driver
+    )
+
 logger = logging.getLogger(__name__)
 
 
