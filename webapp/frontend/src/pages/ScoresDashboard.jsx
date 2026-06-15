@@ -1376,31 +1376,36 @@ const QUALITY_SCHEMA = [
 ];
 
 const MOMENTUM_SCHEMA = [
-  { key: 'price_vs_sma_50',  label: 'Price vs 50-SMA',  fmt: v => pct(v, 2) },
-  { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2) },
+  { key: 'current_price',    label: 'Current Price',    fmt: v => `$${num(v, 2)}` },
+  { key: 'price_vs_52w_high',label: 'vs 52w High',     fmt: v => pct(v, 2) },
+  { key: 'price_vs_sma_50',  label: 'vs 50-SMA',       fmt: v => pct(v, 2) },
+  { key: 'price_vs_sma_200', label: 'vs 200-SMA',      fmt: v => pct(v, 2) },
   { key: 'momentum_3m',      label: '3-Month Return',   fmt: v => pct(v, 2) },
   { key: 'momentum_6m',      label: '6-Month Return',   fmt: v => pct(v, 2) },
   { key: 'momentum_12_3',    label: '12-3 Momentum',    fmt: v => pct(v, 2) },
-  { key: 'price_vs_52w_high',label: 'Price vs 52w High',fmt: v => pct(v, 2) },
-  { key: 'current_price',    label: 'Current Price',    fmt: v => `$${num(v, 2)}` },
   { key: 'rsi',              label: 'RSI (14)',         fmt: v => num(v, 1) },
   { key: 'macd',             label: 'MACD',             fmt: v => num(v, 3) },
 ];
 
 const VALUE_SCHEMA = [
-  { key: 'stock_pe',            label: 'P/E',          fmt: v => num(v, 2) },
-  { key: 'stock_forward_pe',    label: 'Forward P/E',  fmt: v => num(v, 2) },
-  { key: 'stock_pb',            label: 'P/B',          fmt: v => num(v, 2) },
-  { key: 'stock_ps',            label: 'P/S',          fmt: v => num(v, 2) },
-  { key: 'stock_ev_ebitda',     label: 'EV / EBITDA',  fmt: v => num(v, 2) },
-  { key: 'stock_ev_revenue',    label: 'EV / Revenue', fmt: v => num(v, 2) },
-  { key: 'peg_ratio',           label: 'PEG',          fmt: v => num(v, 2) },
+  { key: 'stock_pe',            label: 'P/E',            fmt: v => num(v, 2) },
+  { key: 'stock_forward_pe',    label: 'Forward P/E',    fmt: v => num(v, 2) },
+  { key: 'stock_pb',            label: 'P/B',            fmt: v => num(v, 2) },
+  { key: 'stock_ps',            label: 'P/S',            fmt: v => num(v, 2) },
+  { key: 'peg_ratio',           label: 'PEG',            fmt: v => num(v, 2) },
+  { key: 'stock_ev_ebitda',     label: 'EV / EBITDA',    fmt: v => num(v, 2) },
+  { key: 'stock_ev_revenue',    label: 'EV / Revenue',   fmt: v => num(v, 2) },
+  { key: 'fcf_yield',           label: 'FCF Yield',      fmt: v => pct(v == null ? null : v * 100, 2) },
   { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
 ];
 
 const GROWTH_SCHEMA = [
+  { key: 'revenue_growth_1y_pct',      label: 'Revenue Growth (1Y)',     fmt: v => pct(v, 2) },
+  { key: 'eps_growth_1y_pct',          label: 'EPS Growth (1Y)',         fmt: v => pct(v, 2) },
   { key: 'revenue_growth_3y_cagr',     label: 'Revenue CAGR (3Y)',       fmt: v => pct(v, 2) },
   { key: 'eps_growth_3y_cagr',         label: 'EPS CAGR (3Y)',           fmt: v => pct(v, 2) },
+  { key: 'revenue_growth_5y_cagr',     label: 'Revenue CAGR (5Y)',       fmt: v => pct(v, 2) },
+  { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2) },
   { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2) },
   { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2) },
   { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp` },
