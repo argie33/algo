@@ -123,12 +123,15 @@ def fetch_run(c):
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
+        # errored: use API field if present, otherwise derive from phase data
+        api_errored = inner.get("errored")
+        derived_errored = bool(errored_phases) or (not inner.get("success") and not inner.get("halted") and bool(phases))
         return {
             "run_id": inner.get("run_id"),
             "run_at": inner.get("run_at") or inner.get("completed_at") or inner.get("started_at"),
             "success": inner.get("success", False),
             "halted": inner.get("halted", False),
-            "errored": inner.get("errored", False),
+            "errored": api_errored if api_errored is not None else derived_errored,
             "summary": inner.get("summary"),
             "halt_reason": halt_reason,
             "phases_completed": [p.get("action_type") for p in completed_phases],
