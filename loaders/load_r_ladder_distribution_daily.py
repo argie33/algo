@@ -63,13 +63,12 @@ class RLadderDistributionDailyLoader(OptimalLoader):
                 }
 
                 for row in rows:
-                    row[0]
                     position_value = float(row[1]) if row[1] else 0
                     pnl_pct = float(row[2]) if row[2] else 0
                     days_held = float(row[3]) if row[3] else 0
                     entry_price = float(row[4]) if row[4] else 0
-                    stop_price = float(row[5]) if row[5] else None
-                    target_price = float(row[6]) if row[6] else None
+                    stop_price = float(row[5]) if row[5] is not None else None
+                    target_price = float(row[6]) if row[6] is not None else None
 
                     # Calculate R-multiple for this position
                     r_multiple = self._calculate_r_multiple(

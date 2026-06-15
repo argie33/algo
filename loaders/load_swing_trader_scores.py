@@ -209,7 +209,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
                 return all_scores if all_scores else None
         except Exception as e:
-            logger.debug(f"Swing score computation error for {symbol}: {e}")
+            logger.warning(f"Swing score computation error for {symbol}: {e}")
             return None
 
     def _load_config_val(self, key: str, default):
@@ -370,7 +370,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                 ),
             }
         except Exception as e:
-            logger.debug(f"Score computation failed: {e}")
+            logger.warning(f"Score computation failed for {symbol}: {e}")
             return None
 
     def transform(self, rows):

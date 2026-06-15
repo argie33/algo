@@ -60,16 +60,21 @@ class SignalsDailyLoader(OptimalLoader):
                 price_coverage_symbols = price_row[0] if price_row else 0
 
                 cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
+                    "SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily WHERE date = %s",
                     (end,),
                 )
                 tech_row = cur.fetchone()
                 tech_coverage_symbols = tech_row[0] if tech_row else 0
+                tech_max_date = tech_row[1] if tech_row else None
+
+            today_et = now_et.date()
+            tech_data_age = (today_et - tech_max_date).days if tech_max_date else None
 
             self._batch_context = {
                 "end_date": end,
                 "price_coverage_symbols": price_coverage_symbols,
                 "tech_coverage_symbols": tech_coverage_symbols,
+                "tech_data_age": tech_data_age,
             }
             logger.debug(
                 f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
@@ -235,8 +240,7 @@ class SignalsDailyLoader(OptimalLoader):
 
         # Filter to incremental range if needed
         if since is not None:
-            since_str = since.isoformat()
-            signals = [s for s in signals if s["date"] > since_str]
+            signals = [s for s in signals if s["date"] > since]
 
         return signals
 
@@ -352,10 +356,8 @@ class SignalsDailyLoader(OptimalLoader):
         if not rows:
             return []
 
-        # Precalculate source data age once per symbol (not per signal)
-        tech_data_age = self._calculate_data_source_age_days(
-            symbol, "technical_data_daily"
-        )
+        # Use batch-cached tech data age (computed once for all symbols, not per-symbol query)
+        tech_data_age = (self._batch_context or {}).get("tech_data_age")
 
         signals = []
         skipped_count = 0
