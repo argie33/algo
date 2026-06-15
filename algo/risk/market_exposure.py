@@ -48,6 +48,7 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 
 import json
 import logging
+from psycopg2 import sql as pgsql
 from utils.db import DatabaseContext
 from datetime import date as _date
 
@@ -568,18 +569,19 @@ class MarketExposure:
         each, too slow on t4g.micro).
         """
         bool_col = "price_above_sma50" if ma_days == 50 else "price_above_sma200"
+        col = pgsql.Identifier(bool_col)
         cur.execute(
-            """
+            pgsql.SQL("""
             SELECT
-                COUNT(*) FILTER (WHERE {bool_col} = TRUE)  AS above,
-                COUNT(*) FILTER (WHERE {bool_col} IS NOT NULL) AS total
+                COUNT(*) FILTER (WHERE {} = TRUE)  AS above,
+                COUNT(*) FILTER (WHERE {} IS NOT NULL) AS total
             FROM (
-                SELECT DISTINCT ON (symbol) {bool_col}
+                SELECT DISTINCT ON (symbol) {}
                 FROM trend_template_data
                 WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
                 ORDER BY symbol, date DESC
             ) latest
-            """,
+            """).format(col, col, col),
             (eval_date, eval_date),
         )
         row = cur.fetchone()

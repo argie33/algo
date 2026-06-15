@@ -94,16 +94,20 @@ export const extractData = (response) => {
   if (Array.isArray(data.items)) {
     // Filter out null/undefined items, but preserve falsy values like 0, false, ""
     const filteredItems = data.items.filter(item => item !== null && item !== undefined);
+    const pag = data.pagination || {};
+    const limit = pag.limit ?? data.limit ?? 50;
+    const offset = pag.offset ?? data.offset ?? 0;
+    const total = pag.total ?? data.total ?? filteredItems.length;
     return {
       items: filteredItems,
-      pagination: data.pagination || {
-        limit: data.limit || 50,
-        offset: data.offset || 0,
-        total: data.total || filteredItems.length,
-        page: data.page || 1,
-        totalPages: data.totalPages || Math.ceil((data.total || filteredItems.length) / (data.limit || 50)),
-        hasNext: data.hasNext !== undefined ? data.hasNext : false,
-        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: pag.page ?? data.page ?? 1,
+        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + filteredItems.length) < total,
+        hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
       statusCode: httpStatus,
       success: true,
@@ -206,16 +210,20 @@ export const extractPaginatedData = (response) => {
   if (Array.isArray(data.items)) {
     // Filter out null/undefined items but preserve other falsy values (0, false, "")
     const items = data.items.filter(item => item !== null && item !== undefined);
+    const pag = data.pagination || {};
+    const limit = pag.limit ?? data.limit ?? 100;
+    const offset = pag.offset ?? data.offset ?? 0;
+    const total = pag.total ?? data.total ?? items.length;
     return {
       items,
-      pagination: data.pagination || {
-        limit: data.limit || 100,
-        offset: data.offset || 0,
-        total: data.total || items.length,
-        page: data.page || 1,
-        totalPages: data.totalPages || Math.ceil((data.total || items.length) / (data.limit || 100)),
-        hasNext: data.hasNext !== undefined ? data.hasNext : false,
-        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: pag.page ?? data.page ?? 1,
+        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + items.length) < total,
+        hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
     };
   }
@@ -224,16 +232,20 @@ export const extractPaginatedData = (response) => {
   if (data.data && Array.isArray(data.data.items)) {
     // Filter out null/undefined items but preserve other falsy values (0, false, "")
     const items = data.data.items.filter(item => item !== null && item !== undefined);
+    const pag = data.data.pagination || {};
+    const limit = pag.limit ?? data.limit ?? 100;
+    const offset = pag.offset ?? data.offset ?? 0;
+    const total = pag.total ?? data.total ?? items.length;
     return {
       items,
-      pagination: data.data.pagination || {
-        limit: data.limit || 100,
-        offset: data.offset || 0,
-        total: data.total || items.length,
-        page: data.page || 1,
-        totalPages: data.totalPages || Math.ceil((data.total || items.length) / (data.limit || 100)),
-        hasNext: data.hasNext !== undefined ? data.hasNext : false,
-        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: pag.page ?? data.page ?? 1,
+        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + items.length) < total,
+        hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
     };
   }
