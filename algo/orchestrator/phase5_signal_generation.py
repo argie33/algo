@@ -396,12 +396,15 @@ def run(
 
     logger.info("[PHASE 5] Top 10 qualified signals:")
     for i, sig in enumerate(liq_passed[:10]):
+        def _fmt(v, spec=":.1f"):
+            return format(v, spec[1:]) if v is not None else "?"
         logger.info(
-            f"  {i+1}. {sig['symbol']:6s} composite={sig.get('composite_score', '?'):.1f} "
-            f"quality={sig.get('quality_score', '?'):.1f} "
-            f"momentum={sig.get('momentum_score', '?'):.1f} "
-            f"rs_pct={sig.get('rs_percentile', '?'):.1f} "
-            f"strength={sig.get('signal_strength', '?'):.2f}"
+            f"  {i+1}. {sig['symbol']:6s} "
+            f"composite={_fmt(sig.get('composite_score'))} "
+            f"quality={_fmt(sig.get('quality_score'))} "
+            f"momentum={_fmt(sig.get('momentum_score'))} "
+            f"rs_pct={_fmt(sig.get('rs_percentile'))} "
+            f"strength={_fmt(sig.get('signal_strength'), ':.2f')}"
         )
 
     elapsed = time.time() - phase_start
