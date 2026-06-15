@@ -980,19 +980,7 @@ def panel_positions(pos, compact=False, trades=None):
             ]
         t.add_row(*row)
 
-    # Pending/queued trades below open positions
-    pending = (
-        [
-            tr
-            for tr in (trades or [])
-            if isinstance(tr, dict)
-            and tr.get("status") in ("pending", "pending_new", "rejected")
-        ]
-        if trades
-        else []
-    )
-
-    # Build content with optional placeholder warning and pending trades
+    # Build content (placeholder warning only if flagged — pending trades removed, see RECENT TRADES panel)
     content_items = []
     if is_placeholder:
         content_items.append(
@@ -1001,22 +989,6 @@ def panel_positions(pos, compact=False, trades=None):
             )
         )
     content_items.append(t)
-    if pending:
-        pend_rows = [Text.from_markup("[dim]Queued / Recent:[/]")]
-        for tr in pending[:4]:
-            st = tr.get("status", "")
-            sym = tr.get("symbol") or "--"
-            td = tr.get("trade_date")
-            age_s = fmt_age(td) if td else "--"
-            if st == "rejected":
-                pend_rows.append(
-                    Text.from_markup(f"  [{R}]✗ {sym}[/] [dim]{age_s} rejected[/]")
-                )
-            else:
-                pend_rows.append(
-                    Text.from_markup(f"  [{Y}]◌ {sym}[/] [dim]{age_s} {st}[/]")
-                )
-        content_items.extend(pend_rows)
 
     content = (
         Group(*content_items)
@@ -1210,6 +1182,16 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         t.add_column("RS%", justify="right", no_wrap=True, min_width=4)
         t.add_column("Chg%", justify="right", no_wrap=True, min_width=5)
         t.add_column("Sector", no_wrap=True, max_width=12)
+        def _sub(v):
+            if v is None or v == "":
+                return Text("--", style=DIM)
+            try:
+                fv = float(v)
+            except (ValueError, TypeError):
+                return Text("--", style=DIM)
+            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+            return Text(f"{fv:.0f}", style=c)
+
         for sc in top_scores[:15]:
             sym = sc.get("symbol") or "--"
             comp = sc.get("composite_score")
@@ -1223,15 +1205,15 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             comp_v = float(comp) if comp is not None else 0
             sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
 
-            def _sub(v):
-                fv = float(v) if v is not None else None
-                if fv is None:
-                    return Text("--", style=DIM)
-                c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-                return Text(f"{fv:.0f}", style=c)
-
-            chg_v = float(chg) if chg is not None else None
+            try:
+                chg_v = float(chg) if chg is not None and chg != "" else None
+            except (ValueError, TypeError):
+                chg_v = None
             chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
+            try:
+                rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
+            except (ValueError, TypeError):
+                rs_v = None
             t.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
@@ -1239,7 +1221,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
                 _sub(qual),
                 _sub(grwth),
                 _sub(stab),
-                Text(f"{float(rs_pct):.0f}" if rs_pct is not None else "--", style=G if (rs_pct or 0) >= 70 else DIM),
+                Text(f"{rs_v:.0f}" if rs_v is not None else "--", style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(sector, style=DIM),
             )
@@ -1289,7 +1271,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
 @register_panel("trades", endpoint_deps=["trades"], optional=True, description="Trades")
 def panel_recent_trades(trades):
-    # Closed/recent trade history - sits alongside positions panel
+    """Closed trade history (open positions are in the POSITIONS panel)."""
     trades_timestamp = None
     if isinstance(trades, dict):
         trades_timestamp = trades.get("timestamp")
@@ -1297,21 +1279,21 @@ def panel_recent_trades(trades):
     else:
         trades_list = trades if isinstance(trades, list) else []
 
-    if not trades_list:
+    # Filter to closed trades only — open/pending are in the positions panel
+    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status") or "").lower() == "closed"]
+
+    if not closed_trades:
         age_s = (
             f"  [dim]{fmt_age(trades_timestamp)}[/]"
             if trades_timestamp is not None
             else ""
         )
         return Panel(
-            Text("no recent trades", style="dim"),
+            Text("no closed trades yet", style="dim"),
             title=f"[bold cyan]RECENT TRADES[/]{age_s}",
             border_style="cyan",
             padding=(0, 1),
         )
-
-    # If we have actual trades to display, it's real data (not placeholder)
-    is_placeholder = False
 
     t = Table(
         box=box.SIMPLE_HEAD,
@@ -1321,70 +1303,59 @@ def panel_recent_trades(trades):
         row_styles=["", "dim"],
         expand=True,
     )
-    t.add_column("Sym", style="bold white", no_wrap=True, min_width=4)
-    t.add_column("Date", style="dim", no_wrap=True, min_width=5)
-    t.add_column("P&L$", justify="right", no_wrap=True, min_width=6)
-    t.add_column("P&L%", justify="right", no_wrap=True, min_width=5)
-    t.add_column("R", justify="right", no_wrap=True, min_width=4)
-    t.add_column("St", style="dim", no_wrap=True, min_width=4)
-    for tr in trades_list[:10]:
-        sym = tr.get("symbol") or "--"
-        date = tr.get("exit_date") or tr.get("trade_date")
-        if hasattr(date, "strftime"):
-            date_s = date.strftime("%b%d")
-        elif isinstance(date, str) and len(date) >= 7:
+    t.add_column("Sym", style="bold white", no_wrap=True, min_width=6)
+    t.add_column("Exit", style="dim", no_wrap=True, min_width=5)
+    t.add_column("Entry$", justify="right", no_wrap=True, min_width=6)
+    t.add_column("Exit$", justify="right", no_wrap=True, min_width=6)
+    t.add_column("P&L%", justify="right", no_wrap=True, min_width=6)
+    t.add_column("R", justify="right", no_wrap=True, min_width=5)
+    t.add_column("Days", justify="right", no_wrap=True, min_width=4)
+
+    def _fmt_date(d):
+        if hasattr(d, "strftime"):
+            return d.strftime("%b%d")
+        if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt
-                date_s = _dt.fromisoformat(date.replace("Z", "+00:00")).strftime("%b%d")
+                return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
             except (ValueError, TypeError):
-                date_s = date[5:10]
-        else:
-            date_s = str(date or "--")[:5]
+                return d[5:10]
+        return str(d or "--")[:5]
+
+    for tr in closed_trades[:12]:
+        sym = tr.get("symbol") or "--"
         pnl_d_raw = tr.get("profit_loss_dollars")
         pnl_p_raw = tr.get("profit_loss_pct")
         pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
         pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
-        rmul = tr.get("exit_r_multiple")
-        status = tr.get("status") or ""
-        is_closed = status.lower() == "closed"
-        has_pnl = pnl_d is not None and pnl_p is not None
-        pc = G if (pnl_d or 0) > 0 else (R if (is_closed or has_pnl) else Y)
-        si = (
-            f"[{G}]OK[/]"
-            if (pnl_d or 0) > 0
-            else (f"[{R}] X[/]" if (is_closed or has_pnl) else f"[{Y}] ◌[/]")
-        )
+        rmul_raw = tr.get("exit_r_multiple")
+        rmul = float(rmul_raw) if rmul_raw is not None else None
+        entry_raw = tr.get("entry_price")
+        exit_raw = tr.get("exit_price")
+        entry_p = float(entry_raw) if entry_raw is not None else None
+        exit_p = float(exit_raw) if exit_raw is not None else None
+        dur_raw = tr.get("trade_duration_days")
+        dur = int(dur_raw) if dur_raw is not None else None
+        exit_date = tr.get("exit_date") or tr.get("trade_date")
+
+        has_pnl = pnl_p is not None
+        pc = G if (pnl_d or pnl_p or 0) > 0 else R
+        si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
+
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
-            date_s,
-            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if has_pnl else "--", style=pc),
+            _fmt_date(exit_date),
+            Text(f"${entry_p:.2f}" if entry_p is not None else "--", style="dim"),
+            Text(f"${exit_p:.2f}" if exit_p is not None else "--", style="dim"),
             Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if has_pnl else "--", style=pc),
-            Text(f"{float(rmul):.2f}R" if rmul is not None else "--", style=pc),
-            status[:4].upper(),
+            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
+            Text(f"{dur}d" if dur is not None else "--", style="dim"),
         )
-
-    # Build content with optional placeholder warning
-    content_items = []
-    if is_placeholder:
-        content_items.append(
-            Text.from_markup(
-                "[bold red]📊 PLACEHOLDER DATA - Trades may not be accurate[/]"
-            )
-        )
-    content_items.append(t)
-
-    content = Group(*content_items) if len(content_items) > 1 else t
 
     age_s = (
         f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     )
-    border = "red" if is_placeholder else "cyan"
-    title = (
-        "[bold red]RECENT TRADES ⚠ PLACEHOLDER DATA[/]"
-        if is_placeholder
-        else "[bold cyan]RECENT TRADES[/]"
-    )
-    return Panel(content, title=f"{title}{age_s}", border_style=border, padding=(0, 0))
+    return Panel(t, title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}", border_style="cyan", padding=(0, 0))
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -1726,7 +1697,7 @@ def panel_economic_pulse(eco, econ_cal=None):
     "exposure", endpoint_deps=["exp_factors"], optional=True, description="Exposure"
 )
 def panel_exposure_compact(exp_f):
-    """12-factor exposure score - compact 2-col layout."""
+    """Exposure score breakdown - compact 2-col layout."""
     err_panel = _error_panel(
         "exposure factors", exp_f, "EXPOSURE FACTORS", border="blue"
     )
@@ -1845,7 +1816,7 @@ def panel_exposure_compact(exp_f):
     )
     return Panel(
         Group(header, tbl),
-        title="[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts)[/]",
+        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(FACTOR_MAP)} factors / 100pts)[/]",
         border_style="blue",
         padding=(0, 1),
     )
@@ -2791,7 +2762,7 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
         f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
         "  [dim]Connecting to database...[/]\n\n"
         "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
-        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]c[/][dim] scores  [/][cyan]q[/][dim] quit[/]"
+        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]c[/][dim] scores  [/][cyan]t[/][dim] trades  [/][cyan]q[/][dim] quit[/]"
     )
     main_panel = Panel(
         Align(loading_body, align="left", vertical="middle"),
@@ -2951,6 +2922,16 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         sig_tbl.add_column("vs50%", justify="right", no_wrap=True, min_width=6)
         sig_tbl.add_column("vs200%", justify="right", no_wrap=True, min_width=7)
         sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
+        def _sub_exp(v):
+            if v is None or v == "":
+                return Text("--", style=DIM)
+            try:
+                fv = float(v)
+            except (ValueError, TypeError):
+                return Text("--", style=DIM)
+            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+            return Text(f"{fv:.0f}", style=c)
+
         for sc in top_scores:
             sym = str(sc.get("symbol") or "--")
             comp = sc.get("composite_score")
@@ -2963,7 +2944,6 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             rs_pct = sc.get("rs_percentile")
             price = sc.get("current_price")
             chg = sc.get("change_percent")
-            # price_vs_sma fields may be in momentum_inputs dict or top-level
             mom_inputs = sc.get("momentum_inputs") or {}
             vs50 = sc.get("price_vs_sma_50") or mom_inputs.get("price_vs_sma_50")
             vs200 = sc.get("price_vs_sma_200") or mom_inputs.get("price_vs_sma_200")
@@ -2971,28 +2951,28 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             comp_v = float(comp) if comp is not None else 0
             sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
 
-            def _sub(v):
-                fv = float(v) if v is not None else None
-                if fv is None:
-                    return Text("--", style=DIM)
-                c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-                return Text(f"{fv:.0f}", style=c)
-
-            chg_v = float(chg) if chg is not None else None
+            try:
+                chg_v = float(chg) if chg is not None and chg != "" else None
+            except (ValueError, TypeError):
+                chg_v = None
+            try:
+                vs50_v = float(vs50) if vs50 is not None else None
+                vs200_v = float(vs200) if vs200 is not None else None
+                rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
+            except (ValueError, TypeError):
+                vs50_v = vs200_v = rs_v = None
             chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
-            vs50_v = float(vs50) if vs50 is not None else None
-            vs200_v = float(vs200) if vs200 is not None else None
             sig_tbl.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _sub(mom),
-                _sub(qual),
-                _sub(val),
-                _sub(grwth),
-                _sub(stab),
-                _sub(pos),
-                Text(f"{float(rs_pct):.0f}" if rs_pct is not None else "--",
-                     style=G if (rs_pct or 0) >= 70 else DIM),
+                _sub_exp(mom),
+                _sub_exp(qual),
+                _sub_exp(val),
+                _sub_exp(grwth),
+                _sub_exp(stab),
+                _sub_exp(pos),
+                Text(f"{rs_v:.0f}" if rs_v is not None else "--",
+                     style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style=DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
@@ -3169,7 +3149,7 @@ def panel_algo_health_expanded(
 
     rows.append(Rule(style="dim"))
 
-    # All data tables — ok and stale, with role and date
+    # All data tables — two-column layout for efficient use of width
     if hlth_items:
         stale_count = sum(
             1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"
@@ -3179,29 +3159,34 @@ def panel_algo_health_expanded(
                 f"[dim]Data freshness ({len(hlth_items)} tables, {stale_count} stale):[/]"
             )
         )
-        for r in hlth_items:
+
+        def _fmt_health_row(r):
+            if r is None:
+                return ""
             nm = str(r.get("tbl") or "--")
             role = str(r.get("role") or "")
             age = str(r.get("age") if r.get("age") is not None else "?")
             lat = r.get("last_updated") or r.get("latest")
-            lat_s = (
-                lat.strftime("%b %d")
-                if hasattr(lat, "strftime")
-                else str(lat or "")[:5]
-            )
+            lat_s = lat.strftime("%b%d") if hasattr(lat, "strftime") else str(lat or "")[:5]
             ok = r.get("st") == "ok"
             ic = G if ok else R
             ii = "✓" if ok else "✗"
             rc = "white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-            rows.append(
-                Text.from_markup(
-                    f"  [{ic}]{ii}[/] [{rc}]{nm:<18}[/] [dim]{role:<4}  {age}d  {lat_s}[/]"
-                )
+            return f"[{ic}]{ii}[/][{rc}]{nm:<18}[/][dim]{role:<4} {age}d {lat_s}[/]"
+
+        tbl_h = Table.grid(padding=(0, 1), expand=True)
+        tbl_h.add_column("left", ratio=1)
+        tbl_h.add_column("right", ratio=1)
+        for a, b in zip(hlth_items[::2], hlth_items[1::2] + [None]):
+            tbl_h.add_row(
+                Text.from_markup(_fmt_health_row(a)),
+                Text.from_markup(_fmt_health_row(b)) if b else Text(""),
             )
+        rows.append(tbl_h)
 
     rows.append(Rule(style="dim"))
 
-    # All loader statuses with full error messages
+    # All loader statuses with full error messages — two-column
     loader_items_exp = (
         loader.get("items", [])
         if isinstance(loader, dict) and "items" in loader
@@ -3211,21 +3196,25 @@ def panel_algo_health_expanded(
     valid_loader = loader_items_exp if loader_items_exp and not loader_error_exp else []
     if valid_loader:
         rows.append(Text.from_markup("[dim]Data loaders:[/]"))
-        for r in valid_loader:
+        tbl_l = Table.grid(padding=(0, 1), expand=True)
+        tbl_l.add_column("left", ratio=1)
+        tbl_l.add_column("right", ratio=1)
+
+        def _fmt_loader_row(r):
+            if r is None:
+                return ""
             st = str(r.get("status") or r.get("st") or "")
             nm = str(r.get("table_name") or r.get("tbl") or r.get("name") or "--")
-            err = r.get("error_message") or ""
-            sc = (
-                R
-                if st in ("error", "failed")
-                else (Y if st == "stale" else (CY if st == "loading" else G))
+            err = (r.get("error_message") or "")[:28]
+            sc = R if st in ("error", "failed") else (Y if st == "stale" else (CY if st == "loading" else G))
+            return f"[{sc}]{nm:<18}[/][dim]{st:<7}[/]" + (f" [{R}]{err}[/]" if err else "")
+
+        for a, b in zip(valid_loader[::2], valid_loader[1::2] + [None]):
+            tbl_l.add_row(
+                Text.from_markup(_fmt_loader_row(a)),
+                Text.from_markup(_fmt_loader_row(b)) if b else Text(""),
             )
-            rows.append(
-                Text.from_markup(
-                    f"  [{sc}]{nm:<22}[/] [dim]{st:<8}[/]"
-                    + (f" [{R}]{err}[/]" if err else "")
-                )
-            )
+        rows.append(tbl_l)
 
     # Risk snapshot
     if (
@@ -3438,6 +3427,16 @@ def panel_scores(scores):
     bot = scores.get("bottom", [])
 
     def _score_row(tbl, items, color):
+        def _sub_v(v):
+            if v is None or v == "":
+                return Text("--", style=DIM)
+            try:
+                fv = float(v)
+            except (ValueError, TypeError):
+                return Text("--", style=DIM)
+            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+            return Text(f"{fv:.0f}", style=c)
+
         for s in items:
             sym = s.get("symbol") or "--"
             sc = s.get("composite_score")
@@ -3445,40 +3444,50 @@ def panel_scores(scores):
             qual = s.get("quality_score")
             grwth = s.get("growth_score")
             stab = s.get("stability_score")
-            sector = (s.get("sector") or "")[:11]
+            rs_pct = s.get("rs_percentile")
+            sector = (s.get("sector") or "")[:10]
             chg = s.get("change_percent")
             sc_v = float(sc) if sc is not None else 0
             sc_c = G if sc_v >= 70 else (Y if sc_v >= 50 else R)
-            chg_c = G if (chg or 0) >= 0 else R
-
-            def _sub(v):
-                return f"{float(v):.0f}" if v is not None else "--"
+            try:
+                chg_v = float(chg) if chg is not None and chg != "" else None
+                rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
+            except (ValueError, TypeError):
+                chg_v = rs_v = None
+            chg_c = G if (chg_v or 0) >= 0 else R
 
             tbl.add_row(
                 Text(sym, style=f"bold {color}"),
                 Text(f"{sc_v:.0f}", style=sc_c),
-                Text(_sub(mom), style="white"),
-                Text(_sub(qual), style="white"),
-                Text(_sub(grwth), style="white"),
-                Text(_sub(stab), style="white"),
-                Text(f"{chg:+.1f}%" if chg is not None else "--", style=chg_c),
+                _sub_v(mom),
+                _sub_v(qual),
+                _sub_v(grwth),
+                _sub_v(stab),
+                Text(f"{rs_v:.0f}" if rs_v is not None else "--",
+                     style=G if (rs_v or 0) >= 70 else DIM),
+                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(sector, style="dim"),
             )
 
+    def _make_score_tbl():
+        tbl = Table(
+            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
+            padding=(0, 1), expand=True, row_styles=["", "dim"],
+        )
+        tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        tbl.add_column("Mom", justify="right", no_wrap=True, min_width=3)
+        tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
+        tbl.add_column("Stab", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
+        tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
+        tbl.add_column("Sector", no_wrap=True, max_width=10)
+        return tbl
+
     rows = []
     if top:
-        tbl_top = Table(
-            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
-            padding=(0, 1), expand=True,
-        )
-        tbl_top.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        tbl_top.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        tbl_top.add_column("Mom", justify="right", no_wrap=True, min_width=3)
-        tbl_top.add_column("Qual", justify="right", no_wrap=True, min_width=4)
-        tbl_top.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
-        tbl_top.add_column("Stab", justify="right", no_wrap=True, min_width=4)
-        tbl_top.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
-        tbl_top.add_column("Sector", no_wrap=True, max_width=11)
+        tbl_top = _make_score_tbl()
         rows.append(Text.from_markup(f"[{G}][bold]TOP {len(top)}[/][/]"))
         _score_row(tbl_top, top, G)
         rows.append(tbl_top)
@@ -3487,18 +3496,7 @@ def panel_scores(scores):
         rows.append(Rule(style="dim"))
 
     if bot:
-        tbl_bot = Table(
-            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
-            padding=(0, 1), expand=True,
-        )
-        tbl_bot.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        tbl_bot.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        tbl_bot.add_column("Mom", justify="right", no_wrap=True, min_width=3)
-        tbl_bot.add_column("Qual", justify="right", no_wrap=True, min_width=4)
-        tbl_bot.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
-        tbl_bot.add_column("Stab", justify="right", no_wrap=True, min_width=4)
-        tbl_bot.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
-        tbl_bot.add_column("Sector", no_wrap=True, max_width=11)
+        tbl_bot = _make_score_tbl()
         rows.append(Text.from_markup(f"[{R}][bold]BOTTOM {len(bot)}[/][/]"))
         _score_row(tbl_bot, bot, R)
         rows.append(tbl_bot)
@@ -3556,7 +3554,26 @@ def panel_scores_expanded(scores):
         tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
         tbl.add_column("Price", justify="right", no_wrap=True, min_width=7)
         tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
-        tbl.add_column("Sector", no_wrap=True, max_width=14)
+        tbl.add_column("Sector", no_wrap=True, max_width=16)
+        def _sub_s(v):
+            if v is None or v == "":
+                return Text("--", style=DIM)
+            try:
+                fv = float(v)
+            except (ValueError, TypeError):
+                return Text("--", style=DIM)
+            return Text(f"{fv:.0f}", style="white")
+
+        def _sub_colored(v):
+            if v is None or v == "":
+                return Text("--", style=DIM)
+            try:
+                fv = float(v)
+            except (ValueError, TypeError):
+                return Text("--", style=DIM)
+            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+            return Text(f"{fv:.0f}", style=c)
+
         for s in items:
             sym = s.get("symbol") or "--"
             sc = s.get("composite_score")
@@ -3572,23 +3589,29 @@ def panel_scores_expanded(scores):
             sector = (s.get("sector") or "")[:14]
             sc_v = float(sc) if sc is not None else 0
             sc_c = G if sc_v >= 70 else (Y if sc_v >= 50 else R)
-            chg_c = G if (chg or 0) >= 0 else R
-
-            def _sub(v):
-                return f"{float(v):.0f}" if v is not None else "--"
+            try:
+                chg_v = float(chg) if chg is not None and chg != "" else None
+            except (ValueError, TypeError):
+                chg_v = None
+            try:
+                rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
+            except (ValueError, TypeError):
+                rs_v = None
+            chg_c = G if (chg_v or 0) >= 0 else R
 
             tbl.add_row(
                 Text(sym, style=f"bold {color}"),
                 Text(f"{sc_v:.0f}", style=sc_c),
-                Text(_sub(mom), style="white"),
-                Text(_sub(qual), style="white"),
-                Text(_sub(val), style="white"),
-                Text(_sub(grwth), style="white"),
-                Text(_sub(stab), style="white"),
-                Text(_sub(pos), style="white"),
-                Text(_sub(rs_pct), style="white"),
+                _sub_colored(mom),
+                _sub_colored(qual),
+                _sub_colored(val),
+                _sub_colored(grwth),
+                _sub_colored(stab),
+                _sub_colored(pos),
+                Text(f"{rs_v:.0f}" if rs_v is not None else "--",
+                     style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style="dim"),
-                Text(f"{chg:+.1f}%" if chg is not None else "--", style=chg_c),
+                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(sector, style="dim"),
             )
         rows.append(tbl)
@@ -3605,6 +3628,139 @@ def panel_scores_expanded(scores):
         Group(*rows),
         title="[bold bright_cyan]STOCK SCORES - EXPANDED[/]  [dim][c] return[/]",
         border_style="bright_cyan",
+        padding=(0, 1),
+    )
+
+
+@register_panel(
+    "trades_expanded",
+    endpoint_deps=["trades"],
+    optional=True,
+    description="Trades History Expanded",
+)
+def panel_trades_expanded(trades):
+    """Full-screen closed trade history with all columns."""
+    trades_timestamp = None
+    if isinstance(trades, dict):
+        trades_timestamp = trades.get("timestamp")
+        trades_list = trades.get("items", [])
+    else:
+        trades_list = trades if isinstance(trades, list) else []
+
+    closed = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status") or "").lower() == "closed"]
+
+    rows = [
+        Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+
+    if not closed:
+        rows.append(Text("no closed trades yet", style="dim"))
+        return Panel(
+            Group(*rows),
+            title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
+
+    # Summary stats
+    total = len(closed)
+    wins = sum(1 for t in closed if (t.get("profit_loss_pct") or 0) > 0)
+    losses = total - wins
+    wr = wins / total * 100 if total else 0
+    total_pnl = sum(float(t.get("profit_loss_dollars") or 0) for t in closed)
+    avg_r_list = [float(t["exit_r_multiple"]) for t in closed if t.get("exit_r_multiple") is not None]
+    avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
+    wc = G if wr >= 55 else (Y if wr >= 45 else R)
+    pnl_c = G if total_pnl >= 0 else R
+    rows.append(Text.from_markup(
+        f"[dim]Total:[/] [white]{total}[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
+        f"[dim]Win Rate:[/][{wc}]{wr:.0f}%[/]  "
+        f"[dim]Total P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
+        + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
+    ))
+    rows.append(Rule(style="dim"))
+
+    tbl = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim bold",
+        padding=(0, 1),
+        row_styles=["", "dim"],
+        expand=True,
+    )
+    tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=6)
+    tbl.add_column("Entry Date", style="dim", no_wrap=True, min_width=6)
+    tbl.add_column("Exit Date", style="dim", no_wrap=True, min_width=6)
+    tbl.add_column("Entry$", justify="right", no_wrap=True, min_width=7)
+    tbl.add_column("Exit$", justify="right", no_wrap=True, min_width=7)
+    tbl.add_column("P&L$", justify="right", no_wrap=True, min_width=7)
+    tbl.add_column("P&L%", justify="right", no_wrap=True, min_width=6)
+    tbl.add_column("R", justify="right", no_wrap=True, min_width=5)
+    tbl.add_column("Days", justify="right", no_wrap=True, min_width=4)
+    tbl.add_column("Grade", justify="center", no_wrap=True, min_width=5)
+    tbl.add_column("MFE%", justify="right", no_wrap=True, min_width=5)
+    tbl.add_column("MAE%", justify="right", no_wrap=True, min_width=5)
+
+    def _fd(d):
+        if hasattr(d, "strftime"):
+            return d.strftime("%b%d")
+        if isinstance(d, str) and len(d) >= 7:
+            try:
+                from datetime import datetime as _dt
+                return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
+            except (ValueError, TypeError):
+                return d[5:10]
+        return str(d or "--")[:6]
+
+    for tr in closed[:50]:
+        sym = tr.get("symbol") or "--"
+        pnl_d_raw = tr.get("profit_loss_dollars")
+        pnl_p_raw = tr.get("profit_loss_pct")
+        pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
+        pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
+        rmul_raw = tr.get("exit_r_multiple")
+        rmul = float(rmul_raw) if rmul_raw is not None else None
+        entry_raw = tr.get("entry_price")
+        exit_raw = tr.get("exit_price")
+        entry_p = float(entry_raw) if entry_raw is not None else None
+        exit_p = float(exit_raw) if exit_raw is not None else None
+        dur_raw = tr.get("trade_duration_days")
+        dur = int(dur_raw) if dur_raw is not None else None
+        grade = tr.get("swing_grade") or "--"
+        mfe_raw = tr.get("mfe_pct")
+        mae_raw = tr.get("mae_pct")
+        mfe = float(mfe_raw) if mfe_raw is not None else None
+        mae = float(mae_raw) if mae_raw is not None else None
+        trade_date = tr.get("trade_date") or tr.get("signal_date")
+        exit_date = tr.get("exit_date")
+
+        pc = G if (pnl_p or 0) > 0 else R
+        si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
+        grade_c = G if grade in ("A", "A+", "A-") else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
+
+        tbl.add_row(
+            Text.from_markup(f"{si} {sym}"),
+            _fd(trade_date),
+            _fd(exit_date),
+            Text(f"${entry_p:.2f}" if entry_p is not None else "--", style="dim"),
+            Text(f"${exit_p:.2f}" if exit_p is not None else "--", style="dim"),
+            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if pnl_d is not None else "--", style=pc),
+            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if pnl_p is not None else "--", style=pc),
+            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
+            Text(f"{dur}d" if dur is not None else "--", style="dim"),
+            Text(grade, style=grade_c),
+            Text(f"{mfe:.1f}%" if mfe is not None else "--", style=G if (mfe or 0) > 0 else DIM),
+            Text(f"{mae:.1f}%" if mae is not None else "--", style=R if (mae or 0) < 0 else DIM),
+        )
+
+    rows.append(tbl)
+
+    age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
+    return Panel(
+        Group(*rows),
+        title=f"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim][t] return[/]",
+        border_style="cyan",
         padding=(0, 1),
     )
 

@@ -72,6 +72,7 @@ from panels import (
     panel_sectors_expanded,
     panel_scores,
     panel_scores_expanded,
+    panel_trades_expanded,
 )
 from formatters import mkt_hours_str
 
@@ -462,6 +463,9 @@ def render_dashboard(
     if view_mode == "scores":
         return _expanded_layout(*_exp_top, panel_scores_expanded(scores))
 
+    if view_mode == "trades":
+        return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
+
     return outer
 
 
@@ -481,7 +485,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -540,7 +544,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:

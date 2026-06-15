@@ -153,7 +153,7 @@ function TradesView() {
   const closedPnL = closedTrades.reduce((s, t) => s + Number(t.profit_loss_dollars || 0), 0);
 
   if (pe || te) {
-    return <div className="alert alert-danger" style={{ margin: '16px' }}>{pe || te}</div>;
+    return <div className="alert alert-danger" style={{ margin: '16px' }}>{pe?.message || te?.message || 'Error loading data'}</div>;
   }
 
   return (
@@ -444,7 +444,10 @@ function NotificationsView() {
   const items = Array.isArray(data) ? data : (data?.items || []);
 
   if (notifError) {
-    return <div className="alert alert-danger" style={{ margin: '16px' }}>{notifError}</div>;
+    if (notifError?.status === 403 || notifError?.httpStatus === 403) {
+      return <Empty title="Admin access required" desc="Notifications are restricted to admin accounts." />;
+    }
+    return <div className="alert alert-danger" style={{ margin: '16px' }}>{notifError?.message || 'Error loading notifications'}</div>;
   }
 
   return (

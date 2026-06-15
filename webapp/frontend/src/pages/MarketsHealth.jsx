@@ -7,7 +7,7 @@
  * Sections:
  *   1. Regime banner (exposure, tier, halt status)
  *   2. Major indices grid w/ 30d sparklines
- *   3. 12-factor exposure composite
+ *   3. Multi-factor exposure composite
  *   4. Market pulse (DD circle + FTD)
  *   5. 90d exposure history area chart
  *   6. Breadth bar chart (% > 50/200 DMA)
@@ -280,7 +280,7 @@ function RegimeBanner({ markets }) {
         <AlertTriangle size={18} />
         <div>
           <div style={{ fontWeight: 'var(--w-semibold)' }}>Market exposure not yet computed for today</div>
-          <div className="muted t-sm">The orchestrator computes the 12-factor regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
+          <div className="muted t-sm">The orchestrator computes the exposure regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
         </div>
       </div>
     );
@@ -468,7 +468,7 @@ function ExposureFactors({ markets }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">12-Factor Exposure Composite</div>
+          <div className="card-title">{list.length}-Factor Exposure Composite</div>
           <div className="card-sub">
             {safeCurrent ? `Raw ${num(safeCurrent.raw_score, 1)} → capped ${safeCurrent.exposure_pct}%`
               : 'Each factor independently scored, summed for total exposure'}

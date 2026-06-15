@@ -145,10 +145,12 @@ def run(
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
-                "buy_sell_daily": "Buy/sell entry triggers (Phase 5 input)",
             }
             # Warning-only tables: stale → logged, trading continues
+            # buy_sell_daily intentionally removed from EOD pipeline (Phase 5 falls back
+            # to stock_scores + price_daily when buy_sell_daily is empty/stale)
             warn_tables = {
+                "buy_sell_daily": "Buy/sell entry triggers (warning: loader removed from pipeline)",
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "swing_trader_scores": "Swing trader scores (legacy, warning only)",
                 "stock_scores": "Composite scores for ranking (weekly refresh OK)",
@@ -190,7 +192,7 @@ def run(
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
 
-                    # Time-based freshness for buy_sell_daily (Phase 5 requires recent data)
+                    # Time-based freshness for buy_sell_daily (warning only — loader removed from pipeline)
                     if table_name == "buy_sell_daily":
                         cur.execute("SELECT MAX(created_at) FROM buy_sell_daily")
                         max_created = cur.fetchone()[0]
@@ -200,8 +202,8 @@ def run(
                             age_hours = (now_utc - max_created).total_seconds() / 3600
                             if age_hours > max_stale_hours:
                                 msg = f"{description} is {age_hours:.1f}h old (max {max_stale_hours}h)"
-                                logger.critical(f"[PHASE 1] {msg}")
-                                halt_stale.append(msg)
+                                logger.warning(f"[PHASE 1] {msg}")
+                                warn_stale.append(msg)
 
                 except Exception as e:
                     msg = f"{description} check failed: {str(e)[:50]}"

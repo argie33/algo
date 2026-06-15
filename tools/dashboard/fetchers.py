@@ -726,11 +726,11 @@ def fetch_positions(c):
 
 
 def fetch_recent_trades(c):
-    """AWS-only trades data (no local fallback)."""
+    """AWS-only trades data (no local fallback). Returns closed trades only — open positions are in the positions panel."""
     try:
         data = api_call(
             _get_endpoint_path("trades"),
-            params={"limit": 20},
+            params={"limit": 30, "status": "closed"},
         )
         if data.get("_error"):
             return {

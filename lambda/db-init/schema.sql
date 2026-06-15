@@ -3598,3 +3598,6 @@ CREATE TABLE IF NOT EXISTS r_ladder_distribution_daily (
     UNIQUE (date, r_multiple_bucket)
 );
 CREATE INDEX IF NOT EXISTS idx_r_ladder_date ON r_ladder_distribution_daily(date DESC);
+
+-- Sector grouping index: sectors query GROUP BY company_profile.sector was hitting statement timeout under EOD load
+CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector);

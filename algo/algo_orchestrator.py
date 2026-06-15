@@ -1028,19 +1028,10 @@ class Orchestrator:
                     f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}"
                 )
                 with TimeBlock("phase_1_data_freshness"):
-                    from algo.orchestrator.phase1_data_freshness import (
-                        run as run_phase1,
-                    )
-
-                    phase1_result = run_phase1(
-                        self.config,
-                        self.run_date,
-                        self.dry_run,
-                        self.alerts,
-                        self.verbose,
-                        self.log_phase_result,
-                    )
-                    self._phase1_result = phase1_result
+                    # Call instance method (not module directly) so DynamoDB halt flag
+                    # lifecycle and degraded-mode writes in phase_1_data_freshness() execute.
+                    self.phase_1_data_freshness()
+                    phase1_result = self._phase1_result
                     # BYPASS_PHASE1_HALT: For Path B proof-of-concept, ignore Phase 1's halt decision
                     # and let Phase 5+ run with current prices to prove the concept works.
                     bypass_phase1 = os.getenv("BYPASS_PHASE1_HALT", "").lower() in (
