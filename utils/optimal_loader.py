@@ -813,11 +813,18 @@ class OptimalLoader(ABC):
                     )
                     # Update our status to FAILED so Phase 1 detects it
                     try:
-                        with DatabaseContext("write") as write_cur:
-                            write_cur.execute(
-                                "UPDATE data_loader_status SET status = %s WHERE table_name = %s",
-                                ("FAILED", self.table_name),
-                            )
+                        from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                        _saved = get_pooled_connection()
+                        set_pooled_connection(None)
+                        try:
+                            with DatabaseContext("write", enable_correlation_tracking=False) as write_cur:
+                                write_cur.execute("SET LOCAL statement_timeout = 0")
+                                write_cur.execute(
+                                    "UPDATE data_loader_status SET status = %s WHERE table_name = %s",
+                                    ("FAILED", self.table_name),
+                                )
+                        finally:
+                            set_pooled_connection(_saved)
                     except Exception:
                         pass
                     return False
@@ -855,22 +862,29 @@ class OptimalLoader(ABC):
         )
 
         try:
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    INSERT INTO loader_execution_history
-                    (loader_name, execution_start, execution_end, status, rows_processed, error_message)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        self.table_name,
-                        execution_start,
-                        execution_end,
-                        status,
-                        self._stats.get("rows_inserted", 0),
-                        error_message,
-                    ),
-                )
+            from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+            _saved_hist = get_pooled_connection()
+            set_pooled_connection(None)
+            try:
+                with DatabaseContext("write", enable_correlation_tracking=False) as cur:
+                    cur.execute("SET LOCAL statement_timeout = 0")
+                    cur.execute(
+                        """
+                        INSERT INTO loader_execution_history
+                        (loader_name, execution_start, execution_end, status, rows_processed, error_message)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            self.table_name,
+                            execution_start,
+                            execution_end,
+                            status,
+                            self._stats.get("rows_inserted", 0),
+                            error_message,
+                        ),
+                    )
+            finally:
+                set_pooled_connection(_saved_hist)
             logger.info(
                 f"[{self.table_name}] Logged execution history: status={status}, rows={self._stats.get('rows_inserted', 0)}"
             )
@@ -1298,59 +1312,63 @@ class OptimalLoader(ABC):
                 duration,
             )
 
-            # Update data_loader_status
+            # Update data_loader_status using a fresh connection to avoid statement
+            # timeout from the long-running pooled connection state.
             try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        psycopg2.sql.SQL("SELECT COUNT(*), MAX({}) FROM {}").format(
-                            psycopg2.sql.Identifier(self.watermark_field),
-                            psycopg2.sql.Identifier(self.table_name),
-                        )
-                    )
-                    result = cur.fetchone()
-                    total_rows = result[0] if result else 0
-                    latest_date = result[1] if result else None
-                    if hasattr(latest_date, "date"):
-                        latest_date = latest_date.date()
-                with DatabaseContext("write") as cur:
-                    # ISSUE #2 FIX: Preserve execution_started timestamp across DELETE+INSERT
-                    cur.execute(
-                        "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,),
-                    )
-                    existing = cur.fetchone()
-                    execution_started = (
-                        existing[0] if existing and existing[0] else "NOW()"
-                    )
-
-                    cur.execute(
-                        "DELETE FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,),
-                    )
-
-                    # Include execution_started (preserved) and execution_completed (set now) in INSERT
-                    if execution_started == "NOW()":
-                        # execution_started was null, set it now
+                from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                _saved_conn_global = get_pooled_connection()
+                set_pooled_connection(None)
+                try:
+                    with DatabaseContext("read", enable_correlation_tracking=False) as cur:
                         cur.execute(
-                            "INSERT INTO data_loader_status "
-                            "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
-                            "VALUES (%s, %s, %s, NOW(), %s, NOW(), NOW())",
-                            (self.table_name, total_rows, latest_date, "COMPLETED"),
+                            psycopg2.sql.SQL("SELECT COUNT(*), MAX({}) FROM {}").format(
+                                psycopg2.sql.Identifier(self.watermark_field),
+                                psycopg2.sql.Identifier(self.table_name),
+                            )
                         )
-                    else:
-                        # execution_started already exists, preserve it
+                        result = cur.fetchone()
+                        total_rows = result[0] if result else 0
+                        latest_date = result[1] if result else None
+                        if hasattr(latest_date, "date"):
+                            latest_date = latest_date.date()
+                    with DatabaseContext("write", enable_correlation_tracking=False) as cur:
+                        cur.execute("SET LOCAL statement_timeout = 0")
                         cur.execute(
-                            "INSERT INTO data_loader_status "
-                            "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
-                            "VALUES (%s, %s, %s, NOW(), %s, %s, NOW())",
-                            (
-                                self.table_name,
-                                total_rows,
-                                latest_date,
-                                "COMPLETED",
-                                execution_started,
-                            ),
+                            "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
+                            (self.table_name,),
                         )
+                        existing = cur.fetchone()
+                        execution_started = (
+                            existing[0] if existing and existing[0] else "NOW()"
+                        )
+
+                        cur.execute(
+                            "DELETE FROM data_loader_status WHERE table_name = %s",
+                            (self.table_name,),
+                        )
+
+                        if execution_started == "NOW()":
+                            cur.execute(
+                                "INSERT INTO data_loader_status "
+                                "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
+                                "VALUES (%s, %s, %s, NOW(), %s, NOW(), NOW())",
+                                (self.table_name, total_rows, latest_date, "COMPLETED"),
+                            )
+                        else:
+                            cur.execute(
+                                "INSERT INTO data_loader_status "
+                                "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
+                                "VALUES (%s, %s, %s, NOW(), %s, %s, NOW())",
+                                (
+                                    self.table_name,
+                                    total_rows,
+                                    latest_date,
+                                    "COMPLETED",
+                                    execution_started,
+                                ),
+                            )
+                finally:
+                    set_pooled_connection(_saved_conn_global)
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
