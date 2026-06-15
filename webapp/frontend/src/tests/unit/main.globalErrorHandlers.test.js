@@ -1,14 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+// jsdom does not implement PromiseRejectionEvent. Simulate it by dispatching
+// a regular event with the expected shape (reason, promise, preventDefault).
+function dispatchRejection(reason) {
+  const event = Object.assign(new Event('unhandledrejection', { bubbles: true, cancelable: true }), {
+    promise: Promise.resolve(),
+    reason,
+  });
+  window.dispatchEvent(event);
+  return event;
+}
+
 describe('Global Error Handlers - Unhandled Promise Rejections', () => {
   let consoleErrorSpy;
-  let unhandledRejectionHandler;
 
   beforeEach(() => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    // Get the current unhandledrejection handler
-    unhandledRejectionHandler = null;
   });
 
   afterEach(() => {
@@ -16,121 +23,96 @@ describe('Global Error Handlers - Unhandled Promise Rejections', () => {
     vi.clearAllMocks();
   });
 
-  it('should capture unhandled promise rejections', (done) => {
+  it('should capture unhandled promise rejections', () => {
     const testError = new Error('Test unhandled rejection');
     const rejectionHandler = vi.fn((e) => {
-      expect(e.reason).toBe(testError);
       e.preventDefault();
-      done();
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
+    dispatchRejection(testError);
+    window.removeEventListener('unhandledrejection', rejectionHandler);
 
-    // Trigger an unhandled rejection
-    Promise.reject(testError);
-
-    // Give the event loop time to process
-    setTimeout(() => {
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-    }, 100);
+    expect(rejectionHandler).toHaveBeenCalledOnce();
+    expect(rejectionHandler.mock.calls[0][0].reason).toBe(testError);
   });
 
-  it('should handle promise rejection with error object', (done) => {
+  it('should handle promise rejection with error object', () => {
     const testError = new Error('Rejection with error object');
     const rejectionHandler = vi.fn((e) => {
-      expect(e.reason instanceof Error).toBe(true);
-      expect(e.reason.message).toBe('Rejection with error object');
       e.preventDefault();
-      done();
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
-    Promise.reject(testError);
+    dispatchRejection(testError);
+    window.removeEventListener('unhandledrejection', rejectionHandler);
 
-    setTimeout(() => {
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-    }, 100);
+    expect(rejectionHandler).toHaveBeenCalledOnce();
+    const e = rejectionHandler.mock.calls[0][0];
+    expect(e.reason).toBeInstanceOf(Error);
+    expect(e.reason.message).toBe('Rejection with error object');
   });
 
-  it('should handle promise rejection with string', (done) => {
+  it('should handle promise rejection with string', () => {
     const rejectionHandler = vi.fn((e) => {
-      expect(typeof e.reason).toBe('string');
-      expect(e.reason).toBe('String rejection');
       e.preventDefault();
-      done();
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
-    Promise.reject('String rejection');
+    dispatchRejection('String rejection');
+    window.removeEventListener('unhandledrejection', rejectionHandler);
 
-    setTimeout(() => {
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-    }, 100);
+    expect(rejectionHandler).toHaveBeenCalledOnce();
+    const e = rejectionHandler.mock.calls[0][0];
+    expect(typeof e.reason).toBe('string');
+    expect(e.reason).toBe('String rejection');
   });
 
-  it('should prevent unhandled rejection from crashing app', (done) => {
+  it('should prevent unhandled rejection from crashing app', () => {
     const rejectionHandler = vi.fn((e) => {
       e.preventDefault();
       return false;
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
+    dispatchRejection(new Error('Test error'));
+    window.removeEventListener('unhandledrejection', rejectionHandler);
 
-    const testPromise = Promise.reject(new Error('Test error'));
-
-    // The app should not crash even though we don't attach a catch handler
-    setTimeout(() => {
-      // If we got here, the app didn't crash
-      expect(true).toBe(true);
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-      done();
-    }, 100);
+    // Handler was called and app did not crash
+    expect(rejectionHandler).toHaveBeenCalledOnce();
   });
 
-  it('should attach catch handlers to prevent rejections', (done) => {
+  it('should attach catch handlers to prevent rejections', async () => {
     const rejectionHandler = vi.fn((e) => {
       e.preventDefault();
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
 
+    // A handled rejection — we intentionally do NOT dispatch a synthetic rejection.
     const promise = Promise.reject(new Error('Test error'));
-    promise.catch((err) => {
-      // Error is handled
+    await promise.catch((err) => {
       expect(err.message).toBe('Test error');
     });
 
-    setTimeout(() => {
-      // No unhandled rejection should have triggered
-      expect(rejectionHandler).not.toHaveBeenCalled();
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-      done();
-    }, 100);
+    window.removeEventListener('unhandledrejection', rejectionHandler);
+
+    // No event was dispatched, so handler should not have been called
+    expect(rejectionHandler).not.toHaveBeenCalled();
   });
 });
 
 describe('Promise Error Context Tracking', () => {
-  it('should track error context properly', (done) => {
-    const errorContext = {
-      url: 'http://test.local',
-      timestamp: new Date().toISOString(),
-      promiseState: 'rejected',
-    };
-
+  it('should track error context properly', () => {
     const rejectionHandler = vi.fn((e) => {
-      expect(e.reason).toBeInstanceOf(Error);
       e.preventDefault();
-      done();
     });
 
     window.addEventListener('unhandledrejection', rejectionHandler);
+    dispatchRejection(new Error('Context test error'));
+    window.removeEventListener('unhandledrejection', rejectionHandler);
 
-    Promise.reject(new Error('Context test error')).catch(() => {
-      // Handled
-    });
-
-    setTimeout(() => {
-      window.removeEventListener('unhandledrejection', rejectionHandler);
-    }, 100);
+    expect(rejectionHandler).toHaveBeenCalledOnce();
+    expect(rejectionHandler.mock.calls[0][0].reason).toBeInstanceOf(Error);
   });
 });
