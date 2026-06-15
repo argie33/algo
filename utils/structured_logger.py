@@ -39,7 +39,7 @@ import logging
 import sys
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 # Global trace ID (set once at orchestrator start)
 _trace_id: Optional[str] = None
@@ -66,7 +66,7 @@ class StructuredFormatter(logging.Formatter):
         """Format log record as JSON."""
         # Build JSON log entry
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -76,7 +76,10 @@ class StructuredFormatter(logging.Formatter):
 
         # ISSUE #13 FIX: Auto-include correlation_id from context
         try:
-            from utils.infrastructure.correlation import get_correlation_id as get_corr_id
+            from utils.infrastructure.correlation import (
+                get_correlation_id as get_corr_id,
+            )
+
             log_entry["correlation_id"] = get_corr_id()
         except (ImportError, Exception):
             pass  # correlation_context not available or not set
@@ -85,12 +88,29 @@ class StructuredFormatter(logging.Formatter):
         if hasattr(record, "__dict__"):
             for key, value in record.__dict__.items():
                 # Skip internal logging fields
-                if not key.startswith('_') and key not in [
-                    'name', 'msg', 'args', 'created', 'filename', 'funcName',
-                    'levelname', 'levelno', 'lineno', 'module', 'msecs',
-                    'message', 'pathname', 'process', 'processName', 'relativeCreated',
-                    'thread', 'threadName', 'exc_info', 'exc_text', 'stack_info',
-                    'getMessage',
+                if not key.startswith("_") and key not in [
+                    "name",
+                    "msg",
+                    "args",
+                    "created",
+                    "filename",
+                    "funcName",
+                    "levelname",
+                    "levelno",
+                    "lineno",
+                    "module",
+                    "msecs",
+                    "message",
+                    "pathname",
+                    "process",
+                    "processName",
+                    "relativeCreated",
+                    "thread",
+                    "threadName",
+                    "exc_info",
+                    "exc_text",
+                    "stack_info",
+                    "getMessage",
                 ]:
                     log_entry[key] = value
 
@@ -116,7 +136,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     return logger
 
 # Convenience: get logger for main orchestrator
-orchestrator_logger = get_logger('algo_orchestrator')
+orchestrator_logger = get_logger("algo_orchestrator")
 
 if __name__ == "__main__":
     # Test: show what logs look like
@@ -125,19 +145,28 @@ if __name__ == "__main__":
     logger = get_logger("test_module")
 
     logger.info("Simple message")
-    logger.info("Trade executed", extra={
-        "symbol": "AAPL",
-        "price": 150.0,
-        "shares": 100,
-    })
-    logger.warning("Low volume", extra={
-        "symbol": "MSFT",
-        "volume": 100000,
-        "expected_volume": 50000000,
-    })
-    logger.error("Failed to fetch data", extra={
-        "source": "yfinance",
-        "error": "Rate limit exceeded",
-    })
+    logger.info(
+        "Trade executed",
+        extra={
+            "symbol": "AAPL",
+            "price": 150.0,
+            "shares": 100,
+        },
+    )
+    logger.warning(
+        "Low volume",
+        extra={
+            "symbol": "MSFT",
+            "volume": 100000,
+            "expected_volume": 50000000,
+        },
+    )
+    logger.error(
+        "Failed to fetch data",
+        extra={
+            "source": "yfinance",
+            "error": "Rate limit exceeded",
+        },
+    )
 
     logger.info("\n^ All logs are JSON. Paste into CloudWatch Insights.")

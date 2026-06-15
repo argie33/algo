@@ -13,11 +13,9 @@ import psycopg2
 
 # Context variable holding the current thread's pooled connection
 # Set by OptimalLoader at startup, used by DatabaseContext operations
-_pooled_connection: contextvars.ContextVar[Optional[psycopg2.extensions.connection]] = contextvars.ContextVar(
-    'pooled_connection',
-    default=None
+_pooled_connection: contextvars.ContextVar[Optional[psycopg2.extensions.connection]] = (
+    contextvars.ContextVar("pooled_connection", default=None)
 )
-
 
 def set_pooled_connection(conn: Optional[psycopg2.extensions.connection]) -> None:
     """Set the current thread's pooled connection.
@@ -30,7 +28,6 @@ def set_pooled_connection(conn: Optional[psycopg2.extensions.connection]) -> Non
     """
     _pooled_connection.set(conn)
 
-
 def get_pooled_connection() -> Optional[psycopg2.extensions.connection]:
     """Get the current thread's pooled connection (if set).
 
@@ -41,7 +38,6 @@ def get_pooled_connection() -> Optional[psycopg2.extensions.connection]:
         Current pooled connection or None if not set
     """
     return _pooled_connection.get()
-
 
 def has_pooled_connection() -> bool:
     """Check if a pooled connection is active in this thread."""

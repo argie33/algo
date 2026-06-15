@@ -8,10 +8,9 @@ Support line = two recent lows with an uptrend angle.
 HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 """
 
-import os
 from utils.db import DatabaseContext
-from datetime import datetime, date, timedelta
-from typing import Dict, Optional, Tuple
+from datetime import date, timedelta
+from typing import Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ class TrendlineSupport:
     def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list:
         """Get closing prices for the lookback period."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT date, low, close FROM price_daily
@@ -120,21 +119,21 @@ class TrendlineSupport:
                 if confidence > best_confidence:
                     best_confidence = confidence
                     best_trendline = {
-                        'support_level': support_at_eval,
-                        'low_1_date': low_1_date,
-                        'low_1_price': low_1_price,
-                        'low_2_date': low_2_date,
-                        'low_2_price': low_2_price,
-                        'angle_degrees': angle_degrees,
-                        'days_apart': days_apart,
-                        'days_from_low2': days_from_low2,
-                        'confidence': best_confidence,
+                        "support_level": support_at_eval,
+                        "low_1_date": low_1_date,
+                        "low_1_price": low_1_price,
+                        "low_2_date": low_2_date,
+                        "low_2_price": low_2_price,
+                        "angle_degrees": angle_degrees,
+                        "days_apart": days_apart,
+                        "days_from_low2": days_from_low2,
+                        "confidence": best_confidence,
                     }
 
         if not best_trendline:
             return None
 
-        best_trendline['reason'] = (
+        best_trendline["reason"] = (
             f"Support line from {best_trendline['low_1_date']} (${best_trendline['low_1_price']:.2f}) "
             f"to {best_trendline['low_2_date']} (${best_trendline['low_2_price']:.2f}), "
             f"angle {best_trendline['angle_degrees']:.1f}%, "
@@ -143,7 +142,9 @@ class TrendlineSupport:
 
         return best_trendline
 
-    def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> Dict:
+    def validate_entry_near_trendline(
+        self, symbol: str, eval_date: date, entry_price: float
+    ) -> Dict:
         """
         Check if entry_price is near (above) the support trendline.
 
@@ -159,13 +160,13 @@ class TrendlineSupport:
 
         if not trendline:
             return {
-                'near_trendline': False,
-                'trendline_support': None,
-                'distance_pct': None,
-                'reason': 'No valid support trendline found',
+                "near_trendline": False,
+                "trendline_support": None,
+                "distance_pct": None,
+                "reason": "No valid support trendline found",
             }
 
-        support_level = float(trendline['support_level'])
+        support_level = float(trendline["support_level"])
 
         # Entry should be near (1-5% above) the support line
         distance_pct = ((float(entry_price) - support_level) / support_level) * 100
@@ -174,13 +175,12 @@ class TrendlineSupport:
         near_trendline = 0.5 <= distance_pct <= 5.0
 
         return {
-            'near_trendline': near_trendline,
-            'trendline_support': support_level,
-            'distance_pct': distance_pct,
-            'confidence': trendline['confidence'],
-            'reason': (
+            "near_trendline": near_trendline,
+            "trendline_support": support_level,
+            "distance_pct": distance_pct,
+            "confidence": trendline["confidence"],
+            "reason": (
                 f"Entry ${entry_price:.2f} is {distance_pct:.1f}% above support ${support_level:.2f}. "
                 f"Trendline: {trendline['reason']}"
             ),
         }
-

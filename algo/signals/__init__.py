@@ -6,8 +6,8 @@ from .swing_score import SwingTraderScore
 from .attribution import SignalAttributionEngine
 
 __all__ = [
-    'SignalComputer',
-    'VectorizedSignalGenerator',
-    'SwingTraderScore',
-    'SignalAttributionEngine',
+    "SignalComputer",
+    "VectorizedSignalGenerator",
+    "SwingTraderScore",
+    "SignalAttributionEngine",
 ]

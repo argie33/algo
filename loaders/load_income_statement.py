@@ -1,5 +1,6 @@
 ﻿#!/usr/bin/env python3
 import sys
+
 """
 Income Statement Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -9,10 +10,11 @@ or --period CLI flag for manual runs.
 
 import logging
 import argparse
+
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 from utils.loaders.helpers import get_active_symbols
 from utils.external.sec_edgar import SecEdgarClient
 
@@ -24,10 +26,18 @@ _PERIOD_CONFIG = {
         "table_name": "annual_income_statement",
         "primary_key": ("symbol", "fiscal_year"),
         "edgar_period": "annual",
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year", "revenue", "cost_of_revenue",
-            "gross_profit", "operating_income", "net_income", "earnings_per_share",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "revenue",
+                "cost_of_revenue",
+                "gross_profit",
+                "operating_income",
+                "net_income",
+                "earnings_per_share",
+            }
+        ),
         "field_mapping": {
             # Revenue: SEC EDGAR returns "Revenues" (FY2018+) or "SalesRevenueNet" (FY2009-2017)
             "revenues": "revenue",
@@ -53,11 +63,18 @@ _PERIOD_CONFIG = {
         "table_name": "quarterly_income_statement",
         "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
         "edgar_period": "quarterly",
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year", "fiscal_quarter", "revenue", "net_income", "earnings_per_share",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "fiscal_quarter",
+                "revenue",
+                "net_income",
+                "earnings_per_share",
+            }
+        ),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",  # "Q1".."Q4"  ->  integer (converted in transform)
             "revenues": "revenue",
             "sales_revenue_net": "revenue",
             "net_income_loss": "net_income",
@@ -93,9 +110,13 @@ class IncomeStatementLoader(OptimalLoader):
             if not self._sec_client.symbol_to_cik(symbol):
                 logging.debug("Symbol %s not found in SEC EDGAR", symbol)
                 return None
-            rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
+            rows = self._sec_client.get_income_statement(
+                symbol, period=self._edgar_period
+            )
             if not rows:
-                logging.debug("No %s income statement data for %s", self._edgar_period, symbol)
+                logging.debug(
+                    "No %s income statement data for %s", self._edgar_period, symbol
+                )
                 return None
             since_year = int(since.year) if since else 2000
             filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
@@ -120,7 +141,9 @@ class IncomeStatementLoader(OptimalLoader):
                 db_field = self._field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
-                    if db_field not in row:  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
+                    if (
+                        db_field not in row
+                    ):  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
                         row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 row["fiscal_quarter"] = self._QUARTER_MAP.get(row["fiscal_quarter"])
@@ -131,7 +154,11 @@ class IncomeStatementLoader(OptimalLoader):
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
-                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
+                key = (
+                    row.get("symbol"),
+                    row.get("fiscal_year"),
+                    row.get("fiscal_quarter"),
+                )
             if key not in seen:
                 seen[key] = row
         return list(seen.values())
@@ -147,24 +174,42 @@ class IncomeStatementLoader(OptimalLoader):
 
         # Reject rows where all key financial fields are NULL
         # (indicates API failure or no data available for this symbol/year)
-        financial_fields = ["gross_profit", "operating_income", "net_income", "cost_of_revenue"]
+        financial_fields = [
+            "gross_profit",
+            "operating_income",
+            "net_income",
+            "cost_of_revenue",
+        ]
         if all(row.get(field) is None for field in financial_fields):
             return False
 
         return True
 
 def main():
-    parser = argparse.ArgumentParser(description="Income statement loader (annual/quarterly)")
-    parser.add_argument("--period", choices=["annual", "quarterly"],
-                        help="Statement period (defaults to LOADER_PERIOD env var)")
+    parser = argparse.ArgumentParser(
+        description="Income statement loader (annual/quarterly)"
+    )
+    parser.add_argument(
+        "--period",
+        choices=["annual", "quarterly"],
+        help="Statement period (defaults to LOADER_PERIOD env var)",
+    )
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     default_parallelism = get_parallelism("income_statement")
-    parser.add_argument("--parallelism", type=int, default=default_parallelism,
-                        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=default_parallelism,
+        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})",
+    )
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
+    symbols = (
+        [s.strip().upper() for s in args.symbols.split(",")]
+        if args.symbols
+        else get_active_symbols(timeout_secs=60)
+    )
 
     loader = IncomeStatementLoader(period)
     try:
@@ -174,10 +219,11 @@ def main():
 
     fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
     if fail_rate > 0.05:
-        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        logger.error(
+            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
+        )
         return 1
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -12,9 +12,7 @@ Events:
 """
 
 import boto3
-import json
 import logging
-import os
 import threading
 from typing import Any
 
@@ -25,14 +23,14 @@ _ses_client = None
 _ses_client_lock = threading.Lock()
 
 def get_ses_client():
-	"""Lazy-load SES client to avoid credential loading during imports (thread-safe)."""
-	global _ses_client
-	if _ses_client is None:
-		with _ses_client_lock:
-			# Double-check pattern to avoid race conditions
-			if _ses_client is None:
-				_ses_client = boto3.client('ses', region_name='us-east-1')
-	return _ses_client
+    """Lazy-load SES client to avoid credential loading during imports (thread-safe)."""
+    global _ses_client
+    if _ses_client is None:
+        with _ses_client_lock:
+            # Double-check pattern to avoid race conditions
+            if _ses_client is None:
+                _ses_client = boto3.client("ses", region_name="us-east-1")
+    return _ses_client
 
 # Configuration
 SENDER_EMAIL = "argeropolos@gmail.com"
@@ -41,21 +39,21 @@ SENDER_NAME = "Bullseye Trading"
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle Cognito custom message trigger."""
 
-    trigger_source = event.get('triggerSource')
-    user_attributes = event.get('request', {}).get('userAttributes', {})
-    code_parameter = event.get('request', {}).get('codeParameter', '')
-    email = user_attributes.get('email', '')
+    trigger_source = event.get("triggerSource")
+    user_attributes = event.get("request", {}).get("userAttributes", {})
+    code_parameter = event.get("request", {}).get("codeParameter", "")
+    email = user_attributes.get("email", "")
 
     logger.info(f"Cognito trigger: {trigger_source} for user {email}")
 
     try:
-        if trigger_source == 'CustomMessage_SignUp':
+        if trigger_source == "CustomMessage_SignUp":
             subject, html_body = build_signup_email(email, code_parameter)
-        elif trigger_source == 'CustomMessage_ForgotPassword':
+        elif trigger_source == "CustomMessage_ForgotPassword":
             subject, html_body = build_password_reset_email(email, code_parameter)
-        elif trigger_source == 'CustomMessage_ResendCode':
+        elif trigger_source == "CustomMessage_ResendCode":
             subject, html_body = build_resend_code_email(email, code_parameter)
-        elif trigger_source == 'CustomMessage_AdminCreateUser':
+        elif trigger_source == "CustomMessage_AdminCreateUser":
             subject, html_body = build_admin_create_user_email(email, code_parameter)
         else:
             logger.warning(f"Unknown trigger source: {trigger_source}")
@@ -73,23 +71,21 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Return event unchanged (Cognito won't send its default email)
     return event
 
-
 def send_email(recipient: str, subject: str, html_body: str) -> None:
     """Send email via AWS SES."""
     get_ses_client().send_email(
         Source=f"{SENDER_NAME} <{SENDER_EMAIL}>",
-        Destination={'ToAddresses': [recipient]},
+        Destination={"ToAddresses": [recipient]},
         Message={
-            'Subject': {'Data': subject, 'Charset': 'UTF-8'},
-            'Body': {'Html': {'Data': html_body, 'Charset': 'UTF-8'}},
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {"Html": {"Data": html_body, "Charset": "UTF-8"}},
         },
     )
-
 
 def build_signup_email(email: str, code: str) -> tuple[str, str]:
     """Build sign-up confirmation email."""
     subject = "Verify Your Bullseye Trading Account"
-    html = f"""
+    html = """
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -107,11 +103,10 @@ def build_signup_email(email: str, code: str) -> tuple[str, str]:
     """
     return subject, html
 
-
 def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
     """Build password reset email."""
     subject = "Reset Your Bullseye Trading Password"
-    html = f"""
+    html = """
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -129,11 +124,10 @@ def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
     """
     return subject, html
 
-
 def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
     """Build resend confirmation code email."""
     subject = "Your Bullseye Trading Confirmation Code"
-    html = f"""
+    html = """
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -149,11 +143,10 @@ def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
     """
     return subject, html
 
-
 def build_admin_create_user_email(email: str, code: str) -> tuple[str, str]:
     """Build admin-created user welcome email."""
     subject = "Welcome to Bullseye Trading - Set Your Password"
-    html = f"""
+    html = """
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">

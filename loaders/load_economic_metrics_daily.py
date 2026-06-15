@@ -11,7 +11,7 @@ Pre-computes daily economic metrics for dashboard consumption:
 
 import sys
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional, List
 
 from utils.optimal_loader import OptimalLoader
@@ -43,7 +43,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             now_et = datetime.now(ET)
             report_date = now_et.date()
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # 1. Compute CPI YoY
                 cpi_yoy = None
                 cpi_error = None
@@ -54,7 +54,11 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         ORDER BY date DESC LIMIT 1
                     """)
                     cpi_cur_row = cur.fetchone() or {}
-                    cpi_cur = float(cpi_cur_row.get('value')) if cpi_cur_row.get('value') is not None else None
+                    cpi_cur = (
+                        float(cpi_cur_row.get("value"))
+                        if cpi_cur_row.get("value") is not None
+                        else None
+                    )
 
                     if cpi_cur is not None:
                         # Get CPI from 1 year ago
@@ -65,7 +69,11 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                             ORDER BY date DESC LIMIT 1
                         """)
                         cpi_yoy_row = cur.fetchone() or {}
-                        cpi_prev = float(cpi_yoy_row.get('value')) if cpi_yoy_row.get('value') is not None else None
+                        cpi_prev = (
+                            float(cpi_yoy_row.get("value"))
+                            if cpi_yoy_row.get("value") is not None
+                            else None
+                        )
 
                         if cpi_prev is not None and cpi_prev > 0:
                             cpi_yoy = round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)
@@ -89,11 +97,25 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     spy_rows = cur.fetchall() or []
 
                     if len(spy_rows) >= 2:
-                        cur_price = float(spy_rows[0].get('close')) if spy_rows[0].get('close') is not None else None
-                        prev_price = float(spy_rows[1].get('close')) if spy_rows[1].get('close') is not None else None
+                        cur_price = (
+                            float(spy_rows[0].get("close"))
+                            if spy_rows[0].get("close") is not None
+                            else None
+                        )
+                        prev_price = (
+                            float(spy_rows[1].get("close"))
+                            if spy_rows[1].get("close") is not None
+                            else None
+                        )
 
-                        if cur_price is not None and prev_price is not None and prev_price > 0:
-                            spy_price_change = round((cur_price - prev_price) / prev_price * 100, 2)
+                        if (
+                            cur_price is not None
+                            and prev_price is not None
+                            and prev_price > 0
+                        ):
+                            spy_price_change = round(
+                                (cur_price - prev_price) / prev_price * 100, 2
+                            )
                         elif prev_price == 0:
                             spy_error = "prev_price_zero"
                     else:
@@ -118,10 +140,18 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     dgs10 = None
                     dgs2 = None
                     for row in ycs_rows:
-                        if row.get('series_id') == 'DGS10' and dgs10 is None:
-                            dgs10 = float(row.get('value')) if row.get('value') is not None else None
-                        elif row.get('series_id') == 'DGS2' and dgs2 is None:
-                            dgs2 = float(row.get('value')) if row.get('value') is not None else None
+                        if row.get("series_id") == "DGS10" and dgs10 is None:
+                            dgs10 = (
+                                float(row.get("value"))
+                                if row.get("value") is not None
+                                else None
+                            )
+                        elif row.get("series_id") == "DGS2" and dgs2 is None:
+                            dgs2 = (
+                                float(row.get("value"))
+                                if row.get("value") is not None
+                                else None
+                            )
 
                     if dgs10 is not None and dgs2 is not None:
                         ycs_10y2y = round(dgs10 - dgs2, 3)
@@ -132,17 +162,19 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     logger.warning(f"Failed to compute yield curve slope: {e}")
 
                 result = {
-                    'report_date': report_date,
-                    'cpi_yoy_pct': cpi_yoy,
-                    'cpi_yoy_error': cpi_error,
-                    'spy_price_change_pct': spy_price_change,
-                    'spy_price_change_error': spy_error,
-                    'yield_curve_slope_10y2y': ycs_10y2y,
-                    'yield_curve_slope_error': ycs_error,
-                    'updated_at': datetime.now(ET),
+                    "report_date": report_date,
+                    "cpi_yoy_pct": cpi_yoy,
+                    "cpi_yoy_error": cpi_error,
+                    "spy_price_change_pct": spy_price_change,
+                    "spy_price_change_error": spy_error,
+                    "yield_curve_slope_10y2y": ycs_10y2y,
+                    "yield_curve_slope_error": ycs_error,
+                    "updated_at": datetime.now(ET),
                 }
 
-                logger.info(f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}")
+                logger.info(
+                    f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}"
+                )
 
                 return [result] if result else None
 
@@ -158,7 +190,7 @@ def main():
         logger.info(f"SUCCESS: {result} economic metric records computed")
         return 0
     else:
-        logger.warning(f"COMPLETED: No economic metrics computed (insufficient data)")
+        logger.warning("COMPLETED: No economic metrics computed (insufficient data)")
         return 0
 
 if __name__ == "__main__":

@@ -20,7 +20,6 @@ import psycopg2.pool
 
 logger = logging.getLogger(__name__)
 
-
 class PoolSemaphore:
     """Semaphore-style gating for connection pool availability.
 
@@ -42,7 +41,9 @@ class PoolSemaphore:
         self._active_count = 0
         self._lock = threading.Lock()
 
-    def acquire(self, loader_name: str = "unknown", timeout: Optional[int] = None) -> bool:
+    def acquire(
+        self, loader_name: str = "unknown", timeout: Optional[int] = None
+    ) -> bool:
         """Try to acquire a slot from the pool.
 
         Args:
@@ -84,17 +85,15 @@ class PoolSemaphore:
         """Return current semaphore status."""
         with self._lock:
             return {
-                'active_count': self._active_count,
-                'max_concurrent': self.max_concurrent,
-                'available_slots': self.max_concurrent - self._active_count,
+                "active_count": self._active_count,
+                "max_concurrent": self.max_concurrent,
+                "available_slots": self.max_concurrent - self._active_count,
             }
-
 
 # Global pool semaphore - enforces max concurrent loaders
 # Set to 10 to safely support 10 concurrent loaders holding connections,
 # with room for 10 more in the SimpleConnectionPool for API/internal use
 _pool_semaphore = PoolSemaphore(max_concurrent=10, timeout_sec=30)
-
 
 class PooledConnectionManager:
     """Manages a single persistent connection for a loader's entire lifecycle.
@@ -157,7 +156,6 @@ class PooledConnectionManager:
 
         # Step 2: Acquire from pool with exponential backoff
         try:
-            from utils.db import get_db_connection
             from utils.db.connection import _get_connection_pool
 
             pool = _get_connection_pool()
@@ -189,7 +187,7 @@ class PooledConnectionManager:
                 f"[{self.loader_name}] Failed to acquire connection from pool after {max_retries} retries"
             )
 
-        except Exception as e:
+        except Exception:
             # Release semaphore on failure
             _pool_semaphore.release(self.loader_name)
             raise
@@ -201,7 +199,9 @@ class PooledConnectionManager:
         """
         with self._lock:
             if self._conn is None:
-                logger.debug(f"[{self.loader_name}] Release called but no connection held")
+                logger.debug(
+                    f"[{self.loader_name}] Release called but no connection held"
+                )
                 return
 
             try:
@@ -219,7 +219,7 @@ class PooledConnectionManager:
                 except Exception as e:
                     logger.warning(
                         f"[{self.loader_name}] Failed to return connection to pool: {e}, "
-                        f"closing instead"
+                        "closing instead"
                     )
                     try:
                         self._conn.close()
@@ -251,11 +251,10 @@ class PooledConnectionManager:
         self.release()
         return False
 
-
 def get_pool_status() -> dict:
     """Get current pool and semaphore status for monitoring."""
     return {
-        'semaphore': _pool_semaphore.status(),
-        'max_concurrent_loaders': 10,
-        'max_pool_connections': 20,
+        "semaphore": _pool_semaphore.status(),
+        "max_concurrent_loaders": 10,
+        "max_pool_connections": 20,
     }

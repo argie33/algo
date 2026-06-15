@@ -30,19 +30,22 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
     """
     try:
         import boto3
-        is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
-        region = os.environ.get('AWS_REGION', 'us-east-1')
+
+        is_lambda = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+        region = os.environ.get("AWS_REGION", "us-east-1")
 
         if is_lambda:
             try:
-                client = boto3.client('secretsmanager', region_name=region)
+                client = boto3.client("secretsmanager", region_name=region)
                 response = client.get_secret_value(SecretId=secret_name)
-                key = response.get('SecretString')
+                key = response.get("SecretString")
                 if key:
                     logger.debug(f"Fetched {secret_name} from Secrets Manager")
                     return key
             except Exception as sm_err:
-                logger.debug(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
+                logger.debug(
+                    f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var"
+                )
     except ImportError:
         logger.debug("boto3 not available, using env var fallback")
 
@@ -57,7 +60,9 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
         logger.debug(f"Using default value for {secret_name}")
         return default
 
-    logger.warning(f"Could not find {secret_name} in Secrets Manager or {env_var} in environment")
+    logger.warning(
+        f"Could not find {secret_name} in Secrets Manager or {env_var} in environment"
+    )
     return None
 
 # Cache for active symbols to reduce database load under parallelism
@@ -94,7 +99,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         pass
 
     # Check cache first to reduce database load under parallelism
-    cache_key = 'all_symbols'
+    cache_key = "all_symbols"
     with _cache_lock:
         if cache_key in _symbols_cache:
             cached_time, cached_symbols = _symbols_cache[cache_key]
@@ -105,16 +110,18 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
                 return symbols
 
     try:
-        result = {'symbols': None, 'error': None}
+        result = {"symbols": None, "error": None}
 
         def fetch_symbols():
             try:
-                with DatabaseContext('read') as cur:
-                    cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol"
+                    )
                     rows = cur.fetchall()
-                    result['symbols'] = [row[0] for row in rows]
+                    result["symbols"] = [row[0] for row in rows]
             except Exception as e:
-                result['error'] = e
+                result["error"] = e
 
         # Run in thread with timeout for Windows compatibility
         thread = threading.Thread(target=fetch_symbols, daemon=True)
@@ -124,10 +131,10 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         if thread.is_alive():
             raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
-        if result['error']:
-            raise result['error']
+        if result["error"]:
+            raise result["error"]
 
-        symbols = result['symbols'] or []
+        symbols = result["symbols"] or []
 
         # Cache the result
         with _cache_lock:

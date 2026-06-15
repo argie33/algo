@@ -50,11 +50,15 @@ DO NOT:
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional
 from utils.infrastructure import (
-    safe_float, safe_float_strict, safe_int, safe_int_strict,
-    safe_parse_date, safe_parse_datetime_et,
-    safe_json_loads
+    safe_float,
+    safe_float_strict,
+    safe_int,
+    safe_int_strict,
+    safe_parse_date,
+    safe_parse_datetime_et,
+    safe_json_loads,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,15 +68,14 @@ ValidatorFunc = Callable[[Any, str], Optional[Any]]
 
 # Global validation registry - documents all validators in one place
 VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {
-    'float': safe_float,
-    'float_strict': safe_float_strict,
-    'int': safe_int,
-    'int_strict': safe_int_strict,
-    'date': safe_parse_date,
-    'datetime_et': safe_parse_datetime_et,
-    'json': safe_json_loads,
+    "float": safe_float,
+    "float_strict": safe_float_strict,
+    "int": safe_int,
+    "int_strict": safe_int_strict,
+    "date": safe_parse_date,
+    "datetime_et": safe_parse_datetime_et,
+    "json": safe_json_loads,
 }
-
 
 def get_validator(field_type: str) -> Optional[ValidatorFunc]:
     """Get validator function by type name.
@@ -83,8 +86,9 @@ def get_validator(field_type: str) -> Optional[ValidatorFunc]:
     """
     return VALIDATORS_BY_TYPE.get(field_type)
 
-
-def validate_record(record: Dict[str, Any], schema: Dict[str, str], context: str = "") -> Dict[str, Any]:
+def validate_record(
+    record: Dict[str, Any], schema: Dict[str, str], context: str = ""
+) -> Dict[str, Any]:
     """Validate entire record against schema using centralized validators.
 
     Args:
@@ -117,7 +121,6 @@ def validate_record(record: Dict[str, Any], schema: Dict[str, str], context: str
         validated[field_name] = validator(value, context=field_context)
 
     return validated
-
 
 if __name__ == "__main__":
     # Example: validate price data

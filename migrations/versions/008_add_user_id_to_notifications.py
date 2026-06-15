@@ -15,7 +15,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add user_id to algo_notifications table for row-level access control"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Add user_id column (nullable for backward compatibility with existing notifications)
         cur.execute("""
             ALTER TABLE algo_notifications
@@ -35,7 +35,7 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop indexes first
         cur.execute("""
             DROP INDEX IF EXISTS idx_algo_notifications_user_created
@@ -50,4 +50,3 @@ def down():
             ALTER TABLE algo_notifications
             DROP COLUMN IF EXISTS user_id
         """)
-

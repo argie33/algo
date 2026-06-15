@@ -27,7 +27,7 @@ def up():
     CREATE INDEX IF NOT EXISTS idx_schema_version_applied_at ON schema_version(applied_at DESC);
     """
 
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute(sql)
 
 def down():
@@ -36,6 +36,5 @@ def down():
     DROP TABLE IF EXISTS schema_version CASCADE;
     """
 
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute(sql)
-

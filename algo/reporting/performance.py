@@ -1,4 +1,3 @@
-
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
 
@@ -14,8 +13,7 @@ Metrics computed:
 """
 
 import json
-import numpy as np
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
 import logging
@@ -57,14 +55,14 @@ class LivePerformance:
             Annualized Sharpe ratio or None if insufficient data
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
                     ORDER BY snapshot_date ASC
                     """,
-                    (lookback_days,)
+                    (lookback_days,),
                 )
                 rows = cur.fetchall()
 
@@ -72,7 +70,10 @@ class LivePerformance:
                 return None
 
             values = [float(row[1]) for row in rows]
-            daily_returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
+            daily_returns = [
+                (values[i] - values[i - 1]) / values[i - 1]
+                for i in range(1, len(values))
+            ]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except Exception as e:
@@ -89,7 +90,7 @@ class LivePerformance:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT
@@ -120,14 +121,22 @@ class LivePerformance:
                         LIMIT %s
                     ) closed_trades
                     """,
-                    (lookback_trades,)
+                    (lookback_trades,),
                 )
                 row = cur.fetchone()
 
             if not row or row[0] == 0:
                 return None
 
-            total, win_count, loss_count, avg_win_r, avg_loss_r, avg_win_pct, avg_loss_pct = row
+            (
+                total,
+                win_count,
+                loss_count,
+                avg_win_r,
+                avg_loss_r,
+                avg_win_pct,
+                avg_loss_pct,
+            ) = row
             win_count = win_count
             loss_count = loss_count
             avg_win_r = safe_float(avg_win_r)
@@ -138,13 +147,13 @@ class LivePerformance:
             win_rate_pct = (win_count / total * 100) if total > 0 else 0
 
             return {
-                'win_rate_pct': round(win_rate_pct, 2),
-                'win_count': int(win_count),
-                'loss_count': int(loss_count),
-                'avg_win_pct': round(avg_win_pct, 3),
-                'avg_loss_pct': round(avg_loss_pct, 3),
-                'avg_win_r': round(avg_win_r, 3),
-                'avg_loss_r': round(avg_loss_r, 3),
+                "win_rate_pct": round(win_rate_pct, 2),
+                "win_count": int(win_count),
+                "loss_count": int(loss_count),
+                "avg_win_pct": round(avg_win_pct, 3),
+                "avg_loss_pct": round(avg_loss_pct, 3),
+                "avg_win_r": round(avg_win_r, 3),
+                "avg_loss_r": round(avg_loss_r, 3),
             }
         except Exception as e:
             logger.error(f"Performance: win_rate failed: {e}")
@@ -164,10 +173,10 @@ class LivePerformance:
             if not wr:
                 return None
 
-            win_rate = wr['win_rate_pct'] / 100.0
+            win_rate = wr["win_rate_pct"] / 100.0
             loss_rate = 1.0 - win_rate
-            avg_win_r = wr['avg_win_r']
-            avg_loss_r = wr['avg_loss_r']
+            avg_win_r = wr["avg_win_r"]
+            avg_loss_r = wr["avg_loss_r"]
 
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return round(expectancy, 4)
@@ -182,14 +191,12 @@ class LivePerformance:
             Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
         """
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '365 days'
                     ORDER BY snapshot_date ASC
-                    """
-                )
+                    """)
                 rows = cur.fetchall()
 
             if len(rows) < 2:
@@ -208,14 +215,14 @@ class LivePerformance:
         upside volatility is desirable.
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
                     ORDER BY snapshot_date ASC
                     """,
-                    (lookback_days,)
+                    (lookback_days,),
                 )
                 rows = cur.fetchall()
 
@@ -223,8 +230,10 @@ class LivePerformance:
                 return None
 
             values = [float(r[0]) for r in rows]
-            daily_returns = [(values[i] - values[i-1]) / values[i-1]
-                             for i in range(1, len(values))]
+            daily_returns = [
+                (values[i] - values[i - 1]) / values[i - 1]
+                for i in range(1, len(values))
+            ]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except Exception as e:
@@ -237,14 +246,14 @@ class LivePerformance:
         Standard benchmark for trend-following strategies. Higher is better.
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
                     ORDER BY snapshot_date ASC
                     """,
-                    (lookback_days,)
+                    (lookback_days,),
                 )
                 rows = cur.fetchall()
 
@@ -265,12 +274,14 @@ class LivePerformance:
         """
         try:
             # Load backtest reference metrics
-            ref_file = Path(__file__).parent / 'tests' / 'backtest' / 'reference_metrics.json'
+            ref_file = (
+                Path(__file__).parent / "tests" / "backtest" / "reference_metrics.json"
+            )
             if not ref_file.exists():
                 logger.info(f"Performance: Reference metrics not found at {ref_file}")
                 return None
 
-            with open(ref_file, 'r') as f:
+            with open(ref_file, "r") as f:
                 backtest_metrics = json.load(f)
 
             # Compute live metrics
@@ -282,26 +293,36 @@ class LivePerformance:
             if not all([live_sharpe, live_wr, live_max_dd]):
                 return None
 
-            backtest_sharpe = backtest_metrics.get('sharpe_ratio')
-            backtest_wr = backtest_metrics.get('win_rate_pct')
+            backtest_sharpe = backtest_metrics.get("sharpe_ratio")
+            backtest_wr = backtest_metrics.get("win_rate_pct")
 
-            live_win_rate = live_wr.get('win_rate_pct') if isinstance(live_wr, dict) else live_wr
+            live_win_rate = (
+                live_wr.get("win_rate_pct") if isinstance(live_wr, dict) else live_wr
+            )
             return {
-                'live_sharpe': live_sharpe,
-                'backtest_sharpe': backtest_sharpe,
-                'sharpe_ratio': live_sharpe / backtest_sharpe if backtest_sharpe else None,
-                'live_win_rate': live_win_rate,
-                'backtest_win_rate': backtest_wr,
-                'win_rate_ratio': live_win_rate / backtest_wr if (live_win_rate and backtest_wr) else None,
-                'live_expectancy': live_expectancy,
-                'live_max_dd': live_max_dd,
-                'backtest_max_dd': backtest_metrics.get('max_drawdown_pct'),
+                "live_sharpe": live_sharpe,
+                "backtest_sharpe": backtest_sharpe,
+                "sharpe_ratio": (
+                    live_sharpe / backtest_sharpe if backtest_sharpe else None
+                ),
+                "live_win_rate": live_win_rate,
+                "backtest_win_rate": backtest_wr,
+                "win_rate_ratio": (
+                    live_win_rate / backtest_wr
+                    if (live_win_rate and backtest_wr)
+                    else None
+                ),
+                "live_expectancy": live_expectancy,
+                "live_max_dd": live_max_dd,
+                "backtest_max_dd": backtest_metrics.get("max_drawdown_pct"),
             }
         except Exception as e:
             logger.error(f"Performance: backtest_vs_live_comparison failed: {e}")
             return None
 
-    def generate_daily_report(self, report_date: Optional[date] = None) -> Dict[str, Any]:
+    def generate_daily_report(
+        self, report_date: Optional[date] = None
+    ) -> Dict[str, Any]:
         """Generate comprehensive daily performance report.
 
         Args:
@@ -333,46 +354,50 @@ class LivePerformance:
             logger.debug(f"  Backtest vs live: {comparison}")
 
             result = {
-                'report_date': report_date,
-                'generated_at': datetime.now(timezone.utc).isoformat(),
-                'rolling_sharpe_252d': sharpe,
-                'rolling_sortino_252d': sortino,
-                'calmar_ratio': calmar,
-                'status': 'ok',
+                "report_date": report_date,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "rolling_sharpe_252d": sharpe,
+                "rolling_sortino_252d": sortino,
+                "calmar_ratio": calmar,
+                "status": "ok",
             }
 
             if wr:
-                result.update({
-                    'win_rate_50t': wr['win_rate_pct'],
-                    'avg_win_r_50t': wr['avg_win_r'],
-                    'avg_loss_r_50t': wr['avg_loss_r'],
-                    'expectancy': expectancy,
-                })
+                result.update(
+                    {
+                        "win_rate_50t": wr["win_rate_pct"],
+                        "avg_win_r_50t": wr["avg_win_r"],
+                        "avg_loss_r_50t": wr["avg_loss_r"],
+                        "expectancy": expectancy,
+                    }
+                )
 
             if max_dd is not None:
-                result['max_drawdown_pct'] = max_dd
+                result["max_drawdown_pct"] = max_dd
 
             if comparison:
-                result['live_vs_backtest'] = comparison
+                result["live_vs_backtest"] = comparison
                 # Flag warning if Sharpe drops below 70% of backtest
-                sharpe_ratio = comparison.get('sharpe_ratio')
+                sharpe_ratio = comparison.get("sharpe_ratio")
                 if sharpe_ratio and sharpe_ratio < 0.7:
-                    result['status'] = 'warning'
-                    result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
+                    result["status"] = "warning"
+                    result["warning"] = (
+                        f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
+                    )
                     logger.warning(f"  Performance warning: {result['warning']}")
 
             # Upsert into database (insert or replace if already exists for this date)
             try:
                 sharpe_val = float(sharpe) if sharpe is not None else None
-                sortino_val = float(sortino) if sortino is not None else None
-                calmar_val = float(calmar) if calmar is not None else None
-                win_rate_val = float(wr['win_rate_pct']) if wr else None
-                avg_win_r_val = float(wr['avg_win_r']) if wr else None
-                avg_loss_r_val = float(wr['avg_loss_r']) if wr else None
+                float(sortino) if sortino is not None else None
+                float(calmar) if calmar is not None else None
+                win_rate_val = float(wr["win_rate_pct"]) if wr else None
+                avg_win_r_val = float(wr["avg_win_r"]) if wr else None
+                avg_loss_r_val = float(wr["avg_loss_r"]) if wr else None
                 expectancy_val = float(expectancy) if expectancy is not None else None
                 max_dd_val = float(max_dd) if max_dd is not None else None
 
-                with DatabaseContext('write') as cur:
+                with DatabaseContext("write") as cur:
                     cur.execute(
                         """
                         INSERT INTO algo_performance_daily (
@@ -396,15 +421,20 @@ class LivePerformance:
                             avg_loss_r_val,
                             expectancy_val,
                             max_dd_val,
-                        )
+                        ),
                     )
-                    logger.info(f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
+                    logger.info(
+                        f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%"
+                    )
             except Exception as e:
-                logger.error(f"Failed to persist performance report: {e}", exc_info=True)
+                logger.error(
+                    f"Failed to persist performance report: {e}", exc_info=True
+                )
 
             return result
 
         except Exception as e:
-            logger.error(f"Performance: generate_daily_report failed: {e}", exc_info=True)
-            return {'status': 'error', 'message': str(e)}
-
+            logger.error(
+                f"Performance: generate_daily_report failed: {e}", exc_info=True
+            )
+            return {"status": "error", "message": str(e)}

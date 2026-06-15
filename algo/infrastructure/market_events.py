@@ -12,15 +12,17 @@ Implements fail-safe protocols that override strategy logic.
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
-from algo.infrastructure import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
+from algo.infrastructure import (
+    get_api_timeout,
+    get_market_data_timeout,
+)
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, date, timedelta, timezone
-from typing import Optional, Dict, Any, List
-from concurrent.futures import Future
+from datetime import datetime, date, timezone
+from typing import Optional, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,8 +51,8 @@ class MarketEventHandler:
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"
             headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret,
+                "APCA-API-KEY-ID": self.alpaca_key,
+                "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
             resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
@@ -61,16 +63,16 @@ class MarketEventHandler:
             except (ValueError, Exception) as e:
                 logger.warning(f"Invalid JSON response from {url}: {e}")
                 return None
-            status = data.get('status', '').upper()
-            tradable = data.get('tradable', False)
+            status = data.get("status", "").upper()
+            tradable = data.get("tradable", False)
 
-            if not tradable or status != 'ACTIVE':
+            if not tradable or status != "ACTIVE":
                 return {
-                    'halted': True,
-                    'symbol': symbol,
-                    'status': status,
-                    'tradable': tradable,
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "halted": True,
+                    "symbol": symbol,
+                    "status": status,
+                    "tradable": tradable,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
@@ -95,8 +97,8 @@ class MarketEventHandler:
         """
         try:
             headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret,
+                "APCA-API-KEY-ID": self.alpaca_key,
+                "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
 
             def fetch_quotes():
@@ -104,7 +106,7 @@ class MarketEventHandler:
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
                     if resp.status_code == 200:
-                        return resp.json().get('quote', {}).get('ap')
+                        return resp.json().get("quote", {}).get("ap")
                 except Exception as e:
                     logger.debug(f"Failed to fetch SPY quotes: {e}")
                 return None
@@ -112,9 +114,11 @@ class MarketEventHandler:
             def fetch_bars():
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
                 try:
-                    resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
+                    resp = requests.get(
+                        url, headers=headers, timeout=get_market_data_timeout()
+                    )
                     if resp.status_code == 200:
-                        return resp.json().get('bar', {}).get('o')
+                        return resp.json().get("bar", {}).get("o")
                 except Exception as e:
                     logger.debug(f"Failed to fetch SPY bars: {e}")
                 return None
@@ -132,33 +136,35 @@ class MarketEventHandler:
 
             if pct_down >= 20.0:
                 return {
-                    'level': 3,
-                    'description': '20%+ down — market halted for rest of day',
-                    'pct_down': round(pct_down, 2),
-                    'action': 'HALT_ALL_ENTRIES',
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "level": 3,
+                    "description": "20%+ down — market halted for rest of day",
+                    "pct_down": round(pct_down, 2),
+                    "action": "HALT_ALL_ENTRIES",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             elif pct_down >= 13.0:
                 return {
-                    'level': 2,
-                    'description': '13%+ down — 15-minute halt',
-                    'pct_down': round(pct_down, 2),
-                    'action': 'PAUSE_NEW_ENTRIES_15MIN',
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "level": 2,
+                    "description": "13%+ down — 15-minute halt",
+                    "pct_down": round(pct_down, 2),
+                    "action": "PAUSE_NEW_ENTRIES_15MIN",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             elif pct_down >= 7.0:
                 return {
-                    'level': 1,
-                    'description': '7%+ down — 15-minute halt',
-                    'pct_down': round(pct_down, 2),
-                    'action': 'PAUSE_NEW_ENTRIES_15MIN',
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "level": 1,
+                    "description": "7%+ down — 15-minute halt",
+                    "pct_down": round(pct_down, 2),
+                    "action": "PAUSE_NEW_ENTRIES_15MIN",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
 
         except Exception as e:
-            logger.warning(f"MarketEventHandler: check_market_circuit_breaker error: {e}")
+            logger.warning(
+                f"MarketEventHandler: check_market_circuit_breaker error: {e}"
+            )
             return None
 
     def check_early_close(self, check_date: Optional[date] = None) -> bool:
@@ -176,13 +182,13 @@ class MarketEventHandler:
             check_date = date.today()
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT early_close FROM market_health_daily
                     WHERE date = %s
                     """,
-                    (check_date,)
+                    (check_date,),
                 )
                 row = cur.fetchone()
 
@@ -192,7 +198,11 @@ class MarketEventHandler:
             # Fallback: check known dates
             # Day after Thanksgiving (4th Thursday of November)
             # Find all Thursdays in November (weekday() == 3 means Thursday)
-            nov_thursdays = [d for d in range(1, 31) if datetime(check_date.year, 11, d).weekday() == 3]
+            nov_thursdays = [
+                d
+                for d in range(1, 31)
+                if datetime(check_date.year, 11, d).weekday() == 3
+            ]
             if len(nov_thursdays) >= 4:
                 day_after_thanksgiving = nov_thursdays[3] + 1  # 4th Thursday + 1 day
                 if check_date.month == 11 and check_date.day == day_after_thanksgiving:
@@ -251,7 +261,8 @@ class MarketEventHandler:
         """
         try:
             from utils.db import DatabaseContext
-            with DatabaseContext('write') as cur:
+
+            with DatabaseContext("write") as cur:
                 # Cancel any pending orders for this symbol
                 cur.execute(
                     """
@@ -259,7 +270,7 @@ class MarketEventHandler:
                     SET status = 'cancelled'
                     WHERE symbol = %s AND status IN ('pending', 'open')
                     """,
-                    (symbol,)
+                    (symbol,),
                 )
 
                 # Log the halt event
@@ -269,19 +280,24 @@ class MarketEventHandler:
                         action_type, action_date, details, severity
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
+                    (
+                        "SINGLE_STOCK_HALT",
+                        datetime.now(timezone.utc),
+                        f"Symbol {symbol} halted — pending orders cancelled",
+                        "WARN",
+                    ),
                 )
 
             return {
-                'action': 'HALT_SYMBOL',
-                'symbol': symbol,
-                'status': 'orders_cancelled',
-                'timestamp': datetime.now(timezone.utc).isoformat(),
+                "action": "HALT_SYMBOL",
+                "symbol": symbol,
+                "status": "orders_cancelled",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
-            return {'action': 'ERROR', 'message': str(e)}
+            return {"action": "ERROR", "message": str(e)}
 
     def handle_market_circuit_breaker(self, level: int) -> Dict[str, Any]:
         """Handle market circuit breaker: halt entries, tighten stops, or close positions.
@@ -296,39 +312,44 @@ class MarketEventHandler:
 
             if level == 3:
                 # L3: Full halt, no new orders, close positions
-                action = 'HALT_ALL_ENTRIES'
-                message = 'Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit'
-                severity = 'CRITICAL'
-                action_type = 'CIRCUIT_BREAKER_L3'
+                action = "HALT_ALL_ENTRIES"
+                message = "Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit"
+                severity = "CRITICAL"
+                action_type = "CIRCUIT_BREAKER_L3"
             elif level in (1, 2):
                 # L1/L2: Pause new entries for 15 minutes, tighten stops
-                action = 'PAUSE_ENTRIES_15MIN'
+                action = "PAUSE_ENTRIES_15MIN"
                 message = f'Market circuit breaker L{level} ({"7" if level == 1 else "13"}%+ down) — pausing new entries for 15 minutes'
-                severity = 'ERROR'
-                action_type = f'CIRCUIT_BREAKER_L{level}'
+                severity = "ERROR"
+                action_type = f"CIRCUIT_BREAKER_L{level}"
             else:
-                return {'action': 'ERROR', 'message': f'Invalid circuit breaker level: {level}'}
+                return {
+                    "action": "ERROR",
+                    "message": f"Invalid circuit breaker level: {level}",
+                }
 
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
                         action_type, action_date, details, severity
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    (action_type, datetime.now(timezone.utc), message, severity)
+                    (action_type, datetime.now(timezone.utc), message, severity),
                 )
 
             return {
-                'action': action,
-                'level': level,
-                'status': 'logged',
-                'timestamp': datetime.now(timezone.utc).isoformat(),
+                "action": action,
+                "level": level,
+                "status": "logged",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
-            logger.error(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
-            return {'action': 'ERROR', 'message': str(e)}
+            logger.error(
+                f"MarketEventHandler: handle_market_circuit_breaker error: {e}"
+            )
+            return {"action": "ERROR", "message": str(e)}
 
     def check_delisting(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Check if symbol is delisted or about to be delisted.
@@ -339,23 +360,23 @@ class MarketEventHandler:
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"
             headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret,
+                "APCA-API-KEY-ID": self.alpaca_key,
+                "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
             resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
                 return None
 
             data = resp.json()
-            status = data.get('status', '').upper()
+            status = data.get("status", "").upper()
 
-            if status in ('INACTIVE', 'DELISTED'):
+            if status in ("INACTIVE", "DELISTED"):
                 return {
-                    'delisted': True,
-                    'symbol': symbol,
-                    'status': status,
-                    'action': 'FORCE_EXIT_MARKET',
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    "delisted": True,
+                    "symbol": symbol,
+                    "status": status,
+                    "action": "FORCE_EXIT_MARKET",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
@@ -375,32 +396,33 @@ class MarketEventHandler:
             dict with all checks and any alerts
         """
         result: Dict[str, Any] = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'checks': {},
-            'alerts': [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "checks": {},
+            "alerts": [],
         }
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures: Dict[Any, str] = {
-                executor.submit(self.check_early_close): 'early_close',
-                executor.submit(self.check_market_circuit_breaker): 'circuit_breaker',
-                executor.submit(self.check_after_hours_window): 'after_hours_window',
+                executor.submit(self.check_early_close): "early_close",
+                executor.submit(self.check_market_circuit_breaker): "circuit_breaker",
+                executor.submit(self.check_after_hours_window): "after_hours_window",
             }
 
             for future in as_completed(futures, timeout=30):
                 check_name = futures[future]
                 try:
-                    result['checks'][check_name] = future.result()
+                    result["checks"][check_name] = future.result()
                 except Exception as e:
                     logger.warning(f"Pre-market check {check_name} failed: {e}")
-                    result['checks'][check_name] = None
+                    result["checks"][check_name] = None
 
-        if result['checks'].get('early_close'):
-            result['alerts'].append('MARKET CLOSES EARLY AT 13:00 ET')
+        if result["checks"].get("early_close"):
+            result["alerts"].append("MARKET CLOSES EARLY AT 13:00 ET")
 
-        cb = result['checks'].get('circuit_breaker')
+        cb = result["checks"].get("circuit_breaker")
         if cb:
-            result['alerts'].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
+            result["alerts"].append(
+                f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}"
+            )
 
         return result
-

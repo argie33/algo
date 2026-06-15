@@ -11,11 +11,10 @@ from typing import Iterable, List, Optional, Sequence
 import psycopg2
 import psycopg2.sql
 
-from utils.db.sql_safety import assert_safe_table, assert_safe_column
+from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
-
 
 class OptimalLoader(ABC):
     """Base class for production-grade loaders.
@@ -68,8 +67,12 @@ class OptimalLoader(ABC):
         self._heartbeat_thread = None
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
-        self._heartbeat_interval = 60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
-        self._execution_start_time = None  # Track execution start for execution history logging
+        self._heartbeat_interval = (
+            60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
+        )
+        self._execution_start_time = (
+            None  # Track execution start for execution history logging
+        )
         self._batch_context = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
         self._setup_signal_handlers()
         self._validate_runtime_config()
@@ -110,7 +113,7 @@ class OptimalLoader(ABC):
                             cur.execute(
                                 "UPDATE data_loader_status SET last_updated = NOW() "
                                 "WHERE table_name = %s AND status = %s",
-                                (self.table_name, "RUNNING")
+                                (self.table_name, "RUNNING"),
                             )
                 except Exception as e:
                     logger.debug(f"Heartbeat update failed: {e}")
@@ -139,27 +142,33 @@ class OptimalLoader(ABC):
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
                         "WHERE table_name = %s",
-                        (status, self.table_name)
+                        (status, self.table_name),
                     )
                     if cur.rowcount == 0:
                         # First run, insert entry
                         cur.execute(
                             "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
                             "VALUES (%s, %s, NOW(), NOW())",
-                            (self.table_name, status)
+                            (self.table_name, status),
                         )
-                    logger.debug(f"[{self.table_name}] Status updated to RUNNING, execution_started recorded")
+                    logger.debug(
+                        f"[{self.table_name}] Status updated to RUNNING, execution_started recorded"
+                    )
                 elif status == "COMPLETED":
                     # Mark loader as completed with current timestamp
                     # ISSUE #2 FIX: Set execution_completed to detect post-completion crashes (>10 min old = likely crash)
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
                         "WHERE table_name = %s",
-                        (status, self.table_name)
+                        (status, self.table_name),
                     )
-                    logger.debug(f"[{self.table_name}] Status updated to COMPLETED, execution_completed timestamp recorded")
+                    logger.debug(
+                        f"[{self.table_name}] Status updated to COMPLETED, execution_completed timestamp recorded"
+                    )
         except Exception as e:
-            logger.warning(f"[{self.table_name}] Failed to update status to {status}: {e}")
+            logger.warning(
+                f"[{self.table_name}] Failed to update status to {status}: {e}"
+            )
 
     def _validate_runtime_config(self) -> None:
         """Validate runtime configuration to detect infrastructure drift and security issues.
@@ -184,7 +193,7 @@ class OptimalLoader(ABC):
                     if parallelism_value < 1 or parallelism_value > 32:
                         logger.warning(
                             f"[CONFIG] LOADER_PARALLELISM={parallelism_value} is outside normal range (1-32). "
-                            f"Check Terraform task definition (terraform/modules/loaders/main.tf)."
+                            "Check Terraform task definition (terraform/modules/loaders/main.tf)."
                         )
                     logger.info(f"[CONFIG] LOADER_PARALLELISM={parallelism_value}")
                 except ValueError:
@@ -218,18 +227,16 @@ class OptimalLoader(ABC):
             from datetime import datetime, timedelta
 
             cloudwatch = boto3.client("cloudwatch")
-            aws_region = os.getenv("AWS_REGION", "us-east-1")
+            os.getenv("AWS_REGION", "us-east-1")
 
             response = cloudwatch.get_metric_statistics(
                 Namespace="AWS/RDS",
                 MetricName="DatabaseConnections",
-                Dimensions=[
-                    {"Name": "DBInstanceIdentifier", "Value": "algo-db"}
-                ],
+                Dimensions=[{"Name": "DBInstanceIdentifier", "Value": "algo-db"}],
                 StartTime=datetime.utcnow() - timedelta(minutes=5),
                 EndTime=datetime.utcnow(),
                 Period=60,
-                Statistics=["Average"]
+                Statistics=["Average"],
             )
 
             if response["Datapoints"]:
@@ -650,7 +657,9 @@ class OptimalLoader(ABC):
 
         # If backfill window is set, use that instead of watermark
         if self._backfill_days > 0:
-            previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
+            previous_date = datetime.now(timezone.utc).date() - timedelta(
+                days=self._backfill_days
+            )
         else:
             previous = wm_store.get(symbol) if wm_store else None
             previous_date = self._parse_watermark_date(previous)
@@ -759,10 +768,10 @@ class OptimalLoader(ABC):
         """
         # Define upstream dependencies per table
         upstream_deps = {
-            'technical_data_daily': 'price_daily',
-            'buy_sell_daily': 'technical_data_daily',
-            'signal_quality_scores': 'buy_sell_daily',
-            'swing_trader_scores': 'signal_quality_scores',
+            "technical_data_daily": "price_daily",
+            "buy_sell_daily": "technical_data_daily",
+            "signal_quality_scores": "buy_sell_daily",
+            "swing_trader_scores": "signal_quality_scores",
         }
 
         upstream_table = upstream_deps.get(self.table_name)
@@ -771,19 +780,19 @@ class OptimalLoader(ABC):
             return True
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Check upstream table completeness via data_loader_status
                 cur.execute(
                     "SELECT completion_pct, symbols_loaded, symbol_count FROM data_loader_status "
                     "WHERE table_name = %s AND status IN ('COMPLETED', 'INCOMPLETE')",
-                    (upstream_table,)
+                    (upstream_table,),
                 )
                 result = cur.fetchone()
                 if not result:
                     # No upstream status — assume upstream hasn't run yet
                     logger.error(
                         f"[UPSTREAM] {self.table_name} requires {upstream_table}, but {upstream_table} "
-                        f"has no status. Aborting to prevent silent data loss."
+                        "has no status. Aborting to prevent silent data loss."
                     )
                     return False
 
@@ -795,25 +804,29 @@ class OptimalLoader(ABC):
                     logger.critical(
                         f"[UPSTREAM] {self.table_name} depends on {upstream_table}, which is only "
                         f"{completion_pct:.1f}% complete ({symbols_loaded}/{symbol_count} symbols). "
-                        f"Aborting to prevent incomplete data from flowing downstream."
+                        "Aborting to prevent incomplete data from flowing downstream."
                     )
                     # Update our status to FAILED so Phase 1 detects it
                     try:
-                        with DatabaseContext('write') as write_cur:
+                        with DatabaseContext("write") as write_cur:
                             write_cur.execute(
                                 "UPDATE data_loader_status SET status = %s WHERE table_name = %s",
-                                ('FAILED', self.table_name)
+                                ("FAILED", self.table_name),
                             )
                     except Exception:
                         pass
                     return False
 
-                logger.info(f"[UPSTREAM] {self.table_name} upstream check passed: {upstream_table} "
-                           f"{completion_pct:.1f}% complete ({symbols_loaded}/{symbol_count} symbols)")
+                logger.info(
+                    f"[UPSTREAM] {self.table_name} upstream check passed: {upstream_table} "
+                    f"{completion_pct:.1f}% complete ({symbols_loaded}/{symbol_count} symbols)"
+                )
                 return True
 
         except Exception as e:
-            logger.warning(f"[UPSTREAM] Could not check upstream completeness: {e}, proceeding anyway")
+            logger.warning(
+                f"[UPSTREAM] Could not check upstream completeness: {e}, proceeding anyway"
+            )
             return True  # Don't abort if we can't check
 
     def _log_execution_history(self, status: str, error_message: Optional[str] = None):
@@ -826,29 +839,41 @@ class OptimalLoader(ABC):
             error_message: Error message if status is 'failed', else None
         """
         if not self._execution_start_time:
-            logger.warning(f"[{self.table_name}] No execution start time recorded, skipping history log")
+            logger.warning(
+                f"[{self.table_name}] No execution start time recorded, skipping history log"
+            )
             return
 
         execution_end = datetime.now(timezone.utc)
-        execution_start = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
+        execution_start = datetime.fromtimestamp(
+            self._execution_start_time, tz=timezone.utc
+        )
 
         try:
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO loader_execution_history
                     (loader_name, execution_start, execution_end, status, rows_processed, error_message)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    self.table_name,
-                    execution_start,
-                    execution_end,
-                    status,
-                    self._stats.get('rows_inserted', 0),
-                    error_message,
-                ))
-            logger.info(f"[{self.table_name}] Logged execution history: status={status}, rows={self._stats.get('rows_inserted', 0)}")
+                """,
+                    (
+                        self.table_name,
+                        execution_start,
+                        execution_end,
+                        status,
+                        self._stats.get("rows_inserted", 0),
+                        error_message,
+                    ),
+                )
+            logger.info(
+                f"[{self.table_name}] Logged execution history: status={status}, rows={self._stats.get('rows_inserted', 0)}"
+            )
         except Exception as e:
-            logger.error(f"[{self.table_name}] Failed to log execution history: {e}", exc_info=True)
+            logger.error(
+                f"[{self.table_name}] Failed to log execution history: {e}",
+                exc_info=True,
+            )
 
     def run(
         self,
@@ -900,7 +925,9 @@ class OptimalLoader(ABC):
             conn_manager = PooledConnectionManager(self.table_name)
             pooled_conn = conn_manager.acquire()
             set_pooled_connection(pooled_conn)
-            logger.info(f"[{self.table_name}] Acquired pooled connection for entire loader lifecycle")
+            logger.info(
+                f"[{self.table_name}] Acquired pooled connection for entire loader lifecycle"
+            )
 
             if backfill_days is not None:
                 self._backfill_days = backfill_days
@@ -928,14 +955,20 @@ class OptimalLoader(ABC):
 
             if not self._check_upstream_completeness(len(symbols)):
                 # Upstream incomplete — abort this load to prevent silent data loss
-                logger.error(f"[{self.table_name}] Aborting due to incomplete upstream data")
+                logger.error(
+                    f"[{self.table_name}] Aborting due to incomplete upstream data"
+                )
                 self._update_loader_status("FAILED")
                 self._stop_heartbeat()
                 # Log this as a failed execution attempt
                 try:
-                    self._log_execution_history(status='failed', error_message='Upstream data incomplete')
+                    self._log_execution_history(
+                        status="failed", error_message="Upstream data incomplete"
+                    )
                 except Exception as e:
-                    logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
+                    logger.error(
+                        f"[{self.table_name}] Failed to log execution history: {e}"
+                    )
                 return self._stats
             mode = (
                 f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
@@ -950,7 +983,11 @@ class OptimalLoader(ABC):
                 self.table_name,
                 len(symbols),
                 parallelism,
-                " (reduced from " + str(original_parallelism) + ")" if was_adjusted else "",
+                (
+                    " (reduced from " + str(original_parallelism) + ")"
+                    if was_adjusted
+                    else ""
+                ),
                 mode,
             )
 
@@ -1007,16 +1044,20 @@ class OptimalLoader(ABC):
                 # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
                 symbols_expected = len(symbols) if symbols else 1
                 symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
-                completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
+                completion_pct = (
+                    (symbols_successfully_loaded / symbols_expected * 100)
+                    if symbols_expected > 0
+                    else 100.0
+                )
 
                 # Determine status: INCOMPLETE if coverage <95%, else COMPLETED
-                loader_status = 'COMPLETED'
+                loader_status = "COMPLETED"
                 if completion_pct < 95:
-                    loader_status = 'INCOMPLETE'
+                    loader_status = "INCOMPLETE"
                     logger.warning(
                         f"[{self.table_name}] Load completed but INCOMPLETE: "
                         f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%) — "
-                        f"Phase 1 will detect this and trigger failsafe retry"
+                        "Phase 1 will detect this and trigger failsafe retry"
                     )
 
                 with DatabaseContext("write") as cur:
@@ -1027,7 +1068,9 @@ class OptimalLoader(ABC):
                         (self.table_name,),
                     )
                     existing = cur.fetchone()
-                    execution_started = existing[0] if existing and existing[0] else "NOW()"
+                    execution_started = (
+                        existing[0] if existing and existing[0] else "NOW()"
+                    )
 
                     # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
                     # dependency (works even if PRIMARY KEY was added after initial creation)
@@ -1044,8 +1087,15 @@ class OptimalLoader(ABC):
                             "(table_name, row_count, latest_date, last_updated, status, "
                             "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
                             "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
-                            (self.table_name, total_rows, latest_date, loader_status,
-                             completion_pct, symbols_expected, symbols_successfully_loaded),
+                            (
+                                self.table_name,
+                                total_rows,
+                                latest_date,
+                                loader_status,
+                                completion_pct,
+                                symbols_expected,
+                                symbols_successfully_loaded,
+                            ),
                         )
                     else:
                         # execution_started already exists, preserve it
@@ -1054,8 +1104,16 @@ class OptimalLoader(ABC):
                             "(table_name, row_count, latest_date, last_updated, status, "
                             "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
                             "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
-                            (self.table_name, total_rows, latest_date, loader_status,
-                             completion_pct, symbols_expected, symbols_successfully_loaded, execution_started),
+                            (
+                                self.table_name,
+                                total_rows,
+                                latest_date,
+                                loader_status,
+                                completion_pct,
+                                symbols_expected,
+                                symbols_successfully_loaded,
+                                execution_started,
+                            ),
                         )
             except Exception as e:
                 logger.warning(
@@ -1066,26 +1124,35 @@ class OptimalLoader(ABC):
             # Prevents Phase 1 from using stale cache that shows old completion status
             try:
                 import boto3
-                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+
+                dynamodb = boto3.resource(
+                    "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+                )
+                cache_table_name = os.getenv("CACHE_TABLE", "algo_phase1_cache")
                 cache_table = dynamodb.Table(cache_table_name)
 
                 # Invalidate any cached data_loader_status entries
                 run_date = date.today().isoformat()
                 cache_key = f"data_loader_status-{run_date}"
                 try:
-                    cache_table.delete_item(Key={'cache_key': cache_key})
-                    logger.debug(f"[CACHE] Invalidated {cache_key} on {self.table_name} completion")
+                    cache_table.delete_item(Key={"cache_key": cache_key})
+                    logger.debug(
+                        f"[CACHE] Invalidated {cache_key} on {self.table_name} completion"
+                    )
                 except Exception as cache_err:
                     logger.debug(f"[CACHE] Could not invalidate cache: {cache_err}")
             except Exception as cache_setup_err:
-                logger.debug(f"[CACHE] Cache invalidation unavailable: {cache_setup_err}")
+                logger.debug(
+                    f"[CACHE] Cache invalidation unavailable: {cache_setup_err}"
+                )
 
             # Log execution to loader_execution_history table
             try:
-                self._log_execution_history(status='success', error_message=None)
+                self._log_execution_history(status="success", error_message=None)
             except Exception as e:
-                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
+                logger.error(
+                    f"[{self.table_name}] Failed to log execution history: {e}"
+                )
 
             # Stop heartbeat thread before returning
             self._stop_heartbeat()
@@ -1094,9 +1161,11 @@ class OptimalLoader(ABC):
         except Exception as e:
             # Log failed execution to history
             try:
-                self._log_execution_history(status='failed', error_message=str(e)[:500])
+                self._log_execution_history(status="failed", error_message=str(e)[:500])
             except Exception as history_err:
-                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
+                logger.error(
+                    f"[{self.table_name}] Failed to log failed execution: {history_err}"
+                )
             raise
         finally:
             # Ensure heartbeat stops even on error
@@ -1105,11 +1174,16 @@ class OptimalLoader(ABC):
             # OPTIMIZATION: Release pooled connection
             try:
                 from utils.db.pooled_context_var import set_pooled_connection
+
                 set_pooled_connection(None)  # Clear context
                 conn_manager.release()
-                logger.info(f"[{self.table_name}] Released pooled connection after loader completion")
+                logger.info(
+                    f"[{self.table_name}] Released pooled connection after loader completion"
+                )
             except Exception as e:
-                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
+                logger.warning(
+                    f"[{self.table_name}] Error releasing pooled connection: {e}"
+                )
 
             if lock_manager:
                 try:
@@ -1119,7 +1193,6 @@ class OptimalLoader(ABC):
 
     def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""
-        pass
 
     def load_global(self) -> int:
         """Execute a market-wide data load using fetch_global(). Returns rows inserted.
@@ -1168,7 +1241,9 @@ class OptimalLoader(ABC):
             conn_manager = PooledConnectionManager(self.table_name)
             pooled_conn = conn_manager.acquire()
             set_pooled_connection(pooled_conn)
-            logger.info(f"[{self.table_name}] Acquired pooled connection for global load")
+            logger.info(
+                f"[{self.table_name}] Acquired pooled connection for global load"
+            )
 
             # Mark loader as RUNNING so Phase 1 knows it's in progress
             self._update_loader_status("RUNNING")
@@ -1189,7 +1264,9 @@ class OptimalLoader(ABC):
                     )
                     row = cur.fetchone()
                     since = (
-                        self._parse_watermark_date(row[0]) if row is not None and row[0] is not None else None
+                        self._parse_watermark_date(row[0])
+                        if row is not None and row[0] is not None
+                        else None
                     )
             except Exception as e:
                 logger.warning(
@@ -1235,7 +1312,9 @@ class OptimalLoader(ABC):
                         (self.table_name,),
                     )
                     existing = cur.fetchone()
-                    execution_started = existing[0] if existing and existing[0] else "NOW()"
+                    execution_started = (
+                        existing[0] if existing and existing[0] else "NOW()"
+                    )
 
                     cur.execute(
                         "DELETE FROM data_loader_status WHERE table_name = %s",
@@ -1249,7 +1328,7 @@ class OptimalLoader(ABC):
                             "INSERT INTO data_loader_status "
                             "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
                             "VALUES (%s, %s, %s, NOW(), %s, NOW(), NOW())",
-                            (self.table_name, total_rows, latest_date, 'COMPLETED'),
+                            (self.table_name, total_rows, latest_date, "COMPLETED"),
                         )
                     else:
                         # execution_started already exists, preserve it
@@ -1257,7 +1336,13 @@ class OptimalLoader(ABC):
                             "INSERT INTO data_loader_status "
                             "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
                             "VALUES (%s, %s, %s, NOW(), %s, %s, NOW())",
-                            (self.table_name, total_rows, latest_date, 'COMPLETED', execution_started),
+                            (
+                                self.table_name,
+                                total_rows,
+                                latest_date,
+                                "COMPLETED",
+                                execution_started,
+                            ),
                         )
             except Exception as e:
                 logger.warning(
@@ -1266,28 +1351,37 @@ class OptimalLoader(ABC):
 
             # Log execution to loader_execution_history table
             try:
-                self._stats['rows_inserted'] = inserted
-                self._log_execution_history(status='success', error_message=None)
+                self._stats["rows_inserted"] = inserted
+                self._log_execution_history(status="success", error_message=None)
             except Exception as e:
-                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
+                logger.error(
+                    f"[{self.table_name}] Failed to log execution history: {e}"
+                )
 
             return inserted
         except Exception as e:
             # Log failed execution to history
             try:
-                self._log_execution_history(status='failed', error_message=str(e)[:500])
+                self._log_execution_history(status="failed", error_message=str(e)[:500])
             except Exception as history_err:
-                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
+                logger.error(
+                    f"[{self.table_name}] Failed to log failed execution: {history_err}"
+                )
             raise
         finally:
             # OPTIMIZATION: Release pooled connection
             try:
                 from utils.db.pooled_context_var import set_pooled_connection
+
                 set_pooled_connection(None)  # Clear context
                 conn_manager.release()
-                logger.info(f"[{self.table_name}] Released pooled connection after global load completion")
+                logger.info(
+                    f"[{self.table_name}] Released pooled connection after global load completion"
+                )
             except Exception as e:
-                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
+                logger.warning(
+                    f"[{self.table_name}] Error releasing pooled connection: {e}"
+                )
 
             if lock_manager:
                 try:

@@ -3,7 +3,7 @@
 import logging
 import traceback
 from datetime import date as _date
-from typing import Any, Callable, List, Dict
+from typing import Any, Callable
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -36,6 +36,7 @@ def run(
     try:
         from algo.monitoring import PositionMonitor
         from algo.infrastructure import MarketEventHandler
+
         monitor = PositionMonitor(config)
 
         try:
@@ -43,44 +44,61 @@ def run(
             open_positions = monitor.get_open_positions() or []
             halts_found = []
             for pos in open_positions:
-                halt_check = meh.check_single_stock_halt(pos.get('symbol') or pos.get('name', ''))
-                if halt_check and halt_check.get('halted'):
-                    symbol = pos.get('symbol') or pos.get('name', '')
+                halt_check = meh.check_single_stock_halt(
+                    pos.get("symbol") or pos.get("name", "")
+                )
+                if halt_check and halt_check.get("halted"):
+                    symbol = pos.get("symbol") or pos.get("name", "")
                     halts_found.append(symbol)
                     if verbose:
-                        logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
+                        logger.warning(
+                            f"  [WARN] {symbol} halted — pending orders cancelled"
+                        )
             if halts_found:
-                log_phase_result_fn(3, 'single_stock_halts', 'warn',
-                                   f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
+                log_phase_result_fn(
+                    3,
+                    "single_stock_halts",
+                    "warn",
+                    f'{len(halts_found)} symbols halted: {", ".join(halts_found)}',
+                )
         except Exception as e:
             logger.warning(f"Halt check failed for position: {e}")
-            log_phase_result_fn(3, 'halt_check_error', 'warn', f'Halt check failed: {str(e)[:100]}')
+            log_phase_result_fn(
+                3, "halt_check_error", "warn", f"Halt check failed: {str(e)[:100]}"
+            )
 
         stale_result = monitor.check_stale_orders(run_date)
-        if stale_result and stale_result.get('status') == 'STALE_ORDERS_FOUND':
+        if stale_result and stale_result.get("status") == "STALE_ORDERS_FOUND":
             alerts.send_position_alert(
-                'STALE_ORDERS',
-                'STALE_ORDER_ALERT',
+                "STALE_ORDERS",
+                "STALE_ORDER_ALERT",
                 f'{stale_result.get("count", 0)} orders pending >1 hour',
-                {'orders': stale_result.get('count', 0)}
+                {"orders": stale_result.get("count", 0)},
             )
 
         recommendations = monitor.review_positions(run_date)
 
-        n_raise_stop = sum(1 for r in recommendations if r['action'] == 'RAISE_STOP')
-        n_early_exit = sum(1 for r in recommendations if r['action'] == 'EARLY_EXIT')
-        n_hold = sum(1 for r in recommendations if r['action'] == 'HOLD')
+        n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
+        n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
+        n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
         log_phase_result_fn(
-            3, 'position_monitor', 'success',
-            f'{len(recommendations)} positions: {n_hold} hold, {n_raise_stop} raise-stop, {n_early_exit} early-exit',
+            3,
+            "position_monitor",
+            "success",
+            f"{len(recommendations)} positions: {n_hold} hold, {n_raise_stop} raise-stop, {n_early_exit} early-exit",
         )
         return PhaseResult(
-            3, 'position_monitor', 'ok',
-            {'recommendations': recommendations, 'count': len(recommendations)},
-            False, None
+            3,
+            "position_monitor",
+            "ok",
+            {"recommendations": recommendations, "count": len(recommendations)},
+            False,
+            None,
         )
 
     except Exception as e:
         traceback.print_exc()
-        log_phase_result_fn(3, 'position_monitor', 'error', str(e))
-        return PhaseResult(3, 'position_monitor', 'ok', {'recommendations': []}, False, str(e))
+        log_phase_result_fn(3, "position_monitor", "error", str(e))
+        return PhaseResult(
+            3, "position_monitor", "ok", {"recommendations": []}, False, str(e)
+        )

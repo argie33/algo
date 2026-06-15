@@ -8,12 +8,11 @@ from algo.signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
-
 class AdvancedFilters:
     """Quality boosters that turn 'qualifying' signals into 'best' signals."""
 
     # ---- Score weights (sum = 100) ----
-    W_MOMENTUM_RS = 15           # Mansfield RS vs SPY
+    W_MOMENTUM_RS = 15  # Mansfield RS vs SPY
     W_MOMENTUM_SECTOR = 10
     W_MOMENTUM_INDUSTRY = 5
     W_MOMENTUM_VOLUME = 5
@@ -50,7 +49,7 @@ class AdvancedFilters:
     # ---------- Pre-load: market context ----------
 
     def load_market_context(self, eval_date):
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT sector_name, current_rank, momentum_score
@@ -66,13 +65,17 @@ class AdvancedFilters:
                 (eval_date,),
             )
             sectors = cur.fetchall()
-            top_n = int(self.config.get('strong_sector_top_n', 5))
+            top_n = int(self.config.get("strong_sector_top_n", 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None}
+            self._strong_sectors = {
+                row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None
+            }
 
             # Graceful degradation: if no sector data, continue with empty dict
             if not self._strong_sectors:
-                logger.warning(f"No sector ranking data available for {eval_date} — sector filters disabled")
+                logger.warning(
+                    f"No sector ranking data available for {eval_date} — sector filters disabled"
+                )
 
             cur.execute(
                 """
@@ -91,7 +94,9 @@ class AdvancedFilters:
             industries = cur.fetchall()
             if industries:
                 cutoff_idx = max(1, len(industries) // 4)
-                self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
+                self._strong_industries = {
+                    row[0]: float(row[1]) for row in industries[:cutoff_idx]
+                }
             else:
                 self._strong_industries = {}
 
@@ -102,15 +107,15 @@ class AdvancedFilters:
             sent = cur.fetchone()
             if sent and sent[0] is not None and sent[1] is not None:
                 self._market_breadth = {
-                    'bullish': float(sent[0]),
-                    'bearish': float(sent[1]),
-                    'bull_bear_spread': float(sent[0]) - float(sent[1]),
+                    "bullish": float(sent[0]),
+                    "bearish": float(sent[1]),
+                    "bull_bear_spread": float(sent[0]) - float(sent[1]),
                 }
 
             return {
-                'strong_sectors': list(self._strong_sectors.keys()),
-                'strong_industries_count': len(self._strong_industries),
-                'market_breadth': self._market_breadth,
+                "strong_sectors": list(self._strong_sectors.keys()),
+                "strong_industries_count": len(self._strong_industries),
+                "market_breadth": self._market_breadth,
             }
 
     # ---------- Per-candidate evaluation ----------
@@ -125,115 +130,138 @@ class AdvancedFilters:
           'subscores': {momentum, quality, catalyst, risk}
           'components': dict
         """
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             components = {}
-            subscores = {'momentum': 0.0, 'quality': 0.0, 'catalyst': 0.0, 'risk': 0.0}
-            max_subscores = {'momentum': 40.0, 'quality': 30.0, 'catalyst': 15.0, 'risk': 15.0}
+            subscores = {"momentum": 0.0, "quality": 0.0, "catalyst": 0.0, "risk": 0.0}
+            max_subscores = {
+                "momentum": 40.0,
+                "quality": 30.0,
+                "catalyst": 15.0,
+                "risk": 15.0,
+            }
             hard_fail = None
 
             # ===== HARD-FAIL gates (independent) =====
 
             # H1. Earnings proximity
             days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
-            components['days_to_earnings'] = days_to_earnings
-            block_window = int(self.config.get('block_days_before_earnings', 5))
+            components["days_to_earnings"] = days_to_earnings
+            block_window = int(self.config.get("block_days_before_earnings", 5))
             if days_to_earnings is None:
                 # No earnings calendar data — warn but don't block.
                 # Pre-tier EarningsBlackout already catches known proximity windows.
                 # Blocking on unknown earnings would eliminate many valid setups.
-                logger.debug(f"  {symbol}: No earnings calendar data, skipping earnings gate")
+                logger.debug(
+                    f"  {symbol}: No earnings calendar data, skipping earnings gate"
+                )
             elif 0 <= days_to_earnings <= block_window:
-                hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
+                hard_fail = (
+                    f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
+                )
 
             # H2. Over-extended
             ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
-            components['extension_pct'] = ext_pct
-            max_extension = float(self.config.get('max_extension_above_50ma_pct', 15.0))
+            components["extension_pct"] = ext_pct
+            max_extension = float(self.config.get("max_extension_above_50ma_pct", 15.0))
             if ext_pct is not None and ext_pct > max_extension:
-                hard_fail = hard_fail or f'{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})'
+                hard_fail = (
+                    hard_fail
+                    or f"{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})"
+                )
 
             # H4. Liquidity (institutional must)
             avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
-            components['avg_dollar_volume'] = avg_dollar_vol
-            min_liq = float(self.config.get('min_avg_daily_dollar_volume', 500_000))
+            components["avg_dollar_volume"] = avg_dollar_vol
+            min_liq = float(self.config.get("min_avg_daily_dollar_volume", 500_000))
             if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
-                hard_fail = hard_fail or f'Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M'
+                hard_fail = (
+                    hard_fail
+                    or f"Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M"
+                )
 
             # H5. Strong-sector requirement (off by default)
-            if self.config.get('require_strong_sector', False):
+            if self.config.get("require_strong_sector", False):
                 if sector and sector not in (self._strong_sectors or {}):
-                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
+                    hard_fail = (
+                        hard_fail
+                        or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
+                    )
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
             # MOMENTUM (40)
             rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
-            components['relative_strength'] = {'pts': round(rs_pts, 1), 'excess_vs_spy': rs_value}
-            subscores['momentum'] += rs_pts
+            components["relative_strength"] = {
+                "pts": round(rs_pts, 1),
+                "excess_vs_spy": rs_value,
+            }
+            subscores["momentum"] += rs_pts
 
             sec_pts = self._sector_momentum_score(sector)
-            components['sector_strength'] = round(sec_pts, 1)
-            subscores['momentum'] += sec_pts
+            components["sector_strength"] = round(sec_pts, 1)
+            subscores["momentum"] += sec_pts
 
             ind_pts = self._industry_momentum_score(industry)
-            components['industry_strength'] = round(ind_pts, 1)
-            subscores['momentum'] += ind_pts
+            components["industry_strength"] = round(ind_pts, 1)
+            subscores["momentum"] += ind_pts
 
-            vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
-            components['volume_ratio'] = vol_ratio
-            subscores['momentum'] += vol_pts
+            vol_pts, vol_ratio = self._volume_confirmation_score(
+                symbol, signal_date, cur
+            )
+            components["volume_ratio"] = vol_ratio
+            subscores["momentum"] += vol_pts
 
             trend_pts = self._price_trend_score(symbol, signal_date, cur)
-            components['price_trend_pts'] = round(trend_pts, 1)
-            subscores['momentum'] += trend_pts
+            components["price_trend_pts"] = round(trend_pts, 1)
+            subscores["momentum"] += trend_pts
 
             setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
-            components['setup_quality'] = setup_breakdown
-            subscores['momentum'] += setup_pts
+            components["setup_quality"] = setup_breakdown
+            subscores["momentum"] += setup_pts
 
             # QUALITY (30)
             ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol, cur)
-            components['ibd_composite'] = ibd_breakdown
-            subscores['quality'] += ibd_pts
+            components["ibd_composite"] = ibd_breakdown
+            subscores["quality"] += ibd_pts
 
             fin_pts, fin_val = self._financial_quality_score(symbol, cur)
-            components['financial_quality'] = fin_val
-            subscores['quality'] += fin_pts
+            components["financial_quality"] = fin_val
+            subscores["quality"] += fin_pts
 
             eq_pts, eq_val = self._earnings_quality_score(symbol, cur)
-            components['earnings_quality_score'] = eq_val
-            subscores['quality'] += eq_pts
+            components["earnings_quality_score"] = eq_val
+            subscores["quality"] += eq_pts
 
             # CATALYST (15)
             grw_pts, grw_breakdown = self._growth_score(symbol, cur)
-            components['growth'] = grw_breakdown
-            subscores['catalyst'] += grw_pts
+            components["growth"] = grw_breakdown
+            subscores["catalyst"] += grw_pts
 
             an_pts, an_net = self._analyst_score(symbol, signal_date, cur)
-            components['analyst_net_actions'] = an_net
-            subscores['catalyst'] += an_pts
+            components["analyst_net_actions"] = an_net
+            subscores["catalyst"] += an_pts
 
             in_pts, in_net = self._insider_score(symbol, signal_date, cur)
-            components['insider_net_value'] = in_net
-            subscores['catalyst'] += in_pts
+            components["insider_net_value"] = in_net
+            subscores["catalyst"] += in_pts
 
             # RISK (15) — these are GOOD when low risk
             ext_pts = self._extension_risk_score(ext_pct)
-            components['extension_pts'] = round(ext_pts, 1)
-            subscores['risk'] += ext_pts
+            components["extension_pts"] = round(ext_pts, 1)
+            subscores["risk"] += ext_pts
 
             ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
-            components['earnings_proximity_pts'] = round(ep_pts, 1)
-            subscores['risk'] += ep_pts
+            components["earnings_proximity_pts"] = round(ep_pts, 1)
+            subscores["risk"] += ep_pts
 
             composite_score = min(100.0, sum(subscores.values()))
             return {
-                'pass': hard_fail is None,
-                'reason': hard_fail or 'all advanced gates passed',
-                'composite_score': round(composite_score, 1),
-                'subscores': {k: round(v, 1) for k, v in subscores.items()},
-                'subscore_max': max_subscores,
-                'components': components,
+                "pass": hard_fail is None,
+                "reason": hard_fail or "all advanced gates passed",
+                "composite_score": round(composite_score, 1),
+                "subscores": {k: round(v, 1) for k, v in subscores.items()},
+                "subscore_max": max_subscores,
+                "components": components,
             }
 
     # ============= MOMENTUM =============
@@ -243,7 +271,9 @@ class AdvancedFilters:
         if self._signals is None:
             self._signals = SignalComputer()
 
-        rs_percentile = self._signals._rs_percentile_vs_spy(cur, symbol, signal_date, lookback=60)
+        rs_percentile = self._signals._rs_percentile_vs_spy(
+            cur, symbol, signal_date, lookback=60
+        )
         if rs_percentile is None:
             return 0.0, None
 
@@ -253,7 +283,11 @@ class AdvancedFilters:
     def _sector_momentum_score(self, sector):
         if not sector or not self._strong_sectors:
             return 0.0
-        rank = self._sector_full_ranking.get(sector, 99) if self._sector_full_ranking else 99
+        rank = (
+            self._sector_full_ranking.get(sector, 99)
+            if self._sector_full_ranking
+            else 99
+        )
         # Top sector = 10pts, rank 5 = 5pts, rank 11 = 0pts
         return max(0.0, self.W_MOMENTUM_SECTOR * (1.0 - (rank - 1) / 10.0))
 
@@ -285,13 +319,16 @@ class AdvancedFilters:
             return 0.0, None
         ratio = vol / avg
         # 1.5x = full points
-        pts = max(0.0, min(self.W_MOMENTUM_VOLUME, (ratio - 0.8) * self.W_MOMENTUM_VOLUME / 0.7))
+        pts = max(
+            0.0,
+            min(self.W_MOMENTUM_VOLUME, (ratio - 0.8) * self.W_MOMENTUM_VOLUME / 0.7),
+        )
         return pts, round(ratio, 2)
 
     def _price_trend_score(self, symbol, signal_date, cur):
         """Multi-timeframe alignment (Elder Triple Screen):
-            +2 pts each if 5d return positive, 20d return positive,
-            +1 pt if also a BUY signal on weekly timeframe (very strong combo).
+        +2 pts each if 5d return positive, 20d return positive,
+        +1 pt if also a BUY signal on weekly timeframe (very strong combo).
         """
         r5 = self._period_return(symbol, signal_date, 5, cur)
         r20 = self._period_return(symbol, signal_date, 20, cur)
@@ -316,7 +353,9 @@ class AdvancedFilters:
             if cur.fetchone():
                 score += 1.0
         except Exception as e:
-            logging.debug(f"Weekly alignment check failed for {symbol}: {e} (continuing without bonus)")
+            logging.debug(
+                f"Weekly alignment check failed for {symbol}: {e} (continuing without bonus)"
+            )
             # Continue without bonus — don't halt on weekly alignment check failure
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
@@ -338,30 +377,30 @@ class AdvancedFilters:
             pivot = self._signals.pivot_breakout(symbol, signal_date)
             power = self._signals.power_trend(symbol, signal_date)
         except Exception as e:
-            return 0.0, {'error': str(e)[:60]}
+            return 0.0, {"error": str(e)[:60]}
 
         pts = 0.0
-        if base.get('in_base') and base.get('breakout_imminent'):
+        if base.get("in_base") and base.get("breakout_imminent"):
             pts += 3.0
-        elif base.get('in_base'):
+        elif base.get("in_base"):
             pts += 1.5
-        if vcp.get('is_vcp'):
+        if vcp.get("is_vcp"):
             pts += 2.0
-        if pivot.get('breakout'):
+        if pivot.get("breakout"):
             pts += 1.0
-        if power.get('power_trend'):
+        if power.get("power_trend"):
             pts += 1.0
         pts = min(5.0, pts)
 
         return pts, {
-            'in_base': base.get('in_base'),
-            'breakout_imminent': base.get('breakout_imminent'),
-            'base_depth_pct': base.get('base_depth_pct'),
-            'is_vcp': vcp.get('is_vcp'),
-            'vcp_contractions': vcp.get('contractions'),
-            'pivot_breakout': pivot.get('breakout'),
-            'power_trend': power.get('power_trend'),
-            'return_21d': power.get('return_21d'),
+            "in_base": base.get("in_base"),
+            "breakout_imminent": base.get("breakout_imminent"),
+            "base_depth_pct": base.get("base_depth_pct"),
+            "is_vcp": vcp.get("is_vcp"),
+            "vcp_contractions": vcp.get("contractions"),
+            "pivot_breakout": pivot.get("breakout"),
+            "power_trend": power.get("power_trend"),
+            "return_21d": power.get("return_21d"),
         }
 
     def _period_return(self, symbol, end_date, lookback_days, cur):
@@ -398,20 +437,22 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return 0.0, {'composite': None, 'grade': 'NA'}
+            return 0.0, {"composite": None, "grade": "NA"}
         composite = float(row[0])
         # 40 = 0pts, 90+ = full pts
-        pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
+        pts = max(
+            0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0)
+        )
 
         # Assign letter grade using configurable thresholds from algo_config
         grade = GradeClassifier.classify_ibd_composite(composite)
 
         return pts, {
-            'composite': round(composite, 1),
-            'grade': grade,
-            'quality': round(float(row[1]), 1) if row[1] is not None else None,
-            'growth': round(float(row[2]), 1) if row[2] is not None else None,
-            'momentum': round(float(row[3]), 1) if row[3] is not None else None,
+            "composite": round(composite, 1),
+            "grade": grade,
+            "quality": round(float(row[1]), 1) if row[1] is not None else None,
+            "growth": round(float(row[2]), 1) if row[2] is not None else None,
+            "momentum": round(float(row[3]), 1) if row[3] is not None else None,
         }
 
     def _financial_quality_score(self, symbol, cur):
@@ -477,10 +518,10 @@ class AdvancedFilters:
         rev_p = max(0.0, min(2.5, rev_3y / 15.0 * 2.5)) if rev_3y > 0 else 0.0
         mom_p = 2.0 if mom > 0 else 0.0
         return eps_p + rev_p + mom_p, {
-            'eps_3y_cagr': round(eps_3y, 1),
-            'rev_3y_cagr': round(rev_3y, 1),
-            'rev_yoy': round(rev_yoy, 1),
-            'momentum': round(mom, 1),
+            "eps_3y_cagr": round(eps_3y, 1),
+            "rev_3y_cagr": round(rev_3y, 1),
+            "rev_yoy": round(rev_yoy, 1),
+            "momentum": round(mom, 1),
         }
 
     def _analyst_score(self, symbol, signal_date, cur):
@@ -503,7 +544,9 @@ class AdvancedFilters:
         downs = int(row[1]) if row[1] is not None else 0
         net = ups - downs
         # +5 net = full; -3 net = 0
-        pts = max(0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0))
+        pts = max(
+            0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0)
+        )
         return pts, net
 
     def _insider_score(self, symbol, signal_date, cur):
@@ -548,9 +591,9 @@ class AdvancedFilters:
         if ext_pct is None:
             return 0.0
         if ext_pct < 0:
-            return self.W_RISK_EXTENSION * 0.6   # below 50 = OK but not ideal
+            return self.W_RISK_EXTENSION * 0.6  # below 50 = OK but not ideal
         if ext_pct <= 5:
-            return self.W_RISK_EXTENSION         # sweet spot
+            return self.W_RISK_EXTENSION  # sweet spot
         if ext_pct <= 10:
             return self.W_RISK_EXTENSION * (1.0 - (ext_pct - 5) / 5.0 * 0.5)
         if ext_pct <= 15:
@@ -564,7 +607,11 @@ class AdvancedFilters:
             return 0.0
         if days_to_earnings >= 30:
             return self.W_RISK_EARNINGS_PROX
-        return self.W_RISK_EARNINGS_PROX * (days_to_earnings - block_window) / (30 - block_window)
+        return (
+            self.W_RISK_EARNINGS_PROX
+            * (days_to_earnings - block_window)
+            / (30 - block_window)
+        )
 
     def _avg_dollar_volume(self, symbol, signal_date, cur):
         cur.execute(

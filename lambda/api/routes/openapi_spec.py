@@ -1,33 +1,38 @@
 """Route: openapi_spec - Serve OpenAPI specification and UI."""
-import json
+
 import logging
 from typing import Dict
 from openapi_spec import generate_openapi_spec
 
 logger = logging.getLogger(__name__)
 
-
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
     """Handle OpenAPI spec endpoints.
 
     /api/openapi.json - OpenAPI 3.0 specification (machine-readable)
     /api/swagger - Swagger UI (interactive documentation)
     /api/redoc - ReDoc UI (interactive documentation)
     """
-    if path == '/api/openapi.json' or path.startswith('/api/openapi.json?'):
+    if path == "/api/openapi.json" or path.startswith("/api/openapi.json?"):
         return _handle_openapi_json()
-    elif path == '/api/swagger' or path.startswith('/api/swagger?'):
+    elif path == "/api/swagger" or path.startswith("/api/swagger?"):
         return _handle_swagger_ui()
-    elif path == '/api/redoc' or path.startswith('/api/redoc?'):
+    elif path == "/api/redoc" or path.startswith("/api/redoc?"):
         return _handle_redoc_ui()
     else:
         return {
             "statusCode": 404,
             "errorType": "not_found",
             "message": "OpenAPI endpoint not found",
-            "_error": "not_found"
+            "_error": "not_found",
         }
-
 
 def _handle_openapi_json() -> Dict:
     """Serve the OpenAPI specification as JSON.
@@ -45,8 +50,8 @@ def _handle_openapi_json() -> Dict:
             "data": spec,
             "headers": {
                 "Content-Type": "application/json",
-                "Cache-Control": "public, max-age=3600"
-            }
+                "Cache-Control": "public, max-age=3600",
+            },
         }
     except Exception as e:
         logger.error(f"Error generating OpenAPI spec: {e}", exc_info=True)
@@ -54,9 +59,8 @@ def _handle_openapi_json() -> Dict:
             "statusCode": 500,
             "errorType": "internal_error",
             "message": "Failed to generate OpenAPI specification",
-            "_error": "internal_error"
+            "_error": "internal_error",
         }
-
 
 def _handle_swagger_ui() -> Dict:
     """Serve Swagger UI for interactive API documentation.
@@ -103,11 +107,8 @@ def _handle_swagger_ui() -> Dict:
     return {
         "statusCode": 200,
         "body": html,
-        "headers": {
-            "Content-Type": "text/html; charset=utf-8"
-        }
+        "headers": {"Content-Type": "text/html; charset=utf-8"},
     }
-
 
 def _handle_redoc_ui() -> Dict:
     """Serve ReDoc UI for API documentation.
@@ -139,7 +140,5 @@ def _handle_redoc_ui() -> Dict:
     return {
         "statusCode": 200,
         "body": html,
-        "headers": {
-            "Content-Type": "text/html; charset=utf-8"
-        }
+        "headers": {"Content-Type": "text/html; charset=utf-8"},
     }

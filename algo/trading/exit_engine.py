@@ -21,10 +21,10 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
-import os
 import requests
 from utils.db import DatabaseContext
-from datetime import datetime, timedelta, date as _date, timezone
+from datetime import datetime, timezone
+
 try:
     from trade_performance_auditor import TradePerformanceAuditor
 except ImportError:
@@ -33,8 +33,8 @@ from algo.trading import TradeExecutor
 from algo.signals import SignalComputer
 from utils.trading import TradeStatus, PositionStatus
 import logging
-from typing import Dict, List, Any, Optional, Tuple
-from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
+from typing import Dict, Any, Optional
+from config.alpaca_config import get_alpaca_data_url
 from config.credential_manager import get_alpaca_credentials
 from algo.infrastructure import get_alpaca_timeout
 
@@ -53,9 +53,11 @@ class ExitEngine:
         if not current_date:
             current_date = datetime.now(timezone.utc).date()
 
-        auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
+        auditor = (
+            TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
+        )
 
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             try:
                 logger.info(f"\n{'='*70}")
                 logger.info(f"EXIT ENGINE CHECK - {current_date}")
@@ -73,7 +75,11 @@ class ExitEngine:
                     WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
                     ORDER BY t.trade_date ASC
                     """,
-                    (TradeStatus.OPEN.value, TradeStatus.PENDING.value, PositionStatus.OPEN.value)
+                    (
+                        TradeStatus.OPEN.value,
+                        TradeStatus.PENDING.value,
+                        PositionStatus.OPEN.value,
+                    ),
                 )
                 trades = cur.fetchall()
                 if not trades:
@@ -85,19 +91,35 @@ class ExitEngine:
                 exits_executed = 0
 
                 for row in trades:
-                    (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
-                     trade_date, _position_id, quantity, target_hits, current_stop,
-                     t1_hit_time, t2_hit_time, t3_hit_time) = row
+                    (
+                        trade_id,
+                        symbol,
+                        entry_price,
+                        init_stop,
+                        t1_price,
+                        t2_price,
+                        t3_price,
+                        trade_date,
+                        _position_id,
+                        quantity,
+                        target_hits,
+                        current_stop,
+                        t1_hit_time,
+                        t2_hit_time,
+                        t3_hit_time,
+                    ) = row
 
                     # Issue #22: Verify position still open (not already exited in same run)
                     cur.execute(
                         "SELECT status FROM algo_positions WHERE position_id = %s",
-                        (_position_id,)
+                        (_position_id,),
                     )
                     status_row = cur.fetchone()
                     status = status_row[0] if status_row else None
-                    if status != 'open':
-                        logger.debug(f"Position {symbol} already closed, skipping exit check")
+                    if status != "open":
+                        logger.debug(
+                            f"Position {symbol} already closed, skipping exit check"
+                        )
                         continue
 
                     try:
@@ -112,7 +134,9 @@ class ExitEngine:
                         logger.warning(f"  {symbol}: skip (invalid price data: {e})")
                         continue
 
-                    cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
+                    cur_price, prev_close = self._fetch_recent_prices(
+                        cur, symbol, current_date
+                    )
                     if cur_price is None:
                         continue
 
@@ -121,30 +145,49 @@ class ExitEngine:
                     # Enforce minimum holding period (no same-day exits per Curtis Faith)
                     if days_held < 1:
                         if self.verbose:
-                            logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                            logger.info(
+                                f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)"
+                            )
                         continue
 
                     exit_signal = self._evaluate_position(
-                        cur, symbol, current_date,
-                        cur_price, prev_close, entry_price, active_stop, init_stop,
-                        t1_price, t2_price, t3_price, target_hits, days_held, dist_days_today,
-                        t1_hit_time, t2_hit_time, t3_hit_time,
+                        cur,
+                        symbol,
+                        current_date,
+                        cur_price,
+                        prev_close,
+                        entry_price,
+                        active_stop,
+                        init_stop,
+                        t1_price,
+                        t2_price,
+                        t3_price,
+                        target_hits,
+                        days_held,
+                        dist_days_today,
+                        t1_hit_time,
+                        t2_hit_time,
+                        t3_hit_time,
                     )
 
                     if not exit_signal:
-                        t1_str = f'${t1_price:.2f}' if t1_price is not None else '—'
-                        logger.info(f"  {symbol}: hold (cur ${cur_price:.2f}, "
-                                    f"stop ${active_stop:.2f}, t1 {t1_str}, "
-                                    f"day {days_held}, hits {target_hits})")
+                        t1_str = f"${t1_price:.2f}" if t1_price is not None else "—"
+                        logger.info(
+                            f"  {symbol}: hold (cur ${cur_price:.2f}, "
+                            f"stop ${active_stop:.2f}, t1 {t1_str}, "
+                            f"day {days_held}, hits {target_hits})"
+                        )
                         continue
 
-                    fraction = exit_signal['fraction']
-                    stage = exit_signal['stage']
-                    new_stop = exit_signal.get('new_stop')
+                    fraction = exit_signal["fraction"]
+                    stage = exit_signal["stage"]
+                    new_stop = exit_signal.get("new_stop")
 
                     # Route exit through executor (atomicity + audit logging)
                     # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
-                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                    logger.info(
+                        f"  {symbol}: {stage.upper()} — {exit_signal['reason']}"
+                    )
                     if fraction > 0:
                         logger.info(f"      (exit {int(fraction*100)}%)")
 
@@ -153,15 +196,15 @@ class ExitEngine:
                     result = self.executor.exit_trade(
                         trade_id=trade_id,
                         exit_price=cur_price if fraction > 0 else None,
-                        exit_reason=exit_signal['reason'],
+                        exit_reason=exit_signal["reason"],
                         exit_fraction=fraction,  # 0 for stop-raise-only
                         exit_stage=stage,
                         new_stop_price=new_stop,
                     )
-                    if fraction == 0 and result.get('success'):
+                    if fraction == 0 and result.get("success"):
                         logger.info(f"      -> Stop raised to ${new_stop:.2f}")
                         exits_executed += 1
-                    elif result.get('success'):
+                    elif result.get("success"):
                         exits_executed += 1
                         logger.info(f"      -> {result['message']}")
                     else:
@@ -173,10 +216,13 @@ class ExitEngine:
 
                 # NEW: Audit closed trades for performance (Phase 2 integration)
                 try:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT DISTINCT trade_id FROM algo_trades
                         WHERE status = %s AND exit_date = %s
-                    """, (TradeStatus.CLOSED.value, current_date))
+                    """,
+                        (TradeStatus.CLOSED.value, current_date),
+                    )
                     closed_trades = cur.fetchall()
                     for (trade_id,) in closed_trades:
                         if auditor:
@@ -188,23 +234,39 @@ class ExitEngine:
             except Exception as e:
                 logger.error(f"Error in exit engine: {e}")
                 import traceback
+
                 traceback.print_exc()
                 return 0
 
     # ---------- Decision logic ----------
 
-    def _evaluate_position(self, cur, symbol, current_date, cur_price, prev_close,
-                           entry_price, active_stop, init_stop,
-                           t1_price, t2_price, t3_price,
-                           target_hits, days_held, dist_days_today,
-                           t1_hit_time=None, t2_hit_time=None, t3_hit_time=None) -> Dict[str, Any] | None:
+    def _evaluate_position(
+        self,
+        cur,
+        symbol,
+        current_date,
+        cur_price,
+        prev_close,
+        entry_price,
+        active_stop,
+        init_stop,
+        t1_price,
+        t2_price,
+        t3_price,
+        target_hits,
+        days_held,
+        dist_days_today,
+        t1_hit_time=None,
+        t2_hit_time=None,
+        t3_hit_time=None,
+    ) -> Dict[str, Any] | None:
         """Decide what (if any) exit to take. Returns dict or None.
 
         Target hit times prevent duplicate exits when price bounces around target levels.
         If a target was hit today, we skip the exit even if price is still above the level.
         """
         # PHASE 1 FIX: Enforce minimum holding period (no same-day exits)
-        min_hold_days = int(self.config.get('min_hold_days', 1))
+        min_hold_days = int(self.config.get("min_hold_days", 1))
         if days_held < min_hold_days:
             return None  # Not ready to exit yet
 
@@ -215,61 +277,75 @@ class ExitEngine:
                 f"[exit_engine] {symbol}: init_stop ({init_stop:.2f}) >= entry ({entry_price:.2f}) "
                 "— R-based exits disabled for this position; hard stop still active"
             )
-        r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+        r_mult = (
+            ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+        )
 
         # 1. STOP (capital preservation always wins)
         if cur_price <= active_stop:
             return {
-                'stage': 'stop',
-                'fraction': 1.0,
-                'reason': f'STOP hit: ${cur_price:.2f} <= ${active_stop:.2f}',
+                "stage": "stop",
+                "fraction": 1.0,
+                "reason": f"STOP hit: ${cur_price:.2f} <= ${active_stop:.2f}",
             }
 
         # 2. MINERVINI BREAK — close < 21-EMA on volume, OR clean break of 50-DMA
         if self._is_minervini_break(cur, symbol, current_date, cur_price):
             return {
-                'stage': 'stop',
-                'fraction': 1.0,
-                'reason': f'Minervini trend break: closed below key MA on volume',
+                "stage": "stop",
+                "fraction": 1.0,
+                "reason": "Minervini trend break: closed below key MA on volume",
             }
 
         # 3. RS-LINE BREAK vs SPY (O'Neil) — exit if relative strength deteriorates
-        if self.config.get('exit_on_rs_line_break_50dma', True):
+        if self.config.get("exit_on_rs_line_break_50dma", True):
             if self._rs_line_breaking(cur, symbol, current_date):
                 return {
-                    'stage': 'stop',
-                    'fraction': 1.0,
-                    'reason': 'RS line broke below 50-DMA — relative strength deterioration',
+                    "stage": "stop",
+                    "fraction": 1.0,
+                    "reason": "RS line broke below 50-DMA — relative strength deterioration",
                 }
 
         # 4. TIME — but with O'Neil 8-week rule override for big winners
-        max_hold = int(self.config.get('max_hold_days', 20))
+        max_hold = int(self.config.get("max_hold_days", 20))
         if days_held >= max_hold:
             # 8-week rule: if stock gained >= 20% in first 3 weeks, hold for 8 weeks
-            eight_wk_threshold = float(self.config.get('eight_week_rule_threshold_pct', 20.0))
-            eight_wk_window = int(self.config.get('eight_week_rule_window_days', 21))
-            eight_wk_ext = self._eight_week_rule_active(
-                cur, symbol, current_date, entry_price, days_held,
-                eight_wk_threshold, eight_wk_window,
+            eight_wk_threshold = float(
+                self.config.get("eight_week_rule_threshold_pct", 20.0)
             )
-            if eight_wk_ext and days_held < 56:  # 8 weeks = 40 trading days; calendar 56
+            eight_wk_window = int(self.config.get("eight_week_rule_window_days", 21))
+            eight_wk_ext = self._eight_week_rule_active(
+                cur,
+                symbol,
+                current_date,
+                entry_price,
+                days_held,
+                eight_wk_threshold,
+                eight_wk_window,
+            )
+            if (
+                eight_wk_ext and days_held < 56
+            ):  # 8 weeks = 40 trading days; calendar 56
                 # Don't exit on time; let the trail / stop manage it
                 pass
             else:
                 return {
-                    'stage': 'time',
-                    'fraction': 1.0,
-                    'reason': f'TIME exit: {days_held} days >= {max_hold} max',
+                    "stage": "time",
+                    "fraction": 1.0,
+                    "reason": f"TIME exit: {days_held} days >= {max_hold} max",
                 }
 
         # 5. BREAKEVEN STOP MOVE at +1R (Curtis Faith research — premature is worse)
         # This is a "raise stop" not an exit. The orchestrator handles via new_stop.
-        if r_mult >= float(self.config.get('move_be_at_r', 1.0)) and active_stop < entry_price:
+        if (
+            r_mult >= float(self.config.get("move_be_at_r", 1.0))
+            and active_stop < entry_price
+        ):
             return {
-                'stage': 'raise_stop_be',
-                'fraction': 0.0,  # 0 = no exit, just raise stop
-                'reason': f'+{r_mult:.2f}R achieved — raise stop to breakeven',
-                'new_stop': entry_price,
+                "stage": "raise_stop_be",
+                "fraction": 0.0,  # 0 = no exit, just raise stop
+                "reason": f"+{r_mult:.2f}R achieved — raise stop to breakeven",
+                "new_stop": entry_price,
             }
 
         # 6-8. Tiered target exits — must scale sequentially T1 → T2 → T3
@@ -281,68 +357,79 @@ class ExitEngine:
         def _was_hit_today(hit_time):
             if hit_time is None:
                 return False
-            hit_date = hit_time.date() if hasattr(hit_time, 'date') else hit_time
+            hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
             return hit_date == current_date
 
-        require_pb = bool(self.config.get('require_target_pullback', False))
+        require_pb = bool(self.config.get("require_target_pullback", False))
 
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
-            if not _was_hit_today(t1_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
+            if not _was_hit_today(t1_hit_time) and (
+                not require_pb or self._is_pulling_back(cur, symbol, current_date)
+            ):
                 return {
-                    'stage': 'target_1',
-                    'fraction': 0.50,
-                    'reason': f'T1 exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
-                    'new_stop': max(active_stop, entry_price),
+                    "stage": "target_1",
+                    "fraction": 0.50,
+                    "reason": f"T1 exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)",
+                    "new_stop": max(active_stop, entry_price),
                 }
 
         # Then check T2 only if T1 already hit
         if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
-            if not _was_hit_today(t2_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
-                stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
+            if not _was_hit_today(t2_hit_time) and (
+                not require_pb or self._is_pulling_back(cur, symbol, current_date)
+            ):
+                stop_for_t2 = (
+                    max(active_stop, t1_price) if t1_price is not None else active_stop
+                )
                 return {
-                    'stage': 'target_2',
-                    'fraction': 0.50,
-                    'reason': f'T2 exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)',
-                    'new_stop': stop_for_t2,
+                    "stage": "target_2",
+                    "fraction": 0.50,
+                    "reason": f"T2 exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)",
+                    "new_stop": stop_for_t2,
                 }
 
         # Finally check T3 only if T1 and T2 already hit
         if target_hits == 2 and t3_price is not None and cur_price >= t3_price:
             if not _was_hit_today(t3_hit_time):
                 return {
-                    'stage': 'target_3',
-                    'fraction': 1.0,
-                    'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
+                    "stage": "target_3",
+                    "fraction": 1.0,
+                    "reason": f"T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT",
                 }
 
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management
-        if self.config.get('use_chandelier_trail', True) and r_mult >= 1.0:
-            chand_stop = self._chandelier_or_ema_stop(cur, symbol, current_date, days_held)
+        if self.config.get("use_chandelier_trail", True) and r_mult >= 1.0:
+            chand_stop = self._chandelier_or_ema_stop(
+                cur, symbol, current_date, days_held
+            )
             if chand_stop and chand_stop > active_stop:
                 return {
-                    'stage': 'raise_stop_trail',
-                    'fraction': 0.0,
-                    'reason': f'Chandelier/EMA trail tightens stop to ${chand_stop:.2f}',
-                    'new_stop': chand_stop,
+                    "stage": "raise_stop_trail",
+                    "fraction": 0.0,
+                    "reason": f"Chandelier/EMA trail tightens stop to ${chand_stop:.2f}",
+                    "new_stop": chand_stop,
                 }
 
-        if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
+        if self.config.get("exit_on_td_sequential", True) and target_hits >= 1:
             if r_mult >= 0.5:
                 td_state = self._get_td_state(cur, symbol, current_date)
-                if td_state.get('combo_13_complete') and td_state.get('setup_type') == 'sell':
+                if (
+                    td_state.get("combo_13_complete")
+                    and td_state.get("setup_type") == "sell"
+                ):
                     return {
-                        'stage': 'td_combo_13',
-                        'fraction': 1.0,  # full exit on 13
-                        'reason': f'TD Combo 13-count exhaustion (FULL EXIT, R={r_mult:.2f})',
+                        "stage": "td_combo_13",
+                        "fraction": 1.0,  # full exit on 13
+                        "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={r_mult:.2f})",
                     }
-                if td_state.get('completed_9') and td_state.get('setup_type') == 'sell':
+                if td_state.get("completed_9") and td_state.get("setup_type") == "sell":
                     return {
-                        'stage': 'td_exhaustion',
-                        'fraction': 0.50,
-                        'reason': f'TD Sequential 9-count exhaustion (R={r_mult:.2f})',
-                        'new_stop': max(active_stop, entry_price),
+                        "stage": "td_exhaustion",
+                        "fraction": 0.50,
+                        "reason": f"TD Sequential 9-count exhaustion (R={r_mult:.2f})",
+                        "new_stop": max(active_stop, entry_price),
                     }
 
         # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
@@ -353,10 +440,10 @@ class ExitEngine:
                 vol_check = self._check_volume_spike(cur, symbol, current_date, 1.5)
                 if vol_check:
                     return {
-                        'stage': 'first_red_day',
-                        'fraction': 0.50,
-                        'reason': f'First Red Day: down {down_pct:.2f}% on heavy volume (R={r_mult:.2f})',
-                        'new_stop': max(active_stop, entry_price),
+                        "stage": "first_red_day",
+                        "fraction": 0.50,
+                        "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={r_mult:.2f})",
+                        "new_stop": max(active_stop, entry_price),
                     }
 
         # 13. CLIMAX RUN EXHAUSTION — parabolic moves exhaust and reverse sharply
@@ -365,10 +452,10 @@ class ExitEngine:
             gain_10d = self._compute_gain_last_n_days(cur, symbol, current_date, 10)
             if gain_10d is not None and gain_10d >= 20.0:
                 return {
-                    'stage': 'climax_exhaustion',
-                    'fraction': 0.50,
-                    'reason': f'Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={r_mult:.2f})',
-                    'new_stop': max(active_stop, entry_price),
+                    "stage": "climax_exhaustion",
+                    "fraction": 0.50,
+                    "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={r_mult:.2f})",
+                    "new_stop": max(active_stop, entry_price),
                 }
 
         # 8. DISTRIBUTION — reduce position and raise stop to at least breakeven.
@@ -376,14 +463,17 @@ class ExitEngine:
         # may still be working. Minervini/O'Neil use distribution days as a signal to
         # tighten risk, not automatically liquidate. Partial exit books some profit while
         # the raised stop protects the remainder.
-        if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
-            max_dd = int(self.config.get('max_distribution_days', 4))
+        if (
+            self.config.get("exit_on_distribution_day", True)
+            and dist_days_today is not None
+        ):
+            max_dd = int(self.config.get("max_distribution_days", 4))
             if dist_days_today > max_dd:
                 return {
-                    'stage': 'distribution',
-                    'fraction': 0.5,
-                    'new_stop': max(active_stop, entry_price),
-                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd} — reducing 50%, stop raised to breakeven',
+                    "stage": "distribution",
+                    "fraction": 0.5,
+                    "new_stop": max(active_stop, entry_price),
+                    "reason": f"Market distribution: {dist_days_today} dist days > {max_dd} — reducing 50%, stop raised to breakeven",
                 }
 
         return None
@@ -432,7 +522,9 @@ class ExitEngine:
                 logger.debug(f"Alpaca quote API auth failed for {symbol}")
                 return None
             else:
-                logger.debug(f"Alpaca quote API returned {response.status_code} for {symbol}")
+                logger.debug(
+                    f"Alpaca quote API returned {response.status_code} for {symbol}"
+                )
                 return None
         except requests.Timeout:
             logger.debug(f"Alpaca quote API timeout for {symbol}")
@@ -441,7 +533,9 @@ class ExitEngine:
             logger.debug(f"Failed to fetch Alpaca quote for {symbol}: {e}")
             return None
 
-    def _fetch_recent_prices(self, cur, symbol, current_date) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(
+        self, cur, symbol, current_date
+    ) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
         Strategy:
@@ -465,7 +559,9 @@ class ExitEngine:
                 (symbol, current_date),
             )
             prev_row = cur.fetchone()
-            prev_close = float(prev_row[0]) if prev_row and prev_row[0] is not None else None
+            prev_close = (
+                float(prev_row[0]) if prev_row and prev_row[0] is not None else None
+            )
             return current_price, prev_close
 
         # Fall back to daily closes (market closed or API unavailable)
@@ -483,7 +579,9 @@ class ExitEngine:
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
         if cur_price is None:
             return None, None
-        prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
+        prev_close = (
+            float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
+        )
         return cur_price, prev_close
 
     def _fetch_market_dist_days(self, cur, current_date) -> Optional[int]:
@@ -515,9 +613,13 @@ class ExitEngine:
             return False
 
         cur_close = float(rows[0][0])
-        recent_high = max(float(r[1]) if r[1] is not None else float(r[0]) for r in rows[:5])
+        recent_high = max(
+            float(r[1]) if r[1] is not None else float(r[0]) for r in rows[:5]
+        )
 
-        pullback_pct = ((recent_high - cur_close) / recent_high * 100.0) if recent_high > 0 else 0
+        pullback_pct = (
+            ((recent_high - cur_close) / recent_high * 100.0) if recent_high > 0 else 0
+        )
         if pullback_pct >= 2.0:
             return True
 
@@ -557,8 +659,16 @@ class ExitEngine:
             logger.error(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
             return False
 
-    def _eight_week_rule_active(self, cur, symbol, current_date, entry_price, days_held,
-                                 threshold_pct, window_days) -> bool:
+    def _eight_week_rule_active(
+        self,
+        cur,
+        symbol,
+        current_date,
+        entry_price,
+        days_held,
+        threshold_pct,
+        window_days,
+    ) -> bool:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
         if days_held < window_days:
             return False
@@ -570,7 +680,13 @@ class ExitEngine:
                   AND date >= %s::date - MAKE_INTERVAL(days => %s)
                   AND date <= %s::date - MAKE_INTERVAL(days => %s)
                 """,
-                (symbol, current_date, days_held, current_date, max(0, days_held - window_days)),
+                (
+                    symbol,
+                    current_date,
+                    days_held,
+                    current_date,
+                    max(0, days_held - window_days),
+                ),
             )
             row = cur.fetchone()
             if not row or not row[0]:
@@ -584,11 +700,13 @@ class ExitEngine:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
-    def _chandelier_or_ema_stop(self, cur, symbol, current_date, days_held) -> float | None:
+    def _chandelier_or_ema_stop(
+        self, cur, symbol, current_date, days_held
+    ) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
         try:
-            switch_days = int(self.config.get('switch_to_21ema_after_days', 10))
+            switch_days = int(self.config.get("switch_to_21ema_after_days", 10))
             if days_held >= switch_days:
                 # 21-EMA trail
                 cur.execute(
@@ -636,7 +754,7 @@ class ExitEngine:
                     return None
                 hh = float(row[0])
                 atr = float(row[1])
-                mult = float(self.config.get('chandelier_atr_mult', 3.0))
+                mult = float(self.config.get("chandelier_atr_mult", 3.0))
                 return round(hh - (mult * atr), 2)
         except Exception as e:
             logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
@@ -708,7 +826,9 @@ class ExitEngine:
             logger.warning(f"Warning: _check_volume_spike({symbol}) failed: {e}")
             return False
 
-    def _compute_gain_last_n_days(self, cur, symbol, current_date, n_days) -> float | None:
+    def _compute_gain_last_n_days(
+        self, cur, symbol, current_date, n_days
+    ) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
         try:
             cur.execute(
@@ -739,8 +859,8 @@ class ExitEngine:
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config
+
     config = get_config()
     engine = ExitEngine(config)
     exits = engine.check_and_execute_exits()
     logger.info(f"Exits executed: {exits}")
-

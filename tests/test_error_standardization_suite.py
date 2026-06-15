@@ -20,16 +20,13 @@ REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from utils.exceptions import (
-    BaseAPIException,
     DatabaseConnectionError,
     DatabaseQueryTimeout,
     InputValidationError,
     RateLimitedError,
     ExternalAPIError,
-    ServiceUnavailableError,
 )
 from utils.error_handlers import classify_exception, sanitize_error_message
-
 
 # ============================================================================
 # TEST SUITE: Exception Hierarchy
@@ -42,25 +39,25 @@ class TestExceptionHierarchy:
         """DatabaseConnectionError should return 503 Service Unavailable."""
         err = DatabaseConnectionError("DB unreachable")
         assert err.status_code == 503
-        assert err.error_type == 'connection_error'
+        assert err.error_type == "connection_error"
 
     def test_database_query_timeout_returns_504(self):
         """DatabaseQueryTimeout should return 504 Gateway Timeout."""
         err = DatabaseQueryTimeout("Query too slow")
         assert err.status_code == 504
-        assert err.error_type == 'timeout'
+        assert err.error_type == "timeout"
 
     def test_input_validation_error_returns_400(self):
         """InputValidationError should return 400 Bad Request."""
         err = InputValidationError("Invalid input")
         assert err.status_code == 400
-        assert err.error_type == 'bad_request'
+        assert err.error_type == "bad_request"
 
     def test_rate_limited_error_returns_429(self):
         """RateLimitedError should return 429 Too Many Requests."""
         err = RateLimitedError("Too many requests")
         assert err.status_code == 429
-        assert err.error_type == 'rate_limited'
+        assert err.error_type == "rate_limited"
 
     def test_external_api_error_returns_502(self):
         """ExternalAPIError should return 502 Bad Gateway."""
@@ -71,11 +68,10 @@ class TestExceptionHierarchy:
         """All exceptions should have to_response() method."""
         err = DatabaseConnectionError("test")
         response = err.to_response()
-        assert 'statusCode' in response
-        assert 'errorType' in response
-        assert 'message' in response
-        assert 'context' in response
-
+        assert "statusCode" in response
+        assert "errorType" in response
+        assert "message" in response
+        assert "context" in response
 
 # ============================================================================
 # TEST SUITE: Error Classification
@@ -89,14 +85,14 @@ class TestErrorClassification:
         err = DatabaseConnectionError("test")
         code, error_type, message = classify_exception(err)
         assert code == 503
-        assert error_type == 'connection_error'
+        assert error_type == "connection_error"
 
     def test_classify_timeout_error(self):
         """DatabaseQueryTimeout should classify correctly."""
         err = DatabaseQueryTimeout("query too slow")
         code, error_type, message = classify_exception(err)
         assert code == 504
-        assert error_type == 'timeout'
+        assert error_type == "timeout"
 
     def test_classify_validation_error(self):
         """InputValidationError should classify correctly."""
@@ -110,7 +106,6 @@ class TestErrorClassification:
         code, error_type, message = classify_exception(err)
         assert code == 500
 
-
 # ============================================================================
 # TEST SUITE: Message Sanitization
 # ============================================================================
@@ -122,21 +117,20 @@ class TestMessageSanitization:
         """Should remove password from connection strings."""
         msg = "Failed: postgres://user:password=secret@host"
         sanitized = sanitize_error_message(msg)
-        assert 'secret' not in sanitized
-        assert '***' in sanitized or 'password' not in sanitized
+        assert "secret" not in sanitized
+        assert "***" in sanitized or "password" not in sanitized
 
     def test_sanitize_removes_api_key(self):
         """Should remove API keys from messages."""
         msg = "Failed API call: api_key=sk_live_12345678"
         sanitized = sanitize_error_message(msg)
-        assert 'sk_live' not in sanitized
+        assert "sk_live" not in sanitized
 
     def test_sanitize_removes_file_paths(self):
         """Should remove file paths."""
         msg = "/home/user/secret/file.txt not found"
         sanitized = sanitize_error_message(msg)
-        assert '/home/user' not in sanitized
-
+        assert "/home/user" not in sanitized
 
 # ============================================================================
 # TEST SUITE: API Routes Response Format
@@ -149,39 +143,38 @@ class TestAPIRouteErrorFormat:
         """All error responses must have statusCode, errorType, message, _error."""
         # Import via importlib to work around 'lambda' being a keyword
         import importlib.util
+
         spec = importlib.util.spec_from_file_location(
-            "routes_utils",
-            REPO_ROOT / 'lambda' / 'api' / 'routes' / 'utils.py'
+            "routes_utils", REPO_ROOT / "lambda" / "api" / "routes" / "utils.py"
         )
         routes_utils = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(routes_utils)
         error_response = routes_utils.error_response
 
-        response = error_response(503, 'connection_error', 'Database down')
+        response = error_response(503, "connection_error", "Database down")
 
-        assert 'statusCode' in response
-        assert response['statusCode'] == 503
-        assert 'errorType' in response
-        assert response['errorType'] == 'connection_error'
-        assert 'message' in response
-        assert '_error' in response
+        assert "statusCode" in response
+        assert response["statusCode"] == 503
+        assert "errorType" in response
+        assert response["errorType"] == "connection_error"
+        assert "message" in response
+        assert "_error" in response
 
     def test_error_response_never_200(self):
         """Error responses should never have statusCode 200."""
         import importlib.util
+
         spec = importlib.util.spec_from_file_location(
-            "routes_utils",
-            REPO_ROOT / 'lambda' / 'api' / 'routes' / 'utils.py'
+            "routes_utils", REPO_ROOT / "lambda" / "api" / "routes" / "utils.py"
         )
         routes_utils = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(routes_utils)
         error_response = routes_utils.error_response
 
         for code in [400, 401, 403, 404, 500, 502, 503, 504]:
-            response = error_response(code, 'test_error', 'test message')
-            assert response['statusCode'] == code
-            assert response['statusCode'] >= 400
-
+            response = error_response(code, "test_error", "test message")
+            assert response["statusCode"] == code
+            assert response["statusCode"] >= 400
 
 # ============================================================================
 # TEST SUITE: Import Verification
@@ -197,6 +190,7 @@ class TestImportAvailability:
             ValidationError,
             ExternalAPIError,
         )
+
         assert DatabaseError is not None
         assert ValidationError is not None
         assert ExternalAPIError is not None
@@ -209,6 +203,7 @@ class TestImportAvailability:
             retry_with_backoff,
             make_error_response,
         )
+
         assert callable(classify_exception)
         assert callable(sanitize_error_message)
         assert callable(retry_with_backoff)
@@ -222,6 +217,7 @@ class TestImportAvailability:
             validation_handler,
             transactional,
         )
+
         assert callable(db_route_handler)
         assert callable(external_api_handler)
         assert callable(validation_handler)
@@ -234,10 +230,10 @@ class TestImportAvailability:
             LoaderErrorContext,
             TransactionContext,
         )
+
         assert DatabaseErrorContext is not None
         assert LoaderErrorContext is not None
         assert TransactionContext is not None
-
 
 # ============================================================================
 # TEST SUITE: File Analysis
@@ -248,45 +244,47 @@ class TestFileStandardization:
 
     def test_route_files_have_error_handling(self):
         """API route files should use standardized error handling."""
-        routes_dir = REPO_ROOT / 'lambda' / 'api' / 'routes'
-        route_files = [f for f in routes_dir.glob('*.py') if f.name != '__init__.py']
+        routes_dir = REPO_ROOT / "lambda" / "api" / "routes"
+        route_files = [f for f in routes_dir.glob("*.py") if f.name != "__init__.py"]
 
         for route_file in route_files:
             try:
-                content = route_file.read_text(encoding='utf-8', errors='ignore')
+                content = route_file.read_text(encoding="utf-8", errors="ignore")
                 # Should have imports or decorators related to error handling
-                assert 'error_response' in content or 'handle_db_error' in content or '@db_route_handler' in content, \
-                    f"{route_file.name} missing error handling"
-            except Exception as e:
+                assert (
+                    "error_response" in content
+                    or "handle_db_error" in content
+                    or "@db_route_handler" in content
+                ), f"{route_file.name} missing error handling"
+            except Exception:
                 # Skip files with encoding issues - they're not critical for this test
                 pass
 
     def test_loaders_have_context_imports(self):
         """Loader files should have LoaderErrorContext or related imports."""
-        loaders_dir = REPO_ROOT / 'loaders'
-        loader_files = list(loaders_dir.glob('load_*.py'))[:5]  # Check sample of 5
+        loaders_dir = REPO_ROOT / "loaders"
+        loader_files = list(loaders_dir.glob("load_*.py"))[:5]  # Check sample of 5
 
         for loader_file in loader_files:
             content = loader_file.read_text()
             # Should have try/except blocks (allowed with new context managers)
-            if 'try:' in content:
+            if "try:" in content:
                 # At least document the error handling
-                assert 'except' in content
+                assert "except" in content
 
     def test_database_ops_have_transactional_imports(self):
         """Database operation files should have transactional imports if multi-statement."""
-        algo_dir = REPO_ROOT / 'algo'
+        algo_dir = REPO_ROOT / "algo"
         # Check a few key files
         test_files = [
-            algo_dir / 'algo_daily_reconciliation.py',
+            algo_dir / "algo_daily_reconciliation.py",
         ]
 
         for test_file in test_files:
             if test_file.exists():
                 content = test_file.read_text()
                 # Should use some form of error handling
-                assert 'try:' in content or '@' in content[:500]
-
+                assert "try:" in content or "@" in content[:500]
 
 # ============================================================================
 # TEST SUITE: Integration Tests
@@ -305,14 +303,14 @@ class TestIntegration:
 
         # Verify it can become a response
         assert code == 503
-        assert error_type == 'connection_error'
-        assert 'Connection pool' in message
+        assert error_type == "connection_error"
+        assert "Connection pool" in message
 
     def test_decorator_applied_functions(self):
         """Test that decorated functions exist and are callable."""
         from utils.decorators import db_route_handler
 
-        @db_route_handler('test operation')
+        @db_route_handler("test operation")
         def test_func(cur):
             return "success"
 
@@ -323,13 +321,12 @@ class TestIntegration:
         from utils.error_handlers import make_error_response
 
         err = DatabaseConnectionError("DB down")
-        response = make_error_response(err, 'test operation')
+        response = make_error_response(err, "test operation")
 
-        assert response['statusCode'] == 503
-        assert 'errorType' in response
-        assert 'message' in response
-        assert '_error' in response
-
+        assert response["statusCode"] == 503
+        assert "errorType" in response
+        assert "message" in response
+        assert "_error" in response
 
 # ============================================================================
 # Pytest Hooks
@@ -341,7 +338,6 @@ def pytest_configure(config):
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run tests with pytest
-    pytest.main([__file__, '-v', '--tb=short'])
+    pytest.main([__file__, "-v", "--tb=short"])

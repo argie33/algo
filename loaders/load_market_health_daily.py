@@ -14,11 +14,10 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 import pandas as pd
-from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
-from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
+from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str = "SPY", since: Optional[date] = None):
         """Fetch SPY price data and compute market health metrics."""
         from algo.infrastructure import MarketCalendar
-        from datetime import datetime, timezone, timedelta as td
+        from datetime import datetime, timezone
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
@@ -48,17 +47,23 @@ class MarketHealthDailyLoader(OptimalLoader):
         # BUT: if the table is nearly empty (< 5 rows), assume it needs backfilling and start from scratch
         if since is None:
             try:
-                with DatabaseContext('read') as cur:
+                with DatabaseContext("read") as cur:
                     cur.execute("SELECT MAX(date), COUNT(*) FROM market_health_daily")
                     row = cur.fetchone()
                     row_count = row[1] if row else 0
                     if row and row[0]:
                         # If table has fewer than 5 rows, it's likely incomplete/corrupted - do a full backfill
                         if row_count < 5:
-                            logger.info(f"market_health_daily has {row_count} rows (< 5), starting from scratch for backfill")
+                            logger.info(
+                                f"market_health_daily has {row_count} rows (< 5), starting from scratch for backfill"
+                            )
                             since = None
                         else:
-                            since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                            since = (
+                                row[0]
+                                if isinstance(row[0], date)
+                                else date.fromisoformat(str(row[0]))
+                            )
             except Exception as e:
                 logger.warning(f"Could not read market_health_daily watermark: {e}")
 
@@ -75,7 +80,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         if not health_metrics:
             return []
 
-        logger.info(f"Computed {len(health_metrics)} health metrics from {len(rows)} price rows, date range: {health_metrics[0]['date']} to {health_metrics[-1]['date']}")
+        logger.info(
+            f"Computed {len(health_metrics)} health metrics from {len(rows)} price rows, date range: {health_metrics[0]['date']} to {health_metrics[-1]['date']}"
+        )
 
         # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
         breadth = self._fetch_breadth_data(start, end)
@@ -95,19 +102,23 @@ class MarketHealthDailyLoader(OptimalLoader):
             since_str = since.isoformat()
             before_filter = len(health_metrics)
             health_metrics = [m for m in health_metrics if m["date"] >= since_str]
-            logger.info(f"Filtered health_metrics: {before_filter} -> {len(health_metrics)} (keeping dates >= {since_str})")
+            logger.info(
+                f"Filtered health_metrics: {before_filter} -> {len(health_metrics)} (keeping dates >= {since_str})"
+            )
 
         return health_metrics
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
         from algo.infrastructure import MarketCalendar
+
         today = datetime.now(EASTERN_TZ).date()
         if not MarketCalendar.is_trading_day(today):
             logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
             return {}
         try:
             from utils.external.yfinance import YFinanceWrapper
+
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
                 logger.warning("VIX ticker not available")
@@ -118,9 +129,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 return {}
             result = {}
             for idx, row in df.iterrows():
-                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+                date_str = (
+                    idx.strftime("%Y-%m-%d")
+                    if hasattr(idx, "strftime")
+                    else str(idx)[:10]
+                )
                 close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
-                if close_val is not None and not (isinstance(close_val, float) and close_val != close_val):
+                if close_val is not None and not (
+                    isinstance(close_val, float) and close_val != close_val
+                ):
                     result[date_str] = round(float(close_val), 2)
             logger.info(f"Fetched VIX data: {len(result)} days")
             return result
@@ -131,7 +148,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # For efficiency: only compute breadth for the last 30 days (most recent data)
                 # For dates older than 30 days, query existing market_health_daily data to reuse
                 recent_start = max(start, end - timedelta(days=30))
@@ -142,7 +159,8 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # First, get cached breadth data from market_health_daily for older dates
                 if start < recent_start:
                     try:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT date,
                                    COALESCE(advance_decline_ratio, 1.0),
                                    COALESCE(new_highs_count, 0),
@@ -150,7 +168,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                             FROM market_health_daily
                             WHERE date >= %s AND date < %s
                             ORDER BY date ASC
-                        """, (start, recent_start))
+                        """,
+                            (start, recent_start),
+                        )
 
                         for r in cur.fetchall():
                             result[r[0].isoformat()] = {
@@ -168,7 +188,8 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # without breadth columns (orchestrator Phase 1 only checks date freshness,
                 # not whether advance_decline_ratio is populated).
                 cur.execute("SET LOCAL statement_timeout = '90s'")
-                cur.execute("""
+                cur.execute(
+                    """
                     WITH prices AS (
                         SELECT symbol, date, close
                         FROM price_daily
@@ -199,11 +220,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                     WHERE prev_close IS NOT NULL AND date >= %s
                     GROUP BY date
                     ORDER BY date ASC
-                """, (lookback_start, end, recent_start))
+                """,
+                    (lookback_start, end, recent_start),
+                )
 
                 for r in cur.fetchall():
                     result[r[0].isoformat()] = {
-                        "advance_decline_ratio": float(r[3]) if r[3] is not None else 1.0,
+                        "advance_decline_ratio": (
+                            float(r[3]) if r[3] is not None else 1.0
+                        ),
                         "new_highs_count": int(r[4]) if r[4] is not None else 0,
                         "new_lows_count": int(r[5]) if r[5] is not None else 0,
                     }
@@ -215,7 +240,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT date, open, high, low, close, volume FROM price_daily "
                     "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
@@ -241,7 +266,9 @@ class MarketHealthDailyLoader(OptimalLoader):
             return []
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)
         if len(rows) < 20:
-            logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
+            logger.warning(
+                f"Computing market health with only {len(rows)} rows (< 20 recommended)"
+            )
 
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
@@ -254,13 +281,18 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["prev_close"] = df["close"].shift(1)
         df["prev_volume"] = df["volume"].shift(1)
         # Distribution day: close down >= 0.2% AND volume > previous day (IBD canonical definition)
-        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(int)
+        df["distribution_day"] = (
+            (df["close"] < df["prev_close"] * 0.998)
+            & (df["volume"] > df["prev_volume"])
+        ).astype(int)
 
         # Calculate moving averages using shared function
         mas = compute_moving_averages(df["close"])
-        df["sma_50"] = mas['sma_50']
-        df["sma_200"] = mas['sma_200']
-        df["breadth_10d"] = df["up_day"].rolling(10).mean() * 100  # % up days in last 10
+        df["sma_50"] = mas["sma_50"]
+        df["sma_200"] = mas["sma_200"]
+        df["breadth_10d"] = (
+            df["up_day"].rolling(10).mean() * 100
+        )  # % up days in last 10
 
         results = []
         for idx, row in df.iterrows():
@@ -270,7 +302,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Determine market trend and stage
             market_trend = "neutral"
-            market_stage = 2  # Default to Stage 2 (uptrend); overridden below when MAs available
+            market_stage = (
+                2  # Default to Stage 2 (uptrend); overridden below when MAs available
+            )
 
             if sma_200 and sma_50:
                 if close > sma_50 > sma_200:
@@ -298,32 +332,52 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
             # idx-24:idx+1 = 25 rows (today + 24 prior sessions)
-            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-24):idx+1].sum()) if idx >= 0 else 0
-            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-19):idx+1].sum()) if idx >= 0 else 0
+            dist_days_25d = (
+                int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum())
+                if idx >= 0
+                else 0
+            )
+            dist_days_20d = (
+                int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum())
+                if idx >= 0
+                else 0
+            )
 
             spy_change_pct = None
             if idx > 0:
-                prev_close = float(df.iloc[idx-1]["close"])
+                prev_close = float(df.iloc[idx - 1]["close"])
                 if prev_close > 0:
                     spy_change_pct = round((close - prev_close) / prev_close * 100, 2)
 
-            results.append({
-                "date": row["date"].date().isoformat(),
-                "market_trend": market_trend,
-                "market_stage": market_stage,
-                "distribution_days_4w": dist_days_25d,
-                "distribution_days_20d": dist_days_20d,
-                "up_volume_percent": float(df["up_day"].iloc[max(0, idx-10):idx+1].mean() * 100) if idx >= 0 else 50,
-                "advance_decline_ratio": None,  # filled from _fetch_breadth_data
-                "new_highs_count": None,         # filled from _fetch_breadth_data
-                "new_lows_count": None,          # filled from _fetch_breadth_data
-                "breadth_momentum_10d": float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50,
-                "spy_change_pct": spy_change_pct,
-                "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
-                "put_call_ratio": None,
-                "yield_curve_slope": None,
-                "fed_rate_environment": "unknown",
-            })
+            results.append(
+                {
+                    "date": row["date"].date().isoformat(),
+                    "market_trend": market_trend,
+                    "market_stage": market_stage,
+                    "distribution_days_4w": dist_days_25d,
+                    "distribution_days_20d": dist_days_20d,
+                    "up_volume_percent": (
+                        float(
+                            df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100
+                        )
+                        if idx >= 0
+                        else 50
+                    ),
+                    "advance_decline_ratio": None,  # filled from _fetch_breadth_data
+                    "new_highs_count": None,  # filled from _fetch_breadth_data
+                    "new_lows_count": None,  # filled from _fetch_breadth_data
+                    "breadth_momentum_10d": (
+                        float(row["breadth_10d"])
+                        if pd.notna(row["breadth_10d"])
+                        else 50
+                    ),
+                    "spy_change_pct": spy_change_pct,
+                    "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
+                    "put_call_ratio": None,
+                    "yield_curve_slope": None,
+                    "fed_rate_environment": "unknown",
+                }
+            )
 
         return results
 
@@ -331,8 +385,15 @@ class MarketHealthDailyLoader(OptimalLoader):
 # VIX family: VolTermStructureCard in MarketsHealth
 # Market indices: IndicesStrip sparklines + Distribution Days timeline
 INDEX_SYMBOLS_FOR_PRICE_DAILY = [
-    '^VIX', '^VIX9D', '^VIX3M', '^VIX6M',
-    '^GSPC', '^IXIC', '^NYA', '^DJI', '^RUT',
+    "^VIX",
+    "^VIX9D",
+    "^VIX3M",
+    "^VIX6M",
+    "^GSPC",
+    "^IXIC",
+    "^NYA",
+    "^DJI",
+    "^RUT",
 ]
 
 def _write_vix_family_prices(start: date, end: date) -> int:
@@ -346,9 +407,12 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
     # Skip the fetch — existing price_daily data is still current from the last trading day.
     from algo.infrastructure import MarketCalendar
+
     today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
-        logger.info(f"Market closed today ({today}) — skipping VIX/index yfinance fetch")
+        logger.info(
+            f"Market closed today ({today}) — skipping VIX/index yfinance fetch"
+        )
         return 0
     try:
         from utils.external.yfinance import YFinanceWrapper
@@ -361,19 +425,25 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     logger.warning(f"Could not get ticker for {sym}")
                     continue
 
-                df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
+                df = ticker.history(
+                    start=start, end=end, interval="1d", auto_adjust=True
+                )
                 if df is None or df.empty:
                     logger.warning(f"No data for {sym}")
                     continue
 
                 for idx, row in df.iterrows():
-                    d = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
+                    d = (
+                        idx.date()
+                        if hasattr(idx, "date")
+                        else date.fromisoformat(str(idx)[:10])
+                    )
 
                     def _v(col):
-                        val = row.get(col) if hasattr(row, 'get') else row[col]
+                        val = row.get(col) if hasattr(row, "get") else row[col]
                         if val is None:
                             return None
-                        if hasattr(val, '__len__'):
+                        if hasattr(val, "__len__"):
                             try:
                                 val = val.iloc[0] if len(val) else None
                             except (IndexError, AttributeError):
@@ -384,14 +454,14 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                         except (TypeError, ValueError):
                             return None
 
-                    close = _v('Close')
+                    close = _v("Close")
                     if close is None:
                         continue
 
-                    open_val = _v('Open')
-                    high_val = _v('High')
-                    low_val = _v('Low')
-                    volume_val = _v('Volume')
+                    open_val = _v("Open")
+                    high_val = _v("High")
+                    low_val = _v("Low")
+                    volume_val = _v("Volume")
 
                     if volume_val is None:
                         logger.debug(f"{sym} on {d}: Volume data missing")
@@ -399,23 +469,29 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     else:
                         volume_val = int(volume_val)
 
-                    records.append((
-                        sym, d,
-                        open_val,
-                        high_val,
-                        low_val,
-                        close,
-                        volume_val,
-                    ))
-                logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
+                    records.append(
+                        (
+                            sym,
+                            d,
+                            open_val,
+                            high_val,
+                            low_val,
+                            close,
+                            volume_val,
+                        )
+                    )
+                logger.info(
+                    f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}"
+                )
             except Exception as e:
                 logger.warning(f"Failed to fetch {sym}: {e}")
 
         if not records:
             return 0
 
-        with DatabaseContext('write') as cur:
-            cur.executemany("""
+        with DatabaseContext("write") as cur:
+            cur.executemany(
+                """
                 INSERT INTO price_daily (symbol, date, open, high, low, close, volume)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (symbol, date) DO UPDATE SET
@@ -424,7 +500,9 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     low    = EXCLUDED.low,
                     close  = EXCLUDED.close,
                     volume = EXCLUDED.volume
-            """, records)
+            """,
+                records,
+            )
 
         logger.info(f"Upserted {len(records)} VIX family price rows into price_daily")
         return len(records)
@@ -440,7 +518,7 @@ def main():
     parser.add_argument("--parallelism", type=int, default=1, help="Parallel workers")
     args = parser.parse_args()
 
-    tracker = LoaderHistoryTracker('market_health_daily')
+    tracker = LoaderHistoryTracker("market_health_daily")
     tracker.start()
 
     try:
@@ -466,4 +544,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

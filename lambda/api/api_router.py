@@ -1,5 +1,9 @@
 """API Router - dispatcher."""
-import logging, sys, os, json, threading
+
+import logging
+import os
+import json
+import threading
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
@@ -28,16 +32,20 @@ def fetch_cloudfront_domain_from_secrets():
             from config.credential_manager import get_secret
 
             try:
-                secret = get_secret('algo/cloudfront-domain', default='')
+                secret = get_secret("algo/cloudfront-domain", default="")
 
-                if isinstance(secret, str) and not secret.startswith('{'):
+                if isinstance(secret, str) and not secret.startswith("{"):
                     domain = secret.strip()
                 else:
-                    secret_dict = json.loads(secret) if isinstance(secret, str) else secret
-                    domain = secret_dict.get('domain', '').strip()
+                    secret_dict = (
+                        json.loads(secret) if isinstance(secret, str) else secret
+                    )
+                    domain = secret_dict.get("domain", "").strip()
 
                 if domain:
-                    logger.info(f"[CloudFront] Fetched domain from Secrets Manager: {domain}")
+                    logger.info(
+                        f"[CloudFront] Fetched domain from Secrets Manager: {domain}"
+                    )
                     _CLOUDFRONT_DOMAIN_CACHE = domain
                     return domain, None
                 else:
@@ -45,37 +53,64 @@ def fetch_cloudfront_domain_from_secrets():
                     return None, "Secret exists but domain is empty"
 
             except ValueError:
-                logger.info("[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)")
+                logger.info(
+                    "[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)"
+                )
                 return None, "Secret not found"
             except json.JSONDecodeError as e:
                 logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
                 return None, f"Invalid secret format: {e}"
 
         except ImportError:
-            logger.warning("[CloudFront] credential_manager not available, skipping Secrets Manager fetch")
+            logger.warning(
+                "[CloudFront] credential_manager not available, skipping Secrets Manager fetch"
+            )
             return None, "credential_manager not available"
         except Exception as e:
-            logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain")
+            logger.error(
+                f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
+            )
             return None, f"Error: {e}"
 
 # health is the only truly critical route — if it fails the API can't self-report its own status
 try:
     from routes import health
 except ImportError as e:
-    raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
+    raise RuntimeError(
+        f"CRITICAL: Failed to import routes.health (required for API to function): {e}"
+    ) from e
 
 # Import routes gracefully - if a single module fails, others still work
-_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
+_ROUTE_IMPORT_ERRORS = (
+    {}
+)  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
-_CRITICAL_ROUTES = {'health'}
+_CRITICAL_ROUTES = {"health"}
 
 # All optional routes: loaded with graceful fallback — one module failing doesn't break others
 _OPTIONAL_ROUTE_MODULES = [
-    'algo', 'openapi_spec',
-    'logs', 'financials', 'earnings', 'signals', 'prices', 'stocks',
-    'sectors', 'industries', 'market', 'economic', 'sentiment',
-    'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'risk_dashboard',
-    'data_coverage'
+    "algo",
+    "openapi_spec",
+    "logs",
+    "financials",
+    "earnings",
+    "signals",
+    "prices",
+    "stocks",
+    "sectors",
+    "industries",
+    "market",
+    "economic",
+    "sentiment",
+    "scores",
+    "research",
+    "audit",
+    "trades",
+    "admin",
+    "contact",
+    "settings",
+    "risk_dashboard",
+    "data_coverage",
 ]
 
 # Track startup state for diagnostics (thread-safe)
@@ -84,17 +119,20 @@ _IMPORT_DURATION = None
 _STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration updates
 
 # Populate health (statically imported above)
-_AVAILABLE_ROUTES['health'] = health
+_AVAILABLE_ROUTES["health"] = health
 
 # Dynamically import optional routes with error handling
 for module_name in _OPTIONAL_ROUTE_MODULES:
     try:
-        module = __import__(f'routes.{module_name}', fromlist=[module_name])
+        module = __import__(f"routes.{module_name}", fromlist=[module_name])
         _AVAILABLE_ROUTES[module_name] = module
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         _ROUTE_IMPORT_ERRORS[module_name] = error_msg
-        logger.warning(f"Failed to import optional routes.{module_name}: {error_msg}", exc_info=True)
+        logger.warning(
+            f"Failed to import optional routes.{module_name}: {error_msg}",
+            exc_info=True,
+        )
 
 # Report startup status: log all failures with clear visibility
 if _ROUTE_IMPORT_ERRORS:
@@ -102,7 +140,9 @@ if _ROUTE_IMPORT_ERRORS:
     critical_failures = [m for m in failed_modules if m in _CRITICAL_ROUTES]
 
     # Log structured status for monitoring
-    logger.error(f"ROUTE_IMPORT_STATUS: failed_count={len(failed_modules)}, critical_count={len(critical_failures)}, modules={failed_modules}")
+    logger.error(
+        f"ROUTE_IMPORT_STATUS: failed_count={len(failed_modules)}, critical_count={len(critical_failures)}, modules={failed_modules}"
+    )
 
     # If critical routes failed, the API cannot function
     if critical_failures:
@@ -110,57 +150,61 @@ if _ROUTE_IMPORT_ERRORS:
             "error": "CRITICAL_ROUTE_IMPORT_FAILURE",
             "critical_failures": critical_failures,
             "all_failures": failed_modules,
-            "details": {m: _ROUTE_IMPORT_ERRORS[m] for m in critical_failures}
+            "details": {m: _ROUTE_IMPORT_ERRORS[m] for m in critical_failures},
         }
         logger.error(f"CRITICAL_ROUTE_IMPORT_FAILURE: {json.dumps(error_detail)}")
         # Set environment variable that monitoring can detect
-        os.environ['API_CRITICAL_ROUTES_FAILED'] = json.dumps(critical_failures)
+        os.environ["API_CRITICAL_ROUTES_FAILED"] = json.dumps(critical_failures)
 
 # Build handler mappings from available routes (some may be missing if they failed to import)
 PUBLIC_HANDLERS = {}
 HANDLERS = {}
 
 # Health endpoints must be public and checked first
-if 'health' in _AVAILABLE_ROUTES:
-    PUBLIC_HANDLERS['/api/health'] = _AVAILABLE_ROUTES['health']
-    PUBLIC_HANDLERS['/health'] = _AVAILABLE_ROUTES['health']
+if "health" in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS["/api/health"] = _AVAILABLE_ROUTES["health"]
+    PUBLIC_HANDLERS["/health"] = _AVAILABLE_ROUTES["health"]
 else:
-    logger.error("CRITICAL: health route module failed to import - health endpoints will not work")
+    logger.error(
+        "CRITICAL: health route module failed to import - health endpoints will not work"
+    )
 
 # API documentation endpoints (public, no auth required)
-if 'openapi_spec' in _AVAILABLE_ROUTES:
-    PUBLIC_HANDLERS['/api/openapi.json'] = _AVAILABLE_ROUTES['openapi_spec']
-    PUBLIC_HANDLERS['/api/swagger'] = _AVAILABLE_ROUTES['openapi_spec']
-    PUBLIC_HANDLERS['/api/redoc'] = _AVAILABLE_ROUTES['openapi_spec']
+if "openapi_spec" in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS["/api/openapi.json"] = _AVAILABLE_ROUTES["openapi_spec"]
+    PUBLIC_HANDLERS["/api/swagger"] = _AVAILABLE_ROUTES["openapi_spec"]
+    PUBLIC_HANDLERS["/api/redoc"] = _AVAILABLE_ROUTES["openapi_spec"]
 else:
-    logger.error("WARNING: openapi_spec route module failed to import - API documentation unavailable")
+    logger.error(
+        "WARNING: openapi_spec route module failed to import - API documentation unavailable"
+    )
 
 # Frontend error logging endpoint (public, may be called before auth)
-if 'logs' in _AVAILABLE_ROUTES:
-    PUBLIC_HANDLERS['/api/logs'] = _AVAILABLE_ROUTES['logs']
+if "logs" in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS["/api/logs"] = _AVAILABLE_ROUTES["logs"]
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 _HANDLER_CONFIG = [
-    ('/api/algo/risk-dashboard', 'risk_dashboard'),
-    ('/api/algo', 'algo'),
-    ('/api/financials', 'financials'),
-    ('/api/earnings', 'earnings'),
-    ('/api/signals', 'signals'),
-    ('/api/prices', 'prices'),
-    ('/api/stocks', 'stocks'),
-    ('/api/sectors', 'sectors'),
-    ('/api/industries', 'industries'),
-    ('/api/market', 'market'),
-    ('/api/economic', 'economic'),
-    ('/api/sentiment', 'sentiment'),
-    ('/api/scores', 'scores'),
-    ('/api/research', 'research'),
-    ('/api/audit', 'audit'),
-    ('/api/trades', 'trades'),
-    ('/api/admin', 'admin'),
-    ('/api/contact', 'contact'),
-    ('/api/settings', 'settings'),
-    ('/api/data-coverage', 'data_coverage'),
+    ("/api/algo/risk-dashboard", "risk_dashboard"),
+    ("/api/algo", "algo"),
+    ("/api/financials", "financials"),
+    ("/api/earnings", "earnings"),
+    ("/api/signals", "signals"),
+    ("/api/prices", "prices"),
+    ("/api/stocks", "stocks"),
+    ("/api/sectors", "sectors"),
+    ("/api/industries", "industries"),
+    ("/api/market", "market"),
+    ("/api/economic", "economic"),
+    ("/api/sentiment", "sentiment"),
+    ("/api/scores", "scores"),
+    ("/api/research", "research"),
+    ("/api/audit", "audit"),
+    ("/api/trades", "trades"),
+    ("/api/admin", "admin"),
+    ("/api/contact", "contact"),
+    ("/api/settings", "settings"),
+    ("/api/data-coverage", "data_coverage"),
 ]
 
 _SKIPPED_ROUTES = []  # Track which routes were skipped due to import failures
@@ -169,12 +213,22 @@ for path, module_name in _HANDLER_CONFIG:
     if module_name in _AVAILABLE_ROUTES:
         HANDLERS[path] = _AVAILABLE_ROUTES[module_name]
     else:
-        _SKIPPED_ROUTES.append({"path": path, "module": module_name, "error": _ROUTE_IMPORT_ERRORS.get(module_name, "unknown")})
-        logger.warning(f"Route {path} SKIPPED - module routes.{module_name} failed to import: {_ROUTE_IMPORT_ERRORS.get(module_name, 'unknown')}")
+        _SKIPPED_ROUTES.append(
+            {
+                "path": path,
+                "module": module_name,
+                "error": _ROUTE_IMPORT_ERRORS.get(module_name, "unknown"),
+            }
+        )
+        logger.warning(
+            f"Route {path} SKIPPED - module routes.{module_name} failed to import: {_ROUTE_IMPORT_ERRORS.get(module_name, 'unknown')}"
+        )
 
 # Log final status
 if _SKIPPED_ROUTES:
-    logger.error(f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}")
+    logger.error(
+        f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}"
+    )
 
 def _wrap_response(response):
     """Standardize response format for consistent client handling.
@@ -192,51 +246,63 @@ def _wrap_response(response):
         return response
 
     # Errors are returned as-is (already include errorType and _error)
-    if response.get('errorType') or response.get('statusCode', 200) >= 400:
+    if response.get("errorType") or response.get("statusCode", 200) >= 400:
         return response
 
     # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
-    if response.get('statusCode') == 200 and 'data' in response:
-        data_field = response['data']
+    if response.get("statusCode") == 200 and "data" in response:
+        data_field = response["data"]
         # Check if data field is a dict with only 'data' and optional metadata keys
-        if isinstance(data_field, dict) and 'data' in data_field:
+        if isinstance(data_field, dict) and "data" in data_field:
             # Check if 'data' is the only meaningful field (allow for pagination, total, etc.)
-            meaningful_keys = [k for k in data_field.keys() if k not in ('data', 'pagination', 'total')]
+            meaningful_keys = [
+                k for k in data_field.keys() if k not in ("data", "pagination", "total")
+            ]
             if len(meaningful_keys) == 0:
                 # Double-nested: unwrap it
                 response = dict(response)  # Make a copy
-                response['data'] = data_field['data']
+                response["data"] = data_field["data"]
                 # Preserve pagination metadata if it exists
-                if 'pagination' in data_field:
-                    response['data']['pagination'] = data_field['pagination']
-                if 'total' in data_field and 'total' not in response['data']:
-                    response['data']['total'] = data_field['total']
+                if "pagination" in data_field:
+                    response["data"]["pagination"] = data_field["pagination"]
+                if "total" in data_field and "total" not in response["data"]:
+                    response["data"]["total"] = data_field["total"]
 
     # Success responses should already have 'data' field from response utilities.
     # If they don't (legacy/direct returns), wrap them.
-    if response.get('statusCode') == 200 and 'data' not in response:
+    if response.get("statusCode") == 200 and "data" not in response:
         # Extract core fields: items, total, etc. but exclude metadata/timestamps
-        payload = {k: v for k, v in response.items()
-                  if k not in ('statusCode', 'headers', 'data_freshness', 'success', 'timestamp', 'pagination')}
+        payload = {
+            k: v
+            for k, v in response.items()
+            if k
+            not in (
+                "statusCode",
+                "headers",
+                "data_freshness",
+                "success",
+                "timestamp",
+                "pagination",
+            )
+        }
 
         # If we have items but no data, wrap them properly
-        if 'items' in response and 'items' not in payload:
+        if "items" in response and "items" not in payload:
             # Keep items and reconstruct pagination if needed
-            payload['items'] = response.get('items')
-            if 'pagination' in response:
-                payload['pagination'] = response['pagination']
-            payload['total'] = response.get('pagination', {}).get('total') or len(response.get('items', []))
+            payload["items"] = response.get("items")
+            if "pagination" in response:
+                payload["pagination"] = response["pagination"]
+            payload["total"] = response.get("pagination", {}).get("total") or len(
+                response.get("items", [])
+            )
 
-        wrapped = {
-            'statusCode': 200,
-            'data': payload
-        }
+        wrapped = {"statusCode": 200, "data": payload}
         # Preserve data_freshness if it exists
-        if 'data_freshness' in response:
-            wrapped['data_freshness'] = response['data_freshness']
+        if "data_freshness" in response:
+            wrapped["data_freshness"] = response["data_freshness"]
         # Preserve headers if they exist
-        if 'headers' in response:
-            wrapped['headers'] = response['headers']
+        if "headers" in response:
+            wrapped["headers"] = response["headers"]
         return wrapped
 
     return response
@@ -249,40 +315,48 @@ def _add_cors_headers(response):
     """
     if not isinstance(response, dict):
         msg = "Invalid response format"
-        response = {"statusCode": 500, "errorType": "internal_error", "message": msg, "_error": msg}
-    if 'headers' not in response:
-        response['headers'] = {}
+        response = {
+            "statusCode": 500,
+            "errorType": "internal_error",
+            "message": msg,
+            "_error": msg,
+        }
+    if "headers" not in response:
+        response["headers"] = {}
 
     # Get allowed origins from environment (comma-separated)
     # Default: only the CloudFront domain (set by Terraform)
-    allowed_origins_str = os.getenv('ALLOWED_ORIGINS', '').strip()
+    allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "").strip()
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
         cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         allowed_origins = [cf_domain] if cf_domain else []
     else:
-        allowed_origins = [o.strip() for o in allowed_origins_str.split(',')]
+        allowed_origins = [o.strip() for o in allowed_origins_str.split(",")]
 
     # Get request origin from event (passed via Lambda context if available)
     # For now, set generic headers. In production, check Origin header.
-    response['headers']['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response['headers']['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    response['headers']['Vary'] = 'Origin'
+    response["headers"][
+        "Access-Control-Allow-Methods"
+    ] = "GET, POST, PUT, DELETE, OPTIONS"
+    response["headers"]["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response["headers"]["Vary"] = "Origin"
 
     # Only set Allow-Origin if we have whitelisted origins
     if allowed_origins and allowed_origins[0]:
-        response['headers']['Access-Control-Allow-Origin'] = allowed_origins[0]
-        response['headers']['Access-Control-Allow-Credentials'] = 'true'
+        response["headers"]["Access-Control-Allow-Origin"] = allowed_origins[0]
+        response["headers"]["Access-Control-Allow-Credentials"] = "true"
 
     return response
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
+
     # Issue #11 FIX: Use strict path matching to distinguish /api/algo from /api/algorithm
     def matches_route(request_path, route_prefix):
         if request_path == route_prefix:
             return True
-        if request_path.startswith(route_prefix + '/'):
+        if request_path.startswith(route_prefix + "/"):
             return True
         return False
 
@@ -290,7 +364,9 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for prefix, handler in PUBLIC_HANDLERS.items():
         if matches_route(path, prefix):
             try:
-                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                response = handler.handle(
+                    cur, path, method, params, body, jwt_claims=jwt_claims
+                )
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
@@ -300,7 +376,9 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for prefix, handler in HANDLERS.items():
         if matches_route(path, prefix):
             try:
-                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                response = handler.handle(
+                    cur, path, method, params, body, jwt_claims=jwt_claims
+                )
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
@@ -315,7 +393,9 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
         if module_name in _ROUTE_IMPORT_ERRORS and matches_route(path, route_path):
             error = _ROUTE_IMPORT_ERRORS[module_name]
             import_status = get_import_status()
-            logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
+            logger.error(
+                f"Route {path} requested but handler module {module_name} failed to import: {error}"
+            )
             # Include diagnostic information for dashboard/clients
             msg = f"Route handler unavailable: {module_name} module failed to load"
             response = {
@@ -327,18 +407,21 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 "_diagnostic": {
                     "failed_module": module_name,
                     "module_error": error,
-                    "failed_route_count": import_status['failed_routes'],
-                    "critical_failures": import_status['critical_failures'],
-                    "all_failed_modules": import_status['failed_modules'],
-                }
+                    "failed_route_count": import_status["failed_routes"],
+                    "critical_failures": import_status["critical_failures"],
+                    "all_failed_modules": import_status["failed_modules"],
+                },
             }
             return _add_cors_headers(_wrap_response(response))
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
     msg = "Endpoint not found"
-    return _add_cors_headers(_wrap_response({"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg}))
-
+    return _add_cors_headers(
+        _wrap_response(
+            {"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg}
+        )
+    )
 
 def get_import_status():
     """Return structured import status for monitoring/diagnostics.
@@ -383,30 +466,35 @@ def _publish_import_metrics():
     """
     try:
         import boto3
-        cloudwatch = boto3.client('cloudwatch', region_name='us-east-1')
+
+        cloudwatch = boto3.client("cloudwatch", region_name="us-east-1")
 
         status = get_import_status()
 
         # Publish count of failed imports
-        if status['failed_routes'] > 0:
+        if status["failed_routes"] > 0:
             cloudwatch.put_metric_data(
-                Namespace='AlgoTrading/API',
+                Namespace="AlgoTrading/API",
                 MetricData=[
                     {
-                        'MetricName': 'APIRouteImportErrors',
-                        'Value': status['failed_routes'],
-                        'Unit': 'Count',
+                        "MetricName": "APIRouteImportErrors",
+                        "Value": status["failed_routes"],
+                        "Unit": "Count",
                     },
                     {
-                        'MetricName': 'APICriticalRouteFailures',
-                        'Value': len(status['critical_failures']),
-                        'Unit': 'Count',
-                    }
-                ]
+                        "MetricName": "APICriticalRouteFailures",
+                        "Value": len(status["critical_failures"]),
+                        "Unit": "Count",
+                    },
+                ],
             )
-            logger.info(f"Published CloudWatch metrics: APIRouteImportErrors={status['failed_routes']}, APICriticalRouteFailures={len(status['critical_failures'])}")
+            logger.info(
+                f"Published CloudWatch metrics: APIRouteImportErrors={status['failed_routes']}, APICriticalRouteFailures={len(status['critical_failures'])}"
+            )
     except Exception as e:
-        logger.warning(f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}")
+        logger.warning(
+            f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}"
+        )
 
 # Publish metrics at startup
 try:
@@ -427,57 +515,142 @@ def _format_handler_error(e):
 
     # Map exception types to documented diagnostic error codes
     # Schema errors: missing tables, columns, or migration issues
-    if 'UndefinedTable' in error_type or 'UndefinedColumn' in error_type:
+    if "UndefinedTable" in error_type or "UndefinedColumn" in error_type:
         msg = "Database schema mismatch or migration issue"
-        return {"statusCode": 503, "errorType": "schema_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 503,
+            "errorType": "schema_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Connection errors: RDS/proxy unavailable or network issues
-    elif 'OperationalError' in error_type or 'Connection' in error_type or 'failed to connect' in error_msg.lower():
+    elif (
+        "OperationalError" in error_type
+        or "Connection" in error_type
+        or "failed to connect" in error_msg.lower()
+    ):
         msg = "RDS/database connection failed"
-        return {"statusCode": 503, "errorType": "connection_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 503,
+            "errorType": "connection_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Query execution errors: SQL syntax or constraint violations
-    elif 'ProgrammingError' in error_type or 'IntegrityError' in error_type or 'statement error' in error_msg.lower():
+    elif (
+        "ProgrammingError" in error_type
+        or "IntegrityError" in error_type
+        or "statement error" in error_msg.lower()
+    ):
         msg = "Database query execution failed"
-        return {"statusCode": 503, "errorType": "query_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 503,
+            "errorType": "query_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Auth errors: JWT validation, token expiry, Cognito failures
-    elif 'Unauthorized' in error_type or 'Forbidden' in error_type or 'JWT' in error_type or 'token' in error_msg.lower():
+    elif (
+        "Unauthorized" in error_type
+        or "Forbidden" in error_type
+        or "JWT" in error_type
+        or "token" in error_msg.lower()
+    ):
         msg = "JWT validation or Cognito authorization failed"
-        return {"statusCode": 403, "errorType": "auth_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 403,
+            "errorType": "auth_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Cognito config errors: missing or invalid Cognito environment variables
-    elif 'COGNITO_USER_POOL_ID' in error_msg or 'COGNITO_CLIENT_ID' in error_msg or 'cognito.*config' in error_msg.lower():
+    elif (
+        "COGNITO_USER_POOL_ID" in error_msg
+        or "COGNITO_CLIENT_ID" in error_msg
+        or "cognito.*config" in error_msg.lower()
+    ):
         msg = "Cognito environment variables not configured"
-        return {"statusCode": 500, "errorType": "cognito_config_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 500,
+            "errorType": "cognito_config_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Data access errors: code bugs (AttributeError, KeyError, etc.) accessing response fields
-    elif 'AttributeError' in error_type or 'KeyError' in error_type or 'IndexError' in error_type:
+    elif (
+        "AttributeError" in error_type
+        or "KeyError" in error_type
+        or "IndexError" in error_type
+    ):
         msg = "Code bug accessing data fields"
-        return {"statusCode": 500, "errorType": "data_access_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 500,
+            "errorType": "data_access_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # No data errors: required data table is empty or missing
-    elif 'no.*data' in error_msg.lower() or 'empty' in error_msg.lower() or 'not.*found' in error_msg.lower():
+    elif (
+        "no.*data" in error_msg.lower()
+        or "empty" in error_msg.lower()
+        or "not.*found" in error_msg.lower()
+    ):
         msg = "Required data table is empty or missing"
-        return {"statusCode": 500, "errorType": "no_data_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 500,
+            "errorType": "no_data_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Data processing errors: generic data transformation/processing failures
-    elif 'process' in error_msg.lower() or 'data' in error_msg.lower() or 'ValueError' in error_type or 'TypeError' in error_type:
+    elif (
+        "process" in error_msg.lower()
+        or "data" in error_msg.lower()
+        or "ValueError" in error_type
+        or "TypeError" in error_type
+    ):
         msg = "Generic data processing failure"
-        return {"statusCode": 500, "errorType": "data_processing_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 500,
+            "errorType": "data_processing_error",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Invalid input: malformed request parameters or body
-    elif 'invalid' in error_msg.lower() or 'Bad Request' in error_msg:
+    elif "invalid" in error_msg.lower() or "Bad Request" in error_msg:
         msg = "Client sent invalid query parameters or request body"
-        return {"statusCode": 400, "errorType": "invalid_input", "message": msg, "_error": msg}
+        return {
+            "statusCode": 400,
+            "errorType": "invalid_input",
+            "message": msg,
+            "_error": msg,
+        }
 
     # Request timeouts
-    elif 'Timeout' in error_type or 'timeout' in error_msg.lower():
+    elif "Timeout" in error_type or "timeout" in error_msg.lower():
         msg = "Request exceeded statement_timeout"
-        return {"statusCode": 504, "errorType": "timeout", "message": msg, "_error": msg}
+        return {
+            "statusCode": 504,
+            "errorType": "timeout",
+            "message": msg,
+            "_error": msg,
+        }
 
     else:
         # Generic internal error for unknown exceptions (log type for debugging)
         logger.error(f"Unclassified error type '{error_type}': {error_msg}")
         msg = "Service error"
-        return {"statusCode": 500, "errorType": "data_processing_error", "message": msg, "_error": msg}
+        return {
+            "statusCode": 500,
+            "errorType": "data_processing_error",
+            "message": msg,
+            "_error": msg,
+        }

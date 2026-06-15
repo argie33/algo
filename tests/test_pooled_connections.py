@@ -9,13 +9,16 @@ to 1 create/1 release per loader.
 import unittest
 import threading
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 import psycopg2.pool
 
 # Import the components we're testing
 from utils.db.pooled_connection_manager import PoolSemaphore, PooledConnectionManager
-from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection, has_pooled_connection
-
+from utils.db.pooled_context_var import (
+    set_pooled_connection,
+    get_pooled_connection,
+    has_pooled_connection,
+)
 
 class TestPoolSemaphore(unittest.TestCase):
     """Test PoolSemaphore for backpressure control."""
@@ -44,14 +47,14 @@ class TestPoolSemaphore(unittest.TestCase):
         sem = PoolSemaphore(max_concurrent=3, timeout_sec=1)
 
         status = sem.status()
-        self.assertEqual(status['active_count'], 0)
-        self.assertEqual(status['max_concurrent'], 3)
-        self.assertEqual(status['available_slots'], 3)
+        self.assertEqual(status["active_count"], 0)
+        self.assertEqual(status["max_concurrent"], 3)
+        self.assertEqual(status["available_slots"], 3)
 
         sem.acquire("loader1")
         status = sem.status()
-        self.assertEqual(status['active_count'], 1)
-        self.assertEqual(status['available_slots'], 2)
+        self.assertEqual(status["active_count"], 1)
+        self.assertEqual(status["available_slots"], 2)
 
         sem.release("loader1")
 
@@ -67,7 +70,10 @@ class TestPoolSemaphore(unittest.TestCase):
                 time.sleep(0.1)
                 sem.release(name)
 
-        threads = [threading.Thread(target=try_acquire, args=(f"loader{i}",)) for i in range(10)]
+        threads = [
+            threading.Thread(target=try_acquire, args=(f"loader{i}",))
+            for i in range(10)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -77,11 +83,10 @@ class TestPoolSemaphore(unittest.TestCase):
         self.assertEqual(len(results), 10)
         self.assertEqual(sum(results), 10)
 
-
 class TestPooledConnectionManager(unittest.TestCase):
     """Test PooledConnectionManager lifecycle."""
 
-    @patch('utils.db.connection._get_connection_pool')
+    @patch("utils.db.connection._get_connection_pool")
     def test_manager_acquire_release(self, mock_get_pool):
         """Test acquire and release flow."""
         # Setup mock pool
@@ -103,7 +108,7 @@ class TestPooledConnectionManager(unittest.TestCase):
         mock_pool.putconn.assert_called_once_with(mock_conn)
         self.assertFalse(manager.is_acquired())
 
-    @patch('utils.db.connection._get_connection_pool')
+    @patch("utils.db.connection._get_connection_pool")
     def test_manager_double_acquire_error(self, mock_get_pool):
         """Test that double acquire raises error."""
         mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
@@ -119,7 +124,7 @@ class TestPooledConnectionManager(unittest.TestCase):
 
         manager.release()
 
-    @patch('utils.db.connection._get_connection_pool')
+    @patch("utils.db.connection._get_connection_pool")
     def test_manager_idempotent_release(self, mock_get_pool):
         """Test that release is idempotent."""
         mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
@@ -132,7 +137,6 @@ class TestPooledConnectionManager(unittest.TestCase):
 
         # Second release should not crash
         manager.release()
-
 
 class TestPooledContextVar(unittest.TestCase):
     """Test context variable storage of pooled connections."""
@@ -164,7 +168,7 @@ class TestPooledContextVar(unittest.TestCase):
             set_pooled_connection(mock_conn)
             time.sleep(0.1)  # Let other thread run
             retrieved = get_pooled_connection()
-            results[thread_id] = (retrieved == mock_conn)
+            results[thread_id] = retrieved == mock_conn
 
         t1 = threading.Thread(target=set_and_check, args=(1, True))
         t2 = threading.Thread(target=set_and_check, args=(2, False))
@@ -178,12 +182,11 @@ class TestPooledContextVar(unittest.TestCase):
         self.assertTrue(results[1])
         self.assertTrue(results[2])
 
-
 class TestDatabaseContextIntegration(unittest.TestCase):
     """Test DatabaseContext reuse of pooled connections."""
 
-    @patch('utils.db.context.get_db_connection')
-    @patch('utils.db.context.get_pooled_connection')
+    @patch("utils.db.context.get_db_connection")
+    @patch("utils.db.context.get_pooled_connection")
     def test_context_reuses_pooled_connection(self, mock_get_pooled, mock_get_fresh):
         """Test that DatabaseContext reuses pooled connection if available."""
         from utils.db import DatabaseContext
@@ -194,15 +197,15 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_pooled.return_value = mock_pooled
 
         # Create context
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             pass
 
         # Should have used pooled connection, not created new one
         mock_get_pooled.assert_called()
         mock_get_fresh.assert_not_called()
 
-    @patch('utils.db.context.get_db_connection')
-    @patch('utils.db.context.get_pooled_connection')
+    @patch("utils.db.context.get_db_connection")
+    @patch("utils.db.context.get_pooled_connection")
     def test_context_acquires_new_if_no_pooled(self, mock_get_pooled, mock_get_fresh):
         """Test that DatabaseContext acquires new connection if none pooled."""
         from utils.db import DatabaseContext
@@ -216,19 +219,18 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_fresh.return_value = mock_fresh
 
         # Create context
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             pass
 
         # Should have acquired fresh connection and closed it
         mock_get_fresh.assert_called()
         mock_fresh.close.assert_called_once()
 
-
 class TestConnectionChurnReduction(unittest.TestCase):
     """Integration test verifying connection churn reduction."""
 
-    @patch('utils.db.connection._get_connection_pool')
-    @patch('utils.db.context.get_pooled_connection')
+    @patch("utils.db.connection._get_connection_pool")
+    @patch("utils.db.context.get_pooled_connection")
     def test_loader_pattern_single_connection(self, mock_get_pooled_ctx, mock_get_pool):
         """Test that a loader using the new pattern creates only 1 connection."""
         # Setup
@@ -251,11 +253,11 @@ class TestConnectionChurnReduction(unittest.TestCase):
 
         try:
             # Multiple operations with same connection
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 pass
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 pass
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 pass
         finally:
             set_pooled_connection(None)
@@ -266,6 +268,5 @@ class TestConnectionChurnReduction(unittest.TestCase):
         # Verify: only 1 putconn call
         self.assertEqual(mock_pool.putconn.call_count, 1)
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

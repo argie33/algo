@@ -5,7 +5,7 @@ import json
 import os
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional, Dict, List
+from typing import Optional, Dict, List
 
 from algo.reporting import AlertManager
 from utils.db import DatabaseContext
@@ -23,15 +23,18 @@ class TradeNotificationService:
     def get_recent_events(self, minutes: int = 5) -> List[Dict]:
         """Fetch recent audit log events."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, action_type, symbol, action_date, details,
                            actor, status, created_at
                     FROM algo_audit_log
                     WHERE created_at >= %s
                     ORDER BY created_at ASC
-                """, (cutoff,))
+                """,
+                    (cutoff,),
+                )
                 return cur.fetchall()
         except Exception as e:
             logger.error(f"[NOTIF] Failed to fetch events: {e}")
@@ -40,14 +43,18 @@ class TradeNotificationService:
     def _format_trade_entry_alert(self, event: Dict) -> Optional[str]:
         """Format trade entry notification."""
         try:
-            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
+            details = (
+                json.loads(event["details"])
+                if isinstance(event["details"], str)
+                else event["details"]
+            )
             symbol = event.get("symbol") or details.get("symbol", "?")
             entry_price = details.get("entry_price")
             shares = details.get("shares")
             stop_loss = details.get("stop_loss")
             target_1 = details.get("target_1")
 
-            return f"""
+            return """
 [ENTRY] TRADE ENTRY -- {symbol}
 Entry Price:  ${entry_price:.2f}
 Shares:       {shares:.2f}
@@ -62,14 +69,18 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
     def _format_trade_exit_alert(self, event: Dict) -> Optional[str]:
         """Format trade exit notification."""
         try:
-            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
+            details = (
+                json.loads(event["details"])
+                if isinstance(event["details"], str)
+                else event["details"]
+            )
             symbol = event.get("symbol") or details.get("symbol", "?")
             exit_price = details.get("exit_price")
             shares = details.get("shares")
             pnl = details.get("pnl")
             exit_reason = details.get("reason", "unknown")
 
-            return f"""
+            return """
 [EXIT] TRADE EXIT -- {symbol}
 Exit Price:   ${exit_price:.2f}
 Shares:       {shares:.2f}
@@ -125,29 +136,46 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
 
         return sent
 
-    def _save_notification(self, kind: str, severity: str, title: str,
-                           message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
+    def _save_notification(
+        self,
+        kind: str,
+        severity: str,
+        title: str,
+        message: str,
+        symbol: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
         """Save notification to database."""
         try:
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO algo_notifications
                     (kind, severity, title, message, symbol, details, seen, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, FALSE, CURRENT_TIMESTAMP)
-                """, (
-                    kind,
-                    severity,
-                    title,
-                    message,
-                    symbol,
-                    json.dumps(details) if details else None
-                ))
+                """,
+                    (
+                        kind,
+                        severity,
+                        title,
+                        message,
+                        symbol,
+                        json.dumps(details) if details else None,
+                    ),
+                )
                 logger.info(f"[NOTIF] Saved to DB: {title}")
         except Exception as e:
             logger.error(f"[NOTIF] DB save failed: {e}")
 
-    def _send_notification(self, subject: str, message: str, kind: str = "trade",
-                          severity: str = "info", symbol: Optional[str] = None, details: Optional[dict] = None):
+    def _send_notification(
+        self,
+        subject: str,
+        message: str,
+        kind: str = "trade",
+        severity: str = "info",
+        symbol: Optional[str] = None,
+        details: Optional[dict] = None,
+    ):
         """Send notification via email, webhook, and database."""
         try:
             # Save to database
@@ -156,14 +184,19 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             # Send email alert
             if self.alert_manager.email_to:
                 self.alert_manager._send_email(
-                    subject=f"[ALGO] {subject}",
-                    body=message
+                    subject=f"[ALGO] {subject}", body=message
                 )
             logger.info(f"[NOTIF] Sent: {subject}")
         except Exception as e:
             logger.error(f"[NOTIF] Send failed: {e}")
 
-def notify(severity: str, title: str, message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
+def notify(
+    severity: str,
+    title: str,
+    message: str,
+    symbol: Optional[str] = None,
+    details: Optional[dict] = None,
+):
     """Convenience function to send alerts without managing service lifecycle."""
     try:
         service = TradeNotificationService()
@@ -173,7 +206,7 @@ def notify(severity: str, title: str, message: str, symbol: Optional[str] = None
             kind="alert",
             severity=severity,
             symbol=symbol,
-            details=details
+            details=details,
         )
     except Exception as e:
         logger.error(f"notify() failed: {e}")
@@ -203,8 +236,8 @@ def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = N
             details={
                 "stale_tables": stale_tables,
                 "alert_type": "signal_staleness",
-                **(details or {})
-            }
+                **(details or {}),
+            },
         )
         logger.critical(f"SIGNAL STALENESS ALERT: {tables_str}")
     except Exception as e:

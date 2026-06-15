@@ -21,7 +21,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             DROP TABLE IF EXISTS user_dashboard_settings CASCADE
         """)
@@ -36,7 +36,7 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("DROP TABLE IF EXISTS user_dashboard_settings CASCADE")
         cur.execute("""
             CREATE TABLE user_dashboard_settings (
@@ -47,4 +47,3 @@ def down():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-

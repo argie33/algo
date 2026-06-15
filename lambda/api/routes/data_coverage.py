@@ -12,13 +12,16 @@ Returns comprehensive data coverage diagnostics:
 For use in dashboard and automated monitoring.
 """
 
-import json
 import logging
 import psycopg2, psycopg2.errors, psycopg2.extras
-from datetime import datetime, date as _date, timedelta
+from datetime import datetime, date as _date
 from typing import Dict, Any
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, execute_with_timeout, success_response, json_response
+from routes.utils import (
+    error_response,
+    execute_with_timeout,
+    success_response,
+    json_response,
+)
 from utils.db.sql_safety import assert_safe_table
 
 logger = logging.getLogger(__name__)
@@ -26,7 +29,9 @@ logger = logging.getLogger(__name__)
 def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
     try:
-        rows = execute_with_timeout(cur, """
+        rows = execute_with_timeout(
+            cur,
+            """
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
                 (SELECT COUNT(DISTINCT symbol) FROM stock_symbols WHERE is_sp500 = TRUE) as sp500_total,
@@ -36,37 +41,58 @@ def get_price_coverage(cur) -> Dict[str, Any]:
                 COUNT(CASE WHEN close <= 0 THEN 1 END) as invalid_price_rows
             FROM price_daily
             WHERE date > NOW() - INTERVAL '7 days'
-        """, timeout_sec=10)
+        """,
+            timeout_sec=10,
+        )
 
         row = rows[0] if rows else None
         if not row:
-            return error_response(500, 'no_data_error', 'No price data available')
+            return error_response(500, "no_data_error", "No price data available")
 
-        total_symbols, sp500_total, latest_date, total_rows, zero_vol, invalid_prices = row
+        (
+            total_symbols,
+            sp500_total,
+            latest_date,
+            total_rows,
+            zero_vol,
+            invalid_prices,
+        ) = row
 
         days_stale = (_date.today() - latest_date).days if latest_date else 999
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
 
-        return success_response({
-            'total_symbols': total_symbols,
-            'sp500_target': sp500_total,
-            'coverage_pct': round(total_symbols / sp500_total * 100, 1) if sp500_total else 0,
-            'latest_date': str(latest_date),
-            'days_stale': days_stale,
-            'status': 'fresh' if days_stale <= 1 else 'stale',
-            'data_quality': {
-                'zero_volume_pct': round(zero_vol_pct, 2),
-                'invalid_price_pct': round(invalid_pct, 2)
+        return success_response(
+            {
+                "total_symbols": total_symbols,
+                "sp500_target": sp500_total,
+                "coverage_pct": (
+                    round(total_symbols / sp500_total * 100, 1) if sp500_total else 0
+                ),
+                "latest_date": str(latest_date),
+                "days_stale": days_stale,
+                "status": "fresh" if days_stale <= 1 else "stale",
+                "data_quality": {
+                    "zero_volume_pct": round(zero_vol_pct, 2),
+                    "invalid_price_pct": round(invalid_pct, 2),
+                },
             }
-        })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
         logger.error(f"[PRICE_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
     except Exception as e:
         logger.error(f"[PRICE_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
 
 def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
@@ -87,31 +113,45 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return error_response(500, 'no_data_error', 'No technical data available')
+            return error_response(500, "no_data_error", "No technical data available")
 
         symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
-        min_coverage = min(rsi_cov, ema_cov, atr_cov) if None not in (rsi_cov, ema_cov, atr_cov) else 0
+        min_coverage = (
+            min(rsi_cov, ema_cov, atr_cov)
+            if None not in (rsi_cov, ema_cov, atr_cov)
+            else 0
+        )
 
-        return success_response({
-            'symbols_with_technicals': symbols,
-            'latest_date': str(latest_date),
-            'indicator_coverage': {
-                'rsi_pct': round(rsi_cov * 100, 1) if rsi_cov else 0,
-                'ema50_pct': round(ema_cov * 100, 1) if ema_cov else 0,
-                'atr_pct': round(atr_cov * 100, 1) if atr_cov else 0,
-                'min_coverage_pct': round(min_coverage * 100, 1)
-            },
-            'incomplete_rows': incomplete,
-            'status': 'complete' if min_coverage >= 0.95 else 'incomplete'
-        })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        return success_response(
+            {
+                "symbols_with_technicals": symbols,
+                "latest_date": str(latest_date),
+                "indicator_coverage": {
+                    "rsi_pct": round(rsi_cov * 100, 1) if rsi_cov else 0,
+                    "ema50_pct": round(ema_cov * 100, 1) if ema_cov else 0,
+                    "atr_pct": round(atr_cov * 100, 1) if atr_cov else 0,
+                    "min_coverage_pct": round(min_coverage * 100, 1),
+                },
+                "incomplete_rows": incomplete,
+                "status": "complete" if min_coverage >= 0.95 else "incomplete",
+            }
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
         logger.error(f"[TECHNICAL_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
     except Exception as e:
         logger.error(f"[TECHNICAL_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:
     """Get market_health_daily and other market data coverage."""
@@ -136,26 +176,38 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
 
         econ_date, econ_count = cur.fetchone()
 
-        return success_response({
-            'market_health': {
-                'latest_date': str(mh_date),
-                'days_stale': (_date.today() - mh_date).days if mh_date else 999,
-                'recent_rows': mh_rows,
-                'status': 'available' if mh_rows > 0 else 'missing'
-            },
-            'economic_data': {
-                'latest_date': str(econ_date) if econ_date else None,
-                'indicators_tracked': econ_count,
-                'status': 'available' if econ_count > 0 else 'missing'
+        return success_response(
+            {
+                "market_health": {
+                    "latest_date": str(mh_date),
+                    "days_stale": (_date.today() - mh_date).days if mh_date else 999,
+                    "recent_rows": mh_rows,
+                    "status": "available" if mh_rows > 0 else "missing",
+                },
+                "economic_data": {
+                    "latest_date": str(econ_date) if econ_date else None,
+                    "indicators_tracked": econ_count,
+                    "status": "available" if econ_count > 0 else "missing",
+                },
             }
-        })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
         logger.error(f"[MARKET_DATA_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
     except Exception as e:
-        logger.error(f"[MARKET_DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        logger.error(
+            f"[MARKET_DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}"
+        )
+        return error_response(
+            500, "data_processing_error", "Failed to retrieve data coverage"
+        )
 
 def get_loader_health(cur) -> Dict[str, Any]:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
@@ -177,30 +229,32 @@ def get_loader_health(cur) -> Dict[str, Any]:
         # If patrol data is recent, use it
         if rows:
             stale_loaders = [
-                row[0] for row in rows if row[1] in ('stale', 'error') or row[1] is None
+                row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None
             ]
-            return success_response({
-                'total_tracked': len(rows),
-                'stale_loaders': list(set(stale_loaders)),
-                'stale_count': len(set(stale_loaders)),
-                'status': 'healthy' if not stale_loaders else 'degraded'
-            })
+            return success_response(
+                {
+                    "total_tracked": len(rows),
+                    "stale_loaders": list(set(stale_loaders)),
+                    "stale_count": len(set(stale_loaders)),
+                    "status": "healthy" if not stale_loaders else "degraded",
+                }
+            )
 
         # Fallback: if patrol data is missing/stale, check key tables directly
         tables_to_check = [
-            'price_daily',
-            'technical_data_daily',
-            'market_health_daily',
-            'sector_performance',
-            'economic_data',
-            'stock_symbols'
+            "price_daily",
+            "technical_data_daily",
+            "market_health_daily",
+            "sector_performance",
+            "economic_data",
+            "stock_symbols",
         ]
 
         table_health = []
         for table in tables_to_check:
             try:
                 table_safe = assert_safe_table(table)
-                cur.execute(f"""
+                cur.execute("""
                     SELECT MAX(updated_at) as last_update, COUNT(*) as row_count
                     FROM {table_safe}
                     WHERE updated_at > NOW() - INTERVAL '30 days' OR updated_at IS NULL
@@ -208,26 +262,34 @@ def get_loader_health(cur) -> Dict[str, Any]:
                 result = cur.fetchone()
                 if result:
                     last_update, count = result
-                    days_old = (datetime.utcnow() - last_update).days if last_update else 999
-                    status = 'stale' if days_old > 7 else 'fresh'
+                    days_old = (
+                        (datetime.utcnow() - last_update).days if last_update else 999
+                    )
+                    status = "stale" if days_old > 7 else "fresh"
                     table_health.append((table, status, last_update, count))
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
                 logger.debug(f"[LOADER_HEALTH] Table {table} not found - skipping")
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")
+                logger.warning(
+                    f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"
+                )
             except Exception as e:
-                logger.warning(f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}")
+                logger.warning(
+                    f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}"
+                )
 
-        stale_loaders = [t[0] for t in table_health if t[1] == 'stale']
-        return success_response({
-            'total_tracked': len(table_health),
-            'stale_loaders': stale_loaders,
-            'stale_count': len(stale_loaders),
-            'status': 'healthy' if not stale_loaders else 'degraded',
-            'source': 'patrol' if rows else 'table_check'
-        })
+        stale_loaders = [t[0] for t in table_health if t[1] == "stale"]
+        return success_response(
+            {
+                "total_tracked": len(table_health),
+                "stale_loaders": stale_loaders,
+                "stale_count": len(stale_loaders),
+                "status": "healthy" if not stale_loaders else "degraded",
+                "source": "patrol" if rows else "table_check",
+            }
+        )
     except Exception as e:
-        raise Exception(f'Failed to retrieve loader health: {e}')
+        raise Exception(f"Failed to retrieve loader health: {e}")
 
 def _safe_call(cur, fn) -> Dict[str, Any]:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
@@ -240,7 +302,9 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.debug(f"[SAVEPOINT_CREATE] Database error: {type(e).__name__}: {e}")
     except Exception as e:
-        logger.debug(f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}")
+        logger.debug(
+            f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}"
+        )
 
     try:
         result = fn(cur)
@@ -252,79 +316,111 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
             except Exception as sp_err:
-                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                logger.debug(
+                    f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
+                )
         except Exception as e:
-            logger.debug(f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}")
+            logger.debug(
+                f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}"
+            )
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
             except Exception as sp_err:
-                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
+                logger.debug(
+                    f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
+                )
         return result
     except Exception as e:
         # fn failed - rollback the savepoint and return error dict
         try:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
-            logger.warning(f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}")
+            logger.warning(
+                f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}"
+            )
         except Exception as rollback_err:
-            logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
-        logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
-        return error_response(500, 'data_processing_error', str(e))
+            logger.warning(
+                f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}"
+            )
+        logger.warning(
+            f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}"
+        )
+        return error_response(500, "data_processing_error", str(e))
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""
     summary = {
-        'timestamp': datetime.utcnow().isoformat(),
-        'price_data': _safe_call(cur, get_price_coverage),
-        'technical_data': _safe_call(cur, get_technical_coverage),
-        'market_data': _safe_call(cur, get_market_data_coverage),
-        'loaders': _safe_call(cur, get_loader_health),
+        "timestamp": datetime.utcnow().isoformat(),
+        "price_data": _safe_call(cur, get_price_coverage),
+        "technical_data": _safe_call(cur, get_technical_coverage),
+        "market_data": _safe_call(cur, get_market_data_coverage),
+        "loaders": _safe_call(cur, get_loader_health),
     }
 
     # Determine overall status
     statuses = []
     for section_name, section_data in summary.items():
-        if section_name == 'timestamp':
+        if section_name == "timestamp":
             continue
         if isinstance(section_data, dict):
             # error_response() returns {'statusCode': ..., 'errorType': ..., 'message': ...}
             # Detect these and treat as critical so they don't silently pass the rollup.
-            if 'statusCode' in section_data and section_data.get('statusCode', 200) >= 400:
-                statuses.append('critical')
+            if (
+                "statusCode" in section_data
+                and section_data.get("statusCode", 200) >= 400
+            ):
+                statuses.append("critical")
                 continue
-            status = section_data.get('status')
-            if status == 'error' or status == 'missing':
-                statuses.append('critical')
-            elif status in ['stale', 'incomplete', 'degraded']:
-                statuses.append('warning')
-            elif status in ['fresh', 'complete', 'available', 'healthy', 'ok']:
-                statuses.append('ok')
+            status = section_data.get("status")
+            if status == "error" or status == "missing":
+                statuses.append("critical")
+            elif status in ["stale", "incomplete", "degraded"]:
+                statuses.append("warning")
+            elif status in ["fresh", "complete", "available", "healthy", "ok"]:
+                statuses.append("ok")
 
-    if 'critical' in statuses:
-        summary['overall_health'] = 'critical'
-    elif 'warning' in statuses:
-        summary['overall_health'] = 'warning'
+    if "critical" in statuses:
+        summary["overall_health"] = "critical"
+    elif "warning" in statuses:
+        summary["overall_health"] = "warning"
     else:
-        summary['overall_health'] = 'healthy'
+        summary["overall_health"] = "healthy"
 
     return summary
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
     """Handle GET /api/data-coverage request."""
-    if method != 'GET':
-        return error_response(405, 'method_not_allowed', 'Method not allowed. Only GET is supported.')
+    if method != "GET":
+        return error_response(
+            405, "method_not_allowed", "Method not allowed. Only GET is supported."
+        )
 
     try:
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
         return json_response(200, summary)
     except psycopg2.errors.QueryCanceled as e:
-        logger.error(f'[DATA_COVERAGE] Query timeout: {type(e).__name__}: {e}')
-        return error_response(504, 'timeout', 'Data coverage query exceeded timeout')
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"[DATA_COVERAGE] Database error: {type(e).__name__}: {e}", exc_info=True)
-        return error_response(500, 'data_coverage_error', 'Data coverage check failed')
+        logger.error(f"[DATA_COVERAGE] Query timeout: {type(e).__name__}: {e}")
+        return error_response(504, "timeout", "Data coverage query exceeded timeout")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
+        logger.error(
+            f"[DATA_COVERAGE] Database error: {type(e).__name__}: {e}", exc_info=True
+        )
+        return error_response(500, "data_coverage_error", "Data coverage check failed")
     except Exception as e:
-        logger.error(f"[DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}", exc_info=True)
-        return error_response(500, 'data_coverage_error', 'Data coverage check failed')
+        logger.error(
+            f"[DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}", exc_info=True
+        )
+        return error_response(500, "data_coverage_error", "Data coverage check failed")

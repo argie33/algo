@@ -17,9 +17,9 @@ _project_root = _lambda_api_dir.parent.parent
 # Ensure lambda/api and project root are in sys.path for imports to work
 # Order matters: lambda/api first (for local routes and api_utils), then project root (for utils, algo, etc.)
 _paths_to_add = [
-    str(_lambda_api_dir),      # /lambda/api - for routes, api_utils modules
-    str(_project_root),         # / - for utils, algo, and other packages
-    '/var/task',                # Lambda runtime path (AWS adds this, but explicit for clarity)
+    str(_lambda_api_dir),  # /lambda/api - for routes, api_utils modules
+    str(_project_root),  # / - for utils, algo, and other packages
+    "/var/task",  # Lambda runtime path (AWS adds this, but explicit for clarity)
 ]
 
 for path in _paths_to_add:

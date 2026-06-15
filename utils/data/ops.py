@@ -5,14 +5,12 @@ Data Operations Integration - Unified API for freshness, validation, caching
 
 import logging
 from typing import Any, Callable, Dict, Optional
-from datetime import date
 
 from utils.validation import check_freshness, is_fresh
 from utils.validation import validate_record
 from utils.db import get_or_create_cache
 
 logger = logging.getLogger(__name__)
-
 
 def load_with_freshness(
     fetch_fn: Callable[[], Any],
@@ -31,12 +29,11 @@ def load_with_freshness(
         return None
 
     freshness = check_freshness(last_updated, data_type, context=context)
-    if not freshness['is_fresh'] and not stale_ok:
+    if not freshness["is_fresh"] and not stale_ok:
         logger.warning(f"Skipping stale {data_type}: {freshness['message']}")
         return None
 
     return (data, freshness)
-
 
 def get_or_cache(
     key: Any,
@@ -59,7 +56,6 @@ def get_or_cache(
         logger.error(f"Cache operation failed: {e}")
         return None
 
-
 def validate_and_log(
     record: Dict[str, Any],
     schema: Dict[str, str],
@@ -71,7 +67,6 @@ def validate_and_log(
     except Exception as e:
         logger.error(f"Record validation failed: {e}")
         return record
-
 
 def check_data_fresh(
     last_updated: Optional[Any],

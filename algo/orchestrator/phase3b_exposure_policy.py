@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
 import logging
-import traceback
 from datetime import date as _date
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -40,70 +39,106 @@ def run(
         me = MarketExposure()
         # Always use cached exposure (computed once per day at 4:05 PM EOD pipeline)
         exposure = me.compute(run_date, force_recompute=False)
-        cache_status = " ✓ cached" if exposure.get('_cached') else " (WARNING: not cached, using fallback)"
-        logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}")
-        if exposure.get('halt_reasons'):
+        cache_status = (
+            " ✓ cached"
+            if exposure.get("_cached")
+            else " (WARNING: not cached, using fallback)"
+        )
+        logger.info(
+            f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}"
+        )
+        if exposure.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 
         policy = ExposurePolicy(config)
         constraints = policy.get_entry_constraints(run_date)
 
         if constraints:
-            logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
-            logger.info(f"    risk_mult={constraints['risk_multiplier']}, "
-                       f"max_new/day={constraints['max_new_positions_today']}, "
-                       f"min_grade={constraints['min_swing_grade']}, "
-                       f"halt_entries={constraints['halt_new_entries']}")
+            logger.info(
+                f"  Tier: {constraints['tier_name']} — {constraints['description']}"
+            )
+            logger.info(
+                f"    risk_mult={constraints['risk_multiplier']}, "
+                f"max_new/day={constraints['max_new_positions_today']}, "
+                f"min_grade={constraints['min_swing_grade']}, "
+                f"halt_entries={constraints['halt_new_entries']}"
+            )
 
         try:
             actions = policy.review_existing_positions(run_date)
         except Exception as e:
             # If transaction is aborted (from prior phase), retry with fresh connection
-            if "transaction is aborted" in str(e).lower() or "InFailedSqlTransaction" in str(type(e)):
-                logger.warning(f"Transaction aborted, retrying with fresh connection: {e}")
+            if "transaction is aborted" in str(
+                e
+            ).lower() or "InFailedSqlTransaction" in str(type(e)):
+                logger.warning(
+                    f"Transaction aborted, retrying with fresh connection: {e}"
+                )
                 policy = ExposurePolicy(config)
                 actions = policy.review_existing_positions(run_date)
             else:
                 raise
 
         if not actions:
-            logger.info(f"  No exposure-policy actions")
-            log_phase_result_fn('3b', 'exposure_policy', 'success',
-                               f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
+            logger.info("  No exposure-policy actions")
+            log_phase_result_fn(
+                "3b",
+                "exposure_policy",
+                "success",
+                f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions',
+            )
             return PhaseResult(
-                3, 'exposure_policy', 'ok',
-                {'constraints': constraints, 'actions': []},
-                False, None
+                3,
+                "exposure_policy",
+                "ok",
+                {"constraints": constraints, "actions": []},
+                False,
+                None,
             )
 
-        counts = {'tighten_stop': 0, 'partial_exit': 0, 'force_exit': 0}
+        counts = {"tighten_stop": 0, "partial_exit": 0, "force_exit": 0}
         for action in actions:
-            counts[action['action']] = counts.get(action['action'], 0) + 1
+            counts[action["action"]] = counts.get(action["action"], 0) + 1
 
         logger.info(f"\n  {len(actions)} exposure-policy actions:")
         for a in actions:
-            logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
-                       f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
+            logger.info(
+                f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
+                f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}"
+            )
 
-        tier_name = constraints['tier_name'] if constraints else 'unknown'
+        tier_name = constraints["tier_name"] if constraints else "unknown"
         log_phase_result_fn(
-            '3b', 'exposure_policy', 'success',
+            "3b",
+            "exposure_policy",
+            "success",
             f"tier={tier_name}, "
             f"{counts.get('tighten_stop', 0)} tighten, "
             f"{counts.get('partial_exit', 0)} partial, "
-            f"{counts.get('force_exit', 0)} force_exit"
+            f"{counts.get('force_exit', 0)} force_exit",
         )
 
         return PhaseResult(
-            3, 'exposure_policy', 'ok',
-            {'constraints': constraints, 'actions': actions},
-            False, None
+            3,
+            "exposure_policy",
+            "ok",
+            {"constraints": constraints, "actions": actions},
+            False,
+            None,
         )
 
     except Exception as e:
         # FAIL-OPEN: exposure policy errors don't block execution
         # (e.g., transaction aborts from prior phases, missing data, etc.)
         logger.warning(f"Exposure policy phase skipped due to error (fail-open): {e}")
-        log_phase_result_fn('3b', 'exposure_policy', 'skip',
-                           f'Skipped due to error: {str(e)[:80]}')
-        return PhaseResult(3, 'exposure_policy', 'ok', {'constraints': None, 'actions': []}, False, None)
+        log_phase_result_fn(
+            "3b", "exposure_policy", "skip", f"Skipped due to error: {str(e)[:80]}"
+        )
+        return PhaseResult(
+            3,
+            "exposure_policy",
+            "ok",
+            {"constraints": None, "actions": []},
+            False,
+            None,
+        )

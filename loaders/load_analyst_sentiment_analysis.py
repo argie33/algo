@@ -38,15 +38,15 @@ import argparse
 import sys
 import logging
 import sys
+
 logger = logging.getLogger(__name__)
 from utils.loaders.helpers import get_active_symbols
-import os
 import sys
-from datetime import date, timedelta
-from typing import List, Optional
+from datetime import date
+from typing import Optional
 
 from utils.optimal_loader import OptimalLoader
-from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_default_parallelism
 
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
@@ -73,38 +73,43 @@ class AnalystSentimentLoader(OptimalLoader):
             # Group by date and aggregate sentiment counts
             sentiment_by_date = {}
             for idx, row in recs.iterrows():
-                rec_date = idx.date() if hasattr(idx, 'date') else idx
-                rating = row.get('To Grade', '').lower()
+                rec_date = idx.date() if hasattr(idx, "date") else idx
+                rating = row.get("To Grade", "").lower()
 
                 if rec_date not in sentiment_by_date:
                     sentiment_by_date[rec_date] = {
-                        'bullish': 0, 'bearish': 0, 'neutral': 0, 'total': 0
+                        "bullish": 0,
+                        "bearish": 0,
+                        "neutral": 0,
+                        "total": 0,
                     }
 
                 # Categorize rating
-                if rating in ['buy', 'overweight', 'outperform', 'strong buy']:
-                    sentiment_by_date[rec_date]['bullish'] += 1
-                elif rating in ['sell', 'underweight', 'underperform', 'strong sell']:
-                    sentiment_by_date[rec_date]['bearish'] += 1
-                elif rating in ['hold', 'equal weight', 'neutral']:
-                    sentiment_by_date[rec_date]['neutral'] += 1
+                if rating in ["buy", "overweight", "outperform", "strong buy"]:
+                    sentiment_by_date[rec_date]["bullish"] += 1
+                elif rating in ["sell", "underweight", "underperform", "strong sell"]:
+                    sentiment_by_date[rec_date]["bearish"] += 1
+                elif rating in ["hold", "equal weight", "neutral"]:
+                    sentiment_by_date[rec_date]["neutral"] += 1
 
-                sentiment_by_date[rec_date]['total'] += 1
+                sentiment_by_date[rec_date]["total"] += 1
 
             # Convert to result format
             results = []
             for rec_date, counts in sentiment_by_date.items():
-                results.append({
-                    'symbol': symbol,
-                    'date': rec_date,
-                    'analyst_count': counts['total'],
-                    'bullish_count': counts['bullish'],
-                    'bearish_count': counts['bearish'],
-                    'neutral_count': counts['neutral'],
-                    'target_price': None,
-                    'current_price': None,
-                    'upside_downside_percent': None
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "date": rec_date,
+                        "analyst_count": counts["total"],
+                        "bullish_count": counts["bullish"],
+                        "bearish_count": counts["bearish"],
+                        "neutral_count": counts["neutral"],
+                        "target_price": None,
+                        "current_price": None,
+                        "upside_downside_percent": None,
+                    }
+                )
 
             return results if results else None
         except Exception as e:
@@ -120,8 +125,15 @@ class AnalystSentimentLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("analyst_sentiment_analysis"), help="Concurrent workers")
+    parser.add_argument(
+        "--symbols", help="Comma-separated symbols. Default: all from stocks table."
+    )
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=get_default_parallelism("analyst_sentiment_analysis"),
+        help="Concurrent workers",
+    )
     args = parser.parse_args()
 
     if args.symbols:
@@ -139,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

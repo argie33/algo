@@ -17,8 +17,6 @@ import sys
 import os
 from pathlib import Path
 import argparse
-import time
-
 
 def run_command(cmd, description, env=None):
     """Run a command and report status."""
@@ -43,40 +41,27 @@ def run_command(cmd, description, env=None):
         print(f"Error: {e}")
         return False
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Make your trading site fully working with real market data"
     )
     parser.add_argument(
-        "--host",
-        default="localhost",
-        help="Database host (default: localhost)"
+        "--host", default="localhost", help="Database host (default: localhost)"
+    )
+    parser.add_argument("--port", default="5432", help="Database port (default: 5432)")
+    parser.add_argument(
+        "--user", default="postgres", help="Database user (default: postgres)"
     )
     parser.add_argument(
-        "--port",
-        default="5432",
-        help="Database port (default: 5432)"
+        "--password", required=True, help="Database password (REQUIRED)"
     )
     parser.add_argument(
-        "--user",
-        default="postgres",
-        help="Database user (default: postgres)"
-    )
-    parser.add_argument(
-        "--password",
-        required=True,
-        help="Database password (REQUIRED)"
-    )
-    parser.add_argument(
-        "--database",
-        default="algo",
-        help="Database name (default: algo)"
+        "--database", default="algo", help="Database name (default: algo)"
     )
     parser.add_argument(
         "--symbols",
         default="SPY,QQQ,IWM",
-        help="Symbols to load (default: SPY,QQQ,IWM for quick testing)"
+        help="Symbols to load (default: SPY,QQQ,IWM for quick testing)",
     )
 
     args = parser.parse_args()
@@ -91,7 +76,7 @@ def main():
         "PYTHONPATH": str(Path.cwd()),
     }
 
-    print(f"""
+    print("""
 
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
@@ -110,23 +95,23 @@ def main():
 
     print(f"Database: {args.host}:{args.port}/{args.database}")
     print(f"Loading symbols: {args.symbols}")
-    print(f"Parallelism: 4 threads (system will auto-use optimal based on DB load)")
+    print("Parallelism: 4 threads (system will auto-use optimal based on DB load)")
 
     steps = [
         (
             f"python loaders/load_prices.py --symbols {args.symbols} --parallelism 4",
             "Step 1/3: Load real price data from yfinance",
-            env
+            env,
         ),
         (
             f"python loaders/load_technical_data_daily.py --symbols {args.symbols} --parallelism 4",
             "Step 2/3: Compute technical indicators (RSI, MACD, Bollinger Bands, etc.)",
-            env
+            env,
         ),
         (
             f"python loaders/load_buy_sell_daily.py --symbols {args.symbols} --parallelism 4",
             "Step 3/3: Generate buy/sell trading signals",
-            env
+            env,
         ),
     ]
 
@@ -141,17 +126,18 @@ def main():
 
     # Verify data loaded
     print(f"\n{'=' * 60}")
-    print(f"[VERIFY] Checking data in database")
+    print("[VERIFY] Checking data in database")
     print(f"{'=' * 60}")
 
     try:
         import psycopg2
+
         conn = psycopg2.connect(
             host=args.host,
             port=args.port,
             user=args.user,
             password=args.password,
-            database=args.database
+            database=args.database,
         )
         cur = conn.cursor()
 
@@ -178,7 +164,7 @@ def main():
         return 1
 
     # Success!
-    print(f"""
+    print("""
 
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
@@ -214,7 +200,6 @@ def main():
     """)
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

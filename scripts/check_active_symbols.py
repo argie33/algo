@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check why get_active_symbols only returns 5,256 instead of 10,506."""
+
 import psycopg2
 import os
 from utils.loaders.helpers import get_active_symbols
@@ -10,11 +11,11 @@ print(f"get_active_symbols() returns: {len(active_via_func)} symbols")
 
 # Check via database
 conn = psycopg2.connect(
-    host=os.environ['DB_HOST'],
-    port=os.environ['DB_PORT'],
-    user=os.environ['DB_USER'],
-    password=os.environ['DB_PASSWORD'],
-    database=os.environ['DB_NAME']
+    host=os.environ["DB_HOST"],
+    port=os.environ["DB_PORT"],
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    database=os.environ["DB_NAME"],
 )
 cur = conn.cursor()
 

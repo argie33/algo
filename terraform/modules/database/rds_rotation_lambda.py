@@ -13,7 +13,6 @@ Rotates RDS master user password every 30 days:
 
 import json
 import logging
-import os
 import secrets
 import string
 import boto3
@@ -22,16 +21,15 @@ from typing import Dict, Any
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-secrets_client = boto3.client('secretsmanager')
+secrets_client = boto3.client("secretsmanager")
 
 def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> Dict[str, Any]:
     """Fetch secret from Secrets Manager."""
     try:
         response = secrets_client.get_secret_value(
-            SecretId=secret_id,
-            VersionStage=stage
+            SecretId=secret_id, VersionStage=stage
         )
-        return json.loads(response['SecretString'])
+        return json.loads(response["SecretString"])
     except Exception as e:
         logger.error(f"Failed to get secret {secret_id}: {e}")
         raise
@@ -43,24 +41,27 @@ def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
             SecretId=secret_id,
             ClientRequestToken=None,  # Auto-generate token
             SecretString=json.dumps(secret_value),
-            VersionStages=['AWSPENDING']
+            VersionStages=["AWSPENDING"],
         )
-        return response['VersionId']
+        return response["VersionId"]
     except Exception as e:
         logger.error(f"Failed to put secret {secret_id}: {e}")
         raise
 
-def update_rds_password(host: str, port: int, username: str, current_password: str, new_password: str) -> bool:
+def update_rds_password(
+    host: str, port: int, username: str, current_password: str, new_password: str
+) -> bool:
     """Connect to RDS and update the master user password."""
     import psycopg2
     import psycopg2.sql
+
     try:
         conn = psycopg2.connect(
             host=host,
             port=port,
             user=username,
             password=current_password,
-            database='postgres'
+            database="postgres",
         )
         cur = conn.cursor()
 
@@ -68,7 +69,7 @@ def update_rds_password(host: str, port: int, username: str, current_password: s
             psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
                 psycopg2.sql.Identifier(username)
             ),
-            (new_password,)
+            (new_password,),
         )
 
         conn.commit()
@@ -87,9 +88,9 @@ def finish_secret(secret_id: str, version_id: str) -> None:
     try:
         secrets_client.update_secret_version_stage(
             SecretId=secret_id,
-            VersionStage='AWSCURRENT',
+            VersionStage="AWSCURRENT",
             MoveToVersionId=version_id,
-            RemoveFromVersionId=None
+            RemoveFromVersionId=None,
         )
         logger.info(f"Marked version {version_id} as AWSCURRENT for {secret_id}")
     except Exception as e:
@@ -100,7 +101,7 @@ def generate_password(length: int = 32) -> str:
     """Generate a secure random password."""
     # Mix of uppercase, lowercase, digits, and special characters
     characters = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
-    password = ''.join(secrets.choice(characters) for _ in range(length))
+    password = "".join(secrets.choice(characters) for _ in range(length))
     return password
 
 def handler(event, context):
@@ -116,10 +117,10 @@ def handler(event, context):
     }
     """
 
-    secret_id = event['SecretId']
-    client_request_token = event['ClientRequestToken']
-    step = event['Step']
-    secret_version = event['SecretVersion']
+    secret_id = event["SecretId"]
+    event["ClientRequestToken"]
+    step = event["Step"]
+    secret_version = event["SecretVersion"]
 
     logger.info(f"Rotation step: {step} for secret {secret_id}")
 
@@ -132,7 +133,7 @@ def handler(event, context):
             new_password = generate_password()
 
             new_secret = current_secret.copy()
-            new_secret['password'] = new_password
+            new_secret["password"] = new_password
 
             version_id = set_secret_version(secret_id, new_secret)
             logger.info(f"Created new secret version {version_id}")
@@ -145,11 +146,11 @@ def handler(event, context):
             current_secret = get_secret_dict(secret_id, "AWSCURRENT")
 
             update_rds_password(
-                host=current_secret['host'],
-                port=int(current_secret.get('port', 5432)),
-                username=current_secret['username'],
-                current_password=current_secret['password'],
-                new_password=pending_secret['password']
+                host=current_secret["host"],
+                port=int(current_secret.get("port", 5432)),
+                username=current_secret["username"],
+                current_password=current_secret["password"],
+                new_password=pending_secret["password"],
             )
 
             logger.info("Successfully updated RDS password")
@@ -163,11 +164,11 @@ def handler(event, context):
 
             try:
                 conn = psycopg2.connect(
-                    host=pending_secret['host'],
-                    port=int(pending_secret.get('port', 5432)),
-                    user=pending_secret['username'],
-                    password=pending_secret['password'],
-                    database='postgres'
+                    host=pending_secret["host"],
+                    port=int(pending_secret.get("port", 5432)),
+                    user=pending_secret["username"],
+                    password=pending_secret["password"],
+                    database="postgres",
                 )
                 conn.close()
                 logger.info("Verified new credentials work on RDS")
@@ -183,8 +184,8 @@ def handler(event, context):
             raise ValueError(f"Invalid step: {step}")
 
         return {
-            'statusCode': 200,
-            'body': json.dumps(f"Rotation {step} completed successfully")
+            "statusCode": 200,
+            "body": json.dumps(f"Rotation {step} completed successfully"),
         }
 
     except Exception as e:

@@ -36,18 +36,18 @@ MARKET_ALT_EARLY_CLOSE_TIME = time(13, 0)
 
 # Orchestrator run schedule (ET)
 ORCHESTRATOR_RUN_TIMES = [
-    time(9, 30),   # Market open
-    time(13, 0),   # 1 PM
-    time(15, 0),   # 3 PM
+    time(9, 30),  # Market open
+    time(13, 0),  # 1 PM
+    time(15, 0),  # 3 PM
     time(17, 30),  # 5:30 PM (post-market)
 ]
 
 # Orchestrator as (hour, minute) tuples for backward compatibility
 ORCHESTRATOR_RUN_TIMES_TUPLE = [
-    (9, 30),    # Market open
-    (13, 0),    # 1 PM
-    (15, 0),    # 3 PM
-    (17, 30),   # 5:30 PM
+    (9, 30),  # Market open
+    (13, 0),  # 1 PM
+    (15, 0),  # 3 PM
+    (17, 30),  # 5:30 PM
 ]
 
 # Time buffer before orchestrator run to assess if subprocess will complete

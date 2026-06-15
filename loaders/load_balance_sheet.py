@@ -12,11 +12,12 @@ import logging
 import sys
 import argparse
 import sys
+
 logger = logging.getLogger(__name__)
 import os
 import sys
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 from utils.loaders.helpers import get_active_symbols
 from utils.external.sec_edgar import SecEdgarClient
 
@@ -27,11 +28,23 @@ _PERIOD_CONFIG = {
     "annual": {
         "table_name": "annual_balance_sheet",
         "primary_key": ("symbol", "fiscal_year"),
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year",
-            "total_assets", "current_assets", "total_liabilities", "current_liabilities", "stockholders_equity",
-            "inventory", "cash_and_equivalents", "accounts_receivable", "ppe_net", "goodwill", "long_term_debt",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "total_assets",
+                "current_assets",
+                "total_liabilities",
+                "current_liabilities",
+                "stockholders_equity",
+                "inventory",
+                "cash_and_equivalents",
+                "accounts_receivable",
+                "ppe_net",
+                "goodwill",
+                "long_term_debt",
+            }
+        ),
         "field_mapping": {
             # SEC EDGAR client converts concept names to snake_case before returning
             # Total assets
@@ -57,12 +70,19 @@ _PERIOD_CONFIG = {
     "quarterly": {
         "table_name": "quarterly_balance_sheet",
         "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year", "fiscal_quarter",
-            "total_assets", "current_assets", "total_liabilities", "stockholders_equity",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "fiscal_quarter",
+                "total_assets",
+                "current_assets",
+                "total_liabilities",
+                "stockholders_equity",
+            }
+        ),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",  # "Q1".."Q4"  ->  integer (converted in transform)
             # SEC EDGAR client converts concept names to snake_case before returning
             "assets": "total_assets",
             "assets_current": "current_assets",
@@ -124,7 +144,9 @@ class BalanceSheetLoader(OptimalLoader):
                 if db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
+                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(
+                    row["fiscal_quarter"]
+                )
             transformed.append(row)
 
         seen = {}
@@ -132,7 +154,11 @@ class BalanceSheetLoader(OptimalLoader):
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
-                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
+                key = (
+                    row.get("symbol"),
+                    row.get("fiscal_year"),
+                    row.get("fiscal_quarter"),
+                )
             if key not in seen:
                 seen[key] = row
         return list(seen.values())
@@ -154,17 +180,30 @@ class BalanceSheetLoader(OptimalLoader):
         return True
 
 def main():
-    parser = argparse.ArgumentParser(description="Balance sheet loader (annual/quarterly)")
-    parser.add_argument("--period", choices=["annual", "quarterly"],
-                        help="Statement period (defaults to LOADER_PERIOD env var)")
+    parser = argparse.ArgumentParser(
+        description="Balance sheet loader (annual/quarterly)"
+    )
+    parser.add_argument(
+        "--period",
+        choices=["annual", "quarterly"],
+        help="Statement period (defaults to LOADER_PERIOD env var)",
+    )
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     default_parallelism = get_parallelism("balance_sheet")
-    parser.add_argument("--parallelism", type=int, default=default_parallelism,
-                        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=default_parallelism,
+        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})",
+    )
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
+    symbols = (
+        [s.strip().upper() for s in args.symbols.split(",")]
+        if args.symbols
+        else get_active_symbols(timeout_secs=60)
+    )
 
     loader = BalanceSheetLoader(period)
     try:
@@ -174,10 +213,11 @@ def main():
 
     fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
     if fail_rate > 0.05:
-        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        logger.error(
+            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
+        )
         return 1
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
-

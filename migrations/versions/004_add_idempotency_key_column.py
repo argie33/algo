@@ -12,7 +12,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add idempotency_key column to algo_trades table"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE algo_trades
                 ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64)
@@ -25,10 +25,9 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("DROP INDEX IF EXISTS idx_algo_trades_idempotency_key")
         cur.execute("""
             ALTER TABLE algo_trades
                 DROP COLUMN IF EXISTS idempotency_key
         """)
-

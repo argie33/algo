@@ -8,12 +8,10 @@ Monitors:
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Dict
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
-
 
 class LoaderConflictDetector:
     """Detect and alert on loader conflicts during concurrent pipeline runs."""
@@ -48,7 +46,7 @@ class LoaderConflictDetector:
             }
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Check 1: Find all currently RUNNING loaders (based on execution_started/completed)
                 cur.execute("""
                     SELECT
@@ -70,26 +68,30 @@ class LoaderConflictDetector:
                     duration_sec = float(duration_sec) if duration_sec else 0
 
                     loader_info = {
-                        'table_name': table_name,
-                        'status': status,
-                        'duration_sec': round(duration_sec, 1),
-                        'execution_started': execution_started.isoformat() if execution_started else None,
+                        "table_name": table_name,
+                        "status": status,
+                        "duration_sec": round(duration_sec, 1),
+                        "execution_started": (
+                            execution_started.isoformat() if execution_started else None
+                        ),
                     }
 
                     running_loaders.append(loader_info)
 
                     # Check for stuck loaders (running >30 min)
                     if duration_sec > 1800:  # 30 minutes
-                        stuck_loaders.append({
-                            **loader_info,
-                            'timeout_threshold_sec': 1800,
-                            'is_overdue': True
-                        })
+                        stuck_loaders.append(
+                            {
+                                **loader_info,
+                                "timeout_threshold_sec": 1800,
+                                "is_overdue": True,
+                            }
+                        )
 
                 # Check 2: Detect concurrent runs of SAME table (shouldn't happen)
                 table_counts = {}
                 for loader in running_loaders:
-                    name = loader['table_name']
+                    name = loader["table_name"]
                     table_counts[name] = table_counts.get(name, 0) + 1
 
                 conflicts = [name for name, count in table_counts.items() if count > 1]
@@ -97,15 +99,15 @@ class LoaderConflictDetector:
                 has_conflicts = len(conflicts) > 0 or len(stuck_loaders) > 0
 
                 result = {
-                    'conflicts_detected': has_conflicts,
-                    'concurrent_loaders': running_loaders,
-                    'stuck_loaders': stuck_loaders,
-                    'duplicate_loader_runs': conflicts,
+                    "conflicts_detected": has_conflicts,
+                    "concurrent_loaders": running_loaders,
+                    "stuck_loaders": stuck_loaders,
+                    "duplicate_loader_runs": conflicts,
                 }
 
                 if has_conflicts:
                     logger.warning(
-                        f"[CONFLICT] Detected loader conflicts: "
+                        "[CONFLICT] Detected loader conflicts: "
                         f"{len(running_loaders)} running, "
                         f"{len(stuck_loaders)} stuck, "
                         f"{len(conflicts)} duplicates"
@@ -116,10 +118,10 @@ class LoaderConflictDetector:
         except Exception as e:
             logger.error(f"Failed to check loader conflicts: {e}", exc_info=True)
             return {
-                'conflicts_detected': False,
-                'concurrent_loaders': [],
-                'stuck_loaders': [],
-                'error': str(e)
+                "conflicts_detected": False,
+                "concurrent_loaders": [],
+                "stuck_loaders": [],
+                "error": str(e),
             }
 
     def check_intraday_pipeline_readiness(self) -> Dict[str, any]:
@@ -138,7 +140,7 @@ class LoaderConflictDetector:
             }
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Check morning pipeline status
                 cur.execute("""
                     SELECT status, last_updated
@@ -155,14 +157,14 @@ class LoaderConflictDetector:
                 recommendations = []
 
                 # Check if morning pipeline completed
-                morning_done = morning_status == 'COMPLETED'
+                morning_done = morning_status == "COMPLETED"
 
-                if not morning_done and morning_status == 'RUNNING':
+                if not morning_done and morning_status == "RUNNING":
                     recommendations.append(
                         "Morning pipeline still running - wait for completion before afternoon update"
                     )
 
-                if morning_status == 'FAILED':
+                if morning_status == "FAILED":
                     recommendations.append(
                         "Morning pipeline failed - afternoon update may use stale scores"
                     )
@@ -182,36 +184,42 @@ class LoaderConflictDetector:
                     )
 
                 return {
-                    'ready_for_afternoon_update': morning_done and other_running == 0,
-                    'ready_for_preclose_update': morning_done and other_running == 0,
-                    'morning_pipeline_done': morning_done,
-                    'morning_completion_time': morning_time.isoformat() if morning_time else None,
-                    'last_morning_status': morning_status,
-                    'other_loaders_running': other_running,
-                    'recommendations': recommendations,
+                    "ready_for_afternoon_update": morning_done and other_running == 0,
+                    "ready_for_preclose_update": morning_done and other_running == 0,
+                    "morning_pipeline_done": morning_done,
+                    "morning_completion_time": (
+                        morning_time.isoformat() if morning_time else None
+                    ),
+                    "last_morning_status": morning_status,
+                    "other_loaders_running": other_running,
+                    "recommendations": recommendations,
                 }
 
         except Exception as e:
             logger.error(f"Failed to check intraday readiness: {e}", exc_info=True)
             return {
-                'ready_for_afternoon_update': False,
-                'ready_for_preclose_update': False,
-                'error': str(e)
+                "ready_for_afternoon_update": False,
+                "ready_for_preclose_update": False,
+                "error": str(e),
             }
 
     def log_conflict_status(self):
         """Log current conflict status (for debugging/monitoring)."""
         conflicts = self.check_concurrent_loaders()
 
-        if conflicts['conflicts_detected']:
+        if conflicts["conflicts_detected"]:
             logger.warning(
                 f"[LOADER-STATUS] {len(conflicts['concurrent_loaders'])} loaders running, "
                 f"{len(conflicts['stuck_loaders'])} stuck, "
                 f"{len(conflicts['duplicate_loader_runs'])} duplicates: {conflicts['duplicate_loader_runs']}"
             )
         else:
-            logger.debug(f"[LOADER-STATUS] {len(conflicts['concurrent_loaders'])} loaders running (OK)")
+            logger.debug(
+                f"[LOADER-STATUS] {len(conflicts['concurrent_loaders'])} loaders running (OK)"
+            )
 
         intraday = self.check_intraday_pipeline_readiness()
-        if not intraday.get('ready_for_afternoon_update'):
-            logger.warning(f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations', [])}")
+        if not intraday.get("ready_for_afternoon_update"):
+            logger.warning(
+                f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations', [])}"
+            )

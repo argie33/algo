@@ -17,11 +17,9 @@ All metrics are defined with:
 
 import logging
 import statistics
-from typing import Optional, Dict, List, Tuple
-from datetime import date, datetime
+from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
-
 
 class MetricsCalculator:
     """Centralized performance metrics calculation engine."""
@@ -95,7 +93,7 @@ class MetricsCalculator:
             std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
             if std_ret <= 0:
                 return None
-            sharpe = (mean_ret / std_ret) * (252 ** 0.5)
+            sharpe = (mean_ret / std_ret) * (252**0.5)
             return round(sharpe, 3)
         except (ValueError, ZeroDivisionError, TypeError):
             return None
@@ -133,10 +131,12 @@ class MetricsCalculator:
             downside_rets = [r for r in returns if r < 0]
             if not downside_rets:
                 return None  # No downside to measure
-            downside_std = statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
+            downside_std = (
+                statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
+            )
             if downside_std <= 0:
                 return None
-            sortino = (mean_ret / downside_std) * (252 ** 0.5)
+            sortino = (mean_ret / downside_std) * (252**0.5)
             return round(sortino, 3)
         except (ValueError, ZeroDivisionError, TypeError):
             return None
@@ -264,7 +264,7 @@ class MetricsCalculator:
 
         if total_losses < 1e-6:  # Essentially zero
             if total_wins > 1e-6:
-                return float('inf')  # Perfect record (only wins, no losses)
+                return float("inf")  # Perfect record (only wins, no losses)
             return None  # No trades or all breakeven
 
         pf = total_wins / total_losses
@@ -345,7 +345,6 @@ class MetricsCalculator:
         except (ValueError, TypeError):
             return None
 
-
 class MetricsValidator:
     """Validates metric values for consistency and data quality."""
 
@@ -377,7 +376,7 @@ class MetricsValidator:
             pf = metrics["profit_factor"]
             if pf < 0:
                 issues.append(f"profit_factor {pf} is negative")
-            if pf == float('inf'):
+            if pf == float("inf"):
                 warnings.append("profit_factor is infinite (only wins, no losses)")
             if 0 < pf < 1:
                 warnings.append(
@@ -388,7 +387,9 @@ class MetricsValidator:
         if "expectancy" in metrics and metrics["expectancy"] is not None:
             exp = metrics["expectancy"]
             if exp < 0:
-                warnings.append(f"expectancy {exp}R is negative (losing trades expected)")
+                warnings.append(
+                    f"expectancy {exp}R is negative (losing trades expected)"
+                )
 
         # Trade counts consistency
         if (
@@ -415,42 +416,34 @@ class MetricsValidator:
 
         return metrics
 
-
 # Convenience functions for direct use
 def calculate_win_rate(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_win_rate"""
     return MetricsCalculator.calculate_win_rate(*args, **kwargs)
 
-
 def calculate_sharpe_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_sharpe_ratio"""
     return MetricsCalculator.calculate_sharpe_ratio(*args, **kwargs)
-
 
 def calculate_sortino_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_sortino_ratio"""
     return MetricsCalculator.calculate_sortino_ratio(*args, **kwargs)
 
-
 def calculate_max_drawdown(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_max_drawdown"""
     return MetricsCalculator.calculate_max_drawdown(*args, **kwargs)
-
 
 def calculate_calmar_ratio(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_calmar_ratio"""
     return MetricsCalculator.calculate_calmar_ratio(*args, **kwargs)
 
-
 def calculate_profit_factor(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_profit_factor"""
     return MetricsCalculator.calculate_profit_factor(*args, **kwargs)
 
-
 def calculate_expectancy(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_expectancy"""
     return MetricsCalculator.calculate_expectancy(*args, **kwargs)
-
 
 def calculate_avg_r_multiple(*args, **kwargs) -> Optional[float]:
     """See MetricsCalculator.calculate_avg_r_multiple"""

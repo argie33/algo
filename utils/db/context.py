@@ -12,15 +12,13 @@ THE RIGHT WAY: All database access goes through this context manager.
 
 import logging
 from typing import Optional
-import psycopg2
 from psycopg2.extras import DictCursor
 
 from utils.db import get_db_connection
 from utils.db.pooled_context_var import get_pooled_connection
 
 logger = logging.getLogger(__name__)
-__all__ = ['DatabaseContext']
-
+__all__ = ["DatabaseContext"]
 
 class _CorrelationIdCursor:
     """Wraps cursor to auto-include correlation_id in SQL comments for audit trails.
@@ -35,15 +33,27 @@ class _CorrelationIdCursor:
 
     def execute(self, query: str, args=None):
         """Execute with correlation_id comment appended."""
-        query_str = query.as_string(self.cursor) if hasattr(query, 'as_string') else str(query or "")
-        if query_str and not query_str.strip().startswith('--'):
+        query_str = (
+            query.as_string(self.cursor)
+            if hasattr(query, "as_string")
+            else str(query or "")
+        )
+        if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
-        return self.cursor.execute(query_str) if not hasattr(query, 'as_string') and args is None else self.cursor.execute(query_str, args)
+        return (
+            self.cursor.execute(query_str)
+            if not hasattr(query, "as_string") and args is None
+            else self.cursor.execute(query_str, args)
+        )
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
-        query_str = query.as_string(self.cursor) if hasattr(query, 'as_string') else str(query or "")
-        if query_str and not query_str.strip().startswith('--'):
+        query_str = (
+            query.as_string(self.cursor)
+            if hasattr(query, "as_string")
+            else str(query or "")
+        )
+        if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
         return self.cursor.executemany(query_str, args)
 
@@ -116,7 +126,14 @@ class DatabaseContext:
             rows = cur.fetchall()
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 30, cursor_factory=DictCursor, correlation_id: Optional[str] = None, enable_correlation_tracking: bool = True):
+    def __init__(
+        self,
+        role: str = "read",
+        timeout: int = 30,
+        cursor_factory=DictCursor,
+        correlation_id: Optional[str] = None,
+        enable_correlation_tracking: bool = True,
+    ):
         """Initialize context.
 
         Args:
@@ -144,6 +161,7 @@ class DatabaseContext:
         """Auto-retrieve correlation_id from context (loaders only)."""
         try:
             from utils.infrastructure import get_correlation_id  # type: ignore[attr-defined]
+
             cid = get_correlation_id()
             return cid if cid else None
         except Exception:
@@ -162,7 +180,9 @@ class DatabaseContext:
             if pooled_conn is not None:
                 self.conn = pooled_conn
                 self._externally_managed = True
-                logger.debug("[DB_CONTEXT] Reusing pooled connection from OptimalLoader")
+                logger.debug(
+                    "[DB_CONTEXT] Reusing pooled connection from OptimalLoader"
+                )
             else:
                 # Normal flow: acquire new connection from pool
                 self.conn = get_db_connection(timeout=self.timeout)
@@ -173,7 +193,10 @@ class DatabaseContext:
             # Set application_name for PostgreSQL audit log (loaders only)
             if self.correlation_id:
                 try:
-                    self.cur.execute("SET application_name = %s", (f"algo_loader[{self.correlation_id}]",))
+                    self.cur.execute(
+                        "SET application_name = %s",
+                        (f"algo_loader[{self.correlation_id}]",),
+                    )
                 except Exception:
                     pass  # Non-critical; continue without session-level tracking
 
@@ -182,7 +205,10 @@ class DatabaseContext:
                 return _CorrelationIdCursor(self.cur, self.correlation_id)
             return self.cur
         except Exception as e:
-            logger.error(f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}", exc_info=True)
+            logger.error(
+                f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}",
+                exc_info=True,
+            )
             raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -197,22 +223,25 @@ class DatabaseContext:
 
             if self.conn and not self._externally_managed:
                 # Only close connections we acquired (not pooled context connections)
-                if exc_type is None and self.role == 'write':
+                if exc_type is None and self.role == "write":
                     self.conn.commit()
                 elif exc_type is not None:
                     self.conn.rollback()
                 self.conn.close()
             elif self.conn and self._externally_managed:
                 # Still commit/rollback, but don't close the connection
-                if exc_type is None and self.role == 'write':
+                if exc_type is None and self.role == "write":
                     self.conn.commit()
                 elif exc_type is not None:
                     self.conn.rollback()
-                logger.debug("[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)")
+                logger.debug(
+                    "[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)"
+                )
         except Exception as e:
-            logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}")
+            logger.warning(
+                f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}"
+            )
         finally:
             self.cur = None
             if not self._externally_managed:
                 self.conn = None
-

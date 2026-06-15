@@ -15,7 +15,7 @@ import logging
 import json
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, Type
+from typing import Any, Dict, List, Optional, Type
 from dataclasses import dataclass, field
 from datetime import datetime, date, timezone
 
@@ -24,11 +24,8 @@ logger = logging.getLogger(__name__)
 # Eastern timezone for all time-based conversions
 EASTERN_TZ = timezone.utc
 
-
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode."""
-    pass
-
 
 @dataclass
 class ValidationResult:
@@ -51,7 +48,6 @@ class ValidationResult:
         ctx = f" [{self.context}]" if self.context else ""
         return f"{status}{detail}{ctx}"
 
-
 class Validator(ABC):
     """Base class for all validators."""
 
@@ -66,11 +62,17 @@ class Validator(ABC):
     def __call__(self, data: Any, context: str = "") -> ValidationResult:
         return self.validate(data, context or self.context)
 
-
 class TypeValidator(Validator):
     """Validates data type and optionally range/length constraints."""
 
-    def __init__(self, expected_type: str, min_val=None, max_val=None, min_length=None, max_length=None):
+    def __init__(
+        self,
+        expected_type: str,
+        min_val=None,
+        max_val=None,
+        min_length=None,
+        max_length=None,
+    ):
         super().__init__()
         self.expected_type = expected_type.lower()
         self.min_val = min_val
@@ -83,7 +85,9 @@ class TypeValidator(Validator):
         cleaned = data
 
         if data is None:
-            return ValidationResult(is_valid=True, data=None, context=context, validator_name=self.name)
+            return ValidationResult(
+                is_valid=True, data=None, context=context, validator_name=self.name
+            )
 
         if self.expected_type in ("float", "numeric"):
             cleaned, err = self._validate_float(data, context)
@@ -101,7 +105,13 @@ class TypeValidator(Validator):
         else:
             errors.append(f"Unknown type: {self.expected_type}")
 
-        return ValidationResult(is_valid=len(errors) == 0, errors=errors, data=cleaned, context=context, validator_name=self.name)
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            data=cleaned,
+            context=context,
+            validator_name=self.name,
+        )
 
     def _validate_float(self, data: Any, context: str) -> tuple:
         try:
@@ -125,7 +135,6 @@ class TypeValidator(Validator):
         except (ValueError, TypeError):
             return None, f"{context}: cannot convert {data!r} to int"
 
-
 class EnumValidator(Validator):
     """Validates that value is one of allowed enum values."""
 
@@ -148,13 +157,24 @@ class EnumValidator(Validator):
             return ValidationResult(is_valid=True, data=data, context=context)
 
         errors = [f"{context}: value {data!r} not in {self.allowed_values}"]
-        return ValidationResult(is_valid=False, errors=errors, data=data, context=context)
-
+        return ValidationResult(
+            is_valid=False, errors=errors, data=data, context=context
+        )
 
 class PhaseValidator(Validator):
     """Validates orchestrator phase objects with name and status fields."""
 
-    VALID_STATUSES = {"ok", "success", "running", "pending", "halt", "halted", "failed", "completed", "skipped"}
+    VALID_STATUSES = {
+        "ok",
+        "success",
+        "running",
+        "pending",
+        "halt",
+        "halted",
+        "failed",
+        "completed",
+        "skipped",
+    }
 
     def __init__(self):
         super().__init__("PhaseValidator")
@@ -177,12 +197,19 @@ class PhaseValidator(Validator):
         if not status:
             all_errors.append(f"{context}: missing 'status' field")
         elif status not in self.VALID_STATUSES:
-            all_errors.append(f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})")
+            all_errors.append(
+                f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})"
+            )
         else:
             cleaned["status"] = status
 
-        return ValidationResult(is_valid=len(all_errors) == 0, errors=all_errors, data=cleaned if len(all_errors) == 0 else None, context=context, validator_name=self.name)
-
+        return ValidationResult(
+            is_valid=len(all_errors) == 0,
+            errors=all_errors,
+            data=cleaned if len(all_errors) == 0 else None,
+            context=context,
+            validator_name=self.name,
+        )
 
 class ValidatorRegistry:
     """Central registry of all validators."""
@@ -193,10 +220,15 @@ class ValidatorRegistry:
 
     def register(self, name: str, validator: Validator, description: str = ""):
         self._validators[name] = validator
-        self._metadata[name] = {"validator_class": validator.__class__.__name__, "description": description}
+        self._metadata[name] = {
+            "validator_class": validator.__class__.__name__,
+            "description": description,
+        }
         logger.debug(f"Registered validator: {name}")
 
-    def validate(self, validator_name: str, data: Any, context: str = "") -> ValidationResult:
+    def validate(
+        self, validator_name: str, data: Any, context: str = ""
+    ) -> ValidationResult:
         if validator_name not in self._validators:
             raise ValueError(f"Unknown validator: {validator_name!r}")
         validator = self._validators[validator_name]
@@ -205,13 +237,10 @@ class ValidatorRegistry:
     def get_validator(self, name: str) -> Optional[Validator]:
         return self._validators.get(name)
 
-
 _global_registry = ValidatorRegistry()
-
 
 def get_global_registry() -> ValidatorRegistry:
     return _global_registry
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # UNIFIED FUNCTIONAL API - FOR BACKWARD COMPATIBILITY & EASE OF USE
@@ -249,7 +278,6 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
         return default
 
-
 def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
     """Convert value to float in strict mode, raising on failure.
 
@@ -278,7 +306,6 @@ def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
     except (ValueError, TypeError):
         return None
 
-
 def safe_int(value: Any, default: int = 0, context: str = "") -> int:
     """Convert value to int safely, handling None, invalid strings.
 
@@ -302,7 +329,6 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
         return default
 
-
 def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     """Convert value to int in strict mode.
 
@@ -324,7 +350,6 @@ def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     except (ValueError, TypeError):
         logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
         return None
-
 
 def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     """Parse date from multiple formats: ISO, string, datetime.
@@ -363,7 +388,6 @@ def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
     return None
 
-
 def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
     """Parse datetime string with timezone awareness (ET).
 
@@ -389,7 +413,6 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
 
     return None
 
-
 def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> Any:
     """Parse JSON string safely with proper error logging.
 
@@ -405,7 +428,9 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         return json_str
 
     if not isinstance(json_str, str):
-        logger.warning(f"JSON parse: expected string, got {type(json_str).__name__} {context}")
+        logger.warning(
+            f"JSON parse: expected string, got {type(json_str).__name__} {context}"
+        )
         return default
 
     try:
@@ -413,7 +438,6 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning(f"JSON parse failed {context}: {e}")
         return default
-
 
 def safe_str(value: Any, default: str = "", context: str = "") -> str:
     """Safely convert value to string with logging.
@@ -438,7 +462,6 @@ def safe_str(value: Any, default: str = "", context: str = "") -> str:
         logger.warning(f"Failed to convert {value!r} to str {context}: {e}")
         return default
 
-
 def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
     """Safely convert value to bool with logging.
 
@@ -458,9 +481,9 @@ def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
 
     if isinstance(value, str):
         val_lower = value.lower().strip()
-        if val_lower in ('true', '1', 'yes', 'on'):
+        if val_lower in ("true", "1", "yes", "on"):
             return True
-        elif val_lower in ('false', '0', 'no', 'off', ''):
+        elif val_lower in ("false", "0", "no", "of", ""):
             return False
         else:
             logger.warning(f"Cannot convert {context}={value!r} to bool")
@@ -472,9 +495,13 @@ def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
         logger.warning(f"Failed to convert {context}={value!r} to bool: {e}")
         return default
 
-
-def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
-                   field_name: Optional[str] = None) -> Any:
+def safe_json_parse(
+    value: Any,
+    *,
+    default: Any = None,
+    strict: bool = False,
+    field_name: Optional[str] = None,
+) -> Any:
     """Parse JSON string with configurable failure behavior (dashboard API variant).
 
     Args:
@@ -488,7 +515,9 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
     """
     if value is None:
         if strict:
-            raise ValueError(f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}")
+            raise ValueError(
+                f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}"
+            )
         return default if default is not None else {}
 
     if isinstance(value, (dict, list)):
@@ -502,19 +531,23 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
                 raise ValueError(
                     f"Cannot parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
                 ) from e
-            logger.warning(f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}")
+            logger.warning(
+                f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
+            )
             return default if default is not None else {}
 
     if strict:
         raise ValueError(
             f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
         )
-    logger.warning(f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}")
+    logger.warning(
+        f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
+    )
     return default if default is not None else {}
 
-
-def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
-                             source: Optional[str] = None) -> bool:
+def validate_required_fields(
+    data: Dict[str, Any], required_fields: List[str], source: Optional[str] = None
+) -> bool:
     """Check if required fields exist in data dict. Log warnings for missing fields."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
@@ -523,9 +556,9 @@ def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
         return False
     return True
 
-
-def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
-                         source: Optional[str] = None) -> bool:
+def validate_field_types(
+    data: Dict[str, Any], type_spec: Dict[str, Type], source: Optional[str] = None
+) -> bool:
     """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
     for field, expected_type in type_spec.items():
@@ -535,14 +568,15 @@ def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
         if value is None:
             continue
         if not isinstance(value, expected_type):
-            issues.append(f"{field}: expected {expected_type.__name__}, got {type(value).__name__}")
+            issues.append(
+                f"{field}: expected {expected_type.__name__}, got {type(value).__name__}"
+            )
 
     if issues:
         source_str = f" from {source}" if source else ""
         logger.warning(f"Type mismatches{source_str}: {'; '.join(issues)}")
         return False
     return True
-
 
 def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
     """Log a data issue from a fetcher function."""

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Diagnose why price loader is only loading 4800 symbols instead of 10500."""
+
 import psycopg2
 import os
-from datetime import datetime, timedelta
 
 conn = psycopg2.connect(
-    host=os.environ['DB_HOST'],
-    port=os.environ['DB_PORT'],
-    user=os.environ['DB_USER'],
-    password=os.environ['DB_PASSWORD'],
-    database=os.environ['DB_NAME']
+    host=os.environ["DB_HOST"],
+    port=os.environ["DB_PORT"],
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    database=os.environ["DB_NAME"],
 )
 
 cur = conn.cursor()

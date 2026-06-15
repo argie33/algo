@@ -8,92 +8,203 @@ All dynamic SQL patterns are validated against whitelists before execution.
 """
 
 import re
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
 # Known safe tables (whitelist for dynamic table names)
 # Security: M-001 SQL injection prevention — table names validated against whitelist
 SAFE_TABLES = {
     # Algo core
-    'algo_metrics_daily', 'algo_performance_daily', 'algo_performance_metrics', 'algo_risk_daily',
-    'algo_trades', 'algo_positions', 'algo_signals', 'algo_portfolio_snapshots',
-    'algo_audit_log', 'algo_notifications', 'algo_data_patrol', 'algo_signals_evaluated',
-    'algo_trade_adds', 'algo_tca', 'algo_information_coefficient', 'algo_model_registry',
-    'algo_champion_challenger', 'algo_config', 'algo_config_audit',
+    "algo_metrics_daily",
+    "algo_performance_daily",
+    "algo_performance_metrics",
+    "algo_risk_daily",
+    "algo_trades",
+    "algo_positions",
+    "algo_signals",
+    "algo_portfolio_snapshots",
+    "algo_audit_log",
+    "algo_notifications",
+    "algo_data_patrol",
+    "algo_signals_evaluated",
+    "algo_trade_adds",
+    "algo_tca",
+    "algo_information_coefficient",
+    "algo_model_registry",
+    "algo_champion_challenger",
+    "algo_config",
+    "algo_config_audit",
     # Pricing
-    'price_daily', 'price_intraday', 'price_weekly', 'price_monthly',
-    'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'etf_symbols',
+    "price_daily",
+    "price_intraday",
+    "price_weekly",
+    "price_monthly",
+    "etf_price_daily",
+    "etf_price_weekly",
+    "etf_price_monthly",
+    "etf_symbols",
     # Market
-    'market_health_daily', 'market_events', 'market_exposure_daily',
-    'market_calendar', 'sector_performance', 'industry_performance',
+    "market_health_daily",
+    "market_events",
+    "market_exposure_daily",
+    "market_calendar",
+    "sector_performance",
+    "industry_performance",
     # Stock data
-    'stock_scores', 'stock_symbols', 'stock_fundamentals', 'stock_ownership',
-    'stock_ratings', 'company_profile', 'sector_ranking', 'industry_ranking',
+    "stock_scores",
+    "stock_symbols",
+    "stock_fundamentals",
+    "stock_ownership",
+    "stock_ratings",
+    "company_profile",
+    "sector_ranking",
+    "industry_ranking",
     # Technical indicators
-    'technical_data_daily', 'technical_data_weekly', 'technical_data_monthly',
-    'technical_indicators_daily',
+    "technical_data_daily",
+    "technical_data_weekly",
+    "technical_data_monthly",
+    "technical_indicators_daily",
     # Buy/sell signals
-    'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-    'buy_sell_daily_etf', 'buy_sell_weekly_etf', 'buy_sell_monthly_etf',
+    "buy_sell_daily",
+    "buy_sell_weekly",
+    "buy_sell_monthly",
+    "buy_sell_daily_etf",
+    "buy_sell_weekly_etf",
+    "buy_sell_monthly_etf",
     # Trading signals
-    'trend_template_data', 'signal_quality_scores', 'signal_themes', 'swing_trader_scores',
+    "trend_template_data",
+    "signal_quality_scores",
+    "signal_themes",
+    "swing_trader_scores",
     # Analyst data
-    'analyst_upgrade_downgrade', 'analyst_upgrades_downgrades', 'analyst_sentiment_analysis',
+    "analyst_upgrade_downgrade",
+    "analyst_upgrades_downgrades",
+    "analyst_sentiment_analysis",
     # Market sentiment
-    'aaii_sentiment', 'naaim', 'fear_greed', 'fear_greed_index', 'seasonality',
-    'sentiment', 'sentiment_aggregate', 'sentiment_social',
+    "aaii_sentiment",
+    "naaim",
+    "fear_greed",
+    "fear_greed_index",
+    "seasonality",
+    "sentiment",
+    "sentiment_aggregate",
+    "sentiment_social",
     # Economic data
-    'economic_data', 'economic_metrics_daily', 'earnings_history', 'earnings_calendar',
-    'earnings_estimates', 'earnings_revisions',
+    "economic_data",
+    "economic_metrics_daily",
+    "earnings_history",
+    "earnings_calendar",
+    "earnings_estimates",
+    "earnings_revisions",
     # Fundamental metrics
-    'growth_metrics', 'quality_metrics', 'value_metrics', 'stability_metrics',
-    'positioning_metrics', 'momentum_metrics',
+    "growth_metrics",
+    "quality_metrics",
+    "value_metrics",
+    "stability_metrics",
+    "positioning_metrics",
+    "momentum_metrics",
     # Financial statements
-    'balance_sheet', 'cash_flow', 'income_statement',
-    'annual_balance_sheet', 'annual_cash_flow', 'annual_income_statement',
-    'quarterly_balance_sheet', 'quarterly_cash_flow', 'quarterly_income_statement',
-    'ttm_cash_flow', 'ttm_income_statement',
+    "balance_sheet",
+    "cash_flow",
+    "income_statement",
+    "annual_balance_sheet",
+    "annual_cash_flow",
+    "annual_income_statement",
+    "quarterly_balance_sheet",
+    "quarterly_cash_flow",
+    "quarterly_income_statement",
+    "ttm_cash_flow",
+    "ttm_income_statement",
     # Other traders
-    'insider_transactions',
+    "insider_transactions",
     # Backtest
-    'backtest_results', 'backtest_runs', 'backtest_trades',
+    "backtest_results",
+    "backtest_runs",
+    "backtest_trades",
     # Portfolio
-    'trades', 'portfolio_holdings', 'portfolio_history', 'portfolio_performance',
+    "trades",
+    "portfolio_holdings",
+    "portfolio_history",
+    "portfolio_performance",
     # Data management
-    'data_quality_log', 'data_patrol_log', 'data_loader_status', 'data_provenance_log',
-    'circuit_breaker_status',
+    "data_quality_log",
+    "data_patrol_log",
+    "data_loader_status",
+    "data_provenance_log",
+    "circuit_breaker_status",
     # Distribution data (for dashboards)
-    'grade_distribution_daily',
+    "grade_distribution_daily",
     # Russell/S&P constituents
-    'russell2000_constituents', 'sp500_constituents',
+    "russell2000_constituents",
+    "sp500_constituents",
 }
 
 # Known safe columns (whitelist for dynamic column names)
 # Security: M-001 SQL injection prevention — column names validated against whitelist
 SAFE_COLUMNS = {
     # Time columns
-    'date', 'created_at', 'updated_at', 'executed_at', 'timestamp',
-    'signal_date', 'trade_date', 'exit_date', 'earnings_date', 'quarter',
-    'date_recorded', 'transaction_date', 'action_date', 'score_date',
+    "date",
+    "created_at",
+    "updated_at",
+    "executed_at",
+    "timestamp",
+    "signal_date",
+    "trade_date",
+    "exit_date",
+    "earnings_date",
+    "quarter",
+    "date_recorded",
+    "transaction_date",
+    "action_date",
+    "score_date",
     # Common columns
-    'symbol', 'count', 'max_date', 'status', 'active',
-    'correlation_id',
+    "symbol",
+    "count",
+    "max_date",
+    "status",
+    "active",
+    "correlation_id",
     # OHLCV data
-    'open', 'high', 'low', 'close', 'volume', 'adj_close',
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "adj_close",
     # Trading data
-    'trade_id', 'position_id', 'signal_id', 'order_id',
-    'entry_price', 'exit_price', 'quantity', 'value',
-    'unrealized_pnl', 'profit_loss', 'profit_loss_pct', 'return_pct',
-    'current_price', 'current_stop_price', 'target_levels_hit',
+    "trade_id",
+    "position_id",
+    "signal_id",
+    "order_id",
+    "entry_price",
+    "exit_price",
+    "quantity",
+    "value",
+    "unrealized_pnl",
+    "profit_loss",
+    "profit_loss_pct",
+    "return_pct",
+    "current_price",
+    "current_stop_price",
+    "target_levels_hit",
     # Application/audit
-    'application_name', 'correlation_id', 'execution_started', 'execution_completed',
-    'last_updated',
+    "application_name",
+    "correlation_id",
+    "execution_started",
+    "execution_completed",
+    "last_updated",
     # Watermark/incremental
-    'watermark', 'high_water_mark', 'checkpoint',
+    "watermark",
+    "high_water_mark",
+    "checkpoint",
     # Generic
-    'id', 'value', 'result',
+    "id",
+    "value",
+    "result",
 }
 
-def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 'table') -> str:
+def validate_identifier(
+    identifier: str, whitelist: set, identifier_type: str = "table"
+) -> str:
     """
     Validate a dynamic identifier (table or column name) against whitelist.
 
@@ -112,11 +223,14 @@ def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 
         raise ValueError(f"Empty {identifier_type} name")
 
     # Reject obvious SQL injection attempts
-    if any(char in identifier for char in [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT']):
+    if any(
+        char in identifier
+        for char in [";", "--", "/*", "*/", "DROP", "DELETE", "INSERT"]
+    ):
         raise ValueError(f"Suspicious characters in {identifier_type}: {identifier}")
 
     # Must be alphanumeric + underscore
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', identifier):
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", identifier):
         raise ValueError(f"Invalid {identifier_type} format: {identifier}")
 
     if identifier not in whitelist:
@@ -126,11 +240,11 @@ def validate_identifier(identifier: str, whitelist: set, identifier_type: str = 
 
 def assert_safe_table(table: str) -> str:
     """Assertion wrapper for table name validation."""
-    return validate_identifier(table, SAFE_TABLES, 'table')
+    return validate_identifier(table, SAFE_TABLES, "table")
 
 def assert_safe_column(column: str) -> str:
     """Assertion wrapper for column name validation."""
-    return validate_identifier(column, SAFE_COLUMNS, 'column')
+    return validate_identifier(column, SAFE_COLUMNS, "column")
 
 # For backwards compatibility - direct safe execution
 def safe_execute(cur, query_template: str, **kwargs) -> None:
@@ -147,19 +261,28 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
         if isinstance(value, str):
             # Try to validate as table name first, then column
             try:
-                safe_kwargs[key] = validate_identifier(value, SAFE_TABLES, 'table')
+                safe_kwargs[key] = validate_identifier(value, SAFE_TABLES, "table")
             except ValueError:
                 try:
-                    safe_kwargs[key] = validate_identifier(value, SAFE_COLUMNS, 'column')
+                    safe_kwargs[key] = validate_identifier(
+                        value, SAFE_COLUMNS, "column"
+                    )
                 except ValueError:
-                    raise ValueError(f"Invalid identifier '{value}' for parameter '{key}'")
+                    raise ValueError(
+                        f"Invalid identifier '{value}' for parameter '{key}'"
+                    )
         else:
             safe_kwargs[key] = value
 
     query = query_template.format(**safe_kwargs)
     cur.execute(query)
 
-def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_clause: Optional[str] = None) -> Tuple[int, Optional[str]]:
+def safe_select_count(
+    cur,
+    table: str,
+    date_column: Optional[str] = None,
+    where_clause: Optional[str] = None,
+) -> Tuple[int, Optional[str]]:
     """
     Count rows in table and get max date if date_column specified.
 
@@ -188,28 +311,57 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
         # DML/control keywords use word-boundary matching so column names like
         # "created_at" (contains CREATE) or "updated_at" (UPDATE) are not falsely rejected.
         word_keywords = [
-            'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION', 'TRUNCATE',
-            'EXECUTE', 'ALTER', 'CAST', 'WITH', 'CASE', 'EXISTS', 'HAVING',
+            "DROP",
+            "DELETE",
+            "INSERT",
+            "UPDATE",
+            "UNION",
+            "TRUNCATE",
+            "EXECUTE",
+            "ALTER",
+            "CAST",
+            "WITH",
+            "CASE",
+            "EXISTS",
+            "HAVING",
         ]
         for kw in word_keywords:
-            if re.search(r'\b' + kw + r'\b', where_upper):
-                raise ValueError(f"SQL keyword detected in where_clause (M-05): {where_clause}")
+            if re.search(r"\b" + kw + r"\b", where_upper):
+                raise ValueError(
+                    f"SQL keyword detected in where_clause (M-05): {where_clause}"
+                )
         # Pattern-based checks (prefixes, multi-word, special syntax)
         dangerous_patterns = [
-            ';', '/*', '*/', 'pg_', 'SELECT INTO', '$$',
-            'CROSS JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
-            'COPY ', 'CREATE ',  # trailing space distinguishes from column prefixes
+            ";",
+            "/*",
+            "*/",
+            "pg_",
+            "SELECT INTO",
+            "$$",
+            "CROSS JOIN",
+            "INNER JOIN",
+            "LEFT JOIN",
+            "RIGHT JOIN",
+            "FULL JOIN",
+            "COPY ",
+            "CREATE ",  # trailing space distinguishes from column prefixes
         ]
         if any(p in where_upper for p in dangerous_patterns):
-            raise ValueError(f"SQL pattern detected in where_clause (M-05): {where_clause}")
+            raise ValueError(
+                f"SQL pattern detected in where_clause (M-05): {where_clause}"
+            )
         # SQL comment markers
-        if '--' in where_clause:
-            raise ValueError(f"SQL comment detected in where_clause (M-05): {where_clause}")
+        if "--" in where_clause:
+            raise ValueError(
+                f"SQL comment detected in where_clause (M-05): {where_clause}"
+            )
 
         # Character allowlist: comparison operators, INTERVAL literals (single quotes),
         # IN lists (parentheses, commas), date arithmetic (hyphens), standard identifiers
         if not re.match(r"^[a-zA-Z0-9_\s=<>!'(),.\-\+\%]+$", where_clause):
-            raise ValueError(f"where_clause contains disallowed characters (M-05): {where_clause}")
+            raise ValueError(
+                f"where_clause contains disallowed characters (M-05): {where_clause}"
+            )
 
         where_sql = f" WHERE {where_clause}"
     else:
@@ -217,7 +369,9 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
 
     if date_column:
         col_safe = assert_safe_column(date_column)
-        cur.execute(f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}{where_sql}")
+        cur.execute(
+            f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}{where_sql}"
+        )
         count, max_date = cur.fetchone()
         return int(count or 0), max_date
     else:

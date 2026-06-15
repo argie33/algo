@@ -18,7 +18,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Check what columns exist in sector_ranking
         cur.execute("""
             SELECT column_name FROM information_schema.columns
@@ -26,8 +26,8 @@ def up():
             ORDER BY column_name
         """)
         columns = [row[0] for row in cur.fetchall()]
-        has_date = 'date' in columns
-        has_date_recorded = 'date_recorded' in columns
+        has_date = "date" in columns
+        has_date_recorded = "date_recorded" in columns
 
         if not has_date:
             # Add date column if it doesn't exist
@@ -69,7 +69,7 @@ def up():
             """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Check if date_recorded column exists in down migration
         cur.execute("""
             SELECT EXISTS (
@@ -106,4 +106,3 @@ def down():
                 ALTER TABLE sector_ranking
                 DROP COLUMN date
             """)
-

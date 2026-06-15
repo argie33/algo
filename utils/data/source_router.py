@@ -26,12 +26,11 @@ Usage:
 """
 
 import logging
-import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date
 from utils.infrastructure import EASTERN_TZ
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -42,6 +41,7 @@ import threading
 
 class _RateLimiter:
     """Rate limiter for yfinance API requests."""
+
     def __init__(self, calls_per_minute):
         self._min_interval = 60.0 / calls_per_minute
         self._lock = threading.Lock()
@@ -49,6 +49,7 @@ class _RateLimiter:
 
     def wait(self):
         import time
+
         with self._lock:
             now = time.monotonic()
             elapsed = now - self._last_call
@@ -62,30 +63,40 @@ _MODULE_YFINANCE_LIMITER = None  # Will be set below
 
 try:
     from algo.infrastructure import retry, YFINANCE_LIMITER
+
     _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
 except ImportError:
     # Fallback implementations if algo module not available
-    def retry(max_attempts=3, base_delay=1.0, max_delay=60.0, backoff=2.0, jitter=True, exceptions=(Exception,)):
+    def retry(
+        max_attempts=3,
+        base_delay=1.0,
+        max_delay=60.0,
+        backoff=2.0,
+        jitter=True,
+        exceptions=(Exception,),
+    ):
         """Simple retry decorator."""
+
         def decorator(fn):
             @functools.wraps(fn)
             def wrapper(*args, **kwargs):
                 delay = base_delay
-                last_exc = None
                 for attempt in range(1, max_attempts + 1):
                     try:
                         return fn(*args, **kwargs)
                     except exceptions as e:
-                        last_exc = e
                         if attempt == max_attempts:
                             raise
                         import time, random
+
                         sleep = min(delay, max_delay)
                         if jitter:
                             sleep *= 0.75 + random.random() * 0.5
                         time.sleep(sleep)
                         delay *= backoff
+
             return wrapper
+
         return decorator
 
     # Create a shared global instance for all loaders when algo module not available
@@ -130,23 +141,26 @@ def get_global_yfinance_limiter():
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
-    last_error = None
     for attempt in range(retries):
         try:
             with ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(fn)
                 return future.result(timeout=timeout_sec)
         except FuturesTimeoutError as e:
-            last_error = e
             if attempt < retries - 1:
-                logger.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
-                time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                logger.warning(
+                    f"Timeout (attempt {attempt + 1}/{retries}), retrying..."
+                )
+                time.sleep(2**attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
-    raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
+    raise TimeoutError(
+        f"Function call exceeded {timeout_sec}s timeout after {retries} retries"
+    )
 
 @dataclass
 class SourceHealth:
     """Rolling health stats for a data source."""
+
     name: str
     recent_results: Deque[bool] = field(default_factory=lambda: deque(maxlen=20))
     paused_until: float = 0.0
@@ -175,7 +189,9 @@ class SourceHealth:
                 self.paused_until = time.monotonic() + 300  # 5 min cool-off
                 logger.warning(
                     "Pausing source '%s' for 5 min (success_rate=%.0f%%, last_error=%s)",
-                    self.name, self.success_rate * 100, error,
+                    self.name,
+                    self.success_rate * 100,
+                    error,
                 )
 
 class DataSourceRouter:
@@ -223,12 +239,20 @@ class DataSourceRouter:
                 last_exc = e
                 if i < len(sources) - 1:
                     next_source = sources[i + 1][0]
-                    logger.warning("[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.", name, request_desc, e, next_source)
+                    logger.warning(
+                        "[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.",
+                        name,
+                        request_desc,
+                        e,
+                        next_source,
+                    )
                 else:
                     logger.debug("Source '%s' failed for %s: %s", name, request_desc, e)
                 continue
         if last_exc:
-            logger.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
+            logger.warning(
+                "All sources failed for %s. Last error: %s", request_desc, last_exc
+            )
         return None
 
     # ============== OHLCV ==============
@@ -254,7 +278,12 @@ class DataSourceRouter:
     ) -> Optional[Any]:
         """OHLCV bars at a specified yfinance interval (1d/1wk/1mo)."""
         sources = [
-            ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end, interval=interval)),
+            (
+                "yfinance",
+                lambda: self._fetch_yfinance_ohlcv(
+                    symbol, start, end, interval=interval
+                ),
+            ),
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end} {interval}]")
 
@@ -267,20 +296,31 @@ class DataSourceRouter:
     ) -> Dict[str, Optional[List[dict]]]:
         """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
         sources = [
-            ("yfinance", lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval)),
+            (
+                "yfinance",
+                lambda: self._fetch_yfinance_ohlcv_batch(
+                    symbols, start, end, interval=interval
+                ),
+            ),
         ]
-        results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
+        results = self._try_chain(
+            sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
+        )
         return results if results else {sym: None for sym in symbols}
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
+    def _fetch_yfinance_ohlcv(
+        self, symbol: str, start: date, end: date, interval: str = "1d"
+    ):
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
-        logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
-        yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+        logger.debug(
+            f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}"
+        )
+        yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
-            from utils.external import YFinanceWrapper
+            pass
 
             def do_download():
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -293,7 +333,10 @@ class DataSourceRouter:
                     auto_adjust=False,
                     progress=False,
                 )
-            logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
+
+            logger.debug(
+                f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)"
+            )
             hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
@@ -303,22 +346,28 @@ class DataSourceRouter:
 
             # Fix: yfinance returns MultiIndex DataFrame when symbol provided as string
             # Flatten column names from (Price, Ticker) to just Price
-            if hasattr(hist.columns, 'levels'):
+            if hasattr(hist.columns, "levels"):
                 # MultiIndex columns: get level 0 (the price type)
                 hist.columns = hist.columns.get_level_values(0)
 
             rows = []
             for idx, row in hist.iterrows():
                 try:
-                    rows.append({
-                        "symbol": symbol,
-                        "date": idx.date().isoformat() if hasattr(idx, 'date') else str(idx)[:10],
-                        "open": float(row["Open"]),
-                        "high": float(row["High"]),
-                        "low": float(row["Low"]),
-                        "close": float(row["Close"]),
-                        "volume": int(row["Volume"]),
-                    })
+                    rows.append(
+                        {
+                            "symbol": symbol,
+                            "date": (
+                                idx.date().isoformat()
+                                if hasattr(idx, "date")
+                                else str(idx)[:10]
+                            ),
+                            "open": float(row["Open"]),
+                            "high": float(row["High"]),
+                            "low": float(row["Low"]),
+                            "close": float(row["Close"]),
+                            "volume": int(row["Volume"]),
+                        }
+                    )
                 except (KeyError, TypeError, ValueError) as e:
                     logger.debug(f"[yfinance] Skipped invalid row {idx}: {e}")
                     continue
@@ -332,14 +381,29 @@ class DataSourceRouter:
             logger.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
             raise Exception(f"yfinance timeout: {e}")
         except Exception as e:
-            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
-                logger.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
+            if any(
+                keyword in str(e).lower()
+                for keyword in [
+                    "429",
+                    "rate",
+                    "too many",
+                    "temporarily",
+                    "timeout",
+                    "json",
+                    "parse",
+                ]
+            ):
+                logger.warning(
+                    f"yfinance rate limited or parse error for {symbol}: {e}"
+                )
                 raise Exception(f"yfinance rate limited: {e}")
             logger.error(f"yfinance error for {symbol}: {e}")
             raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv_batch(self, symbols: List[str], start: date, end: date, interval: str = "1d"):
+    def _fetch_yfinance_ohlcv_batch(
+        self, symbols: List[str], start: date, end: date, interval: str = "1d"
+    ):
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
@@ -348,13 +412,15 @@ class DataSourceRouter:
         if not symbols:
             return {}
 
-        logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
+        logger.debug(
+            f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}"
+        )
 
         # Convert symbols to yfinance format
-        yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
+        yf_symbols = [sym.replace(".", "-") if "." in sym else sym for sym in symbols]
 
         try:
-            from utils.external import YFinanceWrapper
+            pass
 
             def do_download():
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -368,22 +434,33 @@ class DataSourceRouter:
                     progress=False,
                 )
 
-            logger.info(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout (BLOCK-006 DEBUG)")
+            logger.info(
+                f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout (BLOCK-006 DEBUG)"
+            )
             try:
                 hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
-                logger.info(f"[yfinance] Batch download completed successfully in timeout")
+                logger.info(
+                    "[yfinance] Batch download completed successfully in timeout"
+                )
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
                 raise
             except Exception as e:
-                logger.critical(f"[yfinance] BATCH FETCH FAILED: {type(e).__name__}: {e}", exc_info=True)
+                logger.critical(
+                    f"[yfinance] BATCH FETCH FAILED: {type(e).__name__}: {e}",
+                    exc_info=True,
+                )
                 raise
 
             if hist is None or hist.empty:
-                logger.debug(f"[yfinance] No data returned for batch of {len(symbols)} symbols")
+                logger.debug(
+                    f"[yfinance] No data returned for batch of {len(symbols)} symbols"
+                )
                 return {sym: None for sym in symbols}
 
-            logger.debug(f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols")
+            logger.debug(
+                f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols"
+            )
 
             # Parse the batch result into per-symbol rows
             results = {sym: [] for sym in symbols}
@@ -401,20 +478,37 @@ class DataSourceRouter:
                         volume_val = row.get(("Volume", yf_symbol))
 
                         # Skip if any required value is missing or is NaN
-                        if any(v is None or (isinstance(v, float) and v != v) for v in [open_val, high_val, low_val, close_val, volume_val]):
+                        if any(
+                            v is None or (isinstance(v, float) and v != v)
+                            for v in [
+                                open_val,
+                                high_val,
+                                low_val,
+                                close_val,
+                                volume_val,
+                            ]
+                        ):
                             continue
 
-                        results[symbol].append({
-                            "symbol": symbol,
-                            "date": idx.date().isoformat() if hasattr(idx, 'date') else str(idx)[:10],
-                            "open": float(open_val),
-                            "high": float(high_val),
-                            "low": float(low_val),
-                            "close": float(close_val),
-                            "volume": int(volume_val),
-                        })
+                        results[symbol].append(
+                            {
+                                "symbol": symbol,
+                                "date": (
+                                    idx.date().isoformat()
+                                    if hasattr(idx, "date")
+                                    else str(idx)[:10]
+                                ),
+                                "open": float(open_val),
+                                "high": float(high_val),
+                                "low": float(low_val),
+                                "close": float(close_val),
+                                "volume": int(volume_val),
+                            }
+                        )
                     except (KeyError, TypeError, ValueError) as e:
-                        logger.debug(f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}")
+                        logger.debug(
+                            f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}"
+                        )
                         continue
 
             # Filter out symbols with no valid rows and return only those with data
@@ -424,7 +518,18 @@ class DataSourceRouter:
             logger.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
             raise Exception(f"yfinance batch timeout: {e}")
         except Exception as e:
-            if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
+            if any(
+                keyword in str(e).lower()
+                for keyword in [
+                    "429",
+                    "rate",
+                    "too many",
+                    "temporarily",
+                    "timeout",
+                    "json",
+                    "parse",
+                ]
+            ):
                 logger.warning(f"yfinance batch rate limited or parse error: {e}")
                 raise Exception(f"yfinance batch rate limited: {e}")
             logger.error(f"yfinance batch error: {e}")
@@ -457,6 +562,7 @@ class DataSourceRouter:
     def _sec_client(self):
         if self._sec is None:
             from utils.external import SecEdgarClient
+
             self._sec = SecEdgarClient()
         return self._sec
 
@@ -478,7 +584,11 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
+                return (
+                    ticker.balance_sheet
+                    if period == "annual"
+                    else ticker.quarterly_balance_sheet
+                )
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -497,7 +607,11 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
+                return (
+                    ticker.income_stmt
+                    if period == "annual"
+                    else ticker.quarterly_income_stmt
+                )
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -516,7 +630,9 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
+                return (
+                    ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
+                )
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -548,24 +664,23 @@ class DataSourceRouter:
                 df = None
                 try:
                     cal = ticker.calendar
-                    if cal is not None and not (hasattr(cal, 'empty') and cal.empty):
+                    if cal is not None and not (hasattr(cal, "empty") and cal.empty):
                         if isinstance(cal, dict):
                             # Newer yfinance returns dict
                             return cal
                         df = cal
                 except Exception as e:
                     logger.debug(f"Exception (expected): {e}")
-                    pass
                 try:
                     df = ticker.earnings_dates
                 except Exception as e:
                     logger.debug(f"Exception (expected): {e}")
-                    pass
                 return df
+
             result = _call_with_timeout(fetch, timeout_sec=30)
             if result is None:
                 return None
-            if hasattr(result, 'empty') and result.empty:
+            if hasattr(result, "empty") and result.empty:
                 return None
             if isinstance(result, dict):
                 return result
@@ -575,7 +690,9 @@ class DataSourceRouter:
             return None
 
     def _sec_eps(self, symbol: str):
-        return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
+        return self._sec_client().get_quarterly_concept(
+            symbol, "EarningsPerShareDiluted"
+        )
 
     def fetch_eps_revisions(self, symbol: str):
         """Fetch estimate revisions (up/down counts). yfinance only (no fallback)."""
@@ -594,6 +711,7 @@ class DataSourceRouter:
                 if not ticker:
                     return None
                 return ticker.eps_revisions
+
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
                 return None
@@ -619,6 +737,7 @@ class DataSourceRouter:
                 if not ticker:
                     return None
                 return ticker.eps_trend
+
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
                 return None
@@ -629,7 +748,9 @@ class DataSourceRouter:
 
     # ============== MARKET CLOSE DATA CHECK ==============
 
-    def check_market_close_data_available_fast(self, symbol: str = 'SPY', timeout_sec: int = 15) -> bool:
+    def check_market_close_data_available_fast(
+        self, symbol: str = "SPY", timeout_sec: int = 15
+    ) -> bool:
         """Quick check if market close data is available from yfinance (short timeout).
 
         Used by EOD pipeline to verify yfinance has ingested today's close data.
@@ -647,7 +768,6 @@ class DataSourceRouter:
             True if data available, False if timeout/error
         """
         from datetime import datetime, timedelta
-        from zoneinfo import ZoneInfo
 
         try:
             today = datetime.now(EASTERN_TZ).date()
@@ -656,14 +776,14 @@ class DataSourceRouter:
                 logger.error("[yfinance-fast-check] yfinance not installed")
                 return False
 
-            yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+            yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
 
             def do_download():
                 return yf.download(
                     yf_symbol,
                     start=today,
                     end=today + timedelta(days=1),
-                    interval='1d',
+                    interval="1d",
                     auto_adjust=False,
                     progress=False,
                 )
@@ -677,18 +797,24 @@ class DataSourceRouter:
                 return False
 
             latest_row = hist.iloc[-1] if not hist.empty else None
-            if latest_row is not None and 'Close' in latest_row:
+            if latest_row is not None and "Close" in latest_row:
                 logger.info(f"[yfinance-fast-check] ✓ {symbol} close data available")
                 return True
 
-            logger.debug(f"[yfinance-fast-check] Data for {symbol} missing close column")
+            logger.debug(
+                f"[yfinance-fast-check] Data for {symbol} missing close column"
+            )
             return False
 
         except TimeoutError:
-            logger.debug(f"[yfinance-fast-check] Timeout after {timeout_sec}s (data not yet available)")
+            logger.debug(
+                f"[yfinance-fast-check] Timeout after {timeout_sec}s (data not yet available)"
+            )
             return False
         except Exception as e:
-            logger.debug(f"[yfinance-fast-check] Error checking {symbol}: {type(e).__name__}: {str(e)[:100]}")
+            logger.debug(
+                f"[yfinance-fast-check] Error checking {symbol}: {type(e).__name__}: {str(e)[:100]}"
+            )
             return False
 
     # ============== HEALTH REPORT ==============

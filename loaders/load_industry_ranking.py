@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Industry Ranking Loader - Rank industries by composite stock scores."""
+
 import sys
 import logging
 from datetime import date
@@ -11,10 +12,12 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+
 setup_imports()
 
 class IndustryRankingLoader(OptimalLoader):
     """Rank industries by composite score from stock_scores + company_profile."""
+
     table_name = "industry_ranking"
     primary_key = ("industry", "date_recorded")
     watermark_field = "date_recorded"
@@ -22,10 +25,10 @@ class IndustryRankingLoader(OptimalLoader):
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Compute industry rankings from stock scores and company profile data."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                latest_date = row['date'] if row else None
+                latest_date = row["date"] if row else None
 
                 if not latest_date:
                     logger.warning("No price data found — skipping industry ranking")
@@ -87,18 +90,24 @@ class IndustryRankingLoader(OptimalLoader):
 
                 rows = cur.fetchall()
                 if not rows:
-                    logger.warning("No industry ranking data computed — check company_profile and stock_scores tables")
+                    logger.warning(
+                        "No industry ranking data computed — check company_profile and stock_scores tables"
+                    )
                     return None
 
                 return [
                     {
-                        'industry':       r['industry'],
-                        'date_recorded':  latest_date,
-                        'current_rank':   r['current_rank'],
-                        'momentum_score': float(r['momentum_score']) if r['momentum_score'] is not None else None,
-                        'rank_1w_ago':    r['rank_1w_ago'],
-                        'rank_4w_ago':    r['rank_4w_ago'],
-                        'rank_12w_ago':   r['rank_12w_ago'],
+                        "industry": r["industry"],
+                        "date_recorded": latest_date,
+                        "current_rank": r["current_rank"],
+                        "momentum_score": (
+                            float(r["momentum_score"])
+                            if r["momentum_score"] is not None
+                            else None
+                        ),
+                        "rank_1w_ago": r["rank_1w_ago"],
+                        "rank_4w_ago": r["rank_4w_ago"],
+                        "rank_12w_ago": r["rank_12w_ago"],
                     }
                     for r in rows
                 ]
@@ -115,7 +124,7 @@ def main():
         logger.info(f"SUCCESS: {result} industries ranked")
         return 0
     else:
-        logger.warning(f"COMPLETED: No rankings computed")
+        logger.warning("COMPLETED: No rankings computed")
         return 0
 
 if __name__ == "__main__":

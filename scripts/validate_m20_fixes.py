@@ -14,11 +14,10 @@ Test scenarios:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
-from datetime import datetime, date
-from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
@@ -29,23 +28,23 @@ class TestData:
 
     # (symbol, price, volume, score) tuples
     EDGE_CASES = [
-        ("ZERO_PRICE", 0, 1000000, 45.5),           # Price is 0 (legitimate edge case)
-        ("ZERO_SCORE", 100.0, 1000000, 0),          # Score is 0
-        ("ZERO_BOTH", 0, 0, 0),                     # Both zero
-        ("NORMAL", 125.50, 5000000, 75.2),          # Normal case
-        ("HALF_ZERO", None, 2000000, 50.0),         # Price is None (should be handled)
+        ("ZERO_PRICE", 0, 1000000, 45.5),  # Price is 0 (legitimate edge case)
+        ("ZERO_SCORE", 100.0, 1000000, 0),  # Score is 0
+        ("ZERO_BOTH", 0, 0, 0),  # Both zero
+        ("NORMAL", 125.50, 5000000, 75.2),  # Normal case
+        ("HALF_ZERO", None, 2000000, 50.0),  # Price is None (should be handled)
     ]
 
     REGIME_DATA = [
-        ("SPY", "uptrend", 0.85, "2026-06-13"),     # Market exposure = 0.85
-        ("SPY", "downtrend", 0, "2026-06-13"),      # Exposure = 0 (should be valid)
-        ("SPY", None, None, "2026-06-13"),          # No regime data (should be handled)
+        ("SPY", "uptrend", 0.85, "2026-06-13"),  # Market exposure = 0.85
+        ("SPY", "downtrend", 0, "2026-06-13"),  # Exposure = 0 (should be valid)
+        ("SPY", None, None, "2026-06-13"),  # No regime data (should be handled)
     ]
 
     MA_CROSSOVER = [
-        (100.0, 101.0, 102.0),                      # Price below SMAs
-        (0, 50.0, 51.0),                            # Price=0 (edge case, legitimate in ETF portfolios)
-        (100.0, None, 99.0),                        # Missing fast MA (should be handled)
+        (100.0, 101.0, 102.0),  # Price below SMAs
+        (0, 50.0, 51.0),  # Price=0 (edge case, legitimate in ETF portfolios)
+        (100.0, None, 99.0),  # Missing fast MA (should be handled)
     ]
 
 def test_price_zero_not_none():
@@ -97,7 +96,6 @@ def test_price_zero_not_none():
 
     return passed == len(test_cases)
 
-
 def test_score_zero_not_none():
     """Test 2: Score=0 should NOT be treated as None."""
     logger.info("\n[TEST 2] Score=0 handling (implicit False → explicit is not None)")
@@ -137,7 +135,6 @@ def test_score_zero_not_none():
 
     return passed == len(test_cases)
 
-
 def test_regime_exposure_zero():
     """Test 3: Market exposure=0 should NOT be treated as None (halt signal logic)."""
     logger.info("\n[TEST 3] Market exposure=0 handling (regime/signal logic)")
@@ -171,7 +168,9 @@ def test_regime_exposure_zero():
                 logger.info(f"  ✓ {description}: correctly no data → no trade")
                 passed += 1
             else:
-                logger.error(f"  ✗ {description}: INCORRECTLY allows trading with no data")
+                logger.error(
+                    f"  ✗ {description}: INCORRECTLY allows trading with no data"
+                )
         else:
             if should_trade:
                 logger.info(f"  ✓ {description}: correctly allows trading")
@@ -180,7 +179,6 @@ def test_regime_exposure_zero():
                 logger.error(f"  ✗ {description}: INCORRECTLY prevents trading")
 
     return passed == len(test_cases)
-
 
 def test_ma_crossover_zero_price():
     """Test 4: MA crossover with price=0 (e.g., in portfolio distance calculations)."""
@@ -223,7 +221,6 @@ def test_ma_crossover_zero_price():
                 logger.error(f"  ✗ {description}: INCORRECTLY rejected valid data")
 
     return passed == len(test_cases)
-
 
 def test_distance_averaging_with_zero():
     """Test 5: Portfolio distance averaging with zero values."""
@@ -269,7 +266,6 @@ def test_distance_averaging_with_zero():
 
     return passed == len(distances)
 
-
 def main():
     """Run all M20 NULL handling validation tests."""
     logger.info("=" * 80)
@@ -303,7 +299,6 @@ def main():
     else:
         logger.error(f"\n✗ {total - passed} tests failed")
         return 1
-
 
 if __name__ == "__main__":
     exit(main())

@@ -16,8 +16,12 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-
-def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[str, str]] = None, check_row_count: bool = True) -> Tuple[bool, List[str]]:
+def validate_table_schema(
+    cur,
+    table_name: str,
+    required_columns: Optional[Dict[str, str]] = None,
+    check_row_count: bool = True,
+) -> Tuple[bool, List[str]]:
     """Validate that a table exists and has correct column structure with proper data types.
 
     CRITICAL: This is a PRE-FLIGHT validation that catches schema mismatches BEFORE attempting
@@ -45,7 +49,7 @@ def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[
         if not is_valid:
             for error in errors:
                 logger.error(error)
-            raise RuntimeError(f"Schema validation failed for price_daily")
+            raise RuntimeError("Schema validation failed for price_daily")
     """
     errors = []
 
@@ -54,12 +58,15 @@ def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[
 
     try:
         # Get actual column info from database
-        cur.execute("""
+        cur.execute(
+            """
             SELECT column_name, udt_name
             FROM information_schema.columns
             WHERE table_name = %s
             ORDER BY column_name
-        """, (table_name,))
+        """,
+            (table_name,),
+        )
 
         actual_columns = {row[0]: row[1] for row in cur.fetchall()}
 
@@ -80,12 +87,13 @@ def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[
                     errors.append(
                         f"Column '{col_name}' in '{table_name}' has wrong type: "
                         f"expected '{expected_type}' but got '{actual_type}'. "
-                        f"This will cause runtime failures when loading data."
+                        "This will cause runtime failures when loading data."
                     )
 
         # Optionally check table has data (useful for detecting schema-only issues)
         if check_row_count:
             from utils.db import assert_safe_table
+
             table_safe = assert_safe_table(table_name)
             cur.execute(
                 psycopg2.sql.SQL("SELECT COUNT(*) FROM {} LIMIT 1").format(
@@ -100,7 +108,6 @@ def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[
 
     except Exception as e:
         return False, [f"Schema validation for '{table_name}' failed: {e}"]
-
 
 def _types_compatible(actual: str, expected: str) -> bool:
     """Check if actual PostgreSQL type is compatible with expected type.
@@ -123,41 +130,40 @@ def _types_compatible(actual: str, expected: str) -> bool:
     # CRITICAL: This prevents TEXT from being accepted for numeric columns
     type_map = {
         # Integer types
-        'int2': 'integer',
-        'int4': 'integer',
-        'int8': 'integer',
-        'serial': 'integer',
-        'bigserial': 'integer',
+        "int2": "integer",
+        "int4": "integer",
+        "int8": "integer",
+        "serial": "integer",
+        "bigserial": "integer",
         # Numeric/decimal types
-        'numeric': 'numeric',
-        'decimal': 'numeric',
-        'float4': 'numeric',
-        'float8': 'numeric',
-        'real': 'numeric',
-        'double': 'numeric',
+        "numeric": "numeric",
+        "decimal": "numeric",
+        "float4": "numeric",
+        "float8": "numeric",
+        "real": "numeric",
+        "double": "numeric",
         # Text types
-        'text': 'text',
-        'varchar': 'text',
-        'char': 'text',
-        'character': 'text',
+        "text": "text",
+        "varchar": "text",
+        "char": "text",
+        "character": "text",
         # Date/time types
-        'date': 'date',
-        'timestamp': 'date',
-        'timestamptz': 'date',
-        'timestamp without time zone': 'date',
-        'timestamp with time zone': 'date',
-        'time': 'date',
-        'timetz': 'date',
+        "date": "date",
+        "timestamp": "date",
+        "timestamptz": "date",
+        "timestamp without time zone": "date",
+        "timestamp with time zone": "date",
+        "time": "date",
+        "timetz": "date",
         # Boolean
-        'boolean': 'boolean',
-        'bool': 'boolean',
+        "boolean": "boolean",
+        "bool": "boolean",
     }
 
     actual_type = type_map.get(actual.lower(), actual.lower())
     expected_type = type_map.get(expected.lower(), expected.lower())
 
     return actual_type == expected_type
-
 
 def validate_row_data_types(row: Dict, table_name: str = "") -> List[str]:
     """Validate that row data can be converted to expected types.
@@ -182,11 +188,9 @@ def validate_row_data_types(row: Dict, table_name: str = "") -> List[str]:
                 float(value)
             elif isinstance(value, str):
                 # Check if it looks numeric
-                if value and value[0] in '0123456789-.':
+                if value and value[0] in "0123456789-.":
                     float(value)
         except (ValueError, TypeError) as e:
-            errors.append(
-                f"Column {col_name}: cannot convert {value!r} ({e})"
-            )
+            errors.append(f"Column {col_name}: cannot convert {value!r} ({e})")
 
     return errors

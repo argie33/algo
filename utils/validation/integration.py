@@ -58,7 +58,6 @@ logger = logging.getLogger(__name__)
 
 _initialized = False
 
-
 def initialize_validators():
     """Initialize the global validator registry with all domain validators.
 
@@ -87,7 +86,6 @@ def initialize_validators():
         f"{list(registry._validators.keys())}"
     )
 
-
 def get_validators() -> ValidatorRegistry:
     """Get the global validator registry, initializing if needed.
 
@@ -98,7 +96,6 @@ def get_validators() -> ValidatorRegistry:
         initialize_validators()
 
     return get_global_registry()
-
 
 def validate_phase_results(phase_results: Any) -> Dict[str, Any]:
     """Validate orchestrator phase results using the framework.
@@ -117,14 +114,15 @@ def validate_phase_results(phase_results: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate("phase_results", phase_results, context="phase_results")
+    result = validators.validate(
+        "phase_results", phase_results, context="phase_results"
+    )
 
     return {
         "valid": result.is_valid,
         "phases": result.data,
         "errors": result.errors,
     }
-
 
 def validate_alpaca_order(order_data: Any) -> Dict[str, Any]:
     """Validate Alpaca order response using the framework.
@@ -148,7 +146,6 @@ def validate_alpaca_order(order_data: Any) -> Dict[str, Any]:
         "errors": result.errors,
     }
 
-
 def validate_alpaca_order_status(order_data: Any) -> Dict[str, Any]:
     """Validate Alpaca order status response using the framework.
 
@@ -163,14 +160,15 @@ def validate_alpaca_order_status(order_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate("alpaca_order_status", order_data, context="alpaca_order_status")
+    result = validators.validate(
+        "alpaca_order_status", order_data, context="alpaca_order_status"
+    )
 
     return {
         "valid": result.is_valid,
         "order": result.data,
         "errors": result.errors,
     }
-
 
 def validate_alpaca_account(account_data: Any) -> Dict[str, Any]:
     """Validate Alpaca account response using the framework.
@@ -186,14 +184,15 @@ def validate_alpaca_account(account_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate("alpaca_account", account_data, context="alpaca_account")
+    result = validators.validate(
+        "alpaca_account", account_data, context="alpaca_account"
+    )
 
     return {
         "valid": result.is_valid,
         "account": result.data,
         "errors": result.errors,
     }
-
 
 def validate_alpaca_position(position_data: Any) -> Dict[str, Any]:
     """Validate Alpaca position response using the framework.
@@ -209,14 +208,15 @@ def validate_alpaca_position(position_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate("alpaca_position", position_data, context="alpaca_position")
+    result = validators.validate(
+        "alpaca_position", position_data, context="alpaca_position"
+    )
 
     return {
         "valid": result.is_valid,
         "position": result.data,
         "errors": result.errors,
     }
-
 
 # Example demonstrating the unified framework
 if __name__ == "__main__":

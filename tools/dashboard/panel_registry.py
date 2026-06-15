@@ -34,23 +34,25 @@ from dataclasses import dataclass
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+    sys.path.insert(
+        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     from shared_contracts import EndpointRegistry
 except ImportError:
     EndpointRegistry = None
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class PanelDefinition:
     """Definition of a dashboard panel."""
+
     name: str
     endpoint_deps: List[str]  # Endpoint names this panel depends on
     render_fn: Optional[Callable] = None  # Function to call to render panel
     optional: bool = False  # If True, dashboard renders without this panel
     description: str = ""  # Human-readable description
-
 
 class PanelRegistry:
     """Central registry for dashboard panels.
@@ -70,7 +72,7 @@ class PanelRegistry:
         endpoint_deps: List[str],
         render_fn: Optional[Callable] = None,
         optional: bool = False,
-        description: str = ""
+        description: str = "",
     ) -> None:
         """Register a new panel with its dependencies.
 
@@ -98,7 +100,7 @@ class PanelRegistry:
             endpoint_deps=endpoint_deps,
             render_fn=render_fn,
             optional=optional,
-            description=description
+            description=description,
         )
         self._panels[name] = panel_def
         if render_fn:
@@ -162,7 +164,9 @@ class PanelRegistry:
 
         return len(missing) == 0, missing
 
-    def can_render_panel(self, name: str, data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def can_render_panel(
+        self, name: str, data: Dict[str, Any]
+    ) -> Tuple[bool, Optional[str]]:
         """Check if a panel can be rendered with the given data.
 
         Returns:
@@ -198,7 +202,18 @@ class PanelRegistry:
         """
         # Map view modes to panels (can be customized)
         view_panels = {
-            "normal": ["header", "exposure", "circuit", "health", "portfolio", "performance", "economic", "signals", "sectors", "positions"],
+            "normal": [
+                "header",
+                "exposure",
+                "circuit",
+                "health",
+                "portfolio",
+                "performance",
+                "economic",
+                "signals",
+                "sectors",
+                "positions",
+            ],
             "positions": ["header", "exposure", "positions"],
             "signals": ["header", "exposure", "signals"],
             "health": ["header", "exposure", "health"],
@@ -214,22 +229,19 @@ class PanelRegistry:
         """Get optional panels (dashboard can render without them)."""
         return [name for name, panel in self._panels.items() if panel.optional]
 
-
 # Global singleton instance
 _registry = PanelRegistry()
-
 
 def get_panel_registry() -> PanelRegistry:
     """Get the global panel registry instance."""
     return _registry
-
 
 def register_panel(
     name: str,
     endpoint_deps: List[str],
     render_fn: Optional[Callable] = None,
     optional: bool = False,
-    description: str = ""
+    description: str = "",
 ) -> Callable:
     """Decorator to register a panel function.
 
@@ -238,13 +250,14 @@ def register_panel(
         def panel_header_market(data, ...):
             ...
     """
+
     def decorator(fn: Callable) -> Callable:
         _registry.register_panel(
             name=name,
             endpoint_deps=endpoint_deps,
             render_fn=fn,
             optional=optional,
-            description=description
+            description=description,
         )
         return fn
 

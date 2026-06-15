@@ -36,7 +36,6 @@ from tests.test_helpers.config_fixtures import (
     sandbox_config,
 )
 
-
 # ============================================================================
 # Pytest Fixtures for Dependency Injection Testing
 # ============================================================================
@@ -49,7 +48,6 @@ def mock_config_base() -> Dict[str, Any]:
     """
     return BASE_CONFIG.copy()
 
-
 @pytest.fixture
 def mock_config_bull() -> Dict[str, Any]:
     """Configuration fixture for bull market conditions.
@@ -57,7 +55,6 @@ def mock_config_bull() -> Dict[str, Any]:
     Use when testing during uptrend (higher risk, higher confidence).
     """
     return bull_market_config()
-
 
 @pytest.fixture
 def mock_config_correction() -> Dict[str, Any]:
@@ -67,7 +64,6 @@ def mock_config_correction() -> Dict[str, Any]:
     """
     return correction_config()
 
-
 @pytest.fixture
 def mock_config_crisis() -> Dict[str, Any]:
     """Configuration fixture for crisis/bear market conditions.
@@ -75,7 +71,6 @@ def mock_config_crisis() -> Dict[str, Any]:
     Use when testing capital preservation and defensive behavior.
     """
     return crisis_config()
-
 
 @pytest.fixture
 def mock_config_minimal() -> Dict[str, Any]:
@@ -86,7 +81,6 @@ def mock_config_minimal() -> Dict[str, Any]:
     """
     return minimal_config()
 
-
 @pytest.fixture
 def mock_config_strict_risk() -> Dict[str, Any]:
     """Configuration with very tight risk limits.
@@ -94,7 +88,6 @@ def mock_config_strict_risk() -> Dict[str, Any]:
     Use for testing circuit breaker and risk control systems.
     """
     return strict_risk_config()
-
 
 @pytest.fixture
 def mock_config_relaxed_risk() -> Dict[str, Any]:
@@ -104,7 +97,6 @@ def mock_config_relaxed_risk() -> Dict[str, Any]:
     """
     return relaxed_risk_config()
 
-
 @pytest.fixture
 def mock_config_sandbox() -> Dict[str, Any]:
     """Sandbox configuration for integration tests.
@@ -112,7 +104,6 @@ def mock_config_sandbox() -> Dict[str, Any]:
     Pre-configured for paper trading and review mode (no actual orders).
     """
     return sandbox_config()
-
 
 @pytest.fixture
 def mock_config_custom(request) -> Dict[str, Any]:

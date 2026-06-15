@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Sentiment Aggregate Loader - Combines AAII + NAAIM sentiment into unified metric (Market-wide)."""
+
 import sys
 import logging
 from datetime import date
@@ -10,8 +11,8 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
-setup_imports()
 
+setup_imports()
 
 class SentimentAggregateLoader(OptimalLoader):
     """Aggregate AAII and NAAIM sentiment into unified metric."""
@@ -25,7 +26,7 @@ class SentimentAggregateLoader(OptimalLoader):
         from utils.db.context import DatabaseContext
 
         try:
-            with DatabaseContext('read') as cursor:
+            with DatabaseContext("read") as cursor:
                 # Get latest AAII bullish reading
                 cursor.execute("""
                     SELECT date, bullish
@@ -54,14 +55,18 @@ class SentimentAggregateLoader(OptimalLoader):
                 aggregate_sentiment = (aaii_bullish + naaim_bullish) / 2.0
                 record_date = max(aaii_date, naaim_date)
 
-                logger.info(f"Sentiment: AAII={aaii_bullish:.1f}% + NAAIM={naaim_bullish:.1f}% = {aggregate_sentiment:.1f}")
+                logger.info(
+                    f"Sentiment: AAII={aaii_bullish:.1f}% + NAAIM={naaim_bullish:.1f}% = {aggregate_sentiment:.1f}"
+                )
 
-                return [{
-                    'date': record_date,
-                    'aggregate_sentiment': aggregate_sentiment,
-                    'aaii_bullish': aaii_bullish,
-                    'naaim_bullish': naaim_bullish,
-                }]
+                return [
+                    {
+                        "date": record_date,
+                        "aggregate_sentiment": aggregate_sentiment,
+                        "aaii_bullish": aaii_bullish,
+                        "naaim_bullish": naaim_bullish,
+                    }
+                ]
 
         except Exception as e:
             logger.error(f"Sentiment aggregation failed: {e}")
@@ -72,10 +77,10 @@ def main():
     result = loader.load_global()
 
     if result > 0:
-        logger.info(f"SUCCESS: Sentiment aggregate loaded")
+        logger.info("SUCCESS: Sentiment aggregate loaded")
         return 0
     else:
-        logger.warning(f"COMPLETED: No sentiment aggregated")
+        logger.warning("COMPLETED: No sentiment aggregated")
         return 0
 
 if __name__ == "__main__":

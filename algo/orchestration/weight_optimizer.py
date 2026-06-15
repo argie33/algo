@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-from __future__ import annotations  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
+from __future__ import (
+    annotations,
+)  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
 
 """
 Dynamic Weight Optimizer — Adapts swing score component weights based on realized IC.
@@ -10,7 +12,7 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List
 
 try:
     import numpy as np
@@ -31,13 +33,13 @@ class WeightOptimizer:
     """Dynamically optimize swing score component weights based on IC."""
 
     COMPONENT_KEYS = {
-        'setup_quality': 'swing_weight_setup',
-        'trend_quality': 'swing_weight_trend',
-        'momentum_rs': 'swing_weight_momentum',
-        'volume': 'swing_weight_volume',
-        'fundamentals': 'swing_weight_fundamentals',
-        'sector_industry': 'swing_weight_sector',
-        'multi_timeframe': 'swing_weight_multi_timeframe',
+        "setup_quality": "swing_weight_setup",
+        "trend_quality": "swing_weight_trend",
+        "momentum_rs": "swing_weight_momentum",
+        "volume": "swing_weight_volume",
+        "fundamentals": "swing_weight_fundamentals",
+        "sector_industry": "swing_weight_sector",
+        "multi_timeframe": "swing_weight_multi_timeframe",
     }
 
     COMPONENTS = list(COMPONENT_KEYS.keys())
@@ -48,15 +50,17 @@ class WeightOptimizer:
 
     # Regime-specific blending factors (how fast to adapt)
     BLEND_FACTORS = {
-        'confirmed_uptrend': 0.10,
-        'uptrend_under_pressure': 0.05,
-        'caution': 0.05,
-        'correction': 0.0,  # Freeze weights during crisis
+        "confirmed_uptrend": 0.10,
+        "uptrend_under_pressure": 0.05,
+        "caution": 0.05,
+        "correction": 0.0,  # Freeze weights during crisis
     }
 
     def __init__(self, config):
         if config is None:
-            raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
+            raise ValueError(
+                "WeightOptimizer requires explicit config parameter (dependency injection)"
+            )
         self.config = config
 
     def get_current_weights(self) -> Dict[str, int]:
@@ -67,7 +71,9 @@ class WeightOptimizer:
             weights[component] = int(val) if val else 0
         return weights
 
-    def optimize(self, report_date: _date, lookback_trades: int = 40) -> Optional[Dict[str, int]]:
+    def optimize(
+        self, report_date: _date, lookback_trades: int = 40
+    ) -> Optional[Dict[str, int]]:
         """
         Compute optimal weights from IC values.
 
@@ -90,14 +96,16 @@ class WeightOptimizer:
             ic_values = attribution.compute_ic(report_date, lookback_trades)
 
             # Extract and normalize ICs
-            sample_size = ic_values.get(self.COMPONENTS[0], {}).get('sample_size', 0)
+            sample_size = ic_values.get(self.COMPONENTS[0], {}).get("sample_size", 0)
             if sample_size < self.MIN_TRADES:
-                logger.warning(f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for optimization")
+                logger.warning(
+                    f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for optimization"
+                )
                 return None
 
             ic_list: List[float] = []
             for comp in self.COMPONENTS:
-                ic = ic_values.get(comp, {}).get('ic_value', 0)
+                ic = ic_values.get(comp, {}).get("ic_value", 0)
                 ic_list.append(float(ic))
 
             ic_array = np.array(ic_list)
@@ -140,7 +148,7 @@ class WeightOptimizer:
                 return -np.dot(w, ic_array)  # Negative because we minimize
 
             # Constraints
-            constraints = {'type': 'eq', 'fun': lambda w: np.sum(w) - 100}
+            constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 100}
 
             # Bounds
             bounds = [(self.MIN_WEIGHT, self.MAX_WEIGHT) for _ in range(n)]
@@ -148,7 +156,9 @@ class WeightOptimizer:
             # Initial guess (equal weights)
             x0 = np.full(n, 100 / n)
 
-            result = minimize(objective, x0, method='SLSQP', bounds=bounds, constraints=constraints)
+            result = minimize(
+                objective, x0, method="SLSQP", bounds=bounds, constraints=constraints
+            )
 
             if not result.success:
                 logger.warning(f"Weight optimization failed: {result.message}")
@@ -165,13 +175,20 @@ class WeightOptimizer:
             delta = 100 - weights_int.sum()
             if delta != 0:
                 not_at_bounds = [
-                    i for i in range(len(weights_int))
+                    i
+                    for i in range(len(weights_int))
                     if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
                 ]
-                idx = not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))] if not_at_bounds else int(np.argmax(weights_float))
+                idx = (
+                    not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))]
+                    if not_at_bounds
+                    else int(np.argmax(weights_float))
+                )
                 weights_int[idx] += delta
 
-            result_dict = {comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int)}
+            result_dict = {
+                comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int)
+            }
             return result_dict
 
         except Exception as e:
@@ -190,7 +207,7 @@ class WeightOptimizer:
     def apply(
         self,
         report_date: _date,
-        regime: str = 'confirmed_uptrend',
+        regime: str = "confirmed_uptrend",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -222,15 +239,17 @@ class WeightOptimizer:
             # Compute optimal
             optimal = self.optimize(report_date)
             if not optimal:
-                logger.warning(f"Optimization failed on {report_date}, keeping current weights")
+                logger.warning(
+                    f"Optimization failed on {report_date}, keeping current weights"
+                )
                 return {
-                    'old_weights': self.get_current_weights(),
-                    'new_weights': self.get_current_weights(),
-                    'optimal_weights': None,
-                    'ic_values': {},
-                    'changes': [],
-                    'blending_factor': 0,
-                    'reason': 'insufficient_data',
+                    "old_weights": self.get_current_weights(),
+                    "new_weights": self.get_current_weights(),
+                    "optimal_weights": None,
+                    "ic_values": {},
+                    "changes": [],
+                    "blending_factor": 0,
+                    "reason": "insufficient_data",
                 }
 
             # Get current weights
@@ -258,39 +277,45 @@ class WeightOptimizer:
             changes = []
             for comp in self.COMPONENTS:
                 if current[comp] != blended[comp]:
-                    changes.append({
-                        'component': comp,
-                        'old_weight': current[comp],
-                        'new_weight': blended[comp],
-                    })
+                    changes.append(
+                        {
+                            "component": comp,
+                            "old_weight": current[comp],
+                            "new_weight": blended[comp],
+                        }
+                    )
 
-            logger.info(f"Weight optimization {report_date}: {len(changes)} changes, alpha={blend_alpha:.2f}")
+            logger.info(
+                f"Weight optimization {report_date}: {len(changes)} changes, alpha={blend_alpha:.2f}"
+            )
 
             if not dry_run and changes:
                 # Persist to algo_config
                 for comp, new_w in blended.items():
                     key = self.COMPONENT_KEYS[comp]
-                    self.config.set(key, str(new_w), 'int', changed_by='weight_optimizer')
+                    self.config.set(
+                        key, str(new_w), "int", changed_by="weight_optimizer"
+                    )
 
                 # Log to algo_weight_history
                 self._log_changes(report_date, current, blended, regime, blend_alpha)
 
             return {
-                'old_weights': current,
-                'new_weights': blended,
-                'optimal_weights': optimal,
-                'changes': changes,
-                'blending_factor': blend_alpha,
-                'regime': regime,
-                'dry_run': dry_run,
+                "old_weights": current,
+                "new_weights": blended,
+                "optimal_weights": optimal,
+                "changes": changes,
+                "blending_factor": blend_alpha,
+                "regime": regime,
+                "dry_run": dry_run,
             }
 
         except Exception as e:
             logger.error(f"Weight application failed: {e}")
             return {
-                'old_weights': self.get_current_weights(),
-                'new_weights': self.get_current_weights(),
-                'error': str(e),
+                "old_weights": self.get_current_weights(),
+                "new_weights": self.get_current_weights(),
+                "error": str(e),
             }
 
     def _log_changes(
@@ -303,7 +328,7 @@ class WeightOptimizer:
     ) -> None:
         """Log weight changes to algo_weight_history."""
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 for comp in self.COMPONENTS:
                     old_w = old_weights[comp]
                     new_w = new_weights[comp]
@@ -320,7 +345,7 @@ class WeightOptimizer:
                                 comp,
                                 old_w,
                                 new_w,
-                                'ic_optimization',
+                                "ic_optimization",
                                 blend_alpha,
                                 regime,
                             ),
@@ -330,6 +355,7 @@ class WeightOptimizer:
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config
+
     opt = WeightOptimizer(config=get_config())
-    result = opt.apply(_date.today(), regime='confirmed_uptrend', dry_run=True)
+    result = opt.apply(_date.today(), regime="confirmed_uptrend", dry_run=True)
     logger.info(f"Optimization result: {result}")

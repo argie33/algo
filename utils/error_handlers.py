@@ -7,32 +7,20 @@ Provides helpers for error logging, sanitization, and context extraction.
 import logging
 import re
 from typing import Tuple, Dict, Any, Optional
-from datetime import datetime
 
 try:
     import psycopg2
     import psycopg2.errors
+
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
 
 from utils.exceptions import (
     BaseAPIException,
-    DatabaseConnectionError,
-    DatabaseQueryTimeout,
-    DatabaseSchemaError,
-    DatabaseConstraintViolation,
-    InputValidationError,
-    DataQualityError,
-    ExternalAPITimeout,
-    ExternalAPIError,
-    RateLimitedError,
-    ServiceUnavailableError,
-    UnexpectedError,
 )
 
 logger = logging.getLogger(__name__)
-
 
 def classify_exception(e: Exception) -> Tuple[int, str, str]:
     """Map any exception to (statusCode, errorType, message).
@@ -54,45 +42,44 @@ def classify_exception(e: Exception) -> Tuple[int, str, str]:
     # Database errors
     if HAS_PSYCOPG2:
         if isinstance(e, psycopg2.errors.UndefinedTable):
-            return (503, 'schema_error', 'Database schema issue')
+            return (503, "schema_error", "Database schema issue")
         elif isinstance(e, psycopg2.errors.UndefinedColumn):
-            return (503, 'schema_error', 'Database schema issue')
+            return (503, "schema_error", "Database schema issue")
         elif isinstance(e, psycopg2.errors.UniqueViolation):
-            return (409, 'constraint_violation', 'Data constraint violated')
+            return (409, "constraint_violation", "Data constraint violated")
         elif isinstance(e, psycopg2.errors.ForeignKeyViolation):
-            return (409, 'constraint_violation', 'Data constraint violated')
+            return (409, "constraint_violation", "Data constraint violated")
         elif isinstance(e, psycopg2.errors.QueryCanceled):
-            return (504, 'timeout', 'Database query exceeded timeout')
+            return (504, "timeout", "Database query exceeded timeout")
         elif isinstance(e, psycopg2.OperationalError):
-            return (503, 'connection_error', 'Database connection failed')
+            return (503, "connection_error", "Database connection failed")
         elif isinstance(e, psycopg2.DatabaseError):
-            return (503, 'query_error', 'Database query failed')
+            return (503, "query_error", "Database query failed")
 
     # Timeout errors
-    if 'timeout' in error_type_name.lower():
-        return (504, 'timeout', 'Operation timed out')
+    if "timeout" in error_type_name.lower():
+        return (504, "timeout", "Operation timed out")
 
     # Connection/network errors
-    if 'connection' in error_type_name.lower() or 'connection' in error_str.lower():
-        return (502, 'connection_error', 'Connection failed')
+    if "connection" in error_type_name.lower() or "connection" in error_str.lower():
+        return (502, "connection_error", "Connection failed")
 
     # Validation errors
-    if 'validation' in error_type_name.lower():
-        return (400, 'validation_error', 'Invalid input provided')
-    if 'valueerror' in error_type_name.lower():
-        return (400, 'bad_request', 'Invalid input provided')
+    if "validation" in error_type_name.lower():
+        return (400, "validation_error", "Invalid input provided")
+    if "valueerror" in error_type_name.lower():
+        return (400, "bad_request", "Invalid input provided")
 
     # Value/Type errors
-    if error_type_name in ('ValueError', 'TypeError', 'KeyError', 'AttributeError'):
-        return (400, 'bad_request', 'Invalid request')
+    if error_type_name in ("ValueError", "TypeError", "KeyError", "AttributeError"):
+        return (400, "bad_request", "Invalid request")
 
     # File/resource errors
-    if error_type_name in ('FileNotFoundError', 'IOError', 'OSError'):
-        return (500, 'resource_error', 'Resource access failed')
+    if error_type_name in ("FileNotFoundError", "IOError", "OSError"):
+        return (500, "resource_error", "Resource access failed")
 
     # Default to 500 internal error
-    return (500, 'internal_error', 'An error occurred')
-
+    return (500, "internal_error", "An error occurred")
 
 def log_error_with_context(
     e: Exception,
@@ -112,19 +99,18 @@ def log_error_with_context(
         logger_instance = logger
 
     status_code, error_type, message = classify_exception(e)
-    log_msg = f'[{error_type.upper()}] {operation}: {message}\n'
-    log_msg += f'  Exception: {type(e).__name__}: {str(e)[:500]}\n'
+    log_msg = f"[{error_type.upper()}] {operation}: {message}\n"
+    log_msg += f"  Exception: {type(e).__name__}: {str(e)[:500]}\n"
 
     if context_dict:
         for key, value in context_dict.items():
             value_str = str(value)[:200]
-            log_msg += f'  {key}: {value_str}\n'
+            log_msg += f"  {key}: {value_str}\n"
 
     if status_code >= 500:
         logger_instance.error(log_msg, exc_info=True)
     else:
         logger_instance.warning(log_msg)
-
 
 def sanitize_error_message(msg: str) -> str:
     """Remove sensitive info (credentials, SQL, internal details) from message.
@@ -138,20 +124,19 @@ def sanitize_error_message(msg: str) -> str:
         Sanitized message safe to return to client
     """
     # Remove connection strings
-    msg = re.sub(r'password=\S+', 'password=***', msg, flags=re.IGNORECASE)
-    msg = re.sub(r'api[_-]?key=\S+', 'api_key=***', msg, flags=re.IGNORECASE)
-    msg = re.sub(r'token=\S+', 'token=***', msg, flags=re.IGNORECASE)
+    msg = re.sub(r"password=\S+", "password=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"api[_-]?key=\S+", "api_key=***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r"token=\S+", "token=***", msg, flags=re.IGNORECASE)
 
     # Remove file paths
-    msg = re.sub(r'(/[a-zA-Z0-9_/.-]+)+', '/path/..', msg)
-    msg = re.sub(r'([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+', 'C:\\\\path\\\\...', msg)
+    msg = re.sub(r"(/[a-zA-Z0-9_/.-]+)+", "/path/..", msg)
+    msg = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "C:\\\\path\\\\...", msg)
 
     # Remove SQL if too long (indicates stack trace)
-    if 'SELECT' in msg or 'INSERT' in msg or 'UPDATE' in msg:
-        msg = 'Database operation failed'
+    if "SELECT" in msg or "INSERT" in msg or "UPDATE" in msg:
+        msg = "Database operation failed"
 
     return msg
-
 
 def extract_error_context(e: Exception) -> Dict[str, Any]:
     """Extract query, params, table_name, etc from exception for logging.
@@ -166,21 +151,20 @@ def extract_error_context(e: Exception) -> Dict[str, Any]:
 
     # Extract from psycopg2 exceptions
     if HAS_PSYCOPG2 and isinstance(e, psycopg2.extensions.Diagnostic):
-        context['context'] = str(e.context)
-        context['statement'] = str(e.statement)
+        context["context"] = str(e.context)
+        context["statement"] = str(e.statement)
 
     # Extract from exception string (heuristic)
     e_str = str(e)
-    if 'query' in e_str.lower():
-        context['query_mentioned'] = True
-    if 'table' in e_str.lower():
-        context['table_mentioned'] = True
+    if "query" in e_str.lower():
+        context["query_mentioned"] = True
+    if "table" in e_str.lower():
+        context["table_mentioned"] = True
 
     # Add exception type
-    context['exception_type'] = type(e).__name__
+    context["exception_type"] = type(e).__name__
 
     return context
-
 
 def retry_with_backoff(
     func,
@@ -235,10 +219,9 @@ def retry_with_backoff(
     if last_error:
         raise last_error
 
-
 def make_error_response(
     e: Exception,
-    operation: str = 'unknown operation',
+    operation: str = "unknown operation",
     context_dict: Optional[Dict[str, Any]] = None,
     logger_instance: Optional[logging.Logger] = None,
 ) -> Dict[str, Any]:
@@ -265,8 +248,8 @@ def make_error_response(
     safe_message = sanitize_error_message(message)
 
     return {
-        'statusCode': status_code,
-        'errorType': error_type,
-        'message': safe_message,
-        '_error': safe_message,
+        "statusCode": status_code,
+        "errorType": error_type,
+        "message": safe_message,
+        "_error": safe_message,
     }

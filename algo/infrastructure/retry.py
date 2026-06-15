@@ -23,12 +23,16 @@ import logging
 import random
 import time
 from typing import Callable, Tuple, Type
-from algo.infrastructure import get_api_timeout
 from algo.infrastructure.constants import (
-    RETRY_BASE_DELAY_SEC, RETRY_MAX_DELAY_SEC, RETRY_BACKOFF_MULTIPLIER,
-    RETRY_JITTER_MIN_FACTOR, RETRY_JITTER_MAX_FACTOR,
-    YFINANCE_RATE_LIMIT_CPM, ALPACA_DATA_RATE_LIMIT_CPM,
-    ALPHA_VANTAGE_RATE_LIMIT_CPM, DEFAULT_RATE_LIMIT_CPM,
+    RETRY_BASE_DELAY_SEC,
+    RETRY_MAX_DELAY_SEC,
+    RETRY_BACKOFF_MULTIPLIER,
+    RETRY_JITTER_MIN_FACTOR,
+    RETRY_JITTER_MAX_FACTOR,
+    YFINANCE_RATE_LIMIT_CPM,
+    ALPACA_DATA_RATE_LIMIT_CPM,
+    ALPHA_VANTAGE_RATE_LIMIT_CPM,
+    DEFAULT_RATE_LIMIT_CPM,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +56,7 @@ def retry(
         jitter:       Add ±25% random spread to avoid thundering-herd.
         exceptions:   Only retry on these exception types.
     """
+
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
@@ -63,19 +68,29 @@ def retry(
                     if attempt == max_attempts:
                         logger.error(
                             "retry.exhausted fn=%s attempts=%d error=%s",
-                            fn.__qualname__, max_attempts, exc,
+                            fn.__qualname__,
+                            max_attempts,
+                            exc,
                         )
                         raise
                     sleep = min(delay, max_delay)
                     if jitter:
-                        sleep *= RETRY_JITTER_MIN_FACTOR + random.random() * (RETRY_JITTER_MAX_FACTOR - RETRY_JITTER_MIN_FACTOR)
+                        sleep *= RETRY_JITTER_MIN_FACTOR + random.random() * (
+                            RETRY_JITTER_MAX_FACTOR - RETRY_JITTER_MIN_FACTOR
+                        )
                     logger.warning(
                         "retry.will_retry fn=%s attempt=%d/%d error=%s sleep=%.1fs",
-                        fn.__qualname__, attempt, max_attempts, exc, sleep,
+                        fn.__qualname__,
+                        attempt,
+                        max_attempts,
+                        exc,
+                        sleep,
                     )
                     time.sleep(sleep)
                     delay *= backoff
+
         return wrapper
+
     return decorator
 
 class RateLimiter:
@@ -93,6 +108,7 @@ class RateLimiter:
 
     def __init__(self, calls_per_minute: float):
         import threading
+
         self._min_interval = 60.0 / calls_per_minute
         self._lock = threading.Lock()
         self._last_call = 0.0

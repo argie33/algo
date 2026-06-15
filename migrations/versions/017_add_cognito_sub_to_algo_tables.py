@@ -8,10 +8,12 @@ to scope trade history and position data to authenticated users.
 
 from migrations.migration_helper import DatabaseContext
 
-DESCRIPTION = "Add cognito_sub column to algo_trades and algo_positions for user isolation"
+DESCRIPTION = (
+    "Add cognito_sub column to algo_trades and algo_positions for user isolation"
+)
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Add cognito_sub to algo_trades (nullable for backward compatibility)
         cur.execute("""
             ALTER TABLE algo_trades
@@ -37,7 +39,7 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop indexes first
         cur.execute("""
             DROP INDEX IF EXISTS idx_algo_positions_cognito_sub
@@ -57,4 +59,3 @@ def down():
             ALTER TABLE algo_positions
             DROP COLUMN IF EXISTS cognito_sub
         """)
-

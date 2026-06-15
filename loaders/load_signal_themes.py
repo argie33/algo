@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Signal Themes Loader - Identify thematic groups among high-scoring signals."""
+
 import sys
 import logging
 from datetime import date
@@ -11,8 +12,8 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
-setup_imports()
 
+setup_imports()
 
 class SignalThemesLoader(OptimalLoader):
     """Load signal themes from signal quality scores (market-wide aggregate)."""
@@ -24,18 +25,19 @@ class SignalThemesLoader(OptimalLoader):
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch and group signal themes from quality scores."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Get the latest price data date
                 cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                latest_date = row['date'] if row else None
+                latest_date = row["date"] if row else None
 
                 if not latest_date:
                     logger.warning("No price data found")
                     return None
 
                 # Fetch high-scoring signals grouped by theme
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         symbol,
                         %s::date as date,
@@ -52,7 +54,9 @@ class SignalThemesLoader(OptimalLoader):
                     AND composite_sqs > 50
                     ORDER BY composite_sqs DESC
                     LIMIT 500
-                """, (latest_date, latest_date))
+                """,
+                    (latest_date, latest_date),
+                )
 
                 rows = cur.fetchall()
                 if not rows:
@@ -60,11 +64,11 @@ class SignalThemesLoader(OptimalLoader):
 
                 return [
                     {
-                        'symbol': r[0],
-                        'date': r[1],
-                        'sector_theme': r[2],
-                        'thematic_group': r[3],
-                        'correlation_cluster': r[4],
+                        "symbol": r[0],
+                        "date": r[1],
+                        "sector_theme": r[2],
+                        "thematic_group": r[3],
+                        "correlation_cluster": r[4],
                     }
                     for r in rows
                 ]
@@ -80,7 +84,7 @@ def main():
         logger.info(f"SUCCESS: {result} signal themes loaded")
         return 0
     else:
-        logger.warning(f"COMPLETED: No themes loaded")
+        logger.warning("COMPLETED: No themes loaded")
         return 0
 
 if __name__ == "__main__":

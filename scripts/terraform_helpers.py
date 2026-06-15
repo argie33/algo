@@ -5,7 +5,6 @@ import subprocess
 import os
 from typing import Optional
 
-
 def get_terraform_output(output_name: str) -> Optional[str]:
     """Fetch a Terraform output value."""
     try:
@@ -20,7 +19,6 @@ def get_terraform_output(output_name: str) -> Optional[str]:
     except Exception as e:
         print(f"Warning: Could not get Terraform output '{output_name}': {e}")
     return None
-
 
 def get_infrastructure_names(environment: str = "dev") -> dict:
     """Get all infrastructure resource names, preferring Terraform outputs when available."""
@@ -60,11 +58,10 @@ def get_infrastructure_names(environment: str = "dev") -> dict:
 
     return names
 
-
 def get_loader_log_groups(names: dict) -> dict:
     """Get CloudWatch log group names for loaders."""
     base = names["cognito_pool_name"].split("-")[0]  # "algo"
-    env = names["environment"]
+    names["environment"]
 
     return {
         "stock_prices_daily": f"/ecs/{base}-stock_prices_daily-loader",
@@ -84,7 +81,6 @@ def get_loader_log_groups(names: dict) -> dict:
         "quality_metrics": f"/ecs/{base}-quality_metrics-loader",
         "value_metrics": f"/ecs/{base}-value_metrics-loader",
     }
-
 
 if __name__ == "__main__":
     names = get_infrastructure_names()

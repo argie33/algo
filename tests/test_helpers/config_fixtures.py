@@ -10,7 +10,6 @@ so tests can verify behavior across different trading regimes without mocking ge
 from typing import Dict, Any
 from copy import deepcopy
 
-
 # Base configuration with all required keys
 BASE_CONFIG: Dict[str, Any] = {
     # Risk Management
@@ -18,14 +17,12 @@ BASE_CONFIG: Dict[str, Any] = {
     "max_position_size_pct": 8.0,
     "max_positions": 12,
     "max_concentration_pct": 50.0,
-
     # Drawdown Defense
     "halt_drawdown_pct": 20.0,
     "risk_reduction_at_minus_5": 0.75,
     "risk_reduction_at_minus_10": 0.5,
     "risk_reduction_at_minus_15": 0.25,
     "risk_reduction_at_minus_20": 0.0,
-
     # Filter Thresholds
     "min_completeness_score": 70,
     "min_stock_price": 5.0,
@@ -39,7 +36,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "min_swing_score": 55.0,
     "min_swing_grade": "",
     "max_total_invested_pct": 95.0,
-
     # Market Conditions
     "max_distribution_days": 4,
     "require_stage_2_market": False,
@@ -48,7 +44,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "vix_alert_threshold": 30.0,
     "vix_caution_threshold": 25.0,
     "vix_caution_risk_reduction": 0.75,
-
     # Market Exposure Engine (H12)
     "market_exposure_veto1_breadth_pct": 30,
     "market_exposure_veto1_cap_pct": 25.0,
@@ -59,7 +54,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "market_exposure_veto4_cap_pct": 40.0,
     "market_exposure_veto5_credit_spread_threshold": 8.5,
     "market_exposure_veto5_cap_pct": 30.0,
-
     # Economic Regime Stress Scores
     "econ_stress_curve_inverted_severe": 35.0,
     "econ_stress_curve_inverted_moderate": 20.0,
@@ -74,7 +68,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "econ_stress_moderate_threshold": 40,
     "econ_stress_severe_threshold": 60,
     "econ_stress_severe_cap_pct": 40.0,
-
     "put_call_bullish_threshold": 0.8,
     "put_call_fearful_threshold": 1.0,
     "upvol_good_threshold": 60.0,
@@ -84,13 +77,11 @@ BASE_CONFIG: Dict[str, Any] = {
     "yield_curve_good_threshold": 0.5,
     "beta_warning_threshold": 1.2,
     "beta_caution_threshold": 0.8,
-
     # Entry Rules (Minervini)
     "require_sma50_above_sma200": True,
     "min_percent_from_52w_low": 0.0,
     "max_percent_from_52w_high": 25.0,
     "min_trend_template_score": 6,
-
     # Entry Quality Gates
     "max_signal_age_days": 3,
     "min_close_quality_pct": 40.0,
@@ -100,13 +91,11 @@ BASE_CONFIG: Dict[str, Any] = {
     "max_rs_pct_from_60d_high": 15.0,
     "rs_slope_gate_enabled": False,
     "volume_decay_gate_enabled": False,
-
     # Exit Rules
     "require_target_pullback": False,
     "t1_target_r_multiple": 1.5,
     "t2_target_r_multiple": 3.0,
     "t3_target_r_multiple": 4.0,
-
     # Imported Position Defaults
     "imported_position_default_stop_loss_pct": 5.0,
     "imported_position_default_target_1_pct": 5.0,
@@ -123,12 +112,10 @@ BASE_CONFIG: Dict[str, Any] = {
     "eight_week_rule_window_days": 21,
     "chandelier_atr_mult": 3.0,
     "move_be_at_r": 1.0,
-
     # Drawdown Re-engagement
     "re_engage_recovery_pct": 8.0,
     "re_engage_min_days": 5,
     "require_ftd_to_re_engage": True,
-
     # Circuit Breaker Thresholds
     "max_daily_loss_pct": 2.0,
     "max_consecutive_losses": 3,
@@ -139,19 +126,15 @@ BASE_CONFIG: Dict[str, Any] = {
     "max_data_staleness_days": 3,
     "daily_profit_cap_pct": 2.0,
     "sector_drawdown_halt_pct": -12.0,
-
     # Position Monitoring & Re-entry
     "position_halt_flag_count": 2,
     "max_reentries_per_name": 2,
     "min_days_before_reentry_same_symbol": 5,
-
     # Economic Calendar
     "halt_entries_before_major_release_minutes": 60,
-
     # Earnings Blackout
     "earnings_blackout_days_before": 7,
     "earnings_blackout_days_after": 3,
-
     # Other Thresholds
     "min_price_history_days": 200,
     "min_daily_volume_shares": 500000,
@@ -159,7 +142,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "min_market_cap_millions": 300.0,
     "min_float_millions": 50.0,
     "max_short_interest_pct": 30.0,
-
     # Advanced Filters
     "block_days_before_earnings": 5,
     "max_extension_above_50ma_pct": 15.0,
@@ -170,7 +152,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "min_order_size_dollars": 100.0,
     "phase1_min_coverage_pct": 75,
     "phase1_min_symbol_count": 8000,
-
     # Swing Trader Score Weights
     "swing_weight_setup": 25,
     "swing_weight_trend": 20,
@@ -192,7 +173,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "advanced_filters_grade_threshold_b": 70,
     "advanced_filters_grade_threshold_c": 60,
     "advanced_filters_grade_threshold_d": 50,
-
     # Risk Metrics Calculation
     "var_percentile": 5,
     "cvar_percentile": 5,
@@ -200,31 +180,25 @@ BASE_CONFIG: Dict[str, Any] = {
     "dashboard_grade_threshold_a": 80,
     "dashboard_grade_threshold_b": 60,
     "dashboard_grade_threshold_c": 40,
-
     # Dashboard Configuration
     "dashboard_min_quality_threshold": 40.0,
     "dashboard_metrics_max_age_minutes": 120,
-
     # Execution Mode
     "execution_mode": "paper",
     "alpaca_paper_trading": False,
     "max_trades_per_day": 5,
     "default_portfolio_value": 100000.0,
-
     # Feature Flags
     "enable_algo": True,
     "enable_backtesting": False,
     "verbose_logging": True,
-
     # Network Configuration
     "api_request_timeout_seconds": 5,
     "db_connection_timeout_seconds": 15,
-
     # Failsafe Configuration
     "failsafe_ecs_timeout_sec": 180,
     "failsafe_grace_period_minutes": 240,
 }
-
 
 def bull_market_config() -> Dict[str, Any]:
     """Configuration for aggressive bull market trading (high confidence, high risk).
@@ -236,19 +210,20 @@ def bull_market_config() -> Dict[str, Any]:
     - High risk tolerance for larger swings
     """
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "base_risk_pct": 1.0,  # Increase risk in bull market
-        "max_positions": 15,  # Increase position count
-        "max_total_invested_pct": 98.0,  # Deploy more capital
-        "vix_caution_threshold": 22.0,  # Raise caution threshold
-        "vix_caution_risk_reduction": 0.9,  # Less reduction when VIX rises
-        "require_stage_2_market": False,  # Less strict market requirement
-        "min_swing_score": 50.0,  # Lower quality bar
-        "max_distribution_days": 5,  # Tolerate more distribution
-        "swing_weight_momentum": 25,  # Weight momentum more in bull
-    })
+    config.update(
+        {
+            "base_risk_pct": 1.0,  # Increase risk in bull market
+            "max_positions": 15,  # Increase position count
+            "max_total_invested_pct": 98.0,  # Deploy more capital
+            "vix_caution_threshold": 22.0,  # Raise caution threshold
+            "vix_caution_risk_reduction": 0.9,  # Less reduction when VIX rises
+            "require_stage_2_market": False,  # Less strict market requirement
+            "min_swing_score": 50.0,  # Lower quality bar
+            "max_distribution_days": 5,  # Tolerate more distribution
+            "swing_weight_momentum": 25,  # Weight momentum more in bull
+        }
+    )
     return config
-
 
 def correction_config() -> Dict[str, Any]:
     """Configuration for correction/consolidation (cautious, balanced).
@@ -260,18 +235,19 @@ def correction_config() -> Dict[str, Any]:
     - Balanced risk/reward
     """
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "base_risk_pct": 0.50,  # Reduce risk
-        "max_positions": 8,  # Fewer concurrent positions
-        "max_total_invested_pct": 70.0,  # Deploy less capital
-        "vix_caution_threshold": 25.0,  # Standard caution
-        "require_stage_2_market": True,  # Stricter market requirement
-        "min_swing_score": 65.0,  # Higher quality bar
-        "max_distribution_days": 3,  # Low distribution tolerance
-        "max_consecutive_losses": 2,  # Tighter loss limit
-    })
+    config.update(
+        {
+            "base_risk_pct": 0.50,  # Reduce risk
+            "max_positions": 8,  # Fewer concurrent positions
+            "max_total_invested_pct": 70.0,  # Deploy less capital
+            "vix_caution_threshold": 25.0,  # Standard caution
+            "require_stage_2_market": True,  # Stricter market requirement
+            "min_swing_score": 65.0,  # Higher quality bar
+            "max_distribution_days": 3,  # Low distribution tolerance
+            "max_consecutive_losses": 2,  # Tighter loss limit
+        }
+    )
     return config
-
 
 def crisis_config() -> Dict[str, Any]:
     """Configuration for crisis/bear market (very cautious, capital preservation).
@@ -283,22 +259,23 @@ def crisis_config() -> Dict[str, Any]:
     - Risk-off mode
     """
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "base_risk_pct": 0.25,  # Minimal risk
-        "max_positions": 3,  # Very few positions
-        "max_total_invested_pct": 30.0,  # Minimal deployment
-        "vix_max_threshold": 45.0,  # Higher halt threshold (allow some activity)
-        "vix_caution_threshold": 30.0,  # Low caution threshold
-        "require_stage_2_market": True,  # Strict market requirement
-        "min_swing_score": 75.0,  # Very high quality bar
-        "max_distribution_days": 2,  # Very low distribution tolerance
-        "halt_drawdown_pct": 10.0,  # Aggressive halt level
-        "max_daily_loss_pct": 1.0,  # Tight daily loss limit
-        "max_weekly_loss_pct": 2.0,  # Tight weekly loss limit
-        "econ_stress_severe_cap_pct": 20.0,  # Low exposure cap in stress
-    })
+    config.update(
+        {
+            "base_risk_pct": 0.25,  # Minimal risk
+            "max_positions": 3,  # Very few positions
+            "max_total_invested_pct": 30.0,  # Minimal deployment
+            "vix_max_threshold": 45.0,  # Higher halt threshold (allow some activity)
+            "vix_caution_threshold": 30.0,  # Low caution threshold
+            "require_stage_2_market": True,  # Strict market requirement
+            "min_swing_score": 75.0,  # Very high quality bar
+            "max_distribution_days": 2,  # Very low distribution tolerance
+            "halt_drawdown_pct": 10.0,  # Aggressive halt level
+            "max_daily_loss_pct": 1.0,  # Tight daily loss limit
+            "max_weekly_loss_pct": 2.0,  # Tight weekly loss limit
+            "econ_stress_severe_cap_pct": 20.0,  # Low exposure cap in stress
+        }
+    )
     return config
-
 
 def minimal_config() -> Dict[str, Any]:
     """Minimal configuration with only essential keys for unit tests."""
@@ -312,48 +289,50 @@ def minimal_config() -> Dict[str, Any]:
         "enable_algo": True,
     }
 
-
 def strict_risk_config() -> Dict[str, Any]:
     """Configuration with very tight risk limits for testing circuit breakers."""
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "max_daily_loss_pct": 1.0,
-        "max_weekly_loss_pct": 2.0,
-        "max_total_risk_pct": 2.0,
-        "halt_drawdown_pct": 10.0,
-        "max_consecutive_losses": 2,
-        "min_win_rate_pct": 50.0,
-        "daily_profit_cap_pct": 1.0,
-    })
+    config.update(
+        {
+            "max_daily_loss_pct": 1.0,
+            "max_weekly_loss_pct": 2.0,
+            "max_total_risk_pct": 2.0,
+            "halt_drawdown_pct": 10.0,
+            "max_consecutive_losses": 2,
+            "min_win_rate_pct": 50.0,
+            "daily_profit_cap_pct": 1.0,
+        }
+    )
     return config
-
 
 def relaxed_risk_config() -> Dict[str, Any]:
     """Configuration with relaxed risk limits for testing edge cases."""
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "max_daily_loss_pct": 5.0,
-        "max_weekly_loss_pct": 10.0,
-        "max_total_risk_pct": 10.0,
-        "halt_drawdown_pct": 30.0,
-        "max_consecutive_losses": 5,
-        "min_win_rate_pct": 30.0,
-        "daily_profit_cap_pct": 5.0,
-    })
+    config.update(
+        {
+            "max_daily_loss_pct": 5.0,
+            "max_weekly_loss_pct": 10.0,
+            "max_total_risk_pct": 10.0,
+            "halt_drawdown_pct": 30.0,
+            "max_consecutive_losses": 5,
+            "min_win_rate_pct": 30.0,
+            "daily_profit_cap_pct": 5.0,
+        }
+    )
     return config
-
 
 def sandbox_config() -> Dict[str, Any]:
     """Configuration for sandbox/testing with no actual trading."""
     config = deepcopy(BASE_CONFIG)
-    config.update({
-        "execution_mode": "review",  # No actual orders
-        "alpaca_paper_trading": True,  # Use paper account if we do connect
-        "enable_algo": True,
-        "verbose_logging": True,
-    })
+    config.update(
+        {
+            "execution_mode": "review",  # No actual orders
+            "alpaca_paper_trading": True,  # Use paper account if we do connect
+            "enable_algo": True,
+            "verbose_logging": True,
+        }
+    )
     return config
-
 
 def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     """Merge configuration overrides into a base config.
@@ -368,7 +347,6 @@ def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, 
     config = deepcopy(base)
     config.update(overrides)
     return config
-
 
 def validate_config(config: Dict[str, Any], required_keys: list = None) -> bool:
     """Validate that config has all required keys.

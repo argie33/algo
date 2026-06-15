@@ -1,62 +1,93 @@
 """Route: signals"""
+
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
-from typing import Dict, Any, Optional, List
-import logging, re
-from datetime import datetime, timedelta, date, timezone
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize, db_route_handler
+from typing import Dict, Optional
+import logging
+from routes.utils import (
+    error_response,
+    list_response,
+    safe_limit,
+    handle_db_error,
+    check_data_freshness,
+    safe_json_serialize,
+    db_route_handler,
+)
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/signals/* endpoints."""
-        try:
-            if not params:
-                params = {}
-            if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
-                limit_list = params.get('limit', [])
-                limit_str = limit_list[0] if limit_list else None
-                limit = safe_limit(limit_str, max_val=10000, default=500)
-                timeframe_list = params.get('timeframe', [])
-                timeframe = timeframe_list[0] if timeframe_list else 'daily'
-                symbol_list = params.get('symbol', [])
-                symbol_filter = symbol_list[0] if symbol_list else None
-                return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
-            elif path == '/api/signals/etf':
-                limit_list = params.get('limit', [])
-                limit_str = limit_list[0] if limit_list else None
-                limit = safe_limit(limit_str, max_val=10000, default=500)
-                return _get_signals_etf(cur, limit)
-            else:
-                return error_response(404, 'not_found', f'No signals handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'handle signals')
-            return error_response(code, error_type, message)
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
+    """Handle /api/signals/* endpoints."""
+    try:
+        if not params:
+            params = {}
+        if (
+            path in ["/api/signals", "/api/signals/stocks"]
+            or path.startswith("/api/signals?")
+            or path.startswith("/api/signals/stocks?")
+        ):
+            limit_list = params.get("limit", [])
+            limit_str = limit_list[0] if limit_list else None
+            limit = safe_limit(limit_str, max_val=10000, default=500)
+            timeframe_list = params.get("timeframe", [])
+            timeframe = timeframe_list[0] if timeframe_list else "daily"
+            symbol_list = params.get("symbol", [])
+            symbol_filter = symbol_list[0] if symbol_list else None
+            return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
+        elif path == "/api/signals/etf":
+            limit_list = params.get("limit", [])
+            limit_str = limit_list[0] if limit_list else None
+            limit = safe_limit(limit_str, max_val=10000, default=500)
+            return _get_signals_etf(cur, limit)
+        else:
+            return error_response(404, "not_found", f"No signals handler for {path}")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "handle signals")
+        return error_response(code, error_type, message)
 
-@db_route_handler('fetch stock signals')
-def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
-        """Get stock trading signals with all available technical and analytical data."""
-        try:
-            # SECURITY L-05: Validate timeframe parameter (currently only 'daily' supported)
-            VALID_TIMEFRAMES = {'daily'}
-            if timeframe.lower() not in VALID_TIMEFRAMES:
-                return error_response(400, 'bad_request', f'Unsupported timeframe: {timeframe}. Only "daily" is currently supported.')
+@db_route_handler("fetch stock signals")
+def _get_signals_stocks(
+    cur, limit: int = 500, timeframe: str = "daily", symbol_filter: Optional[str] = None
+) -> Dict:
+    """Get stock trading signals with all available technical and analytical data."""
+    try:
+        # SECURITY L-05: Validate timeframe parameter (currently only 'daily' supported)
+        VALID_TIMEFRAMES = {"daily"}
+        if timeframe.lower() not in VALID_TIMEFRAMES:
+            return error_response(
+                400,
+                "bad_request",
+                f'Unsupported timeframe: {timeframe}. Only "daily" is currently supported.',
+            )
 
-            cur.execute("SET LOCAL statement_timeout = '25000ms'")
-            where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
-            params = [limit]
+        cur.execute("SET LOCAL statement_timeout = '25000ms'")
+        where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
+        params = [limit]
 
-            if symbol_filter:
-                # Validate symbol format before use
-                # Only alphanumeric and common separators allowed
-                import re
-                if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):
-                    return error_response(400, 'bad_request', 'Invalid symbol format')
-                where_clause += " AND bsd.symbol = %s"
-                params.insert(0, symbol_filter.upper())
+        if symbol_filter:
+            # Validate symbol format before use
+            # Only alphanumeric and common separators allowed
+            import re
 
-            cur.execute("""
+            if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
+                return error_response(400, "bad_request", "Invalid symbol format")
+            where_clause += " AND bsd.symbol = %s"
+            params.insert(0, symbol_filter.upper())
+
+        cur.execute(
+            """
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     bsd.timeframe, bsd.signal_type, bsd.strength,
@@ -90,26 +121,38 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     ORDER BY date DESC
                     LIMIT 1
                 ) sqs ON true
-                """ + where_clause + """
+                """
+            + where_clause
+            + """
                 ORDER BY bsd.date DESC, COALESCE(sqs.composite_sqs, bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
                 LIMIT %s
-            """, tuple(params))
-            signals = cur.fetchall()
+            """,
+            tuple(params),
+        )
+        signals = cur.fetchall()
 
-            # Check data freshness
-            freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
+        # Check data freshness
+        freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
 
-            return list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch stock signals')
-            return error_response(code, error_type, message)
+        return list_response(
+            [safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch stock signals")
+        return error_response(code, error_type, message)
 
-@db_route_handler('fetch ETF signals')
+@db_route_handler("fetch ETF signals")
 def _get_signals_etf(cur, limit: int = 500) -> Dict:
-        """Get ETF trading signals."""
-        try:
-            cur.execute("""
+    """Get ETF trading signals."""
+    try:
+        cur.execute(
+            """
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     bsd.strength, NULL as reason,
@@ -130,11 +173,17 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
                 AND bsd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
                 ORDER BY bsd.date DESC
                 LIMIT %s
-            """, (limit,))
-            signals = cur.fetchall()
-            return list_response([safe_json_serialize(dict(s)) for s in signals])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch ETF signals')
-            return error_response(code, error_type, message)
-
+            """,
+            (limit,),
+        )
+        signals = cur.fetchall()
+        return list_response([safe_json_serialize(dict(s)) for s in signals])
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch ETF signals")
+        return error_response(code, error_type, message)

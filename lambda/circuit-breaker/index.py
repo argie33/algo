@@ -31,15 +31,18 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # Add project root to path for importing config module
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-dynamodb = boto3.resource('dynamodb')
+dynamodb = boto3.resource("dynamodb")
 
 def get_db_credentials():
     """Fetch database credentials from credential_manager (centralized)."""
     try:
         from config.credential_manager import get_db_credentials as get_db_creds
+
         return get_db_creds()
     except ImportError:
-        logger.warning("Could not import credential_manager, falling back to direct Secrets Manager fetch")
+        logger.warning(
+            "Could not import credential_manager, falling back to direct Secrets Manager fetch"
+        )
         # Fallback if config module not available
         secretsmanager = boto3.client("secretsmanager")
         try:
@@ -47,11 +50,11 @@ def get_db_credentials():
             response = secretsmanager.get_secret_value(SecretId=secret_id)
             creds = json.loads(response["SecretString"])
             return {
-                'host': creds.get('host'),
-                'port': int(creds.get('port', 5432)),
-                'database': creds.get('dbname'),
-                'user': creds.get('username'),
-                'password': creds.get('password')
+                "host": creds.get("host"),
+                "port": int(creds.get("port", 5432)),
+                "database": creds.get("dbname"),
+                "user": creds.get("username"),
+                "password": creds.get("password"),
             }
         except Exception as e:
             logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
@@ -70,12 +73,12 @@ def get_portfolio_pnl(max_attempts: int = 3):
         try:
             creds = get_db_credentials()
             conn = psycopg2.connect(
-                host=creds['host'],
-                port=creds['port'],
-                database=creds['database'],
-                user=creds['user'],
-                password=creds['password'],
-                sslmode='require',
+                host=creds["host"],
+                port=creds["port"],
+                database=creds["database"],
+                user=creds["user"],
+                password=creds["password"],
+                sslmode="require",
                 connect_timeout=10,
             )
             cur = conn.cursor()
@@ -88,7 +91,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 WHERE status = 'open'
             """)
             row = cur.fetchone()
-            total_equity = float(row[0]) if row is not None and row[0] is not None else 0
+            total_equity = (
+                float(row[0]) if row is not None and row[0] is not None else 0
+            )
             current_pnl = float(row[1]) if row and row[1] else 0
 
             # Get session opening P&L snapshot (captured at market open).
@@ -99,7 +104,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 LIMIT 1
             """)
             session_row = cur.fetchone()
-            open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
+            open_pnl = (
+                float(session_row[0]) if session_row and session_row[0] else current_pnl
+            )
 
             cur.close()
             conn.close()
@@ -119,83 +126,119 @@ def get_portfolio_pnl(max_attempts: int = 3):
             if attempt < max_attempts:
                 time.sleep(3 * attempt)
 
-    logger.error(f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}")
+    logger.error(
+        f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}"
+    )
     return None, None, None
 
 def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
     item = {
-        'key': 'orchestrator_halt',
-        'halt_flag': halt,
-        'reason': reason,
-        'check_time': check_time,
+        "key": "orchestrator_halt",
+        "halt_flag": halt,
+        "reason": reason,
+        "check_time": check_time,
     }
-    ts_key = 'triggered_at' if halt else 'reset_at'
+    ts_key = "triggered_at" if halt else "reset_at"
     item[ts_key] = datetime.now(timezone.utc).isoformat()
     table.put_item(Item=item)
 
 def lambda_handler(event, context):
     """Circuit breaker trigger - halt trading if variance too high."""
-    check_time = event.get('check_time', 'unscheduled')
-    table = dynamodb.Table('algo_orchestrator_state')
+    check_time = event.get("check_time", "unscheduled")
+    table = dynamodb.Table("algo_orchestrator_state")
 
     try:
         current_pnl, open_pnl, variance = get_portfolio_pnl()
 
         if variance is None:
-            logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")
-            _set_halt(table, True, 'Unable to calculate portfolio variance after retries (fail-closed)', check_time)
+            logger.error(
+                "Unable to calculate variance after retries — halting trading (fail-closed)"
+            )
+            _set_halt(
+                table,
+                True,
+                "Unable to calculate portfolio variance after retries (fail-closed)",
+                check_time,
+            )
             return {
                 "statusCode": 500,
-                "body": json.dumps({
-                    "action": "HALT",
-                    "reason": "Unable to calculate portfolio variance",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+                "body": json.dumps(
+                    {
+                        "action": "HALT",
+                        "reason": "Unable to calculate portfolio variance",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
             }
 
         # Load portfolio variance threshold from centralized config
         try:
             from config.thresholds import ThresholdConfig
+
             threshold = ThresholdConfig.portfolio_variance_threshold()
         except Exception:
             threshold = 0.15  # Fallback to default
 
         if variance > threshold:
-            logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
-            _set_halt(table, True, f'Portfolio variance {variance:.1%} exceeds {threshold:.1%}', check_time)
+            logger.critical(
+                f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}"
+            )
+            _set_halt(
+                table,
+                True,
+                f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
+                check_time,
+            )
             return {
                 "statusCode": 200,
-                "body": json.dumps({
-                    "action": "HALT",
-                    "reason": f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+                "body": json.dumps(
+                    {
+                        "action": "HALT",
+                        "reason": f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
             }
         else:
-            logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
-            _set_halt(table, False, f'Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}', check_time)
+            logger.info(
+                f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}"
+            )
+            _set_halt(
+                table,
+                False,
+                f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}",
+                check_time,
+            )
             return {
                 "statusCode": 200,
-                "body": json.dumps({
-                    "action": "CONTINUE",
-                    "variance": f"{variance:.1%}",
-                    "current_pnl": f"{current_pnl:.2f}",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+                "body": json.dumps(
+                    {
+                        "action": "CONTINUE",
+                        "variance": f"{variance:.1%}",
+                        "current_pnl": f"{current_pnl:.2f}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
             }
 
     except Exception as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
         try:
-            _set_halt(table, True, f'Circuit breaker check failed: {str(e)[:100]}', check_time)
+            _set_halt(
+                table, True, f"Circuit breaker check failed: {str(e)[:100]}", check_time
+            )
         except Exception as ddb_err:
-            logger.error(f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True)
+            logger.error(
+                f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True
+            )
 
         return {
             "statusCode": 500,
-            "body": json.dumps({
-                "action": "HALT",
-                "reason": "Circuit breaker check failed",
-                "error": str(e)
-            })
+            "body": json.dumps(
+                {
+                    "action": "HALT",
+                    "reason": "Circuit breaker check failed",
+                    "error": str(e),
+                }
+            ),
         }

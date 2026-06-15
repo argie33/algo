@@ -22,7 +22,7 @@ This is a READ-ONLY diagnostic tool. It reports issues but doesn't auto-fix.
 import logging
 from datetime import datetime, timezone
 from utils.db import DatabaseContext
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class PositionSyncChecker:
 
     def check_consistency(self) -> Dict[str, Any]:
         """Run full consistency check. Returns report dict."""
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             return self._do_check(cur)
 
     def _do_check(self, cur) -> Dict[str, Any]:
@@ -47,15 +47,17 @@ class PositionSyncChecker:
         """)
         invalid_entry = cur.fetchall()
         if invalid_entry:
-            issues.append({
-                'type': 'INVALID_ENTRY_DATA',
-                'severity': 'HIGH',
-                'count': len(invalid_entry),
-                'details': [
-                    f"{tid}: {sym} missing entry fields"
-                    for tid, sym, st in invalid_entry[:3]
-                ]
-            })
+            issues.append(
+                {
+                    "type": "INVALID_ENTRY_DATA",
+                    "severity": "HIGH",
+                    "count": len(invalid_entry),
+                    "details": [
+                        f"{tid}: {sym} missing entry fields"
+                        for tid, sym, st in invalid_entry[:3]
+                    ],
+                }
+            )
 
         # 2. Check for trades with negative prices
         cur.execute("""
@@ -66,15 +68,17 @@ class PositionSyncChecker:
         """)
         negative_prices = cur.fetchall()
         if negative_prices:
-            issues.append({
-                'type': 'NEGATIVE_PRICES',
-                'severity': 'HIGH',
-                'count': len(negative_prices),
-                'details': [
-                    f"{tid}: {sym} entry={ep} stop={sp}"
-                    for tid, sym, ep, sp in negative_prices[:3]
-                ]
-            })
+            issues.append(
+                {
+                    "type": "NEGATIVE_PRICES",
+                    "severity": "HIGH",
+                    "count": len(negative_prices),
+                    "details": [
+                        f"{tid}: {sym} entry={ep} stop={sp}"
+                        for tid, sym, ep, sp in negative_prices[:3]
+                    ],
+                }
+            )
 
         # 3. Check for duplicate open symbols (should be DISTINCT ON symbol)
         cur.execute("""
@@ -86,15 +90,16 @@ class PositionSyncChecker:
         """)
         duplicates = cur.fetchall()
         if duplicates:
-            issues.append({
-                'type': 'DUPLICATE_OPEN_POSITIONS',
-                'severity': 'MEDIUM',
-                'count': len(duplicates),
-                'details': [
-                    f"{sym}: {cnt} open trades"
-                    for sym, cnt in duplicates[:3]
-                ]
-            })
+            issues.append(
+                {
+                    "type": "DUPLICATE_OPEN_POSITIONS",
+                    "severity": "MEDIUM",
+                    "count": len(duplicates),
+                    "details": [
+                        f"{sym}: {cnt} open trades" for sym, cnt in duplicates[:3]
+                    ],
+                }
+            )
 
         # 4. Check for closed trades missing exit data
         cur.execute("""
@@ -105,15 +110,17 @@ class PositionSyncChecker:
         """)
         missing_exit = cur.fetchall()
         if missing_exit:
-            issues.append({
-                'type': 'INCOMPLETE_CLOSED_TRADES',
-                'severity': 'MEDIUM',
-                'count': len(missing_exit),
-                'details': [
-                    f"{tid}: {sym} missing exit data"
-                    for tid, sym in missing_exit[:3]
-                ]
-            })
+            issues.append(
+                {
+                    "type": "INCOMPLETE_CLOSED_TRADES",
+                    "severity": "MEDIUM",
+                    "count": len(missing_exit),
+                    "details": [
+                        f"{tid}: {sym} missing exit data"
+                        for tid, sym in missing_exit[:3]
+                    ],
+                }
+            )
 
         # 5. Summary counts from algo_trades (single source of truth)
         cur.execute("""
@@ -124,11 +131,13 @@ class PositionSyncChecker:
             FROM algo_trades
         """)
         trade_counts = cur.fetchone()
-        trades_open, trades_closed, trades_cancelled = trade_counts if trade_counts else (0, 0, 0)
+        trades_open, trades_closed, trades_cancelled = (
+            trade_counts if trade_counts else (0, 0, 0)
+        )
 
         # Build report
         is_consistent = len(issues) == 0
-        summary = f"""
+        summary = """
 == ALGO_TRADES DATA INTEGRITY CHECK ==
 {datetime.now(timezone.utc).isoformat()}
 
@@ -149,29 +158,29 @@ DATA INTEGRITY CHECKS: {len(issues)} issues found
             summary += "\n"
             for i, issue in enumerate(issues, 1):
                 summary += f"\n{i}. [{issue['severity']}] {issue['type']} ({issue['count']} found)\n"
-                for detail in issue['details'][:3]:
+                for detail in issue["details"][:3]:
                     summary += f"   - {detail}\n"
-                if len(issue['details']) > 3:
+                if len(issue["details"]) > 3:
                     summary += f"   ... and {len(issue['details']) - 3} more\n"
 
         return {
-            'summary': summary,
-            'is_consistent': is_consistent,
-            'issues': issues,
-            'counts': {
-                'trades_open': trades_open,
-                'trades_closed': trades_closed,
-                'trades_cancelled': trades_cancelled
-            }
+            "summary": summary,
+            "is_consistent": is_consistent,
+            "issues": issues,
+            "counts": {
+                "trades_open": trades_open,
+                "trades_closed": trades_closed,
+                "trades_cancelled": trades_cancelled,
+            },
         }
 
 def main():
     """Run checker and log report."""
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     checker = PositionSyncChecker()
     report = checker.check_consistency()
-    logger.info(report['summary'])
-    return 0 if report['is_consistent'] else 1
+    logger.info(report["summary"])
+    return 0 if report["is_consistent"] else 1
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit(main())

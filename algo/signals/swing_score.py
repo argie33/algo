@@ -1,34 +1,37 @@
 #!/usr/bin/env python3
 
-import os
 import json
 from utils.db import DatabaseContext
 import logging
-from datetime import datetime, date, timedelta
+from datetime import date
 from typing import Dict, Tuple, Any, Optional
-from algo.signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
 
-    W_SETUP = 25        # Chart setup quality (breakout levels, support/resistance) - highest priority
-    W_TREND = 20        # Trend direction and strength (moving average relationships, slope)
-    W_MOMENTUM = 20     # Momentum indicators (RSI, MACD, rate of change) - co-equal with trend
-    W_VOLUME = 12       # Volume confirmation (above/below average, on-balance volume)
-    W_FUNDAMENTALS = 10 # Company fundamentals (earnings, growth, valuation)
-    W_SECTOR = 8        # Sector rotation and performance relative to market
-    W_MULTI_TF = 5      # Multi-timeframe alignment (1h/4h/daily confirmation)
+    W_SETUP = 25  # Chart setup quality (breakout levels, support/resistance) - highest priority
+    W_TREND = 20  # Trend direction and strength (moving average relationships, slope)
+    W_MOMENTUM = (
+        20  # Momentum indicators (RSI, MACD, rate of change) - co-equal with trend
+    )
+    W_VOLUME = 12  # Volume confirmation (above/below average, on-balance volume)
+    W_FUNDAMENTALS = 10  # Company fundamentals (earnings, growth, valuation)
+    W_SECTOR = 8  # Sector rotation and performance relative to market
+    W_MULTI_TF = 5  # Multi-timeframe alignment (1h/4h/daily confirmation)
 
     def __init__(self, config):
         if config is None:
-            raise ValueError("SwingTraderScore requires explicit config parameter (dependency injection)")
+            raise ValueError(
+                "SwingTraderScore requires explicit config parameter (dependency injection)"
+            )
         self.config = config
         from algo.signals import SignalComputer
+
         self._signals = SignalComputer()
 
-    def _with_cursor(self, operation, mode='read'):
+    def _with_cursor(self, operation, mode="read"):
         """Execute operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext(mode) as cur:
@@ -46,10 +49,18 @@ class SwingTraderScore:
             )
             weights = {k: int(v) for k, v in cur.fetchall()}
         except Exception as e:
-            logger.debug(f"Could not load swing weights from config: {e} — using defaults")
+            logger.debug(
+                f"Could not load swing weights from config: {e} — using defaults"
+            )
         return weights
 
-    def compute(self, symbol: str, eval_date, sector: Optional[str] = None, industry: Optional[str] = None) -> Dict[str, Any]:
+    def compute(
+        self,
+        symbol: str,
+        eval_date,
+        sector: Optional[str] = None,
+        industry: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Compute the full swing trader score composite with hard-fail gates.
 
@@ -111,30 +122,34 @@ class SwingTraderScore:
         Returns:
             Dict with swing_score, grade, components breakdown, and hard-gate details
         """
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             try:
                 # Hard gates — fail-closed: DB/infra error blocks scoring rather than passing silently
                 try:
                     gates = self._check_hard_gates(symbol, eval_date, industry, cur)
                 except Exception as gate_err:
-                    logger.warning(f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking")
+                    logger.warning(
+                        f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking"
+                    )
                     return {
-                        'symbol': symbol,
-                        'eval_date': str(eval_date),
-                        'pass': False,
-                        'reason': f'Hard gates unavailable: {str(gate_err)[:60]}',
-                        'swing_score': 0.0,
+                        "symbol": symbol,
+                        "eval_date": str(eval_date),
+                        "pass": False,
+                        "reason": f"Hard gates unavailable: {str(gate_err)[:60]}",
+                        "swing_score": 0.0,
                     }
 
-                if not gates['pass']:
-                    logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
+                if not gates["pass"]:
+                    logger.debug(
+                        f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}"
+                    )
                     return {
-                        'symbol': symbol,
-                        'eval_date': str(eval_date),
-                        'pass': False,
-                        'reason': gates['reason'],
-                        'hard_gates': gates,
-                        'swing_score': 0.0,
+                        "symbol": symbol,
+                        "eval_date": str(eval_date),
+                        "pass": False,
+                        "reason": gates["reason"],
+                        "hard_gates": gates,
+                        "swing_score": 0.0,
                     }
 
                 # Compute components (wrap each in error handling to prevent cascade failures)
@@ -142,93 +157,141 @@ class SwingTraderScore:
                     setup_pts, setup_detail = self._setup_component(symbol, eval_date)
                 except Exception as e:
                     logger.debug(f"Setup component failed for {symbol}: {e}")
-                    setup_pts, setup_detail = 0, {'error': str(e)[:50]}
+                    setup_pts, setup_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    trend_pts, trend_detail = self._trend_component(symbol, eval_date, cur)
+                    trend_pts, trend_detail = self._trend_component(
+                        symbol, eval_date, cur
+                    )
                 except Exception as e:
                     logger.debug(f"Trend component failed for {symbol}: {e}")
-                    trend_pts, trend_detail = 0, {'error': str(e)[:50]}
+                    trend_pts, trend_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    mom_pts, mom_detail = self._momentum_component(symbol, eval_date, cur)
+                    mom_pts, mom_detail = self._momentum_component(
+                        symbol, eval_date, cur
+                    )
                 except Exception as e:
                     logger.debug(f"Momentum component failed for {symbol}: {e}")
-                    mom_pts, mom_detail = 0, {'error': str(e)[:50]}
+                    mom_pts, mom_detail = 0, {"error": str(e)[:50]}
 
                 try:
                     vol_pts, vol_detail = self._volume_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Volume component failed for {symbol}: {e}")
-                    vol_pts, vol_detail = 0, {'error': str(e)[:50]}
+                    vol_pts, vol_detail = 0, {"error": str(e)[:50]}
 
                 try:
                     fund_pts, fund_detail = self._fundamentals_component(symbol, cur)
                 except Exception as e:
                     logger.debug(f"Fundamentals component failed for {symbol}: {e}")
-                    fund_pts, fund_detail = 0, {'error': str(e)[:50]}
+                    fund_pts, fund_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry, cur)
+                    sec_pts, sec_detail = self._sector_component(
+                        symbol, eval_date, sector, industry, cur
+                    )
                 except Exception as e:
                     logger.debug(f"Sector component failed for {symbol}: {e}")
-                    sec_pts, sec_detail = 0, {'error': str(e)[:50]}
+                    sec_pts, sec_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date, cur)
+                    mtf_pts, mtf_detail = self._multi_timeframe_component(
+                        symbol, eval_date, cur
+                    )
                 except Exception as e:
                     logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
-                    mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
+                    mtf_pts, mtf_detail = 0, {"error": str(e)[:50]}
 
-                total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
+                total = (
+                    setup_pts
+                    + trend_pts
+                    + mom_pts
+                    + vol_pts
+                    + fund_pts
+                    + sec_pts
+                    + mtf_pts
+                )
 
                 # Classify grade based on score: A+ (85+), A (75+), B (65+), C (55+), D (45+), F (<45)
                 if total >= 85:
-                    grade = 'A+'
+                    grade = "A+"
                 elif total >= 75:
-                    grade = 'A'
+                    grade = "A"
                 elif total >= 65:
-                    grade = 'B'
+                    grade = "B"
                 elif total >= 55:
-                    grade = 'C'
+                    grade = "C"
                 elif total >= 45:
-                    grade = 'D'
+                    grade = "D"
                 else:
-                    grade = 'F'
+                    grade = "F"
 
                 result = {
-                    'symbol': symbol,
-                    'eval_date': str(eval_date),
-                    'pass': True,
-                    'swing_score': round(total, 1),
-                    'grade': grade,
-                    'components': {
-                        'setup_quality': {'pts': round(setup_pts, 1), 'max': self.W_SETUP, 'detail': setup_detail},
-                        'trend_quality': {'pts': round(trend_pts, 1), 'max': self.W_TREND, 'detail': trend_detail},
-                        'momentum_rs':   {'pts': round(mom_pts, 1),   'max': self.W_MOMENTUM, 'detail': mom_detail},
-                        'volume':        {'pts': round(vol_pts, 1),   'max': self.W_VOLUME, 'detail': vol_detail},
-                        'fundamentals':  {'pts': round(fund_pts, 1),  'max': self.W_FUNDAMENTALS, 'detail': fund_detail},
-                        'sector_industry': {'pts': round(sec_pts, 1), 'max': self.W_SECTOR, 'detail': sec_detail},
-                        'multi_timeframe': {'pts': round(mtf_pts, 1), 'max': self.W_MULTI_TF, 'detail': mtf_detail},
+                    "symbol": symbol,
+                    "eval_date": str(eval_date),
+                    "pass": True,
+                    "swing_score": round(total, 1),
+                    "grade": grade,
+                    "components": {
+                        "setup_quality": {
+                            "pts": round(setup_pts, 1),
+                            "max": self.W_SETUP,
+                            "detail": setup_detail,
+                        },
+                        "trend_quality": {
+                            "pts": round(trend_pts, 1),
+                            "max": self.W_TREND,
+                            "detail": trend_detail,
+                        },
+                        "momentum_rs": {
+                            "pts": round(mom_pts, 1),
+                            "max": self.W_MOMENTUM,
+                            "detail": mom_detail,
+                        },
+                        "volume": {
+                            "pts": round(vol_pts, 1),
+                            "max": self.W_VOLUME,
+                            "detail": vol_detail,
+                        },
+                        "fundamentals": {
+                            "pts": round(fund_pts, 1),
+                            "max": self.W_FUNDAMENTALS,
+                            "detail": fund_detail,
+                        },
+                        "sector_industry": {
+                            "pts": round(sec_pts, 1),
+                            "max": self.W_SECTOR,
+                            "detail": sec_detail,
+                        },
+                        "multi_timeframe": {
+                            "pts": round(mtf_pts, 1),
+                            "max": self.W_MULTI_TF,
+                            "detail": mtf_detail,
+                        },
                     },
-                    'hard_gates': gates,
+                    "hard_gates": gates,
                 }
                 self._persist(symbol, eval_date, result)
                 logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
                 return result
             except Exception as e:
-                logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
+                logger.error(
+                    f"Swing score calculation failed for {symbol}: {e}", exc_info=True
+                )
                 return {
-                    'symbol': symbol,
-                    'eval_date': str(eval_date),
-                    'pass': False,
-                    'reason': f'calculation error: {str(e)[:60]}',
-                    'swing_score': 0.0,
+                    "symbol": symbol,
+                    "eval_date": str(eval_date),
+                    "pass": False,
+                    "reason": f"calculation error: {str(e)[:60]}",
+                    "swing_score": 0.0,
                 }
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(self, symbol: str, eval_date, industry: Optional[str], cur) -> Dict[str, Any]:
+    def _check_hard_gates(
+        self, symbol: str, eval_date, industry: Optional[str], cur
+    ) -> Dict[str, Any]:
         """
         Apply hard-fail gates that block scoring entirely if violated.
 
@@ -250,10 +313,10 @@ class SwingTraderScore:
         Returns: {'pass': True} or {'pass': False, 'reason': str, ...details...}
         """
         # Emergency bypass: if hard gates disabled via config, soft-pass all
-        gates_enabled = self._load_config_val('swing_hard_gates_enabled', True)
+        gates_enabled = self._load_config_val("swing_hard_gates_enabled", True)
         if not gates_enabled:
             logger.info(f"Hard gates disabled via config for {symbol}")
-            return {'pass': True, 'reason': 'Hard gates disabled by config'}
+            return {"pass": True, "reason": "Hard gates disabled by config"}
 
         # Gate 1 & 2: Minervini trend score + Weinstein stage
         trend_score = 0
@@ -271,24 +334,24 @@ class SwingTraderScore:
         except Exception as e:
             logger.debug(f"Could not fetch trend data for {symbol}: {e}")
 
-        min_trend_score = self._load_config_val('swing_min_trend_score', 5)
+        min_trend_score = self._load_config_val("swing_min_trend_score", 5)
         if trend_score < min_trend_score:
             return {
-                'pass': False,
-                'reason': f'Trend score {trend_score} < {min_trend_score}',
-                'trend_score': trend_score,
+                "pass": False,
+                "reason": f"Trend score {trend_score} < {min_trend_score}",
+                "trend_score": trend_score,
             }
 
         if stage != 2:
             return {
-                'pass': False,
-                'reason': f'Weinstein stage {stage} != 2 (must be in uptrend)',
-                'stage': stage,
+                "pass": False,
+                "reason": f"Weinstein stage {stage} != 2 (must be in uptrend)",
+                "stage": stage,
             }
 
         # Gate 3: Not too extended from 52-week high
         try:
-            max_extension_pct = self._load_config_val('swing_max_extension_pct', 25)
+            max_extension_pct = self._load_config_val("swing_max_extension_pct", 25)
             cur.execute(
                 """SELECT percent_from_52w_high FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
@@ -301,27 +364,29 @@ class SwingTraderScore:
                 # -30 means 30% below the 52w high. Reject if too far below the high.
                 if pct_from_high < -max_extension_pct:
                     return {
-                        'pass': False,
-                        'reason': f'{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)',
-                        'percent_from_52w_high': pct_from_high,
+                        "pass": False,
+                        "reason": f"{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)",
+                        "percent_from_52w_high": pct_from_high,
                     }
         except Exception as e:
             logger.debug(f"52w high extension check failed: {e}")
 
         # Gate 4: Base type quality check
         base_type = self._signals.classify_base_type(symbol, eval_date)
-        if base_type.get('type') == 'wide_and_loose':
+        if base_type.get("type") == "wide_and_loose":
             return {
-                'pass': False,
-                'reason': f'Bad base: {base_type.get("type")} (quality {base_type.get("quality")})',
-                'base': base_type,
+                "pass": False,
+                "reason": f'Bad base: {base_type.get("type")} (quality {base_type.get("quality")})',
+                "base": base_type,
             }
 
         # Gate 6: Industry rank (not in bottom half)
         industry_rank = None
         if industry:
             try:
-                max_industry_rank = self._load_config_val('swing_min_industry_rank', 100)
+                max_industry_rank = self._load_config_val(
+                    "swing_min_industry_rank", 100
+                )
                 cur.execute(
                     """SELECT current_rank FROM industry_ranking
                        WHERE industry = %s AND date_recorded <= %s
@@ -333,38 +398,38 @@ class SwingTraderScore:
                     industry_rank = int(r[0])
                     if industry_rank > max_industry_rank:
                         return {
-                            'pass': False,
-                            'reason': f'Industry rank {industry_rank} > {max_industry_rank} (bottom half)',
-                            'industry_rank': industry_rank,
+                            "pass": False,
+                            "reason": f"Industry rank {industry_rank} > {max_industry_rank} (bottom half)",
+                            "industry_rank": industry_rank,
                         }
             except Exception as e:
                 logger.debug(f"Industry rank check failed: {e}")
 
         # Gate 7: Earnings proximity
         days_to_earn = self._days_to_earnings(symbol, eval_date)
-        earnings_block = self._load_config_val('swing_days_to_earnings_block', 5)
+        earnings_block = self._load_config_val("swing_days_to_earnings_block", 5)
         if days_to_earn is not None and 0 <= days_to_earn <= earnings_block:
             return {
-                'pass': False,
-                'reason': f'Earnings in ~{days_to_earn}d (blocked within {earnings_block}d)',
-                'days_to_earnings': days_to_earn,
+                "pass": False,
+                "reason": f"Earnings in ~{days_to_earn}d (blocked within {earnings_block}d)",
+                "days_to_earnings": days_to_earn,
             }
 
         # All gates passed
         return {
-            'pass': True,
-            'trend_score': trend_score,
-            'stage': stage,
-            'base_type': base_type.get('type'),
-            'base_quality': base_type.get('quality'),
-            'industry_rank': industry_rank,
-            'days_to_earnings': days_to_earn,
+            "pass": True,
+            "trend_score": trend_score,
+            "stage": stage,
+            "base_type": base_type.get("type"),
+            "base_quality": base_type.get("quality"),
+            "industry_rank": industry_rank,
+            "days_to_earnings": days_to_earn,
         }
 
     def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
         """Days until next earnings from earnings_calendar. Returns None if unknown."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
                        WHERE symbol = %s AND earnings_date > %s
@@ -417,63 +482,74 @@ class SwingTraderScore:
         pts = 0.0
         # Base type quality (max 10 pts)
         type_scores = {
-            'vcp': 10, 'flat_base': 9, 'cup_with_handle': 8,
-            'ascending_base': 7, 'double_bottom': 6, 'saucer': 5,
-            'consolidation': 3, 'no_base': 0, 'wide_and_loose': 0,
+            "vcp": 10,
+            "flat_base": 9,
+            "cup_with_handle": 8,
+            "ascending_base": 7,
+            "double_bottom": 6,
+            "saucer": 5,
+            "consolidation": 3,
+            "no_base": 0,
+            "wide_and_loose": 0,
         }
-        type_pts = float(type_scores.get(base.get('type'), 0))
-        quality_mult = {'A': 1.0, 'B': 0.85, 'C': 0.6, 'D': 0.0}
-        type_pts *= quality_mult.get(base.get('quality', 'D'), 0)
+        type_pts = float(type_scores.get(base.get("type"), 0))
+        quality_mult = {"A": 1.0, "B": 0.85, "C": 0.6, "D": 0.0}
+        type_pts *= quality_mult.get(base.get("quality", "D"), 0)
         pts += type_pts
 
         # Breakout imminent bonus (max 5 pts)
-        if base.get('breakout_imminent'):
+        if base.get("breakout_imminent"):
             pts += 5
-        elif base.get('in_base'):
+        elif base.get("in_base"):
             pts += 1.5
 
         # VCP bonus (max 3 pts)
-        if vcp.get('is_vcp'):
-            pts += 3 if vcp.get('tight_pattern') else 1.5
+        if vcp.get("is_vcp"):
+            pts += 3 if vcp.get("tight_pattern") else 1.5
 
         # Pivot breakout (max 2 pts)
-        if pivot.get('breakout'):
+        if pivot.get("breakout"):
             pts += 2
 
         # Power trend (max 2 pts)
-        if power.get('power_trend'):
+        if power.get("power_trend"):
             pts += 2
 
         # Pocket pivot bonus (max 3 pts) — re-accumulation pattern, institutional absorption
         # Fires when up day on volume >= highest down-day volume in last 10 days
-        if pocket_piv.get('pocket_pivot') and pocket_piv.get('days_since_fired', 999) <= 2:
+        if (
+            pocket_piv.get("pocket_pivot")
+            and pocket_piv.get("days_since_fired", 999) <= 2
+        ):
             pts += 3
 
         # 3-Weeks-Tight bonus (max 2 pts) — IBD continuation pattern
-        if three_wt.get('is_3wt'):
-            pts += 2 if three_wt.get('breakout_imminent') else 1.0
+        if three_wt.get("is_3wt"):
+            pts += 2 if three_wt.get("breakout_imminent") else 1.0
 
         # High-Tight Flag bonus (max 4 pts) — rare but powerful
-        if htf.get('is_htf'):
+        if htf.get("is_htf"):
             pts += 4
 
         pts = min(self.W_SETUP, pts)
         return pts, {
-            'base_type': base.get('type'),
-            'base_quality': base.get('quality'),
-            'depth_pct': base.get('depth_pct'),
-            'duration_weeks': base.get('duration_weeks'),
-            'breakout_imminent': base.get('breakout_imminent'),
-            'is_vcp': vcp.get('is_vcp'),
-            'pivot_breakout': pivot.get('breakout'),
-            'power_trend': power.get('power_trend'),
-            'pocket_pivot': pocket_piv.get('pocket_pivot'),
-            'pocket_pivot_days_ago': pocket_piv.get('days_since_fired'),
-            'is_3wt': three_wt.get('is_3wt'),
-            'is_htf': htf.get('is_htf'),
+            "base_type": base.get("type"),
+            "base_quality": base.get("quality"),
+            "depth_pct": base.get("depth_pct"),
+            "duration_weeks": base.get("duration_weeks"),
+            "breakout_imminent": base.get("breakout_imminent"),
+            "is_vcp": vcp.get("is_vcp"),
+            "pivot_breakout": pivot.get("breakout"),
+            "power_trend": power.get("power_trend"),
+            "pocket_pivot": pocket_piv.get("pocket_pivot"),
+            "pocket_pivot_days_ago": pocket_piv.get("days_since_fired"),
+            "is_3wt": three_wt.get("is_3wt"),
+            "is_ht": htf.get("is_htf"),
         }
 
-    def _trend_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
+    def _trend_component(
+        self, symbol: str, eval_date, cur
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate trend quality (20 max points).
 
@@ -496,13 +572,15 @@ class SwingTraderScore:
         mt_score = int(row[0]) if row and row[0] is not None else 0
 
         # Minervini 7/8 → 75% pts, 8/8 → 100%
-        mt_pts = self.W_TREND * 0.6 * (mt_score / 8.0)  # 60% of 20 = 12 pts on Minervini
+        mt_pts = (
+            self.W_TREND * 0.6 * (mt_score / 8.0)
+        )  # 60% of 20 = 12 pts on Minervini
 
         # Phase: early=full, mid=full, late=half, climax=zero
         # Derived from consolidation_flag (the only phase indicator in trend_template_data).
         # consolidation_flag=True → stock is building a base (early phase), else mid.
         phase_mult = 0.5
-        phase_name = 'mid'
+        phase_name = "mid"
         estimated_base_count = 0
         weeks_uptrend = 0
 
@@ -515,7 +593,7 @@ class SwingTraderScore:
             phase_row = cur.fetchone()
             if phase_row and phase_row[0]:
                 phase_mult = 1.0
-                phase_name = 'early'
+                phase_name = "early"
         except Exception as e:
             logger.debug(f"Phase calculation failed: {e}")
 
@@ -524,14 +602,16 @@ class SwingTraderScore:
 
         pts = mt_pts + phase_pts
         return pts, {
-            'minervini_score': mt_score,
-            'phase': phase_name,
-            'phase_multiplier': phase_mult,
-            'weeks_in_uptrend': weeks_uptrend,
-            'estimated_base_count': estimated_base_count,
+            "minervini_score": mt_score,
+            "phase": phase_name,
+            "phase_multiplier": phase_mult,
+            "weeks_in_uptrend": weeks_uptrend,
+            "estimated_base_count": estimated_base_count,
         }
 
-    def _momentum_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
+    def _momentum_component(
+        self, symbol: str, eval_date, cur
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate momentum and relative strength (20 max points).
 
@@ -612,10 +692,17 @@ class SwingTraderScore:
                     (symbol, eval_date),
                 )
                 vol_row = cur.fetchone()
-                vol_ratio = float(vol_row[0]) if vol_row and vol_row[0] is not None else 0
+                vol_ratio = (
+                    float(vol_row[0]) if vol_row and vol_row[0] is not None else 0
+                )
 
                 # Trigger: SI > 15% AND volume_ratio > 1.5x AND RS percentile > 70
-                if short_interest > 15 and vol_ratio > 1.5 and rs_60 is not None and rs_60 > 70:
+                if (
+                    short_interest > 15
+                    and vol_ratio > 1.5
+                    and rs_60 is not None
+                    and rs_60 > 70
+                ):
                     si_pts = 3.0
         except Exception as e:
             logger.debug(f"Short interest momentum failed: {e}")
@@ -627,31 +714,37 @@ class SwingTraderScore:
         opts_pts = 0.0
         opts_detail = {}
         try:
-            if hasattr(self, 'options_signal'):
+            if hasattr(self, "options_signal"):
                 opts = self.options_signal(symbol, eval_date)
-                opts_pts = opts.get('bonus_pts', 0.0)
+                opts_pts = opts.get("bonus_pts", 0.0)
                 opts_detail = {
-                    'iv_rank': opts.get('iv_rank', {}),
-                    'put_call': opts.get('put_call', {}),
-                    'implied_move': opts.get('implied_move', {}),
+                    "iv_rank": opts.get("iv_rank", {}),
+                    "put_call": opts.get("put_call", {}),
+                    "implied_move": opts.get("implied_move", {}),
                 }
         except Exception as e:
             logger.debug(f"Options signal failed for {symbol}: {e}")
 
-        pts = min(self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts + opts_pts)
+        pts = min(
+            self.W_MOMENTUM, rs_pts + blend_pts + si_pts + earnings_pts + opts_pts
+        )
         return pts, {
-            'rs_percentile_60d': round(rs_60, 1) if rs_60 is not None else None,
-            'return_1m': round(r1 * 100, 1),
-            'return_3m': round(r3 * 100, 1),
-            'return_6m': round(r6 * 100, 1),
-            'short_interest_pct': round(short_interest, 1) if short_interest is not None else None,
-            'short_interest_bonus_pts': si_pts,
-            'earnings_momentum_pts': earnings_pts,
-            'options_bonus_pts': opts_pts,
-            'options_signals': opts_detail,
+            "rs_percentile_60d": round(rs_60, 1) if rs_60 is not None else None,
+            "return_1m": round(r1 * 100, 1),
+            "return_3m": round(r3 * 100, 1),
+            "return_6m": round(r6 * 100, 1),
+            "short_interest_pct": (
+                round(short_interest, 1) if short_interest is not None else None
+            ),
+            "short_interest_bonus_pts": si_pts,
+            "earnings_momentum_pts": earnings_pts,
+            "options_bonus_pts": opts_pts,
+            "options_signals": opts_detail,
         }
 
-    def _volume_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
+    def _volume_component(
+        self, symbol: str, eval_date, cur
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate volume characteristics (12 max points).
 
@@ -729,10 +822,10 @@ class SwingTraderScore:
         # Cap to W_VOLUME max (same pattern as other components like _setup_component)
         pts = min(self.W_VOLUME, pts)
         return pts, {
-            'today_volume_ratio': round(ratio, 2) if ratio else None,
-            'accumulation_days': accum,
-            'distribution_days': dist,
-            'net_accumulation': net,
+            "today_volume_ratio": round(ratio, 2) if ratio else None,
+            "accumulation_days": accum,
+            "distribution_days": dist,
+            "net_accumulation": net,
         }
 
     def _fundamentals_component(self, symbol: str, cur) -> Tuple[float, Dict[str, Any]]:
@@ -803,13 +896,20 @@ class SwingTraderScore:
 
         pts = eps_pts + rev_pts + ni_pts + ry_pts
         return min(self.W_FUNDAMENTALS, pts), {
-            'eps_3y_cagr': eps_3y,
-            'rev_3y_cagr': rev_3y,
-            'ni_yoy': ni_yoy,
-            'rev_yoy': rev_yoy,
+            "eps_3y_cagr": eps_3y,
+            "rev_3y_cagr": rev_3y,
+            "ni_yoy": ni_yoy,
+            "rev_yoy": rev_yoy,
         }
 
-    def _sector_component(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str], cur) -> Tuple[float, Dict[str, Any]]:
+    def _sector_component(
+        self,
+        symbol: str,
+        eval_date,
+        sector: Optional[str],
+        industry: Optional[str],
+        cur,
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate sector and industry momentum context (8 max points).
 
@@ -912,27 +1012,31 @@ class SwingTraderScore:
                 r = cur.fetchone()
                 if r and r[0]:
                     rotation_status = r[0]
-                    if rotation_status == 'Leading':
+                    if rotation_status == "Leading":
                         rotation_pts = 3.0
-                    elif rotation_status in ('Weakening', 'Lagging'):
+                    elif rotation_status in ("Weakening", "Lagging"):
                         rotation_pts = -5.0
             except Exception as e:
                 logger.debug(f"Rotation status check failed: {e}")
 
-        total_pts = min(self.W_SECTOR, max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts))
+        total_pts = min(
+            self.W_SECTOR, max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts)
+        )
         return total_pts, {
-            'industry': industry,
-            'industry_rank': ind_rank,
-            'industry_accel_4w': ind_accel_4w,
-            'sector': sector,
-            'sector_rank': sec_rank,
-            'sector_accel_4w': sec_accel_4w,
-            'acceleration_pts': accel_pts,
-            'rotation_status': rotation_status,
-            'rotation_pts': rotation_pts,
+            "industry": industry,
+            "industry_rank": ind_rank,
+            "industry_accel_4w": ind_accel_4w,
+            "sector": sector,
+            "sector_rank": sec_rank,
+            "sector_accel_4w": sec_accel_4w,
+            "acceleration_pts": accel_pts,
+            "rotation_status": rotation_status,
+            "rotation_pts": rotation_pts,
         }
 
-    def _multi_timeframe_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
+    def _multi_timeframe_component(
+        self, symbol: str, eval_date, cur
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate multi-timeframe alignment (5 max points).
 
@@ -1013,17 +1117,19 @@ class SwingTraderScore:
         # Documented edge: aligned timeframes 58% win rate vs 39% non-aligned
         pts = 0.0
         if weekly_aligned and monthly_aligned:
-            pts = 5.0 if (weekly_buy and monthly_up) else 4.0  # MA-only = slight discount
+            pts = (
+                5.0 if (weekly_buy and monthly_up) else 4.0
+            )  # MA-only = slight discount
         elif weekly_aligned:
             pts = 3.0 if weekly_buy else 2.0
         elif monthly_aligned:
             pts = 1.5 if monthly_up else 1.0
 
         return pts, {
-            'weekly_buy_recent': weekly_buy,
-            'weekly_above_ma': weekly_above_ma,
-            'monthly_buy_recent': monthly_up,
-            'monthly_above_ma': monthly_above_ma,
+            "weekly_buy_recent": weekly_buy,
+            "weekly_above_ma": weekly_above_ma,
+            "monthly_buy_recent": monthly_up,
+            "monthly_above_ma": monthly_above_ma,
         }
 
     # ============= helpers =============
@@ -1031,16 +1137,16 @@ class SwingTraderScore:
     def _persist(self, symbol: str, eval_date, result: Dict[str, Any]) -> None:
         """Persist computed swing score to swing_trader_scores table."""
         try:
-            comp = result.get('components', {})
+            comp = result.get("components", {})
 
             default_components = {
-                'setup_quality': {'pts': 0.0, 'max': self.W_SETUP},
-                'trend_quality': {'pts': 0.0, 'max': self.W_TREND},
-                'momentum_rs': {'pts': 0.0, 'max': self.W_MOMENTUM},
-                'volume': {'pts': 0.0, 'max': self.W_VOLUME},
-                'fundamentals': {'pts': 0.0, 'max': self.W_FUNDAMENTALS},
-                'sector_industry': {'pts': 0.0, 'max': self.W_SECTOR},
-                'multi_timeframe': {'pts': 0.0, 'max': self.W_MULTI_TF},
+                "setup_quality": {"pts": 0.0, "max": self.W_SETUP},
+                "trend_quality": {"pts": 0.0, "max": self.W_TREND},
+                "momentum_rs": {"pts": 0.0, "max": self.W_MOMENTUM},
+                "volume": {"pts": 0.0, "max": self.W_VOLUME},
+                "fundamentals": {"pts": 0.0, "max": self.W_FUNDAMENTALS},
+                "sector_industry": {"pts": 0.0, "max": self.W_SECTOR},
+                "multi_timeframe": {"pts": 0.0, "max": self.W_MULTI_TF},
             }
 
             for key in default_components:
@@ -1049,12 +1155,12 @@ class SwingTraderScore:
 
             components_json = {
                 **default_components,
-                'grade': result.get('grade', 'F'),
-                'pass': result.get('pass', False),
-                'reason': result.get('reason'),
+                "grade": result.get("grade", "F"),
+                "pass": result.get("pass", False),
+                "reason": result.get("reason"),
             }
 
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO swing_trader_scores (symbol, date, score, components)
@@ -1064,36 +1170,58 @@ class SwingTraderScore:
                         components = EXCLUDED.components,
                         created_at = CURRENT_TIMESTAMP
                     """,
-                    (symbol, eval_date, float(result.get('swing_score', 0)), json.dumps(components_json)),
+                    (
+                        symbol,
+                        eval_date,
+                        float(result.get("swing_score", 0)),
+                        json.dumps(components_json),
+                    ),
                 )
         except Exception as e:
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 
 if __name__ == "__main__":
     from algo.infrastructure.config import get_config
+
     s = SwingTraderScore(get_config())
     eval_date = date(2026, 4, 24)
     logger.info(f"SWING TRADER SCORES — {eval_date}")
 
-    candidates = ('AROC', 'CASS', 'CVV', 'EW', 'FSTR', 'LRCX', 'NATR', 'NBHC', 'NGS', 'SMTC', 'SRCE', 'CTS')
+    candidates = (
+        "AROC",
+        "CASS",
+        "CVV",
+        "EW",
+        "FSTR",
+        "LRCX",
+        "NATR",
+        "NBHC",
+        "NGS",
+        "SMTC",
+        "SRCE",
+        "CTS",
+    )
 
-    with DatabaseContext('read') as cur:
+    with DatabaseContext("read") as cur:
         for sym in candidates:
-            cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))
+            cur.execute(
+                "SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,)
+            )
             r = cur.fetchone()
             sector = r[0] if r else None
             industry = r[1] if r else None
             result = s.compute(sym, eval_date, sector=sector, industry=industry)
-            if result['pass']:
-                comp = result['components']
-                logger.info(f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
-                      f"setup {comp['setup_quality']['pts']:4.1f} | "
-                      f"trend {comp['trend_quality']['pts']:4.1f} | "
-                      f"mom {comp['momentum_rs']['pts']:4.1f} | "
-                      f"vol {comp['volume']['pts']:4.1f} | "
-                      f"fund {comp['fundamentals']['pts']:4.1f} | "
-                      f"sec {comp['sector_industry']['pts']:4.1f} | "
-                      f"mtf {comp['multi_timeframe']['pts']:4.1f}")
+            if result["pass"]:
+                comp = result["components"]
+                logger.info(
+                    f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
+                    f"setup {comp['setup_quality']['pts']:4.1f} | "
+                    f"trend {comp['trend_quality']['pts']:4.1f} | "
+                    f"mom {comp['momentum_rs']['pts']:4.1f} | "
+                    f"vol {comp['volume']['pts']:4.1f} | "
+                    f"fund {comp['fundamentals']['pts']:4.1f} | "
+                    f"sec {comp['sector_industry']['pts']:4.1f} | "
+                    f"mtf {comp['multi_timeframe']['pts']:4.1f}"
+                )
             else:
                 logger.warning(f"{sym:6s} BLOCKED: {result['reason']}")
-

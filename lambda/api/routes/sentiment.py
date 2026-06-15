@@ -1,93 +1,165 @@
 """Route: sentiment"""
+
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
-from typing import Dict, Any, Optional, List
-import logging, re
-from datetime import datetime, timedelta, date, timezone
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from typing import Dict
+import logging
+from routes.utils import (
+    error_response,
+    list_response,
+    json_response,
+    safe_limit,
+    safe_page,
+    check_data_freshness,
+    execute_with_timeout,
+    safe_json_serialize,
+)
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/sentiment/* endpoints."""
-        try:
-            if path == '/api/sentiment/summary':
-                fg_rows = execute_with_timeout(cur, """
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
+    """Handle /api/sentiment/* endpoints."""
+    try:
+        if path == "/api/sentiment/summary":
+            fg_rows = execute_with_timeout(
+                cur,
+                """
                     SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
                            mh.put_call_ratio, mh.vix_level
                     FROM fear_greed_index fg
                     LEFT JOIN market_health_daily mh ON mh.date = fg.date
                     ORDER BY fg.date DESC
                     LIMIT 1
-                """, timeout_sec=3)
-                row = fg_rows[0] if fg_rows else None
-                fg_value = float(row['fear_greed_value']) if row and row['fear_greed_value'] else None
-                fg_label = row['fear_greed_label'] if row else None
+                """,
+                timeout_sec=3,
+            )
+            row = fg_rows[0] if fg_rows else None
+            fg_value = (
+                float(row["fear_greed_value"])
+                if row and row["fear_greed_value"]
+                else None
+            )
+            fg_label = row["fear_greed_label"] if row else None
 
-                aaii_row = None
-                try:
-                    aaii_rows = execute_with_timeout(cur, """
+            aaii_row = None
+            try:
+                aaii_rows = execute_with_timeout(
+                    cur,
+                    """
                         SELECT bullish, neutral, bearish, date
                         FROM aaii_sentiment
                         ORDER BY date DESC
                         LIMIT 1
-                    """, timeout_sec=2)
-                    aaii_row = aaii_rows[0] if aaii_rows else None
-                except Exception as e:
-                    logger.error(f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}")
+                    """,
+                    timeout_sec=2,
+                )
+                aaii_row = aaii_rows[0] if aaii_rows else None
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}"
+                )
 
-                naaim_row = None
-                try:
-                    naaim_rows = execute_with_timeout(cur, """
+            naaim_row = None
+            try:
+                naaim_rows = execute_with_timeout(
+                    cur,
+                    """
                         SELECT naaim_number_mean, date
                         FROM naaim
                         ORDER BY date DESC
                         LIMIT 1
-                    """, timeout_sec=2)
-                    naaim_row = naaim_rows[0] if naaim_rows else None
-                except Exception as e:
-                    logger.error(f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}")
+                    """,
+                    timeout_sec=2,
+                )
+                naaim_row = naaim_rows[0] if naaim_rows else None
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}"
+                )
 
-                analyst_row = None
-                try:
-                    analyst_rows = execute_with_timeout(cur, """
+            analyst_row = None
+            try:
+                analyst_rows = execute_with_timeout(
+                    cur,
+                    """
                         SELECT SUM(analyst_count) AS analyst_count,
                                SUM(bullish_count) AS bullish_count,
                                SUM(bearish_count) AS bearish_count,
                                MAX(date) AS date
                         FROM analyst_sentiment_analysis
                         WHERE date = (SELECT date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1)
-                    """, timeout_sec=2)
-                    analyst_row = analyst_rows[0] if analyst_rows else None
-                except Exception as e:
-                    logger.error(f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}")
+                    """,
+                    timeout_sec=2,
+                )
+                analyst_row = analyst_rows[0] if analyst_rows else None
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}"
+                )
 
-                return json_response(200, {
-                    'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,
-                    'aaii': safe_json_serialize(dict(aaii_row)) if aaii_row else None,
-                    'naaim': safe_json_serialize(dict(naaim_row)) if naaim_row else None,
-                    'analyst': safe_json_serialize(dict(analyst_row)) if analyst_row and analyst_row.get('analyst_count') else None,
-                    'put_call_ratio': float(row['put_call_ratio']) if row and row['put_call_ratio'] else None,
-                    'vix_level': float(row['vix_level']) if row and row['vix_level'] else None,
-                    'date': str(row['date']) if row else None,
-                })
-            elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
-                limit_str = params.get('limit', [None])[0] if params else None
-                limit = safe_limit(limit_str, max_val=50000, default=50000)
-                page_str = params.get('page', [None])[0] if params else None
-                page = safe_page(page_str, default=1)
-                offset = (page - 1) * limit
-                sentiment = execute_with_timeout(cur, """
+            return json_response(
+                200,
+                {
+                    "fear_greed": (
+                        {"value": fg_value, "label": fg_label}
+                        if fg_value is not None
+                        else None
+                    ),
+                    "aaii": safe_json_serialize(dict(aaii_row)) if aaii_row else None,
+                    "naaim": (
+                        safe_json_serialize(dict(naaim_row)) if naaim_row else None
+                    ),
+                    "analyst": (
+                        safe_json_serialize(dict(analyst_row))
+                        if analyst_row and analyst_row.get("analyst_count")
+                        else None
+                    ),
+                    "put_call_ratio": (
+                        float(row["put_call_ratio"])
+                        if row and row["put_call_ratio"]
+                        else None
+                    ),
+                    "vix_level": (
+                        float(row["vix_level"]) if row and row["vix_level"] else None
+                    ),
+                    "date": str(row["date"]) if row else None,
+                },
+            )
+        elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
+            limit_str = params.get("limit", [None])[0] if params else None
+            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            page_str = params.get("page", [None])[0] if params else None
+            page = safe_page(page_str, default=1)
+            offset = (page - 1) * limit
+            sentiment = execute_with_timeout(
+                cur,
+                """
                     SELECT symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
                     FROM analyst_sentiment_analysis
                     ORDER BY date DESC, symbol ASC
                     LIMIT %s OFFSET %s
-                """, (limit, offset), timeout_sec=5)
-                freshness = check_data_freshness(cur, 'analyst_sentiment_analysis', 'date', warning_days=7)
-                return list_response([safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [], data_freshness=freshness)
-            elif path == '/api/sentiment/divergence':
-                rows = execute_with_timeout(cur, """
+                """,
+                (limit, offset),
+                timeout_sec=5,
+            )
+            freshness = check_data_freshness(
+                cur, "analyst_sentiment_analysis", "date", warning_days=7
+            )
+            return list_response(
+                [safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [],
+                data_freshness=freshness,
+            )
+        elif path == "/api/sentiment/divergence":
+            rows = execute_with_timeout(
+                cur,
+                """
                     SELECT asa.symbol, asa.date,
                            asa.bullish_count, asa.bearish_count, asa.analyst_count,
                            asa.upside_downside_percent,
@@ -99,117 +171,215 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WHERE asa.date >= CURRENT_DATE - INTERVAL '30 days'
                     ORDER BY asa.date DESC, asa.upside_downside_percent DESC NULLS LAST
                     LIMIT 2000
-                """, timeout_sec=5)
-                return list_response([safe_json_serialize(dict(r)) for r in rows] if rows else [])
-            elif path.startswith('/api/sentiment/analyst/insights/'):
-                symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
-                # Validate symbol format: max 5 chars, alphanumeric + dash only
-                if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
-                    return error_response(400, 'bad_request', 'Invalid symbol format')
-                rows = execute_with_timeout(cur, """
+                """,
+                timeout_sec=5,
+            )
+            return list_response(
+                [safe_json_serialize(dict(r)) for r in rows] if rows else []
+            )
+        elif path.startswith("/api/sentiment/analyst/insights/"):
+            symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
+            # Validate symbol format: max 5 chars, alphanumeric + dash only
+            if (
+                not symbol
+                or len(symbol) > 5
+                or not all(c.isalnum() or c == "-" for c in symbol)
+            ):
+                return error_response(400, "bad_request", "Invalid symbol format")
+            rows = execute_with_timeout(
+                cur,
+                """
                     SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
                     FROM analyst_sentiment_analysis
                     WHERE symbol = %s
                     ORDER BY date DESC
                     LIMIT 12
-                """, (symbol,), timeout_sec=3)
-                if not rows:
-                    return json_response(200, {'metrics': None, 'priceTargets': [], 'momentum': None, 'coverage': None, 'recentUpgrades': []})
-                # Use latest row for metrics summary
-                latest = dict(rows[0])
-                total_val = latest.get('analyst_count')
-                bull_val = latest.get('bullish_count')
-                bear_val = latest.get('bearish_count')
-                neut_val = latest.get('neutral_count')
-                total = int(total_val) if total_val is not None else None
-                bull = int(bull_val) if bull_val is not None else None
-                bear = int(bear_val) if bear_val is not None else None
-                neut = int(neut_val) if neut_val is not None else None
-                bp = round(bull / total * 100, 1) if total > 0 else None
-                bep = round(bear / total * 100, 1) if total > 0 else None
-                np_ = round(neut / total * 100, 1) if total > 0 else None
-                metrics = {
-                    'totalAnalysts': total,
-                    'bullish': bull, 'bearish': bear, 'neutral': neut,
-                    'bullishPercent': bp, 'bearishPercent': bep, 'neutralPercent': np_,
-                    'avgPriceTarget': float(latest['target_price']) if latest.get('target_price') else None,
-                    'priceTargetVsCurrent': float(latest['upside_downside_percent']) if latest.get('upside_downside_percent') else None,
-                    'consensus': (
-                        'Strong Buy' if bp and bp > 70 else
-                        'Buy' if bp and bp > 55 else
-                        'Sell' if bep and bep > 55 else
-                        'Hold'
-                    ) if total > 0 else None,
+                """,
+                (symbol,),
+                timeout_sec=3,
+            )
+            if not rows:
+                return json_response(
+                    200,
+                    {
+                        "metrics": None,
+                        "priceTargets": [],
+                        "momentum": None,
+                        "coverage": None,
+                        "recentUpgrades": [],
+                    },
+                )
+            # Use latest row for metrics summary
+            latest = dict(rows[0])
+            total_val = latest.get("analyst_count")
+            bull_val = latest.get("bullish_count")
+            bear_val = latest.get("bearish_count")
+            neut_val = latest.get("neutral_count")
+            total = int(total_val) if total_val is not None else None
+            bull = int(bull_val) if bull_val is not None else None
+            bear = int(bear_val) if bear_val is not None else None
+            neut = int(neut_val) if neut_val is not None else None
+            bp = round(bull / total * 100, 1) if total > 0 else None
+            bep = round(bear / total * 100, 1) if total > 0 else None
+            np_ = round(neut / total * 100, 1) if total > 0 else None
+            metrics = {
+                "totalAnalysts": total,
+                "bullish": bull,
+                "bearish": bear,
+                "neutral": neut,
+                "bullishPercent": bp,
+                "bearishPercent": bep,
+                "neutralPercent": np_,
+                "avgPriceTarget": (
+                    float(latest["target_price"])
+                    if latest.get("target_price")
+                    else None
+                ),
+                "priceTargetVsCurrent": (
+                    float(latest["upside_downside_percent"])
+                    if latest.get("upside_downside_percent")
+                    else None
+                ),
+                "consensus": (
+                    (
+                        "Strong Buy"
+                        if bp and bp > 70
+                        else (
+                            "Buy"
+                            if bp and bp > 55
+                            else "Sell" if bep and bep > 55 else "Hold"
+                        )
+                    )
+                    if total > 0
+                    else None
+                ),
+            }
+            price_targets = [
+                {
+                    "date": str(dict(r)["date"]),
+                    "target": (
+                        float(dict(r)["target_price"])
+                        if dict(r).get("target_price")
+                        else None
+                    ),
                 }
-                price_targets = [
-                    {'date': str(dict(r)['date']), 'target': float(dict(r)['target_price']) if dict(r).get('target_price') else None}
-                    for r in rows if dict(r).get('target_price')
-                ]
-                return json_response(200, {
-                    'metrics': metrics,
-                    'priceTargets': price_targets,
-                    'momentum': None,
-                    'coverage': None,
-                    'recentUpgrades': [],
-                })
-            elif path.startswith('/api/sentiment/social/insights/'):
-                symbol = path.split('/api/sentiment/social/insights/')[-1].upper()
-                if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
-                    return error_response(400, 'bad_request', 'Invalid symbol format')
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
+                for r in rows
+                if dict(r).get("target_price")
+            ]
+            return json_response(
+                200,
+                {
+                    "metrics": metrics,
+                    "priceTargets": price_targets,
+                    "momentum": None,
+                    "coverage": None,
+                    "recentUpgrades": [],
+                },
+            )
+        elif path.startswith("/api/sentiment/social/insights/"):
+            symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
+            if (
+                not symbol
+                or len(symbol) > 5
+                or not all(c.isalnum() or c == "-" for c in symbol)
+            ):
+                return error_response(400, "bad_request", "Invalid symbol format")
+            cur.execute("SET LOCAL statement_timeout = '3000ms'")
+            cur.execute(
+                """
                     SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
                     FROM analyst_sentiment_analysis
                     WHERE symbol = %s
                     ORDER BY date DESC
                     LIMIT 12
-                """, (symbol,))
-                rows = cur.fetchall()
-                if not rows:
-                    return json_response(200, {'sentiment': None, 'priceTargets': [], 'coverage': None, 'momentum': None, 'recentTrends': []})
-                latest = dict(rows[0])
-                total_val = latest.get('analyst_count')
-                bull_val = latest.get('bullish_count')
-                bear_val = latest.get('bearish_count')
-                neut_val = latest.get('neutral_count')
-                total = int(total_val) if total_val is not None else None
-                bull = int(bull_val) if bull_val is not None else None
-                bear = int(bear_val) if bear_val is not None else None
-                neut = int(neut_val) if neut_val is not None else None
-                bp = round(bull / total * 100, 1) if total and total > 0 else None
-                bep = round(bear / total * 100, 1) if total and total > 0 else None
-                np_ = round(neut / total * 100, 1) if total and total > 0 else None
-                sentiment_data = {
-                    'totalAnalysts': total,
-                    'bullish': bull, 'bearish': bear, 'neutral': neut,
-                    'bullishPercent': bp, 'bearishPercent': bep, 'neutralPercent': np_,
-                    'avgPriceTarget': float(latest['target_price']) if latest.get('target_price') else None,
-                    'priceTargetVsCurrent': float(latest['upside_downside_percent']) if latest.get('upside_downside_percent') else None,
-                    'sentiment': (
-                        'Very Bullish' if bp and bp > 70 else
-                        'Bullish' if bp and bp > 55 else
-                        'Bearish' if bep and bep > 55 else
-                        'Neutral'
-                    ) if total and total > 0 else None,
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                return json_response(
+                    200,
+                    {
+                        "sentiment": None,
+                        "priceTargets": [],
+                        "coverage": None,
+                        "momentum": None,
+                        "recentTrends": [],
+                    },
+                )
+            latest = dict(rows[0])
+            total_val = latest.get("analyst_count")
+            bull_val = latest.get("bullish_count")
+            bear_val = latest.get("bearish_count")
+            neut_val = latest.get("neutral_count")
+            total = int(total_val) if total_val is not None else None
+            bull = int(bull_val) if bull_val is not None else None
+            bear = int(bear_val) if bear_val is not None else None
+            neut = int(neut_val) if neut_val is not None else None
+            bp = round(bull / total * 100, 1) if total and total > 0 else None
+            bep = round(bear / total * 100, 1) if total and total > 0 else None
+            np_ = round(neut / total * 100, 1) if total and total > 0 else None
+            sentiment_data = {
+                "totalAnalysts": total,
+                "bullish": bull,
+                "bearish": bear,
+                "neutral": neut,
+                "bullishPercent": bp,
+                "bearishPercent": bep,
+                "neutralPercent": np_,
+                "avgPriceTarget": (
+                    float(latest["target_price"])
+                    if latest.get("target_price")
+                    else None
+                ),
+                "priceTargetVsCurrent": (
+                    float(latest["upside_downside_percent"])
+                    if latest.get("upside_downside_percent")
+                    else None
+                ),
+                "sentiment": (
+                    (
+                        "Very Bullish"
+                        if bp and bp > 70
+                        else (
+                            "Bullish"
+                            if bp and bp > 55
+                            else "Bearish" if bep and bep > 55 else "Neutral"
+                        )
+                    )
+                    if total and total > 0
+                    else None
+                ),
+            }
+            price_targets = [
+                {
+                    "date": str(dict(r)["date"]),
+                    "target": (
+                        float(dict(r)["target_price"])
+                        if dict(r).get("target_price")
+                        else None
+                    ),
                 }
-                price_targets = [
-                    {'date': str(dict(r)['date']), 'target': float(dict(r)['target_price']) if dict(r).get('target_price') else None}
-                    for r in rows if dict(r).get('target_price')
-                ]
-                return json_response(200, {
-                    'sentiment': sentiment_data,
-                    'priceTargets': price_targets,
-                    'coverage': {'totalAnalysts': total} if total else None,
-                    'momentum': None,
-                    'recentTrends': [],
-                })
-            elif path == '/api/sentiment/vix':
-                return _get_vix_data(cur)
-            elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):
-                # Default: return same shape as /api/sentiment/summary
-                cur.execute("""
+                for r in rows
+                if dict(r).get("target_price")
+            ]
+            return json_response(
+                200,
+                {
+                    "sentiment": sentiment_data,
+                    "priceTargets": price_targets,
+                    "coverage": {"totalAnalysts": total} if total else None,
+                    "momentum": None,
+                    "recentTrends": [],
+                },
+            )
+        elif path == "/api/sentiment/vix":
+            return _get_vix_data(cur)
+        elif path == "/api/sentiment" or path.startswith("/api/sentiment?"):
+            # Default: return same shape as /api/sentiment/summary
+            cur.execute("""
                     SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
                            mh.put_call_ratio, mh.vix_level
                     FROM fear_greed_index fg
@@ -217,62 +387,92 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ORDER BY fg.date DESC
                     LIMIT 1
                 """)
-                row = cur.fetchone()
-                if row:
-                    return json_response(200, {
-                        'fear_greed': {'value': float(row['fear_greed_value']), 'label': row['fear_greed_label']} if row['fear_greed_value'] else None,
-                        'put_call_ratio': float(row['put_call_ratio']) if row['put_call_ratio'] else None,
-                        'vix_level': float(row['vix_level']) if row['vix_level'] else None,
-                        'date': str(row['date']),
-                    })
-                return error_response(503, 'no_data', 'Sentiment data not available')
-            return error_response(404, 'not_found', f'No sentiment handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.warning(f"Schema not available for sentiment {path}: {str(e)}")
-            return error_response(503, 'schema_mismatch', 'Database schema not yet available. Please try again after migrations complete.')
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.error(f"Database error in sentiment {path}: {str(e)}")
-            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
-        except Exception as e:
-            logger.error(f"Unexpected error in sentiment {path}: {str(e)}")
-            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching sentiment data.')
+            row = cur.fetchone()
+            if row:
+                return json_response(
+                    200,
+                    {
+                        "fear_greed": (
+                            {
+                                "value": float(row["fear_greed_value"]),
+                                "label": row["fear_greed_label"],
+                            }
+                            if row["fear_greed_value"]
+                            else None
+                        ),
+                        "put_call_ratio": (
+                            float(row["put_call_ratio"])
+                            if row["put_call_ratio"]
+                            else None
+                        ),
+                        "vix_level": (
+                            float(row["vix_level"]) if row["vix_level"] else None
+                        ),
+                        "date": str(row["date"]),
+                    },
+                )
+            return error_response(503, "no_data", "Sentiment data not available")
+        return error_response(404, "not_found", f"No sentiment handler for {path}")
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.warning(f"Schema not available for sentiment {path}: {str(e)}")
+        return error_response(
+            503,
+            "schema_mismatch",
+            "Database schema not yet available. Please try again after migrations complete.",
+        )
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"Database error in sentiment {path}: {str(e)}")
+        return error_response(
+            503, "service_unavailable", "Database temporarily unavailable."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in sentiment {path}: {str(e)}")
+        return error_response(
+            500,
+            "internal_error",
+            "An unexpected error occurred while fetching sentiment data.",
+        )
 
 def _get_vix_data(cur) -> Dict:
-        """Get latest VIX data and historical trend."""
-        try:
-            cur.execute("""
+    """Get latest VIX data and historical trend."""
+    try:
+        cur.execute("""
                 SELECT date, vix_level, put_call_ratio, market_trend, market_stage
                 FROM market_health_daily
                 WHERE vix_level IS NOT NULL
                 ORDER BY date DESC
                 LIMIT 60
             """)
-            rows = cur.fetchall()
+        rows = cur.fetchall()
 
-            if not rows:
-                return json_response(200, {'latest': None, 'history': []})
+        if not rows:
+            return json_response(200, {"latest": None, "history": []})
 
-            latest = safe_json_serialize(dict(rows[0])) if rows else None
-            history = [safe_json_serialize(dict(r)) for r in rows]
+        latest = safe_json_serialize(dict(rows[0])) if rows else None
+        history = [safe_json_serialize(dict(r)) for r in rows]
 
-            if latest and latest.get('vix_level', 0) > 25:
-                signal = 'fear'
-            elif latest and latest.get('vix_level', 0) > 15:
-                signal = 'neutral'
-            else:
-                signal = 'greed'
+        if latest and latest.get("vix_level", 0) > 25:
+            signal = "fear"
+        elif latest and latest.get("vix_level", 0) > 15:
+            signal = "neutral"
+        else:
+            signal = "greed"
 
-            return json_response(200, {
-                'latest': latest,
-                'history': history,
-                'signal': signal
-            })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.warning(f"Schema not available for VIX data: {str(e)}")
-            return error_response(503, 'schema_mismatch', 'VIX data not yet available')
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.error(f"Database error in VIX data: {str(e)}")
-            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
-        except Exception as e:
-            logger.error(f"Unexpected error in VIX data: {str(e)}")
-            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching VIX data.')
+        return json_response(
+            200, {"latest": latest, "history": history, "signal": signal}
+        )
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.warning(f"Schema not available for VIX data: {str(e)}")
+        return error_response(503, "schema_mismatch", "VIX data not yet available")
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"Database error in VIX data: {str(e)}")
+        return error_response(
+            503, "service_unavailable", "Database temporarily unavailable."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in VIX data: {str(e)}")
+        return error_response(
+            500,
+            "internal_error",
+            "An unexpected error occurred while fetching VIX data.",
+        )

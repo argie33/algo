@@ -9,18 +9,17 @@ DynamoDB is critical for:
 
 import logging
 import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
-
 
 class DynamoDBHealthCheck:
     """Monitor DynamoDB availability and state consistency."""
 
     def __init__(self):
-        self.table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-        self.region = os.getenv('AWS_REGION', 'us-east-1')
+        self.table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+        self.region = os.getenv("AWS_REGION", "us-east-1")
 
     def check_dynamodb_connectivity(self) -> bool:
         """Test if DynamoDB is reachable.
@@ -30,11 +29,12 @@ class DynamoDBHealthCheck:
         """
         try:
             import boto3
-            dynamodb = boto3.resource('dynamodb', region_name=self.region)
+
+            dynamodb = boto3.resource("dynamodb", region_name=self.region)
             table = dynamodb.Table(self.table_name)
 
             # Attempt a simple read (head request doesn't consume capacity)
-            table.get_item(Key={'key': 'connectivity_check'}, ConsistentRead=False)
+            table.get_item(Key={"key": "connectivity_check"}, ConsistentRead=False)
 
             logger.debug(f"[DynamoDB] Connectivity check OK ({self.table_name})")
             return True
@@ -58,37 +58,38 @@ class DynamoDBHealthCheck:
         """
         try:
             import boto3
-            dynamodb = boto3.resource('dynamodb', region_name=self.region)
+
+            dynamodb = boto3.resource("dynamodb", region_name=self.region)
             table = dynamodb.Table(self.table_name)
 
-            response = table.get_item(Key={'key': 'orchestrator_halt'})
-            item = response.get('Item', {})
+            response = table.get_item(Key={"key": "orchestrator_halt"})
+            item = response.get("Item", {})
 
-            halt_active = item.get('halt_flag', False) is True
-            set_time = item.get('set_at')
-            reason = item.get('reason')
-            ttl = item.get('TTL')
+            halt_active = item.get("halt_flag", False) is True
+            set_time = item.get("set_at")
+            reason = item.get("reason")
+            ttl = item.get("TTL")
 
             auto_clear_time = None
             if ttl:
                 auto_clear_time = datetime.fromtimestamp(ttl)
 
             return {
-                'halt_flag_active': halt_active,
-                'set_time': set_time,
-                'reason': reason,
-                'auto_clear_time': auto_clear_time,
-                'available': True,
-                'last_checked': datetime.now().isoformat(),
+                "halt_flag_active": halt_active,
+                "set_time": set_time,
+                "reason": reason,
+                "auto_clear_time": auto_clear_time,
+                "available": True,
+                "last_checked": datetime.now().isoformat(),
             }
 
         except Exception as e:
             logger.error(f"[DynamoDB] Failed to read halt flag: {e}")
             return {
-                'halt_flag_active': None,
-                'available': False,
-                'error': str(e),
-                'last_checked': datetime.now().isoformat(),
+                "halt_flag_active": None,
+                "available": False,
+                "error": str(e),
+                "last_checked": datetime.now().isoformat(),
             }
 
     def get_phase1_degraded_mode_status(self) -> Dict[str, Any]:
@@ -104,29 +105,30 @@ class DynamoDBHealthCheck:
         """
         try:
             import boto3
-            dynamodb = boto3.resource('dynamodb', region_name=self.region)
+
+            dynamodb = boto3.resource("dynamodb", region_name=self.region)
             table = dynamodb.Table(self.table_name)
 
-            response = table.get_item(Key={'key': 'phase1_degraded_mode'})
-            item = response.get('Item', {})
+            response = table.get_item(Key={"key": "phase1_degraded_mode"})
+            item = response.get("Item", {})
 
-            degraded = item.get('degraded', False) is True
-            reason = item.get('reason')
-            set_time = item.get('set_at')
+            degraded = item.get("degraded", False) is True
+            reason = item.get("reason")
+            set_time = item.get("set_at")
 
             return {
-                'degraded_mode_active': degraded,
-                'reason': reason,
-                'set_time': set_time,
-                'available': True,
+                "degraded_mode_active": degraded,
+                "reason": reason,
+                "set_time": set_time,
+                "available": True,
             }
 
         except Exception as e:
             logger.error(f"[DynamoDB] Failed to read phase1_degraded_mode: {e}")
             return {
-                'degraded_mode_active': None,
-                'available': False,
-                'error': str(e),
+                "degraded_mode_active": None,
+                "available": False,
+                "error": str(e),
             }
 
     def check_lock_status(self) -> Dict[str, Any]:
@@ -143,35 +145,36 @@ class DynamoDBHealthCheck:
         """
         try:
             import boto3
-            dynamodb = boto3.resource('dynamodb', region_name=self.region)
+
+            dynamodb = boto3.resource("dynamodb", region_name=self.region)
             table = dynamodb.Table(self.table_name)
 
-            response = table.get_item(Key={'key': 'orchestrator-run-lock'})
-            item = response.get('Item', {})
+            response = table.get_item(Key={"key": "orchestrator-run-lock"})
+            item = response.get("Item", {})
 
-            lock_active = 'lock_owner' in item
-            owner = item.get('lock_owner')
-            acquired_at = item.get('lock_acquired_at')
-            ttl = item.get('TTL')
+            lock_active = "lock_owner" in item
+            owner = item.get("lock_owner")
+            acquired_at = item.get("lock_acquired_at")
+            ttl = item.get("TTL")
 
             expires_at = None
             if ttl:
                 expires_at = datetime.fromtimestamp(ttl)
 
             return {
-                'lock_active': lock_active,
-                'owner_run_id': owner,
-                'acquired_at': acquired_at,
-                'expires_at': expires_at,
-                'available': True,
+                "lock_active": lock_active,
+                "owner_run_id": owner,
+                "acquired_at": acquired_at,
+                "expires_at": expires_at,
+                "available": True,
             }
 
         except Exception as e:
             logger.error(f"[DynamoDB] Failed to read lock status: {e}")
             return {
-                'lock_active': None,
-                'available': False,
-                'error': str(e),
+                "lock_active": None,
+                "available": False,
+                "error": str(e),
             }
 
     def log_health_status(self):
@@ -187,7 +190,7 @@ class DynamoDBHealthCheck:
         lock_status = self.check_lock_status()
 
         logger.info(
-            f"[DynamoDB-Health] "
+            "[DynamoDB-Health] "
             f"Halt={'ACTIVE' if halt_status.get('halt_flag_active') else 'clear'}, "
             f"Degraded={'YES' if degraded_status.get('degraded_mode_active') else 'NO'}, "
             f"Lock={'HELD' if lock_status.get('lock_active') else 'free'}"

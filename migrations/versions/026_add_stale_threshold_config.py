@@ -12,11 +12,16 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add stale data detection threshold configuration"
 
 _NEW_CONFIGS = [
-    ('stale_loader_threshold_minutes', '30', 'int', 'Stale loader threshold minutes (measured from production execution times)'),
+    (
+        "stale_loader_threshold_minutes",
+        "30",
+        "int",
+        "Stale loader threshold minutes (measured from production execution times)",
+    ),
 ]
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         for key, value, value_type, description in _NEW_CONFIGS:
             cur.execute(
                 """
@@ -28,8 +33,5 @@ def up():
             )
 
 def down():
-    with DatabaseContext('write') as cur:
-        cur.execute(
-            "DELETE FROM algo_config WHERE updated_by = 'migration-026'"
-        )
-
+    with DatabaseContext("write") as cur:
+        cur.execute("DELETE FROM algo_config WHERE updated_by = 'migration-026'")

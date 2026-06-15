@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Verify that the system works with all fixes applied."""
+
 import logging
 from datetime import date, timedelta
 from algo.algo_orchestrator import Orchestrator
 from algo.infrastructure import get_config
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-logger = logging.getLogger('__main__')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger("__main__")
 
 # Get Monday (next trading day)
 today = date.today()
@@ -26,21 +27,21 @@ try:
     logger.info("Running orchestrator in dry-run mode...")
     result = orch.run()
 
-    print("\n" + "="*60)
-    if result.get('success'):
+    print("\n" + "=" * 60)
+    if result.get("success"):
         logger.info("SUCCESS! System passed all checks:")
         logger.info(f"  - Run ID: {result.get('run_id')}")
         logger.info(f"  - Phases completed: {result.get('phases_completed')}")
-        logger.info(f"  - No phase errors")
+        logger.info("  - No phase errors")
         print("\nFIXES VERIFIED:")
         print("  [OK] AlgoConfig to_dict() method working")
         print("  [OK] Phase 1 passes with full symbol coverage")
         print("  [OK] Price loader circuit breaker increased")
         print("  [OK] All orchestrator phases operational")
     else:
-        reason = result.get('reason', 'Unknown')
+        reason = result.get("reason", "Unknown")
         logger.error(f"FAILED: {reason}")
-        if result.get('skipped'):
+        if result.get("skipped"):
             logger.info("(Orchestrator skipped - likely weekend detection)")
         else:
             logger.error(f"Phases completed: {result.get('phases_completed')}")

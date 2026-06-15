@@ -9,7 +9,6 @@ Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 
 import sys
 import argparse
-import os
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -20,7 +19,7 @@ from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_default_parallelism
 from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
@@ -32,8 +31,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date] = None):
         from algo.infrastructure import MarketCalendar
-        from datetime import datetime, timezone, timedelta as td
-        from zoneinfo import ZoneInfo
+        from datetime import datetime, timezone
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
@@ -49,14 +47,16 @@ class TrendCriteriaLoader(OptimalLoader):
         # CRITICAL: Check if price data exists for end date. If not, use the most recent available.
         # This prevents the loader from trying to compute trends for dates with no price data.
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT MAX(date) FROM price_daily WHERE date <= %s",
                     (end,),
                 )
                 max_price_date = cur.fetchone()[0]
                 if max_price_date and max_price_date < end:
-                    logger.info(f"[TrendCriteria] Price data only available to {max_price_date}, using that instead of {end}")
+                    logger.info(
+                        f"[TrendCriteria] Price data only available to {max_price_date}, using that instead of {end}"
+                    )
                     end = max_price_date
         except Exception as e:
             logger.warning(f"Could not check max price date: {e}")
@@ -67,16 +67,22 @@ class TrendCriteriaLoader(OptimalLoader):
         # MarketHealthDailyLoader in commit 97230793b.
         if since is None:
             try:
-                with DatabaseContext('read') as cur:
+                with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT MAX(date) FROM trend_template_data WHERE symbol = %s",
                         (symbol,),
                     )
                     row = cur.fetchone()
                     if row and row[0]:
-                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                        since = (
+                            row[0]
+                            if isinstance(row[0], date)
+                            else date.fromisoformat(str(row[0]))
+                        )
             except Exception as e:
-                logger.warning(f"Could not read trend_template_data watermark for {symbol}: {e}")
+                logger.warning(
+                    f"Could not read trend_template_data watermark for {symbol}: {e}"
+                )
 
         if since is None:
             start = end - timedelta(days=2 * 365)
@@ -98,7 +104,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT date, close, volume FROM price_daily "
                     "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
@@ -124,9 +130,9 @@ class TrendCriteriaLoader(OptimalLoader):
         close = df["close"]
         # Use shared moving average computation
         mas = compute_moving_averages(close)
-        df["sma_50"] = mas['sma_50']
-        df["sma_150"] = mas['sma_150']
-        df["sma_200"] = mas['sma_200']
+        df["sma_50"] = mas["sma_50"]
+        df["sma_150"] = mas["sma_150"]
+        df["sma_200"] = mas["sma_200"]
 
         # Compute slopes (not in shared function)
         df["sma_50_slope"] = df["sma_50"].diff(5) / df["sma_50"].shift(5)
@@ -187,7 +193,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
             # Consolidation: price within 10% range over 10 days
             if idx >= 10:
-                recent = df["close"].iloc[idx-10:idx+1]
+                recent = df["close"].iloc[idx - 10 : idx + 1]
                 if recent.isna().any():
                     consolidation = None
                 else:
@@ -200,37 +206,72 @@ class TrendCriteriaLoader(OptimalLoader):
             else:
                 consolidation = None
 
-            trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
+            trend_dir = (
+                "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
+            )
 
-            results.append({
-                "symbol": symbol,
-                "date": row["date"].date().isoformat(),
-                "price_52w_high": round(float(high52), 4) if high52 else None,
-                "price_52w_low": round(float(low52), 4) if low52 else None,
-                "percent_from_52w_low": round(float(pct_from_low), 2) if pct_from_low is not None else None,
-                "percent_from_52w_high": round(float(pct_from_high), 2) if pct_from_high is not None else None,
-                "sma_50_slope": round(float(row["sma_50_slope"]), 4) if pd.notna(row.get("sma_50_slope", float("nan"))) else None,
-                "sma_200_slope": round(float(row["sma_200_slope"]), 4) if pd.notna(row.get("sma_200_slope", float("nan"))) else None,
-                "price_above_sma50": bool(c > sma50) if sma50 else None,
-                "price_above_sma200": bool(c > sma200) if sma200 else None,
-                "sma50_above_sma200": bool(sma50 > sma200) if (sma50 and sma200) else None,
-                "ma_spread_percent": round(float((sma50 - sma200) / sma200 * 100), 4) if (sma50 and sma200) else None,
-                "minervini_trend_score": score,
-                "weinstein_stage": weinstein_stage,
-                "trend_direction": trend_dir,
-                "consolidation_flag": consolidation,
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "date": row["date"].date().isoformat(),
+                    "price_52w_high": round(float(high52), 4) if high52 else None,
+                    "price_52w_low": round(float(low52), 4) if low52 else None,
+                    "percent_from_52w_low": (
+                        round(float(pct_from_low), 2)
+                        if pct_from_low is not None
+                        else None
+                    ),
+                    "percent_from_52w_high": (
+                        round(float(pct_from_high), 2)
+                        if pct_from_high is not None
+                        else None
+                    ),
+                    "sma_50_slope": (
+                        round(float(row["sma_50_slope"]), 4)
+                        if pd.notna(row.get("sma_50_slope", float("nan")))
+                        else None
+                    ),
+                    "sma_200_slope": (
+                        round(float(row["sma_200_slope"]), 4)
+                        if pd.notna(row.get("sma_200_slope", float("nan")))
+                        else None
+                    ),
+                    "price_above_sma50": bool(c > sma50) if sma50 else None,
+                    "price_above_sma200": bool(c > sma200) if sma200 else None,
+                    "sma50_above_sma200": (
+                        bool(sma50 > sma200) if (sma50 and sma200) else None
+                    ),
+                    "ma_spread_percent": (
+                        round(float((sma50 - sma200) / sma200 * 100), 4)
+                        if (sma50 and sma200)
+                        else None
+                    ),
+                    "minervini_trend_score": score,
+                    "weinstein_stage": weinstein_stage,
+                    "trend_direction": trend_dir,
+                    "consolidation_flag": consolidation,
+                }
+            )
 
         return results
 
 def main():
     parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("trend_criteria_data"), help="Parallel workers")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=get_default_parallelism("trend_criteria_data"),
+        help="Parallel workers",
+    )
     args = parser.parse_args()
 
     try:
-        symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
+        symbols = (
+            args.symbols.split(",")
+            if args.symbols
+            else get_active_symbols(timeout_secs=60)
+        )
         loader = TrendCriteriaLoader()
         loader.run(symbols, parallelism=args.parallelism)
         logger.info("Trend criteria data load completed")
@@ -241,4 +282,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

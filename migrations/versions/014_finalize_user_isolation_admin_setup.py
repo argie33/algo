@@ -13,11 +13,11 @@ DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
 
 def up():
     """Verify admin user isolation preconditions."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Verify that 'admin-user' placeholder is in place
         tables_to_check = [
-            'algo_portfolio_snapshots',
-            'algo_trade_adds',
+            "algo_portfolio_snapshots",
+            "algo_trade_adds",
         ]
 
         for table_name in tables_to_check:
@@ -28,7 +28,7 @@ def up():
                     SELECT COUNT(*) as count FROM information_schema.columns
                     WHERE table_name = %s AND column_name = 'cognito_sub'
                     """,
-                    (table_name,)
+                    (table_name,),
                 )
                 if cur.fetchone()[0] > 0:
                     # Verify 'admin-user' entries exist
@@ -37,12 +37,16 @@ def up():
                     )
                     count = cur.fetchone()[0]
                     if count > 0:
-                        print(f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found")
-            except Exception as e:
+                        print(
+                            f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found"
+                        )
+            except Exception:
                 # Table may not exist yet, that's OK
                 pass
 
-        print("\nNextstep: Run migration 015 to replace 'admin-user' with real Cognito sub:")
+        print(
+            "\nNextstep: Run migration 015 to replace 'admin-user' with real Cognito sub:"
+        )
         print("  1. Get admin Cognito sub from AWS Cognito console")
         print("  2. Set ADMIN_COGNITO_SUB environment variable")
         print("  3. Run: python -m alembic upgrade head")
@@ -50,5 +54,3 @@ def up():
 def down():
     """Revert precondition check (no-op)."""
     # This migration only checks preconditions, nothing to revert
-    pass
-

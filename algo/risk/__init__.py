@@ -8,10 +8,10 @@ from .var import ValueAtRisk
 from .exposure_policy import ExposurePolicy
 
 __all__ = [
-    'CircuitBreaker',
-    'MarketExposure',
-    'LiquidityChecks',
-    'EarningsBlackout',
-    'ValueAtRisk',
-    'ExposurePolicy',
+    "CircuitBreaker",
+    "MarketExposure",
+    "LiquidityChecks",
+    "EarningsBlackout",
+    "ValueAtRisk",
+    "ExposurePolicy",
 ]

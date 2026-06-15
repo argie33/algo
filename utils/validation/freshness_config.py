@@ -17,12 +17,11 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, date, timezone
 from typing import Optional, Tuple, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 ET_ZONE = "America/New_York"
-
 
 # ============================================================================
 # FRESHNESS RULES: Define all table freshness thresholds here
@@ -86,7 +85,6 @@ FRESHNESS_RULES = {
         "purpose": "Position monitoring, exposure policy enforcement",
         "applies_to": ["orchestrator_phase3b", "dashboard"],
     },
-
     # === IMPORTANT TABLES (Warning if stale, may still use) ===
     "technical_data_daily": {
         "critical": False,
@@ -116,7 +114,6 @@ FRESHNESS_RULES = {
         "purpose": "Runtime configuration, circuit breaker setup",
         "applies_to": ["orchestrator_all"],
     },
-
     # === SUPPORTING TABLES (Optional, soft warnings only) ===
     "sector_ranking": {
         "critical": False,
@@ -141,7 +138,6 @@ FRESHNESS_RULES = {
     },
 }
 
-
 def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
     """Get freshness rule for a table.
 
@@ -152,7 +148,6 @@ def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
         Rule dict with 'max_age_days', 'critical', 'description', or None if not found
     """
     return FRESHNESS_RULES.get(table_name)
-
 
 def is_table_fresh(
     table_name: str,
@@ -188,6 +183,7 @@ def is_table_fresh(
     if isinstance(latest_date, str):
         try:
             from datetime import datetime as dt
+
             latest_dt = dt.fromisoformat(latest_date)
             latest_date_only = latest_dt.date()
         except (ValueError, AttributeError):
@@ -219,12 +215,9 @@ def is_table_fresh(
         status = "STALE"
         level = "⚠️"
 
-    message = (
-        f"{level} {table_name}: {age_days}d old (threshold {max_age}d) — {status}"
-    )
+    message = f"{level} {table_name}: {age_days}d old (threshold {max_age}d) — {status}"
 
     return is_fresh, age_minutes, message
-
 
 def check_multiple_tables(
     tables_and_dates: Dict[str, Optional[Any]],
@@ -254,7 +247,6 @@ def check_multiple_tables(
 
     return all_fresh, stale_tables, messages
 
-
 def get_max_age_minutes(table_name: str) -> Optional[int]:
     """Get max age in minutes for a table (convenience function).
 
@@ -269,7 +261,6 @@ def get_max_age_minutes(table_name: str) -> Optional[int]:
         return rule["max_age_days"] * 24 * 60
     return None
 
-
 def is_critical_table(table_name: str) -> bool:
     """Check if a table is critical (halt if stale).
 
@@ -282,11 +273,9 @@ def is_critical_table(table_name: str) -> bool:
     rule = get_freshness_rule(table_name)
     return rule.get("critical", False) if rule else False
 
-
 # ============================================================================
 # TIMESTAMP HELPERS
 # ============================================================================
-
 
 def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
     """Calculate minutes elapsed since a timestamp.
@@ -318,7 +307,6 @@ def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
         return elapsed.total_seconds() / 60
 
     return None
-
 
 # ============================================================================
 # COMMON QUERIES (SQL templates for checking table freshness)

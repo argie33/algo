@@ -10,15 +10,27 @@ ON CONFLICT DO NOTHING keeps any manually-set DB value.
 
 from migrations.migration_helper import DatabaseContext
 
-DESCRIPTION = "Seed rs_slope_gate_enabled and volume_decay_gate_enabled into algo_config"
+DESCRIPTION = (
+    "Seed rs_slope_gate_enabled and volume_decay_gate_enabled into algo_config"
+)
 
 _NEW_KEYS = [
-    ('rs_slope_gate_enabled', 'true', 'bool', 'Hard-gate T3 on RS line trending up (set false during strong SPY runs)'),
-    ('volume_decay_gate_enabled', 'true', 'bool', 'Hard-gate T3 on volume decay into breakout (set false to soften)'),
+    (
+        "rs_slope_gate_enabled",
+        "true",
+        "bool",
+        "Hard-gate T3 on RS line trending up (set false during strong SPY runs)",
+    ),
+    (
+        "volume_decay_gate_enabled",
+        "true",
+        "bool",
+        "Hard-gate T3 on volume decay into breakout (set false to soften)",
+    ),
 ]
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         for key, value, value_type, description in _NEW_KEYS:
             cur.execute(
                 """
@@ -30,8 +42,5 @@ def up():
             )
 
 def down():
-    with DatabaseContext('write') as cur:
-        cur.execute(
-            "DELETE FROM algo_config WHERE updated_by = 'migration-009'"
-        )
-
+    with DatabaseContext("write") as cur:
+        cur.execute("DELETE FROM algo_config WHERE updated_by = 'migration-009'")

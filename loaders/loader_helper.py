@@ -28,7 +28,6 @@ def setup_imports():
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-
 def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
     """Configure socket-level timeouts for all network operations in loaders.
 
@@ -43,5 +42,5 @@ def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
         socket.setdefaulttimeout(socket_timeout_sec)
     except Exception as e:
         import logging
+
         logging.warning(f"Could not set socket timeout: {e}")
-        pass

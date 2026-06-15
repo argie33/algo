@@ -10,20 +10,19 @@ Provides safe wrappers for common validation patterns:
 
 import re
 import logging
-from typing import Optional, Union, Tuple
+from typing import Optional, Union
 from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger(__name__)
 
 # Validation patterns
-SYMBOL_PATTERN = re.compile(r'^[A-Z0-9\.\-]{1,12}$')  # Stock symbols: AAPL, BRK.B
-NASDAQ_PATTERN = re.compile(r'^[A-Z]{1,5}$|^[A-Z\d]{3}\.[A-Z]$')  # More strict NASDAQ format
-
+SYMBOL_PATTERN = re.compile(r"^[A-Z0-9\.\-]{1,12}$")  # Stock symbols: AAPL, BRK.B
+NASDAQ_PATTERN = re.compile(
+    r"^[A-Z]{1,5}$|^[A-Z\d]{3}\.[A-Z]$"
+)  # More strict NASDAQ format
 
 class ValidationError(ValueError):
     """Raised when validation fails"""
-    pass
-
 
 def validate_symbol(symbol: str, strict: bool = False) -> str:
     """
@@ -56,8 +55,9 @@ def validate_symbol(symbol: str, strict: bool = False) -> str:
 
     return symbol
 
-
-def validate_percentage(value: Union[int, float, str], min_pct: float = 0, max_pct: float = 100) -> float:
+def validate_percentage(
+    value: Union[int, float, str], min_pct: float = 0, max_pct: float = 100
+) -> float:
     """
     Validate percentage value is within bounds.
 
@@ -84,8 +84,9 @@ def validate_percentage(value: Union[int, float, str], min_pct: float = 0, max_p
 
     return pct
 
-
-def validate_price(price: Union[int, float, str], min_price: float = 0.01, max_price: float = 1_000_000) -> Decimal:
+def validate_price(
+    price: Union[int, float, str], min_price: float = 0.01, max_price: float = 1_000_000
+) -> Decimal:
     """
     Validate stock price.
 
@@ -116,8 +117,9 @@ def validate_price(price: Union[int, float, str], min_price: float = 0.01, max_p
 
     return price_decimal
 
-
-def validate_quantity(qty: Union[int, str], min_qty: int = 1, max_qty: int = 1_000_000) -> int:
+def validate_quantity(
+    qty: Union[int, str], min_qty: int = 1, max_qty: int = 1_000_000
+) -> int:
     """
     Validate trade quantity.
 
@@ -145,7 +147,6 @@ def validate_quantity(qty: Union[int, str], min_qty: int = 1, max_qty: int = 1_0
 
     return quantity
 
-
 def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
     """
     Validate R-multiple (risk/reward ratio).
@@ -172,8 +173,7 @@ def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
 
     return r
 
-
-def validate_date_string(date_str: str, format_str: str = '%Y-%m-%d') -> str:
+def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
     """
     Validate date string format.
 
@@ -193,14 +193,15 @@ def validate_date_string(date_str: str, format_str: str = '%Y-%m-%d') -> str:
         datetime.strptime(date_str, format_str)
         return date_str
     except ValueError:
-        raise ValidationError(f"Invalid date format: {date_str} (expected {format_str})")
-
+        raise ValidationError(
+            f"Invalid date format: {date_str} (expected {format_str})"
+        )
 
 def validate_integer_range(
     value: Union[int, str],
     min_val: int = None,
     max_val: int = None,
-    name: str = "value"
+    name: str = "value",
 ) -> int:
     """
     Generic integer range validation.
@@ -230,12 +231,11 @@ def validate_integer_range(
 
     return int_val
 
-
 def validate_float_range(
     value: Union[int, float, str],
     min_val: float = None,
     max_val: float = None,
-    name: str = "value"
+    name: str = "value",
 ) -> float:
     """
     Generic float range validation.
@@ -265,7 +265,6 @@ def validate_float_range(
 
     return float_val
 
-
 def validate_email(email: str) -> str:
     """
     Validate email address format (basic).
@@ -282,14 +281,13 @@ def validate_email(email: str) -> str:
     email = email.strip().lower()
 
     # Basic email validation
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+    if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
         raise ValidationError(f"Invalid email format: {email}")
 
     if len(email) > 254:
         raise ValidationError(f"Email too long: {len(email)} > 254")
 
     return email
-
 
 def validate_order_type(order_type: str) -> str:
     """
@@ -304,7 +302,7 @@ def validate_order_type(order_type: str) -> str:
     Raises:
         ValidationError: If not in whitelist
     """
-    VALID_TYPES = {'market', 'limit', 'stop', 'stop_limit', 'trailing_stop'}
+    VALID_TYPES = {"market", "limit", "stop", "stop_limit", "trailing_stop"}
     order_type = order_type.lower().strip()
 
     if order_type not in VALID_TYPES:
@@ -313,7 +311,6 @@ def validate_order_type(order_type: str) -> str:
         )
 
     return order_type
-
 
 def validate_position_side(side: str) -> str:
     """
@@ -330,11 +327,12 @@ def validate_position_side(side: str) -> str:
     """
     side = side.lower().strip()
 
-    if side not in {'long', 'short'}:
-        raise ValidationError(f"Invalid position side: {side}. Must be 'long' or 'short'")
+    if side not in {"long", "short"}:
+        raise ValidationError(
+            f"Invalid position side: {side}. Must be 'long' or 'short'"
+        )
 
     return side
-
 
 # Safe conversion wrappers that return defaults instead of raising
 def safe_symbol(value: Optional[str], default: str = None) -> Optional[str]:
@@ -345,8 +343,9 @@ def safe_symbol(value: Optional[str], default: str = None) -> Optional[str]:
         logger.warning(f"Invalid symbol: {value}, using default: {default}")
         return default
 
-
-def safe_percentage(value: Optional[Union[int, float, str]], default: float = 50) -> float:
+def safe_percentage(
+    value: Optional[Union[int, float, str]], default: float = 50
+) -> float:
     """Safe percentage conversion with default fallback."""
     try:
         return validate_percentage(value) if value is not None else default
@@ -354,11 +353,12 @@ def safe_percentage(value: Optional[Union[int, float, str]], default: float = 50
         logger.warning(f"Invalid percentage: {value}, using default: {default}")
         return default
 
-
-def safe_price(value: Optional[Union[int, float, str]], default: Decimal = None) -> Decimal:
+def safe_price(
+    value: Optional[Union[int, float, str]], default: Decimal = None
+) -> Decimal:
     """Safe price conversion with default fallback."""
     try:
-        return validate_price(value) if value is not None else (default or Decimal('0'))
+        return validate_price(value) if value is not None else (default or Decimal("0"))
     except ValidationError:
         logger.warning(f"Invalid price: {value}, using default: {default}")
-        return default or Decimal('0')
+        return default or Decimal("0")

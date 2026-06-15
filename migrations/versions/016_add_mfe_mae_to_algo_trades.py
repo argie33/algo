@@ -13,7 +13,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add mfe_pct and mae_pct columns to algo_trades table"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Add mfe_pct column (Maximum Favorable Excursion percentage)
         cur.execute("""
             ALTER TABLE algo_trades
@@ -33,7 +33,7 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop index first
         cur.execute("""
             DROP INDEX IF EXISTS idx_algo_trades_mfe_mae
@@ -45,4 +45,3 @@ def down():
             DROP COLUMN IF EXISTS mfe_pct,
             DROP COLUMN IF EXISTS mae_pct
         """)
-

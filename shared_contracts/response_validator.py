@@ -5,23 +5,22 @@ This prevents schema drift and catches breaking changes early.
 """
 
 import logging
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any, Tuple, Optional
 
-from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
+from .dashboard_api_contract import DASHBOARD_ENDPOINTS
 
 logger = logging.getLogger(__name__)
 
-
 class ResponseValidationError(Exception):
     """Raised when response doesn't match schema."""
-    pass
-
 
 class ResponseValidator:
     """Validate API responses against contract schemas."""
 
     @staticmethod
-    def validate_endpoint_response(endpoint_name: str, response: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def validate_endpoint_response(
+        endpoint_name: str, response: Dict[str, Any]
+    ) -> Tuple[bool, Optional[str]]:
         """Validate that a response matches its endpoint's schema.
 
         Args:
@@ -49,7 +48,10 @@ class ResponseValidator:
                 missing_required.append(field)
 
         if missing_required:
-            return False, f"Missing required fields in {endpoint_name}: {missing_required}"
+            return (
+                False,
+                f"Missing required fields in {endpoint_name}: {missing_required}",
+            )
 
         # Check strict fields (must not be None)
         strict_fields = endpoint.get("strict_fields", [])
@@ -59,7 +61,10 @@ class ResponseValidator:
                 none_strict_fields.append(field)
 
         if none_strict_fields:
-            return False, f"Strict fields cannot be None in {endpoint_name}: {none_strict_fields}"
+            return (
+                False,
+                f"Strict fields cannot be None in {endpoint_name}: {none_strict_fields}",
+            )
 
         # Validate field types
         field_types = schema.field_types
@@ -68,19 +73,28 @@ class ResponseValidator:
             if field in response and response[field] is not None:
                 value = response[field]
                 # Handle tuple of types (e.g., (float, int))
-                valid_types = expected_type if isinstance(expected_type, tuple) else (expected_type,)
+                valid_types = (
+                    expected_type
+                    if isinstance(expected_type, tuple)
+                    else (expected_type,)
+                )
                 if not isinstance(value, valid_types):
                     type_mismatches.append(
                         f"{field}: expected {expected_type.__name__ if hasattr(expected_type, '__name__') else expected_type}, got {type(value).__name__}"
                     )
 
         if type_mismatches:
-            return False, f"Type validation failed in {endpoint_name}: {type_mismatches}"
+            return (
+                False,
+                f"Type validation failed in {endpoint_name}: {type_mismatches}",
+            )
 
         return True, None
 
     @staticmethod
-    def validate_batch_responses(responses: Dict[str, Dict[str, Any]]) -> Dict[str, Tuple[bool, Optional[str]]]:
+    def validate_batch_responses(
+        responses: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Tuple[bool, Optional[str]]]:
         """Validate multiple endpoint responses.
 
         Args:
@@ -91,12 +105,16 @@ class ResponseValidator:
         """
         results = {}
         for endpoint_name, response_data in responses.items():
-            is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, response_data)
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response(
+                endpoint_name, response_data
+            )
             results[endpoint_name] = (is_valid, error_msg)
         return results
 
     @staticmethod
-    def report_validation_errors(validation_results: Dict[str, Tuple[bool, Optional[str]]]) -> str:
+    def report_validation_errors(
+        validation_results: Dict[str, Tuple[bool, Optional[str]]],
+    ) -> str:
         """Generate a formatted error report from validation results.
 
         Args:
@@ -118,7 +136,9 @@ class ResponseValidator:
         return report
 
     @staticmethod
-    def sanitize_response(response: Dict[str, Any], remove_none: bool = True) -> Dict[str, Any]:
+    def sanitize_response(
+        response: Dict[str, Any], remove_none: bool = True
+    ) -> Dict[str, Any]:
         """Remove None values and empty structures from response (API Issue #14 FIX).
 
         Args:
@@ -142,7 +162,11 @@ class ResponseValidator:
                 sanitized[key] = ResponseValidator.sanitize_response(value)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    ResponseValidator.sanitize_response(item) if isinstance(item, dict) else item
+                    (
+                        ResponseValidator.sanitize_response(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
                     for item in value
                     if item is not None
                 ]
@@ -153,9 +177,7 @@ class ResponseValidator:
 
     @staticmethod
     def validate_and_sanitize(
-        endpoint_name: str,
-        response: Dict[str, Any],
-        strict: bool = True
+        endpoint_name: str, response: Dict[str, Any], strict: bool = True
     ) -> Tuple[bool, Optional[str], Dict[str, Any]]:
         """Validate response and return sanitized version.
 
@@ -167,11 +189,15 @@ class ResponseValidator:
         Returns:
             (is_valid, error_msg, sanitized_response) tuple
         """
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, response)
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response(
+            endpoint_name, response
+        )
 
         if not is_valid:
             if strict:
-                raise ResponseValidationError(f"Validation failed for {endpoint_name}: {error_msg}")
+                raise ResponseValidationError(
+                    f"Validation failed for {endpoint_name}: {error_msg}"
+                )
             logger.warning(f"Validation failed for {endpoint_name}: {error_msg}")
 
         sanitized = ResponseValidator.sanitize_response(response)

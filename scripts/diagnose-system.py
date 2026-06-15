@@ -2,10 +2,8 @@
 """Comprehensive system diagnostic to identify what's broken."""
 
 import sys
-import os
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -17,9 +15,9 @@ from utils.infrastructure.timezone import EASTERN_TZ
 def check_database_connection():
     """Test database connectivity."""
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("SELECT now() AT TIME ZONE 'UTC'")
-            result = cur.fetchone()
+            cur.fetchone()
             print("[OK] Database connected")
             return True
     except Exception as e:
@@ -30,7 +28,7 @@ def check_loader_status():
     """Check status of critical loaders."""
     print("\n=== LOADER STATUS ===")
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT table_name, status, last_updated, row_count
                 FROM data_loader_status
@@ -42,10 +40,10 @@ def check_loader_status():
             passed = []
             for row in rows:
                 name, status, updated, count = row[0], row[1], row[2], row[3]
-                if status == 'FAILED':
+                if status == "FAILED":
                     failed.append(name)
                     print(f"[FAIL] {name:<30} FAILED - last updated: {updated}")
-                elif status == 'COMPLETED':
+                elif status == "COMPLETED":
                     passed.append(name)
 
             print(f"\nPassed: {len(passed)} loaders")
@@ -62,20 +60,20 @@ def check_critical_tables():
     """Check if critical tables have recent data."""
     print("\n=== CRITICAL TABLES ===")
     critical_tables = [
-        'stock_symbols',
-        'technical_data_daily',
-        'market_health_daily',
-        'buy_sell_daily',
-        'signal_quality_scores',
-        'swing_trader_scores',
-        'market_exposure_daily',
-        'algo_positions',
-        'circuit_breaker_metrics',
-        'algo_performance_metrics',
+        "stock_symbols",
+        "technical_data_daily",
+        "market_health_daily",
+        "buy_sell_daily",
+        "signal_quality_scores",
+        "swing_trader_scores",
+        "market_exposure_daily",
+        "algo_positions",
+        "circuit_breaker_metrics",
+        "algo_performance_metrics",
     ]
 
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             healthy = []
             for table in critical_tables:
                 try:
@@ -100,7 +98,7 @@ def check_data_freshness():
     try:
         today_et = datetime.now(EASTERN_TZ).date()
 
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             # Check technical_data_daily
             cur.execute("""
                 SELECT MAX(date) FROM technical_data_daily
@@ -110,7 +108,9 @@ def check_data_freshness():
             if max_date:
                 days_old = (today_et - max_date).days
                 status = "[OK]" if days_old <= 1 else "[WARN]"
-                print(f"{status} technical_data_daily: {max_date} ({days_old} days old)")
+                print(
+                    f"{status} technical_data_daily: {max_date} ({days_old} days old)"
+                )
             else:
                 print("[FAIL] technical_data_daily: No data")
 
@@ -144,7 +144,7 @@ def check_orchestrator_status():
     """Check if orchestrator ran recently."""
     print("\n=== ORCHESTRATOR ===")
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT run_date, overall_status FROM algo_orchestrator_runs
                 ORDER BY run_date DESC LIMIT 1
@@ -152,8 +152,12 @@ def check_orchestrator_status():
             row = cur.fetchone()
             if row:
                 run_date, status = row[0], row[1]
-                hours_ago = (datetime.now(timezone.utc) - run_date).total_seconds() / 3600
-                print(f"[OK] Last orchestrator run: {run_date} ({hours_ago:.1f} hours ago)")
+                hours_ago = (
+                    datetime.now(timezone.utc) - run_date
+                ).total_seconds() / 3600
+                print(
+                    f"[OK] Last orchestrator run: {run_date} ({hours_ago:.1f} hours ago)"
+                )
                 print(f"     Status: {status}")
             else:
                 print("[WARN] No orchestrator runs found")
@@ -192,5 +196,5 @@ def main():
         print("\n[FAIL] System has issues - see above for details")
         return 1
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

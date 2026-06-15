@@ -15,7 +15,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def sanitize_for_csv(value) -> str:
     """
     Sanitize value for safe CSV/Excel export.
@@ -29,23 +28,24 @@ def sanitize_for_csv(value) -> str:
         Sanitized string safe for CSV/Excel export
     """
     if value is None:
-        return ''
+        return ""
 
     str_val = str(value).strip()
     if not str_val:
-        return ''
+        return ""
 
     # SECURITY: Prefix dangerous characters with single quote
     # This prevents Excel from evaluating them as formulas
     # Dangerous prefixes: =, +, -, @, tab, carriage return
-    dangerous_prefixes = ('=', '+', '-', '@', '\t', '\r', '\n')
+    dangerous_prefixes = ("=", "+", "-", "@", "\t", "\r", "\n")
 
     if any(str_val.startswith(prefix) for prefix in dangerous_prefixes):
-        logger.warning(f"Sanitizing CSV value that started with dangerous character: {str_val[:20]}")
+        logger.warning(
+            f"Sanitizing CSV value that started with dangerous character: {str_val[:20]}"
+        )
         return "'" + str_val
 
     return str_val
-
 
 def sanitize_dict_for_csv(record: dict) -> dict:
     """
@@ -58,7 +58,6 @@ def sanitize_dict_for_csv(record: dict) -> dict:
         New dictionary with all values sanitized
     """
     return {key: sanitize_for_csv(value) for key, value in record.items()}
-
 
 def sanitize_list_for_csv(records: list) -> list:
     """

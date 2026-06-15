@@ -11,12 +11,10 @@ import logging
 import psycopg2.sql
 from typing import Optional, Dict, Any
 from functools import wraps
-from utils.error_handlers import make_error_response
 from routes.utils import error_response
 from utils.db.sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
-
 
 def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
     """Extract user ID (Cognito sub) from JWT claims.
@@ -30,11 +28,10 @@ def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
     if not jwt_claims:
         return None
 
-    user_id = jwt_claims.get('sub')
+    user_id = jwt_claims.get("sub")
     if user_id:
         logger.debug(f"[USER] Authenticated as {user_id}")
     return user_id
-
 
 def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
     """Require user to be authenticated, return user ID.
@@ -52,7 +49,6 @@ def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
     if not user_id:
         raise ValueError("Authentication required for this endpoint")
     return user_id
-
 
 def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, dict]:
     """Add user scoping WHERE clause to SQL query.
@@ -81,15 +77,16 @@ def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, d
         user_filter = " AND cognito_sub = %s"
 
     # Check if query already has a WHERE clause
-    if ' WHERE ' in sql.upper():
+    if " WHERE " in sql.upper():
         scoped_sql = sql + user_filter
     else:
         scoped_sql = sql + " WHERE cognito_sub = %s"
 
-    return scoped_sql, {'user_id': user_id}
+    return scoped_sql, {"user_id": user_id}
 
-
-def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = True) -> Optional[Dict[str, str]]:
+def get_user_alpaca_credentials(
+    cur, user_id: str, default_to_shared: bool = True
+) -> Optional[Dict[str, str]]:
     """Get Alpaca credentials for a specific user.
 
     Attempts to fetch user-scoped Alpaca credentials. Falls back to shared
@@ -105,22 +102,31 @@ def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = Tru
     """
     try:
         from config.credential_manager import get_alpaca_credentials
-        logger.debug(f"[ALPACA] Attempting to load user-scoped credentials for {user_id}")
+
+        logger.debug(
+            f"[ALPACA] Attempting to load user-scoped credentials for {user_id}"
+        )
         return get_alpaca_credentials(user_id=user_id)
     except Exception as e:
-        logger.warning(f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}")
+        logger.warning(
+            f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}"
+        )
         if default_to_shared:
             logger.debug("[ALPACA] Falling back to shared credentials")
             try:
                 from config.credential_manager import get_alpaca_credentials
+
                 return get_alpaca_credentials(user_id=None)
             except Exception as fallback_err:
-                logger.error(f"[ALPACA] Fallback to shared credentials also failed: {fallback_err}")
+                logger.error(
+                    f"[ALPACA] Fallback to shared credentials also failed: {fallback_err}"
+                )
                 return None
         return None
 
-
-def validate_user_resource_access(cur, user_id: str, resource_type: str, resource_id: str) -> bool:
+def validate_user_resource_access(
+    cur, user_id: str, resource_type: str, resource_id: str
+) -> bool:
     """Validate that user owns/can access a resource.
 
     Prevents users from accessing other users' data by validating ownership.
@@ -135,10 +141,10 @@ def validate_user_resource_access(cur, user_id: str, resource_type: str, resourc
         True if user owns the resource, False otherwise
     """
     resource_tables = {
-        'trade': ('algo_trades', 'trade_id'),
-        'position': ('algo_positions', 'position_id'),
-        'snapshot': ('algo_portfolio_snapshots', 'snapshot_id'),
-        'trade_add': ('algo_trade_adds', 'trade_id'),
+        "trade": ("algo_trades", "trade_id"),
+        "position": ("algo_positions", "position_id"),
+        "snapshot": ("algo_portfolio_snapshots", "snapshot_id"),
+        "trade_add": ("algo_trade_adds", "trade_id"),
     }
 
     if resource_type not in resource_tables:
@@ -151,20 +157,25 @@ def validate_user_resource_access(cur, user_id: str, resource_type: str, resourc
         table_safe = assert_safe_table(table)
         col_safe = assert_safe_column(id_column)
         cur.execute(
-            psycopg2.sql.SQL("SELECT 1 FROM {} WHERE {} = %s AND cognito_sub = %s LIMIT 1").format(
+            psycopg2.sql.SQL(
+                "SELECT 1 FROM {} WHERE {} = %s AND cognito_sub = %s LIMIT 1"
+            ).format(
                 psycopg2.sql.Identifier(table_safe),
                 psycopg2.sql.Identifier(col_safe),
             ),
-            (resource_id, user_id)
+            (resource_id, user_id),
         )
         result = cur.fetchone()
         return result is not None
     except Exception as e:
-        logger.error(f"[ACCESS] Error validating access to {resource_type} {resource_id}: {e}")
+        logger.error(
+            f"[ACCESS] Error validating access to {resource_type} {resource_id}: {e}"
+        )
         return False
 
-
-def require_user_resource_access(cur, user_id: str, resource_type: str, resource_id: str) -> bool:
+def require_user_resource_access(
+    cur, user_id: str, resource_type: str, resource_id: str
+) -> bool:
     """Require user to have access to resource, raise if denied.
 
     Args:
@@ -180,23 +191,25 @@ def require_user_resource_access(cur, user_id: str, resource_type: str, resource
         raise PermissionError(f"Access denied to {resource_type} {resource_id}")
     return True
 
-
 # Decorator for route handlers that require user authentication
 def requires_auth(handler_func):
     """Decorator to require authentication for a handler.
 
     Wraps handler function to check for valid JWT claims and extract user_id.
     """
+
     @wraps(handler_func)
     def wrapper(cur, path, method, params, body=None, jwt_claims=None):
         try:
             user_id = require_user(jwt_claims)
             # Pass user_id as additional parameter to handler
-            return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
+            return handler_func(
+                cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id
+            )
         except ValueError as e:
-            return error_response(401, 'unauthorized', str(e))
-    return wrapper
+            return error_response(401, "unauthorized", str(e))
 
+    return wrapper
 
 # Decorator for route handlers that handle both authenticated and public requests
 def optional_auth(handler_func):
@@ -204,8 +217,12 @@ def optional_auth(handler_func):
 
     Extracts user_id if available, sets to None if not authenticated.
     """
+
     @wraps(handler_func)
     def wrapper(cur, path, method, params, body=None, jwt_claims=None):
         user_id = get_user_id(jwt_claims)
-        return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
+        return handler_func(
+            cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id
+        )
+
     return wrapper

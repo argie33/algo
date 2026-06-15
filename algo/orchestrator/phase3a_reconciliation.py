@@ -3,7 +3,7 @@
 import logging
 import traceback
 from datetime import date as _date
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -42,25 +42,34 @@ def run(
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)
 
-        if result.get('success'):
+        if result.get("success"):
             log_phase_result_fn(
-                '3a', 'reconciliation', 'success',
-                f'{result.get("positions", 0)} positions verified'
+                "3a",
+                "reconciliation",
+                "success",
+                f'{result.get("positions", 0)} positions verified',
             )
-        elif result.get('reason') == 'Alpaca unavailable' or 'unavailable' in result.get('reason', '').lower():
+        elif (
+            result.get("reason") == "Alpaca unavailable"
+            or "unavailable" in result.get("reason", "").lower()
+        ):
             log_phase_result_fn(
-                '3a', 'reconciliation', 'success',
-                f'Skipped: {result.get("reason", "alpaca unavailable")}'
+                "3a",
+                "reconciliation",
+                "success",
+                f'Skipped: {result.get("reason", "alpaca unavailable")}',
             )
         else:
             log_phase_result_fn(
-                '3a', 'reconciliation', 'alert',
-                result.get('reason', 'reconciliation failed')
+                "3a",
+                "reconciliation",
+                "alert",
+                result.get("reason", "reconciliation failed"),
             )
 
-        return PhaseResult(3, 'reconciliation', 'ok', result, False, None)
+        return PhaseResult(3, "reconciliation", "ok", result, False, None)
 
     except Exception as e:
         traceback.print_exc()
-        log_phase_result_fn(3, 'reconciliation', 'error', str(e))
-        return PhaseResult(3, 'reconciliation', 'ok', {}, False, str(e))
+        log_phase_result_fn(3, "reconciliation", "error", str(e))
+        return PhaseResult(3, "reconciliation", "ok", {}, False, str(e))

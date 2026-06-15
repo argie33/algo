@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Market Sentiment Loader - Load market sentiment from available sources (Market-wide compute)."""
+
 import sys
 import logging
 from datetime import date
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class SentimentLoader(OptimalLoader):
     """Load market sentiment from available sources."""
+
     table_name = "sentiment"
     primary_key = ("symbol", "date")
     watermark_field = "created_at"
@@ -19,7 +21,7 @@ class SentimentLoader(OptimalLoader):
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch market sentiment data."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Get sentiment from aggregated sources
                 cur.execute("""
                     SELECT
@@ -43,10 +45,10 @@ class SentimentLoader(OptimalLoader):
 
                 return [
                     {
-                        'symbol': r[0],
-                        'date': r[1] or date.today(),
-                        'sentiment_score': float(r[2]) if r[2] else 0.0,
-                        'sentiment_label': r[3],
+                        "symbol": r[0],
+                        "date": r[1] or date.today(),
+                        "sentiment_score": float(r[2]) if r[2] else 0.0,
+                        "sentiment_label": r[3],
                     }
                     for r in rows
                 ]
@@ -63,7 +65,7 @@ def main():
         logger.info(f"SUCCESS: {result} sentiment records loaded")
         return 0
     else:
-        logger.warning(f"COMPLETED: No sentiment loaded")
+        logger.warning("COMPLETED: No sentiment loaded")
         return 0
 
 if __name__ == "__main__":

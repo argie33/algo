@@ -8,7 +8,7 @@ SUPPLEMENTARY: signal_quality_scores, company_profile — enrichment
 CONTEXT: algo_performance_daily, algo_portfolio_snapshots — strategy performance
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Any
 
 
 class SignalQueryBuilder:

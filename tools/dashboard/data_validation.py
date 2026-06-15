@@ -9,21 +9,22 @@ Finance principle: Missing data is NOT the same as zero. Use strict mode for cri
 
 import json
 import logging
-import warnings
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
-
+T = TypeVar("T")
 
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode (required for finance paths)."""
-    pass
 
-
-def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool = False,
-               field_name: str = None) -> Union[float, None]:
+def safe_float(
+    value: Any,
+    *,
+    default: Union[float, None] = None,
+    strict: bool = False,
+    field_name: str = None,
+) -> Union[float, None]:
     """Convert value to float with configurable failure behavior.
 
     Args:
@@ -45,7 +46,9 @@ def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool =
                 f"Cannot convert None to float{f' for {field_name}' if field_name else ''}"
             )
         if default == 0.0:
-            logger.warning(f"Converting None to 0.0{f' for {field_name}' if field_name else ''}—finance data should use strict mode")
+            logger.warning(
+                f"Converting None to 0.0{f' for {field_name}' if field_name else ''}—finance data should use strict mode"
+            )
         return default
 
     try:
@@ -56,14 +59,22 @@ def safe_float(value: Any, *, default: Union[float, None] = None, strict: bool =
                 f"Cannot convert {field_name or 'value'}={value!r} to float: {e}"
             ) from e
         if default == 0.0:
-            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning 0.0—use strict mode for finance): {e}")
+            logger.warning(
+                f"Failed to convert {field_name or 'value'}={value!r} to float (returning 0.0—use strict mode for finance): {e}"
+            )
         elif default is not None:
-            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
+            logger.warning(
+                f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}"
+            )
         return default
 
-
-def safe_int(value: Any, *, default: Optional[int] = None, strict: bool = False,
-             field_name: str = None) -> Optional[int]:
+def safe_int(
+    value: Any,
+    *,
+    default: Optional[int] = None,
+    strict: bool = False,
+    field_name: str = None,
+) -> Optional[int]:
     """Convert value to int with configurable failure behavior.
 
     Args:
@@ -85,7 +96,9 @@ def safe_int(value: Any, *, default: Optional[int] = None, strict: bool = False,
                 f"Cannot convert None to int{f' for {field_name}' if field_name else ''}"
             )
         if default == 0:
-            logger.warning(f"Converting None to 0{f' for {field_name}' if field_name else ''}—trade counts should use strict mode")
+            logger.warning(
+                f"Converting None to 0{f' for {field_name}' if field_name else ''}—trade counts should use strict mode"
+            )
         return default
 
     try:
@@ -96,14 +109,18 @@ def safe_int(value: Any, *, default: Optional[int] = None, strict: bool = False,
                 f"Cannot convert {field_name or 'value'}={value!r} to int: {e}"
             ) from e
         if default == 0:
-            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to int (returning 0—use strict mode for finance): {e}")
+            logger.warning(
+                f"Failed to convert {field_name or 'value'}={value!r} to int (returning 0—use strict mode for finance): {e}"
+            )
         elif default is not None:
-            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to int (returning {default}): {e}")
+            logger.warning(
+                f"Failed to convert {field_name or 'value'}={value!r} to int (returning {default}): {e}"
+            )
         return default
 
-
-def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
-                   field_name: str = None) -> Any:
+def safe_json_parse(
+    value: Any, *, default: Any = None, strict: bool = False, field_name: str = None
+) -> Any:
     """Parse JSON string with configurable failure behavior.
 
     Args:
@@ -118,7 +135,9 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
     """
     if value is None:
         if strict:
-            raise StrictValidationError(f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}")
+            raise StrictValidationError(
+                f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}"
+            )
         return default if default is not None else {}
 
     # If it's already parsed, return as-is
@@ -134,7 +153,9 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
                 raise StrictValidationError(
                     f"Cannot parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
                 ) from e
-            logger.warning(f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}")
+            logger.warning(
+                f"Failed to parse JSON{f' for {field_name}' if field_name else ''}: {e}. Value: {value[:100]}"
+            )
             return default if default is not None else {}
 
     # For unexpected types
@@ -142,9 +163,10 @@ def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False,
         raise StrictValidationError(
             f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
         )
-    logger.warning(f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}")
+    logger.warning(
+        f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
+    )
     return default if default is not None else {}
-
 
 def safe_bool(value: Any, default: bool = False, field_name: str = None) -> bool:
     """Safely convert value to bool with logging."""
@@ -156,9 +178,9 @@ def safe_bool(value: Any, default: bool = False, field_name: str = None) -> bool
 
     if isinstance(value, str):
         val_lower = value.lower().strip()
-        if val_lower in ('true', '1', 'yes', 'on'):
+        if val_lower in ("true", "1", "yes", "on"):
             return True
-        elif val_lower in ('false', '0', 'no', 'off', ''):
+        elif val_lower in ("false", "0", "no", "of", ""):
             return False
         else:
             if field_name:
@@ -175,7 +197,6 @@ def safe_bool(value: Any, default: bool = False, field_name: str = None) -> bool
         else:
             logger.warning(f"Failed to convert {value!r} to bool: {e}")
         return default
-
 
 def safe_str(value: Any, default: str = "", field_name: str = None) -> str:
     """Safely convert value to string with logging."""
@@ -194,9 +215,9 @@ def safe_str(value: Any, default: str = "", field_name: str = None) -> str:
             logger.warning(f"Failed to convert {value!r} to str: {e}")
         return default
 
-
-def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
-                             source: str = None) -> bool:
+def validate_required_fields(
+    data: Dict[str, Any], required_fields: List[str], source: str = None
+) -> bool:
     """Check if required fields exist in data dict. Log warnings for missing fields."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
@@ -205,9 +226,9 @@ def validate_required_fields(data: Dict[str, Any], required_fields: List[str],
         return False
     return True
 
-
-def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
-                         source: str = None) -> bool:
+def validate_field_types(
+    data: Dict[str, Any], type_spec: Dict[str, Type], source: str = None
+) -> bool:
     """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
     for field, expected_type in type_spec.items():
@@ -217,14 +238,15 @@ def validate_field_types(data: Dict[str, Any], type_spec: Dict[str, Type],
         if value is None:
             continue
         if not isinstance(value, expected_type):
-            issues.append(f"{field}: expected {expected_type.__name__}, got {type(value).__name__}")
+            issues.append(
+                f"{field}: expected {expected_type.__name__}, got {type(value).__name__}"
+            )
 
     if issues:
         source_str = f" from {source}" if source else ""
         logger.warning(f"Type mismatches{source_str}: {'; '.join(issues)}")
         return False
     return True
-
 
 def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
     """Log a data issue from a fetcher function."""
@@ -233,23 +255,19 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
     else:
         logger.warning(f"{fetcher_name}.{field_name}: {issue}")
 
-
 # ── Strict-mode convenience functions for finance paths ────────────────────────
 
 def safe_float_strict(value: Any, field_name: str = None) -> float:
     """Convert value to float in strict mode. Raises StrictValidationError if fails."""
     return safe_float(value, strict=True, field_name=field_name)
 
-
 def safe_int_strict(value: Any, field_name: str = None) -> int:
     """Convert value to int in strict mode. Raises StrictValidationError if fails."""
     return safe_int(value, strict=True, field_name=field_name)
 
-
 def safe_json_parse_strict(value: Any, field_name: str = None) -> Any:
     """Parse JSON in strict mode. Raises StrictValidationError if fails."""
     return safe_json_parse(value, strict=True, field_name=field_name)
-
 
 # ── Audit and Migration Helpers ────────────────────────────────────────────
 
@@ -275,5 +293,5 @@ def audit_fallback_usage() -> Dict[str, Any]:
             "Change to: safe_float_strict() or safe_float(..., default=None)",
             "Update callers to check for None instead of assuming 0 is valid data",
             "Add test coverage for missing data scenarios (not just happy path)",
-        ]
+        ],
     }

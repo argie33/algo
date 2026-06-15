@@ -1,54 +1,99 @@
 """Route: stocks"""
+
 import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
 import re
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from routes.utils import (
+    error_response,
+    list_response,
+    json_response,
+    safe_limit,
+    safe_offset,
+    handle_db_error,
+    check_data_freshness,
+    execute_with_timeout,
+    safe_json_serialize,
+)
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
     try:
-        parts = path.split('/')
-        known_non_symbol_paths = ('deep-value', 'screener', 'search', 'list', 'watchlist')
-        symbol = parts[3] if len(parts) > 3 and parts[3] not in known_non_symbol_paths else None
+        parts = path.split("/")
+        known_non_symbol_paths = (
+            "deep-value",
+            "screener",
+            "search",
+            "list",
+            "watchlist",
+        )
+        symbol = (
+            parts[3]
+            if len(parts) > 3 and parts[3] not in known_non_symbol_paths
+            else None
+        )
 
-        if symbol and path == f'/api/stocks/{symbol}':
+        if symbol and path == f"/api/stocks/{symbol}":
             # Validate symbol format before using in query
-            if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol.upper()):
-                return error_response(400, 'bad_request', 'Invalid symbol format')
+            if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol.upper()):
+                return error_response(400, "bad_request", "Invalid symbol format")
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT ss.symbol, ss.security_name as company_name,
                        cp.sector, cp.industry, cp.website, cp.employees, cp.exchange
                 FROM stock_symbols ss
                 LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
                 WHERE ss.symbol = %s
-            """, (symbol.upper(),))
+            """,
+                (symbol.upper(),),
+            )
             row = cur.fetchone()
             if row:
                 return json_response(200, safe_json_serialize(dict(row)))
-            return error_response(404, 'not_found', f'Stock {symbol} not found')
+            return error_response(404, "not_found", f"Stock {symbol} not found")
 
-        if path == '/api/stocks/deep-value':
-            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=200)
+        if path == "/api/stocks/deep-value":
+            limit = safe_limit(
+                params.get("limit", [None])[0] if params else None,
+                max_val=1000,
+                default=200,
+            )
             # Fast check: return empty if financial data not loaded yet (table missing or empty)
             try:
                 # Use adaptive timeout: 3s for quick existence check
-                results = execute_with_timeout(cur, "SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1", timeout_sec=3, max_attempts=1)
+                results = execute_with_timeout(
+                    cur,
+                    "SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1",
+                    timeout_sec=3,
+                    max_attempts=1,
+                )
                 if not results:
                     return list_response([])
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
+                logger.debug(
+                    "[DEEP_VALUE] value_metrics table not found - financial data not loaded yet"
+                )
                 return list_response([])
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
-                code, error_type, message = handle_db_error(e, 'deep-value check')
+                logger.error(
+                    f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}"
+                )
+                code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             except Exception as e:
-                logger.error(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
-                code, error_type, message = handle_db_error(e, 'deep-value check')
+                logger.error(
+                    f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}"
+                )
+                code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             try:
                 deep_value_query = """
@@ -199,32 +244,65 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Execute with single attempt at 23s — complex multi-CTE query needs headroom.
                 # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
                 # Migration 060 adds a covering index (symbol, date) INCLUDE (high, low) to speed 52w stats.
-                rows = execute_with_timeout(cur, deep_value_query, timeout_sec=23, max_attempts=1)
+                rows = execute_with_timeout(
+                    cur, deep_value_query, timeout_sec=23, max_attempts=1
+                )
                 if rows:
-                    freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                    return list_response([safe_json_serialize(dict(r)) for r in rows], data_freshness=freshness)
+                    freshness = check_data_freshness(
+                        cur, "price_daily", "date", warning_days=1
+                    )
+                    return list_response(
+                        [safe_json_serialize(dict(r)) for r in rows],
+                        data_freshness=freshness,
+                    )
                 return list_response([])
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-                logger.error(f'Deep-value query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'deep-value'})
-                return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
+            except (
+                psycopg2.errors.UndefinedTable,
+                psycopg2.errors.UndefinedColumn,
+            ) as e:
+                logger.error(
+                    f"Deep-value query failed - schema error: {type(e).__name__}: {e}",
+                    extra={"operation": "deep-value"},
+                )
+                return error_response(
+                    503,
+                    "schema_error",
+                    "Database schema mismatch - please check RDS migrations",
+                )
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.error(f'Deep-value query failed - database error: {type(e).__name__}: {e}', extra={'operation': 'deep-value'})
-                return error_response(503, 'connection_error', 'Database connection failed - please retry')
+                logger.error(
+                    f"Deep-value query failed - database error: {type(e).__name__}: {e}",
+                    extra={"operation": "deep-value"},
+                )
+                return error_response(
+                    503, "connection_error", "Database connection failed - please retry"
+                )
             except Exception as e:
-                logger.error(f'Deep-value query failed: {type(e).__name__}: {str(e)[:200]}', extra={'operation': 'deep-value'})
-                return error_response(500, 'internal_error', f'Failed to fetch deep-value stocks: {type(e).__name__}')
+                logger.error(
+                    f"Deep-value query failed: {type(e).__name__}: {str(e)[:200]}",
+                    extra={"operation": "deep-value"},
+                )
+                return error_response(
+                    500,
+                    "internal_error",
+                    f"Failed to fetch deep-value stocks: {type(e).__name__}",
+                )
 
-        limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=50000, default=500)
-        offset = safe_offset(params.get('offset', [None])[0] if params else None)
-        search = params.get('search', [None])[0] if params else None
-        sector = params.get('sector', [None])[0] if params else None
+        limit = safe_limit(
+            params.get("limit", [None])[0] if params else None,
+            max_val=50000,
+            default=500,
+        )
+        offset = safe_offset(params.get("offset", [None])[0] if params else None)
+        search = params.get("search", [None])[0] if params else None
+        sector = params.get("sector", [None])[0] if params else None
 
         where_clauses = ["ss.symbol NOT LIKE '^%%'", "COALESCE(ss.etf, 'N') != 'Y'"]
         query_params = []
 
         if search:
             where_clauses.append("(ss.symbol ILIKE %s OR ss.security_name ILIKE %s)")
-            query_params.extend([f'%{search}%', f'%{search}%'])
+            query_params.extend([f"%{search}%", f"%{search}%"])
         if sector:
             where_clauses.append("cp.sector = %s")
             query_params.append(sector)
@@ -234,32 +312,48 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
         # Set timeout for main listing query to prevent hangs
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
-        cur.execute("""
+        cur.execute(
+            """
             SELECT ss.symbol, COALESCE(ss.security_name, ss.symbol) as company_name,
                    COALESCE(cp.sector, 'Unknown') as sector,
                    COALESCE(cp.industry, 'Unknown') as industry,
                    ss.is_sp500
             FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE """ + where_sql + """
+            WHERE """
+            + where_sql
+            + """
             ORDER BY ss.symbol
             LIMIT %s OFFSET %s
-        """, query_params_with_limit)
+        """,
+            query_params_with_limit,
+        )
         rows = cur.fetchall()
 
         # Set timeout for count query as well
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE """ + where_sql, query_params)
-        total = safe_json_serialize(dict(cur.fetchone())).get('count', 0)
+            WHERE """ + where_sql,
+            query_params,
+        )
+        total = safe_json_serialize(dict(cur.fetchone())).get("count", 0)
 
-        return json_response(200, {
-            'items': [safe_json_serialize(dict(r)) for r in rows],
-            'total': total,
-        })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        code, error_type, message = handle_db_error(e, 'handle stocks')
+        return json_response(
+            200,
+            {
+                "items": [safe_json_serialize(dict(r)) for r in rows],
+                "total": total,
+            },
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "handle stocks")
         return error_response(code, error_type, message)

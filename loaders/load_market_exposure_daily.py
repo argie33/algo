@@ -17,14 +17,11 @@ Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
 
 import sys
-import os
 import logging
-from datetime import date as _date
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -36,7 +33,7 @@ def main():
 
         # Determine the latest trading date from price_daily
         latest_date = None
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
             )
@@ -45,7 +42,9 @@ def main():
                 latest_date = result[0]
 
         if not latest_date:
-            logger.error("No price data available for SPY — cannot compute market exposure")
+            logger.error(
+                "No price data available for SPY — cannot compute market exposure"
+            )
             return 1
 
         logger.info(f"Computing market exposure for {latest_date}")
@@ -54,16 +53,16 @@ def main():
         me = MarketExposure()
         result = me.compute(latest_date, force_recompute=True)
 
-        if result.get('success') is False:
+        if result.get("success") is False:
             logger.error(f"Market exposure computation failed: {result.get('error')}")
             return 1
 
-        logger.info(f"✓ Market exposure computed:")
+        logger.info("✓ Market exposure computed:")
         logger.info(f"  Regime: {result.get('regime')}")
         logger.info(f"  Exposure: {result.get('exposure_pct')}%")
         logger.info(f"  Raw score: {result.get('raw_score')}")
 
-        if result.get('halt_reasons'):
+        if result.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
 
         logger.info("✓ Loader completed successfully")

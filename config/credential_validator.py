@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 class CredentialValidationError(Exception):
     """Raised when required credentials are missing."""
-    pass
 
 def validate_credentials() -> Tuple[bool, List[str]]:
     """Validate that all required credentials are present and complete.
@@ -30,9 +29,12 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     warnings = []
 
     # Detect environment
-    is_aws = bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
-    is_lambda = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
-    is_local_dev = os.getenv("ENVIRONMENT") in ("development", "local") or os.getenv("LOCAL_DEV") == "true"
+    bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
+    "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+    is_local_dev = (
+        os.getenv("ENVIRONMENT") in ("development", "local")
+        or os.getenv("LOCAL_DEV") == "true"
+    )
 
     # === CRITICAL: Database Password ===
     # This is always required. No defaults allowed.
@@ -69,12 +71,10 @@ def validate_credentials() -> Tuple[bool, List[str]]:
             "to your database hostname (e.g., localhost for local dev, RDS endpoint for prod)."
         )
     elif len(db_host.strip()) == 0:
-        errors.append(
-            "[ERROR] DB_HOST is empty string. Set to valid hostname."
-        )
+        errors.append("[ERROR] DB_HOST is empty string. Set to valid hostname.")
 
     db_user = os.getenv("DB_USER", "stocks")
-    db_name = os.getenv("DB_NAME", "stocks")
+    os.getenv("DB_NAME", "stocks")
 
     if db_user == "stocks" and not os.getenv("DB_USER"):
         warnings.append(
@@ -89,8 +89,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
         timeout_val = int(db_timeout)
         if timeout_val <= 0:
             errors.append(
-                "[ERROR] DB_CONNECT_TIMEOUT must be positive. "
-                f"Got: {db_timeout}"
+                "[ERROR] DB_CONNECT_TIMEOUT must be positive. " f"Got: {db_timeout}"
             )
         elif timeout_val > 30:
             warnings.append(
@@ -130,7 +129,12 @@ def validate_credentials() -> Tuple[bool, List[str]]:
                 "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
                 "Set these credentials or set ALERT_ENABLED=false."
             )
-        elif not smtp_password or not smtp_user or len(smtp_password.strip()) == 0 or len(smtp_user.strip()) == 0:
+        elif (
+            not smtp_password
+            or not smtp_user
+            or len(smtp_password.strip()) == 0
+            or len(smtp_user.strip()) == 0
+        ):
             errors.append(
                 "[ERROR] ALERT_SMTP_PASSWORD or ALERT_SMTP_USER is empty string. "
                 "Check environment variable loading."
@@ -195,10 +199,7 @@ def assert_credentials(on_failure: str = "raise") -> bool:
 
 if __name__ == "__main__":
     # Test the validator
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     logger.info("\nValidating credentials...")
     logger.info("-" * 60)

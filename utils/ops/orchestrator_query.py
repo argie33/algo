@@ -7,12 +7,10 @@ Provides diagnostic functions to view previous orchestrator runs and identify pa
 
 import json
 import logging
-from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
-
 
 def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get recent orchestrator runs.
@@ -24,7 +22,7 @@ def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str
     Returns: List of execution logs, most recent first
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             query = """
                 SELECT run_id, run_date, started_at, completed_at, overall_status,
                        phases_completed, phases_halted, phases_errored, summary
@@ -42,22 +40,21 @@ def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str
 
             return [
                 {
-                    'run_id': row[0],
-                    'run_date': row[1].isoformat() if row[1] else None,
-                    'started_at': row[2].isoformat() if row[2] else None,
-                    'completed_at': row[3].isoformat() if row[3] else None,
-                    'status': row[4],
-                    'phases_completed': row[5],
-                    'phases_halted': row[6],
-                    'phases_errored': row[7],
-                    'summary': row[8],
+                    "run_id": row[0],
+                    "run_date": row[1].isoformat() if row[1] else None,
+                    "started_at": row[2].isoformat() if row[2] else None,
+                    "completed_at": row[3].isoformat() if row[3] else None,
+                    "status": row[4],
+                    "phases_completed": row[5],
+                    "phases_halted": row[6],
+                    "phases_errored": row[7],
+                    "summary": row[8],
                 }
                 for row in rows
             ]
     except Exception as e:
         logger.error(f"Error querying recent runs: {e}")
         return []
-
 
 def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
     """Get full details of a specific run, including phase-by-phase results.
@@ -68,7 +65,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
     Returns: Full execution record with phase details, or None if not found
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT run_id, run_date, started_at, completed_at, overall_status,
@@ -90,22 +87,21 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
                 logger.warning(f"Could not parse phase_results for {run_id}")
 
             return {
-                'run_id': row[0],
-                'run_date': row[1].isoformat() if row[1] else None,
-                'started_at': row[2].isoformat() if row[2] else None,
-                'completed_at': row[3].isoformat() if row[3] else None,
-                'status': row[4],
-                'phase_results': phase_results,
-                'summary': row[6],
-                'halt_reason': row[7],
-                'phases_completed': row[8],
-                'phases_halted': row[9],
-                'phases_errored': row[10],
+                "run_id": row[0],
+                "run_date": row[1].isoformat() if row[1] else None,
+                "started_at": row[2].isoformat() if row[2] else None,
+                "completed_at": row[3].isoformat() if row[3] else None,
+                "status": row[4],
+                "phase_results": phase_results,
+                "summary": row[6],
+                "halt_reason": row[7],
+                "phases_completed": row[8],
+                "phases_halted": row[9],
+                "phases_errored": row[10],
             }
     except Exception as e:
         logger.error(f"Error querying run {run_id}: {e}")
         return None
-
 
 def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
     """Get all failed/halted runs in the past N days.
@@ -116,7 +112,7 @@ def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
     Returns: List of failed/halted runs, most recent first
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT run_id, run_date, started_at, overall_status, summary, halt_reason
@@ -131,19 +127,18 @@ def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
 
             return [
                 {
-                    'run_id': row[0],
-                    'run_date': row[1].isoformat() if row[1] else None,
-                    'started_at': row[2].isoformat() if row[2] else None,
-                    'status': row[3],
-                    'summary': row[4],
-                    'halt_reason': row[5],
+                    "run_id": row[0],
+                    "run_date": row[1].isoformat() if row[1] else None,
+                    "started_at": row[2].isoformat() if row[2] else None,
+                    "status": row[3],
+                    "summary": row[4],
+                    "halt_reason": row[5],
                 }
                 for row in rows
             ]
     except Exception as e:
         logger.error(f"Error querying failed runs: {e}")
         return []
-
 
 def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
     """Analyze halt patterns — which phases halt most often and why.
@@ -154,7 +149,7 @@ def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
     Returns: Summary of halt patterns
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             # Find which phases appear most often in halt patterns
             cur.execute(
                 """
@@ -180,17 +175,18 @@ def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
                 except json.JSONDecodeError:
                     reasons = {}
 
-                patterns.append({
-                    'phase': row[0],
-                    'total_halts': row[1],
-                    'common_reasons': reasons,
-                })
+                patterns.append(
+                    {
+                        "phase": row[0],
+                        "total_halts": row[1],
+                        "common_reasons": reasons,
+                    }
+                )
 
             return patterns
     except Exception as e:
         logger.error(f"Error analyzing halt patterns: {e}")
         return []
-
 
 def get_success_rate(days: int = 7) -> Dict[str, Any]:
     """Get success/fail statistics for the past N days.
@@ -201,7 +197,7 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
     Returns: Dictionary with success/fail counts and rates
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT
@@ -220,17 +216,28 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
             total = sum(stats.values())
 
             return {
-                'total_runs': total,
-                'by_status': stats,
-                'success_rate': f"{(stats.get('success', 0) / total * 100):.1f}%" if total > 0 else "N/A",
-                'halt_rate': f"{(stats.get('halted', 0) / total * 100):.1f}%" if total > 0 else "N/A",
-                'error_rate': f"{(stats.get('error', 0) / total * 100):.1f}%" if total > 0 else "N/A",
-                'period_days': days,
+                "total_runs": total,
+                "by_status": stats,
+                "success_rate": (
+                    f"{(stats.get('success', 0) / total * 100):.1f}%"
+                    if total > 0
+                    else "N/A"
+                ),
+                "halt_rate": (
+                    f"{(stats.get('halted', 0) / total * 100):.1f}%"
+                    if total > 0
+                    else "N/A"
+                ),
+                "error_rate": (
+                    f"{(stats.get('error', 0) / total * 100):.1f}%"
+                    if total > 0
+                    else "N/A"
+                ),
+                "period_days": days,
             }
     except Exception as e:
         logger.error(f"Error computing success rate: {e}")
         return {}
-
 
 def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
     """Log recent orchestrator runs."""
@@ -240,20 +247,21 @@ def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
         return
 
     logger.info(f"Recent Orchestrator Runs (past {days} days):")
-    logger.info(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}")
+    logger.info(
+        f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}"
+    )
     logger.info("-" * 110)
 
     for run in runs:
-        ok = run['phases_completed'] or 0
-        halt = run['phases_halted'] or 0
-        err = run['phases_errored'] or 0
-        summary = (run['summary'] or '')[:45]
+        ok = run["phases_completed"] or 0
+        halt = run["phases_halted"] or 0
+        err = run["phases_errored"] or 0
+        summary = (run["summary"] or "")[:45]
 
         logger.info(
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} "
             f"{ok}/{halt}/{err:<10} {summary:<50}"
         )
-
 
 def print_failed_runs(days: int = 30) -> None:
     """Log failed/halted runs."""
@@ -267,11 +275,10 @@ def print_failed_runs(days: int = 30) -> None:
     logger.info("-" * 110)
 
     for run in runs:
-        reason = (run['halt_reason'] or run['summary'] or '')[:55]
+        reason = (run["halt_reason"] or run["summary"] or "")[:55]
         logger.info(
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {reason:<60}"
         )
-
 
 def print_halt_patterns(days: int = 30) -> None:
     """Log phase halt patterns."""
@@ -282,11 +289,12 @@ def print_halt_patterns(days: int = 30) -> None:
 
     logger.info(f"Halt Patterns (past {days} days):")
     for pattern in patterns:
-        logger.info(f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times")
-        for reason, count in pattern['common_reasons'].items():
+        logger.info(
+            f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times"
+        )
+        for reason, count in pattern["common_reasons"].items():
             logger.info(f"  • {reason[:60]}")
         logger.info("")
-
 
 def print_success_rate(days: int = 7) -> None:
     """Log success rate stats."""
@@ -301,14 +309,13 @@ def print_success_rate(days: int = 7) -> None:
     logger.info(f"  Halt rate:     {stats['halt_rate']}")
     logger.info(f"  Error rate:    {stats['error_rate']}")
     logger.info("  By status:")
-    for status, count in stats['by_status'].items():
+    for status, count in stats["by_status"].items():
         logger.info(f"    {status:10s}: {count}")
-
 
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     if len(sys.argv) > 1:
         if sys.argv[1] == "recent":

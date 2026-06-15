@@ -15,16 +15,13 @@ import os
 import sys
 import logging
 import json
-from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 import psycopg2
-from psycopg2.extras import execute_values
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -32,10 +29,9 @@ def _has_sql_content(stmt: str) -> bool:
     """Return True if stmt has any SQL beyond whitespace and -- line comments."""
     for line in stmt.splitlines():
         s = line.strip()
-        if s and not s.startswith('--'):
+        if s and not s.startswith("--"):
             return True
     return False
-
 
 def _split_sql_statements(sql: str) -> list:
     """Split SQL into individual statements on ';', respecting dollar-quoted strings.
@@ -54,24 +50,24 @@ def _split_sql_statements(sql: str) -> list:
         ch = sql[i]
 
         # Skip line comments (-- ...) without treating their ; as statement separators
-        if dollar_tag is None and ch == '-' and i + 1 < n and sql[i + 1] == '-':
-            while i < n and sql[i] != '\n':
+        if dollar_tag is None and ch == "-" and i + 1 < n and sql[i + 1] == "-":
+            while i < n and sql[i] != "\n":
                 current.append(sql[i])
                 i += 1
             continue
 
-        if dollar_tag is None and ch == '$':
+        if dollar_tag is None and ch == "$":
             # Scan potential dollar-quote opening tag: $identchars$
             j = i + 1
-            while j < n and (sql[j].isalnum() or sql[j] == '_'):
+            while j < n and (sql[j].isalnum() or sql[j] == "_"):
                 j += 1
-            if j < n and sql[j] == '$':
-                tag = sql[i:j + 1]
+            if j < n and sql[j] == "$":
+                tag = sql[i : j + 1]
                 dollar_tag = tag
                 current.append(tag)
                 i = j + 1
                 continue
-        elif dollar_tag is not None and ch == '$':
+        elif dollar_tag is not None and ch == "$":
             end = i + len(dollar_tag)
             if sql[i:end] == dollar_tag:
                 current.append(dollar_tag)
@@ -79,8 +75,8 @@ def _split_sql_statements(sql: str) -> list:
                 dollar_tag = None
                 continue
 
-        if ch == ';' and dollar_tag is None:
-            stmt = ''.join(current).strip()
+        if ch == ";" and dollar_tag is None:
+            stmt = "".join(current).strip()
             if _has_sql_content(stmt):
                 statements.append(stmt)
             current = []
@@ -88,12 +84,11 @@ def _split_sql_statements(sql: str) -> list:
             current.append(ch)
         i += 1
 
-    stmt = ''.join(current).strip()
+    stmt = "".join(current).strip()
     if _has_sql_content(stmt):
         statements.append(stmt)
 
     return statements
-
 
 def _load_credentials():
     """Load database credentials from environment or stdin.
@@ -103,48 +98,57 @@ def _load_credentials():
     misconfiguration.
     """
     # Check if credentials should be loaded from stdin
-    if '--credentials-from-stdin' in sys.argv:
+    if "--credentials-from-stdin" in sys.argv:
         try:
             creds_json = sys.stdin.read()
             creds = json.loads(creds_json)
-            host = creds.get('host')
+            host = creds.get("host")
             if not host:
-                logger.error("ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)")
+                logger.error(
+                    "ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)"
+                )
                 sys.exit(1)
             return (
                 host,
-                int(creds.get('port', 5432)),
-                creds.get('username', 'postgres'),
-                creds.get('password', ''),
-                creds.get('dbname', 'algo'),
+                int(creds.get("port", 5432)),
+                creds.get("username", "postgres"),
+                creds.get("password", ""),
+                creds.get("dbname", "algo"),
             )
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse credentials from stdin: {e}")
             sys.exit(1)
 
     # DB_HOST is required - no localhost fallback for safety
-    db_host = os.getenv('DB_HOST')
+    db_host = os.getenv("DB_HOST")
     if not db_host:
-        logger.error("ERROR: DB_HOST environment variable is required (no localhost fallback for safety)")
+        logger.error(
+            "ERROR: DB_HOST environment variable is required (no localhost fallback for safety)"
+        )
         sys.exit(1)
 
     return (
         db_host,
-        int(os.getenv('DB_PORT', 5432)),
-        os.getenv('DB_USER', 'postgres'),
-        os.getenv('DB_PASSWORD', ''),
-        os.getenv('DB_NAME', 'algo'),
+        int(os.getenv("DB_PORT", 5432)),
+        os.getenv("DB_USER", "postgres"),
+        os.getenv("DB_PASSWORD", ""),
+        os.getenv("DB_NAME", "algo"),
     )
 
 # Database connection details from environment or stdin
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME = _load_credentials()
 
 # Map environment DB_SSL values to psycopg2 SSL modes
-_ssl_map = {'true': 'require', 'false': 'disable', 'disable': 'disable', 'prefer': 'prefer', 'require': 'require'}
-DB_SSL = _ssl_map.get(os.getenv('DB_SSL', 'require').lower(), 'require')
+_ssl_map = {
+    "true": "require",
+    "false": "disable",
+    "disable": "disable",
+    "prefer": "prefer",
+    "require": "require",
+}
+DB_SSL = _ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
 
-MIGRATIONS_DIR = Path(__file__).parent / 'versions'
-
+MIGRATIONS_DIR = Path(__file__).parent / "versions"
 
 class MigrationRunner:
     """Manages schema migrations with versioning."""
@@ -162,7 +166,7 @@ class MigrationRunner:
                 user=DB_USER,
                 password=DB_PASSWORD,
                 database=DB_NAME,
-                sslmode=DB_SSL
+                sslmode=DB_SSL,
             )
             self.cursor = self.conn.cursor()
             logger.info(f"Connected to {DB_NAME} at {DB_HOST}:{DB_PORT}")
@@ -216,8 +220,10 @@ class MigrationRunner:
 
         # Find all .sql and .py migration files (exclude __init__.py)
         all_files = [
-            f for f in list(MIGRATIONS_DIR.glob('*.sql')) + list(MIGRATIONS_DIR.glob('*.py'))
-            if not f.name.startswith('_')
+            f
+            for f in list(MIGRATIONS_DIR.glob("*.sql"))
+            + list(MIGRATIONS_DIR.glob("*.py"))
+            if not f.name.startswith("_")
         ]
         migration_files = sorted(all_files, key=lambda f: f.stem)
 
@@ -266,9 +272,9 @@ class MigrationRunner:
     def apply_migration(self, version: str, mig_path: Path):
         """Execute a migration (either SQL file or Python module with up() function)."""
         try:
-            if mig_path.suffix == '.sql':
+            if mig_path.suffix == ".sql":
                 # Handle SQL migrations
-                with open(mig_path, 'r') as f:
+                with open(mig_path, "r") as f:
                     sql = f.read()
 
                 statements = _split_sql_statements(sql)
@@ -279,14 +285,15 @@ class MigrationRunner:
 
                 self.conn.commit()
 
-            elif mig_path.suffix == '.py':
+            elif mig_path.suffix == ".py":
                 # Handle Python migrations: import module and call up()
                 import importlib.util
+
                 spec = importlib.util.spec_from_file_location(version, mig_path)
                 migration_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(migration_module)
 
-                if not hasattr(migration_module, 'up'):
+                if not hasattr(migration_module, "up"):
                     raise AttributeError(f"Migration {version} has no up() function")
 
                 logger.info(f"Running Python migration: {version}")
@@ -324,9 +331,9 @@ class MigrationRunner:
         applied = self.get_applied_migrations()
         pending = self.get_pending_migrations()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("MIGRATION STATUS")
-        print("="*60)
+        print("=" * 60)
 
         if applied:
             print("\nApplied Migrations:")
@@ -342,7 +349,7 @@ class MigrationRunner:
         else:
             print("\nAll migrations applied.")
 
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
     def apply_all_pending(self) -> bool:
         """Apply all pending migrations."""
@@ -363,12 +370,11 @@ class MigrationRunner:
 
         return success
 
-
 def main():
     """CLI entry point."""
     # Filter out --credentials-from-stdin from sys.argv for cleaner argument parsing
-    if '--credentials-from-stdin' in sys.argv:
-        sys.argv.remove('--credentials-from-stdin')
+    if "--credentials-from-stdin" in sys.argv:
+        sys.argv.remove("--credentials-from-stdin")
 
     if len(sys.argv) < 2:
         print(__doc__)
@@ -382,16 +388,16 @@ def main():
         runner.connect()
         runner.ensure_schema_version_table()
 
-        if command == 'apply':
-            if len(sys.argv) > 2 and sys.argv[2] == '--all':
+        if command == "apply":
+            if len(sys.argv) > 2 and sys.argv[2] == "--all":
                 success = runner.apply_all_pending()
                 sys.exit(0 if success else 1)
             elif len(sys.argv) > 2:
                 version = sys.argv[2]
                 # Look for both .sql and .py migrations
-                migration_files = list(MIGRATIONS_DIR.glob(f'{version}.sql'))
+                migration_files = list(MIGRATIONS_DIR.glob(f"{version}.sql"))
                 if not migration_files:
-                    migration_files = list(MIGRATIONS_DIR.glob(f'{version}.py'))
+                    migration_files = list(MIGRATIONS_DIR.glob(f"{version}.py"))
                 if not migration_files:
                     logger.error(f"Migration {version} not found (.sql or .py)")
                     sys.exit(1)
@@ -401,11 +407,11 @@ def main():
                 print("Usage: apply <version> or apply --all")
                 sys.exit(1)
 
-        elif command == 'status':
+        elif command == "status":
             runner.show_status()
             sys.exit(0)
 
-        elif command == 'rollback':
+        elif command == "rollback":
             if len(sys.argv) < 3:
                 print("Usage: rollback <version>")
                 sys.exit(1)
@@ -421,6 +427,5 @@ def main():
     finally:
         runner.disconnect()
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

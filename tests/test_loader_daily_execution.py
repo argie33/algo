@@ -20,11 +20,10 @@ Critical loaders:
 """
 
 import sys
-import os
 from pathlib import Path
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -36,29 +35,28 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 
 from utils.db.context import DatabaseContext
 
-
 class TestCriticalLoaderDailyExecution:
     """Verify critical loaders run daily and update data_loader_status."""
 
     CRITICAL_LOADERS = [
-        'stock_symbols',
-        'price_daily',
-        'market_health_daily',
-        'technical_data_daily',
-        'buy_sell_daily',
-        'signal_quality_scores',
-        'swing_trader_scores',
-        'sector_ranking',
-        'sector_performance',
+        "stock_symbols",
+        "price_daily",
+        "market_health_daily",
+        "technical_data_daily",
+        "buy_sell_daily",
+        "signal_quality_scores",
+        "swing_trader_scores",
+        "sector_ranking",
+        "sector_performance",
     ]
 
     def _get_loader_status(self, table_name: str) -> Optional[Dict]:
         """Get current status of a loader from data_loader_status table."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT * FROM data_loader_status WHERE table_name = %s",
-                    (table_name,)
+                    (table_name,),
                 )
                 row = cur.fetchone()
                 if row:
@@ -72,17 +70,17 @@ class TestCriticalLoaderDailyExecution:
     def test_loader_status_table_structure(self):
         """Verify data_loader_status table has required columns for watermark tracking."""
         required_columns = [
-            'table_name',
-            'status',
-            'last_updated',
-            'execution_started',
-            'execution_completed',
-            'row_count',
-            'latest_date',
+            "table_name",
+            "status",
+            "last_updated",
+            "execution_started",
+            "execution_completed",
+            "row_count",
+            "latest_date",
         ]
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name = 'data_loader_status' AND table_schema = 'public'"
@@ -103,18 +101,20 @@ class TestCriticalLoaderDailyExecution:
         """REQUIREMENT: All critical loaders must have updated status within 24h."""
         now_et = datetime.now(EASTERN_TZ)
         cutoff_time = now_et - timedelta(hours=24)
-        
+
         stale = {}
         for loader_name in self.CRITICAL_LOADERS:
             status = self._get_loader_status(loader_name)
             if not status:
                 stale[loader_name] = "NEVER_RUN"
                 continue
-            
-            last_updated = status.get('last_updated')
+
+            last_updated = status.get("last_updated")
             if last_updated:
                 if isinstance(last_updated, str):
-                    last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                    last_updated = datetime.fromisoformat(
+                        last_updated.replace("Z", "+00:00")
+                    )
 
                 # Ensure timezone-aware datetime in Eastern TZ for comparison
                 if last_updated.tzinfo is None:
@@ -126,13 +126,12 @@ class TestCriticalLoaderDailyExecution:
 
                 if last_updated < cutoff_time:
                     stale[loader_name] = "STALE (>24h)"
-        
+
         if stale:
             error_msg = "Critical loaders with missing/stale status:\n"
             for loader_name, reason in stale.items():
                 error_msg += f"  {loader_name}: {reason}\n"
             pytest.fail(error_msg)
 
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v', '-s'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

@@ -12,16 +12,14 @@ Provides:
 import functools
 import logging
 import time
-from typing import Optional, Callable, Any, Dict, Type
-from datetime import datetime
+from typing import Optional, Callable, Type
 
 logger = logging.getLogger(__name__)
-
 
 def db_route_handler(
     operation_name: str,
     default_error_response=None,
-    role: str = 'read',
+    role: str = "read",
     timeout_sec: Optional[int] = None,
 ):
     """Catch database errors, log, return standardized error response.
@@ -41,23 +39,26 @@ def db_route_handler(
     Returns:
         Decorated function that catches database errors
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             from utils.error_handlers import make_error_response
+
             try:
                 return func(*args, **kwargs)
             except Exception as e:
                 # Use centralized error classification
                 context = {
-                    'operation': operation_name,
-                    'role': role,
-                    'function': func.__name__,
+                    "operation": operation_name,
+                    "role": role,
+                    "function": func.__name__,
                 }
                 return make_error_response(e, operation_name, context)
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def external_api_handler(
     operation_name: str,
@@ -84,6 +85,7 @@ def external_api_handler(
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -112,14 +114,15 @@ def external_api_handler(
                     signal.alarm(0)  # Cancel alarm
             except Exception as e:
                 context = {
-                    'operation': operation_name,
-                    'timeout_sec': timeout,
-                    'max_retries': max_retries,
+                    "operation": operation_name,
+                    "timeout_sec": timeout,
+                    "max_retries": max_retries,
                 }
                 return make_error_response(e, operation_name, context)
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def validation_handler(
     operation_name: str,
@@ -145,39 +148,43 @@ def validation_handler(
     Returns:
         Decorated function with validation
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             from utils.error_handlers import make_error_response
+
             try:
                 # Find body argument
-                body = kwargs.get('body') or (args[1] if len(args) > 1 else None)
+                body = kwargs.get("body") or (args[1] if len(args) > 1 else None)
 
                 # Validate if schema provided
                 if schema_class and body:
                     try:
                         validated = schema_class.parse_obj(body)
                         # Replace body with validated version
-                        if 'body' in kwargs:
-                            kwargs['body'] = validated
+                        if "body" in kwargs:
+                            kwargs["body"] = validated
                         else:
                             args = list(args)
                             args[1] = validated
                             args = tuple(args)
                     except Exception as e:
                         from utils.exceptions import InputValidationError
+
                         raise InputValidationError(
-                            f'Invalid input: {str(e)}',
-                            context={'validation_error': str(e)}
+                            f"Invalid input: {str(e)}",
+                            context={"validation_error": str(e)},
                         )
 
                 return func(*args, **kwargs)
             except Exception as e:
-                context = {'operation': operation_name}
+                context = {"operation": operation_name}
                 return make_error_response(e, operation_name, context)
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def timeout_handler(
     operation_name: str,
@@ -197,6 +204,7 @@ def timeout_handler(
     Returns:
         Decorated function with timeout enforcement
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -218,8 +226,8 @@ def timeout_handler(
                 return func(*args, **kwargs)
             except Exception as e:
                 context = {
-                    'operation': operation_name,
-                    'timeout_sec': timeout_sec,
+                    "operation": operation_name,
+                    "timeout_sec": timeout_sec,
                 }
                 return make_error_response(e, operation_name, context)
             finally:
@@ -227,9 +235,10 @@ def timeout_handler(
                     signal.alarm(0)  # Cancel alarm
                 except (AttributeError, ValueError):
                     pass
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def transactional(
     operation_name: str,
@@ -251,10 +260,12 @@ def transactional(
     Returns:
         Decorated function with transaction handling
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             from utils.error_handlers import make_error_response
+
             cur = args[0] if args else None
 
             try:
@@ -270,15 +281,16 @@ def transactional(
                     except Exception as rollback_err:
                         logger.error(f"Failed to rollback: {rollback_err}")
 
-                context = {'operation': operation_name}
+                context = {"operation": operation_name}
                 return make_error_response(e, operation_name, context)
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def loader_operation(
     table_name: str,
-    operation_type: str = 'insert',
+    operation_type: str = "insert",
     symbol: Optional[str] = None,
     correlation_id: Optional[str] = None,
 ):
@@ -298,10 +310,11 @@ def loader_operation(
     Returns:
         Decorated function with error tracking
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            from utils.error_handlers import make_error_response, log_error_with_context
+            from utils.error_handlers import log_error_with_context
 
             start_time = time.time()
             try:
@@ -315,24 +328,25 @@ def loader_operation(
             except Exception as e:
                 duration = time.time() - start_time
                 context = {
-                    'table_name': table_name,
-                    'operation_type': operation_type,
-                    'symbol': symbol,
-                    'correlation_id': correlation_id,
-                    'duration_sec': duration,
+                    "table_name": table_name,
+                    "operation_type": operation_type,
+                    "symbol": symbol,
+                    "correlation_id": correlation_id,
+                    "duration_sec": duration,
                 }
                 log_error_with_context(e, f"loader[{table_name}]", context)
                 # Return structured error result instead of raising
                 return {
-                    'success': False,
-                    'rows_processed': 0,
-                    'rows_inserted': 0,
-                    'error': str(e),
-                    'duration_sec': duration,
+                    "success": False,
+                    "rows_processed": 0,
+                    "rows_inserted": 0,
+                    "error": str(e),
+                    "duration_sec": duration,
                 }
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def rate_limit_handler(
     operation_name: str,
@@ -355,6 +369,7 @@ def rate_limit_handler(
         Decorated function with rate limiting
     """
     import threading
+
     request_times = []
     lock = threading.Lock()
 
@@ -374,7 +389,7 @@ def rate_limit_handler(
                 if len(request_times) >= max_requests:
                     error = RateLimitedError(
                         f"Rate limit exceeded: {max_requests} requests per {window_seconds}s",
-                        context={'operation': operation_name}
+                        context={"operation": operation_name},
                     )
                     return make_error_response(error, operation_name)
 
@@ -383,11 +398,12 @@ def rate_limit_handler(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                context = {'operation': operation_name}
+                context = {"operation": operation_name}
                 return make_error_response(e, operation_name, context)
-        return wrapper
-    return decorator
 
+        return wrapper
+
+    return decorator
 
 def circuit_breaker(
     operation_name: str,
@@ -422,12 +438,16 @@ def circuit_breaker(
                 # Check if circuit is open (too many failures)
                 if failures >= failure_threshold:
                     now = time.time()
-                    if last_failure_time and now - last_failure_time < recovery_timeout_sec:
+                    if (
+                        last_failure_time
+                        and now - last_failure_time < recovery_timeout_sec
+                    ):
                         from utils.exceptions import ServiceUnavailableError
                         from utils.error_handlers import make_error_response
+
                         error = ServiceUnavailableError(
                             f"Circuit breaker open for {operation_name}",
-                            context={'failures': failures}
+                            context={"failures": failures},
                         )
                         return make_error_response(error, operation_name)
                     else:
@@ -446,7 +466,10 @@ def circuit_breaker(
                     last_failure_time = time.time()
 
                 from utils.error_handlers import make_error_response
-                context = {'operation': operation_name, 'failure_count': failures}
+
+                context = {"operation": operation_name, "failure_count": failures}
                 return make_error_response(e, operation_name, context)
+
         return wrapper
+
     return decorator

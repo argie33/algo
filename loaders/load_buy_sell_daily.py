@@ -8,17 +8,16 @@ Populates the buy_sell_daily table.
 import sys
 import argparse
 import logging
-import os
 import psycopg2.sql
 from datetime import date, datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from utils.db.sql_safety import assert_safe_table
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,6 @@ class SignalsDailyLoader(OptimalLoader):
         and cache in _batch_context.
         """
         from datetime import datetime, timezone
-        from zoneinfo import ZoneInfo
         from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
@@ -52,17 +50,17 @@ class SignalsDailyLoader(OptimalLoader):
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                    (end,)
+                    (end,),
                 )
                 price_row = cur.fetchone()
                 price_coverage_symbols = price_row[0] if price_row else 0
 
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
-                    (end,)
+                    (end,),
                 )
                 tech_row = cur.fetchone()
                 tech_coverage_symbols = tech_row[0] if tech_row else 0
@@ -84,7 +82,6 @@ class SignalsDailyLoader(OptimalLoader):
         """Generate signals from technical data."""
         from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
-        from zoneinfo import ZoneInfo
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing and re-verifying trading day for each symbol.
@@ -103,16 +100,22 @@ class SignalsDailyLoader(OptimalLoader):
         # Read the actual DB max date to avoid re-fetching old data and causing constraint violations.
         if since is None:
             try:
-                with DatabaseContext('read') as cur:
+                with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
                         (symbol,),
                     )
                     row = cur.fetchone()
                     if row and row[0]:
-                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                        since = (
+                            row[0]
+                            if isinstance(row[0], date)
+                            else date.fromisoformat(str(row[0]))
+                        )
             except Exception as e:
-                logger.warning(f"Could not read buy_sell_daily watermark for {symbol}: {e}")
+                logger.warning(
+                    f"Could not read buy_sell_daily watermark for {symbol}: {e}"
+                )
 
         if since is None:
             start = end - timedelta(days=30)
@@ -126,11 +129,11 @@ class SignalsDailyLoader(OptimalLoader):
         # If loader completed but missed symbols, we'll generate signals only for covered symbols,
         # creating inconsistent signal coverage which breaks Phase 5 filtering
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # First, verify technical_data_daily has sufficient data for symbol on end date
                 cur.execute(
                     "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
-                    (symbol, end)
+                    (symbol, end),
                 )
                 tech_count = cur.fetchone()[0]
 
@@ -139,17 +142,23 @@ class SignalsDailyLoader(OptimalLoader):
                     # Signal generation doesn't require exact date match - closest recent data is valid
                     cur.execute(
                         "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
-                        (symbol, end)
+                        (symbol, end),
                     )
                     fallback_date = cur.fetchone()[0]
                     if fallback_date:
                         days_back = (end - fallback_date).days
-                        logger.debug(f"{symbol}: Using technical data from {fallback_date} ({days_back} days back) for signal generation")
+                        logger.debug(
+                            f"{symbol}: Using technical data from {fallback_date} ({days_back} days back) for signal generation"
+                        )
                         end = fallback_date
                     else:
                         # Technical data is missing entirely - log rejection
-                        self._log_rejection_if_available(symbol, end, "technical_data_missing")
-                        logger.warning(f"{symbol}: Technical data missing for {end} - signals cannot be generated")
+                        self._log_rejection_if_available(
+                            symbol, end, "technical_data_missing"
+                        )
+                        logger.warning(
+                            f"{symbol}: Technical data missing for {end} - signals cannot be generated"
+                        )
                         return []
 
                 # Validate upstream loader completeness before generating signals.
@@ -166,20 +175,34 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # ROOT CAUSE #4 FIX: Use cached counts from batch context (computed once)
                 # instead of querying per-symbol. Eliminates ~20k per-symbol database queries.
-                price_coverage_symbols = self._batch_context.get("price_coverage_symbols", 0) if self._batch_context else 0
-                tech_coverage_symbols = self._batch_context.get("tech_coverage_symbols", 0) if self._batch_context else 0
+                price_coverage_symbols = (
+                    self._batch_context.get("price_coverage_symbols", 0)
+                    if self._batch_context
+                    else 0
+                )
+                tech_coverage_symbols = (
+                    self._batch_context.get("tech_coverage_symbols", 0)
+                    if self._batch_context
+                    else 0
+                )
 
                 # Require at least 3000 symbols with prices before generating signals
                 if price_coverage_symbols < 3000:
                     logger.warning(
                         f"{symbol}: price_daily incomplete for {end}: only "
                         f"{price_coverage_symbols} symbols (expected >= 3000). "
-                        f"Rejecting all signals until stock_prices_daily completes."
+                        "Rejecting all signals until stock_prices_daily completes."
                     )
-                    self._log_rejection_if_available(symbol, end, "price_daily_incomplete_coverage")
+                    self._log_rejection_if_available(
+                        symbol, end, "price_daily_incomplete_coverage"
+                    )
                     return []
                 # Technical coverage relative to price coverage (normal: 80-83%)
-                tech_coverage = (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
+                tech_coverage = (
+                    (tech_coverage_symbols / price_coverage_symbols * 100)
+                    if price_coverage_symbols > 0
+                    else 0
+                )
 
                 # Warn if technical data covers < 70% of price symbols (normal is 80-83%)
                 # RESILIENCE FIX: Allow signal generation to proceed even with incomplete technical data.
@@ -190,7 +213,7 @@ class SignalsDailyLoader(OptimalLoader):
                         f"{symbol}: technical_data_daily incomplete for {end}: "
                         f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols "
                         f"({tech_coverage:.1f}%, expected >= 70%). "
-                        f"Proceeding with signal generation - technical data will be backfilled later."
+                        "Proceeding with signal generation - technical data will be backfilled later."
                     )
                     # Do NOT return [] — allow signals to be generated even without complete technical data
                     # The enrichment script will populate technical columns afterward
@@ -201,7 +224,9 @@ class SignalsDailyLoader(OptimalLoader):
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
         if not rows:
-            logger.warning(f"{symbol}: No technical data found between {start} and {end}")
+            logger.warning(
+                f"{symbol}: No technical data found between {start} and {end}"
+            )
             return []
 
         # Generate signals
@@ -214,24 +239,30 @@ class SignalsDailyLoader(OptimalLoader):
 
         return signals
 
-    def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> Optional[int]:
+    def _calculate_data_source_age_days(
+        self, symbol: str, source_table: str
+    ) -> Optional[int]:
         """Calculate age of most recent data in source table (in days).
 
         Returns:
             Days since most recent row in source table, or None if no data
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(source_table)
                 cur.execute(
-                    psycopg2.sql.SQL("SELECT MAX(date) FROM {} WHERE symbol = %s").format(
-                        psycopg2.sql.Identifier(table_safe)
-                    ),
+                    psycopg2.sql.SQL(
+                        "SELECT MAX(date) FROM {} WHERE symbol = %s"
+                    ).format(psycopg2.sql.Identifier(table_safe)),
                     (symbol,),
                 )
                 row = cur.fetchone()
                 if row and row[0]:
-                    max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                    max_date = (
+                        row[0]
+                        if isinstance(row[0], date)
+                        else date.fromisoformat(str(row[0]))
+                    )
                     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
                     today_et = datetime.now(EASTERN_TZ).date()
                     age_days = (today_et - max_date).days
@@ -244,20 +275,25 @@ class SignalsDailyLoader(OptimalLoader):
         """Log signal rejection to signal_rejection_log if available.
         FIX #9: Track signal rejections per symbol for observability."""
         try:
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO signal_rejection_log
                     (signal_source_table, rejection_reason, symbol, signal_date, rejected_at_tier, created_at)
                     VALUES (%s, %s, %s, %s, %s, NOW())
-                """, ("buy_sell_daily", reason, symbol, signal_date, "loader"))
+                """,
+                    ("buy_sell_daily", reason, symbol, signal_date, "loader"),
+                )
         except Exception as e:
-            logger.error(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
+            logger.error(
+                f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
+            )
             raise
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """SELECT t.date, t.rsi, t.macd, t.macd_signal,
                               t.sma_50, t.sma_200, t.ema_12, t.ema_21, t.atr,
@@ -279,24 +315,26 @@ class SignalsDailyLoader(OptimalLoader):
                             f"(date={r[0]}, close={r[11]})"
                         )
                         continue
-                    rows.append({
-                        "date": r[0].isoformat() if r[0] else None,
-                        "rsi": float(r[1]) if r[1] is not None else None,
-                        "macd": float(r[2]) if r[2] is not None else None,
-                        "macd_signal": float(r[3]) if r[3] is not None else None,
-                        "sma_50": float(r[4]) if r[4] is not None else None,
-                        "sma_200": float(r[5]) if r[5] is not None else None,
-                        "ema_12": float(r[6]) if r[6] is not None else None,
-                        "ema_21": float(r[7]) if r[7] is not None else None,
-                        "atr": float(r[8]) if r[8] is not None else None,
-                        "adx": float(r[9]) if r[9] is not None else None,
-                        "mansfield_rs": float(r[10]) if r[10] is not None else None,
-                        "close": float(r[11]) if r[11] is not None else None,
-                        "volume": int(r[12]) if r[12] is not None else None,
-                        "open": float(r[13]) if r[13] is not None else None,
-                        "high": float(r[14]) if r[14] is not None else None,
-                        "low": float(r[15]) if r[15] is not None else None,
-                    })
+                    rows.append(
+                        {
+                            "date": r[0].isoformat() if r[0] else None,
+                            "rsi": float(r[1]) if r[1] is not None else None,
+                            "macd": float(r[2]) if r[2] is not None else None,
+                            "macd_signal": float(r[3]) if r[3] is not None else None,
+                            "sma_50": float(r[4]) if r[4] is not None else None,
+                            "sma_200": float(r[5]) if r[5] is not None else None,
+                            "ema_12": float(r[6]) if r[6] is not None else None,
+                            "ema_21": float(r[7]) if r[7] is not None else None,
+                            "atr": float(r[8]) if r[8] is not None else None,
+                            "adx": float(r[9]) if r[9] is not None else None,
+                            "mansfield_rs": float(r[10]) if r[10] is not None else None,
+                            "close": float(r[11]) if r[11] is not None else None,
+                            "volume": int(r[12]) if r[12] is not None else None,
+                            "open": float(r[13]) if r[13] is not None else None,
+                            "high": float(r[14]) if r[14] is not None else None,
+                            "low": float(r[15]) if r[15] is not None else None,
+                        }
+                    )
                 if dropped_rows > 0:
                     logger.warning(
                         f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price"
@@ -316,7 +354,9 @@ class SignalsDailyLoader(OptimalLoader):
             return []
 
         # Precalculate source data age once per symbol (not per signal)
-        tech_data_age = self._calculate_data_source_age_days(symbol, "technical_data_daily")
+        tech_data_age = self._calculate_data_source_age_days(
+            symbol, "technical_data_daily"
+        )
 
         signals = []
         skipped_count = 0
@@ -354,53 +394,78 @@ class SignalsDailyLoader(OptimalLoader):
             # Use 20-bar lookback for swing trading (captures swings over 3-4 weeks)
             recent_swing_high = None
             swing_high_sma50 = None
-            last_swing_high_idx = -1
-            for j in range(max(0, i-20), i):
+            for j in range(max(0, i - 20), i):
                 candidate = rows[j].get("high")
                 if not candidate:
                     continue
                 # Require complete data: all lookback and lookforward bars must have valid highs
-                lookback_bars = [rows[k].get("high") for k in range(max(0, j-3), j)]
-                lookforward_bars = [rows[k].get("high") for k in range(j+1, min(len(rows), j+4))]
+                lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j)]
+                lookforward_bars = [
+                    rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4))
+                ]
                 if not all(lookback_bars) or not all(lookforward_bars):
                     continue
                 # Validate pivot: candidate must be higher than all lookback and lookforward bars
-                if all(candidate > b for b in lookback_bars) and all(candidate > b for b in lookforward_bars):
+                if all(candidate > b for b in lookback_bars) and all(
+                    candidate > b for b in lookforward_bars
+                ):
                     if recent_swing_high is None or candidate > recent_swing_high:
                         recent_swing_high = candidate
-                        swing_high_sma50 = rows[j].get("sma_50")  # SMA50 at the time swing high formed
-                        last_swing_high_idx = j
+                        swing_high_sma50 = rows[j].get(
+                            "sma_50"
+                        )  # SMA50 at the time swing high formed
 
             # Find most recent swing low (3-bar pivot: low < low[i-3:i] AND low < low[i+1:i+4])
             # Use 10-bar lookback for swing lows (more reactive stop loss, not stale entries)
             recent_swing_low = None
-            for j in range(max(0, i-10), i):
+            for j in range(max(0, i - 10), i):
                 candidate = rows[j].get("low")
                 if not candidate:
                     continue
                 # Require complete data: all lookback and lookforward bars must have valid lows
-                lookback_bars = [rows[k].get("low") for k in range(max(0, j-3), j)]
-                lookforward_bars = [rows[k].get("low") for k in range(j+1, min(len(rows), j+4))]
+                lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j)]
+                lookforward_bars = [
+                    rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4))
+                ]
                 if not all(lookback_bars) or not all(lookforward_bars):
                     continue
                 # Validate pivot: candidate must be lower than all lookback and lookforward bars
-                if all(candidate < b for b in lookback_bars) and all(candidate < b for b in lookforward_bars):
+                if all(candidate < b for b in lookback_bars) and all(
+                    candidate < b for b in lookforward_bars
+                ):
                     if recent_swing_low is None or candidate < recent_swing_low:
                         recent_swing_low = candidate
 
             # BUY: Breakout above swing high where swing_high > SMA50 (trend filter on pivot level, not current bar)
-            if recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50:
+            if (
+                recent_swing_high
+                and swing_high_sma50
+                and high > recent_swing_high
+                and recent_swing_high > swing_high_sma50
+            ):
                 signal_type = "BUY"
-                breakout_pct = ((high - recent_swing_high) / recent_swing_high * 100) if recent_swing_high > 0 else 0
+                breakout_pct = (
+                    ((high - recent_swing_high) / recent_swing_high * 100)
+                    if recent_swing_high > 0
+                    else 0
+                )
                 strength = min(0.5 + (breakout_pct / 5.0), 1.0)
                 reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
                 buylevel = round(recent_swing_high, 4)
-                stoplevel = round(recent_swing_low, 4) if recent_swing_low else round(close * 0.92, 4)
+                stoplevel = (
+                    round(recent_swing_low, 4)
+                    if recent_swing_low
+                    else round(close * 0.92, 4)
+                )
 
             # SELL: Breakdown below swing low (stop loss)
             elif recent_swing_low and low < recent_swing_low:
                 signal_type = "SELL"
-                breakdown_pct = ((recent_swing_low - low) / recent_swing_low * 100) if recent_swing_low > 0 else 0
+                breakdown_pct = (
+                    ((recent_swing_low - low) / recent_swing_low * 100)
+                    if recent_swing_low > 0
+                    else 0
+                )
                 strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
                 reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
                 buylevel = round(close, 4)
@@ -412,7 +477,11 @@ class SignalsDailyLoader(OptimalLoader):
                 volume_surge_capped = False
                 _DECIMAL84_MAX = 9999.9999
                 if volume is not None and i >= 5:
-                    recent_vols = [rows[j].get("volume") for j in range(max(0, i-20), i) if rows[j].get("volume")]
+                    recent_vols = [
+                        rows[j].get("volume")
+                        for j in range(max(0, i - 20), i)
+                        if rows[j].get("volume")
+                    ]
                     if recent_vols:
                         avg_vol = sum(recent_vols) / len(recent_vols)
                         if avg_vol > 0:
@@ -424,7 +493,11 @@ class SignalsDailyLoader(OptimalLoader):
                 # Compute 50-bar average volume
                 avg_vol_50d = None
                 if i >= 10:
-                    vols_50 = [rows[j].get("volume") for j in range(max(0, i-50), i) if rows[j].get("volume")]
+                    vols_50 = [
+                        rows[j].get("volume")
+                        for j in range(max(0, i - 50), i)
+                        if rows[j].get("volume")
+                    ]
                     if vols_50:
                         avg_vol_50d = int(sum(vols_50) / len(vols_50))
 
@@ -458,7 +531,11 @@ class SignalsDailyLoader(OptimalLoader):
                     profit_target_25pct = round(buylevel * 1.25, 4)
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
-                    rr = round((profit_target_20pct - buylevel) / max(buylevel - stoplevel, 0.01), 2)
+                    rr = round(
+                        (profit_target_20pct - buylevel)
+                        / max(buylevel - stoplevel, 0.01),
+                        2,
+                    )
                 elif signal_type == "SELL" and close:
                     if buylevel is None:
                         buylevel = round(close, 4)
@@ -475,61 +552,73 @@ class SignalsDailyLoader(OptimalLoader):
                     profit_target_25pct = round(buylevel * 0.75, 4)
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
-                    rr = round((buylevel - profit_target_20pct) / max(stoplevel - buylevel, 0.01), 2)
+                    rr = round(
+                        (buylevel - profit_target_20pct)
+                        / max(stoplevel - buylevel, 0.01),
+                        2,
+                    )
                 else:
                     initial_stop = trailing_stop = sell_level = pivot_price = None
                     buy_zone_start = buy_zone_end = None
-                    profit_target_8pct = profit_target_20pct = profit_target_25pct = None
+                    profit_target_8pct = profit_target_20pct = profit_target_25pct = (
+                        None
+                    )
                     exit_trigger_1 = exit_trigger_2 = None
                     rr = None
 
-                signals.append({
-                    "symbol": symbol,
-                    "date": row["date"],
-                    "signal_triggered_date": row["date"],
-                    "timeframe": "1d",
-                    "signal": signal_type,
-                    "signal_type": signal_type,
-                    "strength": float(strength),
-                    "reason": reason,
-                    "entry_quality_score": None,
-                    "signal_quality_score": None,
-                    "volume_surge_pct": vol_surge,
-                    "volume_surge_capped": volume_surge_capped,
-                    "risk_reward_ratio": rr,
-                    "risk_pct": risk_pct,
-                    "rsi": float(rsi) if rsi is not None else None,
-                    "sma_50": float(sma_50) if sma_50 is not None else None,
-                    "sma_200": float(sma_200) if sma_200 is not None else None,
-                    "ema_21": float(ema_21) if ema_21 is not None else None,
-                    "atr": float(atr) if atr is not None else None,
-                    "adx": float(adx) if adx is not None else None,
-                    "mansfield_rs": float(mansfield_rs) if mansfield_rs is not None else None,
-                    "macd": float(macd) if macd is not None else None,
-                    "macd_signal": float(macd_signal) if macd_signal is not None else None,
-                    "stage_number": None,
-                    "market_stage": market_stage,
-                    "open": row.get("open"),
-                    "high": float(high) if high is not None else None,
-                    "low": float(low) if low is not None else None,
-                    "close": float(close) if close is not None else None,
-                    "volume": volume,
-                    "avg_volume_50d": avg_vol_50d,
-                    "buylevel": buylevel,
-                    "stoplevel": stoplevel,
-                    "initial_stop": initial_stop,
-                    "trailing_stop": trailing_stop,
-                    "sell_level": sell_level,
-                    "pivot_price": pivot_price,
-                    "buy_zone_start": buy_zone_start,
-                    "buy_zone_end": buy_zone_end,
-                    "profit_target_8pct": profit_target_8pct,
-                    "profit_target_20pct": profit_target_20pct,
-                    "profit_target_25pct": profit_target_25pct,
-                    "exit_trigger_1_price": exit_trigger_1,
-                    "exit_trigger_2_price": exit_trigger_2,
-                    "technical_data_age_days": tech_data_age,
-                })
+                signals.append(
+                    {
+                        "symbol": symbol,
+                        "date": row["date"],
+                        "signal_triggered_date": row["date"],
+                        "timeframe": "1d",
+                        "signal": signal_type,
+                        "signal_type": signal_type,
+                        "strength": float(strength),
+                        "reason": reason,
+                        "entry_quality_score": None,
+                        "signal_quality_score": None,
+                        "volume_surge_pct": vol_surge,
+                        "volume_surge_capped": volume_surge_capped,
+                        "risk_reward_ratio": rr,
+                        "risk_pct": risk_pct,
+                        "rsi": float(rsi) if rsi is not None else None,
+                        "sma_50": float(sma_50) if sma_50 is not None else None,
+                        "sma_200": float(sma_200) if sma_200 is not None else None,
+                        "ema_21": float(ema_21) if ema_21 is not None else None,
+                        "atr": float(atr) if atr is not None else None,
+                        "adx": float(adx) if adx is not None else None,
+                        "mansfield_rs": (
+                            float(mansfield_rs) if mansfield_rs is not None else None
+                        ),
+                        "macd": float(macd) if macd is not None else None,
+                        "macd_signal": (
+                            float(macd_signal) if macd_signal is not None else None
+                        ),
+                        "stage_number": None,
+                        "market_stage": market_stage,
+                        "open": row.get("open"),
+                        "high": float(high) if high is not None else None,
+                        "low": float(low) if low is not None else None,
+                        "close": float(close) if close is not None else None,
+                        "volume": volume,
+                        "avg_volume_50d": avg_vol_50d,
+                        "buylevel": buylevel,
+                        "stoplevel": stoplevel,
+                        "initial_stop": initial_stop,
+                        "trailing_stop": trailing_stop,
+                        "sell_level": sell_level,
+                        "pivot_price": pivot_price,
+                        "buy_zone_start": buy_zone_start,
+                        "buy_zone_end": buy_zone_end,
+                        "profit_target_8pct": profit_target_8pct,
+                        "profit_target_20pct": profit_target_20pct,
+                        "profit_target_25pct": profit_target_25pct,
+                        "exit_trigger_1_price": exit_trigger_1,
+                        "exit_trigger_2_price": exit_trigger_2,
+                        "technical_data_age_days": tech_data_age,
+                    }
+                )
 
         if skipped_count > 0:
             logger.warning(
@@ -541,12 +630,26 @@ class SignalsDailyLoader(OptimalLoader):
     # Columns with DECIMAL(8,4) precision — max 9999.9999
     # High-priced stocks (ASML, BLK, CAT, etc.) can produce values ≥10000 for
     # percentage/ratio fields, causing PostgreSQL numeric field overflow on COPY.
-    _DECIMAL84_COLS = frozenset({
-        "signal_strength", "volume_surge_pct", "rsi", "adx",
-        "pct_from_ema21", "pct_from_sma50", "mansfield_rs", "sata_score",
-        "risk_reward_ratio", "risk_pct", "entry_quality_score", "signal_quality_score",
-        "position_size_recommendation", "current_gain_pct", "stage_confidence", "strength",
-    })
+    _DECIMAL84_COLS = frozenset(
+        {
+            "signal_strength",
+            "volume_surge_pct",
+            "rsi",
+            "adx",
+            "pct_from_ema21",
+            "pct_from_sma50",
+            "mansfield_rs",
+            "sata_score",
+            "risk_reward_ratio",
+            "risk_pct",
+            "entry_quality_score",
+            "signal_quality_score",
+            "position_size_recommendation",
+            "current_gain_pct",
+            "stage_confidence",
+            "strength",
+        }
+    )
     _DECIMAL84_MAX = 9999.9999
 
     def transform(self, rows):
@@ -555,7 +658,11 @@ class SignalsDailyLoader(OptimalLoader):
             capped_cols = []
             for col in self._DECIMAL84_COLS:
                 v = row.get(col)
-                if v is not None and isinstance(v, (int, float)) and abs(v) > self._DECIMAL84_MAX:
+                if (
+                    v is not None
+                    and isinstance(v, (int, float))
+                    and abs(v) > self._DECIMAL84_MAX
+                ):
                     capped_cols.append(col)
                     row[col] = self._DECIMAL84_MAX if v > 0 else -self._DECIMAL84_MAX
             if capped_cols:
@@ -568,7 +675,12 @@ class SignalsDailyLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("buy_sell_daily"), help="Parallel workers")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=get_default_parallelism("buy_sell_daily"),
+        help="Parallel workers",
+    )
     args = parser.parse_args()
 
     try:
@@ -583,23 +695,27 @@ def main():
         logger.error(f"Failed to get symbols: {e}")
         return 1
 
-    logger.info(f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}")
+    logger.info(
+        f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}"
+    )
 
     # VALIDATION: buy_sell_daily is critical path; parallelism should be 3 per steering doc line 44-48
     # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
     if args.parallelism > 4:
         logger.warning(
             f"[PARALLELISM] buy_sell_daily: parallelism={args.parallelism} exceeds recommended max (3). "
-            f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
+            "This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
         )
 
     # ISSUE #7: Validate dependency — technical_data_daily must be fresh and have good coverage
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(date) FROM technical_data_daily")
             result = cur.fetchone()
             if not result or not result[0]:
-                logger.error("[DEPENDENCY] technical_data_daily is empty - cannot generate signals")
+                logger.error(
+                    "[DEPENDENCY] technical_data_daily is empty - cannot generate signals"
+                )
                 return 1
 
             tech_data_date = result[0]
@@ -612,6 +728,7 @@ def main():
             # Compare against last trading day, not calendar days.
             # On Monday, Friday's data is 2 calendar days old but 0 trading days stale.
             from algo.infrastructure import MarketCalendar
+
             last_trading_day = today_et
             for _ in range(10):
                 if MarketCalendar.is_trading_day(last_trading_day):
@@ -639,14 +756,22 @@ def main():
             cur_row = cur.fetchone()
             tech_symbol_count = cur_row[0] if cur_row else 0
 
-            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
+            coverage_pct = (
+                round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
+            )
             if coverage_pct < 75:
-                logger.error(f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 75% threshold")
+                logger.error(
+                    f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 75% threshold"
+                )
                 return 1
 
-            logger.info(f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d")
+            logger.info(
+                f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
+            )
     except Exception as dep_err:
-        logger.error(f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}")
+        logger.error(
+            f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}"
+        )
         return 1
 
     loader = SignalsDailyLoader()
@@ -658,8 +783,13 @@ def main():
         # This backfills NULL technical columns in buy_sell_daily with data from technical_data_daily
         logger.info("Starting technical data enrichment...")
         from enrich_buy_sell_daily_technical import enrich_technical_data
-        enrich_result = enrich_technical_data(since=today_et - timedelta(days=3), symbols=None)
-        logger.info(f"Technical enrichment complete: {enrich_result['updated']} updated, {enrich_result['checked']} checked")
+
+        enrich_result = enrich_technical_data(
+            since=today_et - timedelta(days=3), symbols=None
+        )
+        logger.info(
+            f"Technical enrichment complete: {enrich_result['updated']} updated, {enrich_result['checked']} checked"
+        )
 
         return 0
     except Exception as e:
@@ -668,4 +798,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -23,7 +23,7 @@ USAGE:
 """
 
 import logging
-from datetime import datetime, date as _date
+from datetime import date as _date
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class TickValidator:
         symbol: str,
         prior_close: Optional[float] = None,
         is_etf: bool = False,
-        security_type: str = "equity",  # 'equity', 'etf', 'index'
+        security_type: str = "equity",  # 'equity', 'et', 'index'
     ):
         """
         Args:
@@ -82,7 +82,13 @@ class TickValidator:
             return self.errors
 
         # Type guards: after null check, values are guaranteed non-None
-        assert open_price is not None and high is not None and low is not None and close is not None and volume is not None
+        assert (
+            open_price is not None
+            and high is not None
+            and low is not None
+            and close is not None
+            and volume is not None
+        )
 
         # 2. OHLC LOGIC - High >= all, Low <= all
         self._check_ohlc_logic(open_price, high, low, close)

@@ -2,7 +2,7 @@
 
 import os
 import logging
-from datetime import date as _date, datetime, timedelta, timezone
+from datetime import date as _date, datetime
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
@@ -23,6 +23,7 @@ class HealthStatus(str, Enum):
 @dataclass
 class TableHealth:
     """Health status for a single table."""
+
     table_name: str
     status: HealthStatus
     row_count: int = 0
@@ -48,27 +49,29 @@ class TableHealth:
         algo_market_exposure.py handles missing rows with safe defaults.
         """
         critical_tables = {
-            'stock_symbols', 'price_daily',
-            'market_health_daily',
+            "stock_symbols",
+            "price_daily",
+            "market_health_daily",
         }
         return self.table_name in critical_tables
 
     def to_dict(self) -> Dict:
         return {
-            'table': self.table_name,
-            'status': self.status.value,
-            'rows': self.row_count,
-            'latest_date': self.latest_date.isoformat() if self.latest_date else None,
-            'age_days': self.age_days,
-            'sla_days': self.sla_days,
-            'is_healthy': self.is_healthy,
-            'is_critical': self.is_critical,
-            'error': self.error_message
+            "table": self.table_name,
+            "status": self.status.value,
+            "rows": self.row_count,
+            "latest_date": self.latest_date.isoformat() if self.latest_date else None,
+            "age_days": self.age_days,
+            "sla_days": self.sla_days,
+            "is_healthy": self.is_healthy,
+            "is_critical": self.is_critical,
+            "error": self.error_message,
         }
 
 @dataclass
 class PipelineStatus:
     """Overall pipeline health status."""
+
     timestamp: datetime = field(default_factory=datetime.now)
     tables: Dict[str, TableHealth] = field(default_factory=dict)
     is_healthy: bool = True
@@ -91,14 +94,14 @@ class PipelineStatus:
 
     def to_dict(self) -> Dict:
         return {
-            'timestamp': self.timestamp.isoformat(),
-            'is_healthy': self.is_healthy,
-            'healthy_count': self.healthy_count,
-            'total_count': self.total_count,
-            'coverage_pct': round(self.coverage_pct, 1),
-            'critical_alerts': self.critical_alerts,
-            'warnings': self.warnings,
-            'tables': {name: t.to_dict() for name, t in self.tables.items()}
+            "timestamp": self.timestamp.isoformat(),
+            "is_healthy": self.is_healthy,
+            "healthy_count": self.healthy_count,
+            "total_count": self.total_count,
+            "coverage_pct": round(self.coverage_pct, 1),
+            "critical_alerts": self.critical_alerts,
+            "warnings": self.warnings,
+            "tables": {name: t.to_dict() for name, t in self.tables.items()},
         }
 
 class PipelineHealth:
@@ -111,22 +114,22 @@ class PipelineHealth:
     # critical halt in Phase 1. Phase 1's explicit staleness check uses trading-day-
     # aware comparison; PipelineHealth is a secondary check and should not over-block.
     CRITICAL_TABLES = {
-        'stock_symbols': {'date_column': 'created_at', 'sla_days': 30},
-        'price_daily': {'date_column': 'date', 'sla_days': 5},
-        'buy_sell_daily': {'date_column': 'date', 'sla_days': 5},
-        'stock_scores': {'date_column': 'updated_at', 'sla_days': 5},
-        'economic_data': {'date_column': 'date', 'sla_days': 7},
-        'market_health_daily': {'date_column': 'date', 'sla_days': 5},
-        'analyst_sentiment_analysis': {'date_column': 'updated_at', 'sla_days': 7},
-        'earnings_calendar': {'date_column': 'created_at', 'sla_days': 30},
+        "stock_symbols": {"date_column": "created_at", "sla_days": 30},
+        "price_daily": {"date_column": "date", "sla_days": 5},
+        "buy_sell_daily": {"date_column": "date", "sla_days": 5},
+        "stock_scores": {"date_column": "updated_at", "sla_days": 5},
+        "economic_data": {"date_column": "date", "sla_days": 7},
+        "market_health_daily": {"date_column": "date", "sla_days": 5},
+        "analyst_sentiment_analysis": {"date_column": "updated_at", "sla_days": 7},
+        "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
-    def check_table_health(self, cur, table_name: str, date_column: str, sla_days: int) -> TableHealth:
+    def check_table_health(
+        self, cur, table_name: str, date_column: str, sla_days: int
+    ) -> TableHealth:
         """Check health of a single table."""
         health = TableHealth(
-            table_name=table_name,
-            status=HealthStatus.ERROR,
-            sla_days=sla_days
+            table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days
         )
 
         try:
@@ -138,7 +141,7 @@ class PipelineHealth:
             # enough to detect empty vs populated tables without blocking I/O.
             cur.execute(
                 "SELECT GREATEST(reltuples, 0)::BIGINT FROM pg_class WHERE relname = %s LIMIT 1",
-                (table_name,)
+                (table_name,),
             )
             result = cur.fetchone()
             health.row_count = int(result[0]) if result else 0
@@ -151,7 +154,9 @@ class PipelineHealth:
             # Use ORDER BY + LIMIT 1 instead of MAX() — forces an index scan and
             # avoids sequential scans when PostgreSQL statistics are stale (reltuples=0
             # on t4g.micro after bulk inserts). MAX() with stale stats can take 30s+.
-            cur.execute(f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1")
+            cur.execute(
+                f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1"
+            )
             result = cur.fetchone()
             latest_date = result[0] if result else None
 
@@ -165,7 +170,7 @@ class PipelineHealth:
 
             health.latest_date = latest_date
             # Use ET date for age calculation (trading is ET-based)
-            from zoneinfo import ZoneInfo
+
             today_et = datetime.now(EASTERN_TZ).date()
             health.age_days = (today_et - latest_date).days
 
@@ -188,9 +193,9 @@ class PipelineHealth:
         status = PipelineStatus()
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Set statement timeout for health checks (fail fast)
-                stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 30000))
+                stmt_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", 30000))
                 cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
 
                 for table_name, config in self.CRITICAL_TABLES.items():
@@ -198,8 +203,8 @@ class PipelineHealth:
                         health = self.check_table_health(
                             cur,
                             table_name,
-                            str(config['date_column']),
-                            int(config['sla_days'])  # type: ignore[call-overload]
+                            str(config["date_column"]),
+                            int(config["sla_days"]),  # type: ignore[call-overload]
                         )
                         status.tables[table_name] = health
 
@@ -222,7 +227,7 @@ class PipelineHealth:
                         status.tables[table_name] = TableHealth(
                             table_name=table_name,
                             status=HealthStatus.ERROR,
-                            error_message=str(e)
+                            error_message=str(e),
                         )
         except Exception as e:
             logger.error(f"Cannot check pipeline status: {e}")
@@ -232,8 +237,7 @@ class PipelineHealth:
 
         # Overall health determination
         has_critical_issues = any(
-            not t.is_healthy and t.is_critical
-            for t in status.tables.values()
+            not t.is_healthy and t.is_critical for t in status.tables.values()
         )
         status.is_healthy = not has_critical_issues and len(status.critical_alerts) == 0
 
@@ -242,7 +246,7 @@ class PipelineHealth:
     def log_health_check(self, status: PipelineStatus):
         """Log pipeline health to database for historical tracking."""
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 for table_health in status.tables.values():
                     cur.execute(
                         """
@@ -262,8 +266,8 @@ class PipelineHealth:
                             table_health.status.value,
                             table_health.row_count,
                             table_health.latest_date,
-                            table_health.age_days
-                        )
+                            table_health.age_days,
+                        ),
                     )
         except Exception as e:
             logger.error(f"[LOGGING_FAILURE] Could not log health check: {e}")
@@ -276,14 +280,17 @@ class PipelineHealth:
         status = self.get_pipeline_status()
 
         if status.critical_alerts:
-            error_msg = "Pipeline not ready for trading:\n" + "\n".join(status.critical_alerts)
+            error_msg = "Pipeline not ready for trading:\n" + "\n".join(
+                status.critical_alerts
+            )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
         return True
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import json
+
     health = PipelineHealth()
     status = health.get_pipeline_status()
     logger.info(json.dumps(status.to_dict(), indent=2, default=str))

@@ -15,7 +15,7 @@ DESCRIPTION = "Add avg_r column to algo_performance_daily"
 
 def up():
     """Add avg_r column if it doesn't exist."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE algo_performance_daily
             ADD COLUMN IF NOT EXISTS avg_r NUMERIC(6, 3)
@@ -23,9 +23,8 @@ def up():
 
 def down():
     """Remove avg_r column (not recommended in production)."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE algo_performance_daily
             DROP COLUMN IF EXISTS avg_r
         """)
-

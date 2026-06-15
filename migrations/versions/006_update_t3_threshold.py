@@ -14,25 +14,20 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Lower min_trend_template_score from 7 to 6 for broader T3 signal capture"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Use CAST comparison so '7.0' and '7' both match. Only lower the threshold
         # if current value is 7 or higher â€” never override a manual value below 6.
-        cur.execute(
-            """
+        cur.execute("""
             UPDATE algo_config
             SET value = '6', updated_by = 'migration-006'
             WHERE key = 'min_trend_template_score'
               AND CAST(value AS NUMERIC) >= 7
-            """
-        )
+            """)
 
 def down():
-    with DatabaseContext('write') as cur:
-        cur.execute(
-            """
+    with DatabaseContext("write") as cur:
+        cur.execute("""
             UPDATE algo_config
             SET value = '7', updated_by = 'migration-006-rollback'
             WHERE key = 'min_trend_template_score' AND value = '6'
-            """
-        )
-
+            """)

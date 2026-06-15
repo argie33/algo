@@ -20,15 +20,13 @@ Metrics computed:
 
 import psycopg2
 import psycopg2.extras
-from datetime import date, timedelta
+from datetime import date
 import logging
-import os
-import math
 
 # Add parent directory to path for imports
 
 from utils.db.context import DatabaseContext
-from utils.validation import safe_float, safe_int
+from utils.validation import safe_float
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
@@ -66,13 +64,15 @@ def compute_performance_metrics(cur, metric_date: date = None):
         if not trades:
             # No trades, use defaults
             _insert_default_metrics(cur, metric_date)
-            logger.info(f'No trades (closed or open with current price) for {metric_date}, inserted defaults')
+            logger.info(
+                f"No trades (closed or open with current price) for {metric_date}, inserted defaults"
+            )
             return
 
         # Extract metrics from trades
         pnl_dollars = [safe_float(t[0]) for t in trades]
         pnl_pcts = [safe_float(t[1]) for t in trades]
-        r_multiples = [safe_float(t[2]) for t in trades if t[2] is not None]
+        [safe_float(t[2]) for t in trades if t[2] is not None]
         holding_days_list = [safe_float(t[3]) for t in trades if t[3]]
 
         # Basic counts
@@ -92,52 +92,59 @@ def compute_performance_metrics(cur, metric_date: date = None):
         total_pnl_dollars = sum(pnl_dollars)
         total_pnl_pct = sum(pnl_pcts)
 
-        metrics['total_trades'] = total_trades
-        metrics['winning_trades'] = winning
-        metrics['losing_trades'] = losing
-        metrics['breakeven_trades'] = breakeven
-        metrics['win_rate_pct'] = round(win_rate, 2)
-        metrics['profit_factor'] = round(profit_factor, 2)
-        metrics['total_pnl_dollars'] = round(total_pnl_dollars, 2)
-        metrics['total_pnl_pct'] = round(total_pnl_pct, 2)
+        metrics["total_trades"] = total_trades
+        metrics["winning_trades"] = winning
+        metrics["losing_trades"] = losing
+        metrics["breakeven_trades"] = breakeven
+        metrics["win_rate_pct"] = round(win_rate, 2)
+        metrics["profit_factor"] = round(profit_factor, 2)
+        metrics["total_pnl_dollars"] = round(total_pnl_dollars, 2)
+        metrics["total_pnl_pct"] = round(total_pnl_pct, 2)
 
         # Trade statistics
         if pnl_pcts:
-            metrics['avg_trade_pct'] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
-            metrics['best_trade_pct'] = round(max(pnl_pcts), 2)
-            metrics['worst_trade_pct'] = round(min(pnl_pcts), 2)
+            metrics["avg_trade_pct"] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
+            metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
+            metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
         else:
-            metrics['avg_trade_pct'] = 0.0
-            metrics['best_trade_pct'] = 0.0
-            metrics['worst_trade_pct'] = 0.0
+            metrics["avg_trade_pct"] = 0.0
+            metrics["best_trade_pct"] = 0.0
+            metrics["worst_trade_pct"] = 0.0
 
-        metrics['avg_holding_days'] = round(
-            sum(holding_days_list) / len(holding_days_list), 1) if holding_days_list else 0.0
+        metrics["avg_holding_days"] = (
+            round(sum(holding_days_list) / len(holding_days_list), 1)
+            if holding_days_list
+            else 0.0
+        )
 
         # Streak metrics
         best_win_streak, worst_loss_streak = _compute_streaks(pnl_dollars)
-        metrics['best_win_streak'] = best_win_streak
-        metrics['worst_loss_streak'] = worst_loss_streak
+        metrics["best_win_streak"] = best_win_streak
+        metrics["worst_loss_streak"] = worst_loss_streak
 
         # Advanced metrics from portfolio snapshots
-        sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
-        metrics['sharpe_ratio'] = round(sharpe, 4)
-        metrics['sortino_ratio'] = round(sortino, 4)
-        metrics['max_drawdown_pct'] = round(max_dd * 100, 2)  # Convert to percentage
-        metrics['cagr_pct'] = round(cagr * 100, 4)  # Convert to percentage
-        metrics['calmar_ratio'] = round(calmar, 4)
+        sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(
+            cur, metric_date
+        )
+        metrics["sharpe_ratio"] = round(sharpe, 4)
+        metrics["sortino_ratio"] = round(sortino, 4)
+        metrics["max_drawdown_pct"] = round(max_dd * 100, 2)  # Convert to percentage
+        metrics["cagr_pct"] = round(cagr * 100, 4)  # Convert to percentage
+        metrics["calmar_ratio"] = round(calmar, 4)
 
         # Insert or update
         _insert_performance_metrics(cur, metric_date, metrics)
 
-        logger.info(f'Performance metrics computed for {metric_date}: '
-                   f'{total_trades} trades, {winning} wins, {losing} losses, '
-                   f'sharpe={metrics["sharpe_ratio"]}, max_dd={metrics["max_drawdown_pct"]}%')
+        logger.info(
+            f"Performance metrics computed for {metric_date}: "
+            f"{total_trades} trades, {winning} wins, {losing} losses, "
+            f'sharpe={metrics["sharpe_ratio"]}, max_dd={metrics["max_drawdown_pct"]}%'
+        )
 
         return metrics
 
     except Exception as e:
-        logger.error(f'Failed to compute performance metrics: {e}', exc_info=True)
+        logger.error(f"Failed to compute performance metrics: {e}", exc_info=True)
         raise
 
 def _compute_advanced_metrics(cur, metric_date: date):
@@ -160,8 +167,8 @@ def _compute_advanced_metrics(cur, metric_date: date):
         # Calculate daily returns
         returns = []
         for i in range(1, len(vals)):
-            if vals[i-1] != 0:
-                ret = (vals[i] - vals[i-1]) / vals[i-1]
+            if vals[i - 1] != 0:
+                ret = (vals[i] - vals[i - 1]) / vals[i - 1]
                 returns.append(ret)
 
         if not returns:
@@ -175,13 +182,19 @@ def _compute_advanced_metrics(cur, metric_date: date):
 
         # Log when metrics fail to compute (not mask with fallbacks)
         if sharpe is None:
-            logger.warning(f'Sharpe ratio failed to compute (need {min(5)} returns, got {len(returns)})')
+            logger.warning(
+                f"Sharpe ratio failed to compute (need {min(5)} returns, got {len(returns)})"
+            )
         if sortino is None:
-            logger.warning(f'Sortino ratio failed to compute (need downside risk, got {len(returns)} returns)')
+            logger.warning(
+                f"Sortino ratio failed to compute (need downside risk, got {len(returns)} returns)"
+            )
         if max_drawdown is None:
-            logger.warning(f'Max drawdown failed to compute (need {min(2)} portfolio values, got {len(vals)})')
+            logger.warning(
+                f"Max drawdown failed to compute (need {min(2)} portfolio values, got {len(vals)})"
+            )
         if calmar is None:
-            logger.warning(f'Calmar ratio failed to compute')
+            logger.warning("Calmar ratio failed to compute")
 
         # CAGR calculation (not in MetricsCalculator, so keep custom implementation)
         start_val = vals[0]
@@ -194,7 +207,7 @@ def _compute_advanced_metrics(cur, metric_date: date):
         return sharpe, sortino, max_drawdown / 100.0, cagr, calmar
 
     except Exception as e:
-        logger.warning(f'Failed to compute advanced metrics: {e}')
+        logger.warning(f"Failed to compute advanced metrics: {e}")
         return 0.0, 0.0, 0.0, 0.0, 0.0
 
 def _compute_streaks(pnl_dollars):
@@ -224,7 +237,8 @@ def _compute_streaks(pnl_dollars):
 
 def _insert_default_metrics(cur, metric_date: date):
     """Insert default metrics when there are no trades."""
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO algo_performance_metrics (
             metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
             win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
@@ -234,12 +248,15 @@ def _insert_default_metrics(cur, metric_date: date):
         ) VALUES (%s, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
         ON CONFLICT (metric_date) DO NOTHING
-    """, (metric_date,))
+    """,
+        (metric_date,),
+    )
 
 def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
     """Insert or update performance metrics in database."""
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO algo_performance_metrics (
                 metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
                 win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
@@ -268,45 +285,49 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
                 best_win_streak = EXCLUDED.best_win_streak,
                 worst_loss_streak = EXCLUDED.worst_loss_streak,
                 updated_at = NOW()
-        """, (
-            metric_date,
-            metrics.get('total_trades', 0),
-            metrics.get('winning_trades', 0),
-            metrics.get('losing_trades', 0),
-            metrics.get('breakeven_trades', 0),
-            metrics.get('win_rate_pct', 0.0),
-            metrics.get('profit_factor', 0.0),
-            metrics.get('total_pnl_dollars', 0.0),
-            metrics.get('total_pnl_pct', 0.0),
-            metrics.get('avg_trade_pct', 0.0),
-            metrics.get('best_trade_pct', 0.0),
-            metrics.get('worst_trade_pct', 0.0),
-            metrics.get('avg_holding_days', 0.0),
-            metrics.get('sharpe_ratio', 0.0),
-            metrics.get('sortino_ratio', 0.0),
-            metrics.get('max_drawdown_pct', 0.0),
-            metrics.get('calmar_ratio', 0.0),
-            metrics.get('cagr_pct', 0.0),
-            metrics.get('best_win_streak', 0),
-            metrics.get('worst_loss_streak', 0),
-        ))
+        """,
+            (
+                metric_date,
+                metrics.get("total_trades", 0),
+                metrics.get("winning_trades", 0),
+                metrics.get("losing_trades", 0),
+                metrics.get("breakeven_trades", 0),
+                metrics.get("win_rate_pct", 0.0),
+                metrics.get("profit_factor", 0.0),
+                metrics.get("total_pnl_dollars", 0.0),
+                metrics.get("total_pnl_pct", 0.0),
+                metrics.get("avg_trade_pct", 0.0),
+                metrics.get("best_trade_pct", 0.0),
+                metrics.get("worst_trade_pct", 0.0),
+                metrics.get("avg_holding_days", 0.0),
+                metrics.get("sharpe_ratio", 0.0),
+                metrics.get("sortino_ratio", 0.0),
+                metrics.get("max_drawdown_pct", 0.0),
+                metrics.get("calmar_ratio", 0.0),
+                metrics.get("cagr_pct", 0.0),
+                metrics.get("best_win_streak", 0),
+                metrics.get("worst_loss_streak", 0),
+            ),
+        )
     except Exception as e:
-        logger.error(f'Failed to insert performance metrics: {e}', exc_info=True)
+        logger.error(f"Failed to insert performance metrics: {e}", exc_info=True)
         raise
 
 def main():
     """Main entry point for the loader."""
     try:
-        with DatabaseContext('write', cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with DatabaseContext(
+            "write", cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
             compute_performance_metrics(cur)
-            logger.info('Performance metrics loader completed successfully')
+            logger.info("Performance metrics loader completed successfully")
     except Exception as e:
-        logger.error(f'Performance metrics loader failed: {e}', exc_info=True)
+        logger.error(f"Performance metrics loader failed: {e}", exc_info=True)
         raise
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     main()

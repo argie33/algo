@@ -11,7 +11,6 @@ Environment Variables:
   LOADER_PARALLELISM: Fallback parallelism if DynamoDB unavailable (default: "1")
 """
 
-import json
 import logging
 import os
 import threading
@@ -19,7 +18,6 @@ import time
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
-
 
 class LoaderConfigManager:
     """Thread-safe dynamic loader configuration manager with RDS-aware adaptive parallelism.
@@ -38,11 +36,14 @@ class LoaderConfigManager:
 
     # Per-loader parallelism constraints: (min, max) to prevent rate limiting or RDS exhaustion
     LOADER_CONSTRAINTS = {
-        "stock_prices_daily": (1, 6),      # Rate limiter at 160 API calls/min protects against yfinance limits
-        "technical_data_daily": (1, 8),    # Can scale up if RDS available
-        "buy_sell_daily": (1, 6),          # Critical path, scale cautiously
-        "signal_quality_scores": (1, 6),   # Critical path
-        "swing_trader_scores": (1, 6),     # Critical path
+        "stock_prices_daily": (
+            1,
+            6,
+        ),  # Rate limiter at 160 API calls/min protects against yfinance limits
+        "technical_data_daily": (1, 8),  # Can scale up if RDS available
+        "buy_sell_daily": (1, 6),  # Critical path, scale cautiously
+        "signal_quality_scores": (1, 6),  # Critical path
+        "swing_trader_scores": (1, 6),  # Critical path
         # Analytics loaders can scale higher
         "company_profile": (1, 8),
         "analyst_sentiment": (1, 8),
@@ -56,7 +57,7 @@ class LoaderConfigManager:
         """Initialize the configuration manager."""
         self.config_table = os.getenv(
             "LOADER_CONFIG_TABLE",
-            f"{os.getenv('PROJECT_NAME', 'algo')}-loader-config-{os.getenv('ENVIRONMENT', 'dev')}"
+            f"{os.getenv('PROJECT_NAME', 'algo')}-loader-config-{os.getenv('ENVIRONMENT', 'dev')}",
         )
         self._dynamodb_available = None
         self._rds_connection_cache = None
@@ -88,14 +89,19 @@ class LoaderConfigManager:
             Current active connections or None if unavailable.
         """
         now = time.time()
-        if self._rds_connection_cache is not None and (now - self._rds_connection_cache_time) < self._rds_cache_ttl:
+        if (
+            self._rds_connection_cache is not None
+            and (now - self._rds_connection_cache_time) < self._rds_cache_ttl
+        ):
             return self._rds_connection_cache
 
         try:
             import boto3
             from datetime import datetime, timedelta
 
-            cloudwatch = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
+            cloudwatch = boto3.client(
+                "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
+            )
             response = cloudwatch.get_metric_statistics(
                 Namespace="AWS/RDS",
                 MetricName="DatabaseConnections",
@@ -103,7 +109,7 @@ class LoaderConfigManager:
                 StartTime=datetime.utcnow() - timedelta(minutes=5),
                 EndTime=datetime.utcnow(),
                 Period=60,
-                Statistics=["Average"]
+                Statistics=["Average"],
             )
 
             if response["Datapoints"]:
@@ -116,7 +122,9 @@ class LoaderConfigManager:
 
         return None
 
-    def _compute_adaptive_parallelism(self, loader_name: str, base_parallelism: int) -> int:
+    def _compute_adaptive_parallelism(
+        self, loader_name: str, base_parallelism: int
+    ) -> int:
         """Compute adaptive parallelism based on RDS load and per-loader constraints.
 
         ISSUE #7 FIX: Dynamic parallelism adjustment based on RDS connection pool saturation.
@@ -177,7 +185,10 @@ class LoaderConfigManager:
 
         try:
             import boto3
-            client = boto3.client("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+
+            client = boto3.client(
+                "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+            )
             response = client.describe_table(TableName=self.config_table)
             self._dynamodb_available = response["Table"]["TableStatus"] == "ACTIVE"
             return self._dynamodb_available
@@ -190,10 +201,12 @@ class LoaderConfigManager:
         """Fetch configuration from DynamoDB."""
         try:
             import boto3
-            client = boto3.client("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+
+            client = boto3.client(
+                "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+            )
             response = client.get_item(
-                TableName=self.config_table,
-                Key={"loader_name": {"S": loader_name}}
+                TableName=self.config_table, Key={"loader_name": {"S": loader_name}}
             )
 
             if "Item" in response:
@@ -206,7 +219,9 @@ class LoaderConfigManager:
                 }
             return None
         except Exception as e:
-            logger.warning(f"Failed to fetch config for {loader_name} from DynamoDB: {e}")
+            logger.warning(
+                f"Failed to fetch config for {loader_name} from DynamoDB: {e}"
+            )
             return None
 
     def get_parallelism(self, loader_name: str) -> int:
@@ -240,26 +255,34 @@ class LoaderConfigManager:
         cached = self._get_cache(loader_name)
         if cached is not None:
             base_parallelism = cached["parallelism"]
-            logger.debug(f"Using cached parallelism for {loader_name}: {base_parallelism}")
+            logger.debug(
+                f"Using cached parallelism for {loader_name}: {base_parallelism}"
+            )
         # Try DynamoDB if available
         elif self._check_dynamodb_available():
             config = self._get_from_dynamodb(loader_name)
             if config is not None:
                 self._set_cache(loader_name, config)
                 base_parallelism = config["parallelism"]
-                logger.debug(f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}")
+                logger.debug(
+                    f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}"
+                )
         # Fall back to environment variable, then per-loader constraint
         else:
             env_parallelism = os.getenv("LOADER_PARALLELISM", None)
             if env_parallelism is not None:
                 base_parallelism = int(env_parallelism)
-                logger.debug(f"Using env var parallelism for {loader_name}: {base_parallelism}")
+                logger.debug(
+                    f"Using env var parallelism for {loader_name}: {base_parallelism}"
+                )
             else:
                 # Use per-loader constraint maximum as default (enables per-loader optimization)
                 constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
                 min_parallelism, max_parallelism = constraints
                 base_parallelism = max_parallelism
-                logger.info(f"Using per-loader constraint for {loader_name}: max={max_parallelism} (no DynamoDB/env var)")
+                logger.info(
+                    f"Using per-loader constraint for {loader_name}: max={max_parallelism} (no DynamoDB/env var)"
+                )
 
         # Apply adaptive adjustment based on RDS load
         adjusted = self._compute_adaptive_parallelism(loader_name, base_parallelism)
@@ -267,7 +290,7 @@ class LoaderConfigManager:
         if adjusted != base_parallelism:
             logger.info(
                 f"[{loader_name}] Adaptive parallelism: {base_parallelism} -> {adjusted} "
-                f"(RDS-aware, respects constraints)"
+                "(RDS-aware, respects constraints)"
             )
 
         return adjusted
@@ -301,11 +324,9 @@ class LoaderConfigManager:
         # Default to enabled
         return True
 
-
 # Global instance for convenience (thread-safe)
 _global_manager = None
 _global_manager_lock = threading.Lock()
-
 
 def get_config_manager() -> LoaderConfigManager:
     """Get the global configuration manager instance (thread-safe).
@@ -320,16 +341,13 @@ def get_config_manager() -> LoaderConfigManager:
                 _global_manager = LoaderConfigManager()
     return _global_manager
 
-
 def get_parallelism(loader_name: str) -> int:
     """Get adaptive parallelism for a loader (convenience function)."""
     return get_config_manager().get_parallelism(loader_name)
 
-
 def is_enabled(loader_name: str) -> bool:
     """Check if a loader is enabled (convenience function)."""
     return get_config_manager().is_enabled(loader_name)
-
 
 def get_default_parallelism(loader_name: str, fallback: int = 1) -> int:
     """

@@ -22,8 +22,8 @@ Run:
 import sys
 import logging
 import argparse
+
 logger = logging.getLogger(__name__)
-import os
 import psycopg2.sql
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -34,7 +34,7 @@ import json
 from utils.db.sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_default_parallelism
 from utils.signals.grade_classifier import GradeClassifier
 
 class SwingTraderScoresLoader(OptimalLoader):
@@ -59,24 +59,26 @@ class SwingTraderScoresLoader(OptimalLoader):
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
-                    (end,)
+                    (end,),
                 )
                 fb_row = cur.fetchone()
                 last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
                 if last_sqs_date:
-                    last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
+                    last_sqs = (
+                        last_sqs_date
+                        if isinstance(last_sqs_date, date)
+                        else date.fromisoformat(str(last_sqs_date))
+                    )
                     if last_sqs < end:
                         end = last_sqs
 
             self._batch_context = {
                 "end_date": end,
             }
-            logger.debug(
-                f"Batch context: end={end}"
-            )
+            logger.debug(f"Batch context: end={end}")
         except Exception as e:
             logger.warning(f"Batch context preparation failed: {e}")
             self._batch_context = {}
@@ -87,8 +89,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         FIX #5: Validates all 4 source tables before computing scores.
         """
         from algo.infrastructure import MarketCalendar
-        from datetime import datetime, timezone, timedelta as td
-        from zoneinfo import ZoneInfo
+        from datetime import datetime, timezone
 
         try:
             # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
@@ -106,32 +107,44 @@ class SwingTraderScoresLoader(OptimalLoader):
 
                 # Fallback: check signal_quality_scores max date if batch context failed
                 try:
-                    with DatabaseContext('read') as fbc:
+                    with DatabaseContext("read") as fbc:
                         fbc.execute(
                             "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
-                            (end,)
+                            (end,),
                         )
                         fb_row = fbc.fetchone()
                         last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
                         if last_sqs_date:
-                            last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
+                            last_sqs = (
+                                last_sqs_date
+                                if isinstance(last_sqs_date, date)
+                                else date.fromisoformat(str(last_sqs_date))
+                            )
                             if last_sqs < end:
                                 end = last_sqs
                 except Exception as e:
-                    logging.debug(f"Could not check signal_quality_scores max date: {e}")
+                    logging.debug(
+                        f"Could not check signal_quality_scores max date: {e}"
+                    )
 
             if since is None:
                 try:
-                    with DatabaseContext('read') as wm_cur:
+                    with DatabaseContext("read") as wm_cur:
                         wm_cur.execute(
                             "SELECT MAX(date) FROM swing_trader_scores WHERE symbol = %s",
                             (symbol,),
                         )
                         wm_row = wm_cur.fetchone()
                     if wm_row and wm_row[0]:
-                        since = wm_row[0] if isinstance(wm_row[0], date) else date.fromisoformat(str(wm_row[0]))
+                        since = (
+                            wm_row[0]
+                            if isinstance(wm_row[0], date)
+                            else date.fromisoformat(str(wm_row[0]))
+                        )
                 except Exception as e:
-                    logging.warning(f"Could not read swing_trader_scores watermark for {symbol}: {e}")
+                    logging.warning(
+                        f"Could not read swing_trader_scores watermark for {symbol}: {e}"
+                    )
 
             if since is None:
                 start = end - timedelta(days=30)
@@ -139,7 +152,11 @@ class SwingTraderScoresLoader(OptimalLoader):
                 # Use since - 1d overlap (standard across loaders) so that if
                 # signal_quality_scores finishes after an earlier swing score run,
                 # a re-run will recompute scores for the boundary date.
-                since_date = since if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0])
+                since_date = (
+                    since
+                    if isinstance(since, date)
+                    else date.fromisoformat(str(since).split("T")[0])
+                )
                 start = since_date - timedelta(days=1)
 
             if start > end:
@@ -150,12 +167,15 @@ class SwingTraderScoresLoader(OptimalLoader):
             if validation_failures:
                 for failure_reason in validation_failures:
                     self._log_rejection_if_available(symbol, end, failure_reason)
-                logging.debug(f"{symbol}: Swing score skipped due to source data: {validation_failures}")
+                logging.debug(
+                    f"{symbol}: Swing score skipped due to source data: {validation_failures}"
+                )
                 return None
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Join signal_quality_scores with trend + technical data for component breakdown
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         sqs.symbol,
                         sqs.date,
@@ -172,7 +192,9 @@ class SwingTraderScoresLoader(OptimalLoader):
                         ON tdd.symbol = sqs.symbol AND tdd.date = sqs.date
                     WHERE sqs.symbol = %s AND sqs.date >= %s AND sqs.date <= %s
                     ORDER BY sqs.date ASC
-                """, (symbol, start, end))
+                """,
+                    (symbol, start, end),
+                )
                 rows = cur.fetchall()
 
                 if not rows:
@@ -193,6 +215,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
             from algo.infrastructure import get_config
+
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:
@@ -209,16 +232,27 @@ class SwingTraderScoresLoader(OptimalLoader):
             return None
 
         try:
-            (symbol, score_date, composite_sqs,
-             minervini_score, weinstein_stage,
-             rsi, roc_20d, mansfield_rs) = row
+            (
+                symbol,
+                score_date,
+                composite_sqs,
+                minervini_score,
+                weinstein_stage,
+                rsi,
+                roc_20d,
+                mansfield_rs,
+            ) = row
 
             composite = float(composite_sqs) if composite_sqs is not None else 0.0
 
             # --- 7 component scores (0-100 each) ---
 
             # Setup: Minervini 8-point template completion (0-100)
-            setup = min(100.0, float(minervini_score) / 8.0 * 100.0) if minervini_score is not None else 0.0
+            setup = (
+                min(100.0, float(minervini_score) / 8.0 * 100.0)
+                if minervini_score is not None
+                else 0.0
+            )
 
             # Trend: Weinstein stage quality
             stage = int(weinstein_stage) if weinstein_stage is not None else 0
@@ -257,53 +291,82 @@ class SwingTraderScoresLoader(OptimalLoader):
                 sector = composite  # fallback
 
             # Multi-timeframe: blend of trend + momentum (confirming at multiple scales)
-            multi_tf = (trend * 0.6 + momentum * 0.4)
+            multi_tf = trend * 0.6 + momentum * 0.4
 
             # Compute weighted score (0-100) matching SwingTraderScore weights:
             # setup=25, trend=20, momentum=20, volume=12, fundamentals=10, sector=8, multi_tf=5
             weighted_score = (
-                (setup / 100.0) * 25 +
-                (trend / 100.0) * 20 +
-                (momentum / 100.0) * 20 +
-                (volume / 100.0) * 12 +
-                (fundamentals / 100.0) * 10 +
-                (sector / 100.0) * 8 +
-                (multi_tf / 100.0) * 5
+                (setup / 100.0) * 25
+                + (trend / 100.0) * 20
+                + (momentum / 100.0) * 20
+                + (volume / 100.0) * 12
+                + (fundamentals / 100.0) * 10
+                + (sector / 100.0) * 8
+                + (multi_tf / 100.0) * 5
             )
 
             grade = GradeClassifier.classify_swing_score(weighted_score)
 
             pass_gates = composite >= 75
-            fail_reason = None if pass_gates else (
-                'Low composite score' if composite < 45 else 'Below quality threshold'
+            fail_reason = (
+                None
+                if pass_gates
+                else (
+                    "Low composite score"
+                    if composite < 45
+                    else "Below quality threshold"
+                )
             )
 
             return {
-                'symbol': symbol,
-                'date': score_date,
-                'score': round(weighted_score, 2),
-                'components': json.dumps({
-                    'grade': grade,
-                    'composite_sqs': round(composite, 1),
-                    'pass_gates': pass_gates,
-                    'fail_reason': fail_reason,
-                    # Raw 0-100 scores — used by SwingCandidates.jsx component bars
-                    'setup':       round(setup, 1),
-                    'trend':       round(trend, 1),
-                    'momentum':    round(momentum, 1),
-                    'volume':      round(volume, 1),
-                    'fundamentals': round(fundamentals, 1),
-                    'sector':      round(sector, 1),
-                    'multi_tf':    round(multi_tf, 1),
-                    # Weighted pts breakdown — used by algo_filter_pipeline.py
-                    'setup_quality':   {'pts': round((setup / 100.0) * 25, 1), 'max': 25},
-                    'trend_quality':   {'pts': round((trend / 100.0) * 20, 1), 'max': 20},
-                    'momentum_rs':     {'pts': round((momentum / 100.0) * 20, 1), 'max': 20},
-                    'volume_quality':  {'pts': round((volume / 100.0) * 12, 1), 'max': 12},
-                    'fundamentals_quality': {'pts': round((fundamentals / 100.0) * 10, 1), 'max': 10},
-                    'sector_industry': {'pts': round((sector / 100.0) * 8, 1), 'max': 8},
-                    'multi_timeframe': {'pts': round((multi_tf / 100.0) * 5, 1), 'max': 5},
-                })
+                "symbol": symbol,
+                "date": score_date,
+                "score": round(weighted_score, 2),
+                "components": json.dumps(
+                    {
+                        "grade": grade,
+                        "composite_sqs": round(composite, 1),
+                        "pass_gates": pass_gates,
+                        "fail_reason": fail_reason,
+                        # Raw 0-100 scores — used by SwingCandidates.jsx component bars
+                        "setup": round(setup, 1),
+                        "trend": round(trend, 1),
+                        "momentum": round(momentum, 1),
+                        "volume": round(volume, 1),
+                        "fundamentals": round(fundamentals, 1),
+                        "sector": round(sector, 1),
+                        "multi_tf": round(multi_tf, 1),
+                        # Weighted pts breakdown — used by algo_filter_pipeline.py
+                        "setup_quality": {
+                            "pts": round((setup / 100.0) * 25, 1),
+                            "max": 25,
+                        },
+                        "trend_quality": {
+                            "pts": round((trend / 100.0) * 20, 1),
+                            "max": 20,
+                        },
+                        "momentum_rs": {
+                            "pts": round((momentum / 100.0) * 20, 1),
+                            "max": 20,
+                        },
+                        "volume_quality": {
+                            "pts": round((volume / 100.0) * 12, 1),
+                            "max": 12,
+                        },
+                        "fundamentals_quality": {
+                            "pts": round((fundamentals / 100.0) * 10, 1),
+                            "max": 10,
+                        },
+                        "sector_industry": {
+                            "pts": round((sector / 100.0) * 8, 1),
+                            "max": 8,
+                        },
+                        "multi_timeframe": {
+                            "pts": round((multi_tf / 100.0) * 5, 1),
+                            "max": 5,
+                        },
+                    }
+                ),
             }
         except Exception as e:
             logging.debug(f"Score computation failed: {e}")
@@ -318,13 +381,15 @@ class SwingTraderScoresLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         return (
-            row.get('symbol') is not None and
-            row.get('date') is not None and
-            row.get('score') is not None and
-            0 <= float(row.get('score', 0)) <= 100
+            row.get("symbol") is not None
+            and row.get("date") is not None
+            and row.get("score") is not None
+            and 0 <= float(row.get("score", 0)) <= 100
         )
 
-    def _validate_source_dependencies(self, symbol: str, end_date: date) -> Optional[List[str]]:
+    def _validate_source_dependencies(
+        self, symbol: str, end_date: date
+    ) -> Optional[List[str]]:
         """Validate all 4 source tables have data for THIS SYMBOL on end_date.
 
         Per-symbol check only — no batch coverage check. Reason: batch coverage
@@ -343,14 +408,14 @@ class SwingTraderScoresLoader(OptimalLoader):
         ]
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 for table_name, required_col in source_tables:
                     table_safe = assert_safe_table(table_name)
                     cur.execute(
-                        psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s AND date = %s").format(
-                            psycopg2.sql.Identifier(table_safe)
-                        ),
-                        (symbol, end_date)
+                        psycopg2.sql.SQL(
+                            "SELECT COUNT(*) FROM {} WHERE symbol = %s AND date = %s"
+                        ).format(psycopg2.sql.Identifier(table_safe)),
+                        (symbol, end_date),
                     )
                     if cur.fetchone()[0] == 0:
                         failures.append(f"{table_name}_missing")
@@ -364,14 +429,19 @@ class SwingTraderScoresLoader(OptimalLoader):
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
         """FIX #9: Log signal rejection to signal_rejection_log for observability."""
         try:
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO signal_rejection_log
                     (signal_source_table, rejection_reason, symbol, signal_date, rejected_at_tier, created_at)
                     VALUES (%s, %s, %s, %s, %s, NOW())
-                """, ("swing_trader_scores", reason, symbol, signal_date, "loader"))
+                """,
+                    ("swing_trader_scores", reason, symbol, signal_date, "loader"),
+                )
         except Exception as e:
-            logger.error(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
+            logger.error(
+                f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
+            )
             raise
 
 def main():
@@ -382,12 +452,21 @@ def main():
     start_time = time.time()
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("swing_trader_scores"), help="Concurrent workers")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=get_default_parallelism("swing_trader_scores"),
+        help="Concurrent workers",
+    )
     args = parser.parse_args()
 
-    symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
+    symbols = (
+        args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
+    )
 
-    logger.info(f"Starting swing_trader_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}")
+    logger.info(
+        f"Starting swing_trader_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}"
+    )
 
     # NOTE: For large-scale production (5000+ symbols), consider using load_swing_trader_scores_vectorized.py
     # which is 3-5x faster by fetching all data in bulk queries and computing scores vectorized.
@@ -404,8 +483,9 @@ def main():
 
     # Log execution time for performance monitoring
     try:
-        with DatabaseContext('write') as cur:
-            cur.execute("""
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
                 INSERT INTO data_loader_runs (
                     loader_name, table_name, run_date, status, records_loaded,
                     error_message, duration_seconds, started_at, completed_at
@@ -417,23 +497,26 @@ def main():
                     records_loaded = EXCLUDED.records_loaded,
                     duration_seconds = EXCLUDED.duration_seconds,
                     completed_at = NOW()
-            """, (
-                'swing_trader_scores',
-                'swing_trader_scores',
-                datetime.now(timezone.utc).date(),
-                'completed' if fail_rate <= 0.05 else 'failed',
-                stats.get("symbols_processed", 0),
-                str(stats.get("symbols_failed", 0)) if fail_rate > 0.05 else None,
-                round(duration_seconds, 2)
-            ))
+            """,
+                (
+                    "swing_trader_scores",
+                    "swing_trader_scores",
+                    datetime.now(timezone.utc).date(),
+                    "completed" if fail_rate <= 0.05 else "failed",
+                    stats.get("symbols_processed", 0),
+                    str(stats.get("symbols_failed", 0)) if fail_rate > 0.05 else None,
+                    round(duration_seconds, 2),
+                ),
+            )
     except Exception as e:
         logger.error(f"Failed to log execution time: {e}")
 
     if fail_rate > 0.05:
-        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        logger.error(
+            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
+        )
         return 1
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
-

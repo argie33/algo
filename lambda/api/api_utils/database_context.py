@@ -29,11 +29,11 @@ from psycopg2.extras import DictCursor
 
 # Import the unified implementation from utils
 import sys
-sys.path.insert(0, '/'.join(__file__.split('/')[:-4]))  # Navigate to root
+
+sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
 
-__all__ = ['DatabaseContext']
-
+__all__ = ["DatabaseContext"]
 
 class DatabaseContext(_DatabaseContext):
     """REST API database context with disabled correlation tracking.
@@ -48,7 +48,13 @@ class DatabaseContext(_DatabaseContext):
             rows = cur.fetchall()
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor, correlation_id: Optional[str] = None):
+    def __init__(
+        self,
+        role: str = "read",
+        timeout: int = 20,
+        cursor_factory=DictCursor,
+        correlation_id: Optional[str] = None,
+    ):
         """Initialize REST API context with disabled correlation tracking.
 
         Args:
@@ -63,6 +69,5 @@ class DatabaseContext(_DatabaseContext):
             timeout=timeout,
             cursor_factory=cursor_factory,
             correlation_id=None,
-            enable_correlation_tracking=False
+            enable_correlation_tracking=False,
         )
-

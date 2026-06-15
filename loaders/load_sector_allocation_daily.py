@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Sector Allocation Daily Loader - Pre-compute sector exposures and aggregations."""
+
 import sys
 import logging
 from datetime import date, datetime, timezone
@@ -12,8 +13,8 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
-setup_imports()
 
+setup_imports()
 
 class SectorAllocationDailyLoader(OptimalLoader):
     """Pre-compute daily sector allocations from current positions."""
@@ -29,7 +30,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
             now_et = now_utc.astimezone(EASTERN_TZ)
             run_date = now_et.date()
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Aggregate positions by sector
                 cur.execute("""
                     SELECT
@@ -53,29 +54,37 @@ class SectorAllocationDailyLoader(OptimalLoader):
                     SELECT total_balance FROM algo_portfolio WHERE portfolio_id = 1
                 """)
                 total_value_row = cur.fetchone()
-                total_portfolio_value = float(total_value_row[0]) if total_value_row and total_value_row[0] else 0
+                total_portfolio_value = (
+                    float(total_value_row[0])
+                    if total_value_row and total_value_row[0]
+                    else 0
+                )
 
                 # Build results
                 results = []
                 for row in rows:
-                    sector_name = row[0] or 'Unknown'
+                    sector_name = row[0] or "Unknown"
                     symbol_count = int(row[1]) if row[1] else 0
                     sector_value = float(row[2]) if row[2] else 0
                     avg_pnl = float(row[3]) if row[3] else 0
 
                     pct_portfolio = 0.0
                     if total_portfolio_value > 0:
-                        pct_portfolio = round((sector_value / total_portfolio_value) * 100, 4)
+                        pct_portfolio = round(
+                            (sector_value / total_portfolio_value) * 100, 4
+                        )
 
-                    results.append({
-                        'date': run_date,
-                        'sector_name': sector_name,
-                        'symbol_count': symbol_count,
-                        'total_position_value': round(sector_value, 2),
-                        'pct_portfolio': pct_portfolio,
-                        'avg_unrealized_pnl_pct': round(avg_pnl, 4),
-                        'sector_day_return_pct': None,  # Computed from market data if available
-                    })
+                    results.append(
+                        {
+                            "date": run_date,
+                            "sector_name": sector_name,
+                            "symbol_count": symbol_count,
+                            "total_position_value": round(sector_value, 2),
+                            "pct_portfolio": pct_portfolio,
+                            "avg_unrealized_pnl_pct": round(avg_pnl, 4),
+                            "sector_day_return_pct": None,  # Computed from market data if available
+                        }
+                    )
 
                 return results if results else None
 
@@ -91,7 +100,7 @@ def main():
         logger.info(f"SUCCESS: {result} sector allocations computed")
         return 0
     else:
-        logger.warning(f"COMPLETED: No allocations computed")
+        logger.warning("COMPLETED: No allocations computed")
         return 0
 
 if __name__ == "__main__":

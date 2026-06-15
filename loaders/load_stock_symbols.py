@@ -16,16 +16,33 @@ from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 
-NASDAQ_URL = os.getenv("NASDAQ_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt")
-OTHER_URL = os.getenv("OTHER_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt")
+NASDAQ_URL = os.getenv(
+    "NASDAQ_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+)
+OTHER_URL = os.getenv(
+    "OTHER_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+)
 
 EXCLUSION_PATTERNS = [
-    r"\bpreferred\b", r"\bwarrant(s)?\b", r"\bunit(s)?\b", r"\bconvertible\b",
-    r"\bpreferred share(s)?\b", r"\btest stock\b", r"\bfund\b", r"\bblank check\b",
-    r"\bspac\b", r"\bspecial purpose\b", r"\binvestment corp\b",
-    r"\betn\b", r"\bexchange[- ]traded note\b", r"\betf\b",
+    r"\bpreferred\b",
+    r"\bwarrant(s)?\b",
+    r"\bunit(s)?\b",
+    r"\bconvertible\b",
+    r"\bpreferred share(s)?\b",
+    r"\btest stock\b",
+    r"\bfund\b",
+    r"\bblank check\b",
+    r"\bspac\b",
+    r"\bspecial purpose\b",
+    r"\binvestment corp\b",
+    r"\betn\b",
+    r"\bexchange[- ]traded note\b",
+    r"\betf\b",
     r"\bnotes?\b.*\bdue\b",  # bonds/notes with maturity date
-    r"\bclosed[- ]end\b", r"\b2x\b", r"\b3x\b", r"\binverse\b",
+    r"\bclosed[- ]end\b",
+    r"\b2x\b",
+    r"\b3x\b",
+    r"\binverse\b",
 ]
 
 def should_exclude(name: str) -> bool:
@@ -33,6 +50,7 @@ def should_exclude(name: str) -> bool:
 
 class StockSymbolsLoader(OptimalLoader):
     """Load stock symbols from NASDAQ and NYSE."""
+
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"
@@ -79,24 +97,26 @@ class StockSymbolsLoader(OptimalLoader):
 
                     # ETF-flagged symbols go into etf_symbols table (not stock_symbols)
                     if r.get("ETF", "").upper() == "Y":
-                        etf_rows.append({'symbol': sym, 'security_name': name})
+                        etf_rows.append({"symbol": sym, "security_name": name})
                         continue
 
                     if should_exclude(name):
                         continue
-                    if re.match(r'^[A-Z]+\.[A-Z]$', sym):
+                    if re.match(r"^[A-Z]+\.[A-Z]$", sym):
                         continue
                     if r.get("Test Issue", "").upper() == "Y":
                         continue
                     if r.get("Financial Status", "").strip() == "D":
                         continue
 
-                    rows.append({
-                        'symbol': sym,
-                        'security_name': name,
-                        'exchange': r.get("Listing Exchange", "NASDAQ").upper(),
-                        'etf': 'N',
-                    })
+                    rows.append(
+                        {
+                            "symbol": sym,
+                            "security_name": name,
+                            "exchange": r.get("Listing Exchange", "NASDAQ").upper(),
+                            "et": "N",
+                        }
+                    )
 
             # Populate etf_symbols so the anti-join in /api/scores/stockscores works
             if etf_rows:
@@ -117,17 +137,21 @@ class StockSymbolsLoader(OptimalLoader):
         """
         try:
             from utils.db.context import DatabaseContext
-            with DatabaseContext('write') as cur:
+
+            with DatabaseContext("write") as cur:
                 # Truncate to clear stale ETF entries (e.g., from delistings)
                 cur.execute("TRUNCATE TABLE etf_symbols")
                 logger.debug("Truncated etf_symbols table")
 
                 # Bulk insert fresh ETF data
                 for row in etf_rows:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO etf_symbols (symbol, security_name)
                         VALUES (%s, %s)
-                    """, (row['symbol'], row['security_name']))
+                    """,
+                        (row["symbol"], row["security_name"]),
+                    )
             logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except Exception as e:
             logger.warning(f"Failed to refresh etf_symbols: {e}")
@@ -144,7 +168,7 @@ def main():
                 logger.info(f"SUCCESS: {result} symbols loaded")
                 return 0
             else:
-                logger.warning(f"COMPLETED: No symbols loaded")
+                logger.warning("COMPLETED: No symbols loaded")
                 return 0
     except Exception as e:
         logger.error(f"Stock symbols load failed: {e}", exc_info=True)

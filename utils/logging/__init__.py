@@ -3,6 +3,6 @@
 from .execution_tracker import get_tracker, OrchestratorExecutionTracker
 
 __all__ = [
-    'get_tracker',
-    'OrchestratorExecutionTracker',
+    "get_tracker",
+    "OrchestratorExecutionTracker",
 ]

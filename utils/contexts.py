@@ -10,11 +10,10 @@ Provides:
 
 import logging
 import time
-from typing import Optional, Dict, Any, Callable
+from typing import Optional
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
-
 
 class DatabaseErrorContext:
     """Context manager for database operations with standardized error handling.
@@ -31,7 +30,7 @@ class DatabaseErrorContext:
         self,
         operation: str,
         table: Optional[str] = None,
-        role: str = 'read',
+        role: str = "read",
     ):
         self.operation = operation
         self.table = table
@@ -46,22 +45,23 @@ class DatabaseErrorContext:
         duration = time.time() - self.start_time
 
         if exc_type is None:
-            logger.debug(f"[{self.role.upper()}] {self.operation} completed in {duration:.3f}s")
+            logger.debug(
+                f"[{self.role.upper()}] {self.operation} completed in {duration:.3f}s"
+            )
             return False
 
         # Error occurred
         from utils.error_handlers import log_error_with_context
 
         context = {
-            'operation': self.operation,
-            'table': self.table,
-            'role': self.role,
-            'duration_sec': duration,
+            "operation": self.operation,
+            "table": self.table,
+            "role": self.role,
+            "duration_sec": duration,
         }
 
         log_error_with_context(exc_val, self.operation, context)
         return False  # Re-raise exception
-
 
 class LoaderErrorContext:
     """Context manager for loader operations with status tracking.
@@ -83,7 +83,7 @@ class LoaderErrorContext:
         table_name: str,
         symbol: Optional[str] = None,
         correlation_id: Optional[str] = None,
-        operation_type: str = 'insert',
+        operation_type: str = "insert",
     ):
         self.table_name = table_name
         self.symbol = symbol
@@ -106,13 +106,13 @@ class LoaderErrorContext:
         duration = time.time() - self.start_time
 
         context = {
-            'table_name': self.table_name,
-            'symbol': self.symbol,
-            'correlation_id': self.correlation_id,
-            'operation_type': self.operation_type,
-            'duration_sec': duration,
-            'rows_inserted': self.rows_inserted,
-            'rows_failed': self.rows_failed,
+            "table_name": self.table_name,
+            "symbol": self.symbol,
+            "correlation_id": self.correlation_id,
+            "operation_type": self.operation_type,
+            "duration_sec": duration,
+            "rows_inserted": self.rows_inserted,
+            "rows_failed": self.rows_failed,
         }
 
         if exc_type is None:
@@ -125,9 +125,9 @@ class LoaderErrorContext:
 
         # Error occurred
         from utils.error_handlers import log_error_with_context
+
         log_error_with_context(exc_val, f"loader[{self.table_name}]", context)
         return False
-
 
 @contextmanager
 def ExternalAPIContext(
@@ -145,7 +145,6 @@ def ExternalAPIContext(
             response = requests.get(url, timeout=10)
             return response.json()
     """
-    from utils.error_handlers import retry_with_backoff
 
     start_time = time.time()
 
@@ -156,14 +155,15 @@ def ExternalAPIContext(
     except Exception as e:
         duration = time.time() - start_time
         context = {
-            'api_name': api_name,
-            'operation': operation,
-            'timeout_sec': timeout_sec,
-            'max_retries': max_retries,
-            'duration_sec': duration,
+            "api_name": api_name,
+            "operation": operation,
+            "timeout_sec": timeout_sec,
+            "max_retries": max_retries,
+            "duration_sec": duration,
         }
 
         from utils.error_handlers import log_error_with_context
+
         log_error_with_context(e, f"api[{api_name}]", context)
 
         # Determine if retriable
@@ -178,7 +178,6 @@ def ExternalAPIContext(
 
         raise
 
-
 @contextmanager
 def TimeoutContext(
     operation: str,
@@ -192,18 +191,19 @@ def TimeoutContext(
             data = expensive_fetch()
     """
     import signal
-    import os
 
     start_time = time.time()
 
     def timeout_handler(signum, frame):
         elapsed = time.time() - start_time
-        raise TimeoutError(f"{operation} exceeded {timeout_sec}s timeout (elapsed: {elapsed:.1f}s)")
+        raise TimeoutError(
+            f"{operation} exceeded {timeout_sec}s timeout (elapsed: {elapsed:.1f}s)"
+        )
 
     # Set alarm (Unix only, Windows doesn't support signals well)
     old_handler = None
     try:
-        if hasattr(signal, 'SIGALRM'):
+        if hasattr(signal, "SIGALRM"):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout_sec)
     except (AttributeError, ValueError):
@@ -215,7 +215,7 @@ def TimeoutContext(
     finally:
         # Cancel alarm
         try:
-            if hasattr(signal, 'SIGALRM'):
+            if hasattr(signal, "SIGALRM"):
                 signal.alarm(0)
                 if old_handler:
                     signal.signal(signal.SIGALRM, old_handler)
@@ -224,13 +224,14 @@ def TimeoutContext(
 
         elapsed = time.time() - start_time
         if elapsed > timeout_sec * 0.9:
-            logger.warning(f"{operation} nearing timeout: {elapsed:.1f}s / {timeout_sec}s")
-
+            logger.warning(
+                f"{operation} nearing timeout: {elapsed:.1f}s / {timeout_sec}s"
+            )
 
 @contextmanager
 def TransactionContext(
     cur,
-    operation: str = 'transaction',
+    operation: str = "transaction",
     should_rollback: bool = True,
 ):
     """Context manager for explicit database transaction.
@@ -260,10 +261,11 @@ def TransactionContext(
                 cur.connection.rollback()
                 logger.error(f"[TRANSACTION] Rolled back {operation}")
             except Exception as rollback_err:
-                logger.error(f"[TRANSACTION] Failed to rollback {operation}: {rollback_err}")
+                logger.error(
+                    f"[TRANSACTION] Failed to rollback {operation}: {rollback_err}"
+                )
 
         raise
-
 
 class CircuitBreaker:
     """Reusable circuit breaker for fail-fast behavior.
@@ -326,7 +328,7 @@ class CircuitBreaker:
             )
 
     @contextmanager
-    def guard(self, operation: str = 'operation'):
+    def guard(self, operation: str = "operation"):
         """Guard an operation with the circuit breaker.
 
         Usage:
@@ -339,12 +341,12 @@ class CircuitBreaker:
         if self.is_open():
             raise ServiceUnavailableError(
                 f"Circuit breaker '{self.name}' is open",
-                context={'operation': operation}
+                context={"operation": operation},
             )
 
         try:
             yield
             self.record_success()
-        except Exception as e:
+        except Exception:
             self.record_failure()
             raise

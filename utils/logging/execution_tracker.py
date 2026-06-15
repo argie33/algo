@@ -11,11 +11,10 @@ Logs orchestrator runs to orchestrator_execution_log table so you can:
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, Any, Optional, Union
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
-
 
 class OrchestratorExecutionTracker:
     """Logs orchestrator execution history for debugging and diagnostics."""
@@ -34,7 +33,7 @@ class OrchestratorExecutionTracker:
 
     def _ensure_table_exists(self) -> None:
         """Create orchestrator_execution_log if it doesn't exist (self-healing)."""
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
                     id SERIAL PRIMARY KEY,
@@ -57,16 +56,20 @@ class OrchestratorExecutionTracker:
                 ON orchestrator_execution_log(run_date DESC)
             """)
 
-    def log_phase_result(self, phase_num: Union[int, str], name: str, status: str, summary: str) -> None:
+    def log_phase_result(
+        self, phase_num: Union[int, str], name: str, status: str, summary: str
+    ) -> None:
         """Record a phase result. Called by orchestrator.log_phase_result()."""
         self.phase_results[phase_num] = {
-            'phase': str(phase_num),
-            'name': name,
-            'status': status,
-            'summary': summary,
+            "phase": str(phase_num),
+            "name": name,
+            "status": status,
+            "summary": summary,
         }
 
-    def save_execution_log(self, overall_status: str, halt_reason: Optional[str] = None) -> bool:
+    def save_execution_log(
+        self, overall_status: str, halt_reason: Optional[str] = None
+    ) -> bool:
         """Save the complete execution log to database.
 
         Args:
@@ -88,16 +91,22 @@ class OrchestratorExecutionTracker:
             completed_at = datetime.now(timezone.utc)
 
             # Count phase outcomes
-            phases_completed = sum(1 for r in self.phase_results.values() if r['status'] == 'success')
-            phases_halted = sum(1 for r in self.phase_results.values() if r['status'] == 'halt')
-            phases_errored = sum(1 for r in self.phase_results.values() if r['status'] == 'error')
+            phases_completed = sum(
+                1 for r in self.phase_results.values() if r["status"] == "success"
+            )
+            phases_halted = sum(
+                1 for r in self.phase_results.values() if r["status"] == "halt"
+            )
+            phases_errored = sum(
+                1 for r in self.phase_results.values() if r["status"] == "error"
+            )
 
             # Build human-readable summary
-            if overall_status == 'skipped':
+            if overall_status == "skipped":
                 summary = f"Skipped run: {halt_reason or 'unknown reason'}"
-            elif overall_status == 'success':
+            elif overall_status == "success":
                 summary = f"All {len(self.phase_results)} phases completed successfully"
-            elif overall_status == 'halted':
+            elif overall_status == "halted":
                 summary = f"Halted at phase {phases_completed + phases_halted}: {halt_reason or 'unknown'}"
             else:
                 summary = f"Error during execution: {halt_reason or 'unknown error'}"
@@ -105,10 +114,11 @@ class OrchestratorExecutionTracker:
             # Prepare phase results array (sorted by phase number)
             # Keys may be int (1, 2, 3) or str ('3a', '3b') — sort as strings to handle mixed types
             phase_results_array = [
-                self.phase_results[n] for n in sorted(self.phase_results.keys(), key=str)
+                self.phase_results[n]
+                for n in sorted(self.phase_results.keys(), key=str)
             ]
 
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO orchestrator_execution_log
@@ -124,7 +134,7 @@ class OrchestratorExecutionTracker:
                         overall_status,
                         json.dumps(phase_results_array),
                         summary,
-                        halt_reason or '',
+                        halt_reason or "",
                         phases_completed,
                         phases_halted,
                         phases_errored,
@@ -136,10 +146,8 @@ class OrchestratorExecutionTracker:
             logger.error(f"[EXECUTION_LOG] Failed to save run {self.run_id}: {e}")
             return False
 
-
 # Global instance (accessible from orchestrator)
 _tracker: Optional[OrchestratorExecutionTracker] = None
-
 
 def get_tracker() -> OrchestratorExecutionTracker:
     """Get or create the global execution tracker."""
@@ -147,7 +155,6 @@ def get_tracker() -> OrchestratorExecutionTracker:
     if _tracker is None:
         _tracker = OrchestratorExecutionTracker()
     return _tracker
-
 
 def reset_tracker() -> None:
     """Reset the tracker (mainly for testing)."""

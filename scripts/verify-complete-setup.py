@@ -2,23 +2,46 @@
 """Comprehensive verification that all components are wired correctly."""
 
 import subprocess
-import json
 import os
 import sys
 
-os.environ['AWS_PROFILE'] = 'algo-developer'
+os.environ["AWS_PROFILE"] = "algo-developer"
 
-print("="*70)
+print("=" * 70)
 print("COMPLETE SETUP VERIFICATION")
-print("="*70)
+print("=" * 70)
 
 # Get Terraform outputs
 print("\n[1/5] Terraform Configuration")
 print("-" * 70)
 try:
-    api_url = subprocess.check_output(['terraform', 'output', '-raw', 'api_url'], cwd='terraform', stderr=subprocess.DEVNULL).decode().strip()
-    pool_id = subprocess.check_output(['terraform', 'output', '-raw', 'cognito_user_pool_id'], cwd='terraform', stderr=subprocess.DEVNULL).decode().strip()
-    client_id = subprocess.check_output(['terraform', 'output', '-raw', 'cognito_user_pool_client_id'], cwd='terraform', stderr=subprocess.DEVNULL).decode().strip()
+    api_url = (
+        subprocess.check_output(
+            ["terraform", "output", "-raw", "api_url"],
+            cwd="terraform",
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
+    pool_id = (
+        subprocess.check_output(
+            ["terraform", "output", "-raw", "cognito_user_pool_id"],
+            cwd="terraform",
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
+    client_id = (
+        subprocess.check_output(
+            ["terraform", "output", "-raw", "cognito_user_pool_client_id"],
+            cwd="terraform",
+            stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+    )
 
     print(f"[OK] API Gateway: {api_url}")
     print(f"[OK] Cognito Pool: {pool_id}")
@@ -31,19 +54,21 @@ except Exception as e:
 print("\n[2/5] Cognito Test User")
 print("-" * 70)
 import boto3
-cognito = boto3.client('cognito-idp', region_name='us-east-1')
+
+cognito = boto3.client("cognito-idp", region_name="us-east-1")
 try:
     user = cognito.admin_get_user(
-        UserPoolId=pool_id,
-        Username='edgebrookecapital@gmail.com'
+        UserPoolId=pool_id, Username="edgebrookecapital@gmail.com"
     )
-    status = user.get('UserStatus', 'unknown')
-    print(f"[OK] Test user exists")
-    print(f"  Email: edgebrookecapital@gmail.com")
+    status = user.get("UserStatus", "unknown")
+    print("[OK] Test user exists")
+    print("  Email: edgebrookecapital@gmail.com")
     print(f"  Status: {status}")
     print(f"  Attributes: {len(user.get('UserAttributes', []))} configured")
 except cognito.exceptions.UserNotFoundException:
-    print(f"[WARNING] Test user not found - run: python scripts/setup-cognito-test-user.py")
+    print(
+        "[WARNING] Test user not found - run: python scripts/setup-cognito-test-user.py"
+    )
 except Exception as e:
     print(f"[ERROR] Failed to check user: {e}")
 
@@ -53,16 +78,16 @@ print("-" * 70)
 try:
     auth = cognito.initiate_auth(
         ClientId=client_id,
-        AuthFlow='USER_PASSWORD_AUTH',
+        AuthFlow="USER_PASSWORD_AUTH",
         AuthParameters={
-            'USERNAME': 'edgebrookecapital@gmail.com',
-            'PASSWORD': 'TestPassword123!'
-        }
+            "USERNAME": "edgebrookecapital@gmail.com",
+            "PASSWORD": "TestPassword123!",
+        },
     )
-    token = auth['AuthenticationResult']['AccessToken']
-    print(f"[OK] Authentication successful")
+    token = auth["AuthenticationResult"]["AccessToken"]
+    print("[OK] Authentication successful")
     print(f"  Access Token: {token[:40]}...")
-    print(f"  Token Type: JWT")
+    print("  Token Type: JWT")
 except Exception as e:
     print(f"[ERROR] Authentication failed: {e}")
     token = None
@@ -74,12 +99,12 @@ import requests
 
 # Public endpoint (no auth needed)
 try:
-    response = requests.get(f'{api_url}/api/health', timeout=5)
+    response = requests.get(f"{api_url}/api/health", timeout=5)
     status = response.status_code
     if status == 200:
         data = response.json()
-        health = data.get('data', {}).get('status', 'unknown')
-        print(f"[OK] Public /api/health")
+        health = data.get("data", {}).get("status", "unknown")
+        print("[OK] Public /api/health")
         print(f"  Status: {status}")
         print(f"  Health: {health}")
     else:
@@ -89,15 +114,15 @@ except Exception as e:
 
 # Protected endpoint (requires auth)
 if token:
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {"Authorization": f"Bearer {token}"}
     endpoints = [
-        ('/api/algo/markets', 'Market Data'),
-        ('/api/algo/config', 'Algo Config'),
+        ("/api/algo/markets", "Market Data"),
+        ("/api/algo/config", "Algo Config"),
     ]
     protected_ok = 0
     for endpoint, name in endpoints:
         try:
-            response = requests.get(f'{api_url}{endpoint}', headers=headers, timeout=5)
+            response = requests.get(f"{api_url}{endpoint}", headers=headers, timeout=5)
             if response.status_code == 200:
                 print(f"[OK] {name}")
                 protected_ok += 1
@@ -112,11 +137,11 @@ if token:
 print("\n[5/5] Python Dependencies")
 print("-" * 70)
 deps = {
-    'boto3': 'AWS SDK',
-    'requests': 'HTTP requests',
-    'rich': 'Dashboard UI',
-    'psycopg2': 'PostgreSQL',
-    'jwt': 'JWT tokens',
+    "boto3": "AWS SDK",
+    "requests": "HTTP requests",
+    "rich": "Dashboard UI",
+    "psycopg2": "PostgreSQL",
+    "jwt": "JWT tokens",
 }
 missing = []
 for module, desc in deps.items():
@@ -128,11 +153,11 @@ for module, desc in deps.items():
         missing.append(module)
 
 # Summary
-print("\n" + "="*70)
+print("\n" + "=" * 70)
 print("VERIFICATION SUMMARY")
-print("="*70)
+print("=" * 70)
 
-print(f"""
+print("""
 Expected Complete Setup:
 
 1. AWS Infrastructure

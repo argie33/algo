@@ -1,4 +1,5 @@
 """API response and request models."""
+
 from .responses import (
     DataFreshness,
     BaseResponse,

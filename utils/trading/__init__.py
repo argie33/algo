@@ -3,6 +3,6 @@
 from .status import TradeStatus, PositionStatus
 
 __all__ = [
-    'TradeStatus',
-    'PositionStatus',
+    "TradeStatus",
+    "PositionStatus",
 ]

@@ -23,7 +23,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class LambdaAPIClient:
     """Client for invoking algo-api-dev Lambda function directly."""
 
@@ -42,7 +41,9 @@ class LambdaAPIClient:
                 return None
         return self.client
 
-    def invoke(self, path: str, method: str = "GET", query_params: Optional[Dict] = None) -> Dict[str, Any]:
+    def invoke(
+        self, path: str, method: str = "GET", query_params: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Invoke the Lambda function directly.
 
@@ -69,13 +70,18 @@ class LambdaAPIClient:
             }
 
             if query_params:
-                event["rawQueryString"] = "&".join(f"{k}={v}" for k, v in query_params.items())
+                event["rawQueryString"] = "&".join(
+                    f"{k}={v}" for k, v in query_params.items()
+                )
 
             logger.debug(f"[Lambda] Invoking {self.function_name} with path={path}")
 
             client = self._get_client()
             if not client:
-                return {"statusCode": 500, "body": {"_error": "Lambda client unavailable"}}
+                return {
+                    "statusCode": 500,
+                    "body": {"_error": "Lambda client unavailable"},
+                }
 
             response = client.invoke(
                 FunctionName=self.function_name,
@@ -112,11 +118,9 @@ class LambdaAPIClient:
                 "_source": "lambda_direct",
             }
 
-
 # Singleton instance (thread-safe)
 _client = None
 _client_lock = threading.Lock()
-
 
 def get_lambda_client() -> LambdaAPIClient:
     """Get the global Lambda API client (thread-safe).
@@ -131,7 +135,8 @@ def get_lambda_client() -> LambdaAPIClient:
                 _client = LambdaAPIClient()
     return _client
 
-
-def invoke_api(path: str, method: str = "GET", query_params: Optional[Dict] = None) -> Dict[str, Any]:
+def invoke_api(
+    path: str, method: str = "GET", query_params: Optional[Dict] = None
+) -> Dict[str, Any]:
     """Invoke the Lambda API directly (convenience function)."""
     return get_lambda_client().invoke(path, method, query_params)

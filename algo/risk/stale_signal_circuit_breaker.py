@@ -2,7 +2,7 @@
 """Circuit breaker to halt trading when signals are stale (ROOT CAUSE #4 fix)."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
 
@@ -33,13 +33,13 @@ class StaleSignalCircuitBreaker:
             - is_safe=False if signals based on stale price data
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Get latest price data available
-                cur.execute('SELECT MAX(date) FROM price_daily')
+                cur.execute("SELECT MAX(date) FROM price_daily")
                 latest_price_date = cur.fetchone()[0]
 
                 # Get latest signal data available
-                cur.execute('SELECT MAX(date) FROM buy_sell_daily')
+                cur.execute("SELECT MAX(date) FROM buy_sell_daily")
                 latest_signal_date = cur.fetchone()[0]
 
                 if not latest_signal_date or not latest_price_date:
@@ -48,7 +48,9 @@ class StaleSignalCircuitBreaker:
                 # Check if signals are based on latest price data
                 if latest_signal_date < latest_price_date:
                     gap_days = (latest_price_date - latest_signal_date).days
-                    msg = f"Signals lag price data by {gap_days}d (signals from old data)"
+                    msg = (
+                        f"Signals lag price data by {gap_days}d (signals from old data)"
+                    )
                     logger.critical(f"CIRCUIT BREAKER OPEN: {msg}")
                     return False, msg
 
@@ -60,9 +62,11 @@ class StaleSignalCircuitBreaker:
 
                 # Determine threshold based on whether today is a trading day
                 is_trading_today = MarketCalendar.is_trading_day(now_et)
-                threshold = (StaleSignalCircuitBreaker.WEEKDAY_STALE_THRESHOLD_HOURS
-                           if is_trading_today
-                           else StaleSignalCircuitBreaker.WEEKEND_STALE_THRESHOLD_HOURS)
+                threshold = (
+                    StaleSignalCircuitBreaker.WEEKDAY_STALE_THRESHOLD_HOURS
+                    if is_trading_today
+                    else StaleSignalCircuitBreaker.WEEKEND_STALE_THRESHOLD_HOURS
+                )
 
                 if price_age_hours >= threshold:
                     msg = f"Price data {price_age_hours}h old (exceeds {threshold}h threshold)"
@@ -70,7 +74,9 @@ class StaleSignalCircuitBreaker:
                     return False, msg
 
                 # Signals are based on latest available price data
-                msg = f"Signals FRESH: based on latest price data ({latest_signal_date})"
+                msg = (
+                    f"Signals FRESH: based on latest price data ({latest_signal_date})"
+                )
                 logger.info(msg)
                 return True, msg
 
@@ -86,13 +92,14 @@ class StaleSignalCircuitBreaker:
             logger.critical(f"HALTING TRADING: {message}")
             raise RuntimeError(f"CIRCUIT BREAKER: {message}")
 
-
 def protect_trading_operation(func):
     """Decorator to halt trading operations if signals are stale."""
+
     def wrapper(*args, **kwargs):
         is_safe, message = StaleSignalCircuitBreaker.check_signal_freshness()
         if not is_safe:
             logger.critical(f"BLOCKING OPERATION: {message}")
             raise RuntimeError(f"Trading blocked: {message}")
         return func(*args, **kwargs)
+
     return wrapper

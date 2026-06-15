@@ -1,4 +1,3 @@
-
 """
 Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure
 
@@ -17,7 +16,6 @@ Alerts:
 - Beta exposure > 2.0 (2× market risk) → WARNING
 """
 
-import os
 import logging
 from datetime import datetime, date, timezone
 from typing import List, Optional, Dict, Any
@@ -31,7 +29,9 @@ class ValueAtRisk:
     def __init__(self, config):
         self.config = config
 
-    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
+    def historical_var(
+        self, confidence: float = 0.95, lookback_days: int = 252
+    ) -> Optional[Dict[str, Any]]:
         """Compute historical simulation VaR.
 
         Args:
@@ -42,24 +42,28 @@ class ValueAtRisk:
             dict with VaR dollar and %, or None if insufficient data
         """
         import numpy as np
+
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    f"""
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                     ORDER BY snapshot_date ASC
-                    """
-                )
+                    """)
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
                     return None
                 if len(rows) < 30:
-                    logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
+                    logger.warning(
+                        f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
+                    )
 
                 values = [float(row[1]) for row in rows]
-                returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
+                returns = [
+                    (values[i] - values[i - 1]) / values[i - 1]
+                    for i in range(1, len(values))
+                ]
 
                 if not returns:
                     return None
@@ -71,18 +75,20 @@ class ValueAtRisk:
                 var_pct = abs(var_percentile) * 100
 
                 return {
-                    'confidence_level': confidence,
-                    'var_dollars': float(round(var_dollars, 2)),
-                    'var_pct': float(round(var_pct, 3)),
-                    'interpretation': f'95% confident portfolio won\'t lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day',
-                    'data_points': len(returns),
+                    "confidence_level": confidence,
+                    "var_dollars": float(round(var_dollars, 2)),
+                    "var_pct": float(round(var_pct, 3)),
+                    "interpretation": f"95% confident portfolio won't lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day",
+                    "data_points": len(returns),
                 }
 
         except Exception as e:
             logger.error(f"historical_var error: {e}", exc_info=True)
             return None
 
-    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, Any]]:
+    def cvar(
+        self, confidence: float = 0.95, lookback_days: int = 252
+    ) -> Optional[Dict[str, Any]]:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
 
         Args:
@@ -93,24 +99,28 @@ class ValueAtRisk:
             dict with CVaR dollar and %, or None if insufficient data
         """
         import numpy as np
+
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    f"""
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
                     ORDER BY snapshot_date ASC
-                    """
-                )
+                    """)
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
                     return None
                 if len(rows) < 30:
-                    logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
+                    logger.warning(
+                        f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
+                    )
 
                 values = [float(row[1]) for row in rows]
-                returns = [(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))]
+                returns = [
+                    (values[i] - values[i - 1]) / values[i - 1]
+                    for i in range(1, len(values))
+                ]
 
                 if not returns:
                     return None
@@ -126,11 +136,11 @@ class ValueAtRisk:
                 cvar_dollars = current_value * abs(np.mean(tail_losses))
 
                 return {
-                    'confidence_level': confidence,
-                    'cvar_dollars': float(round(cvar_dollars, 2)),
-                    'cvar_pct': float(round(cvar_pct, 3)),
-                    'interpretation': f'Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%',
-                    'tail_event_count': len(tail_losses),
+                    "confidence_level": confidence,
+                    "cvar_dollars": float(round(cvar_dollars, 2)),
+                    "cvar_pct": float(round(cvar_pct, 3)),
+                    "interpretation": f"Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%",
+                    "tail_event_count": len(tail_losses),
                 }
 
         except Exception as e:
@@ -149,28 +159,32 @@ class ValueAtRisk:
             dict with stressed VaR, or None if insufficient data
         """
         import numpy as np
+
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '5 years'
                     ORDER BY snapshot_date ASC
-                    """
-                )
+                    """)
                 rows = cur.fetchall()
 
                 if len(rows) < 365:
                     return None
 
                 values = [float(row[1]) for row in rows]
-                returns = np.array([(values[i] - values[i-1]) / values[i-1] for i in range(1, len(values))])
+                returns = np.array(
+                    [
+                        (values[i] - values[i - 1]) / values[i - 1]
+                        for i in range(1, len(values))
+                    ]
+                )
 
                 worst_var = 0
                 worst_start_idx = 0
 
                 for start_idx in range(len(returns) - 252):
-                    window_returns = returns[start_idx:start_idx + 252]
+                    window_returns = returns[start_idx : start_idx + 252]
                     var_thresh = np.percentile(window_returns, 1.0)
                     if abs(var_thresh) > abs(worst_var):
                         worst_var = var_thresh
@@ -181,11 +195,11 @@ class ValueAtRisk:
                 stressed_var_pct = abs(worst_var) * 100
 
                 return {
-                    'confidence_level': confidence,
-                    'stressed_var_dollars': float(round(stressed_var_dollars, 2)),
-                    'stressed_var_pct': float(round(stressed_var_pct, 3)),
-                    'worst_window_period': f'{rows[worst_start_idx][0]} to {rows[worst_start_idx + 252][0]}',
-                    'interpretation': f'Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%',
+                    "confidence_level": confidence,
+                    "stressed_var_dollars": float(round(stressed_var_dollars, 2)),
+                    "stressed_var_pct": float(round(stressed_var_pct, 3)),
+                    "worst_window_period": f"{rows[worst_start_idx][0]} to {rows[worst_start_idx + 252][0]}",
+                    "interpretation": f"Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%",
                 }
 
         except Exception as e:
@@ -199,45 +213,49 @@ class ValueAtRisk:
             dict with portfolio beta and per-position beta
         """
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT ap.symbol, ap.quantity, ap.current_price, ap.avg_entry_price AS entry_price
                     FROM algo_positions ap
                     WHERE ap.status = 'open'
-                    """
-                )
+                    """)
                 positions = cur.fetchall()
 
                 if not positions:
                     return None
 
-                cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+                cur.execute(
+                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row:
-                    logger.error("No portfolio snapshot available - cannot compute risk metrics with real portfolio value")
+                    logger.error(
+                        "No portfolio snapshot available - cannot compute risk metrics with real portfolio value"
+                    )
                     return None
                 portfolio_value = float(portfolio_row[0])
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT date, close FROM price_daily
                     WHERE symbol = 'SPY'
                     ORDER BY date DESC LIMIT 61
-                    """
-                )
+                    """)
                 spy_rows = cur.fetchall()
                 spy_returns = []
                 if len(spy_rows) >= 2:
                     spy_prices = list(reversed([float(r[1]) for r in spy_rows]))
-                    spy_returns = [(spy_prices[i] - spy_prices[i-1]) / spy_prices[i-1]
-                                   for i in range(1, len(spy_prices))]
+                    spy_returns = [
+                        (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1]
+                        for i in range(1, len(spy_prices))
+                    ]
 
                 spy_var = 0.0
                 if spy_returns:
                     spy_mean = sum(spy_returns) / len(spy_returns)
-                    spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
+                    spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(
+                        spy_returns
+                    )
 
                 total_beta_exposure = 0.0
                 positions_list = []
@@ -245,10 +263,14 @@ class ValueAtRisk:
                 for symbol, qty, cur_price, entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or float(cur_price) <= 0:
-                        logger.warning(f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation")
+                        logger.warning(
+                            f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation"
+                        )
                         continue
                     position_value = float(qty) * float(cur_price)
-                    position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
+                    position_weight = (
+                        position_value / portfolio_value if portfolio_value > 0 else 0
+                    )
 
                     # Compute 60-day beta via covariance with SPY
                     estimated_beta = 1.0
@@ -260,21 +282,31 @@ class ValueAtRisk:
                                 WHERE symbol = %s
                                 ORDER BY date DESC LIMIT 61
                                 """,
-                                (symbol,)
+                                (symbol,),
                             )
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
-                                stock_prices = list(reversed([float(r[0]) for r in stock_rows]))
-                                stock_returns = [(stock_prices[i] - stock_prices[i-1]) / stock_prices[i-1]
-                                                for i in range(1, len(stock_prices))]
+                                stock_prices = list(
+                                    reversed([float(r[0]) for r in stock_rows])
+                                )
+                                stock_returns = [
+                                    (stock_prices[i] - stock_prices[i - 1])
+                                    / stock_prices[i - 1]
+                                    for i in range(1, len(stock_prices))
+                                ]
                                 n = min(len(stock_returns), len(spy_returns))
                                 if n >= 20:
                                     s_rets = stock_returns[-n:]
                                     m_rets = spy_returns[-n:]
                                     s_mean = sum(s_rets) / n
                                     m_mean = sum(m_rets) / n
-                                    cov = sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean)
-                                             for i in range(n)) / n
+                                    cov = (
+                                        sum(
+                                            (s_rets[i] - s_mean) * (m_rets[i] - m_mean)
+                                            for i in range(n)
+                                        )
+                                        / n
+                                    )
                                     var = sum((r - m_mean) ** 2 for r in m_rets) / n
                                     if var > 0:
                                         estimated_beta = round(cov / var, 2)
@@ -285,18 +317,20 @@ class ValueAtRisk:
                     weighted_beta = estimated_beta * position_weight
                     total_beta_exposure += weighted_beta
 
-                    positions_list.append({
-                        'symbol': symbol,
-                        'weight_pct': round(position_weight * 100, 2),
-                        'estimated_beta': round(estimated_beta, 2),
-                        'contribution': round(weighted_beta, 3),
-                    })
+                    positions_list.append(
+                        {
+                            "symbol": symbol,
+                            "weight_pct": round(position_weight * 100, 2),
+                            "estimated_beta": round(estimated_beta, 2),
+                            "contribution": round(weighted_beta, 3),
+                        }
+                    )
 
                 return {
-                    'portfolio_beta': round(total_beta_exposure, 2),
-                    'interpretation': f'Portfolio is {round(total_beta_exposure, 1)}× market risk',
-                    'positions': positions_list,
-                    'portfolio_value': portfolio_value,
+                    "portfolio_beta": round(total_beta_exposure, 2),
+                    "interpretation": f"Portfolio is {round(total_beta_exposure, 1)}× market risk",
+                    "positions": positions_list,
+                    "portfolio_value": portfolio_value,
                 }
 
         except Exception as e:
@@ -310,26 +344,28 @@ class ValueAtRisk:
             dict with concentration metrics
         """
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT ap.symbol, ap.quantity, ap.current_price, ap.avg_entry_price AS entry_price,
                            cp.sector, cp.industry
                     FROM algo_positions ap
                     LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
                     WHERE ap.status = 'open'
                     ORDER BY ap.position_value DESC
-                    """
-                )
+                    """)
                 positions = cur.fetchall()
 
                 if not positions:
                     return None
 
-                cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+                cur.execute(
+                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row:
-                    logger.error("No portfolio snapshot available - cannot compute risk metrics with real portfolio value")
+                    logger.error(
+                        "No portfolio snapshot available - cannot compute risk metrics with real portfolio value"
+                    )
                     return None
                 portfolio_value = float(portfolio_row[0])
 
@@ -340,39 +376,65 @@ class ValueAtRisk:
                 for symbol, qty, cur_price, entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or float(cur_price) <= 0:
-                        logger.warning(f"[VAR exposure] {symbol}: missing or invalid current_price, excluding from exposure")
+                        logger.warning(
+                            f"[VAR exposure] {symbol}: missing or invalid current_price, excluding from exposure"
+                        )
                         continue
                     position_value = float(qty) * float(cur_price)
-                    position_pct = position_value / portfolio_value * 100 if portfolio_value > 0 else 0
+                    position_pct = (
+                        position_value / portfolio_value * 100
+                        if portfolio_value > 0
+                        else 0
+                    )
 
-                    top_holdings.append({
-                        'symbol': symbol,
-                        'value_dollars': round(position_value, 2),
-                        'pct_of_portfolio': round(position_pct, 2),
-                    })
+                    top_holdings.append(
+                        {
+                            "symbol": symbol,
+                            "value_dollars": round(position_value, 2),
+                            "pct_of_portfolio": round(position_pct, 2),
+                        }
+                    )
 
-                    sector = sector or 'Unknown'
-                    industry = industry or 'Unknown'
-                    sector_exposure[sector] = sector_exposure.get(sector, 0) + position_pct
-                    industry_exposure[industry] = industry_exposure.get(industry, 0) + position_pct
+                    sector = sector or "Unknown"
+                    industry = industry or "Unknown"
+                    sector_exposure[sector] = (
+                        sector_exposure.get(sector, 0) + position_pct
+                    )
+                    industry_exposure[industry] = (
+                        industry_exposure.get(industry, 0) + position_pct
+                    )
 
-                top_5_pct = sum([h['pct_of_portfolio'] for h in top_holdings[:5]])
+                top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 
                 return {
-                    'portfolio_value': round(portfolio_value, 2),
-                    'position_count': len(positions),
-                    'top_holdings': top_holdings[:5],
-                    'top_5_concentration_pct': round(top_5_pct, 1),
-                    'sector_exposure': {k: round(v, 1) for k, v in sorted(sector_exposure.items(), key=lambda x: x[1], reverse=True)},
-                    'industry_exposure': {k: round(v, 1) for k, v in sorted(industry_exposure.items(), key=lambda x: x[1], reverse=True)[:5]},
-                    'diversification_status': 'CONCENTRATED' if top_5_pct > 30 else 'DIVERSIFIED',
+                    "portfolio_value": round(portfolio_value, 2),
+                    "position_count": len(positions),
+                    "top_holdings": top_holdings[:5],
+                    "top_5_concentration_pct": round(top_5_pct, 1),
+                    "sector_exposure": {
+                        k: round(v, 1)
+                        for k, v in sorted(
+                            sector_exposure.items(), key=lambda x: x[1], reverse=True
+                        )
+                    },
+                    "industry_exposure": {
+                        k: round(v, 1)
+                        for k, v in sorted(
+                            industry_exposure.items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    },
+                    "diversification_status": (
+                        "CONCENTRATED" if top_5_pct > 30 else "DIVERSIFIED"
+                    ),
                 }
 
         except Exception as e:
             logger.error(f"Concentration report error: {e}", exc_info=True)
             return None
 
-    def generate_daily_risk_report(self, report_date: Optional[date] = None) -> Dict[str, Any]:
+    def generate_daily_risk_report(
+        self, report_date: Optional[date] = None
+    ) -> Dict[str, Any]:
         """Generate comprehensive daily risk report.
 
         Args:
@@ -394,50 +456,80 @@ class ValueAtRisk:
             beta = self.beta_exposure()
             concentration = self.concentration_report()
 
-            logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <unavailable>")
-            logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <unavailable>")
-            logger.debug(f"  Stressed VaR: {stressed_var['stressed_var_pct']:.3f}%" if stressed_var else "  Stressed VaR: <unavailable>")
-            logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
-            logger.debug(f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%" if concentration else "  Top 5 Concentration: <unavailable>")
+            logger.debug(
+                f"  VaR: {var_metrics['var_pct']:.3f}%"
+                if var_metrics
+                else "  VaR: <unavailable>"
+            )
+            logger.debug(
+                f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%"
+                if cvar_metrics
+                else "  CVaR: <unavailable>"
+            )
+            logger.debug(
+                f"  Stressed VaR: {stressed_var['stressed_var_pct']:.3f}%"
+                if stressed_var
+                else "  Stressed VaR: <unavailable>"
+            )
+            logger.debug(
+                f"  Beta: {beta['portfolio_beta']:.3f}"
+                if beta
+                else "  Beta: <unavailable>"
+            )
+            logger.debug(
+                f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%"
+                if concentration
+                else "  Top 5 Concentration: <unavailable>"
+            )
 
             alerts: List[str] = []
             result: Dict[str, Any] = {
-                'report_date': report_date,
-                'generated_at': datetime.now(timezone.utc).isoformat(),
-                'status': 'ok',
-                'var_metrics': var_metrics,
-                'cvar_metrics': cvar_metrics,
-                'stressed_var': stressed_var,
-                'beta_exposure': beta,
-                'concentration': concentration,
-                'alerts': alerts,
+                "report_date": report_date,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "status": "ok",
+                "var_metrics": var_metrics,
+                "cvar_metrics": cvar_metrics,
+                "stressed_var": stressed_var,
+                "beta_exposure": beta,
+                "concentration": concentration,
+                "alerts": alerts,
             }
 
             # Alert if VaR > 2%
-            if var_metrics and var_metrics['var_pct'] > 2.0:
+            if var_metrics and var_metrics["var_pct"] > 2.0:
                 msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
                 alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if concentration > 30%
-            if concentration and concentration['top_5_concentration_pct'] > 30:
+            if concentration and concentration["top_5_concentration_pct"] > 30:
                 msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
                 alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if beta > 2.0
-            if beta and beta['portfolio_beta'] > 2.0:
+            if beta and beta["portfolio_beta"] > 2.0:
                 msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)"
                 alerts.append(msg)
                 logger.warning(msg)
 
             try:
-                with DatabaseContext('write') as cur:
-                    var_pct_val = float(var_metrics['var_pct']) if var_metrics else None
-                    cvar_pct_val = float(cvar_metrics['cvar_pct']) if cvar_metrics else None
-                    stressed_var_pct_val = float(stressed_var['stressed_var_pct']) if stressed_var else None
-                    portfolio_beta_val = float(beta['portfolio_beta']) if beta else None
-                    top_5_conc_val = float(concentration['top_5_concentration_pct']) if concentration else None
+                with DatabaseContext("write") as cur:
+                    var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
+                    cvar_pct_val = (
+                        float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
+                    )
+                    stressed_var_pct_val = (
+                        float(stressed_var["stressed_var_pct"])
+                        if stressed_var
+                        else None
+                    )
+                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta else None
+                    top_5_conc_val = (
+                        float(concentration["top_5_concentration_pct"])
+                        if concentration
+                        else None
+                    )
 
                     cur.execute(
                         """
@@ -458,9 +550,11 @@ class ValueAtRisk:
                             stressed_var_pct_val,
                             portfolio_beta_val,
                             top_5_conc_val,
-                        )
+                        ),
                     )
-                    logger.info(f"[OK] Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%")
+                    logger.info(
+                        f"[OK] Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%"
+                    )
             except Exception as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
 
@@ -468,5 +562,4 @@ class ValueAtRisk:
 
         except Exception as e:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
-            return {'status': 'error', 'message': str(e)}
-
+            return {"status": "error", "message": str(e)}

@@ -17,7 +17,7 @@ import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +28,21 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
     """Emit duration metric to CloudWatch if AWS SDK available."""
     try:
         import boto3
-        cw = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
+
+        cw = boto3.client(
+            "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
+        )
         cw.put_metric_data(
             Namespace="AlgoTrading/Operations",
-            MetricData=[{
-                "MetricName": "OperationDuration",
-                "Value": duration_seconds,
-                "Unit": "Seconds",
-                "Dimensions": [{"Name": "Operation", "Value": operation_name}],
-                "Timestamp": datetime.now(timezone.utc),
-            }]
+            MetricData=[
+                {
+                    "MetricName": "OperationDuration",
+                    "Value": duration_seconds,
+                    "Unit": "Seconds",
+                    "Dimensions": [{"Name": "Operation", "Value": operation_name}],
+                    "Timestamp": datetime.now(timezone.utc),
+                }
+            ],
         )
     except Exception as e:
         logger.debug(f"Could not emit CloudWatch metric for {operation_name}: {e}")
@@ -46,15 +51,17 @@ class TimeBlock:
     """Context manager for operation timing and alerting on slow operations."""
 
     SLOW_THRESHOLDS = {
-        "signal_computation": 0.5,      # 500ms
-        "filter_pipeline": 2.0,          # 2s
-        "position_sizing": 1.0,          # 1s
-        "order_execution": 3.0,          # 3s (includes API round-trip)
-        "data_loading": 5.0,             # 5s (loader timeout warning)
-        "default": 2.0,                  # 2s generic threshold
+        "signal_computation": 0.5,  # 500ms
+        "filter_pipeline": 2.0,  # 2s
+        "position_sizing": 1.0,  # 1s
+        "order_execution": 3.0,  # 3s (includes API round-trip)
+        "data_loading": 5.0,  # 5s (loader timeout warning)
+        "default": 2.0,  # 2s generic threshold
     }
 
-    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False):
+    def __init__(
+        self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False
+    ):
         """
         Initialize timing context.
 
@@ -81,7 +88,12 @@ class TimeBlock:
         duration_seconds = self.duration_ms / 1000.0
 
         # Determine if operation was slow
-        threshold_ms = self.SLOW_THRESHOLDS.get(self.operation_name, self.SLOW_THRESHOLDS["default"]) * 1000
+        threshold_ms = (
+            self.SLOW_THRESHOLDS.get(
+                self.operation_name, self.SLOW_THRESHOLDS["default"]
+            )
+            * 1000
+        )
         is_slow = self.duration_ms > threshold_ms
 
         # Log result
@@ -89,7 +101,7 @@ class TimeBlock:
         log_level = logging.WARNING if is_slow else self.log_level
         logger.log(
             log_level,
-            f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms"
+            f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms",
         )
 
         # Emit to CloudWatch
@@ -98,15 +110,19 @@ class TimeBlock:
         # Record metric
         if self.operation_name not in _metrics_buffer:
             _metrics_buffer[self.operation_name] = []
-        _metrics_buffer[self.operation_name].append({
-            "duration_ms": self.duration_ms,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "is_slow": is_slow,
-        })
+        _metrics_buffer[self.operation_name].append(
+            {
+                "duration_ms": self.duration_ms,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "is_slow": is_slow,
+            }
+        )
 
         # Raise if configured and slow
         if self.raise_on_slow and is_slow:
-            raise TimeoutError(f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms")
+            raise TimeoutError(
+                f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms"
+            )
 
         return False  # Don't suppress exceptions
 

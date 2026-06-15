@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Russell 2000 Constituents Loader - Mark Russell 2000 membership (Market-wide)."""
+
 import sys
 import logging
 from datetime import date
@@ -8,10 +9,12 @@ import requests
 
 from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timeout import ExecutionTimeout
+
 logger = logging.getLogger(__name__)
 
 class Russell2000ConstituentsLoader(OptimalLoader):
     """Load and mark Russell 2000 constituent symbols."""
+
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"
@@ -25,7 +28,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             logger.info("Fetching Russell 2000 constituents")
 
             # Try to fetch from a reliable source
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            headers = {"User-Agent": "Mozilla/5.0"}
             urls = [
                 "https://www.multpl.com/russell-2000/table/by-date",
                 "https://en.wikipedia.org/wiki/Russell_2000",
@@ -52,11 +55,16 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                         if "Symbol" in df.columns or "Ticker" in df.columns:
                             col = "Symbol" if "Symbol" in df.columns else "Ticker"
                             symbols = df[col].str.strip().tolist()
-                            logger.info(f"Fetched {len(symbols)} Russell 2000 constituents")
-                            return [{
-                                'symbol': sym,
-                                'is_russell2000': True,
-                            } for sym in symbols]
+                            logger.info(
+                                f"Fetched {len(symbols)} Russell 2000 constituents"
+                            )
+                            return [
+                                {
+                                    "symbol": sym,
+                                    "is_russell2000": True,
+                                }
+                                for sym in symbols
+                            ]
                 except Exception as e:
                     logger.debug(f"URL {url} failed: {e}")
                     continue
@@ -80,7 +88,7 @@ def main():
                 logger.info(f"SUCCESS: {result} Russell 2000 symbols marked")
                 return 0
             else:
-                logger.warning(f"COMPLETED: No symbols marked")
+                logger.warning("COMPLETED: No symbols marked")
                 return 0
     except Exception as e:
         logger.error(f"Russell 2000 constituents load failed: {e}", exc_info=True)

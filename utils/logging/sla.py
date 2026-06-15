@@ -9,7 +9,6 @@ Monitors critical SLA windows:
 """
 
 import logging
-import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -18,14 +17,14 @@ logger = logging.getLogger(__name__)
 class SLAMonitor:
     """Track and log SLA compliance for critical pipelines."""
 
-    EASTERN_TZ = ZoneInfo('America/New_York')
+    EASTERN_TZ = ZoneInfo("America/New_York")
 
     # SLA windows: (start_hour, start_min, end_hour, end_min, pipeline_name, budget_minutes)
     SLA_WINDOWS = [
-        (2, 0, 9, 30, "morning_prep", 450),           # 2:00 AM - 9:30 AM (7.5h = 450m)
-        (12, 50, 13, 5, "afternoon_update", 15),       # 12:50 PM - 1:05 PM (15m)
-        (14, 50, 15, 15, "preclose_update", 25),       # 2:50 PM - 3:15 PM (25m)
-        (16, 5, 17, 30, "eod_pipeline", 85),           # 4:05 PM - 5:30 PM (85m)
+        (2, 0, 9, 30, "morning_prep", 450),  # 2:00 AM - 9:30 AM (7.5h = 450m)
+        (12, 50, 13, 5, "afternoon_update", 15),  # 12:50 PM - 1:05 PM (15m)
+        (14, 50, 15, 15, "preclose_update", 25),  # 2:50 PM - 3:15 PM (25m)
+        (16, 5, 17, 30, "eod_pipeline", 85),  # 4:05 PM - 5:30 PM (85m)
     ]
 
     @classmethod
@@ -55,7 +54,9 @@ class SLAMonitor:
             end_time_minutes = end_h * 60 + end_m
 
             if start_time_minutes <= current_time < end_time_minutes:
-                start_dt = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+                start_dt = now.replace(
+                    hour=start_h, minute=start_m, second=0, microsecond=0
+                )
                 end_dt = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
 
                 # Handle overnight windows (EOD ends at 5:30 PM same day is fine)
@@ -67,19 +68,19 @@ class SLAMonitor:
 
                 elapsed_sec = (now - start_dt).total_seconds()
                 elapsed_min = elapsed_sec / 60
-                budget_sec = budget * 60
+                budget * 60
                 remaining_min = budget - elapsed_min
                 percent = (elapsed_min / budget) * 100
 
                 return {
-                    'name': name,
-                    'start_time': start_dt,
-                    'end_time': end_dt,
-                    'budget_minutes': budget,
-                    'elapsed_minutes': round(elapsed_min, 1),
-                    'remaining_minutes': round(max(0, remaining_min), 1),
-                    'percent_complete': round(percent, 1),
-                    'is_critical': percent > 80,  # Flag if >80% of budget used
+                    "name": name,
+                    "start_time": start_dt,
+                    "end_time": end_dt,
+                    "budget_minutes": budget,
+                    "elapsed_minutes": round(elapsed_min, 1),
+                    "remaining_minutes": round(max(0, remaining_min), 1),
+                    "percent_complete": round(percent, 1),
+                    "is_critical": percent > 80,  # Flag if >80% of budget used
                 }
 
         return None
@@ -101,7 +102,11 @@ class SLAMonitor:
             logger.debug(f"[{operation_name}] Not in any SLA window")
             return None
 
-        status = "🔴 CRITICAL" if sla['is_critical'] else "🟡 WARNING" if sla['remaining_minutes'] < 10 else "🟢 OK"
+        status = (
+            "🔴 CRITICAL"
+            if sla["is_critical"]
+            else "🟡 WARNING" if sla["remaining_minutes"] < 10 else "🟢 OK"
+        )
 
         elapsed_str = f", operation {elapsed_sec:.1f}s" if elapsed_sec else ""
 
@@ -141,7 +146,7 @@ class SLAMonitor:
         """Log warning if we're in critical SLA phase (>80% complete)."""
         sla = cls.get_current_sla_window()
 
-        if sla and sla['name'] == pipeline_name and sla['is_critical']:
+        if sla and sla["name"] == pipeline_name and sla["is_critical"]:
             logger.warning(
                 f"[CRITICAL-SLA] {pipeline_name} in critical phase: "
                 f"{sla['remaining_minutes']:.0f}m remaining. "

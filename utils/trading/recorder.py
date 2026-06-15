@@ -4,10 +4,11 @@
 Provides a simple interface for recording trades as they're executed by the orchestrator.
 Maintains position state and trade history for analysis and compliance.
 """
+
 import logging
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from utils.db import DatabaseContext
 
@@ -41,23 +42,37 @@ class TradeRecorder:
             True if recorded successfully
         """
         try:
-            with DatabaseContext('write') as cursor:
+            with DatabaseContext("write") as cursor:
                 # Insert trade record
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO algo_trades (
                         symbol, entry_date, entry_price, quantity, signal_type,
                         reason, portfolio_allocation, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (symbol, entry_date) DO UPDATE SET
                         entry_price = %s, quantity = %s, updated_at = CURRENT_TIMESTAMP
-                """, (
-                    symbol, entry_date, Decimal(str(entry_price)), quantity, signal_type,
-                    reason, Decimal(str(portfolio_allocation)) if portfolio_allocation else None,
-                    Decimal(str(entry_price)), quantity
-                ))
+                """,
+                    (
+                        symbol,
+                        entry_date,
+                        Decimal(str(entry_price)),
+                        quantity,
+                        signal_type,
+                        reason,
+                        (
+                            Decimal(str(portfolio_allocation))
+                            if portfolio_allocation
+                            else None
+                        ),
+                        Decimal(str(entry_price)),
+                        quantity,
+                    ),
+                )
 
                 # Insert or update position
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO algo_positions (
                         symbol, entry_date, entry_price, current_price, quantity,
                         status, unrealized_pnl, stage_in_exit_plan, created_at, updated_at
@@ -69,13 +84,22 @@ class TradeRecorder:
                         status = 'OPEN',
                         stage_in_exit_plan = 'active',
                         updated_at = CURRENT_TIMESTAMP
-                """, (
-                    symbol, entry_date, Decimal(str(entry_price)), Decimal(str(entry_price)),
-                    quantity,
-                    entry_date, Decimal(str(entry_price)), quantity
-                ))
+                """,
+                    (
+                        symbol,
+                        entry_date,
+                        Decimal(str(entry_price)),
+                        Decimal(str(entry_price)),
+                        quantity,
+                        entry_date,
+                        Decimal(str(entry_price)),
+                        quantity,
+                    ),
+                )
 
-                logger.info(f"Recorded entry: {symbol} {quantity}sh @ ${entry_price} on {entry_date}")
+                logger.info(
+                    f"Recorded entry: {symbol} {quantity}sh @ ${entry_price} on {entry_date}"
+                )
                 return True
 
         except Exception as e:
@@ -103,41 +127,58 @@ class TradeRecorder:
             True if recorded successfully
         """
         try:
-            with DatabaseContext('write') as cursor:
+            with DatabaseContext("write") as cursor:
                 # Get existing position if quantity not specified
                 if quantity is None:
-                    cursor.execute("SELECT quantity FROM algo_positions WHERE symbol = %s", (symbol,))
+                    cursor.execute(
+                        "SELECT quantity FROM algo_positions WHERE symbol = %s",
+                        (symbol,),
+                    )
                     pos = cursor.fetchone()
                     if pos:
                         quantity = pos[0]
                     else:
-                        logger.warning(f"No open position for {symbol}, cannot record exit")
+                        logger.warning(
+                            f"No open position for {symbol}, cannot record exit"
+                        )
                         return False
 
                 # Get entry price for P&L calculation
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT entry_price FROM algo_trades
                     WHERE symbol = %s AND exit_date IS NULL
                     ORDER BY entry_time DESC LIMIT 1
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
                 entry_row = cursor.fetchone()
                 if not entry_row or entry_row[0] is None:
-                    logger.error(f"Cannot record exit for {symbol}: no open entry found in database")
+                    logger.error(
+                        f"Cannot record exit for {symbol}: no open entry found in database"
+                    )
                     return False
 
                 entry_price = float(entry_row[0])
 
                 # Validate entry price
                 if entry_price <= 0:
-                    logger.error(f"Cannot record exit for {symbol}: invalid entry price {entry_price}")
+                    logger.error(
+                        f"Cannot record exit for {symbol}: invalid entry price {entry_price}"
+                    )
                     return False
 
                 # Calculate P&L
                 pnl = (exit_price - entry_price) * quantity
-                pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+                pnl_pct = (
+                    ((exit_price - entry_price) / entry_price * 100)
+                    if entry_price > 0
+                    else 0
+                )
 
                 # Update trade record (most recent entry for this symbol)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE algo_trades
                     SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
                         exit_reason = %s, updated_at = CURRENT_TIMESTAMP
@@ -146,20 +187,27 @@ class TradeRecorder:
                         WHERE symbol = %s AND exit_date IS NULL
                         ORDER BY entry_time DESC LIMIT 1
                     )
-                """, (
-                    exit_date, Decimal(str(exit_price)), Decimal(str(pnl)),
-                    Decimal(str(pnl_pct)), reason, symbol
-                ))
+                """,
+                    (
+                        exit_date,
+                        Decimal(str(exit_price)),
+                        Decimal(str(pnl)),
+                        Decimal(str(pnl_pct)),
+                        reason,
+                        symbol,
+                    ),
+                )
 
                 # Close position
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE algo_positions
                     SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s
-                """, (
-                    Decimal(str(exit_price)), Decimal(str(pnl)), symbol
-                ))
+                """,
+                    (Decimal(str(exit_price)), Decimal(str(pnl)), symbol),
+                )
 
                 logger.info(
                     f"Recorded exit: {symbol} {quantity}sh @ ${exit_price} on {exit_date} "
@@ -182,12 +230,15 @@ class TradeRecorder:
             True if updated successfully
         """
         try:
-            with DatabaseContext('write') as cursor:
-                cursor.execute("""
+            with DatabaseContext("write") as cursor:
+                cursor.execute(
+                    """
                     UPDATE algo_positions
                     SET current_price = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s AND status = 'OPEN'
-                """, (Decimal(str(current_price)), symbol))
+                """,
+                    (Decimal(str(current_price)), symbol),
+                )
 
                 return True
 
@@ -202,7 +253,7 @@ class TradeRecorder:
             List of dicts with symbol, quantity, entry_price, current_price, etc.
         """
         try:
-            with DatabaseContext('read') as cursor:
+            with DatabaseContext("read") as cursor:
                 cursor.execute("""
                     SELECT symbol, quantity, entry_price, current_price, entry_date,
                            (current_price - entry_price) * quantity as unrealized_pnl

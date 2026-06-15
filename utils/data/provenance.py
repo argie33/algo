@@ -90,9 +90,7 @@ class DataProvenanceTracker:
             self.ticks_recorded = []
             self.error_log = []
 
-        logger.info(
-            f"[{self.loader_name}] Starting run {self.run_id} via {source_api}"
-        )
+        logger.info(f"[{self.loader_name}] Starting run {self.run_id} via {source_api}")
         return self.run_id
 
     def record_tick(
@@ -126,7 +124,9 @@ class DataProvenanceTracker:
         checksum = self._compute_checksum(data)
 
         # Prepare data for JSON serialization (convert dates to strings)
-        data_for_json = {k: v.isoformat() if isinstance(v, _date) else v for k, v in data.items()}
+        data_for_json = {
+            k: v.isoformat() if isinstance(v, _date) else v for k, v in data.items()
+        }
 
         record = {
             "provenance_id": provenance_id,
@@ -183,9 +183,7 @@ class DataProvenanceTracker:
         else:
             self.error_log.append(error_record)
 
-        logger.warning(
-            f"[{self.loader_name}] {symbol}: {error_type} → {resolution}"
-        )
+        logger.warning(f"[{self.loader_name}] {symbol}: {error_type} → {resolution}")
 
     def end_run(
         self,
@@ -232,7 +230,7 @@ class DataProvenanceTracker:
             }
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT run_id, loader_name, table_name, source_api, parameters, start_at
@@ -283,7 +281,7 @@ class DataProvenanceTracker:
     ):
         """Insert the loader run record."""
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO data_loader_runs
@@ -306,11 +304,11 @@ class DataProvenanceTracker:
     def _insert_provenance_record(self, record: Dict):
         """Insert a provenance record for a tick."""
         # Allow disabling provenance at runtime via environment variable
-        if os.environ.get('DISABLE_PROVENANCE_TRACKING') == 'true':
+        if os.environ.get("DISABLE_PROVENANCE_TRACKING") == "true":
             return
 
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO data_provenance_log
@@ -334,12 +332,14 @@ class DataProvenanceTracker:
                     ),
                 )
         except Exception as e:
-            logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
+            logger.error(
+                f"Failed to insert provenance record for {record.get('symbol')}: {e}"
+            )
 
     def _insert_error_record(self, error_record: Dict):
         """Insert an error record."""
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO data_provenance_errors
@@ -371,7 +371,7 @@ class DataProvenanceTracker:
 
         try:
 
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     UPDATE data_loader_runs

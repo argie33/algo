@@ -4,7 +4,6 @@ import uuid
 import os
 from typing import Dict, Any, Optional
 
-
 class BaseAPIException(Exception):
     """Base exception for all API/application errors.
 
@@ -17,7 +16,7 @@ class BaseAPIException(Exception):
     """
 
     status_code = 500
-    error_type = 'internal_error'
+    error_type = "internal_error"
 
     def __init__(
         self,
@@ -31,29 +30,30 @@ class BaseAPIException(Exception):
         self.status_code = status_code or self.status_code
         self.error_type = error_type or self.error_type
         self.context = context or {}
-        self.correlation_id = correlation_id or os.getenv('CORRELATION_ID', str(uuid.uuid4())[:8])
+        self.correlation_id = correlation_id or os.getenv(
+            "CORRELATION_ID", str(uuid.uuid4())[:8]
+        )
         super().__init__(self.message)
 
     def to_response(self) -> Dict[str, Any]:
         """Convert to standardized API error response."""
         return {
-            'statusCode': self.status_code,
-            'errorType': self.error_type,
-            'message': self.message,
-            '_error': self.error_type,
-            'context': self.context,
+            "statusCode": self.status_code,
+            "errorType": self.error_type,
+            "message": self.message,
+            "_error": self.error_type,
+            "context": self.context,
         }
 
     def to_log_dict(self) -> Dict[str, Any]:
         """Convert to log-safe dict (includes sensitive context)."""
         return {
-            'statusCode': self.status_code,
-            'errorType': self.error_type,
-            'message': self.message,
-            'context': self.context,
-            'correlation_id': self.correlation_id,
+            "statusCode": self.status_code,
+            "errorType": self.error_type,
+            "message": self.message,
+            "context": self.context,
+            "correlation_id": self.correlation_id,
         }
-
 
 # Database Errors (5xx)
 
@@ -61,38 +61,33 @@ class DatabaseError(BaseAPIException):
     """Generic database error."""
 
     status_code = 503
-    error_type = 'database_error'
-
+    error_type = "database_error"
 
 class DatabaseConnectionError(DatabaseError):
     """Database connection failed (unreachable)."""
 
-    error_type = 'connection_error'
-    message = 'Database connection failed'
-
+    error_type = "connection_error"
+    message = "Database connection failed"
 
 class DatabaseQueryTimeout(DatabaseError):
     """Query execution exceeded timeout."""
 
     status_code = 504
-    error_type = 'timeout'
-    message = 'Database query exceeded timeout'
-
+    error_type = "timeout"
+    message = "Database query exceeded timeout"
 
 class DatabaseSchemaError(DatabaseError):
     """Database schema mismatch (missing tables/columns)."""
 
-    error_type = 'schema_error'
-    message = 'Database schema issue'
-
+    error_type = "schema_error"
+    message = "Database schema issue"
 
 class DatabaseConstraintViolation(DatabaseError):
     """Constraint violation (unique key, foreign key, etc)."""
 
     status_code = 409
-    error_type = 'constraint_violation'
-    message = 'Data constraint violated'
-
+    error_type = "constraint_violation"
+    message = "Data constraint violated"
 
 # Validation Errors (4xx)
 
@@ -100,29 +95,25 @@ class ValidationError(BaseAPIException):
     """Generic validation error."""
 
     status_code = 400
-    error_type = 'validation_error'
-
+    error_type = "validation_error"
 
 class InputValidationError(ValidationError):
     """Invalid user input (parameters, body, etc)."""
 
-    error_type = 'bad_request'
-    message = 'Invalid input provided'
-
+    error_type = "bad_request"
+    message = "Invalid input provided"
 
 class DataQualityError(ValidationError):
     """Data quality issue (NaN, out of range, etc)."""
 
-    error_type = 'data_quality_error'
-    message = 'Data quality validation failed'
-
+    error_type = "data_quality_error"
+    message = "Data quality validation failed"
 
 class SchemaValidationError(ValidationError):
     """Schema validation error."""
 
-    error_type = 'schema_validation'
-    message = 'Invalid data structure'
-
+    error_type = "schema_validation"
+    message = "Invalid data structure"
 
 # Timeout Errors (5xx)
 
@@ -130,27 +121,23 @@ class TimeoutError(BaseAPIException):
     """Generic timeout error."""
 
     status_code = 504
-    error_type = 'timeout'
-    message = 'Operation timed out'
-
+    error_type = "timeout"
+    message = "Operation timed out"
 
 class DatabaseTimeout(TimeoutError):
     """Database query timeout."""
 
-    error_type = 'database_timeout'
-
+    error_type = "database_timeout"
 
 class ExternalAPITimeout(TimeoutError):
     """External API call timeout."""
 
-    error_type = 'api_timeout'
-
+    error_type = "api_timeout"
 
 class LoaderTimeout(TimeoutError):
     """Data loader execution timeout."""
 
-    error_type = 'loader_timeout'
-
+    error_type = "loader_timeout"
 
 # External API Errors (5xx)
 
@@ -158,31 +145,27 @@ class ExternalAPIError(BaseAPIException):
     """Generic external API error."""
 
     status_code = 502
-    error_type = 'external_api_error'
-    message = 'External API call failed'
-
+    error_type = "external_api_error"
+    message = "External API call failed"
 
 class HTTPError(ExternalAPIError):
     """HTTP error from external API."""
 
-    error_type = 'http_error'
-
+    error_type = "http_error"
 
 class RateLimitedError(ExternalAPIError):
     """Rate limit exceeded by external API."""
 
     status_code = 429
-    error_type = 'rate_limited'
-    message = 'Too many requests to external service'
-
+    error_type = "rate_limited"
+    message = "Too many requests to external service"
 
 class ServiceUnavailableError(ExternalAPIError):
     """External service unavailable (503, 502)."""
 
     status_code = 503
-    error_type = 'service_unavailable'
-    message = 'External service temporarily unavailable'
-
+    error_type = "service_unavailable"
+    message = "External service temporarily unavailable"
 
 # Data Errors (4xx/5xx)
 
@@ -190,29 +173,25 @@ class DataError(BaseAPIException):
     """Generic data-related error."""
 
     status_code = 422
-    error_type = 'data_error'
-
+    error_type = "data_error"
 
 class MissingDataError(DataError):
     """Required data is missing."""
 
-    error_type = 'no_data'
-    message = 'Required data is not available'
-
+    error_type = "no_data"
+    message = "Required data is not available"
 
 class StaleDataError(DataError):
     """Data is too old to be useful."""
 
-    error_type = 'stale_data'
-    message = 'Data is outdated'
-
+    error_type = "stale_data"
+    message = "Data is outdated"
 
 class IncompleteDataError(DataError):
     """Data is incomplete (insufficient coverage, missing fields)."""
 
-    error_type = 'incomplete_data'
-    message = 'Data is incomplete'
-
+    error_type = "incomplete_data"
+    message = "Data is incomplete"
 
 # Internal Errors (5xx)
 
@@ -220,18 +199,16 @@ class InternalError(BaseAPIException):
     """Generic internal/unexpected error."""
 
     status_code = 500
-    error_type = 'internal_error'
-    message = 'An internal error occurred'
-
+    error_type = "internal_error"
+    message = "An internal error occurred"
 
 class UnexpectedError(InternalError):
     """Unexpected/unclassified error."""
 
-    error_type = 'unexpected_error'
-
+    error_type = "unexpected_error"
 
 class ProcessingError(InternalError):
     """Error during data processing."""
 
-    error_type = 'processing_error'
-    message = 'Error during processing'
+    error_type = "processing_error"
+    message = "Error during processing"

@@ -16,7 +16,7 @@ import logging
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +27,17 @@ class TimeBlock:
     """Context manager for operation timing and alerting on slow operations."""
 
     SLOW_THRESHOLDS = {
-        "signal_computation": 0.5,      # 500ms
-        "filter_pipeline": 2.0,          # 2s
-        "position_sizing": 1.0,          # 1s
-        "order_execution": 3.0,          # 3s (includes API round-trip)
-        "data_loading": 5.0,             # 5s (loader timeout warning)
-        "default": 2.0,                  # 2s generic threshold
+        "signal_computation": 0.5,  # 500ms
+        "filter_pipeline": 2.0,  # 2s
+        "position_sizing": 1.0,  # 1s
+        "order_execution": 3.0,  # 3s (includes API round-trip)
+        "data_loading": 5.0,  # 5s (loader timeout warning)
+        "default": 2.0,  # 2s generic threshold
     }
 
-    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False):
+    def __init__(
+        self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False
+    ):
         """
         Initialize timing context.
 
@@ -61,7 +63,12 @@ class TimeBlock:
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
         # Determine if operation was slow
-        threshold_ms = self.SLOW_THRESHOLDS.get(self.operation_name, self.SLOW_THRESHOLDS["default"]) * 1000
+        threshold_ms = (
+            self.SLOW_THRESHOLDS.get(
+                self.operation_name, self.SLOW_THRESHOLDS["default"]
+            )
+            * 1000
+        )
         is_slow = self.duration_ms > threshold_ms
 
         # Log result
@@ -69,21 +76,25 @@ class TimeBlock:
         log_level = logging.WARNING if is_slow else self.log_level
         logger.log(
             log_level,
-            f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms"
+            f"[{status}] {self.operation_name:30s} | {self.duration_ms:7.1f}ms",
         )
 
         # Record metric
         if self.operation_name not in _metrics_buffer:
             _metrics_buffer[self.operation_name] = []
-        _metrics_buffer[self.operation_name].append({
-            "duration_ms": self.duration_ms,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "is_slow": is_slow,
-        })
+        _metrics_buffer[self.operation_name].append(
+            {
+                "duration_ms": self.duration_ms,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "is_slow": is_slow,
+            }
+        )
 
         # Raise if configured and slow
         if self.raise_on_slow and is_slow:
-            raise TimeoutError(f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms")
+            raise TimeoutError(
+                f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms"
+            )
 
         return False  # Don't suppress exceptions
 

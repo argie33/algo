@@ -17,21 +17,16 @@ VALIDATORS:
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any
 from datetime import date
 
 from utils.validation import (
     Validator,
     ValidationResult,
-    TypeValidator,
-    SchemaValidator,
-    EnumValidator,
-    ListValidator,
     PhaseValidator,
 )
 
 logger = logging.getLogger(__name__)
-
 
 class AlpacaOrderValidator(Validator):
     """Validates Alpaca order creation/status responses.
@@ -44,7 +39,9 @@ class AlpacaOrderValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [f"{context}: order response expected dict, got {type(data).__name__}"]
+            errors = [
+                f"{context}: order response expected dict, got {type(data).__name__}"
+            ]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -55,7 +52,9 @@ class AlpacaOrderValidator(Validator):
         if not order_id:
             all_errors.append(f"{context}: missing or empty order ID")
         elif not isinstance(order_id, str):
-            all_errors.append(f"{context}: order ID must be string, got {type(order_id).__name__}")
+            all_errors.append(
+                f"{context}: order ID must be string, got {type(order_id).__name__}"
+            )
         else:
             cleaned["id"] = order_id
 
@@ -74,7 +73,9 @@ class AlpacaOrderValidator(Validator):
         if not status:
             all_errors.append(f"{context}: missing status")
         elif status not in valid_statuses:
-            all_errors.append(f"{context}: invalid status {status!r} (valid: {valid_statuses})")
+            all_errors.append(
+                f"{context}: invalid status {status!r} (valid: {valid_statuses})"
+            )
         else:
             cleaned["status"] = status
 
@@ -84,20 +85,28 @@ class AlpacaOrderValidator(Validator):
             try:
                 price_float = float(filled_avg_price)
                 if price_float < 0:
-                    all_errors.append(f"{context}: filled_avg_price must be non-negative, got {price_float}")
+                    all_errors.append(
+                        f"{context}: filled_avg_price must be non-negative, got {price_float}"
+                    )
                 else:
                     cleaned["filled_avg_price"] = price_float
             except (ValueError, TypeError):
-                all_errors.append(f"{context}: filled_avg_price not numeric: {filled_avg_price!r}")
+                all_errors.append(
+                    f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
+                )
 
         # Validate bracket order legs if present
         order_class = data.get("order_class", "simple")
         legs = data.get("legs", [])
         if order_class == "bracket":
             if not isinstance(legs, list):
-                all_errors.append(f"{context}: legs must be list, got {type(legs).__name__}")
+                all_errors.append(
+                    f"{context}: legs must be list, got {type(legs).__name__}"
+                )
             elif len(legs) < 2:
-                all_errors.append(f"{context}: bracket order requires 2+ legs, got {len(legs)}")
+                all_errors.append(
+                    f"{context}: bracket order requires 2+ legs, got {len(legs)}"
+                )
             else:
                 cleaned["legs"] = legs
         else:
@@ -119,7 +128,6 @@ class AlpacaOrderValidator(Validator):
             validator_name=self.name,
         )
 
-
 class AlpacaOrderStatusValidator(Validator):
     """Validates Alpaca order status response (GET /v2/orders/{order_id})."""
 
@@ -128,7 +136,9 @@ class AlpacaOrderStatusValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [f"{context}: order status response expected dict, got {type(data).__name__}"]
+            errors = [
+                f"{context}: order status response expected dict, got {type(data).__name__}"
+            ]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -147,7 +157,9 @@ class AlpacaOrderStatusValidator(Validator):
             try:
                 val = int(filled_qty)
                 if val < 0:
-                    all_errors.append(f"{context}: filled_qty must be non-negative, got {val}")
+                    all_errors.append(
+                        f"{context}: filled_qty must be non-negative, got {val}"
+                    )
                 else:
                     cleaned["filled_qty"] = val
             except (ValueError, TypeError):
@@ -159,11 +171,15 @@ class AlpacaOrderStatusValidator(Validator):
             try:
                 val = float(filled_avg_price)
                 if val < 0:
-                    all_errors.append(f"{context}: filled_avg_price must be non-negative, got {val}")
+                    all_errors.append(
+                        f"{context}: filled_avg_price must be non-negative, got {val}"
+                    )
                 else:
                     cleaned["filled_avg_price"] = val
             except (ValueError, TypeError):
-                all_errors.append(f"{context}: filled_avg_price not numeric: {filled_avg_price!r}")
+                all_errors.append(
+                    f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
+                )
 
         # Validate qty
         qty = data.get("qty")
@@ -185,7 +201,6 @@ class AlpacaOrderStatusValidator(Validator):
             validator_name=self.name,
         )
 
-
 class AlpacaAccountValidator(Validator):
     """Validates Alpaca account response."""
 
@@ -194,7 +209,9 @@ class AlpacaAccountValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [f"{context}: account response expected dict, got {type(data).__name__}"]
+            errors = [
+                f"{context}: account response expected dict, got {type(data).__name__}"
+            ]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -213,7 +230,9 @@ class AlpacaAccountValidator(Validator):
             try:
                 cleaned["portfolio_value"] = float(portfolio_value)
             except (ValueError, TypeError):
-                all_errors.append(f"{context}: portfolio_value not numeric: {portfolio_value!r}")
+                all_errors.append(
+                    f"{context}: portfolio_value not numeric: {portfolio_value!r}"
+                )
 
         # Validate cash
         cash = data.get("cash")
@@ -236,7 +255,6 @@ class AlpacaAccountValidator(Validator):
             validator_name=self.name,
         )
 
-
 class AlpacaPositionValidator(Validator):
     """Validates Alpaca position response (GET /v2/positions/{symbol})."""
 
@@ -245,7 +263,9 @@ class AlpacaPositionValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [f"{context}: position response expected dict, got {type(data).__name__}"]
+            errors = [
+                f"{context}: position response expected dict, got {type(data).__name__}"
+            ]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -272,7 +292,9 @@ class AlpacaPositionValidator(Validator):
             try:
                 val = float(current_price)
                 if val < 0:
-                    all_errors.append(f"{context}: price must be non-negative, got {val}")
+                    all_errors.append(
+                        f"{context}: price must be non-negative, got {val}"
+                    )
                 else:
                     cleaned["current_price"] = val
             except (ValueError, TypeError):
@@ -286,7 +308,6 @@ class AlpacaPositionValidator(Validator):
             validator_name=self.name,
         )
 
-
 class DatabaseSchemaValidator(Validator):
     """Validates database table schema and data presence.
 
@@ -296,7 +317,12 @@ class DatabaseSchemaValidator(Validator):
     3. Table contains data (non-empty)
     """
 
-    def __init__(self, table_name: str, required_columns: Dict[str, str], severity: str = "critical"):
+    def __init__(
+        self,
+        table_name: str,
+        required_columns: Dict[str, str],
+        severity: str = "critical",
+    ):
         """Initialize with table name and required columns.
 
         Args:
@@ -326,7 +352,9 @@ class DatabaseSchemaValidator(Validator):
         if not isinstance(data, dict):
             return ValidationResult(
                 is_valid=False,
-                errors=["DatabaseSchemaValidator expects dict schema info, got cursor (deferred validation)"],
+                errors=[
+                    "DatabaseSchemaValidator expects dict schema info, got cursor (deferred validation)"
+                ],
                 context=context,
                 validator_name=self.name,
             )
@@ -336,7 +364,9 @@ class DatabaseSchemaValidator(Validator):
         row_count = data.get("row_count", 0)
 
         # Check required columns exist
-        missing_cols = [col for col in self.required_columns.keys() if col not in columns]
+        missing_cols = [
+            col for col in self.required_columns.keys() if col not in columns
+        ]
         if missing_cols:
             all_errors.append(f"{context}: {table_name} missing columns {missing_cols}")
 
@@ -351,7 +381,9 @@ class DatabaseSchemaValidator(Validator):
                     )
 
         if type_mismatches:
-            all_errors.append(f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}")
+            all_errors.append(
+                f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}"
+            )
 
         # Check data presence
         if self.severity in ("critical", "important"):
@@ -359,7 +391,11 @@ class DatabaseSchemaValidator(Validator):
                 all_errors.append(f"{context}: {table_name} is empty (no data)")
 
         if len(all_errors) == 0:
-            cleaned = {"table_name": table_name, "columns": columns, "row_count": row_count}
+            cleaned = {
+                "table_name": table_name,
+                "columns": columns,
+                "row_count": row_count,
+            }
 
         return ValidationResult(
             is_valid=len(all_errors) == 0,
@@ -372,13 +408,24 @@ class DatabaseSchemaValidator(Validator):
     def _type_family_matches(self, actual: str, expected: str) -> bool:
         """Check if actual type belongs to expected family."""
         if expected == "numeric":
-            return any(t in actual for t in ["int", "numeric", "decimal", "float", "real", "double", "bigint", "smallint"])
+            return any(
+                t in actual
+                for t in [
+                    "int",
+                    "numeric",
+                    "decimal",
+                    "float",
+                    "real",
+                    "double",
+                    "bigint",
+                    "smallint",
+                ]
+            )
         elif expected == "temporal":
             return any(t in actual for t in ["date", "timestamp", "time"])
         elif expected == "text":
             return any(t in actual for t in ["char", "text", "varchar"])
         return False
-
 
 class TableDataValidator(Validator):
     """Validates row data against type constraints (can convert types).
@@ -419,7 +466,9 @@ class TableDataValidator(Validator):
                     try:
                         cleaned[col_name] = float(value)
                     except (ValueError, TypeError):
-                        all_errors.append(f"{context}.{col_name}: cannot convert {value!r} to float")
+                        all_errors.append(
+                            f"{context}.{col_name}: cannot convert {value!r} to float"
+                        )
             elif col_type in ("int", "integer"):
                 if value is None:
                     cleaned[col_name] = None
@@ -427,7 +476,9 @@ class TableDataValidator(Validator):
                     try:
                         cleaned[col_name] = int(value)
                     except (ValueError, TypeError):
-                        all_errors.append(f"{context}.{col_name}: cannot convert {value!r} to int")
+                        all_errors.append(
+                            f"{context}.{col_name}: cannot convert {value!r} to int"
+                        )
             elif col_type in ("date", "temporal"):
                 if value is None:
                     cleaned[col_name] = None
@@ -436,9 +487,13 @@ class TableDataValidator(Validator):
                         if isinstance(value, (date, str)):
                             cleaned[col_name] = value
                         else:
-                            all_errors.append(f"{context}.{col_name}: invalid date type {type(value).__name__}")
+                            all_errors.append(
+                                f"{context}.{col_name}: invalid date type {type(value).__name__}"
+                            )
                     except Exception as e:
-                        all_errors.append(f"{context}.{col_name}: date conversion failed: {e}")
+                        all_errors.append(
+                            f"{context}.{col_name}: date conversion failed: {e}"
+                        )
             elif col_type in ("text", "string", "varchar"):
                 cleaned[col_name] = str(value) if value is not None else None
             else:
@@ -452,7 +507,6 @@ class TableDataValidator(Validator):
             context=context,
             validator_name=self.name,
         )
-
 
 class PhaseResultsValidator(Validator):
     """Validates list of phase results with consistent structure.
@@ -493,7 +547,6 @@ class PhaseResultsValidator(Validator):
             context=context,
             validator_name=self.name,
         )
-
 
 def create_default_registry():
     """Create a registry with common validators pre-registered.

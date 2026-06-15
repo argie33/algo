@@ -15,17 +15,16 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 class GradeClassifier:
     """Unified grade classification with configurable thresholds."""
 
     # Default thresholds (can be overridden via algo_config)
     DEFAULT_THRESHOLDS = {
-        'aplus': 85,
-        'a': 75,
-        'b': 65,
-        'c': 55,
-        'd': 45,
+        "aplus": 85,
+        "a": 75,
+        "b": 65,
+        "c": 55,
+        "d": 45,
     }
 
     @staticmethod
@@ -33,6 +32,7 @@ class GradeClassifier:
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
             from algo.infrastructure import get_config
+
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:
@@ -42,7 +42,7 @@ class GradeClassifier:
     @staticmethod
     def classify(
         score: float,
-        config_prefix: str = 'grade',
+        config_prefix: str = "grade",
         thresholds: Optional[dict] = None,
     ) -> str:
         """
@@ -62,39 +62,54 @@ class GradeClassifier:
             # Load from config using prefix
             prefix = f"{config_prefix}_" if config_prefix else ""
             thresholds = {
-                'aplus': GradeClassifier._load_config_val(f'{prefix}grade_threshold_aplus', GradeClassifier.DEFAULT_THRESHOLDS['aplus']),
-                'a': GradeClassifier._load_config_val(f'{prefix}grade_threshold_a', GradeClassifier.DEFAULT_THRESHOLDS['a']),
-                'b': GradeClassifier._load_config_val(f'{prefix}grade_threshold_b', GradeClassifier.DEFAULT_THRESHOLDS['b']),
-                'c': GradeClassifier._load_config_val(f'{prefix}grade_threshold_c', GradeClassifier.DEFAULT_THRESHOLDS['c']),
-                'd': GradeClassifier._load_config_val(f'{prefix}grade_threshold_d', GradeClassifier.DEFAULT_THRESHOLDS['d']),
+                "aplus": GradeClassifier._load_config_val(
+                    f"{prefix}grade_threshold_aplus",
+                    GradeClassifier.DEFAULT_THRESHOLDS["aplus"],
+                ),
+                "a": GradeClassifier._load_config_val(
+                    f"{prefix}grade_threshold_a",
+                    GradeClassifier.DEFAULT_THRESHOLDS["a"],
+                ),
+                "b": GradeClassifier._load_config_val(
+                    f"{prefix}grade_threshold_b",
+                    GradeClassifier.DEFAULT_THRESHOLDS["b"],
+                ),
+                "c": GradeClassifier._load_config_val(
+                    f"{prefix}grade_threshold_c",
+                    GradeClassifier.DEFAULT_THRESHOLDS["c"],
+                ),
+                "d": GradeClassifier._load_config_val(
+                    f"{prefix}grade_threshold_d",
+                    GradeClassifier.DEFAULT_THRESHOLDS["d"],
+                ),
             }
 
         score = float(score)
-        if score >= thresholds['aplus']:
-            return 'A+'
-        elif score >= thresholds['a']:
-            return 'A'
-        elif score >= thresholds['b']:
-            return 'B'
-        elif score >= thresholds['c']:
-            return 'C'
-        elif score >= thresholds['d']:
-            return 'D'
+        if score >= thresholds["aplus"]:
+            return "A+"
+        elif score >= thresholds["a"]:
+            return "A"
+        elif score >= thresholds["b"]:
+            return "B"
+        elif score >= thresholds["c"]:
+            return "C"
+        elif score >= thresholds["d"]:
+            return "D"
         else:
-            return 'F'
+            return "F"
 
     @staticmethod
     def classify_swing_score(score: float) -> str:
         """Classify swing trader score using swing_grade_threshold_* config keys."""
-        return GradeClassifier.classify(score, config_prefix='swing')
+        return GradeClassifier.classify(score, config_prefix="swing")
 
     @staticmethod
     def classify_ibd_composite(score: float) -> str:
         """Classify IBD composite score using advanced_filters_grade_threshold_* config keys."""
-        return GradeClassifier.classify(score, config_prefix='advanced_filters')
+        return GradeClassifier.classify(score, config_prefix="advanced_filters")
 
     @staticmethod
-    def get_thresholds(config_prefix: str = 'grade') -> dict:
+    def get_thresholds(config_prefix: str = "grade") -> dict:
         """
         Get current thresholds for a grading system.
 
@@ -106,9 +121,20 @@ class GradeClassifier:
         """
         prefix = f"{config_prefix}_" if config_prefix else ""
         return {
-            'aplus': GradeClassifier._load_config_val(f'{prefix}grade_threshold_aplus', GradeClassifier.DEFAULT_THRESHOLDS['aplus']),
-            'a': GradeClassifier._load_config_val(f'{prefix}grade_threshold_a', GradeClassifier.DEFAULT_THRESHOLDS['a']),
-            'b': GradeClassifier._load_config_val(f'{prefix}grade_threshold_b', GradeClassifier.DEFAULT_THRESHOLDS['b']),
-            'c': GradeClassifier._load_config_val(f'{prefix}grade_threshold_c', GradeClassifier.DEFAULT_THRESHOLDS['c']),
-            'd': GradeClassifier._load_config_val(f'{prefix}grade_threshold_d', GradeClassifier.DEFAULT_THRESHOLDS['d']),
+            "aplus": GradeClassifier._load_config_val(
+                f"{prefix}grade_threshold_aplus",
+                GradeClassifier.DEFAULT_THRESHOLDS["aplus"],
+            ),
+            "a": GradeClassifier._load_config_val(
+                f"{prefix}grade_threshold_a", GradeClassifier.DEFAULT_THRESHOLDS["a"]
+            ),
+            "b": GradeClassifier._load_config_val(
+                f"{prefix}grade_threshold_b", GradeClassifier.DEFAULT_THRESHOLDS["b"]
+            ),
+            "c": GradeClassifier._load_config_val(
+                f"{prefix}grade_threshold_c", GradeClassifier.DEFAULT_THRESHOLDS["c"]
+            ),
+            "d": GradeClassifier._load_config_val(
+                f"{prefix}grade_threshold_d", GradeClassifier.DEFAULT_THRESHOLDS["d"]
+            ),
         }

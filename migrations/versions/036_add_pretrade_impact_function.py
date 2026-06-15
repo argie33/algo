@@ -11,7 +11,7 @@ DESCRIPTION = "Add pre-trade impact calculation function"
 
 def up():
     """Create the pre-trade impact calculation function."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop existing function if it exists
         cur.execute("""
             DROP FUNCTION IF EXISTS calculate_pretrade_impact(varchar, numeric, numeric, numeric) CASCADE
@@ -137,7 +137,7 @@ def up():
 
 def down():
     """Remove the pre-trade impact calculation function."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             DROP FUNCTION IF EXISTS calculate_pretrade_impact(varchar, numeric, numeric, numeric) CASCADE
         """)
@@ -147,4 +147,3 @@ def down():
         cur.execute("""
             DROP INDEX IF EXISTS idx_company_profile_ticker_sector
         """)
-

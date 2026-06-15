@@ -5,7 +5,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,8 @@ class LiquidityChecks:
 
     def __init__(self, config: dict):
         self.config = config
-        self.min_adv_shares = config.get('min_adv_shares', 50_000)
-        self.min_adv_dollars = config.get('min_adv_dollars', 500_000)
+        self.min_adv_shares = config.get("min_adv_shares", 50_000)
+        self.min_adv_dollars = config.get("min_adv_dollars", 500_000)
 
     def run_all(self, symbol: str, entry_price: float, signal_date=None) -> tuple:
         if signal_date is None:
@@ -39,8 +39,13 @@ class LiquidityChecks:
             return True, "All liquidity checks passed"
 
         except Exception as e:
-            logger.warning(f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure")
-            return False, f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure"
+            logger.warning(
+                f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure"
+            )
+            return (
+                False,
+                f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure",
+            )
 
     def _check_adv(self, symbol: str, signal_date) -> tuple:
         """
@@ -50,7 +55,7 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT AVG(volume) as avg_vol
@@ -75,7 +80,10 @@ class LiquidityChecks:
 
                 avg_vol = float(row[0])
                 if avg_vol < self.min_adv_shares:
-                    return False, f"ADV {avg_vol:,.0f} < minimum {self.min_adv_shares:,.0f}"
+                    return (
+                        False,
+                        f"ADV {avg_vol:,.0f} < minimum {self.min_adv_shares:,.0f}",
+                    )
 
                 return True, f"ADV {avg_vol:,.0f} ok"
 
@@ -91,7 +99,7 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT AVG(volume * close) as avg_dollar_vol
@@ -144,8 +152,8 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            min_days = int(self.config.get('min_price_history_days', 200))
-            with DatabaseContext('read') as cur:
+            min_days = int(self.config.get("min_price_history_days", 200))
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT COUNT(*) as trading_days, MIN(date) as first_date

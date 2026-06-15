@@ -10,8 +10,7 @@ See utils/validation/__init__.py for the single source of truth.
 """
 
 import logging
-from typing import Optional, Any
-from datetime import date, datetime
+from typing import Optional
 
 # Re-export unified validation system for backward compatibility
 from utils.validation import (
@@ -30,20 +29,19 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'safe_float',
-    'safe_float_strict',
-    'safe_int',
-    'safe_int_strict',
-    'safe_parse_date',
-    'safe_parse_datetime_et',
-    'safe_json_loads',
-    'safe_str',
-    'safe_bool',
-    'EASTERN_TZ',
-    'log_data_fetch',
-    'log_loader_completion',
+    "safe_float",
+    "safe_float_strict",
+    "safe_int",
+    "safe_int_strict",
+    "safe_parse_date",
+    "safe_parse_datetime_et",
+    "safe_json_loads",
+    "safe_str",
+    "safe_bool",
+    "EASTERN_TZ",
+    "log_data_fetch",
+    "log_loader_completion",
 ]
-
 
 def log_data_fetch(
     source: str,
@@ -60,7 +58,6 @@ def log_data_fetch(
         logger.warning(f"[{source}] Returned 0 rows{time_str}")
     else:
         logger.info(f"[{source}] Fetched {count} rows{time_str}")
-
 
 def log_loader_completion(
     table_name: str,

@@ -46,7 +46,6 @@ Output:
 Persists daily to market_exposure_daily table for dashboard / audit.
 """
 
-import os
 import json
 import logging
 from utils.db import DatabaseContext
@@ -58,12 +57,12 @@ class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
     # Factor weights (sum = 100)
-    W_FTD = 10                      # Follow-through day: uptrend confirmation
+    W_FTD = 10  # Follow-through day: uptrend confirmation
     W_TREND_30WK = 15
     W_BREADTH_50 = 14
     W_BREADTH_200 = 10
     W_MCCLELLAN = 9
-    W_DISTRIBUTION_DAYS = 8         # New: Distribution days (market pressure gauge)
+    W_DISTRIBUTION_DAYS = 8  # New: Distribution days (market pressure gauge)
     W_VIX = 8
     W_NEW_HIGHS_LOWS = 7
     W_CREDIT_SPREAD = 7
@@ -77,7 +76,7 @@ class MarketExposure:
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
             logger.debug(f"Database operation failed: {e}")
@@ -89,32 +88,48 @@ class MarketExposure:
             eval_date = _date.today()
 
         def fetch_cached(cur):
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors
                 FROM market_exposure_daily
                 WHERE date = %s
                 LIMIT 1
-            """, (eval_date,))
+            """,
+                (eval_date,),
+            )
             row = cur.fetchone()
             if row is None:
                 return None
 
-            raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_obj = row
+            (
+                raw_score,
+                exposure_pct,
+                regime,
+                halt_reasons_str,
+                dist_days,
+                factors_obj,
+            ) = row
             halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
-            factors = factors_obj if isinstance(factors_obj, dict) else (json.loads(factors_obj) if factors_obj else {})
+            factors = (
+                factors_obj
+                if isinstance(factors_obj, dict)
+                else (json.loads(factors_obj) if factors_obj else {})
+            )
 
             result = {
-                'eval_date': str(eval_date),
-                'raw_score': raw_score,
-                'capped_score': exposure_pct,
-                'exposure_pct': exposure_pct,
-                'regime': regime,
-                'halt_reasons': halt_reasons,
-                'distribution_days': dist_days or 0,
-                'factors': factors,
-                '_cached': True,
+                "eval_date": str(eval_date),
+                "raw_score": raw_score,
+                "capped_score": exposure_pct,
+                "exposure_pct": exposure_pct,
+                "regime": regime,
+                "halt_reasons": halt_reasons,
+                "distribution_days": dist_days or 0,
+                "factors": factors,
+                "_cached": True,
             }
-            logger.info(f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
+            logger.info(
+                f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})"
+            )
             return result
 
         try:
@@ -139,8 +154,10 @@ class MarketExposure:
             if cached:
                 return cached
 
-        logger.info(f"Computing market exposure for {eval_date} (12 sequential queries)")
-        with DatabaseContext('read') as cur:
+        logger.info(
+            f"Computing market exposure for {eval_date} (12 sequential queries)"
+        )
+        with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
             # technical_data_daily (fast indexed lookup). 45s × 12 = 540s max, fits in Lambda
             # 600s budget. Raised from 30s because some queries exceed 30s on t4g.micro even
@@ -151,89 +168,131 @@ class MarketExposure:
 
             # --- 1. Follow-through day (IBD uptrend confirmation) ---
             ftd = self._follow_through_day_factor(eval_date, cur)
-            ftd_pts = self.W_FTD * ftd['score_factor']
-            factors['follow_through_day'] = {
+            ftd_pts = self.W_FTD * ftd["score_factor"]
+            factors["follow_through_day"] = {
                 **ftd,
-                'pts': round(ftd_pts, 1),
-                'max': self.W_FTD,
+                "pts": round(ftd_pts, 1),
+                "max": self.W_FTD,
             }
             score += ftd_pts
             logger.debug(f"  Follow-through day: {ftd_pts:.1f} pts")
 
             # --- 2. Trend 30-week MA (SPY vs SMA_150 + slope) ---
             t30 = self._trend_30wk(eval_date, cur)
-            t30_pts = self.W_TREND_30WK * t30['score_factor']
-            factors['trend_30wk'] = {**t30, 'pts': round(t30_pts, 1), 'max': self.W_TREND_30WK}
+            t30_pts = self.W_TREND_30WK * t30["score_factor"]
+            factors["trend_30wk"] = {
+                **t30,
+                "pts": round(t30_pts, 1),
+                "max": self.W_TREND_30WK,
+            }
             score += t30_pts
             logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
 
             # --- 3. Breadth: % stocks above 50-DMA ---
             b50 = self._pct_above_ma(eval_date, ma_days=50, cur=cur)
-            b50_pts = self.W_BREADTH_50 * b50['score_factor']
-            factors['breadth_50dma'] = {**b50, 'pts': round(b50_pts, 1), 'max': self.W_BREADTH_50}
+            b50_pts = self.W_BREADTH_50 * b50["score_factor"]
+            factors["breadth_50dma"] = {
+                **b50,
+                "pts": round(b50_pts, 1),
+                "max": self.W_BREADTH_50,
+            }
             score += b50_pts
-            logger.debug(f"  Breadth 50-DMA: {(b50.get('value') or 0):.1f}%, {b50_pts:.1f} pts")
+            logger.debug(
+                f"  Breadth 50-DMA: {(b50.get('value') or 0):.1f}%, {b50_pts:.1f} pts"
+            )
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self._pct_above_ma(eval_date, ma_days=200, cur=cur)
-            b200_pts = self.W_BREADTH_200 * b200['score_factor']
-            factors['breadth_200dma'] = {**b200, 'pts': round(b200_pts, 1), 'max': self.W_BREADTH_200}
+            b200_pts = self.W_BREADTH_200 * b200["score_factor"]
+            factors["breadth_200dma"] = {
+                **b200,
+                "pts": round(b200_pts, 1),
+                "max": self.W_BREADTH_200,
+            }
             score += b200_pts
-            logger.debug(f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts")
+            logger.debug(
+                f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts"
+            )
 
             # --- 5. McClellan oscillator ---
             mc = self._mcclellan(eval_date, cur)
-            mc_pts = self.W_MCCLELLAN * mc['score_factor']
-            factors['mcclellan'] = {**mc, 'pts': round(mc_pts, 1), 'max': self.W_MCCLELLAN}
+            mc_pts = self.W_MCCLELLAN * mc["score_factor"]
+            factors["mcclellan"] = {
+                **mc,
+                "pts": round(mc_pts, 1),
+                "max": self.W_MCCLELLAN,
+            }
             score += mc_pts
             logger.debug(f"  McClellan: {mc_pts:.1f} pts")
 
             # --- 6. Distribution days (IBD market pressure gauge) ---
             dd = self._distribution_days_factor(eval_date, cur)
-            dd_pts = self.W_DISTRIBUTION_DAYS * dd['score_factor']
-            factors['distribution_days'] = {**dd, 'pts': round(dd_pts, 1), 'max': self.W_DISTRIBUTION_DAYS}
+            dd_pts = self.W_DISTRIBUTION_DAYS * dd["score_factor"]
+            factors["distribution_days"] = {
+                **dd,
+                "pts": round(dd_pts, 1),
+                "max": self.W_DISTRIBUTION_DAYS,
+            }
             score += dd_pts
-            logger.debug(f"  Distribution days: {dd.get('count', 0)} days, {dd_pts:.1f} pts")
+            logger.debug(
+                f"  Distribution days: {dd.get('count', 0)} days, {dd_pts:.1f} pts"
+            )
 
             # --- 7. VIX regime ---
             vix = self._vix_regime(eval_date, cur)
-            vix_pts = self.W_VIX * vix['score_factor']
-            factors['vix_regime'] = {**vix, 'pts': round(vix_pts, 1), 'max': self.W_VIX}
+            vix_pts = self.W_VIX * vix["score_factor"]
+            factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
             logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
             nhnl = self._new_highs_lows(eval_date, cur)
-            nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl['score_factor']
-            factors['new_highs_lows'] = {**nhnl, 'pts': round(nhnl_pts, 1), 'max': self.W_NEW_HIGHS_LOWS}
+            nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl["score_factor"]
+            factors["new_highs_lows"] = {
+                **nhnl,
+                "pts": round(nhnl_pts, 1),
+                "max": self.W_NEW_HIGHS_LOWS,
+            }
             score += nhnl_pts
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
             ad = self._ad_line(eval_date, cur)
-            ad_pts = self.W_AD_LINE * ad['score_factor']
-            factors['ad_line'] = {**ad, 'pts': round(ad_pts, 1), 'max': self.W_AD_LINE}
+            ad_pts = self.W_AD_LINE * ad["score_factor"]
+            factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date, cur)
-            cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
-            factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
+            cs_pts = self.W_CREDIT_SPREAD * cs["score_factor"]
+            factors["credit_spread"] = {
+                **cs,
+                "pts": round(cs_pts, 1),
+                "max": self.W_CREDIT_SPREAD,
+            }
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 11. AAII sentiment (contrarian at extremes) ---
             aaii = self._aaii(eval_date, cur)
-            aaii_pts = self.W_AAII * aaii['score_factor']
-            factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
+            aaii_pts = self.W_AAII * aaii["score_factor"]
+            factors["aaii_sentiment"] = {
+                **aaii,
+                "pts": round(aaii_pts, 1),
+                "max": self.W_AAII,
+            }
             score += aaii_pts
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
             # --- 12. NAAIM professional manager exposure (contrarian at extremes) ---
             naaim = self._naaim(eval_date, cur)
-            naaim_pts = self.W_NAAIM * naaim['score_factor']
-            factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
+            naaim_pts = self.W_NAAIM * naaim["score_factor"]
+            factors["naaim"] = {
+                **naaim,
+                "pts": round(naaim_pts, 1),
+                "max": self.W_NAAIM,
+            }
             score += naaim_pts
             logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
 
@@ -241,40 +300,41 @@ class MarketExposure:
 
             try:
                 from algo.signals import SectorRotationDetector
+
                 detector = SectorRotationDetector()
                 # Use detector's own connection (don't share) to avoid transaction abort propagation
                 rotation = detector.compute(eval_date)
                 if rotation:
-                    rot_penalty = rotation.get('reduce_exposure_pts', 0)
+                    rot_penalty = rotation.get("reduce_exposure_pts", 0)
                     if rot_penalty > 0:
                         score = max(0.0, score - rot_penalty)
-                        factors['sector_rotation'] = {
-                            'signal': rotation['signal'],
-                            'defensive_lead_score': rotation['defensive_lead_score'],
-                            'penalty_applied': rot_penalty,
-                            'pts': -rot_penalty,
-                            'max': 0,
+                        factors["sector_rotation"] = {
+                            "signal": rotation["signal"],
+                            "defensive_lead_score": rotation["defensive_lead_score"],
+                            "penalty_applied": rot_penalty,
+                            "pts": -rot_penalty,
+                            "max": 0,
                         }
                     else:
-                        factors['sector_rotation'] = {
-                            'signal': rotation['signal'],
-                            'defensive_lead_score': rotation['defensive_lead_score'],
-                            'penalty_applied': 0,
-                            'pts': 0,
-                            'max': 0,
+                        factors["sector_rotation"] = {
+                            "signal": rotation["signal"],
+                            "defensive_lead_score": rotation["defensive_lead_score"],
+                            "penalty_applied": 0,
+                            "pts": 0,
+                            "max": 0,
                         }
             except Exception as e:
-                factors['sector_rotation'] = {'error': str(e)[:60]}
+                factors["sector_rotation"] = {"error": str(e)[:60]}
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
-                eco_penalty = eco.get('penalty', 0)
-                eco_cap = eco.get('cap', 100.0)
+                eco_penalty = eco.get("penalty", 0)
+                eco_cap = eco.get("cap", 100.0)
                 if eco_penalty != 0 or eco_cap < 100.0:
                     score = max(0.0, min(100.0, score - eco_penalty))
-                factors['economic_overlay'] = {**eco, 'pts': -eco_penalty, 'max': 0}
+                factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
             except Exception as e:
-                factors['economic_overlay'] = {'error': str(e)[:60], 'pts': 0, 'max': 0}
+                factors["economic_overlay"] = {"error": str(e)[:60], "pts": 0, "max": 0}
                 eco_cap = 100.0
 
             # --- HARD VETOES ---
@@ -282,33 +342,37 @@ class MarketExposure:
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            if (t30.get('price_below_ma') and b50.get('value', 100) < 30):
-                halt_reasons.append('SPY < 30wk MA AND <30% above 50-DMA')
+            if t30.get("price_below_ma") and b50.get("value", 100) < 30:
+                halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                 cap = min(cap, 25.0)
             # Veto 2: VIX > 40 rising (H11 FIX: only if VIX data available, not converting None to 0)
-            vix_value = vix.get('value')
-            if vix_value is not None and vix_value > 40 and vix.get('rising'):
-                halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
+            vix_value = vix.get("value")
+            if vix_value is not None and vix_value > 40 and vix.get("rising"):
+                halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
                 cap = min(cap, 30.0)
             # Veto 3: 6+ distribution days (reinforces DD factor)
-            dd_count = dd.get('count', 0)
+            dd_count = dd.get("count", 0)
             if dd_count >= 6:
-                halt_reasons.append(f'{dd_count} distribution days >= 6')
+                halt_reasons.append(f"{dd_count} distribution days >= 6")
                 cap = min(cap, 35.0)
             # Veto 4: no follow-through day — only applies when SPY is actually below its
             # 30-week MA (i.e., we're in a correction that needs confirming). In smooth
             # uptrends SPY never drops enough to need an FTD, so requiring one would
             # permanently cap exposure at 40% during the best trading environments.
-            if not ftd.get('has_ftd') and t30.get('price_below_ma'):
-                halt_reasons.append('No follow-through day while SPY below 30-week MA')
+            if not ftd.get("has_ftd") and t30.get("price_below_ma"):
+                halt_reasons.append("No follow-through day while SPY below 30-week MA")
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
-            if cs.get('value') and cs['value'] > 8.5:
-                halt_reasons.append(f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)')
+            if cs.get("value") and cs["value"] > 8.5:
+                halt_reasons.append(
+                    f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)'
+                )
                 cap = min(cap, 30.0)
 
             if halt_reasons:
-                logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
+                logger.warning(
+                    f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%"
+                )
             if cap < 100.0:
                 logger.info(f"  Score capped from {score:.1f}% to {cap}%")
 
@@ -316,25 +380,25 @@ class MarketExposure:
 
             # Determine recommended state based on final exposure score
             if final >= 70:
-                regime = 'confirmed_uptrend'
+                regime = "confirmed_uptrend"
             elif final >= 45:
-                regime = 'uptrend_under_pressure'
+                regime = "uptrend_under_pressure"
             elif final >= 25:
-                regime = 'caution'
+                regime = "caution"
             else:
-                regime = 'correction'
+                regime = "correction"
 
             logger.info(f"  Final score: {final}% ({regime})")
 
             result = {
-                'eval_date': str(eval_date),
-                'raw_score': round(score, 1),
-                'capped_score': round(final, 1),
-                'exposure_pct': round(final, 1),
-                'regime': regime,
-                'halt_reasons': halt_reasons,
-                'distribution_days': dd_count,
-                'factors': factors,
+                "eval_date": str(eval_date),
+                "raw_score": round(score, 1),
+                "capped_score": round(final, 1),
+                "exposure_pct": round(final, 1),
+                "regime": regime,
+                "halt_reasons": halt_reasons,
+                "distribution_days": dd_count,
+                "factors": factors,
             }
             self._persist(eval_date, result)
             return result
@@ -350,9 +414,9 @@ class MarketExposure:
         ftd = self._has_follow_through_day(eval_date, cur)
         sf = 1.0 if ftd else 0.2
         return {
-            'score_factor': sf,
-            'has_ftd': ftd,
-            'description': 'FTD present' if ftd else 'No FTD in last 30 days',
+            "score_factor": sf,
+            "has_ftd": ftd,
+            "description": "FTD present" if ftd else "No FTD in last 30 days",
         }
 
     def _distribution_days_factor(self, eval_date, cur):
@@ -377,9 +441,13 @@ class MarketExposure:
             sf = 0.2
 
         return {
-            'score_factor': sf,
-            'count': dd_count,
-            'regime': 'strong' if dd_count <= 2 else ('caution' if dd_count <= 4 else 'pressure'),
+            "score_factor": sf,
+            "count": dd_count,
+            "regime": (
+                "strong"
+                if dd_count <= 2
+                else ("caution" if dd_count <= 4 else "pressure")
+            ),
         }
 
     def _distribution_days(self, eval_date, cur):
@@ -452,11 +520,19 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if not rows or rows[0][2] is None:
-            return {'score_factor': 0.1, 'value': None, 'reason': 'Insufficient history'}
+            return {
+                "score_factor": 0.1,
+                "value": None,
+                "reason": "Insufficient history",
+            }
 
         cur_close = float(rows[0][1])
         sma_now = float(rows[0][2])
-        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_now
+        sma_30d_ago = (
+            float(rows[30][2])
+            if len(rows) > 30 and rows[30][2] is not None
+            else sma_now
+        )
 
         slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0 if sma_30d_ago > 0 else 0
         price_pct = (cur_close - sma_now) / sma_now * 100.0 if sma_now > 0 else 0
@@ -474,12 +550,12 @@ class MarketExposure:
             sf = 0.3
 
         return {
-            'score_factor': sf,
-            'price': round(cur_close, 2),
-            'sma_150': round(sma_now, 2),
-            'slope_pct': round(slope, 2),
-            'price_vs_ma_pct': round(price_pct, 2),
-            'price_below_ma': cur_close < sma_now,
+            "score_factor": sf,
+            "price": round(cur_close, 2),
+            "sma_150": round(sma_now, 2),
+            "slope_pct": round(slope, 2),
+            "price_vs_ma_pct": round(price_pct, 2),
+            "price_below_ma": cur_close < sma_now,
         }
 
     def _pct_above_ma(self, eval_date, ma_days, cur):
@@ -490,9 +566,9 @@ class MarketExposure:
         joining technical_data_daily × price_daily (DISTINCT ON across 35k rows
         each, too slow on t4g.micro).
         """
-        bool_col = 'price_above_sma50' if ma_days == 50 else 'price_above_sma200'
+        bool_col = "price_above_sma50" if ma_days == 50 else "price_above_sma200"
         cur.execute(
-            f"""
+            """
             SELECT
                 COUNT(*) FILTER (WHERE {bool_col} = TRUE)  AS above,
                 COUNT(*) FILTER (WHERE {bool_col} IS NOT NULL) AS total
@@ -507,7 +583,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or not row[1]:
-            return {'score_factor': 0.5, 'value': None}
+            return {"score_factor": 0.5, "value": None}
         above, total = int(row[0]), int(row[1])
         pct = above / total * 100.0 if total > 0 else 0
         # Linear: 20% -> 0pts, 80% -> 1.0
@@ -515,7 +591,12 @@ class MarketExposure:
             sf = max(0.0, min(1.0, (pct - 20) / 60))
         else:  # 200
             sf = max(0.0, min(1.0, (pct - 30) / 50))
-        return {'score_factor': sf, 'value': round(pct, 1), 'above': above, 'total': total}
+        return {
+            "score_factor": sf,
+            "value": round(pct, 1),
+            "above": above,
+            "total": total,
+        }
 
     def _vix_regime(self, eval_date, cur):
         """VIX value -> regime score factor."""
@@ -537,7 +618,7 @@ class MarketExposure:
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
                 # M2 FIX: Fail-closed on missing data (0.1 instead of 0.7)
-                return {'score_factor': 0.1, 'value': None}
+                return {"score_factor": 0.1, "value": None}
             vix = float(r2[0])
             return self._vix_score(vix, rising=False)
         vix = float(row[0])
@@ -560,7 +641,7 @@ class MarketExposure:
             sf = 0.10
         if rising and vix > 20:
             sf *= 0.7
-        return {'score_factor': sf, 'value': round(vix, 2), 'rising': rising}
+        return {"score_factor": sf, "value": round(vix, 2), "rising": rising}
 
     def _mcclellan(self, eval_date, cur):
         """McClellan Oscillator: 19-EMA(adv-dec) - 39-EMA(adv-dec).
@@ -583,12 +664,12 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 39:
-            return {'score_factor': 0.5, 'value': None}
+            return {"score_factor": 0.5, "value": None}
         # Convert A/D ratio to net advance percentage × 1000 for McClellan scale
         # advance_decline_ratio = advances/declines, so net% = (ratio-1)/(ratio+1)
         ratios = []
-        for row in sorted(rows, key=lambda r: r['date']):  # ascending for EMA
-            ratio = float(row.get('adv_dec_ratio') or 1.0)
+        for row in sorted(rows, key=lambda r: r["date"]):  # ascending for EMA
+            ratio = float(row.get("adv_dec_ratio") or 1.0)
             # net_pct: +1 = all advancing, -1 = all declining
             net_pct = (ratio - 1) / (ratio + 1) if ratio > 0 else 0
             ratios.append(net_pct * 1000)  # scale to match original McClellan
@@ -613,7 +694,7 @@ class MarketExposure:
             sf = max(0.2, 0.4 + oscillator / 200)  # approaches 0.2 by -100
         else:  # > 100
             sf = 0.5
-        return {'score_factor': sf, 'value': round(oscillator, 1)}
+        return {"score_factor": sf, "value": round(oscillator, 1)}
 
     def _new_highs_lows(self, eval_date, cur):
         """52-week new highs vs new lows ratio.
@@ -633,17 +714,17 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if row is None:
-            return {'score_factor': 0.5, 'value': None}
-        new_hi = int(row['new_highs_count'] or 0)
-        new_lo = int(row['new_lows_count'] or 0)
+            return {"score_factor": 0.5, "value": None}
+        new_hi = int(row["new_highs_count"] or 0)
+        new_lo = int(row["new_lows_count"] or 0)
         net = new_hi - new_lo
         # Net +50 -> 1.0, 0 -> 0.5, -50 -> 0
         sf = max(0.0, min(1.0, 0.5 + net / 100.0))
         return {
-            'score_factor': sf,
-            'new_highs': new_hi,
-            'new_lows': new_lo,
-            'net': net,
+            "score_factor": sf,
+            "new_highs": new_hi,
+            "new_lows": new_lo,
+            "net": net,
         }
 
     def _ad_line(self, eval_date, cur):
@@ -675,49 +756,59 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 5:
-            return {'score_factor': 0.5, 'value': None}
+            return {"score_factor": 0.5, "value": None}
 
         # Check if SPY data is fresh (no older than 1 trading day)
         # H8 FIX: Enforce market data freshness before using it
         if rows and rows[-1]:
-            latest_date = rows[-1].get('date')
+            latest_date = rows[-1].get("date")
             if latest_date:
                 from algo.infrastructure import MarketCalendar
                 from datetime import timedelta
+
                 expected_date = eval_date - timedelta(days=1)
                 while expected_date > eval_date - timedelta(days=10):
                     if MarketCalendar.is_trading_day(expected_date):
                         break
                     expected_date -= timedelta(days=1)
                 if latest_date < expected_date:
-                    logger.warning(f"SPY data stale: latest {latest_date} vs expected {expected_date}, returning neutral A/D score")
-                    return {'score_factor': 0.5, 'value': None, 'stale': True}
+                    logger.warning(
+                        f"SPY data stale: latest {latest_date} vs expected {expected_date}, returning neutral A/D score"
+                    )
+                    return {"score_factor": 0.5, "value": None, "stale": True}
 
         # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
-        nets = [(float(r.get('ratio') or 1) - 1) / (float(r.get('ratio') or 1) + 1) for r in rows]
+        nets = [
+            (float(r.get("ratio") or 1) - 1) / (float(r.get("ratio") or 1) + 1)
+            for r in rows
+        ]
         first_net = nets[0]
         last_net = nets[-1]
         ad_change = last_net - first_net
-        first_spy_val = rows[0].get('spy_close')
+        first_spy_val = rows[0].get("spy_close")
         first_spy = float(first_spy_val) if first_spy_val is not None else 0.0
-        last_spy_val = rows[-1].get('spy_close')
+        last_spy_val = rows[-1].get("spy_close")
         last_spy = float(last_spy_val) if last_spy_val is not None else 0.0
-        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
+        spy_change_pct = (
+            (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
+        )
         # Confirmation: both same direction. Divergence: opposite.
-        if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
+        if (ad_change > 0 and spy_change_pct > 0) or (
+            ad_change < 0 and spy_change_pct < 0
+        ):
             sf = 1.0
-            relation = 'confirming'
+            relation = "confirming"
         elif ad_change > 0 and spy_change_pct < 0:
             sf = 0.6  # hidden bullish
-            relation = 'bullish_divergence'
+            relation = "bullish_divergence"
         else:
             sf = 0.3  # bearish divergence
-            relation = 'bearish_divergence'
+            relation = "bearish_divergence"
         return {
-            'score_factor': sf,
-            'ad_change_20d': round(ad_change, 4),
-            'spy_change_pct_20d': round(spy_change_pct, 2),
-            'relation': relation,
+            "score_factor": sf,
+            "ad_change_20d": round(ad_change, 4),
+            "spy_change_pct_20d": round(spy_change_pct, 2),
+            "relation": relation,
         }
 
     def _aaii(self, eval_date, cur):
@@ -739,7 +830,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {'score_factor': 0.5, 'value': None, 'reason': 'No AAII data'}
+            return {"score_factor": 0.5, "value": None, "reason": "No AAII data"}
 
         bullish = float(row[0])
         bearish = float(row[1]) if row[1] is not None else 0.0
@@ -759,11 +850,11 @@ class MarketExposure:
             sf = 0.10
 
         return {
-            'score_factor': sf,
-            'value': round(spread, 1),
-            'bull_bear_spread': round(spread, 1),
-            'bullish_pct': round(bullish, 1),
-            'bearish_pct': round(bearish, 1),
+            "score_factor": sf,
+            "value": round(spread, 1),
+            "bull_bear_spread": round(spread, 1),
+            "bullish_pct": round(bullish, 1),
+            "bearish_pct": round(bearish, 1),
         }
 
     def _naaim(self, eval_date, cur):
@@ -784,7 +875,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {'score_factor': 0.5, 'value': None, 'reason': 'No NAAIM data'}
+            return {"score_factor": 0.5, "value": None, "reason": "No NAAIM data"}
 
         exposure = float(row[0])
         clamped = max(0.0, min(100.0, exposure))
@@ -803,8 +894,8 @@ class MarketExposure:
             sf = 0.15
 
         return {
-            'score_factor': sf,
-            'value': round(exposure, 1),
+            "score_factor": sf,
+            "value": round(exposure, 1),
         }
 
     def _credit_spread(self, eval_date, cur):
@@ -827,7 +918,7 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if not rows:
-            return {'score_factor': 0.7, 'value': None, 'reason': 'No HY spread data'}
+            return {"score_factor": 0.7, "value": None, "reason": "No HY spread data"}
 
         hy = float(rows[0][0])
         # Trend: compare latest vs 20 days ago
@@ -850,10 +941,10 @@ class MarketExposure:
             sf *= 0.80
 
         return {
-            'score_factor': round(sf, 3),
-            'value': round(hy, 3),
-            'hy_20d_ago': round(hy_20d_ago, 3),
-            'widening_rapidly': widening_1pp,
+            "score_factor": round(sf, 3),
+            "value": round(hy, 3),
+            "hy_20d_ago": round(hy_20d_ago, 3),
+            "widening_rapidly": widening_1pp,
         }
 
     def _economic_regime_overlay(self, eval_date, cur):
@@ -884,13 +975,15 @@ class MarketExposure:
             weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
             if latest_spread < -0.5 and weeks_inverted >= 8:
                 stress += 35.0
-                signals.append(f'Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks')
+                signals.append(
+                    f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks"
+                )
             elif latest_spread < 0:
                 stress += 20.0
-                signals.append(f'Curve inverted {latest_spread:.2f}%')
+                signals.append(f"Curve inverted {latest_spread:.2f}%")
             elif latest_spread < 0.2:
                 stress += 8.0
-                signals.append(f'Curve flat {latest_spread:.2f}%')
+                signals.append(f"Curve flat {latest_spread:.2f}%")
 
         # Signal 2: HY credit spread trend — is credit stress building?
         cur.execute(
@@ -908,13 +1001,13 @@ class MarketExposure:
             hy_widening_60d = hy_now - hy_60d
             if hy_now > 6.5:
                 stress += 35.0
-                signals.append(f'HY spread {hy_now:.2f}% (severe stress)')
+                signals.append(f"HY spread {hy_now:.2f}% (severe stress)")
             elif hy_now > 5.0:
                 stress += 20.0
-                signals.append(f'HY spread {hy_now:.2f}% (elevated)')
+                signals.append(f"HY spread {hy_now:.2f}% (elevated)")
             elif hy_widening_60d > 1.5:
                 stress += 15.0
-                signals.append(f'HY spread widening +{hy_widening_60d:.2f}pp in 60d')
+                signals.append(f"HY spread widening +{hy_widening_60d:.2f}pp in 60d")
 
         # Signal 3: Jobless claims trend — rising claims precede recessions
         cur.execute(
@@ -929,13 +1022,15 @@ class MarketExposure:
         if len(claims_rows) >= 26:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
-            chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
+            chg_pct = (
+                (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
+            )
             if chg_pct > 30:
                 stress += 30.0
-                signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (severe)')
+                signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (severe)")
             elif chg_pct > 20:
                 stress += 15.0
-                signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (elevated)')
+                signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (elevated)")
 
         # Signal 4: St. Louis Financial Stress Index — 18-variable financial market composite
         cur.execute(
@@ -951,10 +1046,10 @@ class MarketExposure:
             stlfsi = float(stlfsi_rows[0][0])
             if stlfsi > 1.5:
                 stress += 25.0
-                signals.append(f'Financial stress index {stlfsi:.2f}σ (severe stress)')
+                signals.append(f"Financial stress index {stlfsi:.2f}σ (severe stress)")
             elif stlfsi > 0.8:
                 stress += 12.0
-                signals.append(f'Financial stress index {stlfsi:.2f}σ (elevated)')
+                signals.append(f"Financial stress index {stlfsi:.2f}σ (elevated)")
 
         # Signal 5: Chicago Fed National Activity Index — 85-indicator broad economic composite
         cur.execute(
@@ -967,13 +1062,17 @@ class MarketExposure:
         )
         cfnai_rows = cur.fetchall()
         if cfnai_rows:
-            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
+            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(
+                3, len(cfnai_rows)
+            )
             if cfnai_avg < -0.7:
                 stress += 20.0
-                signals.append(f'CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)')
+                signals.append(
+                    f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)"
+                )
             elif cfnai_avg < -0.35:
                 stress += 10.0
-                signals.append(f'CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)')
+                signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)")
 
         stress = min(100.0, stress)
 
@@ -993,30 +1092,30 @@ class MarketExposure:
             cap = 100.0
 
         return {
-            'macro_stress_score': round(stress, 1),
-            'penalty': round(penalty, 1),
-            'cap': cap,
-            'signals': signals,
+            "macro_stress_score": round(stress, 1),
+            "penalty": round(penalty, 1),
+            "cap": cap,
+            "signals": signals,
         }
 
     def _persist(self, eval_date, result):
         try:
             # Determine tier from regime
-            regime = result.get('regime', 'caution')
-            if regime == 'confirmed_uptrend':
-                tier = 'tier_1_strong_uptrend'
-            elif regime == 'uptrend_under_pressure':
-                tier = 'tier_2_pressure'
-            elif regime == 'caution':
-                tier = 'tier_3_caution'
+            regime = result.get("regime", "caution")
+            if regime == "confirmed_uptrend":
+                tier = "tier_1_strong_uptrend"
+            elif regime == "uptrend_under_pressure":
+                tier = "tier_2_pressure"
+            elif regime == "caution":
+                tier = "tier_3_caution"
             else:
-                tier = 'tier_4_correction'
+                tier = "tier_4_correction"
 
             # Can enter if no halt reasons
-            is_entry_allowed = len(result.get('halt_reasons', [])) == 0
+            is_entry_allowed = len(result.get("halt_reasons", [])) == 0
 
             # Map exposure score to long/short allocations
-            exposure_pct = result['exposure_pct']
+            exposure_pct = result["exposure_pct"]
             if exposure_pct >= 0:
                 long_exp = exposure_pct
                 short_exp = 0
@@ -1024,9 +1123,9 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            factors_json = json.dumps(result.get('factors', {}))
-            halt_reasons_json = json.dumps(result.get('halt_reasons', []))
-            with DatabaseContext('write') as cur:
+            factors_json = json.dumps(result.get("factors", {}))
+            halt_reasons_json = json.dumps(result.get("halt_reasons", []))
+            with DatabaseContext("write") as cur:
                 cur.execute(
                     """
                     INSERT INTO market_exposure_daily
@@ -1048,9 +1147,9 @@ class MarketExposure:
                     (
                         eval_date,
                         exposure_pct,
-                        result.get('raw_score', exposure_pct),
-                        result.get('regime', 'unknown'),
-                        result.get('distribution_days', 0),
+                        result.get("raw_score", exposure_pct),
+                        result.get("regime", "unknown"),
+                        result.get("distribution_days", 0),
                         factors_json,
                         halt_reasons_json,
                         long_exp,
@@ -1059,15 +1158,24 @@ class MarketExposure:
                         tier,
                     ),
                 )
-            logger.info(f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}")
+            logger.info(
+                f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}"
+            )
         except Exception as e:
-            logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
+            logger.error(
+                f"persist market_exposure failed for {eval_date}: {e}", exc_info=True
+            )
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Compute market exposure for a date")
-    parser.add_argument("--date", type=str, default=None,
-                        help="Eval date YYYY-MM-DD. Default = latest trading date in price_daily.")
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Eval date YYYY-MM-DD. Default = latest trading date in price_daily.",
+    )
     args = parser.parse_args()
     me = MarketExposure()
     if args.date:
@@ -1075,10 +1183,12 @@ if __name__ == "__main__":
     else:
         # Use latest trading date in price_daily
         def get_latest_date(cur):
-            cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
+            cur.execute(
+                "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+            )
             return cur.fetchone()
 
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             result = get_latest_date(cur)
             if not result or result[0] is None:
                 logger.error("No price data available for SPY")
@@ -1090,12 +1200,12 @@ if __name__ == "__main__":
     logger.info(f"Exposure %: {result['exposure_pct']}%")
     logger.info(f"Raw score: {result['raw_score']}")
     logger.info(f"Distribution days: {result['distribution_days']}")
-    if result['halt_reasons']:
-        logger.warning(f"HALT REASONS:")
-        for r in result['halt_reasons']:
+    if result["halt_reasons"]:
+        logger.warning("HALT REASONS:")
+        for r in result["halt_reasons"]:
             logger.warning(f"  - {r}")
     logger.info("Factor breakdown:")
-    for name, info in result['factors'].items():
-        pts = info.get('pts', 0)
-        max_pts = info.get('max', '?')
+    for name, info in result["factors"].items():
+        pts = info.get("pts", 0)
+        max_pts = info.get("max", "?")
         logger.info(f"  {name:22s}: {pts:5.1f} / {max_pts:>3} pts  ({info})")

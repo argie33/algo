@@ -12,7 +12,7 @@ import json
 import logging
 import math
 from datetime import datetime, date, timezone
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,6 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
         return default
 
-
 def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
     """Convert value to float safely, returning None on failure (strict mode).
 
@@ -81,7 +80,6 @@ def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
         return f
     except (ValueError, TypeError):
         return None
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INT CONVERSION
@@ -110,7 +108,6 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
         return default
 
-
 def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     """Convert value to int safely, returning None on failure (strict mode).
 
@@ -134,7 +131,6 @@ def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
     except (ValueError, TypeError):
         logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
         return None
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # DATE/DATETIME PARSING
@@ -178,7 +174,6 @@ def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
     return None
 
-
 def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
     """Parse datetime string with timezone awareness (ET).
 
@@ -205,7 +200,6 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
 
     return None
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # JSON PARSING
 # ──────────────────────────────────────────────────────────────────────────────
@@ -225,7 +219,9 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         return json_str
 
     if not isinstance(json_str, str):
-        logger.warning(f"JSON parse: expected string, got {type(json_str).__name__} {context}")
+        logger.warning(
+            f"JSON parse: expected string, got {type(json_str).__name__} {context}"
+        )
         return default
 
     try:
@@ -233,7 +229,6 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning(f"JSON parse failed {context}: {e}")
         return default
-
 
 def safe_json_get(obj: Any, key: str, default: Any = None, context: str = "") -> Any:
     """Safely get value from dict/object, logging on failure.
@@ -254,7 +249,6 @@ def safe_json_get(obj: Any, key: str, default: Any = None, context: str = "") ->
         return default
 
     return obj.get(key, default)
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # DATA QUALITY LOGGING
@@ -282,7 +276,6 @@ def log_data_fetch(
         logger.warning(f"[{source}] Returned 0 rows{time_str}")
     else:
         logger.info(f"[{source}] Fetched {count} rows{time_str}")
-
 
 def log_loader_completion(
     table_name: str,

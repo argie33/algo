@@ -3,13 +3,15 @@ import os
 import logging
 
 logger = logging.getLogger()
-dynamodb = boto3.resource('dynamodb')
-token_blocklist_table = dynamodb.Table(os.environ.get('TOKEN_BLOCKLIST_TABLE', 'algo-token-blocklist-dev'))
+dynamodb = boto3.resource("dynamodb")
+token_blocklist_table = dynamodb.Table(
+    os.environ.get("TOKEN_BLOCKLIST_TABLE", "algo-token-blocklist-dev")
+)
 
 def is_revoked(jti: str) -> bool:
     try:
-        response = token_blocklist_table.get_item(Key={'jti': jti})
-        return 'Item' in response
+        response = token_blocklist_table.get_item(Key={"jti": jti})
+        return "Item" in response
     except Exception as e:
         logger.warning(f"Blocklist lookup failed for {jti}: {e}")
         return False
@@ -17,7 +19,7 @@ def is_revoked(jti: str) -> bool:
 def revoke_token(jti: str, exp: int):
     token_blocklist_table.put_item(
         Item={
-            'jti': jti,
-            'expires_at': exp,
+            "jti": jti,
+            "expires_at": exp,
         }
     )

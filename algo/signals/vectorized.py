@@ -16,10 +16,9 @@ Architecture:
 
 import logging
 import numpy as np
-from datetime import date as _date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from datetime import date as _date
+from typing import Dict, List, Tuple, Any
 from utils.db import DatabaseContext
-from utils.infrastructure import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -30,25 +29,29 @@ class VectorizedSignalGenerator:
         self.lookback_days = 300  # 300 trading days ~ 1.2 years
         self.min_history = 50  # Minimum bars required for technical indicators
 
-    def fetch_all_price_data(self, symbols: List[str], eval_date: _date) -> Tuple[Dict[str, List[Dict[str, Any]]], _date]:
+    def fetch_all_price_data(
+        self, symbols: List[str], eval_date: _date
+    ) -> Tuple[Dict[str, List[Dict[str, Any]]], _date]:
         """
         Fetch all price data for all symbols in ONE query.
         Automatically falls back to most recent date if eval_date has no data.
         Returns tuple: (data_by_symbol dict, actual_eval_date used)
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # First, check if eval_date has sufficient coverage
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                    (eval_date,)
+                    (eval_date,),
                 )
                 symbol_count = cur.fetchone()[0] or 0
                 price_date = eval_date
 
                 # If eval_date has insufficient data, fall back to most recent date with >1000 symbols
                 if symbol_count < 1000:
-                    logger.debug(f"[VECTORIZED] eval_date={eval_date} has {symbol_count} symbols; finding recent date with >1000")
+                    logger.debug(
+                        f"[VECTORIZED] eval_date={eval_date} has {symbol_count} symbols; finding recent date with >1000"
+                    )
                     cur.execute(
                         "SELECT date, COUNT(DISTINCT symbol) FROM price_daily "
                         "GROUP BY date ORDER BY date DESC LIMIT 5"
@@ -57,7 +60,9 @@ class VectorizedSignalGenerator:
                         if row[1] >= 1000:
                             price_date = row[0]
                             symbol_count = row[1]
-                            logger.info(f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)")
+                            logger.info(
+                                f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)"
+                            )
                             break
 
                 # Fetch 300 days of history for all symbols in ONE query
@@ -70,7 +75,7 @@ class VectorizedSignalGenerator:
                       AND date <= %s
                     ORDER BY symbol, date ASC
                     """,
-                    (symbols, price_date, price_date)
+                    (symbols, price_date, price_date),
                 )
                 rows = cur.fetchall()
 
@@ -80,14 +85,16 @@ class VectorizedSignalGenerator:
                     symbol = row[0]
                     if symbol not in data_by_symbol:
                         data_by_symbol[symbol] = []
-                    data_by_symbol[symbol].append({
-                        'date': row[1],
-                        'close': float(row[2]) if row[2] else None,
-                        'high': float(row[3]) if row[3] else None,
-                        'low': float(row[4]) if row[4] else None,
-                        'volume': int(row[5]) if row[5] else None,
-                        'open': float(row[6]) if row[6] else None,
-                    })
+                    data_by_symbol[symbol].append(
+                        {
+                            "date": row[1],
+                            "close": float(row[2]) if row[2] else None,
+                            "high": float(row[3]) if row[3] else None,
+                            "low": float(row[4]) if row[4] else None,
+                            "volume": int(row[5]) if row[5] else None,
+                            "open": float(row[6]) if row[6] else None,
+                        }
+                    )
 
                 return data_by_symbol, price_date
         except Exception as e:
@@ -107,19 +114,23 @@ class VectorizedSignalGenerator:
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
                 results[symbol] = {
-                    'score': 0, 'pass': False, 'criteria': {},
-                    'reason': 'Insufficient price history'
+                    "score": 0,
+                    "pass": False,
+                    "criteria": {},
+                    "reason": "Insufficient price history",
                 }
                 continue
 
             try:
                 # Extract closes into numpy array
-                closes = np.array([r['close'] for r in rows if r['close'] is not None])
+                closes = np.array([r["close"] for r in rows if r["close"] is not None])
 
                 if len(closes) < 50:
                     results[symbol] = {
-                        'score': 0, 'pass': False, 'criteria': {},
-                        'reason': 'Not enough valid closes'
+                        "score": 0,
+                        "pass": False,
+                        "criteria": {},
+                        "reason": "Not enough valid closes",
                     }
                     continue
 
@@ -128,7 +139,11 @@ class VectorizedSignalGenerator:
                 sma150 = self._rolling_mean(closes, 150)
                 sma200 = self._rolling_mean(closes, 200)
                 # SMA200 slope: (current - 5 bars ago) / (5 bars ago)
-                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and sma200[-6] > 0 else 0
+                sma200_slope = (
+                    (sma200[-1] - sma200[-6]) / sma200[-6]
+                    if len(sma200) > 6 and sma200[-6] > 0
+                    else 0
+                )
 
                 # Compute 52-week high/low
                 high52 = np.max(closes[-252:]) if len(closes) >= 252 else np.max(closes)
@@ -144,74 +159,78 @@ class VectorizedSignalGenerator:
                 # 1. Close > SMA50
                 if sma50[-1] and c > sma50[-1]:
                     score += 1
-                    criteria['close_above_sma50'] = True
+                    criteria["close_above_sma50"] = True
                 else:
-                    criteria['close_above_sma50'] = False
+                    criteria["close_above_sma50"] = False
 
                 # 2. Close > SMA150
                 if sma150[-1] and c > sma150[-1]:
                     score += 1
-                    criteria['close_above_sma150'] = True
+                    criteria["close_above_sma150"] = True
                 else:
-                    criteria['close_above_sma150'] = False
+                    criteria["close_above_sma150"] = False
 
                 # 3. Close > SMA200
                 if sma200[-1] and c > sma200[-1]:
                     score += 1
-                    criteria['close_above_sma200'] = True
+                    criteria["close_above_sma200"] = True
                 else:
-                    criteria['close_above_sma200'] = False
+                    criteria["close_above_sma200"] = False
 
                 # 4. SMA50 > SMA150
                 if sma50[-1] and sma150[-1] and sma50[-1] > sma150[-1]:
                     score += 1
-                    criteria['sma50_above_sma150'] = True
+                    criteria["sma50_above_sma150"] = True
                 else:
-                    criteria['sma50_above_sma150'] = False
+                    criteria["sma50_above_sma150"] = False
 
                 # 5. SMA150 > SMA200
                 if sma150[-1] and sma200[-1] and sma150[-1] > sma200[-1]:
                     score += 1
-                    criteria['sma150_above_sma200'] = True
+                    criteria["sma150_above_sma200"] = True
                 else:
-                    criteria['sma150_above_sma200'] = False
+                    criteria["sma150_above_sma200"] = False
 
                 # 6. SMA200 slope > 0
                 if sma200_slope > 0:
                     score += 1
-                    criteria['sma200_positive_slope'] = True
+                    criteria["sma200_positive_slope"] = True
                 else:
-                    criteria['sma200_positive_slope'] = False
+                    criteria["sma200_positive_slope"] = False
 
                 # 7. Close >= 52w high * 0.75
                 if c >= high52 * 0.75:
                     score += 1
-                    criteria['close_near_52w_high'] = True
+                    criteria["close_near_52w_high"] = True
                 else:
-                    criteria['close_near_52w_high'] = False
+                    criteria["close_near_52w_high"] = False
 
                 # 8. Close >= 52w low * 1.30
                 if c >= low52 * 1.30:
                     score += 1
-                    criteria['close_well_above_52w_low'] = True
+                    criteria["close_well_above_52w_low"] = True
                 else:
-                    criteria['close_well_above_52w_low'] = False
+                    criteria["close_well_above_52w_low"] = False
 
                 pct_from_low = ((c - low52) / low52 * 100) if low52 else None
                 pct_from_high = ((c - high52) / high52 * 100) if high52 else None
 
                 results[symbol] = {
-                    'score': score,
-                    'pass': score >= 5,
-                    'criteria': criteria,
-                    'pct_from_52w_high': pct_from_high,
-                    'pct_from_52w_low': pct_from_low,
+                    "score": score,
+                    "pass": score >= 5,
+                    "criteria": criteria,
+                    "pct_from_52w_high": pct_from_high,
+                    "pct_from_52w_low": pct_from_low,
                 }
             except Exception as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
+                logger.debug(
+                    f"[VECTORIZED] {symbol}: Minervini computation failed: {e}"
+                )
                 results[symbol] = {
-                    'score': 0, 'pass': False, 'criteria': {},
-                    'reason': str(e)[:50]
+                    "score": 0,
+                    "pass": False,
+                    "criteria": {},
+                    "reason": str(e)[:50],
                 }
 
         return results
@@ -224,18 +243,22 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
-                results[symbol] = {'stage': 0, 'confidence': 0.0}
+                results[symbol] = {"stage": 0, "confidence": 0.0}
                 continue
 
             try:
-                closes = np.array([r['close'] for r in rows if r['close'] is not None])
+                closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 150:
-                    results[symbol] = {'stage': 0, 'confidence': 0.0}
+                    results[symbol] = {"stage": 0, "confidence": 0.0}
                     continue
 
                 # Compute 30-week MA (150 days) and slope
                 ma150 = self._rolling_mean(closes, 150)
-                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and ma150[-6] > 0 else 0
+                ma150_slope = (
+                    (ma150[-1] - ma150[-6]) / ma150[-6]
+                    if len(ma150) > 6 and ma150[-6] > 0
+                    else 0
+                )
 
                 c = closes[-1]
                 sma200 = self._rolling_mean(closes, 200)
@@ -254,10 +277,12 @@ class VectorizedSignalGenerator:
                     else:
                         stage = 1  # Base building
 
-                results[symbol] = {'stage': stage, 'confidence': 0.75}
+                results[symbol] = {"stage": stage, "confidence": 0.75}
             except Exception as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
-                results[symbol] = {'stage': 0, 'confidence': 0.0}
+                logger.debug(
+                    f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}"
+                )
+                results[symbol] = {"stage": 0, "confidence": 0.0}
 
         return results
 
@@ -269,13 +294,13 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < 21:
-                results[symbol] = {'power_trend': False, 'return_21d': None}
+                results[symbol] = {"power_trend": False, "return_21d": None}
                 continue
 
             try:
-                closes = np.array([r['close'] for r in rows if r['close'] is not None])
+                closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 21:
-                    results[symbol] = {'power_trend': False, 'return_21d': None}
+                    results[symbol] = {"power_trend": False, "return_21d": None}
                     continue
 
                 current = closes[-1]
@@ -283,12 +308,14 @@ class VectorizedSignalGenerator:
                 ret_21d = ((current - prior) / prior * 100) if prior > 0 else None
 
                 results[symbol] = {
-                    'power_trend': ret_21d >= 20 if ret_21d else False,
-                    'return_21d': ret_21d
+                    "power_trend": ret_21d >= 20 if ret_21d else False,
+                    "return_21d": ret_21d,
                 }
             except Exception as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Power trend computation failed: {e}")
-                results[symbol] = {'power_trend': False, 'return_21d': None}
+                logger.debug(
+                    f"[VECTORIZED] {symbol}: Power trend computation failed: {e}"
+                )
+                results[symbol] = {"power_trend": False, "return_21d": None}
 
         return results
 
@@ -299,12 +326,10 @@ class VectorizedSignalGenerator:
             return np.full(len(arr), np.nan)
         result = np.full(len(arr), np.nan)
         for i in range(window - 1, len(arr)):
-            result[i] = np.nanmean(arr[i - window + 1:i + 1])
+            result[i] = np.nanmean(arr[i - window + 1 : i + 1])
         return result
 
-    def run(
-        self, symbols: List[str], eval_date: _date
-    ) -> Dict:
+    def run(self, symbols: List[str], eval_date: _date) -> Dict:
         """
         Run all signal computations in parallel.
 
@@ -314,22 +339,26 @@ class VectorizedSignalGenerator:
         data_by_symbol, actual_eval_date = self.fetch_all_price_data(symbols, eval_date)
 
         symbols_with_data = len(data_by_symbol)
-        logger.info(f"[VECTORIZED] Got data for {symbols_with_data} symbols (using date={actual_eval_date})")
+        logger.info(
+            f"[VECTORIZED] Got data for {symbols_with_data} symbols (using date={actual_eval_date})"
+        )
 
         # Compute all signals in parallel
         logger.info("[VECTORIZED] Computing Minervini scores...")
         minervini = self.compute_minervini_parallel(data_by_symbol, actual_eval_date)
 
         logger.info("[VECTORIZED] Computing Weinstein stages...")
-        weinstein = self.compute_weinstein_stage_parallel(data_by_symbol, actual_eval_date)
+        weinstein = self.compute_weinstein_stage_parallel(
+            data_by_symbol, actual_eval_date
+        )
 
         logger.info("[VECTORIZED] Computing power trends...")
         power = self.compute_power_trend_parallel(data_by_symbol, actual_eval_date)
 
         return {
-            'minervini': minervini,
-            'weinstein': weinstein,
-            'power': power,
-            'symbols_processed': symbols_with_data,
-            'actual_eval_date': actual_eval_date,
+            "minervini": minervini,
+            "weinstein": weinstein,
+            "power": power,
+            "symbols_processed": symbols_with_data,
+            "actual_eval_date": actual_eval_date,
         }

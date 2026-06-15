@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Apply database schema from schema.sql file to initialize the database."""
+
 import sys
 import os
 import psycopg2
@@ -8,20 +9,20 @@ from pathlib import Path
 
 def get_db_connection():
     """Create database connection from environment variables."""
-    required_vars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
+    required_vars = ["DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"]
     missing = [v for v in required_vars if not os.getenv(v)]
 
     if missing:
-        print("[ERROR] Missing environment variables: {}".format(', '.join(missing)))
+        print("[ERROR] Missing environment variables: {}".format(", ".join(missing)))
         sys.exit(1)
 
     try:
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST'),
-            port=int(os.getenv('DB_PORT', 5432)),
-            database=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD')
+            host=os.getenv("DB_HOST"),
+            port=int(os.getenv("DB_PORT", 5432)),
+            database=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
         )
         # Set to autocommit mode for DDL statements
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -33,7 +34,7 @@ def get_db_connection():
 def load_schema(schema_file):
     """Load schema SQL from file."""
     try:
-        with open(schema_file, 'r', encoding='utf-8', errors='replace') as f:
+        with open(schema_file, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
     except FileNotFoundError:
         print("[ERROR] Schema file not found: {}".format(schema_file))
@@ -54,7 +55,7 @@ def apply_schema(conn, schema_sql):
         except psycopg2.Error as e:
             # Try to give useful feedback
             error_str = str(e)
-            if 'already exists' in error_str.lower():
+            if "already exists" in error_str.lower():
                 print("[INFO] Some objects already exist - continuing...")
                 return True
             else:
@@ -94,5 +95,5 @@ def main():
 
     print("=" * 70)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -13,26 +13,26 @@ Run this before major releases to ensure data integrity.
 
 import subprocess
 import sys
-import re
 from pathlib import Path
 
 ERRORS = []
 WARNINGS = []
 PASSES = []
 
-
 def run_check(name, command, should_have=None, should_not_have=None):
     """Run a grep-based check."""
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         output = result.stdout.strip()
-        count = len(output.split('\n')) if output else 0
+        count = len(output.split("\n")) if output else 0
 
         if should_have and count == 0:
             ERRORS.append(f"[FAIL] {name}: Expected to find pattern but didn't")
             return False
         elif should_not_have and count > 0:
-            ERRORS.append(f"[FAIL] {name}: Found {count} instances of problematic pattern:\n{output[:200]}")
+            ERRORS.append(
+                f"[FAIL] {name}: Found {count} instances of problematic pattern:\n{output[:200]}"
+            )
             return False
         else:
             PASSES.append(f"[OK] {name}")
@@ -40,7 +40,6 @@ def run_check(name, command, should_have=None, should_not_have=None):
     except Exception as e:
         ERRORS.append(f"[FAIL] {name}: Check failed - {e}")
         return False
-
 
 def verify_database_schema():
     """Verify critical database constraints are in place."""
@@ -52,7 +51,7 @@ def verify_database_schema():
         return
 
     try:
-        content = schema_file.read_text(encoding='utf-8', errors='ignore')
+        content = schema_file.read_text(encoding="utf-8", errors="ignore")
     except Exception as e:
         ERRORS.append(f"[FAIL] Could not read schema file: {e}")
         return
@@ -75,7 +74,6 @@ def verify_database_schema():
     else:
         ERRORS.append("[FAIL] Missing UNIQUE constraint on algo_trades")
 
-
 def verify_validation_patterns():
     """Verify critical code uses correct validation patterns."""
     print("\n[2/4] Verifying Code Validation Patterns...")
@@ -84,30 +82,29 @@ def verify_validation_patterns():
     run_check(
         "Price validation before conversion",
         "grep -rn 'if.*is None' algo/algo_daily_reconciliation.py | grep -E 'entry|stop|price' | wc -l",
-        should_have=True
+        should_have=True,
     )
 
     # Check for proper exception handling
     run_check(
         "Try/except blocks use specific exceptions",
         "grep -rn 'except.*:$' algo/ --include='*.py' | wc -l",
-        should_not_have=True  # Should NOT find bare except
+        should_not_have=True,  # Should NOT find bare except
     )
 
     # Check for proper range checking
     run_check(
         "Price/quantity range validation",
         "grep -rn '<= 0' algo/algo_daily_reconciliation.py | wc -l",
-        should_have=True
+        should_have=True,
     )
 
     # Check for Decimal usage in monetary calculations
     run_check(
         "Decimal used for precision in monetary calculations",
         "grep -rn 'Decimal.*ROUND_HALF_UP' algo/ --include='*.py' | wc -l",
-        should_have=True
+        should_have=True,
     )
-
 
 def verify_no_dangerous_patterns():
     """Verify no dangerous fallback patterns exist."""
@@ -116,18 +113,24 @@ def verify_no_dangerous_patterns():
     # Check for "or 0" in critical price/quantity contexts
     result = subprocess.run(
         "grep -rn 'price.*or 0\\|quantity.*or 0\\|entry.*or 0' algo/ --include='*.py' | wc -l",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
     count = int(result.stdout.strip()) if result.stdout.strip() else 0
     if count > 0:
-        WARNINGS.append(f"[WARN] Found {count} potential 'or 0' patterns (may be safe after validation)")
+        WARNINGS.append(
+            f"[WARN] Found {count} potential 'or 0' patterns (may be safe after validation)"
+        )
     else:
         PASSES.append("[OK] No critical 'or 0' fallback patterns found")
 
     # Check for hardcoded test values
     result = subprocess.run(
         "grep -rn 'entry_price.*=.*150\\|stop_loss.*142' algo/ --include='*.py' | wc -l",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
     count = int(result.stdout.strip()) if result.stdout.strip() else 0
     if count > 0:
@@ -138,14 +141,15 @@ def verify_no_dangerous_patterns():
     # Check for silent failures (except without logging)
     result = subprocess.run(
         "grep -rn 'except.*pass' algo/ --include='*.py' | wc -l",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
     count = int(result.stdout.strip()) if result.stdout.strip() else 0
     if count > 0:
         ERRORS.append(f"[FAIL] Found {count} silent failures (except pass)")
     else:
         PASSES.append("[OK] No silent failures found")
-
 
 def verify_logging_coverage():
     """Verify comprehensive logging in critical paths."""
@@ -155,34 +159,33 @@ def verify_logging_coverage():
     run_check(
         "Trade executor has logging",
         "grep -n 'logger\\.' algo/algo_trade_executor.py | wc -l",
-        should_have=True
+        should_have=True,
     )
 
     run_check(
         "Daily reconciliation has logging",
         "grep -n 'logger\\.' algo/algo_daily_reconciliation.py | wc -l",
-        should_have=True
+        should_have=True,
     )
 
     run_check(
         "Position sizer has logging",
         "grep -n 'logger\\.' algo/algo_position_sizer.py | wc -l",
-        should_have=True
+        should_have=True,
     )
 
     # Check that CRITICAL errors are logged
     run_check(
         "Critical errors logged at CRITICAL level",
         "grep -rn 'logger.critical' algo/ --include='*.py' | wc -l",
-        should_have=True
+        should_have=True,
     )
-
 
 def print_results():
     """Print verification results."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("FINANCIAL DATA INTEGRITY VERIFICATION RESULTS")
-    print("="*70)
+    print("=" * 70)
 
     if PASSES:
         print(f"\n[PASSED] ({len(PASSES)} checks)")
@@ -205,10 +208,9 @@ def print_results():
     print(f"\n{'='*70}")
     print(f"Summary: {len(PASSES)}/{total} checks passed ({pass_pct:.0f}%)")
     print(f"Status: {'PASSED' if not ERRORS else 'FAILED'}")
-    print("="*70)
+    print("=" * 70)
 
     return 0 if not ERRORS else 1
-
 
 if __name__ == "__main__":
     print("Starting Financial Data Integrity Verification...")

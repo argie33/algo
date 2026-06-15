@@ -15,8 +15,9 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
-def record_loader_run(loader_name: str, run_date: date, success: bool, error_message: Optional[str] = None) -> None:
+def record_loader_run(
+    loader_name: str, run_date: date, success: bool, error_message: Optional[str] = None
+) -> None:
     """Record a loader run result (success or failure).
 
     Args:
@@ -26,13 +27,16 @@ def record_loader_run(loader_name: str, run_date: date, success: bool, error_mes
         error_message: Optional error message if failed
     """
     try:
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             # Check if record for today exists
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, success_count, failure_count
                 FROM loader_failure_trend
                 WHERE loader_name = %s AND tracking_date = %s
-            """, (loader_name, run_date))
+            """,
+                (loader_name, run_date),
+            )
 
             existing = cur.fetchone()
 
@@ -42,26 +46,39 @@ def record_loader_run(loader_name: str, run_date: date, success: bool, error_mes
                 new_success_count = success_count + (1 if success else 0)
                 new_failure_count = failure_count + (0 if success else 1)
 
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE loader_failure_trend
                     SET success_count = %s,
                         failure_count = %s,
                         last_error_message = %s
                     WHERE id = %s
-                """, (new_success_count, new_failure_count, error_message, existing_id))
+                """,
+                    (new_success_count, new_failure_count, error_message, existing_id),
+                )
             else:
                 # Create new record
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO loader_failure_trend
                     (loader_name, tracking_date, success_count, failure_count, last_error_message)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (loader_name, run_date, 1 if success else 0, 0 if success else 1, error_message))
+                """,
+                    (
+                        loader_name,
+                        run_date,
+                        1 if success else 0,
+                        0 if success else 1,
+                        error_message,
+                    ),
+                )
 
-            logger.debug(f"[FAILURE_TRACKING] Recorded {loader_name} run on {run_date}: {'SUCCESS' if success else 'FAILURE'}")
+            logger.debug(
+                f"[FAILURE_TRACKING] Recorded {loader_name} run on {run_date}: {'SUCCESS' if success else 'FAILURE'}"
+            )
 
     except Exception as e:
         logger.warning(f"[FAILURE_TRACKING] Could not record loader run: {e}")
-
 
 def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
     """Calculate rolling failure rates for a loader (7-day and 30-day).
@@ -74,11 +91,12 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
         Or None if no data available
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             today = date.today()
 
             # Query last 7 days
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) as total_days,
                     SUM(failure_count) as total_failures,
@@ -87,7 +105,9 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
                 WHERE loader_name = %s
                   AND tracking_date >= %s
                   AND tracking_date <= %s
-            """, (loader_name, today - timedelta(days=7), today))
+            """,
+                (loader_name, today - timedelta(days=7), today),
+            )
 
             row_7d = cur.fetchone()
             failure_rate_7d = 0.0
@@ -99,7 +119,8 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
                 failing_days_7d = row_7d[0] or 0  # Number of days with failures
 
             # Query last 30 days
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) as total_days,
                     SUM(failure_count) as total_failures,
@@ -108,7 +129,9 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
                 WHERE loader_name = %s
                   AND tracking_date >= %s
                   AND tracking_date <= %s
-            """, (loader_name, today - timedelta(days=30), today))
+            """,
+                (loader_name, today - timedelta(days=30), today),
+            )
 
             row_30d = cur.fetchone()
             failure_rate_30d = 0.0
@@ -118,17 +141,18 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
                 failure_rate_30d = round((total_failures / total_runs) * 100, 2)
 
             return {
-                'loader_name': loader_name,
-                'failure_rate_7day': failure_rate_7d,
-                'failure_rate_30day': failure_rate_30d,
-                'failing_days_7day': failing_days_7d,
-                'total_runs_7day': row_7d[2] if row_7d else 0,
+                "loader_name": loader_name,
+                "failure_rate_7day": failure_rate_7d,
+                "failure_rate_30day": failure_rate_30d,
+                "failing_days_7day": failing_days_7d,
+                "total_runs_7day": row_7d[2] if row_7d else 0,
             }
 
     except Exception as e:
-        logger.warning(f"[FAILURE_TRACKING] Could not calculate failure trends for {loader_name}: {e}")
+        logger.warning(
+            f"[FAILURE_TRACKING] Could not calculate failure trends for {loader_name}: {e}"
+        )
         return None
-
 
 def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
     """Check all loaders for chronic failures (failure_rate_7day > threshold).
@@ -142,14 +166,17 @@ def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
         - all_trends: Dict of all loader failure trends
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             # Get unique loaders from last 7 days
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT DISTINCT loader_name
                 FROM loader_failure_trend
                 WHERE tracking_date >= %s
                 ORDER BY loader_name
-            """, (date.today() - timedelta(days=7),))
+            """,
+                (date.today() - timedelta(days=7),),
+            )
 
             loaders = [row[0] for row in cur.fetchall()]
 
@@ -160,23 +187,24 @@ def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
             trends = calculate_failure_trends(loader_name)
             if trends:
                 all_trends[loader_name] = trends
-                if trends['failure_rate_7day'] > threshold_pct:
-                    chronic_loaders.append({
-                        'loader_name': loader_name,
-                        'failure_rate': trends['failure_rate_7day'],
-                        'failing_days': trends['failing_days_7day'],
-                        'total_runs': trends['total_runs_7day'],
-                    })
+                if trends["failure_rate_7day"] > threshold_pct:
+                    chronic_loaders.append(
+                        {
+                            "loader_name": loader_name,
+                            "failure_rate": trends["failure_rate_7day"],
+                            "failing_days": trends["failing_days_7day"],
+                            "total_runs": trends["total_runs_7day"],
+                        }
+                    )
 
         # Sort by failure rate
-        chronic_loaders.sort(key=lambda x: x['failure_rate'], reverse=True)
+        chronic_loaders.sort(key=lambda x: x["failure_rate"], reverse=True)
 
         return chronic_loaders, all_trends
 
     except Exception as e:
         logger.warning(f"[FAILURE_TRACKING] Could not check chronic failures: {e}")
         return [], {}
-
 
 def get_failure_alert_summary() -> str:
     """Generate a summary of loader failure trends for alerting.
@@ -188,12 +216,14 @@ def get_failure_alert_summary() -> str:
     if not chronic:
         return ""
 
-    summary_lines = [f"⚠️  CHRONIC LOADER FAILURES DETECTED (7-day window):"]
+    summary_lines = ["⚠️  CHRONIC LOADER FAILURES DETECTED (7-day window):"]
     for item in chronic:
         summary_lines.append(
             f"  • {item['loader_name']}: {item['failure_rate']:.0f}% failure rate "
             f"({item['failing_days']}/{item['total_runs']} runs failed)"
         )
 
-    summary_lines.append(f"\nTotal: {len(chronic)} loader(s) above 50% failure threshold")
+    summary_lines.append(
+        f"\nTotal: {len(chronic)} loader(s) above 50% failure threshold"
+    )
     return "\n".join(summary_lines)

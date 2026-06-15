@@ -16,4 +16,4 @@ if str(_migration_root) not in sys.path:
 # Common imports that migrations typically need
 from utils.db.context import DatabaseContext
 
-__all__ = ['DatabaseContext']
+__all__ = ["DatabaseContext"]

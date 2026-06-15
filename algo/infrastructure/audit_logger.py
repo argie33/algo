@@ -63,12 +63,17 @@ class TradeAuditLogger:
             cascade_str = "1.0 (baseline)"
             multiplier_list = []
 
-            for key in ['base_risk_pct', 'drawdown_adjustment', 'exposure_tier_multiplier',
-                       'vix_caution_multiplier', 'phase_multiplier']:
+            for key in [
+                "base_risk_pct",
+                "drawdown_adjustment",
+                "exposure_tier_multiplier",
+                "vix_caution_multiplier",
+                "phase_multiplier",
+            ]:
                 mult = multipliers.get(key, 1.0)
                 if mult != 1.0:
                     cascade *= mult
-                    reason = reasons.get(key, '')
+                    reason = reasons.get(key, "")
                     multiplier_list.append(f"{key}={mult:.2f}x ({reason})")
 
             cascade_str = f"{cascade:.2f}x cascade"
@@ -83,18 +88,29 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Persist to database for dashboard visibility
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO algo_position_sizing_audit (
                         symbol, signal_date, entry_price, stop_loss_price,
                         base_shares, final_shares, position_size_pct,
                         cascade_multiplier, multipliers_json, reasons_json, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    symbol, signal_date, entry_price, stop_loss_price,
-                    base_shares, final_shares, position_size_pct,
-                    cascade, str(multipliers), str(reasons), datetime.now(timezone.utc)
-                ))
+                """,
+                    (
+                        symbol,
+                        signal_date,
+                        entry_price,
+                        stop_loss_price,
+                        base_shares,
+                        final_shares,
+                        position_size_pct,
+                        cascade,
+                        str(multipliers),
+                        str(reasons),
+                        datetime.now(timezone.utc),
+                    ),
+                )
 
         except Exception as e:
             logger.warning(f"Position sizing audit log failed: {e}")
@@ -147,18 +163,27 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Persist to database
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO algo_stop_loss_audit (
                         symbol, signal_date, entry_price, stop_loss_price,
                         distance_pct, stop_method, stop_reasoning,
                         candidates_json, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    symbol, signal_date, entry_price, stop_loss_price,
-                    distance_pct, stop_method, stop_reasoning,
-                    str(candidates), datetime.now(timezone.utc)
-                ))
+                """,
+                    (
+                        symbol,
+                        signal_date,
+                        entry_price,
+                        stop_loss_price,
+                        distance_pct,
+                        stop_method,
+                        stop_reasoning,
+                        str(candidates),
+                        datetime.now(timezone.utc),
+                    ),
+                )
 
         except Exception as e:
             logger.warning(f"Stop loss audit log failed: {e}")
@@ -198,18 +223,28 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Track exit rule distribution
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO algo_exit_rules_distribution (
                         symbol, position_id, exit_rule, exit_reason,
                         entry_price, exit_price, pnl_dollars, pnl_pct, r_multiple,
                         created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    symbol, position_id, exit_rule, exit_reason,
-                    entry_price, exit_price, pnl_dollars, pnl_pct, r_multiple,
-                    datetime.now(timezone.utc)
-                ))
+                """,
+                    (
+                        symbol,
+                        position_id,
+                        exit_rule,
+                        exit_reason,
+                        entry_price,
+                        exit_price,
+                        pnl_dollars,
+                        pnl_pct,
+                        r_multiple,
+                        datetime.now(timezone.utc),
+                    ),
+                )
 
         except Exception as e:
             logger.warning(f"Exit execution audit log failed: {e}")
@@ -217,7 +252,7 @@ class TradeAuditLogger:
     def get_position_sizing_summary(self, days: int = 30) -> Dict[str, Any]:
         """Get position sizing statistics for dashboard."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
@@ -232,21 +267,21 @@ class TradeAuditLogger:
                 row = cur.fetchone()
                 if row:
                     return {
-                        'total_trades': row[0],
-                        'avg_cascade_multiplier': float(row[1]) if row[1] else 1.0,
-                        'min_cascade_multiplier': float(row[2]) if row[2] else 1.0,
-                        'max_cascade_multiplier': float(row[3]) if row[3] else 1.0,
-                        'avg_position_size_pct': float(row[4]) if row[4] else 0,
+                        "total_trades": row[0],
+                        "avg_cascade_multiplier": float(row[1]) if row[1] else 1.0,
+                        "min_cascade_multiplier": float(row[2]) if row[2] else 1.0,
+                        "max_cascade_multiplier": float(row[3]) if row[3] else 1.0,
+                        "avg_position_size_pct": float(row[4]) if row[4] else 0,
                     }
-            return {'error': 'No data'}
+            return {"error": "No data"}
         except Exception as e:
             logger.warning(f"Position sizing summary failed: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def get_exit_rule_distribution(self, days: int = 30) -> Dict[str, int]:
         """Get which exit rules fire most (diagnostic)."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT exit_rule, COUNT(*) as count
                     FROM algo_exit_rules_distribution

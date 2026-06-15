@@ -11,14 +11,14 @@ from enum import Enum
 class TradeStatus(Enum):
     """All possible trade execution statuses."""
 
-    PENDING = 'pending'  # Trade created, not yet sent to Alpaca
-    OPEN = 'open'        # Submitted to Alpaca, waiting for fill
-    FILLED = 'filled'    # Order filled, position active
-    PARTIAL = 'partially_filled'  # Some shares filled, rest pending
-    ACTIVE = 'active'    # Alternate term for open position
-    CANCELLED = 'cancelled'  # Order cancelled
-    CLOSED = 'closed'    # Position fully exited
-    ORPHANED = 'orphaned'  # Position exists in DB but not in Alpaca (error state)
+    PENDING = "pending"  # Trade created, not yet sent to Alpaca
+    OPEN = "open"  # Submitted to Alpaca, waiting for fill
+    FILLED = "filled"  # Order filled, position active
+    PARTIAL = "partially_filled"  # Some shares filled, rest pending
+    ACTIVE = "active"  # Alternate term for open position
+    CANCELLED = "cancelled"  # Order cancelled
+    CLOSED = "closed"  # Position fully exited
+    ORPHANED = "orphaned"  # Position exists in DB but not in Alpaca (error state)
 
     @classmethod
     def all_open(cls):
@@ -42,14 +42,14 @@ class TradeStatus(Enum):
         * → orphaned (emergency state when DB/Alpaca diverge)
         """
         transitions = {
-            'pending': ['open', 'cancelled', 'orphaned'],
-            'open': ['filled', 'partially_filled', 'cancelled', 'orphaned'],
-            'partially_filled': ['filled', 'orphaned'],
-            'filled': ['closed', 'orphaned'],
-            'active': ['closed', 'orphaned'],
-            'cancelled': ['orphaned'],
-            'closed': [],  # Terminal
-            'orphaned': [],  # Terminal
+            "pending": ["open", "cancelled", "orphaned"],
+            "open": ["filled", "partially_filled", "cancelled", "orphaned"],
+            "partially_filled": ["filled", "orphaned"],
+            "filled": ["closed", "orphaned"],
+            "active": ["closed", "orphaned"],
+            "cancelled": ["orphaned"],
+            "closed": [],  # Terminal
+            "orphaned": [],  # Terminal
         }
 
         if from_status not in transitions:
@@ -63,11 +63,11 @@ class TradeStatus(Enum):
 class PositionStatus(Enum):
     """All possible position statuses in algo_positions table."""
 
-    OPEN = 'open'        # Position still active
-    CLOSED = 'closed'    # Position fully exited
-    PARTIAL = 'partial'  # Some shares exited, some still open
-    PENDING_CLOSE = 'pending_close'  # Exit order submitted, awaiting fill
-    ORPHANED = 'orphaned'  # Position in DB but not in Alpaca (error state)
+    OPEN = "open"  # Position still active
+    CLOSED = "closed"  # Position fully exited
+    PARTIAL = "partial"  # Some shares exited, some still open
+    PENDING_CLOSE = "pending_close"  # Exit order submitted, awaiting fill
+    ORPHANED = "orphaned"  # Position in DB but not in Alpaca (error state)
 
     @classmethod
     def all_active(cls):
@@ -80,4 +80,4 @@ class PositionStatus(Enum):
         return status in cls.all_active()
 
 # Export for convenience
-__all__ = ['TradeStatus', 'PositionStatus']
+__all__ = ["TradeStatus", "PositionStatus"]

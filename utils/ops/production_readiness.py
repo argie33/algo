@@ -13,10 +13,9 @@ Validates all critical systems are configured correctly:
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict
 
 logger = logging.getLogger(__name__)
-
 
 class ProductionReadinessCheck:
     """Comprehensive validation for production deployment."""
@@ -33,12 +32,12 @@ class ProductionReadinessCheck:
             from utils.validation import validate_table_schema
             from loaders.schema_definitions import TABLE_SCHEMAS
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Validate critical tables exist with correct column types
                 required_tables = {
-                    'price_daily': TABLE_SCHEMAS.get('price_daily', {}),
-                    'algo_positions': {},  # No strict schema definition yet
-                    'signal_quality_scores': {},  # No strict schema definition yet
+                    "price_daily": TABLE_SCHEMAS.get("price_daily", {}),
+                    "algo_positions": {},  # No strict schema definition yet
+                    "signal_quality_scores": {},  # No strict schema definition yet
                 }
 
                 all_valid = True
@@ -47,10 +46,13 @@ class ProductionReadinessCheck:
                 for table_name, schema in required_tables.items():
                     if not schema:
                         # Table without strict schema - just check existence
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT 1 FROM information_schema.tables
                             WHERE table_schema = 'public' AND table_name = %s
-                        """, (table_name,))
+                        """,
+                            (table_name,),
+                        )
                         exists = cur.fetchone() is not None
                         if exists:
                             validation_results.append(f"{table_name} exists")
@@ -63,19 +65,27 @@ class ProductionReadinessCheck:
                             cur,
                             table_name,
                             required_columns=schema,
-                            check_row_count=False  # Don't require table to have data yet
+                            check_row_count=False,  # Don't require table to have data yet
                         )
                         if is_valid:
-                            validation_results.append(f"{table_name} schema valid ({len(schema)} columns)")
+                            validation_results.append(
+                                f"{table_name} schema valid ({len(schema)} columns)"
+                            )
                         else:
-                            validation_results.append(f"{table_name} schema INVALID: {'; '.join(errors[:2])}")
+                            validation_results.append(
+                                f"{table_name} schema INVALID: {'; '.join(errors[:2])}"
+                            )
                             all_valid = False
 
                 if all_valid:
-                    self.checks_passed.append(f"Database connectivity and schema OK: {', '.join(validation_results)}")
+                    self.checks_passed.append(
+                        f"Database connectivity and schema OK: {', '.join(validation_results)}"
+                    )
                     return True
                 else:
-                    self.checks_failed.append(f"Schema validation failed: {'; '.join(validation_results)}")
+                    self.checks_failed.append(
+                        f"Schema validation failed: {'; '.join(validation_results)}"
+                    )
                     return False
 
         except Exception as e:
@@ -90,13 +100,15 @@ class ProductionReadinessCheck:
             monitor = RDSPoolMonitor()
             status = monitor.get_connection_pool_status()
 
-            if 'error' in status:
-                self.checks_warnings.append(f"RDS pool status check failed: {status['error']}")
+            if "error" in status:
+                self.checks_warnings.append(
+                    f"RDS pool status check failed: {status['error']}"
+                )
                 return False
 
             # Check available capacity
-            available = status.get('available_connections', 0)
-            utilization = status.get('utilization_percent', 100)
+            available = status.get("available_connections", 0)
+            utilization = status.get("utilization_percent", 100)
 
             if available >= 30 and utilization <= 70:
                 self.checks_passed.append(
@@ -126,10 +138,10 @@ class ProductionReadinessCheck:
 
             issues = []
 
-            if not estimate['safe_to_proceed']:
-                issues.extend(estimate['issues'])
+            if not estimate["safe_to_proceed"]:
+                issues.extend(estimate["issues"])
 
-            if not health['all_available']:
+            if not health["all_available"]:
                 issues.append(f"APIs unavailable: {health['issues']}")
 
             if issues:
@@ -138,7 +150,7 @@ class ProductionReadinessCheck:
             else:
                 self.checks_passed.append(
                     f"API rate limiting OK: 5000 symbols in {estimate['estimated_duration_sec']:.0f}s, "
-                    f"all APIs available"
+                    "all APIs available"
                 )
                 return True
 
@@ -149,9 +161,9 @@ class ProductionReadinessCheck:
     def check_cognito_configuration(self) -> bool:
         """Verify Cognito is properly configured."""
         try:
-            client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
-            pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
-            region = os.getenv('AWS_REGION', 'us-east-1').strip()
+            client_id = os.getenv("COGNITO_CLIENT_ID", "").strip()
+            pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
+            region = os.getenv("AWS_REGION", "us-east-1").strip()
 
             missing = []
             if not client_id:
@@ -160,16 +172,19 @@ class ProductionReadinessCheck:
                 missing.append("COGNITO_USER_POOL_ID")
 
             if missing:
-                self.checks_failed.append(f"Missing Cognito config: {', '.join(missing)}")
+                self.checks_failed.append(
+                    f"Missing Cognito config: {', '.join(missing)}"
+                )
                 return False
 
             # Try to validate against Cognito
             try:
                 import boto3
-                cognito = boto3.client('cognito-idp', region_name=region)
+
+                cognito = boto3.client("cognito-idp", region_name=region)
                 pool = cognito.describe_user_pool(UserPoolId=pool_id)
 
-                if pool.get('UserPool'):
+                if pool.get("UserPool"):
                     self.checks_passed.append(
                         f"Cognito configured: {pool_id}, client ID verified"
                     )
@@ -180,7 +195,7 @@ class ProductionReadinessCheck:
 
             except Exception as e:
                 self.checks_warnings.append(
-                    f"Cannot validate Cognito with API (may lack IAM permissions), "
+                    "Cannot validate Cognito with API (may lack IAM permissions), "
                     f"but config exists: {client_id}"
                 )
                 return True  # Config exists, even if we can't validate
@@ -201,7 +216,7 @@ class ProductionReadinessCheck:
                 return False
 
             halt_status = checker.get_halt_flag_status()
-            if not halt_status.get('available'):
+            if not halt_status.get("available"):
                 self.checks_failed.append("Cannot read halt flag from DynamoDB")
                 return False
 
@@ -220,8 +235,9 @@ class ProductionReadinessCheck:
             from utils.logging import SLAMonitor
 
             # Just verify the module is importable and has required methods
-            if hasattr(SLAMonitor, 'get_current_sla_window') and \
-               hasattr(SLAMonitor, 'check_deadline_passed'):
+            if hasattr(SLAMonitor, "get_current_sla_window") and hasattr(
+                SLAMonitor, "check_deadline_passed"
+            ):
                 self.checks_passed.append(
                     "SLA monitoring configured (morning prep, afternoon, pre-close, EOD)"
                 )
@@ -264,17 +280,19 @@ class ProductionReadinessCheck:
             validator = ParallelismValidator()
             result = validator.validate_all_loaders()
 
-            if result['all_passed']:
+            if result["all_passed"]:
                 self.checks_passed.append(
                     "Loader parallelism validated (5000+ symbols supported)"
                 )
                 return True
             else:
-                self.checks_warnings.extend(result['failures'])
+                self.checks_warnings.extend(result["failures"])
                 return False
 
         except Exception as e:
-            self.checks_warnings.append(f"Parallelism validation failed: {str(e)[:100]}")
+            self.checks_warnings.append(
+                f"Parallelism validation failed: {str(e)[:100]}"
+            )
             return False
 
     def run_all_checks(self) -> Dict[str, any]:
@@ -331,12 +349,12 @@ class ProductionReadinessCheck:
         )
 
         return {
-            'ready_for_production': ready_for_production,
-            'passed': self.checks_passed,
-            'warnings': self.checks_warnings,
-            'failures': self.checks_failed,
-            'total_passed': total_passed,
-            'total_warnings': total_warnings,
-            'total_failures': total_failed,
-            'timestamp': datetime.now().isoformat(),
+            "ready_for_production": ready_for_production,
+            "passed": self.checks_passed,
+            "warnings": self.checks_warnings,
+            "failures": self.checks_failed,
+            "total_passed": total_passed,
+            "total_warnings": total_warnings,
+            "total_failures": total_failed,
+            "timestamp": datetime.now().isoformat(),
         }

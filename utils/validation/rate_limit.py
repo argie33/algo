@@ -7,12 +7,9 @@ Validates that:
 """
 
 import logging
-import time
-from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict
 
 logger = logging.getLogger(__name__)
-
 
 class RateLimitValidator:
     """Validate API rate limits and graceful degradation."""
@@ -20,17 +17,19 @@ class RateLimitValidator:
     def __init__(self):
         # Rate limit specifications
         self.yfinance_limit = {
-            'requests_per_minute': 160,
-            'batch_size_max': 200,  # symbols per batch
-            'safe_margin': 0.8,  # Use only 80% of limit
+            "requests_per_minute": 160,
+            "batch_size_max": 200,  # symbols per batch
+            "safe_margin": 0.8,  # Use only 80% of limit
         }
 
         self.fred_limit = {
-            'requests_per_second': 5,
-            'single_endpoint': True,
+            "requests_per_second": 5,
+            "single_endpoint": True,
         }
 
-    def estimate_yfinance_calls_needed(self, symbol_count: int = 5000) -> Dict[str, any]:
+    def estimate_yfinance_calls_needed(
+        self, symbol_count: int = 5000
+    ) -> Dict[str, any]:
         """Estimate how many yfinance API calls needed for full dataset.
 
         For 5000 symbols:
@@ -49,11 +48,11 @@ class RateLimitValidator:
                 'issues': []
             }
         """
-        batch_size = self.yfinance_limit['batch_size_max']
+        batch_size = self.yfinance_limit["batch_size_max"]
         batches_needed = (symbol_count + batch_size - 1) // batch_size
 
-        rpm_limit = self.yfinance_limit['requests_per_minute']
-        safe_rpm = rpm_limit * self.yfinance_limit['safe_margin']
+        rpm_limit = self.yfinance_limit["requests_per_minute"]
+        safe_rpm = rpm_limit * self.yfinance_limit["safe_margin"]
 
         # Time needed = (batches × 60 seconds) / safe_rpm
         estimated_sec = (batches_needed * 60) / safe_rpm
@@ -69,18 +68,18 @@ class RateLimitValidator:
         if estimated_sec > 300:  # 5 minutes
             issues.append(
                 f"Estimated time {estimated_sec:.0f}s exceeds 5-minute window - "
-                f"consider reducing symbol count or increasing batch size"
+                "consider reducing symbol count or increasing batch size"
             )
 
         return {
-            'total_symbols': symbol_count,
-            'batch_size': batch_size,
-            'batches_needed': batches_needed,
-            'requests_per_min_limit': rpm_limit,
-            'safe_requests_per_min': round(safe_rpm, 0),
-            'estimated_duration_sec': round(estimated_sec, 1),
-            'safe_to_proceed': len(issues) == 0,
-            'issues': issues,
+            "total_symbols": symbol_count,
+            "batch_size": batch_size,
+            "batches_needed": batches_needed,
+            "requests_per_min_limit": rpm_limit,
+            "safe_requests_per_min": round(safe_rpm, 0),
+            "estimated_duration_sec": round(estimated_sec, 1),
+            "safe_to_proceed": len(issues) == 0,
+            "issues": issues,
         }
 
     def check_api_health(self) -> Dict[str, any]:
@@ -96,18 +95,19 @@ class RateLimitValidator:
         """
         issues = []
         health = {
-            'yfinance_available': False,
-            'fred_available': False,
+            "yfinance_available": False,
+            "fred_available": False,
         }
 
         # Check yfinance (used by price loader)
         try:
             import yfinance
+
             # Quick test: try to fetch SPY info (lightweight)
-            ticker = yfinance.Ticker('SPY')
+            ticker = yfinance.Ticker("SPY")
             info = ticker.info
-            if info and 'currentPrice' in info:
-                health['yfinance_available'] = True
+            if info and "currentPrice" in info:
+                health["yfinance_available"] = True
                 logger.debug("[API-HEALTH] yfinance responding")
             else:
                 issues.append("yfinance not returning expected data")
@@ -118,17 +118,18 @@ class RateLimitValidator:
         # Check FRED (market health data)
         try:
             import os
-            fred_token = os.getenv('FRED_API_KEY')
+
+            fred_token = os.getenv("FRED_API_KEY")
             if fred_token:
-                health['fred_available'] = True
+                health["fred_available"] = True
                 logger.debug("[API-HEALTH] FRED API token configured")
             else:
                 issues.append("FRED_API_KEY not configured")
         except Exception as e:
             issues.append(f"FRED health check failed: {str(e)[:100]}")
 
-        health['all_available'] = all(health.values())
-        health['issues'] = issues
+        health["all_available"] = all(health.values())
+        health["issues"] = issues
 
         return health
 
@@ -151,38 +152,40 @@ class RateLimitValidator:
             recommendations = []
 
             # Check 1: Rate limiter exists and is configured
-            if not hasattr(loader, '_rate_limit_tokens'):
+            if not hasattr(loader, "_rate_limit_tokens"):
                 issues.append("Rate limiter not initialized")
 
             # Check 2: Circuit breaker threshold appropriate
-            threshold = getattr(loader, '_rate_limit_circuit_break_threshold', 180)
+            threshold = getattr(loader, "_rate_limit_circuit_break_threshold", 180)
             if threshold < 180:
                 recommendations.append(
                     f"Rate limit circuit break threshold {threshold}s may be too aggressive - "
-                    f"recommend 300+ for recovery time"
+                    "recommend 300+ for recovery time"
                 )
 
             # Check 3: Exponential backoff configured
-            if not hasattr(loader, '_request_latency_samples'):
+            if not hasattr(loader, "_request_latency_samples"):
                 issues.append("No adaptive latency tracking found")
             else:
-                recommendations.append("Adaptive latency tracking enabled - good for detecting rate limits")
+                recommendations.append(
+                    "Adaptive latency tracking enabled - good for detecting rate limits"
+                )
 
             # Check 4: Batch sizing logic
-            if hasattr(loader, '_batch_size_performance'):
+            if hasattr(loader, "_batch_size_performance"):
                 logger.debug("Batch size optimization enabled")
 
             return {
-                'test_passed': len(issues) == 0,
-                'issues': issues,
-                'recommendations': recommendations,
+                "test_passed": len(issues) == 0,
+                "issues": issues,
+                "recommendations": recommendations,
             }
 
         except Exception as e:
             logger.error(f"Rate limit handling validation failed: {e}")
             return {
-                'test_passed': False,
-                'issues': [f"Validation failed: {str(e)[:100]}"],
+                "test_passed": False,
+                "issues": [f"Validation failed: {str(e)[:100]}"],
             }
 
     def log_rate_limit_status(self):
@@ -196,15 +199,15 @@ class RateLimitValidator:
             f"{estimate['estimated_duration_sec']:.0f}s (safe: {estimate['safe_to_proceed']})"
         )
 
-        if health['all_available']:
+        if health["all_available"]:
             logger.info("[RATE-LIMITS] ✓ All APIs available")
         else:
             logger.warning(f"[RATE-LIMITS] ⚠ Some APIs unavailable: {health['issues']}")
 
-        if not validation['test_passed']:
+        if not validation["test_passed"]:
             logger.warning(f"[RATE-LIMITS] Issues found: {validation['issues']}")
         else:
             logger.info("[RATE-LIMITS] ✓ Rate limit handling validated")
 
-        for rec in validation['recommendations']:
+        for rec in validation["recommendations"]:
             logger.info(f"[RATE-LIMITS] Tip: {rec}")

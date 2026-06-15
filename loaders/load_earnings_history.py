@@ -1,5 +1,6 @@
 ﻿#!/usr/bin/env python3
 import sys
+
 """
 Earnings History Loader - Optimal Pattern.
 
@@ -14,13 +15,13 @@ import logging
 
 import argparse
 from utils.loaders.helpers import get_active_symbols
+
 logger = logging.getLogger(__name__)
-import os
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from utils.optimal_loader import OptimalLoader
-from utils.loaders.config import get_parallelism, get_default_parallelism
+from utils.loaders.config import get_default_parallelism
 
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
@@ -32,6 +33,7 @@ class EarningsHistoryLoader(OptimalLoader):
         try:
             from utils.external.yfinance import get_ticker
             from datetime import datetime
+
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
             ticker = get_ticker(yf_symbol)
             df = ticker.earnings_dates
@@ -55,6 +57,7 @@ class EarningsHistoryLoader(OptimalLoader):
                     def _safe_float(v):
                         try:
                             import math
+
                             f = float(v)
                             return None if math.isnan(f) else round(f, 4)
                         except (TypeError, ValueError):
@@ -70,14 +73,16 @@ class EarningsHistoryLoader(OptimalLoader):
                         logger.warning(f"Exception: {e}")
                         quarter_str = ed[:10]
 
-                    rows.append({
-                        "symbol": symbol,
-                        "quarter": quarter_str,
-                        "earnings_date": ed,
-                        "eps_estimate": _safe_float(eps_est),
-                        "eps_actual": _safe_float(eps_actual),
-                        "surprise_percent": _safe_float(surprise_pct),
-                    })
+                    rows.append(
+                        {
+                            "symbol": symbol,
+                            "quarter": quarter_str,
+                            "earnings_date": ed,
+                            "eps_estimate": _safe_float(eps_est),
+                            "eps_actual": _safe_float(eps_actual),
+                            "surprise_percent": _safe_float(surprise_pct),
+                        }
+                    )
                 except Exception as e:
                     logging.debug(f"Earnings row error {symbol} {idx}: {e}")
 
@@ -86,7 +91,10 @@ class EarningsHistoryLoader(OptimalLoader):
                 seen = {}
                 for row in rows:
                     key = (row["symbol"], row["quarter"])
-                    if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
+                    if (
+                        key not in seen
+                        or row["earnings_date"] > seen[key]["earnings_date"]
+                    ):
                         seen[key] = row
                 rows = list(seen.values())
 
@@ -105,8 +113,15 @@ class EarningsHistoryLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("earnings_history"), help="Concurrent workers")
+    parser.add_argument(
+        "--symbols", help="Comma-separated symbols. Default: all from stocks table."
+    )
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=get_default_parallelism("earnings_history"),
+        help="Concurrent workers",
+    )
     args = parser.parse_args()
 
     if args.symbols:
@@ -122,10 +137,11 @@ def main():
 
     fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
     if fail_rate > 0.05:
-        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        logger.error(
+            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
+        )
         return 1
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
-

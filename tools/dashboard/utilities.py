@@ -17,26 +17,16 @@ import requests
 import requests.exceptions
 
 from data_validation import (
-    safe_float, safe_int, safe_json_parse, safe_bool, safe_str,
-    validate_required_fields, validate_field_types, log_data_issue
+    safe_float,
 )
 
 try:
-    from rich import box
-    from rich.align import Align
-    from rich.columns import Columns
-    from rich.console import Console, Group
-    from rich.layout import Layout
-    from rich.live import Live
-    from rich.panel import Panel
-    from rich.rule import Rule
-    from rich.table import Table
-    from rich.text import Text
+    from rich.console import Console
 except ImportError:
     sys.exit("pip install rich>=13.0.0")
 
 # ── globals ───────────────────────────────────────────────────────────────────
-ET      = ZoneInfo("America/New_York")
+ET = ZoneInfo("America/New_York")
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
 
 # Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
@@ -46,43 +36,43 @@ _data_status_cache = {}
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
 
-G   = "bright_green"
-R   = "bright_red"
-Y   = "yellow"
-CY  = "cyan"
+G = "bright_green"
+R = "bright_red"
+Y = "yellow"
+CY = "cyan"
 DIM = "dim"
-MG  = "magenta"
-WH  = "white"
+MG = "magenta"
+WH = "white"
 
 TIER_COLOR = {
     "confirmed_uptrend": "bright_green",
-    "healthy_uptrend":   "green",
-    "pressure":          "yellow",
-    "caution":           "orange1",
-    "correction":        "bright_red",
+    "healthy_uptrend": "green",
+    "pressure": "yellow",
+    "caution": "orange1",
+    "correction": "bright_red",
 }
 
 TIER_SHORT = {
     "confirmed_uptrend": "CONF UP",
-    "healthy_uptrend":   "HLTH UP",
-    "pressure":          "PRESSURE",
-    "caution":           "CAUTION",
-    "correction":        "CORRECT",
+    "healthy_uptrend": "HLTH UP",
+    "pressure": "PRESSURE",
+    "caution": "CAUTION",
+    "correction": "CORRECT",
 }
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
 PHASE_NAMES = {
-    "phase_0":  "Pre-flight",
-    "phase_1":  "Data",
-    "phase_2":  "Circuits",
-    "phase_3":  "Positions",
+    "phase_0": "Pre-flight",
+    "phase_1": "Data",
+    "phase_2": "Circuits",
+    "phase_3": "Positions",
     "phase_3a": "Reconcile",
     "phase_3b": "Exposure",
-    "phase_4":  "Exits",
-    "phase_5":  "Signals",
-    "phase_6":  "Entries",
-    "phase_7":  "Wrap-up",
+    "phase_4": "Exits",
+    "phase_5": "Signals",
+    "phase_6": "Entries",
+    "phase_7": "Wrap-up",
 }
 
 # ── mascot (dancing monkey) ──────────────────────────────────────────────────
@@ -99,8 +89,14 @@ MASCOT_FRAMES = [
     ("  @(O_O)!  ", "  !{~~~}!  ", "  |{~~~}|  ", "  _|   |_  "),  # 7  freeze (CB)
 ]
 MASCOT_COLORS = [
-    "bright_green", "green", "bright_cyan", "cyan",
-    "bright_yellow", "white", "yellow", "bright_red",
+    "bright_green",
+    "green",
+    "bright_cyan",
+    "cyan",
+    "bright_yellow",
+    "white",
+    "yellow",
+    "bright_red",
 ]
 LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
@@ -111,7 +107,7 @@ _log_file = os.path.join(_log_dir, "dashboard.log")
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(_log_file, encoding="utf-8")]
+    handlers=[logging.FileHandler(_log_file, encoding="utf-8")],
 )
 logger = logging.getLogger(__name__)
 
@@ -136,9 +132,8 @@ _http_adapter = requests.adapters.HTTPAdapter(
     pool_connections=16,
     pool_maxsize=16,
     max_retries=requests.packages.urllib3.util.retry.Retry(
-        total=0,  # Retries handled by api_call() instead
-        backoff_factor=0
-    )
+        total=0, backoff_factor=0  # Retries handled by api_call() instead
+    ),
 )
 _http_session.mount("http://", _http_adapter)
 _http_session.mount("https://", _http_adapter)
@@ -146,7 +141,6 @@ _http_session.mount("https://", _http_adapter)
 # Sector aggregation cache (E5 optimization)
 _sector_agg_cache = OrderedDict()
 _sector_cache_maxsize = 100
-
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
@@ -168,11 +162,18 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     Circuit breaker pattern prevents hammering downed API (Issue 16 FIX).
     """
     if not API_BASE_URL:
-        logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
-        return {"_error": "API_BASE_URL not configured - set DASHBOARD_API_URL environment variable"}
+        logger.error(
+            "DASHBOARD_API_URL environment variable not set - cannot make API calls"
+        )
+        return {
+            "_error": "API_BASE_URL not configured - set DASHBOARD_API_URL environment variable"
+        }
 
     if _check_circuit_breaker():
-        return {"_error": "API unavailable - circuit breaker open", "_circuit_open": True}
+        return {
+            "_error": "API unavailable - circuit breaker open",
+            "_circuit_open": True,
+        }
 
     url = f"{API_BASE_URL}{endpoint}"
     headers = {"Content-Type": "application/json"}
@@ -187,12 +188,18 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
-                resp = _http_session.get(url, params=params, headers=headers, timeout=API_TIMEOUT)
+                resp = _http_session.get(
+                    url, params=params, headers=headers, timeout=API_TIMEOUT
+                )
             else:
-                resp = _http_session.post(url, json=params, headers=headers, timeout=API_TIMEOUT)
+                resp = _http_session.post(
+                    url, json=params, headers=headers, timeout=API_TIMEOUT
+                )
 
             if resp.status_code >= 400:
-                logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
+                logger.warning(
+                    f"API {endpoint}: {resp.status_code} - {resp.text[:100]}"
+                )
                 return {"_error": f"API error {resp.status_code}"}
 
             data = resp.json()
@@ -205,8 +212,12 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
             return data
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
-                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
-                logger.warning(f"API {endpoint} timeout (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s")
+                backoff = min(
+                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
+                )
+                logger.warning(
+                    f"API {endpoint} timeout (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s"
+                )
                 time.sleep(backoff)
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
@@ -214,23 +225,34 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
             return {"_error": "API timeout"}
         except requests.exceptions.ConnectionError:
             if attempt < API_MAX_RETRIES:
-                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
-                logger.warning(f"API {endpoint} connection failed (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s")
+                backoff = min(
+                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
+                )
+                logger.warning(
+                    f"API {endpoint} connection failed (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s"
+                )
                 time.sleep(backoff)
                 continue
-            logger.error(f"API {endpoint}: connection unavailable after {API_MAX_RETRIES+1} attempts")
+            logger.error(
+                f"API {endpoint}: connection unavailable after {API_MAX_RETRIES+1} attempts"
+            )
             _record_api_failure()
             return {"_error": "API unavailable"}
         except Exception as e:
             if attempt < API_MAX_RETRIES:
-                backoff = min((2 ** attempt) + random.random() * (2 ** attempt), API_MAX_BACKOFF)
-                logger.warning(f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s")
+                backoff = min(
+                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
+                )
+                logger.warning(
+                    f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s"
+                )
                 time.sleep(backoff)
                 continue
-            logger.error(f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts\n  Last error: {str(e)[:200]}\n  Endpoint URL: {endpoint}")
+            logger.error(
+                f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts\n  Last error: {str(e)[:200]}\n  Endpoint URL: {endpoint}"
+            )
             _record_api_failure()
             return {"_error": str(e)}
-
 
 def normalize_positions_data(data):
     """Unified normalization of positions data structure.
@@ -250,7 +272,6 @@ def normalize_positions_data(data):
     else:
         return [], None, False
 
-
 def compute_sector_agg(pos, port):
     """
     Compute sector aggregation with caching to avoid recomputation on every 30-sec refresh.
@@ -268,7 +289,9 @@ def compute_sector_agg(pos, port):
     if not pos:
         return None, None, 0
 
-    pos_hash = hashlib.md5(json.dumps(pos, sort_keys=True, default=str).encode()).hexdigest()
+    pos_hash = hashlib.md5(
+        json.dumps(pos, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
     with _sector_cache_lock:
         if pos_hash in _sector_agg_cache:
@@ -281,7 +304,9 @@ def compute_sector_agg(pos, port):
     for p in pos:
         if not isinstance(p, dict):
             invalid_count += 1
-            logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
+            logger.error(
+                f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}"
+            )
             continue
         sec = p.get("sector") or "Unknown"
         val = safe_float(p.get("position_value"), default=None)
@@ -295,7 +320,9 @@ def compute_sector_agg(pos, port):
             sd[sec]["pnls"].append(pnl)
 
     if invalid_count > 0:
-        logger.error(f"compute_sector_agg: encountered {invalid_count} invalid position(s); sector totals may be incomplete")
+        logger.error(
+            f"compute_sector_agg: encountered {invalid_count} invalid position(s); sector totals may be incomplete"
+        )
         return None, None, 0
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
@@ -308,11 +335,10 @@ def compute_sector_agg(pos, port):
         _sector_agg_cache[pos_hash] = {
             "sorted_secs": sorted_secs,
             "total_secs": total_secs,
-            "pv": pv
+            "pv": pv,
         }
 
     return sorted_secs, total_secs, pv
-
 
 def extract_items_and_error(data):
     """Extract items array and error message from data dict or list.
@@ -330,8 +356,9 @@ def extract_items_and_error(data):
     else:
         return [], None
 
-
-def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
+def validate_data_freshness(
+    data: dict, max_age_hours: int = 24, field_name: str = "timestamp"
+) -> bool:
     """Validate data freshness by checking timestamp field age.
 
     Returns True if data is fresh or timestamp unavailable, logs warning if stale.
@@ -343,7 +370,7 @@ def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str
     ts = data[field_name]
     if isinstance(ts, str):
         try:
-            ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         except (ValueError, AttributeError, TypeError) as e:
             logger.warning(f"Could not parse timestamp in {field_name}: {e}")
             return True
@@ -353,10 +380,11 @@ def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str
         ts = ts.replace(tzinfo=timezone.utc)
     age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
     if age_hours > max_age_hours:
-        logger.warning(f"Data stale: {field_name} is {age_hours:.1f}h old (threshold: {max_age_hours}h)")
+        logger.warning(
+            f"Data stale: {field_name} is {age_hours:.1f}h old (threshold: {max_age_hours}h)"
+        )
         return False
     return True
-
 
 _response_cache = {}
 _response_cache_lock = threading.Lock()
@@ -374,7 +402,11 @@ def _check_circuit_breaker():
     with _circuit_breaker_lock:
         if _circuit_breaker_state != "open":
             return False
-        if _circuit_breaker_reset_time and time.time() - _circuit_breaker_reset_time > CIRCUIT_BREAKER_RESET_SECONDS:
+        if (
+            _circuit_breaker_reset_time
+            and time.time() - _circuit_breaker_reset_time
+            > CIRCUIT_BREAKER_RESET_SECONDS
+        ):
             _circuit_breaker_state = "half-open"
             _circuit_breaker_failures = 0
             logger.info("Circuit breaker attempting half-open state")
@@ -388,7 +420,9 @@ def _record_api_failure():
         _circuit_breaker_failures += 1
         if _circuit_breaker_failures >= CIRCUIT_BREAKER_THRESHOLD:
             if _circuit_breaker_state != "open":
-                logger.error(f"Circuit breaker OPEN after {_circuit_breaker_failures} failures")
+                logger.error(
+                    f"Circuit breaker OPEN after {_circuit_breaker_failures} failures"
+                )
                 _circuit_breaker_state = "open"
                 _circuit_breaker_reset_time = time.time()
 
@@ -408,9 +442,8 @@ def cache_response(endpoint: str, data: dict) -> None:
     with _response_cache_lock:
         _response_cache[endpoint] = {
             "data": data,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
-
 
 def get_cached_response(endpoint: str) -> Optional[dict]:
     """Get cached response if available, mark as stale if > 30 minutes old."""
@@ -419,43 +452,49 @@ def get_cached_response(endpoint: str) -> Optional[dict]:
         if not cached:
             return None
     cached_data = cached.get("data", {})
-    age_minutes = (datetime.now(timezone.utc) - cached["timestamp"]).total_seconds() / 60
+    age_minutes = (
+        datetime.now(timezone.utc) - cached["timestamp"]
+    ).total_seconds() / 60
     if age_minutes > 30:
-        logger.warning(f"Using stale cached response for {endpoint} ({age_minutes:.0f}m old)")
+        logger.warning(
+            f"Using stale cached response for {endpoint} ({age_minutes:.0f}m old)"
+        )
         cached_data = {**cached_data, "_cached": True, "_stale": True}
     else:
         cached_data = {**cached_data, "_cached": True}
     return cached_data
-
 
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
 
 _data_quality_issues = []
 _data_quality_lock = threading.Lock()
 
-
 def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any = None):
     """Record a data quality issue for dashboarding and alerting.
 
     Args:
-        fetcher: Fetcher name (e.g., "portfolio", "perf", "market")
+        fetcher: Fetcher name (e.g., "portfolio", "per", "market")
         field: Field name (e.g., "total_portfolio_value")
         issue: Issue type (e.g., "missing_required_field", "conversion_failed", "data_stale")
         value: Optional value for context
     """
     global _data_quality_issues
     with _data_quality_lock:
-        _data_quality_issues.append({
-            "timestamp": datetime.now(timezone.utc),
-            "fetcher": fetcher,
-            "field": field,
-            "issue": issue,
-            "value": str(value)[:100] if value is not None else None
-        })
+        _data_quality_issues.append(
+            {
+                "timestamp": datetime.now(timezone.utc),
+                "fetcher": fetcher,
+                "field": field,
+                "issue": issue,
+                "value": str(value)[:100] if value is not None else None,
+            }
+        )
         if len(_data_quality_issues) > 1000:
             _data_quality_issues = _data_quality_issues[-1000:]
-    logger.warning(f"Data quality issue: {fetcher}.{field} - {issue}" + (f" (value: {value!r})" if value is not None else ""))
-
+    logger.warning(
+        f"Data quality issue: {fetcher}.{field} - {issue}"
+        + (f" (value: {value!r})" if value is not None else "")
+    )
 
 def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
     """Get data quality issues from the last N minutes.
@@ -467,7 +506,6 @@ def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
     with _data_quality_lock:
         recent = [i for i in _data_quality_issues if i["timestamp"] >= cutoff]
     return recent
-
 
 def clear_data_quality_issues():
     """Clear the data quality issue history."""

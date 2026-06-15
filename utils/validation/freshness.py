@@ -11,14 +11,12 @@ This module is kept for backwards compatibility only. All new code should use:
 """
 
 import logging
-from datetime import date, datetime, timedelta
-from typing import Dict, Optional, Any
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
 # Re-export from new unified validator for backwards compatibility
-from utils.data.age_validator import is_fresh, check_freshness
-
+from utils.data.age_validator import check_freshness
 
 def get_staleness_threshold_days() -> int:
     """DEPRECATED: Get max data staleness from config.
@@ -29,10 +27,10 @@ def get_staleness_threshold_days() -> int:
     """
     try:
         from algo.infrastructure import get_config
-        return get_config().get('max_data_staleness_days', 3)
+
+        return get_config().get("max_data_staleness_days", 3)
     except Exception:
         return 3
-
 
 def assert_fresh(
     last_loaded_date: Optional[Any],
@@ -45,5 +43,5 @@ def assert_fresh(
         ValueError: If data is stale or missing
     """
     freshness = check_freshness(last_loaded_date, data_type, context=context)
-    if not freshness['is_fresh']:
+    if not freshness["is_fresh"]:
         raise ValueError(f"{freshness['message']}")

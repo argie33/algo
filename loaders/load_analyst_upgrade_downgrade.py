@@ -14,11 +14,11 @@ import argparse
 import sys
 import logging
 import sys
+
 logger = logging.getLogger(__name__)
-import os
 import sys
-from datetime import date, timedelta
-from typing import List, Optional
+from datetime import date
+from typing import Optional
 
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -47,15 +47,17 @@ class AnalystRatingsLoader(OptimalLoader):
 
             results = []
             for idx, row in upgrades_downgrades.iterrows():
-                ud_date = idx.date() if hasattr(idx, 'date') else idx
-                results.append({
-                    'symbol': symbol,
-                    'action_date': ud_date,
-                    'firm': row.get('Firm', ''),
-                    'new_rating': row.get('To Grade', ''),
-                    'old_rating': row.get('From Grade'),
-                    'action': row.get('Action', '')
-                })
+                ud_date = idx.date() if hasattr(idx, "date") else idx
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "action_date": ud_date,
+                        "firm": row.get("Firm", ""),
+                        "new_rating": row.get("To Grade", ""),
+                        "old_rating": row.get("From Grade"),
+                        "action": row.get("Action", ""),
+                    }
+                )
 
             return results if results else None
         except Exception as e:
@@ -71,7 +73,9 @@ class AnalystRatingsLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_ratings loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument(
+        "--symbols", help="Comma-separated symbols. Default: all from stocks table."
+    )
     parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
     args = parser.parse_args()
 
@@ -90,4 +94,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

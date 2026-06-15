@@ -2,7 +2,7 @@
 """Unit tests for PositionSizer module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import sys
 from pathlib import Path
 
@@ -10,7 +10,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from algo.trading import PositionSizer
-
 
 @pytest.fixture
 def mock_config():
@@ -22,13 +21,11 @@ def mock_config():
         "max_positions": 12,
     }
 
-
 @pytest.fixture
 def position_sizer(mock_config):
     """Create PositionSizer instance with mocked database."""
     with patch("algo.trading.position_sizer.DatabaseContext"):
         return PositionSizer(mock_config)
-
 
 class TestPositionSizerInit:
     """Test PositionSizer initialization."""
@@ -43,12 +40,12 @@ class TestPositionSizerInit:
         sizer = PositionSizer(mock_config)
         assert sizer.config == mock_config
 
-
 class TestPositionSizerBasic:
     """Test basic PositionSizer functionality."""
 
     def test_get_current_drawdown_no_snapshots(self, position_sizer):
         """Test drawdown calculation when no snapshots exist."""
+
         def mock_cursor_op(operation):
             mock_cur = Mock()
             mock_cur.fetchone.return_value = (0,)  # Count of snapshots
@@ -60,6 +57,7 @@ class TestPositionSizerBasic:
 
     def test_get_current_drawdown_with_snapshots(self, position_sizer):
         """Test drawdown calculation with portfolio snapshots."""
+
         def mock_cursor_op(operation):
             mock_cur = Mock()
             execute_calls = []
@@ -80,7 +78,6 @@ class TestPositionSizerBasic:
         with patch.object(position_sizer, "_with_cursor", side_effect=mock_cursor_op):
             drawdown = position_sizer.get_current_drawdown()
             assert drawdown == 5.0
-
 
 class TestPositionSizerCalculations:
     """Test position sizing calculations."""
@@ -103,15 +100,17 @@ class TestPositionSizerCalculations:
             adjustment = position_sizer.get_risk_adjustment()
             assert adjustment == 0.0
 
-
 class TestPositionSizerVIX:
     """Test VIX-based multiplier logic."""
 
     def test_get_vix_caution_multiplier_low_vix(self, position_sizer):
         """Test VIX multiplier when VIX is low (no caution)."""
+
         def mock_cursor_op(operation):
             mock_cur = Mock()
-            mock_cur.fetchone.return_value = (15.0,)  # VIX value below caution threshold
+            mock_cur.fetchone.return_value = (
+                15.0,
+            )  # VIX value below caution threshold
             return operation(mock_cur)
 
         with patch.object(position_sizer, "_with_cursor", side_effect=mock_cursor_op):
@@ -120,6 +119,7 @@ class TestPositionSizerVIX:
 
     def test_get_vix_caution_multiplier_caution_zone(self, position_sizer):
         """Test VIX multiplier when VIX is in caution zone."""
+
         def mock_cursor_op(operation):
             mock_cur = Mock()
             mock_cur.fetchone.return_value = (30.0,)  # VIX in caution zone (25-35)

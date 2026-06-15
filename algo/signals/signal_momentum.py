@@ -2,7 +2,7 @@
 
 """Momentum and breakout signal methods — TD Sequential, power trend, pocket pivot, distribution."""
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 from utils.db.context import DatabaseContext
 
@@ -14,7 +14,7 @@ class SignalMomentumMixin:
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
             logger.debug(f"Database operation failed: {e}")
@@ -34,7 +34,12 @@ class SignalMomentumMixin:
             )
             rows = cur.fetchall()
             if len(rows) < 14:
-                return {'setup_count': 0, 'setup_type': None, 'completed_9': False, 'perfected': False}
+                return {
+                    "setup_count": 0,
+                    "setup_type": None,
+                    "completed_9": False,
+                    "perfected": False,
+                }
 
             # Reverse to chronological order
             rows = list(reversed(rows))
@@ -70,36 +75,40 @@ class SignalMomentumMixin:
             # Most recent count and type
             if latest_sell >= latest_buy:
                 setup_count = latest_sell
-                setup_type = 'sell' if setup_count > 0 else None
+                setup_type = "sell" if setup_count > 0 else None
             else:
                 setup_count = latest_buy
-                setup_type = 'buy' if setup_count > 0 else None
+                setup_type = "buy" if setup_count > 0 else None
 
             completed_9_today = setup_count == 9
             last_9_date = None
             for offset in range(0, min(5, len(sell_count_history))):
                 idx = -1 - offset
                 if sell_count_history[idx] == 9 or buy_count_history[idx] == 9:
-                    last_9_date = dates[4 + len(sell_count_history) + idx]  # crude index calc
+                    last_9_date = dates[
+                        4 + len(sell_count_history) + idx
+                    ]  # crude index calc
                     break
 
             # Perfected sell setup: bar 8 OR 9 high > bar 6 AND 7 high
             perfected = False
             if completed_9_today and len(highs) >= 9:
-                if setup_type == 'sell':
+                if setup_type == "sell":
                     bar_8_high = highs[-2]
                     bar_9_high = highs[-1]
                     bar_6_high = highs[-4]
                     bar_7_high = highs[-3]
-                    perfected = (bar_8_high > bar_6_high and bar_8_high > bar_7_high) or \
-                                (bar_9_high > bar_6_high and bar_9_high > bar_7_high)
+                    perfected = (
+                        bar_8_high > bar_6_high and bar_8_high > bar_7_high
+                    ) or (bar_9_high > bar_6_high and bar_9_high > bar_7_high)
                 else:  # buy
                     bar_8_low = lows[-2]
                     bar_9_low = lows[-1]
                     bar_6_low = lows[-4]
                     bar_7_low = lows[-3]
-                    perfected = (bar_8_low < bar_6_low and bar_8_low < bar_7_low) or \
-                                (bar_9_low < bar_6_low and bar_9_low < bar_7_low)
+                    perfected = (bar_8_low < bar_6_low and bar_8_low < bar_7_low) or (
+                        bar_9_low < bar_6_low and bar_9_low < bar_7_low
+                    )
 
             combo_13_complete = False
             combo_count = 0
@@ -116,14 +125,18 @@ class SignalMomentumMixin:
                             break
                 if ref_idx is not None and ref_idx + 2 < len(closes):
                     # Count bars since 9 that meet TD Combo countdown criteria
-                    target_type = 'sell' if (
-                        ref_idx < len(sell_count_history) + 4 and
-                        setup_type == 'sell'
-                    ) else 'buy'
+                    target_type = (
+                        "sell"
+                        if (
+                            ref_idx < len(sell_count_history) + 4
+                            and setup_type == "sell"
+                        )
+                        else "buy"
+                    )
                     for i in range(ref_idx, len(closes)):
                         if i < 2:
                             continue
-                        if target_type == 'sell':
+                        if target_type == "sell":
                             if closes[i] > highs[i - 2]:
                                 combo_count += 1
                         else:
@@ -134,17 +147,20 @@ class SignalMomentumMixin:
                             break
 
             return {
-                'setup_count': setup_count,
-                'setup_type': setup_type,
-                'completed_9': completed_9_today,
-                'perfected': perfected,
-                'last_9_date': str(last_9_date) if last_9_date else None,
-                'combo_count': combo_count,
-                'combo_13_complete': combo_13_complete,
+                "setup_count": setup_count,
+                "setup_type": setup_type,
+                "completed_9": completed_9_today,
+                "perfected": perfected,
+                "last_9_date": str(last_9_date) if last_9_date else None,
+                "combo_count": combo_count,
+                "combo_13_complete": combo_13_complete,
             }
 
         return self._with_cursor(_fetch_data) or {
-            'setup_count': 0, 'setup_type': None, 'completed_9': False, 'perfected': False
+            "setup_count": 0,
+            "setup_type": None,
+            "completed_9": False,
+            "perfected": False,
         }
 
     def power_trend(self, symbol: str, eval_date) -> Dict[str, Any]:
@@ -152,20 +168,22 @@ class SignalMomentumMixin:
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
         These are the strongest setups for stocks already in motion.
         """
+
         def _compute(cur):
             ret_21 = self._period_return(symbol, eval_date, 21, cur)
             return {
-                'power_trend': ret_21 is not None and ret_21 >= 0.20,
-                'return_21d': round(ret_21 * 100, 2) if ret_21 is not None else None,
+                "power_trend": ret_21 is not None and ret_21 >= 0.20,
+                "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        return self._with_cursor(_compute) or {'power_trend': False, 'return_21d': None}
+        return self._with_cursor(_compute) or {"power_trend": False, "return_21d": None}
 
     def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
         """
+
         def _check_pivot(cur):
             cur.execute(
                 """
@@ -183,7 +201,7 @@ class SignalMomentumMixin:
             )
             row = cur.fetchone()
             if not row or row[1] is None:
-                return {'breakout': False}
+                return {"breakout": False}
             close = float(row[0])
             pivot = float(row[1])
             volume = float(row[2]) if row[2] else 0
@@ -191,26 +209,31 @@ class SignalMomentumMixin:
             breakout = close > pivot * 1.005
             on_volume = avg_vol > 0 and volume > avg_vol
             return {
-                'breakout': breakout and on_volume,
-                'close': close,
-                'pivot': round(pivot, 2),
-                'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
-                'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
+                "breakout": breakout and on_volume,
+                "close": close,
+                "pivot": round(pivot, 2),
+                "pct_above_pivot": (
+                    round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0
+                ),
+                "volume_ratio": round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
 
         try:
-            return self._with_cursor(_check_pivot) or {'breakout': False}
+            return self._with_cursor(_check_pivot) or {"breakout": False}
         except Exception as e:
             logger.debug(f"Pivot breakout check failed: {e}")
-            return {'breakout': False}
+            return {"breakout": False}
 
-    def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> Dict[str, Any]:
+    def pocket_pivot(
+        self, symbol: str, eval_date, lookback_days: int = 10
+    ) -> Dict[str, Any]:
         """
         Pocket Pivot (re-accumulation signal): an up day where volume >= highest
         down-day volume in the prior lookback_days.
 
         Indicates institutional absorption of selling pressure and setup for breakout.
         """
+
         def _check_pocket(cur):
             cur.execute(
                 """
@@ -231,7 +254,7 @@ class SignalMomentumMixin:
             )
             rows = cur.fetchall()
             if not rows:
-                return {'pocket_pivot': False}
+                return {"pocket_pivot": False}
 
             # Find max down-day volume in lookback window
             max_down_vol = 0
@@ -251,11 +274,15 @@ class SignalMomentumMixin:
 
                 if fires:
                     return {
-                        'pocket_pivot': True,
-                        'days_since_fired': 0,
-                        'current_vol': round(today_vol, 0),
-                        'max_down_vol': round(max_down_vol, 0),
-                        'vol_ratio': round(today_vol / max_down_vol, 2) if max_down_vol > 0 else 0,
+                        "pocket_pivot": True,
+                        "days_since_fired": 0,
+                        "current_vol": round(today_vol, 0),
+                        "max_down_vol": round(max_down_vol, 0),
+                        "vol_ratio": (
+                            round(today_vol / max_down_vol, 2)
+                            if max_down_vol > 0
+                            else 0
+                        ),
                     }
 
             # Also check if pocket pivot fired 1-2 days ago (yesterday and day-2 only)
@@ -265,23 +292,30 @@ class SignalMomentumMixin:
                 vol = float(vol) if vol else 0
                 prev_close = float(prev_close) if prev_close is not None else None
                 close = float(close) if close else 0
-                if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
+                if (
+                    prev_close is not None
+                    and close > prev_close
+                    and vol >= max_down_vol
+                    and max_down_vol > 0
+                ):
                     days_since = rn - 1  # rn=1 is most recent
                     up_day_dates.append((days_since, vol))
 
             if up_day_dates:
                 days_since, vol = up_day_dates[0]
                 return {
-                    'pocket_pivot': True,
-                    'days_since_fired': days_since,
-                    'current_vol': round(vol, 0),
-                    'max_down_vol': round(max_down_vol, 0),
-                    'vol_ratio': round(vol / max_down_vol, 2) if max_down_vol > 0 else 0,
+                    "pocket_pivot": True,
+                    "days_since_fired": days_since,
+                    "current_vol": round(vol, 0),
+                    "max_down_vol": round(max_down_vol, 0),
+                    "vol_ratio": (
+                        round(vol / max_down_vol, 2) if max_down_vol > 0 else 0
+                    ),
                 }
 
-            return {'pocket_pivot': False}
+            return {"pocket_pivot": False}
 
-        return self._with_cursor(_check_pocket) or {'pocket_pivot': False}
+        return self._with_cursor(_check_pocket) or {"pocket_pivot": False}
 
     def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> int:
         """
@@ -291,6 +325,7 @@ class SignalMomentumMixin:
 
         Returns count over lookback window (IBD standard: 25 trading days).
         """
+
         def _count_dist(cur):
             cur.execute(
                 """

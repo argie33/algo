@@ -10,15 +10,15 @@ Monitors connection pool saturation during high-load periods:
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
+
 # Inlined from algo.infrastructure.constants — avoids importing the algo package
 # at module load time, which is not available in the API Lambda runtime.
-DB_MAX_CONNECTIONS = 100       # db.t4g.small safety threshold
-DB_POOL_ALERT_THRESHOLD_PCT = 80   # Alert when pool usage > 80%
+DB_MAX_CONNECTIONS = 100  # db.t4g.small safety threshold
+DB_POOL_ALERT_THRESHOLD_PCT = 80  # Alert when pool usage > 80%
 DB_POOL_TIMEOUT_SEC = 300
 
 logger = logging.getLogger(__name__)
-
 
 class RDSPoolMonitor:
     """Monitor PostgreSQL RDS connection pool saturation."""
@@ -28,7 +28,7 @@ class RDSPoolMonitor:
     CRITICAL_THRESHOLD_PCT = 90  # Critical if >90% full (configurable via constants)
 
     def __init__(self):
-        self.region = os.getenv('AWS_REGION', 'us-east-1')
+        self.region = os.getenv("AWS_REGION", "us-east-1")
 
     def get_connection_pool_status(self) -> Dict[str, Any]:
         """Query RDS for current connection pool usage.
@@ -46,7 +46,7 @@ class RDSPoolMonitor:
         try:
             from utils.db import DatabaseContext
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT
                         (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) as active_connections,
@@ -56,8 +56,8 @@ class RDSPoolMonitor:
                 row = cur.fetchone()
                 if not row:
                     return {
-                        '_error': 'Failed to query connection status',
-                        'timestamp': datetime.now().isoformat()
+                        "_error": "Failed to query connection status",
+                        "timestamp": datetime.now().isoformat(),
                     }
 
                 active = row[0] or 0
@@ -66,27 +66,24 @@ class RDSPoolMonitor:
                 utilization_pct = (active / max_conn) * 100 if max_conn > 0 else 0
 
                 if utilization_pct >= self.CRITICAL_THRESHOLD_PCT:
-                    status = 'CRITICAL'
+                    status = "CRITICAL"
                 elif utilization_pct >= self.ALERT_THRESHOLD_PCT:
-                    status = 'WARNING'
+                    status = "WARNING"
                 else:
-                    status = 'HEALTHY'
+                    status = "HEALTHY"
 
                 return {
-                    'active_connections': active,
-                    'max_connections': max_conn,
-                    'utilization_percent': round(utilization_pct, 1),
-                    'status': status,
-                    'available_connections': max_conn - active,
-                    'timestamp': datetime.now().isoformat(),
+                    "active_connections": active,
+                    "max_connections": max_conn,
+                    "utilization_percent": round(utilization_pct, 1),
+                    "status": status,
+                    "available_connections": max_conn - active,
+                    "timestamp": datetime.now().isoformat(),
                 }
 
         except Exception as e:
             logger.error(f"Failed to get RDS pool status: {e}")
-            return {
-                '_error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }
+            return {"_error": str(e), "timestamp": datetime.now().isoformat()}
 
     def get_slow_queries(self, min_duration_sec: float = 5.0) -> list:
         """Identify slow-running queries that might be holding connections.
@@ -109,8 +106,8 @@ class RDSPoolMonitor:
         try:
             from utils.db import DatabaseContext
 
-            with DatabaseContext('read') as cur:
-                cur.execute(f"""
+            with DatabaseContext("read") as cur:
+                cur.execute("""
                     SELECT
                         pid,
                         usename,
@@ -126,13 +123,15 @@ class RDSPoolMonitor:
 
                 slow_queries = []
                 for row in cur.fetchall():
-                    slow_queries.append({
-                        'pid': row[0],
-                        'user': row[1],
-                        'query': row[2][:100],  # Truncate long queries
-                        'duration_sec': round(float(row[3]), 1) if row[3] else 0,
-                        'state': row[4],
-                    })
+                    slow_queries.append(
+                        {
+                            "pid": row[0],
+                            "user": row[1],
+                            "query": row[2][:100],  # Truncate long queries
+                            "duration_sec": round(float(row[3]), 1) if row[3] else 0,
+                            "state": row[4],
+                        }
+                    )
 
                 return slow_queries
 
@@ -155,7 +154,7 @@ class RDSPoolMonitor:
         try:
             from utils.db import DatabaseContext
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT state, COUNT(*) as count
                     FROM pg_stat_activity
@@ -166,7 +165,7 @@ class RDSPoolMonitor:
 
                 states = {}
                 for row in cur.fetchall():
-                    state_name = row[0] or 'other'
+                    state_name = row[0] or "other"
                     states[state_name] = row[1]
 
                 return states
@@ -179,15 +178,15 @@ class RDSPoolMonitor:
         """Log current connection pool status with details."""
         status = self.get_connection_pool_status()
 
-        if '_error' in status:
+        if "_error" in status:
             logger.error(f"[RDS-POOL] Error: {status['_error']}")
             return
 
         emoji = {
-            'HEALTHY': '🟢',
-            'WARNING': '🟡',
-            'CRITICAL': '🔴',
-        }.get(status['status'], '❓')
+            "HEALTHY": "🟢",
+            "WARNING": "🟡",
+            "CRITICAL": "🔴",
+        }.get(status["status"], "❓")
 
         logger.info(
             f"[RDS-POOL] {emoji} {status['status']} - "
@@ -195,7 +194,7 @@ class RDSPoolMonitor:
             f"({status['utilization_percent']:.0f}%)"
         )
 
-        if status['status'] != 'HEALTHY':
+        if status["status"] != "HEALTHY":
             # Log additional details for warning/critical
             try:
                 states = self.get_connection_by_state()
@@ -208,7 +207,9 @@ class RDSPoolMonitor:
                 if slow:
                     logger.warning(f"[RDS-POOL] {len(slow)} slow queries (>5s):")
                     for q in slow[:3]:  # Show top 3
-                        logger.warning(f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}")
+                        logger.warning(
+                            f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}"
+                        )
             except Exception as e:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
@@ -226,15 +227,17 @@ class RDSPoolMonitor:
         """
         status = self.get_connection_pool_status()
 
-        if '_error' in status:
+        if "_error" in status:
             return {
-                'ready_for_eod': False,
-                '_error': status['_error'],
-                'recommendations': ['Cannot check pool status - RDS may be unavailable']
+                "ready_for_eod": False,
+                "_error": status["_error"],
+                "recommendations": [
+                    "Cannot check pool status - RDS may be unavailable"
+                ],
             }
 
-        pool_pct = status['utilization_percent']
-        available = status['available_connections']
+        pool_pct = status["utilization_percent"]
+        available = status["available_connections"]
 
         recommendations = []
 
@@ -255,15 +258,17 @@ class RDSPoolMonitor:
 
         # Estimate max safe parallelism
         # Conservative: reserve 30 connections for running loaders, use rest for system
-        max_parallelism = max(1, (available - 10) // 3)  # 3 connections per parallel loader
+        max_parallelism = max(
+            1, (available - 10) // 3
+        )  # 3 connections per parallel loader
 
         return {
-            'ready_for_eod': ready,
-            'pool_status': status['status'],
-            'active_connections': status['active_connections'],
-            'max_connections': status['max_connections'],
-            'utilization_percent': pool_pct,
-            'available_connections': available,
-            'max_parallelism': max_parallelism,
-            'recommendations': recommendations,
+            "ready_for_eod": ready,
+            "pool_status": status["status"],
+            "active_connections": status["active_connections"],
+            "max_connections": status["max_connections"],
+            "utilization_percent": pool_pct,
+            "available_connections": available,
+            "max_parallelism": max_parallelism,
+            "recommendations": recommendations,
         }

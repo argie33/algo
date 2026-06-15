@@ -13,11 +13,15 @@ def setup_test_user():
     # Get Cognito config from environment
     user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
     client_id = os.environ.get("COGNITO_CLIENT_ID")
-    test_email = os.environ.get("COGNITO_TEST_USER_EMAIL", "edgebrookecapital@gmail.com")
+    test_email = os.environ.get(
+        "COGNITO_TEST_USER_EMAIL", "edgebrookecapital@gmail.com"
+    )
     test_password = os.environ.get("COGNITO_TEST_USER_PASSWORD", "TestPassword123!")
 
     if not (user_pool_id and client_id):
-        print("[ERROR] Cognito not configured. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID")
+        print(
+            "[ERROR] Cognito not configured. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID"
+        )
         return False
 
     try:
@@ -40,45 +44,42 @@ def setup_test_user():
                 UserPoolId=user_pool_id,
                 Username=test_email,
                 TemporaryPassword=test_password,
-                MessageAction="SUPPRESS"  # Don't send welcome email
+                MessageAction="SUPPRESS",  # Don't send welcome email
             )
             print("  [OK] User created")
         except ClientError as e:
-            if e.response['Error']['Code'] == 'UsernameExistsException':
+            if e.response["Error"]["Code"] == "UsernameExistsException":
                 print("  [OK] User already exists")
             else:
                 raise
 
         # Set permanent password
-        print(f"[3/3] Setting permanent password...")
+        print("[3/3] Setting permanent password...")
         cognito.admin_set_user_password(
             UserPoolId=user_pool_id,
             Username=test_email,
             Password=test_password,
-            Permanent=True
+            Permanent=True,
         )
         print("  [OK] Password set")
 
         # Verify user can authenticate
-        print(f"\n[Verification] Testing authentication...")
+        print("\n[Verification] Testing authentication...")
         auth_response = cognito.initiate_auth(
             ClientId=client_id,
             AuthFlow="USER_PASSWORD_AUTH",
-            AuthParameters={
-                "USERNAME": test_email,
-                "PASSWORD": test_password
-            }
+            AuthParameters={"USERNAME": test_email, "PASSWORD": test_password},
         )
 
         if auth_response.get("AuthenticationResult", {}).get("AccessToken"):
             print("  [OK] Authentication successful")
-            print(f"\nTest user ready:")
+            print("\nTest user ready:")
             print(f"  Email: {test_email}")
             print(f"  Password: {test_password}")
-            print(f"\nTo use with dashboard:")
+            print("\nTo use with dashboard:")
             print(f"  $env:COGNITO_USERNAME = '{test_email}'")
             print(f"  $env:COGNITO_PASSWORD = '{test_password}'")
-            print(f"  python tools/dashboard/dashboard.py")
+            print("  python tools/dashboard/dashboard.py")
 
             # Save to cache file for convenience
             cache_file = os.path.expanduser("~/.algo/cognito_credentials.json")
@@ -103,21 +104,34 @@ if __name__ == "__main__":
     if not os.environ.get("COGNITO_USER_POOL_ID"):
         try:
             import subprocess
-            api_url = subprocess.check_output(
-                ["terraform", "output", "-raw", "api_url"],
-                cwd="terraform",
-                stderr=subprocess.DEVNULL
-            ).decode().strip()
-            user_pool_id = subprocess.check_output(
-                ["terraform", "output", "-raw", "cognito_user_pool_id"],
-                cwd="terraform",
-                stderr=subprocess.DEVNULL
-            ).decode().strip()
-            client_id = subprocess.check_output(
-                ["terraform", "output", "-raw", "cognito_user_pool_client_id"],
-                cwd="terraform",
-                stderr=subprocess.DEVNULL
-            ).decode().strip()
+
+            api_url = (
+                subprocess.check_output(
+                    ["terraform", "output", "-raw", "api_url"],
+                    cwd="terraform",
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+            user_pool_id = (
+                subprocess.check_output(
+                    ["terraform", "output", "-raw", "cognito_user_pool_id"],
+                    cwd="terraform",
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+            client_id = (
+                subprocess.check_output(
+                    ["terraform", "output", "-raw", "cognito_user_pool_client_id"],
+                    cwd="terraform",
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
 
             os.environ["COGNITO_USER_POOL_ID"] = user_pool_id
             os.environ["COGNITO_CLIENT_ID"] = client_id

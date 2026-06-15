@@ -2,45 +2,58 @@
 """Test API error details."""
 
 import subprocess
-import json
 import os
-import sys
 import requests
 
-os.environ['AWS_PROFILE'] = 'algo-developer'
+os.environ["AWS_PROFILE"] = "algo-developer"
 
 # Get config
-api_url = subprocess.check_output(
-    ['terraform', 'output', '-raw', 'api_url'],
-    cwd='terraform',
-    stderr=subprocess.DEVNULL
-).decode().strip()
-pool_id = subprocess.check_output(
-    ['terraform', 'output', '-raw', 'cognito_user_pool_id'],
-    cwd='terraform',
-    stderr=subprocess.DEVNULL
-).decode().strip()
-client_id = subprocess.check_output(
-    ['terraform', 'output', '-raw', 'cognito_user_pool_client_id'],
-    cwd='terraform',
-    stderr=subprocess.DEVNULL
-).decode().strip()
+api_url = (
+    subprocess.check_output(
+        ["terraform", "output", "-raw", "api_url"],
+        cwd="terraform",
+        stderr=subprocess.DEVNULL,
+    )
+    .decode()
+    .strip()
+)
+pool_id = (
+    subprocess.check_output(
+        ["terraform", "output", "-raw", "cognito_user_pool_id"],
+        cwd="terraform",
+        stderr=subprocess.DEVNULL,
+    )
+    .decode()
+    .strip()
+)
+client_id = (
+    subprocess.check_output(
+        ["terraform", "output", "-raw", "cognito_user_pool_client_id"],
+        cwd="terraform",
+        stderr=subprocess.DEVNULL,
+    )
+    .decode()
+    .strip()
+)
 
 # Authenticate
-cognito = __import__('boto3').client('cognito-idp', region_name='us-east-1')
+cognito = __import__("boto3").client("cognito-idp", region_name="us-east-1")
 auth = cognito.initiate_auth(
     ClientId=client_id,
-    AuthFlow='USER_PASSWORD_AUTH',
-    AuthParameters={'USERNAME': 'edgebrookecapital@gmail.com', 'PASSWORD': 'TestPassword123!'}
+    AuthFlow="USER_PASSWORD_AUTH",
+    AuthParameters={
+        "USERNAME": "edgebrookecapital@gmail.com",
+        "PASSWORD": "TestPassword123!",
+    },
 )
-token = auth['AuthenticationResult']['AccessToken']
+token = auth["AuthenticationResult"]["AccessToken"]
 
 # Test both endpoints
 print("Testing API endpoints with Cognito token...\n")
 
 # Test health (public)
 print("[1] Public /api/health endpoint:")
-response = requests.get(f'{api_url}/api/health', timeout=10)
+response = requests.get(f"{api_url}/api/health", timeout=10)
 print(f"    Status: {response.status_code}")
 if response.status_code == 200:
     data = response.json()
@@ -48,8 +61,8 @@ if response.status_code == 200:
 
 # Test protected endpoint
 print("\n[2] Protected /api/algo/markets endpoint (with Cognito token):")
-headers = {'Authorization': f'Bearer {token}'}
-response = requests.get(f'{api_url}/api/algo/markets', headers=headers, timeout=10)
+headers = {"Authorization": f"Bearer {token}"}
+response = requests.get(f"{api_url}/api/algo/markets", headers=headers, timeout=10)
 print(f"    Status: {response.status_code}")
 if response.status_code >= 400:
     print(f"    Response: {response.text[:500]}")

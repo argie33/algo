@@ -11,16 +11,15 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add phone column to contact_submissions table"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE contact_submissions
             ADD COLUMN IF NOT EXISTS phone VARCHAR(20)
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE contact_submissions
             DROP COLUMN IF EXISTS phone
         """)
-

@@ -16,7 +16,7 @@ DESCRIPTION = "Remove unused algo_runtime_config and algo_runtime_config_audit t
 
 def up():
     """Drop the runtime config tables."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Audit table first (has FK dependency)
         cur.execute("DROP TABLE IF EXISTS algo_runtime_config_audit CASCADE")
         # Main config table
@@ -24,7 +24,7 @@ def up():
 
 def down():
     """Recreate the runtime config tables with original schema and seed data."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Recreate main config table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS algo_runtime_config (
@@ -81,4 +81,3 @@ def down():
         # Grant permissions
         cur.execute("GRANT SELECT ON algo_runtime_config TO stocks")
         cur.execute("GRANT SELECT ON algo_runtime_config_audit TO stocks")
-

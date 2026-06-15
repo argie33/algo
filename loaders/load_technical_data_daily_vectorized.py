@@ -28,8 +28,13 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 from loaders.technical_indicators import (
-    compute_rsi, compute_macd, compute_moving_averages,
-    compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
+    compute_rsi,
+    compute_macd,
+    compute_moving_averages,
+    compute_atr,
+    compute_bollinger_bands,
+    compute_volume_ma,
+    compute_adx,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +65,9 @@ class VectorizedTechnicalLoader:
         # Load last 300 days for moving average warmup
         start_date = end_date - timedelta(days=300)
 
-        logger.info(f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}")
+        logger.info(
+            f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}"
+        )
 
         try:
             # STEP 1: Fetch ALL price data in single query (not per-symbol)
@@ -69,7 +76,9 @@ class VectorizedTechnicalLoader:
                 logger.warning("No price data found")
                 return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0}
 
-            logger.info(f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols")
+            logger.info(
+                f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols"
+            )
 
             # STEP 2: Compute indicators for ALL symbols at once (vectorized)
             indicators_df = self._compute_all_indicators_vectorized(all_prices)
@@ -80,19 +89,28 @@ class VectorizedTechnicalLoader:
             inserted = self._bulk_insert(indicators_df, since_date)
 
             duration = time.time() - start_time
-            logger.info(f"VectorizedTechnicalLoader completed: {inserted} rows in {duration:.1f}s")
+            logger.info(
+                f"VectorizedTechnicalLoader completed: {inserted} rows in {duration:.1f}s"
+            )
 
             return {
                 "symbols_processed": len(symbols),
                 "rows_inserted": inserted,
-                "duration_sec": round(duration, 2)
+                "duration_sec": round(duration, 2),
             }
 
         except Exception as e:
             logger.error(f"VectorizedTechnicalLoader failed: {e}", exc_info=True)
-            return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0, "error": str(e)}
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "duration_sec": 0,
+                "error": str(e),
+            }
 
-    def _fetch_all_prices(self, symbols: list, start_date: date, end_date: date) -> list:
+    def _fetch_all_prices(
+        self, symbols: list, start_date: date, end_date: date
+    ) -> list:
         """Fetch ALL price data in ONE query (institutional-scale efficiency).
 
         Instead of: FOR each symbol, fetch its prices (5000 queries)
@@ -101,9 +119,9 @@ class VectorizedTechnicalLoader:
         This reduces database round trips from 5000 to 1.
         """
         try:
-            with DatabaseContext('read') as cur:
-                placeholders = ','.join(['%s'] * len(symbols))
-                query = f"""
+            with DatabaseContext("read") as cur:
+                placeholders = ",".join(["%s"] * len(symbols))
+                query = """
                     SELECT symbol, date, open, high, low, close, volume
                     FROM price_daily
                     WHERE symbol IN ({placeholders})
@@ -125,15 +143,17 @@ class VectorizedTechnicalLoader:
                     if volume is not None and volume == 0:
                         continue
 
-                    result.append({
-                        'symbol': r[0],
-                        'date': r[1],
-                        'open': float(r[2]) if r[2] else None,
-                        'high': float(r[3]) if r[3] else None,
-                        'low': float(r[4]) if r[4] else None,
-                        'close': close,
-                        'volume': volume,
-                    })
+                    result.append(
+                        {
+                            "symbol": r[0],
+                            "date": r[1],
+                            "open": float(r[2]) if r[2] else None,
+                            "high": float(r[3]) if r[3] else None,
+                            "low": float(r[4]) if r[4] else None,
+                            "close": close,
+                            "volume": volume,
+                        }
+                    )
 
                 return result
         except Exception as e:
@@ -147,91 +167,122 @@ class VectorizedTechnicalLoader:
         This is vectorized (fast) vs symbol-by-symbol loops (slow).
         """
         df = pd.DataFrame(prices)
-        df['date'] = pd.to_datetime(df['date'])
+        df["date"] = pd.to_datetime(df["date"])
 
         results = []
 
-        for symbol in df['symbol'].unique():
-            symbol_df = df[df['symbol'] == symbol].sort_values('date').reset_index(drop=True)
+        for symbol in df["symbol"].unique():
+            symbol_df = (
+                df[df["symbol"] == symbol].sort_values("date").reset_index(drop=True)
+            )
 
             # Compute all indicators for this symbol's data
             try:
                 # Basic indicators
-                symbol_df['rsi'] = compute_rsi(symbol_df['close'])
-                symbol_df['rsi_14'] = symbol_df['rsi']
+                symbol_df["rsi"] = compute_rsi(symbol_df["close"])
+                symbol_df["rsi_14"] = symbol_df["rsi"]
 
-                macd_dict = compute_macd(symbol_df['close'])
-                symbol_df['macd'] = macd_dict.get('macd')
-                symbol_df['macd_signal'] = macd_dict.get('signal')
-                symbol_df['macd_hist'] = macd_dict.get('histogram')
-                symbol_df['macd_histogram'] = symbol_df['macd_hist']
+                macd_dict = compute_macd(symbol_df["close"])
+                symbol_df["macd"] = macd_dict.get("macd")
+                symbol_df["macd_signal"] = macd_dict.get("signal")
+                symbol_df["macd_hist"] = macd_dict.get("histogram")
+                symbol_df["macd_histogram"] = symbol_df["macd_hist"]
 
                 # Momentum
-                symbol_df['mom'] = symbol_df['close'].diff()
-                symbol_df['roc'] = symbol_df['close'].pct_change() * 100
-                symbol_df['roc_10d'] = symbol_df['close'].pct_change(10) * 100
-                symbol_df['roc_20d'] = symbol_df['close'].pct_change(20) * 100
-                symbol_df['roc_60d'] = symbol_df['close'].pct_change(60) * 100
-                symbol_df['roc_120d'] = symbol_df['close'].pct_change(120) * 100
-                symbol_df['roc_252d'] = symbol_df['close'].pct_change(252) * 100
+                symbol_df["mom"] = symbol_df["close"].diff()
+                symbol_df["roc"] = symbol_df["close"].pct_change() * 100
+                symbol_df["roc_10d"] = symbol_df["close"].pct_change(10) * 100
+                symbol_df["roc_20d"] = symbol_df["close"].pct_change(20) * 100
+                symbol_df["roc_60d"] = symbol_df["close"].pct_change(60) * 100
+                symbol_df["roc_120d"] = symbol_df["close"].pct_change(120) * 100
+                symbol_df["roc_252d"] = symbol_df["close"].pct_change(252) * 100
 
                 # Clamp ROC
                 _DECIMAL84_MAX = 9999.9999
-                for col in ['roc', 'roc_10d', 'roc_20d', 'roc_60d', 'roc_120d', 'roc_252d']:
+                for col in [
+                    "roc",
+                    "roc_10d",
+                    "roc_20d",
+                    "roc_60d",
+                    "roc_120d",
+                    "roc_252d",
+                ]:
                     before = symbol_df[col].copy()
-                    symbol_df[col] = symbol_df[col].clip(-_DECIMAL84_MAX, _DECIMAL84_MAX)
-                    capped_count = ((before.abs() > _DECIMAL84_MAX) & (symbol_df[col].notna())).sum()
+                    symbol_df[col] = symbol_df[col].clip(
+                        -_DECIMAL84_MAX, _DECIMAL84_MAX
+                    )
+                    capped_count = (
+                        (before.abs() > _DECIMAL84_MAX) & (symbol_df[col].notna())
+                    ).sum()
                     if capped_count > 0:
-                        logger.warning(f"{symbol}: {capped_count} {col} values capped to +/{_DECIMAL84_MAX} (extreme market conditions)")
+                        logger.warning(
+                            f"{symbol}: {capped_count} {col} values capped to +/{_DECIMAL84_MAX} (extreme market conditions)"
+                        )
 
                 # Moving averages
-                mas = compute_moving_averages(symbol_df['close'])
+                mas = compute_moving_averages(symbol_df["close"])
                 for name, values in mas.items():
                     symbol_df[name] = values
 
                 # ATR & ADX
-                symbol_df['atr_14'] = compute_atr(symbol_df['high'], symbol_df['low'], symbol_df['close'], 14)
-                symbol_df['atr'] = symbol_df['atr_14']
-                symbol_df['plus_di'], symbol_df['minus_di'], symbol_df['adx'] = compute_adx(
-                    symbol_df['high'], symbol_df['low'], symbol_df['close'], 14
+                symbol_df["atr_14"] = compute_atr(
+                    symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
+                )
+                symbol_df["atr"] = symbol_df["atr_14"]
+                symbol_df["plus_di"], symbol_df["minus_di"], symbol_df["adx"] = (
+                    compute_adx(
+                        symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
+                    )
                 )
 
                 # Bollinger Bands
-                bbs = compute_bollinger_bands(symbol_df['close'], 20, 2.0)
+                bbs = compute_bollinger_bands(symbol_df["close"], 20, 2.0)
                 for name, values in bbs.items():
                     symbol_df[name] = values
 
                 # Volume MA
-                symbol_df['volume_ma_50'] = compute_volume_ma(symbol_df['volume'], 50)
+                symbol_df["volume_ma_50"] = compute_volume_ma(symbol_df["volume"], 50)
 
                 # Mansfield RS (SPY comparison)
                 try:
                     # Fetch SPY data for this date range
-                    spy_prices = self._fetch_spy_prices(symbol_df['date'].min(), symbol_df['date'].max())
+                    spy_prices = self._fetch_spy_prices(
+                        symbol_df["date"].min(), symbol_df["date"].max()
+                    )
                     if spy_prices:
                         from algo.infrastructure.market_calendar import US_HOLIDAYS
+
                         spy_df = pd.DataFrame(spy_prices)
-                        spy_df['date'] = pd.to_datetime(spy_df['date'])
-                        spy_closes = spy_df.set_index('date')['close']
+                        spy_df["date"] = pd.to_datetime(spy_df["date"])
+                        spy_closes = spy_df.set_index("date")["close"]
 
                         holidays = list(US_HOLIDAYS.keys())
                         cbd = CustomBusinessDay(holidays=holidays)
-                        target_index = pd.DatetimeIndex(symbol_df['date'].values, freq=cbd)
+                        target_index = pd.DatetimeIndex(
+                            symbol_df["date"].values, freq=cbd
+                        )
                         spy_aligned = spy_closes.reindex(target_index)
 
-                        rs_line = symbol_df['close'].values / spy_aligned.values
+                        rs_line = symbol_df["close"].values / spy_aligned.values
                         rs_line_s = pd.Series(rs_line, index=symbol_df.index)
-                        rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
-                        symbol_df['mansfield_rs'] = (rs_line_s / rs_line_52w_ma - 1) * 100
+                        rs_line_52w_ma = rs_line_s.rolling(
+                            window=252, min_periods=126
+                        ).mean()
+                        symbol_df["mansfield_rs"] = (
+                            rs_line_s / rs_line_52w_ma - 1
+                        ) * 100
                 except Exception as e:
                     logger.debug(f"Could not compute Mansfield RS for {symbol}: {e}")
-                    symbol_df['mansfield_rs'] = None
+                    symbol_df["mansfield_rs"] = None
 
                 # Format for insertion
-                symbol_df['price_data_age_days'] = 0  # Mark as current
+                symbol_df["price_data_age_days"] = 0  # Mark as current
 
                 # Keep only rows after warmup period (skip first 300 days used for MA computation)
-                symbol_df = symbol_df[symbol_df['date'].dt.date >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))]
+                symbol_df = symbol_df[
+                    symbol_df["date"].dt.date
+                    >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))
+                ]
 
                 results.append(symbol_df)
 
@@ -247,12 +298,12 @@ class VectorizedTechnicalLoader:
     def _fetch_spy_prices(self, start_date, end_date):
         """Fetch SPY prices for Mansfield RS calculation."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT date, close FROM price_daily WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                    ('SPY', start_date, end_date)
+                    ("SPY", start_date, end_date),
                 )
-                return [{'date': r[0], 'close': float(r[1])} for r in cur.fetchall()]
+                return [{"date": r[0], "close": float(r[1])} for r in cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to fetch SPY prices for Mansfield RS: {e}")
             return []
@@ -264,40 +315,74 @@ class VectorizedTechnicalLoader:
 
         # Filter to only new data if incremental
         if since_date:
-            df = df[df['date'].dt.date > since_date]
+            df = df[df["date"].dt.date > since_date]
 
         # Prepare columns for insertion
-        columns = ['symbol', 'date', 'rsi', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'macd_histogram',
-                   'mom', 'roc', 'roc_10d', 'roc_20d', 'roc_60d', 'roc_120d', 'roc_252d',
-                   'sma_20', 'sma_50', 'sma_150', 'sma_200', 'ema_12', 'ema_21', 'ema_26',
-                   'atr', 'atr_14', 'bb_upper', 'bb_middle', 'bb_lower', 'volume_ma_50',
-                   'adx', 'plus_di', 'minus_di', 'mansfield_rs', 'price_data_age_days', 'close']
+        columns = [
+            "symbol",
+            "date",
+            "rsi",
+            "rsi_14",
+            "macd",
+            "macd_signal",
+            "macd_hist",
+            "macd_histogram",
+            "mom",
+            "roc",
+            "roc_10d",
+            "roc_20d",
+            "roc_60d",
+            "roc_120d",
+            "roc_252d",
+            "sma_20",
+            "sma_50",
+            "sma_150",
+            "sma_200",
+            "ema_12",
+            "ema_21",
+            "ema_26",
+            "atr",
+            "atr_14",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "volume_ma_50",
+            "adx",
+            "plus_di",
+            "minus_di",
+            "mansfield_rs",
+            "price_data_age_days",
+            "close",
+        ]
 
         # Format data
-        df['date'] = df['date'].dt.date.astype(str)
+        df["date"] = df["date"].dt.date.astype(str)
 
         # Handle NaN -> None conversion
         for col in df.columns:
-            if col not in ('symbol', 'date'):
+            if col not in ("symbol", "date"):
                 df[col] = df[col].where(pd.notna(df[col]), None)
 
         # Bulk insert via COPY
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 # Build COPY command
                 insert_df = df[columns]
 
                 # Use psycopg2.sql for safety
                 import psycopg2.sql
+
                 sql = psycopg2.sql.SQL(
                     "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, NULL '')"
                 ).format(
-                    table=psycopg2.sql.Identifier('technical_data_daily'),
-                    fields=psycopg2.sql.SQL(', ').join(map(psycopg2.sql.Identifier, columns))
+                    table=psycopg2.sql.Identifier("technical_data_daily"),
+                    fields=psycopg2.sql.SQL(", ").join(
+                        map(psycopg2.sql.Identifier, columns)
+                    ),
                 )
 
                 # Stream CSV data to COPY
-                csv_buffer = insert_df.to_csv(index=False, header=False, na_rep='')
+                csv_buffer = insert_df.to_csv(index=False, header=False, na_rep="")
                 cur.copy_expert(sql, csv_buffer)
 
                 inserted = cur.rowcount
@@ -310,59 +395,75 @@ class VectorizedTechnicalLoader:
 
 def _update_tech_loader_status(status: str, error_message: str = None):
     """Update data_loader_status for Phase 1 monitoring."""
-    with DatabaseContext('write') as cur:
-        if status == 'RUNNING':
-            cur.execute("""
+    with DatabaseContext("write") as cur:
+        if status == "RUNNING":
+            cur.execute(
+                """
                 UPDATE data_loader_status
                 SET status = %s, last_updated = NOW(), execution_started = NOW()
                 WHERE table_name = %s
-            """, (status, 'technical_data_daily'))
+            """,
+                (status, "technical_data_daily"),
+            )
             if cur.rowcount == 0:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO data_loader_status
                     (table_name, status, last_updated, execution_started)
                     VALUES (%s, %s, NOW(), NOW())
-                """, ('technical_data_daily', status))
+                """,
+                    ("technical_data_daily", status),
+                )
         else:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE data_loader_status
                 SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
                 WHERE table_name = %s
-            """, (status, error_message, 'technical_data_daily'))
+            """,
+                (status, error_message, "technical_data_daily"),
+            )
 
 def _tech_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
         try:
             time.sleep(60)
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     UPDATE data_loader_status
                     SET last_updated = NOW()
                     WHERE table_name = %s AND status = %s
-                """, ('technical_data_daily', 'RUNNING'))
+                """,
+                    ("technical_data_daily", "RUNNING"),
+                )
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
-    parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Limit to N symbols (for testing)"
+    )
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")
     args = parser.parse_args()
 
     # Support INTRADAY_MODE environment variable (set by EventBridge/Step Functions)
     # When set, load only today's data for rapid intraday updates (3-8 min vs 15-25 min)
-    if os.getenv('INTRADAY_MODE', '').lower() in ('true', '1', 'yes'):
+    if os.getenv("INTRADAY_MODE", "").lower() in ("true", "1", "yes"):
         now_et = datetime.now(EASTERN_TZ)
         args.since = now_et.date().isoformat()
         logger.info(f"[ENV] INTRADAY_MODE=true, loading data since {args.since}")
 
     # Update status to RUNNING before fetching symbols
-    _update_tech_loader_status('RUNNING')
+    _update_tech_loader_status("RUNNING")
 
     # Start heartbeat thread for hung task detection
     stop_heartbeat = threading.Event()
-    heartbeat_thread = threading.Thread(target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=True)
+    heartbeat_thread = threading.Thread(
+        target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=True
+    )
     heartbeat_thread.start()
 
     try:
@@ -370,11 +471,11 @@ def main():
         try:
             symbols = get_active_symbols(timeout_secs=300)
             if args.limit:
-                symbols = symbols[:args.limit]
+                symbols = symbols[: args.limit]
             logger.info(f"Loaded {len(symbols)} symbols for vectorized processing")
         except Exception as e:
             logger.error(f"Failed to get symbols: {e}")
-            _update_tech_loader_status('FAILED', f"Symbol fetch failed: {str(e)}")
+            _update_tech_loader_status("FAILED", f"Symbol fetch failed: {str(e)}")
             return 1
 
         # Parse since date
@@ -384,7 +485,9 @@ def main():
                 since_date = datetime.strptime(args.since, "%Y-%m-%d").date()
             except ValueError as e:
                 logger.error(f"Invalid date format: {args.since}: {e}")
-                _update_tech_loader_status('FAILED', f"Invalid date format: {args.since}")
+                _update_tech_loader_status(
+                    "FAILED", f"Invalid date format: {args.since}"
+                )
                 return 1
 
         # Run vectorized loader
@@ -394,17 +497,18 @@ def main():
         logger.info(f"Result: {result}")
 
         # Update status to COMPLETED or FAILED based on result
-        if result.get('rows_inserted', 0) > 0 or result.get('error') is None:
-            _update_tech_loader_status('COMPLETED')
-            final_status = 'completed'
+        if result.get("rows_inserted", 0) > 0 or result.get("error") is None:
+            _update_tech_loader_status("COMPLETED")
+            final_status = "completed"
         else:
-            _update_tech_loader_status('FAILED', result.get('error', 'Unknown error'))
-            final_status = 'failed'
+            _update_tech_loader_status("FAILED", result.get("error", "Unknown error"))
+            final_status = "failed"
 
         # Log execution time
         try:
-            with DatabaseContext('write') as cur:
-                cur.execute("""
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
                     INSERT INTO data_loader_runs (
                         loader_name, table_name, run_date, status, records_loaded,
                         duration_seconds, started_at, completed_at
@@ -416,22 +520,24 @@ def main():
                         records_loaded = EXCLUDED.records_loaded,
                         duration_seconds = EXCLUDED.duration_seconds,
                         completed_at = NOW()
-                """, (
-                    'technical_data_daily_vectorized',
-                    'technical_data_daily',
-                    date.today(),
-                    final_status,
-                    result.get('rows_inserted', 0),
-                    result.get('duration_sec', 0)
-                ))
+                """,
+                    (
+                        "technical_data_daily_vectorized",
+                        "technical_data_daily",
+                        date.today(),
+                        final_status,
+                        result.get("rows_inserted", 0),
+                        result.get("duration_sec", 0),
+                    ),
+                )
         except Exception as e:
             logger.error(f"Failed to log execution: {e}")
 
-        return 0 if final_status == 'completed' else 1
+        return 0 if final_status == "completed" else 1
 
     except Exception as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)
-        _update_tech_loader_status('FAILED', f"Unexpected error: {str(e)}")
+        _update_tech_loader_status("FAILED", f"Unexpected error: {str(e)}")
         return 1
     finally:
         # Stop heartbeat thread
@@ -441,6 +547,6 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     sys.exit(main())

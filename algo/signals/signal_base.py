@@ -9,9 +9,8 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 - Helper functions (period_return, rs_percentile_vs_spy)
 """
 
-from datetime import datetime, timedelta, date as _date
 import logging
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Optional
 from utils.db.context import DatabaseContext
 from utils.db.query_cache import QueryCache, CacheStrategy
 
@@ -22,7 +21,7 @@ class SignalBase:
 
     def __init__(self):
         self._rs_percentile_cache = QueryCache(
-            'rs_percentile',
+            "rs_percentile",
             ttl_seconds=3600,  # 1 hour TTL
             max_entries=1000,  # Limit cache size
             strategy=CacheStrategy.LRU,  # Auto-evict oldest when full
@@ -31,7 +30,7 @@ class SignalBase:
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
             logger.debug(f"Database operation failed: {e}")
@@ -41,7 +40,9 @@ class SignalBase:
         """Clear RS percentile cache to prevent stale data."""
         self._rs_percentile_cache.invalidate()
 
-    def _rs_percentile_vs_spy(self, cur, symbol: str, eval_date, lookback: int = 60) -> Optional[float]:
+    def _rs_percentile_vs_spy(
+        self, cur, symbol: str, eval_date, lookback: int = 60
+    ) -> Optional[float]:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 

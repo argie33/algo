@@ -11,15 +11,15 @@ This script verifies that:
 
 import os
 import sys
-import json
 import re
 from pathlib import Path
 from datetime import datetime
 
 # Fix console encoding on Windows
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 def audit_dashboard_source():
     """Audit dashboard.py to ensure API-only data access."""
@@ -31,17 +31,19 @@ def audit_dashboard_source():
         print(f"  ❌ Dashboard file not found: {dashboard_file}")
         return False
 
-    content = dashboard_file.read_text(encoding='utf-8', errors='ignore')
+    content = dashboard_file.read_text(encoding="utf-8", errors="ignore")
 
     # Check for API usage
-    api_calls = len(re.findall(r'api_call\(', content))
-    db_calls = len(re.findall(r'DatabaseContext|psycopg2|\.execute\(', content))
+    api_calls = len(re.findall(r"api_call\(", content))
+    db_calls = len(re.findall(r"DatabaseContext|psycopg2|\.execute\(", content))
 
     print(f"  [OK] API calls found: {api_calls}")
-    print(f"  {'[OK]' if db_calls == 0 else '[FAIL]'} Direct DB calls found: {db_calls}")
+    print(
+        f"  {'[OK]' if db_calls == 0 else '[FAIL]'} Direct DB calls found: {db_calls}"
+    )
 
     # List all fetcher functions
-    fetchers = re.findall(r'def (fetch_\w+)\(', content)
+    fetchers = re.findall(r"def (fetch_\w+)\(", content)
     print(f"  [OK] Fetcher functions: {len(fetchers)}")
     for fetcher in fetchers[:5]:
         print(f"    - {fetcher}")
@@ -55,7 +57,6 @@ def audit_dashboard_source():
         print(f"  ❌ FAIL: Dashboard has {db_calls} direct DB calls")
         return False
 
-
 def audit_api_routes():
     """Audit API handler infrastructure to ensure DatabaseContext is used."""
     print("\n[2/4] Auditing API route handlers...")
@@ -67,24 +68,28 @@ def audit_api_routes():
         print(f"  ❌ Lambda file not found: {lambda_file}")
         return False
 
-    content = lambda_file.read_text(encoding='utf-8', errors='ignore')
+    content = lambda_file.read_text(encoding="utf-8", errors="ignore")
 
     # Check for DatabaseContext import and usage
-    has_import = 'from utils.db.context import DatabaseContext' in content
-    db_context_calls = len(re.findall(r'with DatabaseContext\(', content))
+    has_import = "from utils.db.context import DatabaseContext" in content
+    db_context_calls = len(re.findall(r"with DatabaseContext\(", content))
 
-    print(f"  {'[OK]' if has_import else '[FAIL]'} DatabaseContext imported: {has_import}")
+    print(
+        f"  {'[OK]' if has_import else '[FAIL]'} DatabaseContext imported: {has_import}"
+    )
     print(f"  [OK] DatabaseContext usage: {db_context_calls} context manager(s)")
 
     # Check that routes are using the database cursor
     algo_file = Path("lambda/api/routes/algo.py")
     if algo_file.exists():
-        algo_content = algo_file.read_text(encoding='utf-8', errors='ignore')
-        handlers = len(re.findall(r'def _(?:get|post|put|delete)_\w+\(cur\)', algo_content))
+        algo_content = algo_file.read_text(encoding="utf-8", errors="ignore")
+        handlers = len(
+            re.findall(r"def _(?:get|post|put|delete)_\w+\(cur\)", algo_content)
+        )
         print(f"  [OK] Route handlers receiving cur parameter: {handlers}")
 
     # Check for fallback handling
-    fallback_checks = len(re.findall(r'_is_fallback_data|_is_placeholder', content))
+    fallback_checks = len(re.findall(r"_is_fallback_data|_is_placeholder", content))
     print(f"  [OK] Fallback data detection: {fallback_checks} locations")
 
     if has_import and db_context_calls > 0:
@@ -93,7 +98,6 @@ def audit_api_routes():
     else:
         print("  [FAIL] DatabaseContext not properly configured")
         return False
-
 
 def audit_fallback_logging():
     """Audit fallback data logging."""
@@ -105,12 +109,12 @@ def audit_fallback_logging():
         print(f"  ⚠ Fallback registry not found: {fallback_file}")
         return True  # Not critical
 
-    content = fallback_file.read_text(encoding='utf-8', errors='ignore')
+    content = fallback_file.read_text(encoding="utf-8", errors="ignore")
 
     # Check for logging functions
-    has_logging = 'log_fallback_usage' in content
-    has_triggers = 'FallbackTrigger' in content
-    has_registry = 'get_hardcoded_fallback_values' in content
+    has_logging = "log_fallback_usage" in content
+    has_triggers = "FallbackTrigger" in content
+    has_registry = "get_hardcoded_fallback_values" in content
 
     print(f"  {'[OK]' if has_logging else '[FAIL]'} Fallback logging: {has_logging}")
     print(f"  {'[OK]' if has_triggers else '[FAIL]'} Fallback triggers: {has_triggers}")
@@ -123,17 +127,16 @@ def audit_fallback_logging():
         print("  ⚠ WARN: Fallback logging may be incomplete")
         return False
 
-
 def audit_aws_configuration():
     """Audit AWS environment configuration."""
     print("\n[4/4] Auditing AWS configuration...")
     print("-" * 60)
 
     env_vars = {
-        'AWS_PROFILE': 'AWS profile for credentials',
-        'AWS_REGION': 'AWS region (us-east-1)',
-        'DB_HOST': 'RDS host (from Secrets Manager or env)',
-        'ENVIRONMENT': 'Environment (dev/prod)',
+        "AWS_PROFILE": "AWS profile for credentials",
+        "AWS_REGION": "AWS region (us-east-1)",
+        "DB_HOST": "RDS host (from Secrets Manager or env)",
+        "ENVIRONMENT": "Environment (dev/prod)",
     }
 
     configured = 0
@@ -141,7 +144,7 @@ def audit_aws_configuration():
         value = os.getenv(var)
         if value:
             # Mask sensitive values
-            display = value if var != 'DB_HOST' else f"***{value[-20:]}"
+            display = value if var != "DB_HOST" else f"***{value[-20:]}"
             print(f"  [OK] {var}: {display}")
             configured += 1
         else:
@@ -152,13 +155,12 @@ def audit_aws_configuration():
     # Check for dev_server.py configuration
     dev_server = Path("lambda/api/dev_server.py")
     if dev_server.exists():
-        content = dev_server.read_text(encoding='utf-8', errors='ignore')
-        if 'AWS Secrets Manager' in content:
+        content = dev_server.read_text(encoding="utf-8", errors="ignore")
+        if "AWS Secrets Manager" in content:
             print("  [OK] Dev server: Configured for AWS Secrets Manager")
             return True
 
     return configured >= 2
-
 
 def main():
     """Run all audits."""
@@ -170,10 +172,10 @@ def main():
     print("=" * 60)
 
     results = {
-        'dashboard_source': audit_dashboard_source(),
-        'api_routes': audit_api_routes(),
-        'fallback_logging': audit_fallback_logging(),
-        'aws_configuration': audit_aws_configuration(),
+        "dashboard_source": audit_dashboard_source(),
+        "api_routes": audit_api_routes(),
+        "fallback_logging": audit_fallback_logging(),
+        "aws_configuration": audit_aws_configuration(),
     }
 
     print("\n" + "=" * 60)
@@ -199,6 +201,5 @@ def main():
         print("  Please review the issues above")
         return 1
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

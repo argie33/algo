@@ -1,79 +1,124 @@
 """Route: scores"""
+
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
-from typing import Dict, Any, Optional, List
-import logging, re
-from datetime import datetime, timedelta, date, timezone
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness, execute_with_timeout
+from typing import Dict
+import logging
+from routes.utils import (
+    error_response,
+    list_response,
+    safe_limit,
+    safe_offset,
+    check_data_freshness,
+    execute_with_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/scores/* endpoints."""
-        try:
-            if path in ['/api/scores', '/api/scores/stockscores'] or path.startswith('/api/scores?') or path.startswith('/api/scores/stockscores?'):
-                limit_str = params.get('limit', [None])[0] if params else None
-                limit = safe_limit(limit_str, max_val=1000, default=1000)
-                offset_str = params.get('offset', [None])[0] if params else None
-                offset = safe_offset(offset_str)
-                sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
-                sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
-                sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'
-                symbol = params.get('symbol', [None])[0] if params else None
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
+    """Handle /api/scores/* endpoints."""
+    try:
+        if (
+            path in ["/api/scores", "/api/scores/stockscores"]
+            or path.startswith("/api/scores?")
+            or path.startswith("/api/scores/stockscores?")
+        ):
+            limit_str = params.get("limit", [None])[0] if params else None
+            limit = safe_limit(limit_str, max_val=1000, default=1000)
+            offset_str = params.get("offset", [None])[0] if params else None
+            offset = safe_offset(offset_str)
+            sort_by = (
+                params.get("sortBy", ["composite_score"])[0]
+                if params
+                else "composite_score"
+            )
+            sort_order = params.get("sortOrder", ["desc"])[0] if params else "desc"
+            sp500_only = params.get("sp500Only", ["false"])[0] if params else "false"
+            symbol = params.get("symbol", [None])[0] if params else None
 
-                allowed_sorts = ['composite_score', 'momentum_score', 'quality_score', 'value_score',
-                               'growth_score', 'positioning_score', 'stability_score', 'symbol']
-                if sort_by not in allowed_sorts:
-                    return error_response(400, 'bad_request', f'Sort must be one of: {", ".join(allowed_sorts)}')
-                if sort_order not in ['asc', 'desc']:
-                    return error_response(400, 'bad_request', 'Sort order must be "asc" or "desc"')
+            allowed_sorts = [
+                "composite_score",
+                "momentum_score",
+                "quality_score",
+                "value_score",
+                "growth_score",
+                "positioning_score",
+                "stability_score",
+                "symbol",
+            ]
+            if sort_by not in allowed_sorts:
+                return error_response(
+                    400,
+                    "bad_request",
+                    f'Sort must be one of: {", ".join(allowed_sorts)}',
+                )
+            if sort_order not in ["asc", "desc"]:
+                return error_response(
+                    400, "bad_request", 'Sort order must be "asc" or "desc"'
+                )
 
-                return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
-            else:
-                return error_response(404, 'not_found', f'No scores handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Scores data unavailable: {e}')
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.error(f'Scores DB error: {e}')
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except Exception as e:
-            logger.error(f'Scores handler error: {e}', exc_info=True)
-            return error_response(500, 'internal_error', 'Scores handler failed')
+            return _get_stock_scores(
+                cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol
+            )
+        else:
+            return error_response(404, "not_found", f"No scores handler for {path}")
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.error(f"Scores data unavailable: {e}")
+        return error_response(503, "service_unavailable", "Data unavailable")
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"Scores DB error: {e}")
+        return error_response(503, "service_unavailable", "Database unavailable")
+    except Exception as e:
+        logger.error(f"Scores handler error: {e}", exc_info=True)
+        return error_response(500, "internal_error", "Scores handler failed")
 
-def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
-                         sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
-        """Get stock scores with multi-factor ranking."""
-        try:
-            allowed_sorts = {
-                'composite_score': 'sc.composite_score',
-                'momentum_score': 'sc.momentum_score',
-                'quality_score': 'sc.quality_score',
-                'value_score': 'sc.value_score',
-                'growth_score': 'sc.growth_score',
-                'positioning_score': 'sc.positioning_score',
-                'stability_score': 'sc.stability_score',
-                'symbol': 'sc.symbol'
-            }
-            sort_col = allowed_sorts.get(sort_by, 'sc.composite_score')
-            sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
+def _get_stock_scores(
+    cur,
+    limit: int = 5000,
+    offset: int = 0,
+    sort_by: str = "composite_score",
+    sort_order: str = "desc",
+    sp500_only: bool = False,
+    symbol: str = None,
+) -> Dict:
+    """Get stock scores with multi-factor ranking."""
+    try:
+        allowed_sorts = {
+            "composite_score": "sc.composite_score",
+            "momentum_score": "sc.momentum_score",
+            "quality_score": "sc.quality_score",
+            "value_score": "sc.value_score",
+            "growth_score": "sc.growth_score",
+            "positioning_score": "sc.positioning_score",
+            "stability_score": "sc.stability_score",
+            "symbol": "sc.symbol",
+        }
+        sort_col = allowed_sorts.get(sort_by, "sc.composite_score")
+        sort_direction = "DESC" if sort_order == "desc" else "ASC"
 
-            where_clause = """
+        where_clause = """
             WHERE sc.composite_score > 0
             """
-            params_list = []
+        params_list = []
 
-            if sp500_only:
-                where_clause += " AND ss.is_sp500 = TRUE"
-            if symbol:
-                # Validate symbol format (consistent with signals.py)
-                import re
-                if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol.upper()):
-                    return error_response(400, 'bad_request', 'Invalid symbol format')
-                where_clause += " AND sc.symbol = %s"
-                params_list.append(symbol.upper())
+        if sp500_only:
+            where_clause += " AND ss.is_sp500 = TRUE"
+        if symbol:
+            # Validate symbol format (consistent with signals.py)
+            import re
 
-            query = f"""
+            if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol.upper()):
+                return error_response(400, "bad_request", "Invalid symbol format")
+            where_clause += " AND sc.symbol = %s"
+            params_list.append(symbol.upper())
+
+        query = """
                 WITH latest_d AS (
                     SELECT date AS cur_date FROM price_daily ORDER BY date DESC LIMIT 1
                 ),
@@ -153,66 +198,67 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """
-            params_list.extend([limit, offset])
-            scores = execute_with_timeout(cur, query, params_list, timeout_sec=25)
+        params_list.extend([limit, offset])
+        scores = execute_with_timeout(cur, query, params_list, timeout_sec=25)
 
-            def _f(v):
-                return float(v) if v is not None else None
+        def _f(v):
+            return float(v) if v is not None else None
 
-            items = []
-            for row in scores:
-                d = dict(row)
-                d['quality_inputs'] = {
-                    'return_on_equity_pct': _f(d.get('roe_pct')),
-                    'return_on_assets_pct': _f(d.get('roa_val')),
-                    'debt_to_equity': _f(d.get('debt_to_equity')),
-                    'current_ratio': _f(d.get('current_ratio_val')),
-                    'quick_ratio': _f(d.get('quick_ratio_val')),
-                    'operating_margin_pct': _f(d.get('operating_margin_val')),
-                    'profit_margin_pct': _f(d.get('net_margin_val')),
-                }
-                d['value_inputs'] = {
-                    'stock_pe': _f(d.get('trailing_pe')),
-                    'stock_pb': _f(d.get('price_to_book')),
-                    'stock_ps': _f(d.get('ps_ratio_val')),
-                    'peg_ratio': _f(d.get('peg_ratio_val')),
-                    'stock_dividend_yield': _f(d.get('dividend_yield')),
-                }
-                d['growth_inputs'] = {
-                    'revenue_growth_yoy_pct': _f(d.get('revenue_growth_yoy_pct')),
-                    'eps_growth_yoy_pct': _f(d.get('eps_growth_yoy_pct')),
-                    'revenue_growth_3y_cagr': _f(d.get('rev_growth_3y_val')),
-                    'eps_growth_3y_cagr': _f(d.get('eps_growth_3y_val')),
-                }
-                d['stability_inputs'] = {
-                    'beta': _f(d.get('beta_val')),
-                    'volatility_12m': _f(d.get('volatility_12m_val')),
-                }
-                d['positioning_inputs'] = {
-                    'institutional_ownership_pct': _f(d.get('inst_own_val')),
-                    'insider_ownership_pct': _f(d.get('insider_own_val')),
-                    'short_percent_of_float': _f(d.get('short_pct_val')),
-                }
-                d['momentum_inputs'] = {
-                    'current_price':    _f(d.get('current_price')),
-                    'price_vs_sma_50':  _f(d.get('price_vs_sma_50')),
-                    'price_vs_sma_200': _f(d.get('price_vs_sma_200')),
-                    'rsi':              _f(d.get('tdd_rsi')),
-                    'macd':             _f(d.get('tdd_macd')),
-                }
-                items.append(d)
+        items = []
+        for row in scores:
+            d = dict(row)
+            d["quality_inputs"] = {
+                "return_on_equity_pct": _f(d.get("roe_pct")),
+                "return_on_assets_pct": _f(d.get("roa_val")),
+                "debt_to_equity": _f(d.get("debt_to_equity")),
+                "current_ratio": _f(d.get("current_ratio_val")),
+                "quick_ratio": _f(d.get("quick_ratio_val")),
+                "operating_margin_pct": _f(d.get("operating_margin_val")),
+                "profit_margin_pct": _f(d.get("net_margin_val")),
+            }
+            d["value_inputs"] = {
+                "stock_pe": _f(d.get("trailing_pe")),
+                "stock_pb": _f(d.get("price_to_book")),
+                "stock_ps": _f(d.get("ps_ratio_val")),
+                "peg_ratio": _f(d.get("peg_ratio_val")),
+                "stock_dividend_yield": _f(d.get("dividend_yield")),
+            }
+            d["growth_inputs"] = {
+                "revenue_growth_yoy_pct": _f(d.get("revenue_growth_yoy_pct")),
+                "eps_growth_yoy_pct": _f(d.get("eps_growth_yoy_pct")),
+                "revenue_growth_3y_cagr": _f(d.get("rev_growth_3y_val")),
+                "eps_growth_3y_cagr": _f(d.get("eps_growth_3y_val")),
+            }
+            d["stability_inputs"] = {
+                "beta": _f(d.get("beta_val")),
+                "volatility_12m": _f(d.get("volatility_12m_val")),
+            }
+            d["positioning_inputs"] = {
+                "institutional_ownership_pct": _f(d.get("inst_own_val")),
+                "insider_ownership_pct": _f(d.get("insider_own_val")),
+                "short_percent_of_float": _f(d.get("short_pct_val")),
+            }
+            d["momentum_inputs"] = {
+                "current_price": _f(d.get("current_price")),
+                "price_vs_sma_50": _f(d.get("price_vs_sma_50")),
+                "price_vs_sma_200": _f(d.get("price_vs_sma_200")),
+                "rsi": _f(d.get("tdd_rsi")),
+                "macd": _f(d.get("tdd_macd")),
+            }
+            items.append(d)
 
-            # Check data freshness
-            freshness = check_data_freshness(cur, 'stock_scores', 'updated_at', warning_days=7)
+        # Check data freshness
+        freshness = check_data_freshness(
+            cur, "stock_scores", "updated_at", warning_days=7
+        )
 
-            return list_response(items, data_freshness=freshness)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Stock scores data unavailable: {e}')
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.error(f'Stock scores DB error: {e}')
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except Exception as e:
-            logger.error(f'Stock scores query failed: {e}', exc_info=True)
-            return error_response(500, 'internal_error', 'Failed to fetch stock scores')
-
+        return list_response(items, data_freshness=freshness)
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.error(f"Stock scores data unavailable: {e}")
+        return error_response(503, "service_unavailable", "Data unavailable")
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f"Stock scores DB error: {e}")
+        return error_response(503, "service_unavailable", "Database unavailable")
+    except Exception as e:
+        logger.error(f"Stock scores query failed: {e}", exc_info=True)
+        return error_response(500, "internal_error", "Failed to fetch stock scores")

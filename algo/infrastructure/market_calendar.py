@@ -102,10 +102,10 @@ class MarketCalendar:
 
         # Early close (half-day): 2:00 PM ET
         if check_date in EARLY_CLOSES:
-            return '14:00'
+            return "14:00"
 
         # Normal close: 4:00 PM ET
-        return '16:00'
+        return "16:00"
 
     @staticmethod
     def is_market_open(check_datetime=None):
@@ -145,17 +145,17 @@ class MarketCalendar:
         if not MarketCalendar.is_trading_day(check_date):
             if check_date in US_HOLIDAYS:
                 return {
-                    'status': 'CLOSED',
-                    'reason': f"Holiday: {US_HOLIDAYS[check_date]}",
-                    'date': str(check_date),
-                    'is_open': False,
+                    "status": "CLOSED",
+                    "reason": f"Holiday: {US_HOLIDAYS[check_date]}",
+                    "date": str(check_date),
+                    "is_open": False,
                 }
             else:
                 return {
-                    'status': 'CLOSED',
-                    'reason': 'Weekend',
-                    'date': str(check_date),
-                    'is_open': False,
+                    "status": "CLOSED",
+                    "reason": "Weekend",
+                    "date": str(check_date),
+                    "is_open": False,
                 }
 
         market_open = time(9, 30)
@@ -166,31 +166,41 @@ class MarketCalendar:
             market_close = time(15, 0)
 
         if check_time < market_open:
-            mins_until = int((datetime.combine(check_date, market_open) -
-                             datetime.combine(check_date, check_time)).total_seconds() / 60)
+            mins_until = int(
+                (
+                    datetime.combine(check_date, market_open)
+                    - datetime.combine(check_date, check_time)
+                ).total_seconds()
+                / 60
+            )
             return {
-                'status': 'PRE_MARKET',
-                'reason': f'Opens in {mins_until} minutes',
-                'datetime': check_datetime.isoformat(),
-                'is_open': False,
+                "status": "PRE_MARKET",
+                "reason": f"Opens in {mins_until} minutes",
+                "datetime": check_datetime.isoformat(),
+                "is_open": False,
             }
         elif check_time >= market_close:
             return {
-                'status': 'AFTER_HOURS',
-                'reason': f"Market closed at {market_close.strftime('%H:%M')}",
-                'early_close': is_early_close,
-                'datetime': check_datetime.isoformat(),
-                'is_open': False,
+                "status": "AFTER_HOURS",
+                "reason": f"Market closed at {market_close.strftime('%H:%M')}",
+                "early_close": is_early_close,
+                "datetime": check_datetime.isoformat(),
+                "is_open": False,
             }
         else:
-            mins_until_close = int((datetime.combine(check_date, market_close) -
-                                   datetime.combine(check_date, check_time)).total_seconds() / 60)
+            mins_until_close = int(
+                (
+                    datetime.combine(check_date, market_close)
+                    - datetime.combine(check_date, check_time)
+                ).total_seconds()
+                / 60
+            )
             return {
-                'status': 'OPEN',
-                'reason': f'Market open ({mins_until_close}m until close)',
-                'early_close': is_early_close,
-                'datetime': check_datetime.isoformat(),
-                'is_open': True,
+                "status": "OPEN",
+                "reason": f"Market open ({mins_until_close}m until close)",
+                "early_close": is_early_close,
+                "datetime": check_datetime.isoformat(),
+                "is_open": True,
             }
 
     @staticmethod
@@ -203,13 +213,15 @@ class MarketCalendar:
         max_iterations = 10  # prevent infinite loop
         iterations = 0
 
-        while not MarketCalendar.is_trading_day(next_date) and iterations < max_iterations:
+        while (
+            not MarketCalendar.is_trading_day(next_date) and iterations < max_iterations
+        ):
             next_date = _date.fromordinal(next_date.toordinal() + 1)
             iterations += 1
 
         return next_date if iterations < max_iterations else None
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from datetime import timedelta
 
     logger.info("MARKET CALENDAR")

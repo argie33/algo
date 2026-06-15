@@ -16,12 +16,13 @@ from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger(__name__)
 
-
 class FinancialDataValidator:
     """Validates financial data with fail-closed behavior."""
 
     @staticmethod
-    def validate_price(price: any, context: str = "", allow_zero: bool = False) -> Tuple[bool, Optional[float], str]:
+    def validate_price(
+        price: any, context: str = "", allow_zero: bool = False
+    ) -> Tuple[bool, Optional[float], str]:
         """Validate a price value (entry, exit, stop loss, etc).
 
         Args:
@@ -75,7 +76,9 @@ class FinancialDataValidator:
         return True, price, ""
 
     @staticmethod
-    def validate_quantity(qty: any, context: str = "") -> Tuple[bool, Optional[int], str]:
+    def validate_quantity(
+        qty: any, context: str = ""
+    ) -> Tuple[bool, Optional[int], str]:
         """Validate position/order quantity (must be positive integer).
 
         Args:
@@ -105,7 +108,9 @@ class FinancialDataValidator:
         return True, qty_int, ""
 
     @staticmethod
-    def validate_stop_loss(entry_price: float, stop_loss: float, context: str = "") -> Tuple[bool, str]:
+    def validate_stop_loss(
+        entry_price: float, stop_loss: float, context: str = ""
+    ) -> Tuple[bool, str]:
         """Validate stop loss is below entry price.
 
         Args:
@@ -117,7 +122,9 @@ class FinancialDataValidator:
             (is_valid, error_message)
         """
         if entry_price <= 0:
-            msg = f"Entry price invalid for stop loss check: {entry_price:.2f} {context}"
+            msg = (
+                f"Entry price invalid for stop loss check: {entry_price:.2f} {context}"
+            )
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
             return False, msg
 
@@ -134,13 +141,16 @@ class FinancialDataValidator:
         # Warn if stop is very tight (< 1% risk)
         risk_pct = (entry_price - stop_loss) / entry_price * 100
         if risk_pct < 1.0:
-            logger.warning(f"[FINANCIAL_VALIDATION] Stop loss is very tight ({risk_pct:.2f}% risk) {context}")
+            logger.warning(
+                f"[FINANCIAL_VALIDATION] Stop loss is very tight ({risk_pct:.2f}% risk) {context}"
+            )
 
         return True, ""
 
     @staticmethod
-    def validate_pnl_calculation(entry: float, exit_price: float, qty: int,
-                                 context: str = "") -> Tuple[bool, Optional[float], Optional[float], str]:
+    def validate_pnl_calculation(
+        entry: float, exit_price: float, qty: int, context: str = ""
+    ) -> Tuple[bool, Optional[float], Optional[float], str]:
         """Validate P&L calculation inputs.
 
         Args:
@@ -178,8 +188,9 @@ class FinancialDataValidator:
         return True, pnl_dollars, pnl_pct, ""
 
     @staticmethod
-    def validate_r_multiple(entry: float, exit_price: float, stop_loss: float,
-                           context: str = "") -> Tuple[bool, Optional[float], str]:
+    def validate_r_multiple(
+        entry: float, exit_price: float, stop_loss: float, context: str = ""
+    ) -> Tuple[bool, Optional[float], str]:
         """Validate R-multiple (risk/reward ratio) calculation.
 
         Args:
@@ -211,9 +222,10 @@ class FinancialDataValidator:
 
         return True, r_multiple, ""
 
-
 # Convenience function for common validation pattern
-def validate_trade_entry_prices(symbol: str, entry_price: any, stop_loss_price: any) -> Tuple[bool, Optional[float], Optional[float], str]:
+def validate_trade_entry_prices(
+    symbol: str, entry_price: any, stop_loss_price: any
+) -> Tuple[bool, Optional[float], Optional[float], str]:
     """Validate entry and stop loss prices for a trade entry.
 
     Returns:

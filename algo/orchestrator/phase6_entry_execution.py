@@ -27,16 +27,18 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-
-def _compute_true_atr(symbol: str, run_date: _date, period: int = 14) -> Optional[float]:
+def _compute_true_atr(
+    symbol: str, run_date: _date, period: int = 14
+) -> Optional[float]:
     """True ATR: GREATEST(H-L, |H-prev_C|, |L-prev_C|) averaged over `period` days.
 
     Fetches period+1 rows so the oldest row has a valid LAG(close). Anchored
     to run_date to avoid look-ahead contamination in historical replays.
     """
     try:
-        with DatabaseContext('read') as cur:
-            cur.execute("""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
                 SELECT AVG(tr) AS atr
                 FROM (
                     SELECT
@@ -52,46 +54,48 @@ def _compute_true_atr(symbol: str, run_date: _date, period: int = 14) -> Optiona
                     LIMIT %s
                 ) tr_data
                 WHERE tr IS NOT NULL AND rn <= %s
-            """, (symbol, run_date, period + 1, period))
+            """,
+                (symbol, run_date, period + 1, period),
+            )
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not compute ATR for {symbol}: {e}")
         return None
 
-
 def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
     """50-day SMA anchored to run_date."""
     try:
-        with DatabaseContext('read') as cur:
-            cur.execute("""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
                 SELECT AVG(close) FROM (
                     SELECT close FROM price_daily
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT 50
                 ) recent
-            """, (symbol, run_date))
+            """,
+                (symbol, run_date),
+            )
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
         return None
 
-
 def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
     """Latest close price at or before run_date."""
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
-                (symbol, run_date)
+                (symbol, run_date),
             )
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
         logger.warning(f"Could not get close for {symbol}: {e}")
         return None
-
 
 def run(
     config: Any,
@@ -108,25 +112,32 @@ def run(
 
     if not qualified_trades:
         logger.info("[PHASE 6] No qualified trades from Phase 5")
-        log_phase_result_fn(6, 'entry_execution', 'success', 'No qualified signals')
-        return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, 'No signals to execute')
+        log_phase_result_fn(6, "entry_execution", "success", "No qualified signals")
+        return PhaseResult(
+            6, "entry_execution", "ok", {"entered": 0}, False, "No signals to execute"
+        )
 
     # Halt flag check before any trades
     if check_halt_flag and check_halt_flag():
         logger.warning("[PHASE 6] Halt flag set — skipping all entries")
-        log_phase_result_fn(6, 'entry_execution', 'halt', 'Halt flag active')
-        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, 'Halt flag active')
+        log_phase_result_fn(6, "entry_execution", "halt", "Halt flag active")
+        return PhaseResult(
+            6, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active"
+        )
 
     # Exposure policy check
-    if exposure_constraints and exposure_constraints.get('halt_new_entries'):
-        reason = exposure_constraints.get('halt_reason', 'Exposure policy halted new entries')
+    if exposure_constraints and exposure_constraints.get("halt_new_entries"):
+        reason = exposure_constraints.get(
+            "halt_reason", "Exposure policy halted new entries"
+        )
         logger.warning(f"[PHASE 6] {reason}")
-        log_phase_result_fn(6, 'entry_execution', 'halt', reason)
-        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, reason)
+        log_phase_result_fn(6, "entry_execution", "halt", reason)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, reason)
 
     max_entries = (
-        exposure_constraints.get('max_new_positions_today')
-        if exposure_constraints else None
+        exposure_constraints.get("max_new_positions_today")
+        if exposure_constraints
+        else None
     )
     logger.info(
         f"[PHASE 6] Processing {len(qualified_trades)} qualified signals"
@@ -137,12 +148,18 @@ def run(
 
     # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.
     # Each ExposurePolicy tier defines its own concentration ceiling (20%/16%/12%/10%).
-    tier_max_conc = exposure_constraints.get('max_concentration_pct') if exposure_constraints else None
+    tier_max_conc = (
+        exposure_constraints.get("max_concentration_pct")
+        if exposure_constraints
+        else None
+    )
     # Convert AlgoConfig to dict using to_dict() method, or use empty dict if config is None
-    sizer_config = config.to_dict() if config and hasattr(config, 'to_dict') else {}
+    sizer_config = config.to_dict() if config and hasattr(config, "to_dict") else {}
     if tier_max_conc is not None:
-        sizer_config['max_concentration_pct'] = tier_max_conc
-        logger.info(f"[PHASE 6] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
+        sizer_config["max_concentration_pct"] = tier_max_conc
+        logger.info(
+            f"[PHASE 6] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)"
+        )
 
     sizer = PositionSizer(config=sizer_config)
     liquidity = LiquidityChecks(config=config)
@@ -156,21 +173,24 @@ def run(
         # Portfolio value unavailable — fail-closed, halt all entries
         error_msg = f"[PHASE 6 HALT] Cannot determine portfolio value: {e}"
         logger.critical(error_msg)
-        log_phase_result_fn(6, 'entry_execution', 'halt', error_msg)
-        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, error_msg)
+        log_phase_result_fn(6, "entry_execution", "halt", error_msg)
+        return PhaseResult(
+            6, "entry_execution", "halted", {"entered": 0}, True, error_msg
+        )
 
     try:
         from config.credential_manager import get_credential_manager
+
         creds = get_credential_manager().get_alpaca_credentials()
-        alpaca_key = creds.get('key')
-        alpaca_secret = creds.get('secret')
+        alpaca_key = creds.get("key")
+        alpaca_secret = creds.get("secret")
     except Exception:
         alpaca_key = None
         alpaca_secret = None
 
     pretrade = PreTradeChecks(
         config=config,
-        alpaca_base_url=os.getenv('APCA_API_BASE_URL'),
+        alpaca_base_url=os.getenv("APCA_API_BASE_URL"),
         alpaca_key=alpaca_key,
         alpaca_secret=alpaca_secret,
     )
@@ -181,7 +201,7 @@ def run(
 
     for signal in qualified_trades:
         try:
-            symbol = signal.get('symbol')
+            symbol = signal.get("symbol")
             if not symbol:
                 logger.warning("[PHASE 6] Signal missing symbol, skipping")
                 skipped_count += 1
@@ -189,12 +209,18 @@ def run(
 
             # Re-check halt flag each iteration — this loop can run for minutes
             if check_halt_flag and check_halt_flag():
-                logger.warning(f"[PHASE 6] Halt flag set mid-loop at {symbol}, stopping")
+                logger.warning(
+                    f"[PHASE 6] Halt flag set mid-loop at {symbol}, stopping"
+                )
                 break
 
             # Liquidity: ADV, dollar volume, price history age
-            entry_price_hint = signal.get('entry_price')
-            liq_ok, liq_reason = liquidity.run_all(str(symbol), float(entry_price_hint) if entry_price_hint else 0.0, run_date)
+            entry_price_hint = signal.get("entry_price")
+            liq_ok, liq_reason = liquidity.run_all(
+                str(symbol),
+                float(entry_price_hint) if entry_price_hint else 0.0,
+                run_date,
+            )
             if not liq_ok:
                 logger.debug(f"[PHASE 6] {symbol}: liquidity — {liq_reason}")
                 skipped_count += 1
@@ -208,7 +234,9 @@ def run(
             close = _get_latest_close(str(symbol), run_date)
 
             if not all([atr, sma_50, close]):
-                logger.warning(f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping")
+                logger.warning(
+                    f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping"
+                )
                 skipped_count += 1
                 continue
 
@@ -226,11 +254,15 @@ def run(
 
             risk_pct = (entry_price - stop_loss) / entry_price * 100
             if risk_pct < 1.5:
-                logger.info(f"[PHASE 6] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
+                logger.info(
+                    f"[PHASE 6] {symbol}: stop too tight ({risk_pct:.1f}%), skipping"
+                )
                 skipped_count += 1
                 continue
             if risk_pct > 12.0:
-                logger.info(f"[PHASE 6] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
+                logger.info(
+                    f"[PHASE 6] {symbol}: stop too wide ({risk_pct:.1f}%), skipping"
+                )
                 skipped_count += 1
                 continue
 
@@ -243,12 +275,14 @@ def run(
                 portfolio_value=portfolio_value,
             )
 
-            if sizing.get('status') != 'ok' or sizing.get('shares', 0) < 1:
-                logger.info(f"[PHASE 6] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
+            if sizing.get("status") != "ok" or sizing.get("shares", 0) < 1:
+                logger.info(
+                    f"[PHASE 6] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}"
+                )
                 skipped_count += 1
                 continue
 
-            shares = sizing['shares']
+            shares = sizing["shares"]
             position_value = shares * entry_price
 
             # Final hard-stop validation
@@ -260,7 +294,8 @@ def run(
 
             swing_info = (
                 f" swing={signal.get('swing_score', '?')}{signal.get('swing_grade', '')}"
-                if 'swing_score' in signal else ""
+                if "swing_score" in signal
+                else ""
             )
             logger.info(
                 f"[PHASE 6] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
@@ -278,27 +313,43 @@ def run(
                         signal_date=run_date,
                         entry_date=run_date,
                     )
-                    if result.get('success'):
+                    if result.get("success"):
                         executed_count += 1
-                        logger.info(f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}")
+                        logger.info(
+                            f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
+                        )
                         if max_entries and executed_count >= max_entries:
-                            logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                            logger.info(
+                                f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping"
+                            )
                             break
                     else:
-                        logger.error(f"[PHASE 6] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})")
+                        logger.error(
+                            f"[PHASE 6] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})"
+                        )
                         failed_count += 1
                 except Exception as exec_err:
-                    logger.error(f"[PHASE 6] {symbol}: execution error: {exec_err}", exc_info=True)
+                    logger.error(
+                        f"[PHASE 6] {symbol}: execution error: {exec_err}",
+                        exc_info=True,
+                    )
                     failed_count += 1
             else:
-                logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
+                logger.info(
+                    f"[PHASE 6] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})"
+                )
                 executed_count += 1
                 if max_entries and executed_count >= max_entries:
-                    logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                    logger.info(
+                        f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping"
+                    )
                     break
 
         except Exception as e:
-            logger.error(f"[PHASE 6] Error processing {signal.get('symbol', '?')}: {e}", exc_info=True)
+            logger.error(
+                f"[PHASE 6] Error processing {signal.get('symbol', '?')}: {e}",
+                exc_info=True,
+            )
             failed_count += 1
 
     elapsed = time.time() - phase_start
@@ -306,11 +357,15 @@ def run(
         f"[PHASE 6] Done in {elapsed:.1f}s: {executed_count} executed, "
         f"{skipped_count} skipped, {failed_count} failed"
     )
-    log_phase_result_fn(6, 'entry_execution', 'success', f'{executed_count} trades executed')
+    log_phase_result_fn(
+        6, "entry_execution", "success", f"{executed_count} trades executed"
+    )
 
     return PhaseResult(
-        6, 'entry_execution', 'ok',
-        {'entered': executed_count, 'skipped': skipped_count, 'failed': failed_count},
+        6,
+        "entry_execution",
+        "ok",
+        {"entered": executed_count, "skipped": skipped_count, "failed": failed_count},
         False,
-        f'Executed {executed_count} trades'
+        f"Executed {executed_count} trades",
     )

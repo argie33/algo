@@ -21,7 +21,7 @@ DESCRIPTION = "Add configurable grade thresholds to algo_config"
 
 def up():
     """Add configurable grade thresholds to algo_config."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             INSERT INTO algo_config (key, value, value_type, description, updated_by)
             VALUES
@@ -40,7 +40,7 @@ def up():
 
 def down():
     """Remove configurable grade thresholds from algo_config."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             DELETE FROM algo_config
             WHERE key IN (
@@ -51,4 +51,3 @@ def down():
                 'advanced_filters_grade_threshold_d'
             )
         """)
-

@@ -24,7 +24,7 @@ DESCRIPTION = "Add missing target and risk columns to algo_positions table"
 
 def up():
     """Add columns and populate from algo_trades data."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Step 1: Add target and stop loss columns to algo_positions
         cur.execute("""
             ALTER TABLE algo_positions
@@ -211,7 +211,7 @@ def up():
 
 def down():
     """Remove columns and restore view."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop the modified view
         cur.execute("DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE")
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Final verification: load data and run orchestrator to confirm all fixes work."""
+
 import logging
 from datetime import date, timedelta
 from algo.algo_orchestrator import Orchestrator
@@ -31,10 +32,12 @@ try:
     print(f"  Phases halted: {result.get('phases_halted', 0)}")
     print(f"  Phases errored: {result.get('phases_errored', 0)}")
 
-    if result.get('success') and not result.get('skipped'):
+    if result.get("success") and not result.get("skipped"):
         print("\n[SUCCESS] System is fully operational!")
-    elif result.get('skipped'):
-        print(f"\n[INFO] Orchestrator skipped (expected for weekend): {result.get('reason')}")
+    elif result.get("skipped"):
+        print(
+            f"\n[INFO] Orchestrator skipped (expected for weekend): {result.get('reason')}"
+        )
     else:
         print(f"\n[FAIL] Orchestrator failed: {result.get('reason')}")
 

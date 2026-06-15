@@ -36,7 +36,6 @@ API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "http://localhost:3001")
 API_TIMEOUT = 10
 API_MAX_RETRIES = 3
 
-
 def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
     """Call API endpoint with retry logic and standardized response unwrapping.
 
@@ -59,9 +58,13 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     for attempt in range(API_MAX_RETRIES):
         try:
             if method == "GET":
-                resp = requests.get(url, params=params, headers=headers, timeout=API_TIMEOUT)
+                resp = requests.get(
+                    url, params=params, headers=headers, timeout=API_TIMEOUT
+                )
             else:
-                resp = requests.post(url, json=params, headers=headers, timeout=API_TIMEOUT)
+                resp = requests.post(
+                    url, json=params, headers=headers, timeout=API_TIMEOUT
+                )
 
             if resp.status_code >= 400:
                 logger.warning(f"API {endpoint}: {resp.status_code}")
@@ -93,7 +96,6 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
     return {"_error": "API max retries exceeded"}
 
-
 def _unwrap_api_response(response: Dict) -> Dict:
     """Unwrap standardized API response wrapper.
 
@@ -116,9 +118,10 @@ def _unwrap_api_response(response: Dict) -> Dict:
 
     # Fallback for error responses that have no 'data' field
     # Remove only metadata markers (statusCode, headers) and return rest
-    unwrapped = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
+    unwrapped = {
+        k: v for k, v in response.items() if k not in ("statusCode", "headers")
+    }
     return unwrapped if unwrapped else {}
-
 
 class DashboardDataAPI:
     """Consolidated API data layer for all dashboard fetchers."""
@@ -147,7 +150,7 @@ class DashboardDataAPI:
         resp = api_call("/api/algo/positions")
         if "_error" in resp:
             logger.error(f"get_positions failed: {resp['_error']}")
-            return {"_error": resp['_error']}
+            return {"_error": resp["_error"]}
         items = resp.get("items", [])
         if not isinstance(items, list):
             error_msg = f"get_positions: expected list, got {type(items).__name__}"
@@ -155,7 +158,9 @@ class DashboardDataAPI:
             return {"_error": error_msg}
         valid_items = [item for item in items if isinstance(item, dict)]
         if len(valid_items) < len(items):
-            logger.warning(f"get_positions: filtered {len(items) - len(valid_items)} non-dict items")
+            logger.warning(
+                f"get_positions: filtered {len(items) - len(valid_items)} non-dict items"
+            )
         return valid_items
 
     @staticmethod
@@ -224,7 +229,9 @@ class DashboardDataAPI:
     @staticmethod
     def get_audit_log(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         """Get audit log via /api/algo/audit-log."""
-        resp = api_call("/api/algo/audit-log", params={"limit": limit, "offset": offset})
+        resp = api_call(
+            "/api/algo/audit-log", params={"limit": limit, "offset": offset}
+        )
         if "_error" in resp:
             logger.error(f"get_audit_log failed: {resp['_error']}")
             return resp

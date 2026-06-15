@@ -2,4 +2,4 @@
 
 from .grade_classifier import GradeClassifier
 
-__all__ = ['GradeClassifier']
+__all__ = ["GradeClassifier"]

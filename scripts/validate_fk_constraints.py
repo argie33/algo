@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def check_orphaned_records():
     """Check for records that would violate the new FKs."""
-    with DatabaseContext('read') as cur:
+    with DatabaseContext("read") as cur:
         # Check buy_sell_daily → price_daily
         cur.execute("""
             SELECT COUNT(*)
@@ -40,7 +40,7 @@ def check_orphaned_records():
 
     if orphaned_buy_sell > 0:
         logger.error(f"Found {orphaned_buy_sell} orphaned buy_sell_daily records")
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT DISTINCT bsd.symbol, bsd.date, COUNT(*) as count
                 FROM buy_sell_daily bsd
@@ -54,8 +54,10 @@ def check_orphaned_records():
                 logger.error(f"  {symbol} {date}: {count} records")
 
     if orphaned_technical > 0:
-        logger.error(f"Found {orphaned_technical} orphaned technical_data_daily records")
-        with DatabaseContext('read') as cur:
+        logger.error(
+            f"Found {orphaned_technical} orphaned technical_data_daily records"
+        )
+        with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT DISTINCT tdd.symbol, tdd.date, COUNT(*) as count
                 FROM technical_data_daily tdd
@@ -69,12 +71,16 @@ def check_orphaned_records():
                 logger.error(f"  {symbol} {date}: {count} records")
 
     if orphaned_buy_sell == 0 and orphaned_technical == 0:
-        logger.info("✓ No orphaned records found. FK constraints can be safely applied.")
+        logger.info(
+            "✓ No orphaned records found. FK constraints can be safely applied."
+        )
         return True
     else:
-        logger.error("✗ Orphaned records detected. Fix these before applying FK constraints.")
+        logger.error(
+            "✗ Orphaned records detected. Fix these before applying FK constraints."
+        )
         return False
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     success = check_orphaned_records()
     sys.exit(0 if success else 1)

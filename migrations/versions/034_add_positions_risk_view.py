@@ -11,7 +11,7 @@ DESCRIPTION = "Add positions with risk materialized view"
 
 def up():
     """Create the materialized view with all risk calculations."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop existing view if it exists (for re-runs/updates)
         cur.execute("""
             DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE
@@ -148,8 +148,7 @@ def up():
 
 def down():
     """Drop the materialized view."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE
         """)
-

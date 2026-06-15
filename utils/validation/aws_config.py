@@ -17,10 +17,9 @@ Validates:
 import logging
 import os
 from datetime import datetime, date
-from typing import Dict, List, Tuple
+from typing import Dict
 
 logger = logging.getLogger(__name__)
-
 
 class AWSProductionConfigValidator:
     """Validates all configuration for production AWS deployment."""
@@ -33,9 +32,9 @@ class AWSProductionConfigValidator:
 
     def validate_cognito_config(self) -> bool:
         """Validate Cognito configuration matches AWS setup."""
-        client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
-        user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
-        region = os.getenv('AWS_REGION', 'us-east-1').strip()
+        client_id = os.getenv("COGNITO_CLIENT_ID", "").strip()
+        user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
+        region = os.getenv("AWS_REGION", "us-east-1").strip()
 
         if not client_id:
             self.checks_critical.append(
@@ -50,19 +49,27 @@ class AWSProductionConfigValidator:
             return False
 
         # Format check: Cognito user pool IDs follow pattern: region_randomstring
-        if '_' not in user_pool_id:
+        if "_" not in user_pool_id:
             self.checks_warnings.append(
                 f"COGNITO_USER_POOL_ID format unusual: {user_pool_id} (expected format: region_xxx)"
             )
 
-        self.checks_passed.append(f"Cognito configured: {region}/{user_pool_id[:20]}...")
+        self.checks_passed.append(
+            f"Cognito configured: {region}/{user_pool_id[:20]}..."
+        )
         return True
 
     def validate_alpaca_config(self) -> bool:
         """Validate Alpaca credentials configured."""
-        api_key = os.getenv('APCA_API_KEY_ID', '').strip() or os.getenv('ALPACA_API_KEY', '').strip()
-        api_secret = os.getenv('APCA_API_SECRET_KEY', '').strip() or os.getenv('ALPACA_API_SECRET', '').strip()
-        paper_trading = os.getenv('ALPACA_PAPER_TRADING', 'true').lower() == 'true'
+        api_key = (
+            os.getenv("APCA_API_KEY_ID", "").strip()
+            or os.getenv("ALPACA_API_KEY", "").strip()
+        )
+        api_secret = (
+            os.getenv("APCA_API_SECRET_KEY", "").strip()
+            or os.getenv("ALPACA_API_SECRET", "").strip()
+        )
+        paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
 
         if not api_key or not api_secret:
             if paper_trading:
@@ -76,23 +83,26 @@ class AWSProductionConfigValidator:
             return False
 
         mode = "PAPER" if paper_trading else "LIVE"
-        self.checks_passed.append(f"Alpaca configured: {mode} mode, credentials present")
+        self.checks_passed.append(
+            f"Alpaca configured: {mode} mode, credentials present"
+        )
         return True
 
     def validate_circuit_breaker_thresholds(self) -> bool:
         """Validate circuit breaker thresholds are configured."""
         try:
             from algo.infrastructure import get_config
+
             config = get_config()
 
             thresholds = {
-                'halt_drawdown_pct': (10.0, 30.0, 20.0),  # (min, max, default)
-                'max_daily_loss_pct': (0.5, 5.0, 2.0),
-                'max_consecutive_losses': (2, 5, 3),
-                'max_total_risk_pct': (1.0, 10.0, 4.0),
-                'vix_max_threshold': (25.0, 50.0, 35.0),
-                'max_weekly_loss_pct': (2.0, 20.0, 5.0),
-                'win_rate_floor_pct': (30.0, 60.0, 40.0),
+                "halt_drawdown_pct": (10.0, 30.0, 20.0),  # (min, max, default)
+                "max_daily_loss_pct": (0.5, 5.0, 2.0),
+                "max_consecutive_losses": (2, 5, 3),
+                "max_total_risk_pct": (1.0, 10.0, 4.0),
+                "vix_max_threshold": (25.0, 50.0, 35.0),
+                "max_weekly_loss_pct": (2.0, 20.0, 5.0),
+                "win_rate_floor_pct": (30.0, 60.0, 40.0),
             }
 
             issues = []
@@ -107,11 +117,15 @@ class AWSProductionConfigValidator:
                 self.checks_warnings.extend(issues)
                 return False
 
-            self.checks_passed.append("Circuit breaker thresholds configured and in safe ranges")
+            self.checks_passed.append(
+                "Circuit breaker thresholds configured and in safe ranges"
+            )
             return True
 
         except Exception as e:
-            self.checks_warnings.append(f"Cannot validate circuit breaker thresholds: {str(e)[:80]}")
+            self.checks_warnings.append(
+                f"Cannot validate circuit breaker thresholds: {str(e)[:80]}"
+            )
             return False
 
     def validate_data_patrol_config(self) -> bool:
@@ -124,14 +138,17 @@ class AWSProductionConfigValidator:
 
         try:
             from algo.monitoring import DataPatrol
-            patrol = DataPatrol()
+
+            DataPatrol()
 
             # Just verify patrol exists and can be instantiated
             self.checks_passed.append("Data patrol monitoring configured")
             return True
 
         except Exception as e:
-            self.checks_warnings.append(f"Data patrol configuration issue: {str(e)[:80]}")
+            self.checks_warnings.append(
+                f"Data patrol configuration issue: {str(e)[:80]}"
+            )
             return False
 
     def validate_market_calendar(self) -> bool:
@@ -141,7 +158,7 @@ class AWSProductionConfigValidator:
 
             # Check that today is recognized as trading day or not
             today = date.today()
-            is_trading = MarketCalendar.is_trading_day(today)
+            MarketCalendar.is_trading_day(today)
 
             # Verify calendar has some early closes configured
             # (US markets close at 1 PM ET on day-after-Thanksgiving, Christmas Eve if weekday, etc.)
@@ -158,7 +175,7 @@ class AWSProductionConfigValidator:
         try:
             from utils.db import DatabaseContext
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 # Check that data_loader_status table exists and has recent entries
                 cur.execute("""
                     SELECT COUNT(*) FROM data_loader_status
@@ -185,8 +202,9 @@ class AWSProductionConfigValidator:
         """Validate CloudWatch is configured for monitoring."""
         try:
             import boto3
-            region = os.getenv('AWS_REGION', 'us-east-1')
-            cloudwatch = boto3.client('cloudwatch', region_name=region)
+
+            region = os.getenv("AWS_REGION", "us-east-1")
+            cloudwatch = boto3.client("cloudwatch", region_name=region)
 
             # Try to get metrics - just verify connectivity
             cloudwatch.list_metrics(MaxItems=1)
@@ -197,7 +215,7 @@ class AWSProductionConfigValidator:
         except Exception as e:
             self.checks_warnings.append(
                 f"CloudWatch may not be configured: {str(e)[:80]} "
-                f"(Note: Not critical if running locally, required for AWS)"
+                "(Note: Not critical if running locally, required for AWS)"
             )
             return False
 
@@ -225,11 +243,11 @@ class AWSProductionConfigValidator:
         """Validate error fallback monitoring is enabled."""
         try:
             # Import routes safely without using 'lambda' keyword
-            import sys
-            import importlib.util
             from pathlib import Path
 
-            routes_path = Path(__file__).parent.parent / 'lambda' / 'api' / 'routes' / 'utils.py'
+            routes_path = (
+                Path(__file__).parent.parent / "lambda" / "api" / "routes" / "utils.py"
+            )
             if routes_path.exists():
                 self.checks_passed.append("Error fallback monitoring configured")
                 return True
@@ -238,7 +256,9 @@ class AWSProductionConfigValidator:
                 return False
 
         except Exception as e:
-            self.checks_warnings.append(f"Error fallback monitoring issue: {str(e)[:80]}")
+            self.checks_warnings.append(
+                f"Error fallback monitoring issue: {str(e)[:80]}"
+            )
             return False
 
     def run_all_validations(self) -> Dict[str, any]:
@@ -300,10 +320,10 @@ class AWSProductionConfigValidator:
         )
 
         return {
-            'ready_for_production': ready_for_production,
-            'passed': self.checks_passed,
-            'warnings': self.checks_warnings,
-            'failures': self.checks_failed,
-            'critical': self.checks_critical,
-            'timestamp': datetime.now().isoformat(),
+            "ready_for_production": ready_for_production,
+            "passed": self.checks_passed,
+            "warnings": self.checks_warnings,
+            "failures": self.checks_failed,
+            "critical": self.checks_critical,
+            "timestamp": datetime.now().isoformat(),
         }

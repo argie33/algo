@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-import json
-from datetime import date as _date, datetime
+from datetime import date as _date
 from typing import Optional, Dict, Any
 from utils.db import DatabaseContext
 
@@ -38,7 +37,7 @@ class WatermarkManager:
             watermark date, or None if never loaded
         """
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 if self.granularity == "symbol":
                     if not symbol:
                         raise ValueError("symbol required for granularity='symbol'")
@@ -99,7 +98,7 @@ class WatermarkManager:
             True if watermark was updated, False if failed
         """
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 watermark_str = new_watermark.isoformat()
 
                 if self.granularity == "symbol":
@@ -196,7 +195,7 @@ class WatermarkManager:
     ):
         """Record an error for this watermark entry."""
         try:
-            with DatabaseContext('write') as cur:
+            with DatabaseContext("write") as cur:
                 if self.granularity == "symbol":
                     if not symbol:
                         raise ValueError("symbol required")
@@ -211,7 +210,13 @@ class WatermarkManager:
                             last_error = %s,
                             last_error_at = NOW()
                         """,
-                        (self.loader_name, symbol, "symbol", error_message, error_message),
+                        (
+                            self.loader_name,
+                            symbol,
+                            "symbol",
+                            error_message,
+                            error_message,
+                        ),
                     )
                 elif self.granularity == "global":
                     cur.execute(
@@ -239,7 +244,13 @@ class WatermarkManager:
                             last_error = %s,
                             last_error_at = NOW()
                         """,
-                        (self.loader_name, granularity_key, self.granularity, error_message, error_message),
+                        (
+                            self.loader_name,
+                            granularity_key,
+                            self.granularity,
+                            error_message,
+                            error_message,
+                        ),
                     )
         except Exception as e:
             logger.error(f"Failed to record error: {e}")
@@ -248,7 +259,7 @@ class WatermarkManager:
         """Get status of all watermarks for this loader."""
         try:
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT symbol, granularity, watermark, error_count, last_error FROM loader_watermarks WHERE loader = %s",
                     (self.loader_name,),

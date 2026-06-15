@@ -9,13 +9,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.db.context import DatabaseContext
 
-
 class TestIntegration:
     """Test integrated functionality across modules."""
 
     def test_end_to_end_signal_generation(self):
         """Test end-to-end signal generation pipeline imports and structure."""
         from algo.signals import SignalComputer, SwingTraderScore
+
         assert SignalComputer is not None
         assert SwingTraderScore is not None
 
@@ -24,6 +24,7 @@ class TestIntegration:
         try:
             from algo.trading import TradeExecutor
             from algo.risk import CircuitBreaker
+
             assert TradeExecutor is not None
             assert CircuitBreaker is not None
         except ImportError:

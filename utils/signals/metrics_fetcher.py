@@ -20,10 +20,8 @@ import psycopg2
 import psycopg2.extras
 import math
 from typing import Dict, List, Optional, Any
-from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
-
 
 class AlgoMetricsFetcher:
     """Unified fetcher for performance metrics and positions from database."""
@@ -71,7 +69,7 @@ class AlgoMetricsFetcher:
         """
         cum, peak, max_dd = 1.0, 1.0, 0.0
         for r in returns:
-            cum *= (1 + r)
+            cum *= 1 + r
             if cum > peak:
                 peak = cum
             dd = (cum - peak) / peak
@@ -112,18 +110,26 @@ class AlgoMetricsFetcher:
             pnl_dollars = []
             pnl_pcts = []
             for t in trades:
-                pnl_d = t.get('profit_loss_dollars')
-                pnl_p = t.get('profit_loss_pct')
+                pnl_d = t.get("profit_loss_dollars")
+                pnl_p = t.get("profit_loss_pct")
                 if pnl_d is None or pnl_p is None:
-                    logger.warning(f"Trade {t.get('trade_id')} missing P&L: dollars={pnl_d}, pct={pnl_p}")
+                    logger.warning(
+                        f"Trade {t.get('trade_id')} missing P&L: dollars={pnl_d}, pct={pnl_p}"
+                    )
                     continue
                 pnl_dollars.append(float(pnl_d))
                 pnl_pcts.append(float(pnl_p))
 
-            r_multiples = [float(t['exit_r_multiple']) for t in trades
-                          if t.get('exit_r_multiple') is not None]
-            holding_days = [float(t.get('holding_days')) for t in trades
-                           if t.get('holding_days') is not None]
+            r_multiples = [
+                float(t["exit_r_multiple"])
+                for t in trades
+                if t.get("exit_r_multiple") is not None
+            ]
+            holding_days = [
+                float(t.get("holding_days"))
+                for t in trades
+                if t.get("holding_days") is not None
+            ]
 
             # Count closed trade outcomes
             closed_winning = sum(1 for p in pnl_dollars if p > 0)
@@ -149,9 +155,24 @@ class AlgoMetricsFetcher:
             open_trades = [dict(row) for row in self.cursor.fetchall()]
 
             # Count open position outcomes
-            open_winning = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) > 0)
-            open_losing = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) < 0)
-            open_breakeven = sum(1 for t in open_trades if t.get('unrealized_pnl_dollars') and float(t['unrealized_pnl_dollars']) == 0)
+            open_winning = sum(
+                1
+                for t in open_trades
+                if t.get("unrealized_pnl_dollars")
+                and float(t["unrealized_pnl_dollars"]) > 0
+            )
+            open_losing = sum(
+                1
+                for t in open_trades
+                if t.get("unrealized_pnl_dollars")
+                and float(t["unrealized_pnl_dollars"]) < 0
+            )
+            open_breakeven = sum(
+                1
+                for t in open_trades
+                if t.get("unrealized_pnl_dollars")
+                and float(t["unrealized_pnl_dollars"]) == 0
+            )
             open_total = len(open_trades)
 
             # Combine closed and open for total counts
@@ -162,7 +183,9 @@ class AlgoMetricsFetcher:
 
             # Win rate (excludes breakeven, includes open positions)
             win_loss_total = winning + losing
-            win_rate_pct = (winning / win_loss_total * 100) if win_loss_total > 0 else 0.0
+            win_rate_pct = (
+                (winning / win_loss_total * 100) if win_loss_total > 0 else 0.0
+            )
 
             # Profit factor
             wins_sum = sum(p for p in pnl_dollars if p > 0)
@@ -193,14 +216,19 @@ class AlgoMetricsFetcher:
                     # Skip snapshots with missing portfolio values (don't mask with fallback to 0)
                     vals = []
                     for s in snapshots:
-                        pv = s.get('total_portfolio_value')
+                        pv = s.get("total_portfolio_value")
                         if pv is None:
-                            logger.warning(f"Snapshot {s.get('snapshot_date')} missing total_portfolio_value")
+                            logger.warning(
+                                f"Snapshot {s.get('snapshot_date')} missing total_portfolio_value"
+                            )
                             continue
                         vals.append(float(pv))
 
-                    returns = [(vals[i] - vals[i-1]) / vals[i-1]
-                              for i in range(1, len(vals)) if vals[i-1] != 0]
+                    returns = [
+                        (vals[i] - vals[i - 1]) / vals[i - 1]
+                        for i in range(1, len(vals))
+                        if vals[i - 1] != 0
+                    ]
 
                     if returns:
                         mean_r = self._mean(returns)
@@ -239,82 +267,98 @@ class AlgoMetricsFetcher:
 
             # Confidence levels
             if snapshot_count >= 20:
-                sharpe_confidence = 'high'
+                sharpe_confidence = "high"
             elif snapshot_count >= 5:
-                sharpe_confidence = 'medium'
+                sharpe_confidence = "medium"
             else:
-                sharpe_confidence = 'low'
+                sharpe_confidence = "low"
 
             if win_loss_total >= 30:
-                win_rate_confidence = 'high'
+                win_rate_confidence = "high"
             elif win_loss_total >= 10:
-                win_rate_confidence = 'medium'
+                win_rate_confidence = "medium"
             else:
-                win_rate_confidence = 'low'
+                win_rate_confidence = "low"
 
             return {
-                'total_trades': total,
-                'winning_trades': winning,
-                'losing_trades': losing,
-                'breakeven_trades': breakeven,
-                'win_rate_pct': round(win_rate_pct, 2),
-                'win_rate_confidence': win_rate_confidence,
-                'profit_factor': round(profit_factor, 2),
-                'total_pnl_dollars': round(sum(pnl_dollars), 2),
-                'total_pnl_pct': round(sum(pnl_pcts), 2),
-                'total_return_pct': round(total_return_pct, 2) if total_return_pct else None,
-                'avg_win_pct': round(avg_win_pct, 2) if avg_win_pct is not None else None,
-                'avg_loss_pct': round(avg_loss_pct, 2) if avg_loss_pct is not None else None,
-                'best_trade_pct': round(max(pnl_pcts), 2) if pnl_pcts else None,
-                'worst_trade_pct': round(min(pnl_pcts), 2) if pnl_pcts else None,
-                'sharpe_ratio': round(sharpe_ratio, 2) if sharpe_ratio is not None else None,
-                'sharpe_confidence': sharpe_confidence,
-                'sortino_ratio': round(sortino_ratio, 2) if sortino_ratio is not None else None,
-                'max_drawdown_pct': round(abs(max_dd_pct) * 100, 2) if max_dd_pct is not None else None,
-                'expectancy_r': self._mean_rounded(r_multiples, 2) if r_multiples else None,
-                'avg_holding_days': self._mean_rounded(holding_days, 1) if holding_days else None,
-                'current_streak': current_streak if pnl_dollars else None,
-                'best_win_streak': best_win_streak if pnl_dollars else None,
-                'worst_loss_streak': worst_loss_streak if pnl_dollars else None,
-                'portfolio_snapshots': snapshot_count,
-                '_source': 'database_direct',
+                "total_trades": total,
+                "winning_trades": winning,
+                "losing_trades": losing,
+                "breakeven_trades": breakeven,
+                "win_rate_pct": round(win_rate_pct, 2),
+                "win_rate_confidence": win_rate_confidence,
+                "profit_factor": round(profit_factor, 2),
+                "total_pnl_dollars": round(sum(pnl_dollars), 2),
+                "total_pnl_pct": round(sum(pnl_pcts), 2),
+                "total_return_pct": (
+                    round(total_return_pct, 2) if total_return_pct else None
+                ),
+                "avg_win_pct": (
+                    round(avg_win_pct, 2) if avg_win_pct is not None else None
+                ),
+                "avg_loss_pct": (
+                    round(avg_loss_pct, 2) if avg_loss_pct is not None else None
+                ),
+                "best_trade_pct": round(max(pnl_pcts), 2) if pnl_pcts else None,
+                "worst_trade_pct": round(min(pnl_pcts), 2) if pnl_pcts else None,
+                "sharpe_ratio": (
+                    round(sharpe_ratio, 2) if sharpe_ratio is not None else None
+                ),
+                "sharpe_confidence": sharpe_confidence,
+                "sortino_ratio": (
+                    round(sortino_ratio, 2) if sortino_ratio is not None else None
+                ),
+                "max_drawdown_pct": (
+                    round(abs(max_dd_pct) * 100, 2) if max_dd_pct is not None else None
+                ),
+                "expectancy_r": (
+                    self._mean_rounded(r_multiples, 2) if r_multiples else None
+                ),
+                "avg_holding_days": (
+                    self._mean_rounded(holding_days, 1) if holding_days else None
+                ),
+                "current_streak": current_streak if pnl_dollars else None,
+                "best_win_streak": best_win_streak if pnl_dollars else None,
+                "worst_loss_streak": worst_loss_streak if pnl_dollars else None,
+                "portfolio_snapshots": snapshot_count,
+                "_source": "database_direct",
             }
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_performance_metrics failed: {type(e).__name__}: {e}")
             return {
-                '_error': str(e),
-                '_source': 'database_direct',
-                'total_trades': 0,
+                "_error": str(e),
+                "_source": "database_direct",
+                "total_trades": 0,
             }
 
     def _empty_performance_response(self) -> Dict[str, Any]:
         """Return empty performance response when no trades exist. Returns None for metrics without sufficient data."""
         return {
-            'total_trades': 0,
-            'winning_trades': 0,
-            'losing_trades': 0,
-            'breakeven_trades': 0,
-            'win_rate_pct': None,
-            'win_rate_confidence': 'low',
-            'profit_factor': None,
-            'total_pnl_dollars': None,
-            'total_pnl_pct': None,
-            'total_return_pct': None,
-            'avg_win_pct': None,
-            'avg_loss_pct': None,
-            'best_trade_pct': None,
-            'worst_trade_pct': None,
-            'sharpe_ratio': None,
-            'sharpe_confidence': 'low',
-            'sortino_ratio': None,
-            'max_drawdown_pct': None,
-            'expectancy_r': None,
-            'avg_holding_days': None,
-            'current_streak': None,
-            'best_win_streak': None,
-            'worst_loss_streak': None,
-            'portfolio_snapshots': 0,
-            '_source': 'database_direct',
+            "total_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "breakeven_trades": 0,
+            "win_rate_pct": None,
+            "win_rate_confidence": "low",
+            "profit_factor": None,
+            "total_pnl_dollars": None,
+            "total_pnl_pct": None,
+            "total_return_pct": None,
+            "avg_win_pct": None,
+            "avg_loss_pct": None,
+            "best_trade_pct": None,
+            "worst_trade_pct": None,
+            "sharpe_ratio": None,
+            "sharpe_confidence": "low",
+            "sortino_ratio": None,
+            "max_drawdown_pct": None,
+            "expectancy_r": None,
+            "avg_holding_days": None,
+            "current_streak": None,
+            "best_win_streak": None,
+            "worst_loss_streak": None,
+            "portfolio_snapshots": 0,
+            "_source": "database_direct",
         }
 
     def fetch_open_positions(self) -> Dict[str, Any]:
@@ -360,40 +404,44 @@ class AlgoMetricsFetcher:
                 d = dict(row)
 
                 # Compute unrealized P&L in dollars
-                position_value = d.get('position_value')
-                unrealized_pnl_pct = d.get('unrealized_pnl_pct')
+                position_value = d.get("position_value")
+                unrealized_pnl_pct = d.get("unrealized_pnl_pct")
                 if position_value is not None and unrealized_pnl_pct is not None:
-                    d['unrealized_pnl'] = round(
+                    d["unrealized_pnl"] = round(
                         float(position_value) * float(unrealized_pnl_pct) / 100, 2
                     )
                 else:
-                    d['unrealized_pnl'] = None
+                    d["unrealized_pnl"] = None
 
                 # Compute R multiple (current price relative to stop loss)
                 # CRITICAL: Do NOT fall back to entry_price when current_price is None.
                 # If current_price is None, we cannot compute R multiple.
-                avg_entry = d.get('avg_entry_price')
-                stop_loss = d.get('stop_loss_price')
-                current = d.get('current_price')
+                avg_entry = d.get("avg_entry_price")
+                stop_loss = d.get("stop_loss_price")
+                current = d.get("current_price")
 
-                if (current is not None and avg_entry is not None and stop_loss is not None and
-                    float(avg_entry) > float(stop_loss)):
-                    d['r_multiple'] = round(
-                        (float(current) - float(avg_entry)) /
-                        (float(avg_entry) - float(stop_loss)),
-                        2
+                if (
+                    current is not None
+                    and avg_entry is not None
+                    and stop_loss is not None
+                    and float(avg_entry) > float(stop_loss)
+                ):
+                    d["r_multiple"] = round(
+                        (float(current) - float(avg_entry))
+                        / (float(avg_entry) - float(stop_loss)),
+                        2,
                     )
                 else:
-                    d['r_multiple'] = None
+                    d["r_multiple"] = None
 
                 positions.append(d)
 
             logger.debug(f"fetch_open_positions: {len(positions)} open positions found")
-            return {'items': positions, '_source': 'database_direct'}
+            return {"items": positions, "_source": "database_direct"}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_open_positions failed: {type(e).__name__}: {e}")
-            return {'_error': str(e), '_source': 'database_direct', 'items': []}
+            return {"_error": str(e), "_source": "database_direct", "items": []}
 
     def fetch_recent_trades(self, limit: int = 50) -> Dict[str, Any]:
         """Fetch recent closed trades.
@@ -405,7 +453,8 @@ class AlgoMetricsFetcher:
             Dict with 'items' list on success, '_error' on failure
         """
         try:
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 SELECT trade_id, symbol, trade_date, exit_date,
                        entry_price, exit_price, entry_quantity,
                        profit_loss_dollars, profit_loss_pct, exit_r_multiple,
@@ -414,14 +463,16 @@ class AlgoMetricsFetcher:
                 WHERE exit_date IS NOT NULL
                 ORDER BY exit_date DESC
                 LIMIT %s
-            """, (limit,))
+            """,
+                (limit,),
+            )
             trades = [dict(row) for row in self.cursor.fetchall()]
             logger.debug(f"fetch_recent_trades: {len(trades)} trades found")
-            return {'items': trades, '_source': 'database_direct'}
+            return {"items": trades, "_source": "database_direct"}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_recent_trades failed: {type(e).__name__}: {e}")
-            return {'_error': str(e), '_source': 'database_direct', 'items': []}
+            return {"_error": str(e), "_source": "database_direct", "items": []}
 
     def fetch_equity_curve(self, limit: int = 252) -> Dict[str, Any]:
         """Fetch equity curve (portfolio values over time).
@@ -433,24 +484,29 @@ class AlgoMetricsFetcher:
             Dict with 'equity_vals' list on success, '_error' on failure
         """
         try:
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 SELECT snapshot_date, total_portfolio_value
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date ASC
                 LIMIT %s
-            """, (limit,))
+            """,
+                (limit,),
+            )
             rows = [dict(row) for row in self.cursor.fetchall()]
             values = []
             for r in rows:
-                pv = r.get('total_portfolio_value')
+                pv = r.get("total_portfolio_value")
                 if pv is not None:
                     values.append(float(pv))
-            logger.debug(f"fetch_equity_curve: {len(values)} snapshots found (skipped {len(rows)-len(values)} with missing values)")
-            return {'equity_vals': values, '_source': 'database_direct'}
+            logger.debug(
+                f"fetch_equity_curve: {len(values)} snapshots found (skipped {len(rows)-len(values)} with missing values)"
+            )
+            return {"equity_vals": values, "_source": "database_direct"}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_equity_curve failed: {type(e).__name__}: {e}")
-            return {'_error': str(e), '_source': 'database_direct', 'equity_vals': []}
+            return {"_error": str(e), "_source": "database_direct", "equity_vals": []}
 
     def fetch_recent_returns(self, limit: int = 252) -> Dict[str, Any]:
         """Fetch recent daily returns from portfolio snapshots.
@@ -462,38 +518,49 @@ class AlgoMetricsFetcher:
             Dict with 'recent_rets' list of [date_str, pct_return] lists on success, '_error' on failure
         """
         try:
-            self.cursor.execute("""
+            self.cursor.execute(
+                """
                 SELECT snapshot_date, total_portfolio_value
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date ASC
                 LIMIT %s
-            """, (limit,))
+            """,
+                (limit,),
+            )
             rows = [dict(row) for row in self.cursor.fetchall()]
 
             if len(rows) < 2:
-                return {'recent_rets': [], '_source': 'database_direct'}
+                return {"recent_rets": [], "_source": "database_direct"}
 
             returns = []
             for i in range(1, len(rows)):
-                prev_pv = rows[i-1].get('total_portfolio_value')
-                curr_pv = rows[i].get('total_portfolio_value')
+                prev_pv = rows[i - 1].get("total_portfolio_value")
+                curr_pv = rows[i].get("total_portfolio_value")
                 if prev_pv is None or curr_pv is None:
-                    logger.warning(f"Skipping return calculation: missing portfolio value at index {i-1} or {i}")
+                    logger.warning(
+                        f"Skipping return calculation: missing portfolio value at index {i-1} or {i}"
+                    )
                     continue
                 prev_val = float(prev_pv)
                 curr_val = float(curr_pv)
                 if prev_val != 0:
                     ret_pct = ((curr_val - prev_val) / prev_val) * 100
-                    date = rows[i].get('snapshot_date')
+                    date = rows[i].get("snapshot_date")
                     if date:
-                        date_str = date.isoformat() if hasattr(date, 'isoformat') else str(date)
+                        date_str = (
+                            date.isoformat()
+                            if hasattr(date, "isoformat")
+                            else str(date)
+                        )
                     else:
                         date_str = None
                     returns.append([date_str, round(ret_pct, 2)])
 
-            logger.debug(f"fetch_recent_returns: {len(returns)} daily returns calculated")
-            return {'recent_rets': returns, '_source': 'database_direct'}
+            logger.debug(
+                f"fetch_recent_returns: {len(returns)} daily returns calculated"
+            )
+            return {"recent_rets": returns, "_source": "database_direct"}
 
         except (psycopg2.Error, Exception) as e:
             logger.error(f"fetch_recent_returns failed: {type(e).__name__}: {e}")
-            return {'_error': str(e), '_source': 'database_direct', 'recent_rets': []}
+            return {"_error": str(e), "_source": "database_direct", "recent_rets": []}

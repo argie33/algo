@@ -1,9 +1,18 @@
 """Route: industries"""
+
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
-from typing import Dict, Any, Optional, List
+from typing import Dict
 import logging
-from utils.error_handlers import make_error_response
-from routes.utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness, execute_with_timeout, safe_json_serialize
+from routes.utils import (
+    error_response,
+    json_response,
+    safe_limit,
+    safe_days,
+    safe_page,
+    check_data_freshness,
+    execute_with_timeout,
+    safe_json_serialize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,44 +25,70 @@ def _sf(v):
     except (TypeError, ValueError):
         return None
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: Dict,
+    body: Dict = None,
+    jwt_claims: Dict = None,
+) -> Dict:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
-        parts = [p for p in path.split('/') if p]
+        parts = [p for p in path.split("/") if p]
         # parts[0]='api', parts[1]='industries', parts[2]=industry_name (optional), parts[3]='trend' (optional)
         industry_name = parts[2] if len(parts) > 2 else None
         sub_path = parts[3] if len(parts) > 3 else None
 
         # /api/industries/{name}/trend  →  daily price series for one industry
-        if industry_name and sub_path == 'trend':
+        if industry_name and sub_path == "trend":
             return _industry_trend(cur, industry_name, params)
 
         # /api/industries/{name}  →  detail for one industry
-        if industry_name and industry_name != 'trends-batch':
+        if industry_name and industry_name != "trends-batch":
             return _industry_detail(cur, industry_name)
 
         # /api/industries  →  full ranked list
         return _industry_list(cur, params)
 
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(f'Industries query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
-        return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
+        logger.error(
+            f"Industries query failed - schema error: {type(e).__name__}: {e}",
+            extra={"operation": "get industries"},
+        )
+        return error_response(
+            503,
+            "schema_error",
+            "Database schema mismatch - please check RDS migrations",
+        )
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f'Industries query failed - database error: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
-        return error_response(503, 'connection_error', 'Database connection failed - please retry')
+        logger.error(
+            f"Industries query failed - database error: {type(e).__name__}: {e}",
+            extra={"operation": "get industries"},
+        )
+        return error_response(
+            503, "connection_error", "Database connection failed - please retry"
+        )
     except Exception as e:
-        logger.error(f'Industries query failed: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
-        return error_response(500, 'internal_error', f'Failed to fetch industries: {type(e).__name__}')
+        logger.error(
+            f"Industries query failed: {type(e).__name__}: {e}",
+            extra={"operation": "get industries"},
+        )
+        return error_response(
+            500, "internal_error", f"Failed to fetch industries: {type(e).__name__}"
+        )
 
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""
-    limit_str = params.get('limit', [None])[0] if params else None
+    limit_str = params.get("limit", [None])[0] if params else None
     limit = safe_limit(limit_str, max_val=50000, default=500)
-    page_str = params.get('page', [None])[0] if params else None
+    page_str = params.get("page", [None])[0] if params else None
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
-    industries_data = execute_with_timeout(cur, """
+    industries_data = execute_with_timeout(
+        cur,
+        """
         WITH latest_d AS (
             SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
         ),
@@ -139,71 +174,104 @@ def _industry_list(cur, params):
         LEFT JOIN industry_price_perf ipp ON ipp.industry = r.industry
         ORDER BY r.current_rank, r.stock_count DESC
         LIMIT %s OFFSET %s
-    """, (limit, offset), timeout_sec=25)
+    """,
+        (limit, offset),
+        timeout_sec=25,
+    )
 
-    count_rows = execute_with_timeout(cur, """
+    count_rows = execute_with_timeout(
+        cur,
+        """
         SELECT COUNT(DISTINCT industry) AS cnt
         FROM company_profile
         WHERE industry IS NOT NULL AND TRIM(industry) != ''
-    """, timeout_sec=10)
-    total = int((count_rows[0].get('cnt', 0) if count_rows else {})) if count_rows else 0
+    """,
+        timeout_sec=10,
+    )
+    total = (
+        int((count_rows[0].get("cnt", 0) if count_rows else {})) if count_rows else 0
+    )
 
     industries = []
     for idx, row in enumerate(industries_data):
         ind = safe_json_serialize(dict(row))
-        composite = _sf(ind.get('composite_score'))
-        perf_20d = _sf(ind.get('perf_20d'))
+        composite = _sf(ind.get("composite_score"))
+        perf_20d = _sf(ind.get("perf_20d"))
 
         momentum_label = (
-            'Strong'   if composite is not None and composite >= 60 else
-            'Moderate' if composite is not None and composite >= 45 else
-            'Weak'
+            "Strong"
+            if composite is not None and composite >= 60
+            else "Moderate" if composite is not None and composite >= 45 else "Weak"
         )
         trend_label = (
-            'Uptrend'   if perf_20d is not None and perf_20d > 2  else
-            'Downtrend' if perf_20d is not None and perf_20d < -2 else
-            'Sideways'
+            "Uptrend"
+            if perf_20d is not None and perf_20d > 2
+            else "Downtrend" if perf_20d is not None and perf_20d < -2 else "Sideways"
         )
 
-        industries.append({
-            'industry':           ind.get('industry'),
-            'sector':             ind.get('sector'),
-            'current_rank':       int(ind.get('current_rank') or idx + 1 + offset),
-            'overall_rank':       int(ind.get('current_rank') or idx + 1 + offset),
-            'rank_1w_ago':        int(ind.get('rank_1w_ago')) if ind.get('rank_1w_ago') is not None else None,
-            'rank_4w_ago':        int(ind.get('rank_4w_ago')) if ind.get('rank_4w_ago') is not None else None,
-            'rank_12w_ago':       int(ind.get('rank_12w_ago')) if ind.get('rank_12w_ago') is not None else None,
-            'stock_count':        int(ind.get('stock_count')) if ind.get('stock_count') is not None else None,
-            'composite_score':    composite,
-            'momentum_score':     _sf(ind.get('momentum_score')),
-            'value_score':        _sf(ind.get('value_score')),
-            'quality_score':      _sf(ind.get('quality_score')),
-            'growth_score':       _sf(ind.get('growth_score')),
-            'stability_score':    _sf(ind.get('stability_score')),
-            'performance_1d':     _sf(ind.get('perf_1d')),
-            'performance_5d':     _sf(ind.get('perf_5d')),
-            'performance_20d':    perf_20d,
-            'current_momentum':   momentum_label,
-            'current_trend':      trend_label,
-            'pe': {
-                'trailing':   _sf(ind.get('avg_trailing_pe')),
-                'forward':    _sf(ind.get('avg_forward_pe')),
-                'percentile': _sf(ind.get('pe_percentile')),
-            },
-        })
+        industries.append(
+            {
+                "industry": ind.get("industry"),
+                "sector": ind.get("sector"),
+                "current_rank": int(ind.get("current_rank") or idx + 1 + offset),
+                "overall_rank": int(ind.get("current_rank") or idx + 1 + offset),
+                "rank_1w_ago": (
+                    int(ind.get("rank_1w_ago"))
+                    if ind.get("rank_1w_ago") is not None
+                    else None
+                ),
+                "rank_4w_ago": (
+                    int(ind.get("rank_4w_ago"))
+                    if ind.get("rank_4w_ago") is not None
+                    else None
+                ),
+                "rank_12w_ago": (
+                    int(ind.get("rank_12w_ago"))
+                    if ind.get("rank_12w_ago") is not None
+                    else None
+                ),
+                "stock_count": (
+                    int(ind.get("stock_count"))
+                    if ind.get("stock_count") is not None
+                    else None
+                ),
+                "composite_score": composite,
+                "momentum_score": _sf(ind.get("momentum_score")),
+                "value_score": _sf(ind.get("value_score")),
+                "quality_score": _sf(ind.get("quality_score")),
+                "growth_score": _sf(ind.get("growth_score")),
+                "stability_score": _sf(ind.get("stability_score")),
+                "performance_1d": _sf(ind.get("perf_1d")),
+                "performance_5d": _sf(ind.get("perf_5d")),
+                "performance_20d": perf_20d,
+                "current_momentum": momentum_label,
+                "current_trend": trend_label,
+                "pe": {
+                    "trailing": _sf(ind.get("avg_trailing_pe")),
+                    "forward": _sf(ind.get("avg_forward_pe")),
+                    "percentile": _sf(ind.get("pe_percentile")),
+                },
+            }
+        )
 
-    freshness = check_data_freshness(cur, 'industry_ranking', 'date_recorded', warning_days=1)
-    return json_response(200, {
-        'items': industries,
-        'total': total,
-        'page':  page,
-        'limit': limit,
-        'data_freshness': freshness,
-    })
+    freshness = check_data_freshness(
+        cur, "industry_ranking", "date_recorded", warning_days=1
+    )
+    return json_response(
+        200,
+        {
+            "items": industries,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "data_freshness": freshness,
+        },
+    )
 
 def _industry_detail(cur, industry_name):
     """Return detail for a single industry."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             cp.industry AS industry_name,
             COUNT(DISTINCT cp.ticker) AS stock_count,
@@ -217,31 +285,39 @@ def _industry_detail(cur, industry_name):
         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
         WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
         GROUP BY cp.industry
-    """, (industry_name,))
+    """,
+        (industry_name,),
+    )
     row = cur.fetchone()
     if not row:
-        return error_response(404, 'not_found', f'Industry not found: {industry_name}')
+        return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
     r = safe_json_serialize(dict(row))
-    return json_response(200, {
-        'industry_name':   r.get('industry_name'),
-        'stock_count':     int(r.get('stock_count')) if r.get('stock_count') is not None else None,
-        'composite_score': _sf(r.get('composite_score')),
-        'momentum_score':  _sf(r.get('momentum_score')),
-        'value_score':     _sf(r.get('value_score')),
-        'quality_score':   _sf(r.get('quality_score')),
-        'growth_score':    _sf(r.get('growth_score')),
-        'stability_score': _sf(r.get('stability_score')),
-    })
+    return json_response(
+        200,
+        {
+            "industry_name": r.get("industry_name"),
+            "stock_count": (
+                int(r.get("stock_count")) if r.get("stock_count") is not None else None
+            ),
+            "composite_score": _sf(r.get("composite_score")),
+            "momentum_score": _sf(r.get("momentum_score")),
+            "value_score": _sf(r.get("value_score")),
+            "quality_score": _sf(r.get("quality_score")),
+            "growth_score": _sf(r.get("growth_score")),
+            "stability_score": _sf(r.get("stability_score")),
+        },
+    )
 
 def _industry_trend(cur, industry_name, params):
     """Return daily price series for an industry (from price_daily, indexed to 100)."""
-    days_str = params.get('days', [None])[0] if params else None
+    days_str = params.get("days", [None])[0] if params else None
     days = safe_days(days_str, max_val=365, default=90)
-    limit_str = params.get('limit', [None])[0] if params else None
+    limit_str = params.get("limit", [None])[0] if params else None
     limit = safe_limit(limit_str, max_val=252, default=90)
 
-    cur.execute("""
+    cur.execute(
+        """
         WITH prices AS (
             SELECT
                 DATE(pd.date)                        AS date,
@@ -261,17 +337,25 @@ def _industry_trend(cur, industry_name, params):
         FROM prices
         ORDER BY date ASC
         LIMIT %s
-    """, (industry_name, days, limit))
+    """,
+        (industry_name, days, limit),
+    )
 
     rows = cur.fetchall()
     trend_data = [
         {
-            'date':               str(r['date']),
-            'avgPrice':           float(r['avg_price']) if r['avg_price'] is not None else None,
-            'stockCount':         int(r['stock_count']) if r['stock_count'] is not None else None,
-            'dailyStrengthScore': float(r['daily_strength_score']) if r['daily_strength_score'] is not None else None,
+            "date": str(r["date"]),
+            "avgPrice": float(r["avg_price"]) if r["avg_price"] is not None else None,
+            "stockCount": (
+                int(r["stock_count"]) if r["stock_count"] is not None else None
+            ),
+            "dailyStrengthScore": (
+                float(r["daily_strength_score"])
+                if r["daily_strength_score"] is not None
+                else None
+            ),
         }
         for r in rows
     ]
 
-    return json_response(200, {'industry': industry_name, 'trendData': trend_data})
+    return json_response(200, {"industry": industry_name, "trendData": trend_data})

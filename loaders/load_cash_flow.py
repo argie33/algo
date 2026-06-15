@@ -1,5 +1,6 @@
 ﻿#!/usr/bin/env python3
 import sys
+
 """
 Cash Flow Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -9,10 +10,11 @@ or --period CLI flag for manual runs.
 
 import logging
 import argparse
+
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 from utils.loaders.helpers import get_active_symbols
 from utils.external.sec_edgar import SecEdgarClient
 
@@ -23,10 +25,16 @@ _PERIOD_CONFIG = {
     "annual": {
         "table_name": "annual_cash_flow",
         "primary_key": ("symbol", "fiscal_year"),
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year",
-            "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "operating_cash_flow",
+                "investing_cash_flow",
+                "financing_cash_flow",
+                "free_cash_flow",
+            }
+        ),
         "field_mapping": {
             # SEC EDGAR client converts concept names to snake_case before returning
             # Operating activities
@@ -44,12 +52,19 @@ _PERIOD_CONFIG = {
     "quarterly": {
         "table_name": "quarterly_cash_flow",
         "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
-        "schema_cols": frozenset({
-            "symbol", "fiscal_year", "fiscal_quarter",
-            "operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "free_cash_flow",
-        }),
+        "schema_cols": frozenset(
+            {
+                "symbol",
+                "fiscal_year",
+                "fiscal_quarter",
+                "operating_cash_flow",
+                "investing_cash_flow",
+                "financing_cash_flow",
+                "free_cash_flow",
+            }
+        ),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",   # "Q1".."Q4"  ->  integer (converted in transform)
+            "fiscal_period": "fiscal_quarter",  # "Q1".."Q4"  ->  integer (converted in transform)
             # SEC EDGAR client converts concept names to snake_case before returning
             # Operating activities
             "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
@@ -116,7 +131,9 @@ class CashFlowLoader(OptimalLoader):
                 elif db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
+                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(
+                    row["fiscal_quarter"]
+                )
             # Calculate free_cash_flow if we have operating_cash_flow and capex
             if "free_cash_flow" in self._schema_cols:
                 ocf = row.get("operating_cash_flow")
@@ -131,7 +148,11 @@ class CashFlowLoader(OptimalLoader):
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
-                key = (row.get("symbol"), row.get("fiscal_year"), row.get("fiscal_quarter"))
+                key = (
+                    row.get("symbol"),
+                    row.get("fiscal_year"),
+                    row.get("fiscal_quarter"),
+                )
             if key not in seen:
                 seen[key] = row
         return list(seen.values())
@@ -146,7 +167,11 @@ class CashFlowLoader(OptimalLoader):
             return False
 
         # Reject rows where all key cash flow fields are NULL
-        cash_fields = ["operating_cash_flow", "investing_cash_flow", "financing_cash_flow"]
+        cash_fields = [
+            "operating_cash_flow",
+            "investing_cash_flow",
+            "financing_cash_flow",
+        ]
         if all(row.get(field) is None for field in cash_fields):
             return False
 
@@ -154,16 +179,27 @@ class CashFlowLoader(OptimalLoader):
 
 def main():
     parser = argparse.ArgumentParser(description="Cash flow loader (annual/quarterly)")
-    parser.add_argument("--period", choices=["annual", "quarterly"],
-                        help="Statement period (defaults to LOADER_PERIOD env var)")
+    parser.add_argument(
+        "--period",
+        choices=["annual", "quarterly"],
+        help="Statement period (defaults to LOADER_PERIOD env var)",
+    )
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     default_parallelism = get_parallelism("cash_flow")
-    parser.add_argument("--parallelism", type=int, default=default_parallelism,
-                        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})")
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=default_parallelism,
+        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})",
+    )
     args = parser.parse_args()
 
     period = _resolve_period(args.period)
-    symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)
+    symbols = (
+        [s.strip().upper() for s in args.symbols.split(",")]
+        if args.symbols
+        else get_active_symbols(timeout_secs=60)
+    )
 
     loader = CashFlowLoader(period)
     try:
@@ -173,10 +209,11 @@ def main():
 
     fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
     if fail_rate > 0.05:
-        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        logger.error(
+            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
+        )
         return 1
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
-

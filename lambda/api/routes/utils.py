@@ -1,4 +1,5 @@
 """Shared route utilities."""
+
 import setup_imports  # noqa: F401
 
 import psycopg2.errors
@@ -14,31 +15,31 @@ logger = logging.getLogger(__name__)
 from utils.validation import APIResponseValidator
 
 def normalize_to_utc_datetime(dt):
-	"""Convert date or naive/aware datetime to UTC-aware datetime.
+    """Convert date or naive/aware datetime to UTC-aware datetime.
 
-	Handles three cases:
-	- date: converted to datetime at 00:00 UTC
-	- naive datetime: assumed to be UTC, tzinfo added
-	- aware datetime: returned as-is
+    Handles three cases:
+    - date: converted to datetime at 00:00 UTC
+    - naive datetime: assumed to be UTC, tzinfo added
+    - aware datetime: returned as-is
 
-	Args:
-		dt: datetime, date, or None
+    Args:
+            dt: datetime, date, or None
 
-	Returns:
-		UTC-aware datetime or None
-	"""
-	if dt is None:
-		return None
+    Returns:
+            UTC-aware datetime or None
+    """
+    if dt is None:
+        return None
 
-	if isinstance(dt, date) and not isinstance(dt, datetime):
-		dt = datetime.combine(dt, datetime.min.time())
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        dt = datetime.combine(dt, datetime.min.time())
 
-	if isinstance(dt, datetime):
-		if dt.tzinfo is None:
-			dt = dt.replace(tzinfo=timezone.utc)
-		return dt
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
 
-	return None
+    return None
 
 def safe_limit(limit_str, max_val=5000, default=500):
     """Parse and validate limit parameter."""
@@ -79,7 +80,7 @@ def safe_page(page_str, default=1):
 
 def safe_int(int_str, default=0, min_val=None, max_val=None):
     """Parse and validate integer parameter."""
-    if int_str is None or int_str == '':
+    if int_str is None or int_str == "":
         return default
     try:
         value = int(int_str)
@@ -93,7 +94,7 @@ def safe_int(int_str, default=0, min_val=None, max_val=None):
 
 def safe_float(float_str, default=0.0, min_val=None, max_val=None):
     """Parse and validate float parameter."""
-    if float_str is None or float_str == '':
+    if float_str is None or float_str == "":
         return default
     try:
         value = float(float_str)
@@ -141,7 +142,7 @@ def safe_symbol(symbol_str):
     if len(symbol) > 10:
         return None
 
-    if not all(c.isalnum() or c in '-^.' for c in symbol):
+    if not all(c.isalnum() or c in "-^." for c in symbol):
         return None
 
     return symbol
@@ -156,6 +157,7 @@ def error_response(code, typ, msg):
     # Sanitize message to remove credentials, paths, SQL
     try:
         from utils.error_handlers import sanitize_error_message
+
         msg = sanitize_error_message(msg)
     except Exception:
         pass
@@ -186,22 +188,26 @@ def list_response(items, total=None, data_freshness=None, limit=None, offset=Non
     sanitized_items = APIResponseValidator.sanitize_response(items if items else [])
     data = {
         "items": sanitized_items,
-        "total": total if total is not None else len(sanitized_items)
+        "total": total if total is not None else len(sanitized_items),
     }
     if limit is not None:
         data["limit"] = limit
     if offset is not None:
         data["offset"] = offset
 
-    response = {
-        "statusCode": 200,
-        "data": data
-    }
+    response = {"statusCode": 200, "data": data}
     if data_freshness:
         response["data_freshness"] = data_freshness
     return response
 
-def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, max_attempts: int = 2, backoff_multiplier: float = 1.5):
+def execute_with_timeout(
+    cur,
+    query: str,
+    params=None,
+    timeout_sec: int = 10,
+    max_attempts: int = 2,
+    backoff_multiplier: float = 1.5,
+):
     """Execute query with automatic timeout handling and exponential backoff retry.
 
     ALL database queries should use this wrapper to prevent hanging queries.
@@ -227,7 +233,9 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
     for attempt in range(max_attempts):
         try:
             # Set LOCAL timeout (connection-scoped, not global)
-            cur.execute(f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'")
+            cur.execute(
+                f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'"
+            )
             if params:
                 cur.execute(query, params)
             else:
@@ -245,7 +253,9 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
                 try:
                     cur.connection.rollback()
                 except Exception as rollback_err:
-                    logger.debug(f"Failed to rollback after query timeout: {rollback_err}")
+                    logger.debug(
+                        f"Failed to rollback after query timeout: {rollback_err}"
+                    )
                 time.sleep(0.1)
             else:
                 log_msg = f"Query timeout after {max_attempts} attempts\n  Query: {query[:500]}"
@@ -256,7 +266,9 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
                 raise e
         except Exception as e:
             last_error = e
-            log_msg = f"Query failed ({type(e).__name__}): {str(e)}\n  Query: {query[:500]}"
+            log_msg = (
+                f"Query failed ({type(e).__name__}): {str(e)}\n  Query: {query[:500]}"
+            )
             if params:
                 log_msg += f"\n  Params: {str(params)[:200]}"
             logger.error(log_msg)
@@ -269,10 +281,14 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
 
     # This line should never be reached, but kept for safety
     if last_error:
-        logger.error(f"Query execution failed after {max_attempts} attempts: {last_error}")
+        logger.error(
+            f"Query execution failed after {max_attempts} attempts: {last_error}"
+        )
         raise last_error
 
-def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = None) -> dict:
+def check_data_freshness(
+    cur, table_name: str, date_column: str = "date", warning_days: int = None
+) -> dict:
     """Check how fresh data is in a table.
 
     Args:
@@ -287,31 +303,34 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
     """
     if warning_days is None:
         from ..utils.config import get_config
+
         config = get_config()
         warning_days = max(1, int(config.data_freshness_max_hours / 24))
 
     try:
         import psycopg2.sql
+
         cur.execute(
             psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
                 psycopg2.sql.Identifier(date_column),
-                psycopg2.sql.Identifier(table_name)
+                psycopg2.sql.Identifier(table_name),
             )
         )
         result = cur.fetchone()
 
-        if not result or not result.get('max'):
+        if not result or not result.get("max"):
             return {
                 "data_age_days": None,
                 "is_stale": True,
-                "warning": f"No data in {table_name}"
+                "warning": f"No data in {table_name}",
             }
 
-        from datetime import datetime, date
-        max_date = result['max']
+        from datetime import date
+
+        max_date = result["max"]
 
         # Handle both date and datetime objects
-        if hasattr(max_date, 'date'):
+        if hasattr(max_date, "date"):
             max_date = max_date.date()
 
         today = date.today()
@@ -321,7 +340,7 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         # Adjust the staleness threshold on weekends so Friday's data stays
         # "fresh" through Sunday without triggering false stale warnings.
         weekday = today.weekday()  # 0=Mon … 6=Sun
-        if weekday == 5:    # Saturday: Friday data is 1 day old → +1
+        if weekday == 5:  # Saturday: Friday data is 1 day old → +1
             effective_warning = warning_days + 1
         elif weekday == 6:  # Sunday:   Friday data is 2 days old → +2
             effective_warning = warning_days + 2
@@ -334,14 +353,14 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
             "data_age_days": data_age,
             "is_stale": is_stale,
             "max_date": str(max_date),
-            "warning": f"Data is {data_age} days old" if is_stale else None
+            "warning": f"Data is {data_age} days old" if is_stale else None,
         }
-    except Exception as e:
+    except Exception:
         # SECURITY FIX S-11: Don't expose database error details to client
         return {
             "data_age_days": None,
             "is_stale": True,
-            "warning": "Unable to determine data freshness"
+            "warning": "Unable to determine data freshness",
         }
 
 def json_response(code, data, data_freshness=None):
@@ -389,10 +408,12 @@ def safe_dict_convert(row):
     try:
         return dict(row)
     except (KeyError, ValueError, TypeError) as e:
-        row_keys = list(row.keys()) if hasattr(row, 'keys') else 'unknown'
-        logger.error(f"Failed to convert row to dict: {type(e).__name__}: {e}\n  Row keys: {row_keys}\n  Row type: {type(row).__name__}\n  Context: DictCursor row conversion (possible schema mismatch)")
+        row_keys = list(row.keys()) if hasattr(row, "keys") else "unknown"
+        logger.error(
+            f"Failed to convert row to dict: {type(e).__name__}: {e}\n  Row keys: {row_keys}\n  Row type: {type(row).__name__}\n  Context: DictCursor row conversion (possible schema mismatch)"
+        )
         try:
-            if hasattr(row, 'keys'):
+            if hasattr(row, "keys"):
                 return {k: row[k] for k in row.keys() if k is not None}
         except Exception as fallback_err:
             logger.error(f"Fallback dict conversion also failed: {fallback_err}")
@@ -446,22 +467,23 @@ def handle_db_error(error, context="database operation", query=None, params=None
     # Use centralized classification (handles both psycopg2 and custom exceptions)
     try:
         from utils.error_handlers import classify_exception
+
         status_code, error_type, message = classify_exception(error)
     except Exception:
         # Fallback to old logic if import fails
         status_code = 500
-        error_type = 'database_error'
-        message = f'Error during {context}'
+        error_type = "database_error"
+        message = f"Error during {context}"
 
     # Log with full context
     error_name = type(error).__name__
     error_str = str(error)
-    log_msg = f'[DB_ERROR] {error_name} in {context}: {error_str}'
+    log_msg = f"[DB_ERROR] {error_name} in {context}: {error_str}"
     if query:
-        log_msg += f'\n  Query: {query[:500]}'
+        log_msg += f"\n  Query: {query[:500]}"
     if params:
         param_str = str(params)[:200]
-        log_msg += f'\n  Params: {param_str}'
+        log_msg += f"\n  Params: {param_str}"
 
     logger.error(log_msg)
 
@@ -488,17 +510,28 @@ def db_route_handler(operation_name: str, default_error_response=None):
         @db_route_handler('fetch user data')
         def _get_users(cur): ...
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            except (
+                psycopg2.errors.UndefinedTable,
+                psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError,
+                psycopg2.DatabaseError,
+                Exception,
+            ) as e:
                 code, error_type, message = handle_db_error(e, operation_name)
-                logger.error(f'Failed to {operation_name}: {error_type} - {message}')
+                logger.error(f"Failed to {operation_name}: {error_type} - {message}")
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
-                return json_response(code, {'errorType': error_type, 'message': message, '_error': message})
+                return json_response(
+                    code,
+                    {"errorType": error_type, "message": message, "_error": message},
+                )
+
         return wrapper
+
     return decorator

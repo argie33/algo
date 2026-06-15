@@ -48,24 +48,23 @@ import logging
 import time
 from typing import Any, Callable, Dict, Optional, Tuple, Generic, TypeVar
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
-
+T = TypeVar("T")
 
 class CacheStrategy(Enum):
     """When to invalidate cache entries."""
+
     TIME_BASED = "ttl"  # Expire after N seconds
     ON_DEMAND = "manual"  # Never expire, invalidate manually
     LRU = "lru"  # Evict least-recently-used when full
 
-
 @dataclass
 class CacheStats:
     """Cache performance statistics."""
+
     hits: int = 0
     misses: int = 0
     stale_hits: int = 0
@@ -77,7 +76,6 @@ class CacheStats:
         """Percentage of lookups that hit cache."""
         total = self.hits + self.misses
         return (self.hits / total * 100) if total > 0 else 0.0
-
 
 class QueryCache(Generic[T]):
     """In-process cache for expensive queries/computations.
@@ -195,7 +193,10 @@ class QueryCache(Generic[T]):
             self._access_order[key] = time.time()
 
             # Evict old entries if over capacity
-            if len(self._cache) > self.max_entries and self.strategy == CacheStrategy.LRU:
+            if (
+                len(self._cache) > self.max_entries
+                and self.strategy == CacheStrategy.LRU
+            ):
                 self._evict_lru()
 
             logger.debug(
@@ -267,10 +268,8 @@ class QueryCache(Generic[T]):
             f"avg_miss={stats.avg_miss_time_ms:.1f}ms"
         )
 
-
 # Global cache instances - one per expensive query type
 _GLOBAL_CACHES: Dict[str, QueryCache] = {}
-
 
 def get_or_create_cache(
     cache_name: str,
@@ -294,7 +293,6 @@ def get_or_create_cache(
         _GLOBAL_CACHES[cache_name] = QueryCache(cache_name, ttl_seconds, max_entries)
     return _GLOBAL_CACHES[cache_name]
 
-
 def report_all_caches() -> str:
     """Get statistics for all active caches."""
     if not _GLOBAL_CACHES:
@@ -304,7 +302,6 @@ def report_all_caches() -> str:
     for cache in _GLOBAL_CACHES.values():
         reports.append("  " + cache.report_stats())
     return "\n".join(reports)
-
 
 if __name__ == "__main__":
     # Example usage

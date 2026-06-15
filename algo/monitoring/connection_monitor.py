@@ -9,7 +9,6 @@ basic connection timeout for stuck connections.
 import logging
 import time
 import threading
-from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,12 @@ logger = logging.getLogger(__name__)
 class ConnectionPoolMonitor:
     """Monitor RDS connection pool utilization and emit alerts."""
 
-    def __init__(self, max_connections: int = 100, alert_threshold_pct: int = 80, timeout_sec: int = 300):
+    def __init__(
+        self,
+        max_connections: int = 100,
+        alert_threshold_pct: int = 80,
+        timeout_sec: int = 300,
+    ):
         """
         Args:
             max_connections: Maximum connections allowed (RDS t4g.small = 100)
@@ -30,7 +34,9 @@ class ConnectionPoolMonitor:
 
         self._lock = threading.Lock()
         self._active_connections = 0
-        self._connection_start_times: Dict[int, float] = {}  # Connection ID → start time
+        self._connection_start_times: Dict[int, float] = (
+            {}
+        )  # Connection ID → start time
         self._high_usage_warned = False
         self._last_report = time.time()
         self._report_interval = 60  # Report stats every 60s
@@ -49,7 +55,7 @@ class ConnectionPoolMonitor:
                 logger.warning(
                     f"[RDS_POOL] WARNING: Connection pool usage {usage_pct:.0f}% "
                     f"({self._active_connections}/{self.max_connections}). "
-                    f"If approaching 100%, check for stuck connections or excessive parallelism."
+                    "If approaching 100%, check for stuck connections or excessive parallelism."
                 )
                 self._high_usage_warned = True
 
@@ -74,7 +80,9 @@ class ConnectionPoolMonitor:
 
                     # Log connections that held the pool for >30s (potential timeout candidates)
                     if duration > 30:
-                        logger.debug(f"[RDS_POOL] Connection held for {duration:.0f}s (long duration)")
+                        logger.debug(
+                            f"[RDS_POOL] Connection held for {duration:.0f}s (long duration)"
+                        )
 
             usage_pct = (self._active_connections / self.max_connections) * 100
             if usage_pct < (self.alert_threshold_pct - 20):
@@ -90,31 +98,29 @@ class ConnectionPoolMonitor:
                 if (time.time() - start_time) > self.timeout_sec
             ]
             return {
-                'active_connections': self._active_connections,
-                'max_connections': self.max_connections,
-                'usage_pct': usage_pct,
-                'stuck_connections_count': len(stuck_connections),
-                'stuck_details': [
-                    {'connection_id': cid, 'duration_sec': int(duration)}
+                "active_connections": self._active_connections,
+                "max_connections": self.max_connections,
+                "usage_pct": usage_pct,
+                "stuck_connections_count": len(stuck_connections),
+                "stuck_details": [
+                    {"connection_id": cid, "duration_sec": int(duration)}
                     for cid, duration in stuck_connections
-                ]
+                ],
             }
 
     def check_and_alert_stuck_connections(self) -> None:
         """Check for stuck connections and log alerts if found."""
         status = self.get_status()
-        if status['stuck_connections_count'] > 0:
+        if status["stuck_connections_count"] > 0:
             logger.error(
                 f"[RDS_POOL] ALERT: {status['stuck_connections_count']} stuck connections "
                 f"held for >{self.timeout_sec}s. Pool usage {status['usage_pct']:.0f}%. "
-                f"Check for: infinite loops, deadlocks, network timeouts, or query hangs."
+                "Check for: infinite loops, deadlocks, network timeouts, or query hangs."
             )
-
 
 # Global monitor instance
 _monitor: Optional[ConnectionPoolMonitor] = None
 _monitor_lock = threading.Lock()
-
 
 def get_monitor() -> ConnectionPoolMonitor:
     """Get or create the global connection monitor."""
@@ -126,25 +132,21 @@ def get_monitor() -> ConnectionPoolMonitor:
                 _monitor = ConnectionPoolMonitor(
                     max_connections=max_conns,
                     alert_threshold_pct=80,  # Warn at 80% usage
-                    timeout_sec=300  # 5-minute timeout for stuck connections
+                    timeout_sec=300,  # 5-minute timeout for stuck connections
                 )
     return _monitor
-
 
 def on_connect() -> None:
     """Hook called when connection is acquired (from db_connection.py)."""
     get_monitor().on_connect()
 
-
 def on_disconnect() -> None:
     """Hook called when connection is released (from db_connection.py)."""
     get_monitor().on_disconnect()
 
-
 def get_pool_status() -> Dict[str, Any]:
     """Get current RDS pool status (for monitoring/debugging)."""
     return get_monitor().get_status()
-
 
 def check_stuck_connections() -> None:
     """Check for and alert on stuck connections."""

@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import psycopg2
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 import boto3
 from utils.db.sql_safety import assert_safe_table
@@ -22,26 +22,24 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # AWS clients
-cloudwatch = boto3.client('cloudwatch')
-sns = boto3.client('sns')
-
+cloudwatch = boto3.client("cloudwatch")
+sns = boto3.client("sns")
 
 def get_db_connection():
     """Create database connection from environment variables."""
     try:
         conn = psycopg2.connect(
-            host=os.environ.get('DB_HOST'),
-            port=int(os.environ.get('DB_PORT', '5432')),
-            database=os.environ.get('DB_NAME'),
-            user=os.environ.get('DB_USER'),
-            password=os.environ.get('DB_PASSWORD'),
-            connect_timeout=10
+            host=os.environ.get("DB_HOST"),
+            port=int(os.environ.get("DB_PORT", "5432")),
+            database=os.environ.get("DB_NAME"),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PASSWORD"),
+            connect_timeout=10,
         )
         return conn
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
-
 
 def check_loader_health() -> Tuple[str, List[Dict]]:
     """Check if critical loaders have run recently.
@@ -55,14 +53,14 @@ def check_loader_health() -> Tuple[str, List[Dict]]:
         cur = conn.cursor()
 
         critical_loaders = [
-            'price_daily',
-            'sector_ranking',
-            'options_chains',
-            'earnings_dates',
-            'analyst_ratings',
-            'insider_trades',
-            'buy_sell_daily',
-            'technical_data_daily',
+            "price_daily",
+            "sector_ranking",
+            "options_chains",
+            "earnings_dates",
+            "analyst_ratings",
+            "insider_trades",
+            "buy_sell_daily",
+            "technical_data_daily",
         ]
 
         issues = []
@@ -71,45 +69,54 @@ def check_loader_health() -> Tuple[str, List[Dict]]:
         # Check each critical loader
         for loader in critical_loaders:
             try:
-                cur.execute(f"""
+                cur.execute(
+                    """
                     SELECT status, last_execution_time
                     FROM data_loader_status
                     WHERE loader_name = %s
                     ORDER BY last_execution_time DESC
                     LIMIT 1
-                """, (loader,))
+                """,
+                    (loader,),
+                )
 
                 row = cur.fetchone()
                 if not row:
-                    issues.append({
-                        'loader': loader,
-                        'problem': 'Never run',
-                        'status': 'CRITICAL'
-                    })
+                    issues.append(
+                        {"loader": loader, "problem": "Never run", "status": "CRITICAL"}
+                    )
                     continue
 
                 status, last_run = row
                 if last_run:
-                    last_run = last_run.replace(tzinfo=timezone.utc) if last_run.tzinfo is None else last_run
+                    last_run = (
+                        last_run.replace(tzinfo=timezone.utc)
+                        if last_run.tzinfo is None
+                        else last_run
+                    )
                     age_hours = (now - last_run).total_seconds() / 3600
 
                     # Check if stale (>26 hours for daily loaders)
                     if age_hours > 26:
-                        issues.append({
-                            'loader': loader,
-                            'problem': f'Stale ({age_hours:.1f}h)',
-                            'last_run': last_run.isoformat(),
-                            'status': 'STALE'
-                        })
+                        issues.append(
+                            {
+                                "loader": loader,
+                                "problem": f"Stale ({age_hours:.1f}h)",
+                                "last_run": last_run.isoformat(),
+                                "status": "STALE",
+                            }
+                        )
 
                     # Check if failed
-                    if status == 'FAILED':
-                        issues.append({
-                            'loader': loader,
-                            'problem': 'Last run failed',
-                            'last_run': last_run.isoformat(),
-                            'status': 'FAILED'
-                        })
+                    if status == "FAILED":
+                        issues.append(
+                            {
+                                "loader": loader,
+                                "problem": "Last run failed",
+                                "last_run": last_run.isoformat(),
+                                "status": "FAILED",
+                            }
+                        )
 
             except Exception as e:
                 logger.warning(f"Could not check loader {loader}: {e}")
@@ -119,15 +126,16 @@ def check_loader_health() -> Tuple[str, List[Dict]]:
 
         # Determine overall status
         if not issues:
-            return 'healthy', []
+            return "healthy", []
 
-        critical_count = sum(1 for i in issues if i['status'] in ['CRITICAL', 'FAILED'])
-        return ('unhealthy' if critical_count > 0 else 'degraded'), issues
+        critical_count = sum(1 for i in issues if i["status"] in ["CRITICAL", "FAILED"])
+        return ("unhealthy" if critical_count > 0 else "degraded"), issues
 
     except Exception as e:
         logger.error(f"Loader health check failed: {e}")
-        return 'unhealthy', [{'problem': f'Health check error: {str(e)[:50]}', 'status': 'ERROR'}]
-
+        return "unhealthy", [
+            {"problem": f"Health check error: {str(e)[:50]}", "status": "ERROR"}
+        ]
 
 def check_data_freshness() -> Tuple[str, List[Dict]]:
     """Check if critical data tables have recent data.
@@ -141,12 +149,12 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
         cur = conn.cursor()
 
         critical_tables = {
-            'price_daily': 'Daily stock prices',
-            'buy_sell_daily': 'Buy/sell signals',
-            'technical_data_daily': 'Technical indicators',
-            'sector_ranking': 'Sector rankings',
-            'algo_trades': 'Executed trades',
-            'broker_portfolio': 'Current positions',
+            "price_daily": "Daily stock prices",
+            "buy_sell_daily": "Buy/sell signals",
+            "technical_data_daily": "Technical indicators",
+            "sector_ranking": "Sector rankings",
+            "algo_trades": "Executed trades",
+            "broker_portfolio": "Current positions",
         }
 
         stale_tables = []
@@ -156,7 +164,7 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
             try:
                 # Find the most recent timestamp in the table
                 table_safe = assert_safe_table(table_name)
-                cur.execute(f"""
+                cur.execute("""
                     SELECT MAX(created_at) as max_date FROM {table_safe}
                     LIMIT 1
                 """)
@@ -171,12 +179,14 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
 
                     # Alert if data is >24 hours old
                     if age_hours > 24:
-                        stale_tables.append({
-                            'table': table_name,
-                            'description': description,
-                            'age_hours': round(age_hours, 1),
-                            'last_update': max_date.isoformat(),
-                        })
+                        stale_tables.append(
+                            {
+                                "table": table_name,
+                                "description": description,
+                                "age_hours": round(age_hours, 1),
+                                "last_update": max_date.isoformat(),
+                            }
+                        )
 
             except Exception as e:
                 logger.warning(f"Could not check {table_name}: {e}")
@@ -185,48 +195,47 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
         conn.close()
 
         if not stale_tables:
-            return 'healthy', []
+            return "healthy", []
 
-        return ('unhealthy' if len(stale_tables) > 1 else 'degraded'), stale_tables
+        return ("unhealthy" if len(stale_tables) > 1 else "degraded"), stale_tables
 
     except Exception as e:
         logger.error(f"Data freshness check failed: {e}")
-        return 'unhealthy', [{'problem': f'Freshness check error: {str(e)[:50]}'}]
+        return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
 
-
-def send_metric(metric_name: str, value: float, unit: str = 'None', dimensions: Dict = None):
+def send_metric(
+    metric_name: str, value: float, unit: str = "None", dimensions: Dict = None
+):
     """Send custom CloudWatch metric."""
     try:
         cloudwatch.put_metric_data(
-            Namespace='Algo/HealthMonitor',
-            MetricData=[{
-                'MetricName': metric_name,
-                'Value': value,
-                'Unit': unit,
-                'Timestamp': datetime.now(timezone.utc),
-                'Dimensions': [{'Name': k, 'Value': v} for k, v in (dimensions or {}).items()]
-            }]
+            Namespace="Algo/HealthMonitor",
+            MetricData=[
+                {
+                    "MetricName": metric_name,
+                    "Value": value,
+                    "Unit": unit,
+                    "Timestamp": datetime.now(timezone.utc),
+                    "Dimensions": [
+                        {"Name": k, "Value": v} for k, v in (dimensions or {}).items()
+                    ],
+                }
+            ],
         )
     except Exception as e:
         logger.error(f"Failed to send metric {metric_name}: {e}")
 
-
 def send_alert(subject: str, message: str):
     """Send SNS alert if configured."""
-    sns_topic = os.environ.get('SNS_ALERT_TOPIC_ARN')
+    sns_topic = os.environ.get("SNS_ALERT_TOPIC_ARN")
     if not sns_topic:
         logger.warning("SNS_ALERT_TOPIC_ARN not configured, skipping alert")
         return
 
     try:
-        sns.publish(
-            TopicArn=sns_topic,
-            Subject=subject,
-            Message=message
-        )
+        sns.publish(TopicArn=sns_topic, Subject=subject, Message=message)
     except Exception as e:
         logger.error(f"Failed to send alert: {e}")
-
 
 def handler(event, context):
     """Health monitor Lambda handler."""
@@ -237,23 +246,29 @@ def handler(event, context):
     # Check loader health
     loader_status, loader_issues = check_loader_health()
     all_issues.extend(loader_issues)
-    send_metric('LoaderHealth', 0 if loader_status == 'healthy' else (1 if loader_status == 'degraded' else 2))
+    send_metric(
+        "LoaderHealth",
+        0 if loader_status == "healthy" else (1 if loader_status == "degraded" else 2),
+    )
 
     # Check data freshness
     data_status, stale_tables = check_data_freshness()
     all_issues.extend(stale_tables)
-    send_metric('DataFreshness', 0 if data_status == 'healthy' else (1 if data_status == 'degraded' else 2))
+    send_metric(
+        "DataFreshness",
+        0 if data_status == "healthy" else (1 if data_status == "degraded" else 2),
+    )
 
     # Determine overall status
-    overall_status = 'healthy'
-    if loader_status == 'unhealthy' or data_status == 'unhealthy':
-        overall_status = 'unhealthy'
-    elif loader_status == 'degraded' or data_status == 'degraded':
-        overall_status = 'degraded'
+    overall_status = "healthy"
+    if loader_status == "unhealthy" or data_status == "unhealthy":
+        overall_status = "unhealthy"
+    elif loader_status == "degraded" or data_status == "degraded":
+        overall_status = "degraded"
 
     # Send alert if not healthy
-    if overall_status != 'healthy':
-        alert_message = f"""
+    if overall_status != "healthy":
+        alert_message = """
 Operational Health Check - {overall_status.upper()}
 
 === LOADER STATUS ===
@@ -265,30 +280,21 @@ Operational Health Check - {overall_status.upper()}
 Time: {datetime.now(timezone.utc).isoformat()}
 """
 
-        send_alert(
-            f'Algo System Health: {overall_status.upper()}',
-            alert_message
-        )
+        send_alert(f"Algo System Health: {overall_status.upper()}", alert_message)
 
     response_body = {
-        'status': overall_status,
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'checks': {
-            'loaders': {
-                'status': loader_status,
-                'issues': loader_issues
-            },
-            'data_freshness': {
-                'status': data_status,
-                'stale_tables': stale_tables
-            }
+        "status": overall_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": {
+            "loaders": {"status": loader_status, "issues": loader_issues},
+            "data_freshness": {"status": data_status, "stale_tables": stale_tables},
         },
-        'total_issues': len(all_issues)
+        "total_issues": len(all_issues),
     }
 
     logger.info(f"Health check complete: {overall_status} ({len(all_issues)} issues)")
 
     return {
-        'statusCode': 200 if overall_status == 'healthy' else 202,
-        'body': json.dumps(response_body)
+        "statusCode": 200 if overall_status == "healthy" else 202,
+        "body": json.dumps(response_body),
     }

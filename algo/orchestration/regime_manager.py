@@ -8,8 +8,8 @@ Maps regime to config multipliers that flow into PositionSizer, ExposurePolicy, 
 """
 
 import logging
-from datetime import date as _date, datetime, timedelta
-from typing import Dict, Optional, List, Tuple, Any
+from datetime import date as _date, timedelta
+from typing import Dict, Optional, List, Any
 
 from utils.db import DatabaseContext
 from algo.infrastructure.constants import (
@@ -41,49 +41,49 @@ class RegimeManager:
     """Market regime detection and parameter adaptation."""
 
     # Regime values from market_exposure_daily
-    REGIMES = ['confirmed_uptrend', 'uptrend_under_pressure', 'caution', 'correction']
+    REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
 
     # Parameter overrides by regime (see algo.infrastructure.constants for values and rationale)
     REGIME_PARAMS = {
-        'confirmed_uptrend': {
-            'position_size_mult': REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
-            'max_hold_days_mult': REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
-            'target_1_mult': REGIME_TARGET_CONFIRMED_UPTREND,
-            'target_2_mult': REGIME_TARGET_CONFIRMED_UPTREND,
-            'target_3_mult': REGIME_TARGET_CONFIRMED_UPTREND,
-            'min_swing_score': REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
-            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CONFIRMED_UPTREND,
-            'description': 'Bull market: full size, longer holds, aggressive targets',
+        "confirmed_uptrend": {
+            "position_size_mult": REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
+            "max_hold_days_mult": REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
+            "target_1_mult": REGIME_TARGET_CONFIRMED_UPTREND,
+            "target_2_mult": REGIME_TARGET_CONFIRMED_UPTREND,
+            "target_3_mult": REGIME_TARGET_CONFIRMED_UPTREND,
+            "min_swing_score": REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
+            "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CONFIRMED_UPTREND,
+            "description": "Bull market: full size, longer holds, aggressive targets",
         },
-        'uptrend_under_pressure': {
-            'position_size_mult': REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE,
-            'max_hold_days_mult': REGIME_HOLD_DAYS_UPTREND_UNDER_PRESSURE,
-            'target_1_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
-            'target_2_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
-            'target_3_mult': REGIME_TARGET_UPTREND_UNDER_PRESSURE,
-            'min_swing_score': REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
-            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
-            'description': 'Uptrend weakening: reduce size, standard exits',
+        "uptrend_under_pressure": {
+            "position_size_mult": REGIME_POSITION_SIZE_UPTREND_UNDER_PRESSURE,
+            "max_hold_days_mult": REGIME_HOLD_DAYS_UPTREND_UNDER_PRESSURE,
+            "target_1_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            "target_2_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            "target_3_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
+            "min_swing_score": REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
+            "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
+            "description": "Uptrend weakening: reduce size, standard exits",
         },
-        'caution': {
-            'position_size_mult': REGIME_POSITION_SIZE_CAUTION,
-            'max_hold_days_mult': REGIME_HOLD_DAYS_CAUTION,
-            'target_1_mult': REGIME_TARGET_CAUTION,
-            'target_2_mult': REGIME_TARGET_CAUTION,
-            'target_3_mult': REGIME_TARGET_CAUTION,
-            'min_swing_score': REGIME_MIN_SWING_SCORE_CAUTION,
-            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CAUTION,
-            'description': 'VIX elevated or distribution days: defensive positioning',
+        "caution": {
+            "position_size_mult": REGIME_POSITION_SIZE_CAUTION,
+            "max_hold_days_mult": REGIME_HOLD_DAYS_CAUTION,
+            "target_1_mult": REGIME_TARGET_CAUTION,
+            "target_2_mult": REGIME_TARGET_CAUTION,
+            "target_3_mult": REGIME_TARGET_CAUTION,
+            "min_swing_score": REGIME_MIN_SWING_SCORE_CAUTION,
+            "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CAUTION,
+            "description": "VIX elevated or distribution days: defensive positioning",
         },
-        'correction': {
-            'position_size_mult': REGIME_POSITION_SIZE_CORRECTION,
-            'max_hold_days_mult': REGIME_HOLD_DAYS_CORRECTION,
-            'target_1_mult': REGIME_TARGET_CORRECTION,
-            'target_2_mult': REGIME_TARGET_CORRECTION,
-            'target_3_mult': REGIME_TARGET_CORRECTION,
-            'min_swing_score': REGIME_MIN_SWING_SCORE_CORRECTION,
-            'weight_update_alpha': REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
-            'description': 'Bear market: halt new entries, tight stops, quick exits',
+        "correction": {
+            "position_size_mult": REGIME_POSITION_SIZE_CORRECTION,
+            "max_hold_days_mult": REGIME_HOLD_DAYS_CORRECTION,
+            "target_1_mult": REGIME_TARGET_CORRECTION,
+            "target_2_mult": REGIME_TARGET_CORRECTION,
+            "target_3_mult": REGIME_TARGET_CORRECTION,
+            "min_swing_score": REGIME_MIN_SWING_SCORE_CORRECTION,
+            "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
+            "description": "Bear market: halt new entries, tight stops, quick exits",
         },
     }
 
@@ -99,7 +99,7 @@ class RegimeManager:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """SELECT regime FROM market_exposure_daily
                        WHERE date <= %s AND regime IS NOT NULL
@@ -108,27 +108,33 @@ class RegimeManager:
                 )
                 row = cur.fetchone()
 
-            regime = str(row[0]) if row is not None and row[0] is not None else 'caution'
+            regime = (
+                str(row[0]) if row is not None and row[0] is not None else "caution"
+            )
 
             if regime not in self.REGIMES:
-                logger.warning(f"Unknown regime '{regime}', defaulting to caution (conservative)")
-                regime = 'caution'
+                logger.warning(
+                    f"Unknown regime '{regime}', defaulting to caution (conservative)"
+                )
+                regime = "caution"
 
             return regime
 
         except Exception as e:
-            logger.warning(f"Could not fetch regime: {e}. Defaulting to caution (conservative)")
-            return 'caution'
+            logger.warning(
+                f"Could not fetch regime: {e}. Defaulting to caution (conservative)"
+            )
+            return "caution"
 
     def get_regime_params(self, as_of_date: Optional[_date] = None) -> Dict[str, Any]:
         """Get parameter overrides for current regime."""
         regime = self.get_current_regime(as_of_date)
-        return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS['caution'])
+        return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"])
 
     def get_position_size_multiplier(self, as_of_date: Optional[_date] = None) -> float:
         """Get position size multiplier (0.0 - 1.0)."""
         params = self.get_regime_params(as_of_date)
-        return float(params['position_size_mult'])
+        return float(params["position_size_mult"])
 
     def get_adjusted_config(
         self,
@@ -149,28 +155,28 @@ class RegimeManager:
         config = base_config.copy()
 
         # Apply multipliers and overrides
-        base_max_hold = int(config.get('max_hold_days', 20))
-        config['max_hold_days'] = int(base_max_hold * params['max_hold_days_mult'])
+        base_max_hold = int(config.get("max_hold_days", 20))
+        config["max_hold_days"] = int(base_max_hold * params["max_hold_days_mult"])
 
         # Adjust target R-multiples
-        config['t1_target_r_multiple'] = (
-            float(config.get('t1_target_r_multiple', 1.5)) * params['target_1_mult']
+        config["t1_target_r_multiple"] = (
+            float(config.get("t1_target_r_multiple", 1.5)) * params["target_1_mult"]
         )
-        config['t2_target_r_multiple'] = (
-            float(config.get('t2_target_r_multiple', 3.0)) * params['target_2_mult']
+        config["t2_target_r_multiple"] = (
+            float(config.get("t2_target_r_multiple", 3.0)) * params["target_2_mult"]
         )
-        config['t3_target_r_multiple'] = (
-            float(config.get('t3_target_r_multiple', 4.0)) * params['target_3_mult']
+        config["t3_target_r_multiple"] = (
+            float(config.get("t3_target_r_multiple", 4.0)) * params["target_3_mult"]
         )
 
         # Override min swing score
-        config['min_swing_score'] = params['min_swing_score']
+        config["min_swing_score"] = params["min_swing_score"]
 
         # Add metadata
-        config['_regime_adjusted'] = True
-        config['_regime'] = self.get_current_regime(as_of_date)
-        config['_regime_position_size_mult'] = params['position_size_mult']
-        config['_regime_weight_update_alpha'] = params['weight_update_alpha']
+        config["_regime_adjusted"] = True
+        config["_regime"] = self.get_current_regime(as_of_date)
+        config["_regime_position_size_mult"] = params["position_size_mult"]
+        config["_regime_weight_update_alpha"] = params["weight_update_alpha"]
 
         return config
 
@@ -192,7 +198,7 @@ class RegimeManager:
         try:
             start_date = _date.today() - timedelta(days=days)
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """
                     SELECT DISTINCT ON (date) date, regime FROM market_exposure_daily
@@ -216,10 +222,10 @@ class RegimeManager:
 
                 history.append(
                     {
-                        'date': date_val,
-                        'regime': regime,
-                        'days_in_regime': days_in_regime,
-                        'transition': transition,
+                        "date": date_val,
+                        "regime": regime,
+                        "days_in_regime": days_in_regime,
+                        "transition": transition,
                     }
                 )
 
@@ -242,7 +248,7 @@ class RegimeManager:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute(
                     """SELECT raw_score FROM market_exposure_daily
                        WHERE date <= %s AND raw_score IS NOT NULL
@@ -258,11 +264,13 @@ class RegimeManager:
             # Log as error to alert ops that market exposure loader may have failed.
             logger.error(
                 f"Market exposure score unavailable as of {as_of_date}. "
-                f"Defaulting to neutral 0.5 confidence. Check if market_exposure_daily loader succeeded."
+                "Defaulting to neutral 0.5 confidence. Check if market_exposure_daily loader succeeded."
             )
             return 0.5  # Conservative: default to neutral only after alerting
         except Exception as e:
-            logger.error(f"Failed to fetch market exposure confidence: {e} — defaulting to neutral 0.5")
+            logger.error(
+                f"Failed to fetch market exposure confidence: {e} — defaulting to neutral 0.5"
+            )
             return 0.5
 
 if __name__ == "__main__":

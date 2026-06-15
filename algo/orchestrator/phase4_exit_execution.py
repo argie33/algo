@@ -54,8 +54,10 @@ def run(
         elif len(position_recs) == 0:
             # "no positions" from "Phase 3 crashed with fail-open"
             try:
-                with DatabaseContext('read') as cur_chk:
-                    cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                with DatabaseContext("read") as cur_chk:
+                    cur_chk.execute(
+                        "SELECT COUNT(*) FROM algo_positions WHERE status = 'open'"
+                    )
                     open_count = cur_chk.fetchone()[0]
                 if open_count > 0:
                     logger.error(
@@ -68,8 +70,10 @@ def run(
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
             logger.info("[DRY-RUN] Phase 4: Skipping trade execution (dry-run mode)")
-            log_phase_result_fn(4, 'exit_execution', 'success', 'DRY-RUN: execution skipped')
-            return PhaseResult(4, 'exit_execution', 'ok', {}, False, None)
+            log_phase_result_fn(
+                4, "exit_execution", "success", "DRY-RUN: execution skipped"
+            )
+            return PhaseResult(4, "exit_execution", "ok", {}, False, None)
 
         executor = TradeExecutor(config)
         exit_count = 0
@@ -81,77 +85,95 @@ def run(
             try:
                 if dry_run:
                     if verbose:
-                        logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
-                                   f"({action['reason']})")
+                        logger.info(
+                            f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
+                            f"({action['reason']})"
+                        )
                     continue
 
-                if action['action'] == 'force_exit':
+                if action["action"] == "force_exit":
                     # Fetch current price for accurate P&L
                     cur_price = 0.0
                     try:
-                        with DatabaseContext('read') as cur_tmp:
+                        with DatabaseContext("read") as cur_tmp:
                             cur_tmp.execute(
                                 "SELECT current_price FROM algo_positions WHERE position_id = %s",
-                                (action['position_id'],),
+                                (action["position_id"],),
                             )
                             row_tmp = cur_tmp.fetchone()
-                            cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
+                            cur_price = (
+                                float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
+                            )
                     except Exception as e:
-                        logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
+                        logger.warning(
+                            f"  Warning: Could not fetch price for force_exit: {e}"
+                        )
 
                     if cur_price <= 0:
-                        logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
+                        logger.error(
+                            "  ERROR: force_exit cannot proceed — no valid current price"
+                        )
                         continue
 
                     result = executor.exit_trade(
-                        trade_id=action['trade_id'],
+                        trade_id=action["trade_id"],
                         exit_price=cur_price,
-                        exit_reason=action['reason'],
+                        exit_reason=action["reason"],
                         exit_fraction=1.0,
-                        exit_stage='exposure_force_exit',
+                        exit_stage="exposure_force_exit",
                     )
-                    if result.get('success'):
+                    if result.get("success"):
                         exit_count += 1
-                        logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                        logger.info(
+                            f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}"
+                        )
                     else:
                         errors += 1
 
-                elif action['action'] == 'partial_exit':
+                elif action["action"] == "partial_exit":
                     # Need current price — fetch
                     cur_price = 0.0
                     try:
-                        with DatabaseContext('read') as cur:
+                        with DatabaseContext("read") as cur:
                             cur.execute(
                                 "SELECT current_price FROM algo_positions WHERE position_id = %s",
-                                (action['position_id'],),
+                                (action["position_id"],),
                             )
                             row = cur.fetchone()
-                            cur_price = float(row[0]) if row is not None and row[0] is not None else 0
+                            cur_price = (
+                                float(row[0])
+                                if row is not None and row[0] is not None
+                                else 0
+                            )
                     except Exception as e:
-                        logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
+                        logger.warning(
+                            f"  Warning: Could not fetch current price for {action['position_id']}: {e}"
+                        )
                     if cur_price > 0:
                         result = executor.exit_trade(
-                            trade_id=action['trade_id'],
+                            trade_id=action["trade_id"],
                             exit_price=cur_price,
-                            exit_reason=action['reason'],
-                            exit_fraction=action.get('exit_fraction', 0.5),
-                            exit_stage='exposure_partial',
-                            new_stop_price=action.get('new_stop'),
+                            exit_reason=action["reason"],
+                            exit_fraction=action.get("exit_fraction", 0.5),
+                            exit_stage="exposure_partial",
+                            new_stop_price=action.get("new_stop"),
                         )
-                        if result.get('success'):
+                        if result.get("success"):
                             exit_count += 1
                             logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
-                elif action['action'] == 'tighten_stop':
+                elif action["action"] == "tighten_stop":
                     try:
-                        with DatabaseContext('write') as cur:
+                        with DatabaseContext("write") as cur:
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
-                                (action['new_stop'], action['position_id']),
+                                (action["new_stop"], action["position_id"]),
                             )
                             stop_raises += 1
                             if verbose:
-                                logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                                logger.info(
+                                    f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                )
                     except Exception as e:
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
@@ -164,34 +186,42 @@ def run(
             try:
                 if dry_run:
                     if verbose:
-                        logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
+                        logger.info(
+                            f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})"
+                        )
                     continue
 
-                if rec['action'] == 'EARLY_EXIT':
+                if rec["action"] == "EARLY_EXIT":
                     result = executor.exit_trade(
-                        trade_id=rec['trade_id'],
-                        exit_price=rec['current_price'],
-                        exit_reason=rec['action_reason'],
+                        trade_id=rec["trade_id"],
+                        exit_price=rec["current_price"],
+                        exit_reason=rec["action_reason"],
                         exit_fraction=1.0,
-                        exit_stage='early_exit',
+                        exit_stage="early_exit",
                     )
-                    if result.get('success'):
+                    if result.get("success"):
                         exit_count += 1
                         if verbose:
                             logger.info(f"  EARLY EXIT: {result['message']}")
                     else:
                         errors += 1
-                elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
+                elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended"):
                     try:
-                        with DatabaseContext('write') as cur:
+                        with DatabaseContext("write") as cur:
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s "
                                 "WHERE position_id = %s AND status = %s",
-                                (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
+                                (
+                                    rec["new_stop_recommended"],
+                                    rec["position_id"],
+                                    PositionStatus.OPEN.value,
+                                ),
                             )
                             stop_raises += 1
                             if verbose:
-                                logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
+                                logger.info(
+                                    f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                )
                     except Exception as e:
                         errors += 1
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
@@ -206,16 +236,21 @@ def run(
             exit_count += engine_exits
 
         log_phase_result_fn(
-            4, 'exit_execution', 'success',
-            f'{exit_count} exits, {stop_raises} stop-raises, {errors} errors',
+            4,
+            "exit_execution",
+            "success",
+            f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors",
         )
         return PhaseResult(
-            4, 'exit_execution', 'ok',
-            {'exits': exit_count, 'stop_raises': stop_raises, 'errors': errors},
-            False, None
+            4,
+            "exit_execution",
+            "ok",
+            {"exits": exit_count, "stop_raises": stop_raises, "errors": errors},
+            False,
+            None,
         )
 
     except Exception as e:
         traceback.print_exc()
-        log_phase_result_fn(4, 'exit_execution', 'error', str(e))
-        return PhaseResult(4, 'exit_execution', 'halted', {}, True, str(e))
+        log_phase_result_fn(4, "exit_execution", "error", str(e))
+        return PhaseResult(4, "exit_execution", "halted", {}, True, str(e))

@@ -8,10 +8,6 @@ Provides complete OpenAPI 3.0 spec for:
 - Data freshness metadata
 """
 
-import json
-from datetime import datetime
-
-
 def generate_openapi_spec():
     """Generate complete OpenAPI 3.0 specification.
 
@@ -24,24 +20,13 @@ def generate_openapi_spec():
             "title": "Algo Trading API",
             "version": "v2-2026-06-14",
             "description": "RESTful API for algorithmic trading signals, market data, and portfolio management",
-            "contact": {
-                "name": "API Support",
-                "email": "argeropolos@gmail.com"
-            }
+            "contact": {"name": "API Support", "email": "argeropolos@gmail.com"},
         },
         "servers": [
-            {
-                "url": "https://api.algotrading.com",
-                "description": "Production API"
-            },
-            {
-                "url": "http://localhost:8000",
-                "description": "Local development"
-            }
+            {"url": "https://api.algotrading.com", "description": "Production API"},
+            {"url": "http://localhost:8000", "description": "Local development"},
         ],
-        "security": [
-            {"bearerAuth": []}
-        ],
+        "security": [{"bearerAuth": []}],
         "tags": [
             {"name": "Health", "description": "Health check endpoints"},
             {"name": "Stocks", "description": "Stock data and information"},
@@ -50,7 +35,10 @@ def generate_openapi_spec():
             {"name": "Prices", "description": "Historical price data"},
             {"name": "Market", "description": "Market data and indices"},
             {"name": "Sectors & Industries", "description": "Sector and industry data"},
-            {"name": "Scores & Rankings", "description": "Stock quality scores and rankings"},
+            {
+                "name": "Scores & Rankings",
+                "description": "Stock quality scores and rankings",
+            },
             {"name": "Earnings", "description": "Earnings reports"},
             {"name": "Economic", "description": "Economic indicators"},
             {"name": "Trades", "description": "Trading records"},
@@ -70,14 +58,13 @@ def generate_openapi_spec():
                     "type": "http",
                     "scheme": "bearer",
                     "bearerFormat": "JWT",
-                    "description": "JWT token from Cognito"
+                    "description": "JWT token from Cognito",
                 }
             },
             "responses": _get_common_responses(),
-        }
+        },
     }
     return spec
-
 
 def _get_paths():
     """Generate API paths for all endpoints."""
@@ -93,12 +80,14 @@ def _get_paths():
                         "description": "API is healthy",
                         "content": {
                             "application/json": {
-                                "schema": {"$ref": "#/components/schemas/HealthResponse"}
+                                "schema": {
+                                    "$re": "#/components/schemas/HealthResponse"
+                                }
                             }
-                        }
+                        },
                     },
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/health/cognito": {
@@ -109,8 +98,8 @@ def _get_paths():
                 "security": [],
                 "responses": {
                     "200": {"description": "Cognito configuration is valid"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/health/detailed": {
@@ -120,9 +109,9 @@ def _get_paths():
                 "description": "Exposes database schema information. Requires authentication.",
                 "responses": {
                     "200": {"description": "Detailed health status"},
-                    "401": {"$ref": "#/components/responses/Unauthorized"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "401": {"$re": "#/components/responses/Unauthorized"},
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/health/pipeline": {
@@ -132,9 +121,9 @@ def _get_paths():
                 "description": "Check freshness of critical data loaders. Requires authentication.",
                 "responses": {
                     "200": {"description": "Pipeline status"},
-                    "401": {"$ref": "#/components/responses/Unauthorized"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "401": {"$re": "#/components/responses/Unauthorized"},
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/stocks/{symbol}": {
@@ -147,8 +136,11 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string", "pattern": "^[A-Z0-9\\-\\^]{1,10}$"},
-                        "description": "Stock symbol (e.g., AAPL, BRK-A)"
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Z0-9\\-\\^]{1,10}$",
+                        },
+                        "description": "Stock symbol (e.g., AAPL, BRK-A)",
                     }
                 ],
                 "responses": {
@@ -156,14 +148,16 @@ def _get_paths():
                         "description": "Stock profile",
                         "content": {
                             "application/json": {
-                                "schema": {"$ref": "#/components/schemas/StockProfileResponse"}
+                                "schema": {
+                                    "$re": "#/components/schemas/StockProfileResponse"
+                                }
                             }
-                        }
+                        },
                     },
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "404": {"$ref": "#/components/responses/NotFound"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "404": {"$re": "#/components/responses/NotFound"},
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/stocks/deep-value": {
@@ -176,13 +170,13 @@ def _get_paths():
                         "name": "limit",
                         "in": "query",
                         "schema": {"type": "integer", "default": 200, "maximum": 1000},
-                        "description": "Maximum number of results"
+                        "description": "Maximum number of results",
                     }
                 ],
                 "responses": {
                     "200": {"description": "List of deep value stocks"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/signals": {
@@ -195,33 +189,39 @@ def _get_paths():
                         "name": "limit",
                         "in": "query",
                         "schema": {"type": "integer", "default": 500, "maximum": 10000},
-                        "description": "Maximum number of signals"
+                        "description": "Maximum number of signals",
                     },
                     {
                         "name": "timeframe",
                         "in": "query",
-                        "schema": {"type": "string", "enum": ["daily"], "default": "daily"},
-                        "description": "Signal timeframe"
+                        "schema": {
+                            "type": "string",
+                            "enum": ["daily"],
+                            "default": "daily",
+                        },
+                        "description": "Signal timeframe",
                     },
                     {
                         "name": "symbol",
                         "in": "query",
                         "schema": {"type": "string"},
-                        "description": "Filter by stock symbol"
-                    }
+                        "description": "Filter by stock symbol",
+                    },
                 ],
                 "responses": {
                     "200": {
                         "description": "Trading signals",
                         "content": {
                             "application/json": {
-                                "schema": {"$ref": "#/components/schemas/SignalsResponse"}
+                                "schema": {
+                                    "$re": "#/components/schemas/SignalsResponse"
+                                }
                             }
-                        }
+                        },
                     },
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/signals/etf": {
@@ -234,12 +234,10 @@ def _get_paths():
                         "name": "limit",
                         "in": "query",
                         "schema": {"type": "integer", "default": 500},
-                        "description": "Maximum number of signals"
+                        "description": "Maximum number of signals",
                     }
                 ],
-                "responses": {
-                    "200": {"description": "ETF signals"}
-                }
+                "responses": {"200": {"description": "ETF signals"}},
             }
         },
         "/api/financials/{symbol}/key-metrics": {
@@ -252,7 +250,7 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string"}
+                        "schema": {"type": "string"},
                     }
                 ],
                 "responses": {
@@ -260,12 +258,14 @@ def _get_paths():
                         "description": "Key metrics",
                         "content": {
                             "application/json": {
-                                "schema": {"$ref": "#/components/schemas/KeyMetricsResponse"}
+                                "schema": {
+                                    "$re": "#/components/schemas/KeyMetricsResponse"
+                                }
                             }
-                        }
+                        },
                     },
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/financials/{symbol}/income-statement": {
@@ -278,18 +278,22 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string"}
+                        "schema": {"type": "string"},
                     },
                     {
                         "name": "period",
                         "in": "query",
-                        "schema": {"type": "string", "enum": ["annual", "quarterly"], "default": "annual"}
-                    }
+                        "schema": {
+                            "type": "string",
+                            "enum": ["annual", "quarterly"],
+                            "default": "annual",
+                        },
+                    },
                 ],
                 "responses": {
                     "200": {"description": "Income statement data"},
-                    "503": {"$ref": "#/components/responses/ServiceUnavailable"}
-                }
+                    "503": {"$re": "#/components/responses/ServiceUnavailable"},
+                },
             }
         },
         "/api/financials/{symbol}/balance-sheet": {
@@ -302,17 +306,19 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string"}
+                        "schema": {"type": "string"},
                     },
                     {
                         "name": "period",
                         "in": "query",
-                        "schema": {"type": "string", "enum": ["annual", "quarterly"], "default": "annual"}
-                    }
+                        "schema": {
+                            "type": "string",
+                            "enum": ["annual", "quarterly"],
+                            "default": "annual",
+                        },
+                    },
                 ],
-                "responses": {
-                    "200": {"description": "Balance sheet data"}
-                }
+                "responses": {"200": {"description": "Balance sheet data"}},
             }
         },
         "/api/financials/{symbol}/cash-flow": {
@@ -325,17 +331,19 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string"}
+                        "schema": {"type": "string"},
                     },
                     {
                         "name": "period",
                         "in": "query",
-                        "schema": {"type": "string", "enum": ["annual", "quarterly"], "default": "annual"}
-                    }
+                        "schema": {
+                            "type": "string",
+                            "enum": ["annual", "quarterly"],
+                            "default": "annual",
+                        },
+                    },
                 ],
-                "responses": {
-                    "200": {"description": "Cash flow statement data"}
-                }
+                "responses": {"200": {"description": "Cash flow statement data"}},
             }
         },
         "/api/sectors": {
@@ -343,9 +351,7 @@ def _get_paths():
                 "tags": ["Sectors & Industries"],
                 "summary": "List sectors",
                 "description": "Get list of market sectors with summary statistics",
-                "responses": {
-                    "200": {"description": "List of sectors"}
-                }
+                "responses": {"200": {"description": "List of sectors"}},
             }
         },
         "/api/industries": {
@@ -353,9 +359,7 @@ def _get_paths():
                 "tags": ["Sectors & Industries"],
                 "summary": "List industries",
                 "description": "Get list of industries with sector classification",
-                "responses": {
-                    "200": {"description": "List of industries"}
-                }
+                "responses": {"200": {"description": "List of industries"}},
             }
         },
         "/api/prices/{symbol}": {
@@ -368,18 +372,16 @@ def _get_paths():
                         "name": "symbol",
                         "in": "path",
                         "required": True,
-                        "schema": {"type": "string"}
+                        "schema": {"type": "string"},
                     },
                     {
                         "name": "days",
                         "in": "query",
                         "schema": {"type": "integer", "default": 252},
-                        "description": "Number of trading days"
-                    }
+                        "description": "Number of trading days",
+                    },
                 ],
-                "responses": {
-                    "200": {"description": "Historical price data"}
-                }
+                "responses": {"200": {"description": "Historical price data"}},
             }
         },
         "/api/market": {
@@ -387,9 +389,7 @@ def _get_paths():
                 "tags": ["Market"],
                 "summary": "Get market overview",
                 "description": "Market summary with key indices and breadth data",
-                "responses": {
-                    "200": {"description": "Market overview"}
-                }
+                "responses": {"200": {"description": "Market overview"}},
             }
         },
         "/api/earnings": {
@@ -397,9 +397,7 @@ def _get_paths():
                 "tags": ["Earnings"],
                 "summary": "Get earnings calendar",
                 "description": "Upcoming and recent earnings reports",
-                "responses": {
-                    "200": {"description": "Earnings data"}
-                }
+                "responses": {"200": {"description": "Earnings data"}},
             }
         },
         "/api/economic": {
@@ -407,9 +405,7 @@ def _get_paths():
                 "tags": ["Economic"],
                 "summary": "Get economic indicators",
                 "description": "Key economic indicators and forecasts",
-                "responses": {
-                    "200": {"description": "Economic indicators"}
-                }
+                "responses": {"200": {"description": "Economic indicators"}},
             }
         },
         "/api/scores": {
@@ -422,12 +418,10 @@ def _get_paths():
                         "name": "sector",
                         "in": "query",
                         "schema": {"type": "string"},
-                        "description": "Filter by sector"
+                        "description": "Filter by sector",
                     }
                 ],
-                "responses": {
-                    "200": {"description": "Stock scores"}
-                }
+                "responses": {"200": {"description": "Stock scores"}},
             }
         },
         "/api/trades": {
@@ -435,9 +429,7 @@ def _get_paths():
                 "tags": ["Trades"],
                 "summary": "Get trades",
                 "description": "Retrieve trading records and performance",
-                "responses": {
-                    "200": {"description": "Trading records"}
-                }
+                "responses": {"200": {"description": "Trading records"}},
             }
         },
         "/api/trades/manual": {
@@ -452,24 +444,51 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
-                                    "trade_type": {"type": "string", "description": "Trade type: buy or sell (default: buy)", "enum": ["buy", "sell"]},
-                                    "quantity": {"type": "integer", "description": "Trade quantity (must be positive)", "exclusiveMinimum": 0},
-                                    "price": {"type": "number", "description": "Trade price per share (must be positive)", "exclusiveMinimum": 0},
-                                    "execution_date": {"type": "string", "description": "Trade execution date (YYYY-MM-DD format, defaults to today)", "format": "date"},
-                                    "stop_loss_price": {"type": "number", "description": "Stop loss price (optional, must be positive)"}
+                                    "symbol": {
+                                        "type": "string",
+                                        "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)",
+                                        "minLength": 1,
+                                        "maxLength": 10,
+                                    },
+                                    "trade_type": {
+                                        "type": "string",
+                                        "description": "Trade type: buy or sell (default: buy)",
+                                        "enum": ["buy", "sell"],
+                                    },
+                                    "quantity": {
+                                        "type": "integer",
+                                        "description": "Trade quantity (must be positive)",
+                                        "exclusiveMinimum": 0,
+                                    },
+                                    "price": {
+                                        "type": "number",
+                                        "description": "Trade price per share (must be positive)",
+                                        "exclusiveMinimum": 0,
+                                    },
+                                    "execution_date": {
+                                        "type": "string",
+                                        "description": "Trade execution date (YYYY-MM-DD format, defaults to today)",
+                                        "format": "date",
+                                    },
+                                    "stop_loss_price": {
+                                        "type": "number",
+                                        "description": "Stop loss price (optional, must be positive)",
+                                    },
                                 },
-                                "required": ["symbol", "quantity", "price"]
+                                "required": ["symbol", "quantity", "price"],
                             }
                         }
-                    }
+                    },
                 },
                 "responses": {
-                    "200": {"description": "Trade created successfully", "content": {"application/json": {"schema": {"type": "object"}}}},
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "403": {"$ref": "#/components/responses/Forbidden"},
-                    "500": {"$ref": "#/components/responses/InternalError"}
-                }
+                    "200": {
+                        "description": "Trade created successfully",
+                        "content": {"application/json": {"schema": {"type": "object"}}},
+                    },
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "403": {"$re": "#/components/responses/Forbidden"},
+                    "500": {"$re": "#/components/responses/InternalError"},
+                },
             }
         },
         "/api/algo/preview": {
@@ -484,20 +503,35 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
-                                    "entry_price": {"type": "number", "description": "Proposed entry price (must be > 0)", "exclusiveMinimum": 0},
-                                    "stop_loss_price": {"type": "number", "description": "Stop loss price (optional, must be < entry_price)"}
+                                    "symbol": {
+                                        "type": "string",
+                                        "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)",
+                                        "minLength": 1,
+                                        "maxLength": 10,
+                                    },
+                                    "entry_price": {
+                                        "type": "number",
+                                        "description": "Proposed entry price (must be > 0)",
+                                        "exclusiveMinimum": 0,
+                                    },
+                                    "stop_loss_price": {
+                                        "type": "number",
+                                        "description": "Stop loss price (optional, must be < entry_price)",
+                                    },
                                 },
-                                "required": ["symbol", "entry_price"]
+                                "required": ["symbol", "entry_price"],
                             }
                         }
-                    }
+                    },
                 },
                 "responses": {
-                    "200": {"description": "Trade preview with position sizing", "content": {"application/json": {"schema": {"type": "object"}}}},
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "500": {"$ref": "#/components/responses/InternalError"}
-                }
+                    "200": {
+                        "description": "Trade preview with position sizing",
+                        "content": {"application/json": {"schema": {"type": "object"}}},
+                    },
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "500": {"$re": "#/components/responses/InternalError"},
+                },
             }
         },
         "/api/algo/pre-trade-impact": {
@@ -512,21 +546,38 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "symbol": {"type": "string", "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)", "minLength": 1, "maxLength": 10},
-                                    "entry_price": {"type": "number", "description": "Proposed entry price (optional, must be > 0)"},
-                                    "position_dollars": {"type": "number", "description": "Position size in dollars (optional, must be > 0)"},
-                                    "position_pct": {"type": "number", "description": "Position size as percentage of portfolio (optional, 0 < x <= 100)"}
+                                    "symbol": {
+                                        "type": "string",
+                                        "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)",
+                                        "minLength": 1,
+                                        "maxLength": 10,
+                                    },
+                                    "entry_price": {
+                                        "type": "number",
+                                        "description": "Proposed entry price (optional, must be > 0)",
+                                    },
+                                    "position_dollars": {
+                                        "type": "number",
+                                        "description": "Position size in dollars (optional, must be > 0)",
+                                    },
+                                    "position_pct": {
+                                        "type": "number",
+                                        "description": "Position size as percentage of portfolio (optional, 0 < x <= 100)",
+                                    },
                                 },
-                                "required": ["symbol"]
+                                "required": ["symbol"],
                             }
                         }
-                    }
+                    },
                 },
                 "responses": {
-                    "200": {"description": "Pre-trade impact analysis", "content": {"application/json": {"schema": {"type": "object"}}}},
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "500": {"$ref": "#/components/responses/InternalError"}
-                }
+                    "200": {
+                        "description": "Pre-trade impact analysis",
+                        "content": {"application/json": {"schema": {"type": "object"}}},
+                    },
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "500": {"$re": "#/components/responses/InternalError"},
+                },
             }
         },
         "/api/admin/verify-user-email": {
@@ -541,19 +592,27 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "username": {"type": "string", "description": "Cognito username (alphanumeric, dots, dashes, underscores, @, + allowed)", "minLength": 1, "maxLength": 256}
+                                    "username": {
+                                        "type": "string",
+                                        "description": "Cognito username (alphanumeric, dots, dashes, underscores, @, + allowed)",
+                                        "minLength": 1,
+                                        "maxLength": 256,
+                                    }
                                 },
-                                "required": ["username"]
+                                "required": ["username"],
                             }
                         }
-                    }
+                    },
                 },
                 "responses": {
-                    "200": {"description": "Email verified successfully", "content": {"application/json": {"schema": {"type": "object"}}}},
-                    "400": {"$ref": "#/components/responses/BadRequest"},
-                    "403": {"$ref": "#/components/responses/Forbidden"},
-                    "500": {"$ref": "#/components/responses/InternalError"}
-                }
+                    "200": {
+                        "description": "Email verified successfully",
+                        "content": {"application/json": {"schema": {"type": "object"}}},
+                    },
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                    "403": {"$re": "#/components/responses/Forbidden"},
+                    "500": {"$re": "#/components/responses/InternalError"},
+                },
             }
         },
         "/api/contact": {
@@ -568,22 +627,47 @@ def _get_paths():
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "name": {"type": "string", "description": "Contact name (1-100 chars)", "minLength": 1, "maxLength": 100},
-                                    "email": {"type": "string", "format": "email", "description": "Contact email (valid RFC 5322 format)", "minLength": 5, "maxLength": 200},
-                                    "subject": {"type": "string", "description": "Message subject (optional, max 200 chars)", "maxLength": 200},
-                                    "message": {"type": "string", "description": "Message body (1-5000 chars, validated against XSS/SQL injection patterns)", "minLength": 1, "maxLength": 5000},
-                                    "phone": {"type": "string", "description": "Phone number (optional, 10-15 chars including formatting)", "minLength": 10, "maxLength": 15}
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Contact name (1-100 chars)",
+                                        "minLength": 1,
+                                        "maxLength": 100,
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "Contact email (valid RFC 5322 format)",
+                                        "minLength": 5,
+                                        "maxLength": 200,
+                                    },
+                                    "subject": {
+                                        "type": "string",
+                                        "description": "Message subject (optional, max 200 chars)",
+                                        "maxLength": 200,
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "description": "Message body (1-5000 chars, validated against XSS/SQL injection patterns)",
+                                        "minLength": 1,
+                                        "maxLength": 5000,
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "description": "Phone number (optional, 10-15 chars including formatting)",
+                                        "minLength": 10,
+                                        "maxLength": 15,
+                                    },
                                 },
-                                "required": ["name", "email", "message"]
+                                "required": ["name", "email", "message"],
                             }
                         }
-                    }
+                    },
                 },
                 "security": [],
                 "responses": {
                     "200": {"description": "Contact form submitted successfully"},
-                    "400": {"$ref": "#/components/responses/BadRequest"}
-                }
+                    "400": {"$re": "#/components/responses/BadRequest"},
+                },
             }
         },
         "/api/settings": {
@@ -591,9 +675,7 @@ def _get_paths():
                 "tags": ["Settings"],
                 "summary": "Get user settings",
                 "description": "Retrieve user preferences and settings",
-                "responses": {
-                    "200": {"description": "User settings"}
-                }
+                "responses": {"200": {"description": "User settings"}},
             },
             "put": {
                 "tags": ["Settings"],
@@ -608,25 +690,21 @@ def _get_paths():
                                 "properties": {
                                     "theme": {"type": "string"},
                                     "notifications": {"type": "boolean"},
-                                    "language": {"type": "string"}
-                                }
+                                    "language": {"type": "string"},
+                                },
                             }
                         }
-                    }
+                    },
                 },
-                "responses": {
-                    "200": {"description": "Settings updated"}
-                }
-            }
+                "responses": {"200": {"description": "Settings updated"}},
+            },
         },
         "/api/data-coverage": {
             "get": {
                 "tags": ["Data Coverage"],
                 "summary": "Get data freshness status",
                 "description": "Check data completeness and freshness for all tables",
-                "responses": {
-                    "200": {"description": "Data coverage status"}
-                }
+                "responses": {"200": {"description": "Data coverage status"}},
             }
         },
         "/api/openapi.json": {
@@ -638,13 +716,9 @@ def _get_paths():
                 "responses": {
                     "200": {
                         "description": "OpenAPI specification",
-                        "content": {
-                            "application/json": {
-                                "schema": {"type": "object"}
-                            }
-                        }
+                        "content": {"application/json": {"schema": {"type": "object"}}},
                     }
-                }
+                },
             }
         },
         "/api/swagger": {
@@ -656,13 +730,9 @@ def _get_paths():
                 "responses": {
                     "200": {
                         "description": "Swagger UI HTML page",
-                        "content": {
-                            "text/html": {
-                                "schema": {"type": "string"}
-                            }
-                        }
+                        "content": {"text/html": {"schema": {"type": "string"}}},
                     }
-                }
+                },
             }
         },
         "/api/redoc": {
@@ -674,17 +744,12 @@ def _get_paths():
                 "responses": {
                     "200": {
                         "description": "ReDoc HTML page",
-                        "content": {
-                            "text/html": {
-                                "schema": {"type": "string"}
-                            }
-                        }
+                        "content": {"text/html": {"schema": {"type": "string"}}},
                     }
-                }
+                },
             }
         },
     }
-
 
 def _get_schemas():
     """Generate JSON schemas for all response types."""
@@ -692,35 +757,41 @@ def _get_schemas():
         "DataFreshness": {
             "type": "object",
             "properties": {
-                "status": {"type": "string", "enum": ["OK", "WARNING", "STALE", "CRITICAL"]},
+                "status": {
+                    "type": "string",
+                    "enum": ["OK", "WARNING", "STALE", "CRITICAL"],
+                },
                 "table_name": {"type": "string"},
                 "age_hours": {"type": "number"},
                 "age_days": {"type": "number"},
                 "last_updated": {"type": "string", "format": "date-time"},
-                "warning_threshold_days": {"type": "integer"}
+                "warning_threshold_days": {"type": "integer"},
             },
-            "required": ["status"]
+            "required": ["status"],
         },
         "HealthStatus": {
             "type": "object",
             "properties": {
-                "status": {"type": "string", "enum": ["healthy", "degraded", "unhealthy"]},
+                "status": {
+                    "type": "string",
+                    "enum": ["healthy", "degraded", "unhealthy"],
+                },
                 "version": {"type": "string"},
                 "timestamp": {"type": "string", "format": "date-time"},
                 "api_route_imports": {"type": "object"},
                 "freshness": {"type": "object"},
-                "last_load_time": {"type": "string", "format": "date-time"}
+                "last_load_time": {"type": "string", "format": "date-time"},
             },
-            "required": ["status", "version", "timestamp"]
+            "required": ["status", "version", "timestamp"],
         },
         "HealthResponse": {
             "type": "object",
             "properties": {
                 "statusCode": {"type": "integer", "example": 200},
-                "data": {"$ref": "#/components/schemas/HealthStatus"},
-                "data_freshness": {"$ref": "#/components/schemas/DataFreshness"}
+                "data": {"$re": "#/components/schemas/HealthStatus"},
+                "data_freshness": {"$re": "#/components/schemas/DataFreshness"},
             },
-            "required": ["statusCode", "data"]
+            "required": ["statusCode", "data"],
         },
         "ErrorResponse": {
             "type": "object",
@@ -729,9 +800,9 @@ def _get_schemas():
                 "errorType": {"type": "string"},
                 "message": {"type": "string"},
                 "_error": {"type": "string"},
-                "_diagnostic": {"type": "object"}
+                "_diagnostic": {"type": "object"},
             },
-            "required": ["statusCode", "errorType", "message", "_error"]
+            "required": ["statusCode", "errorType", "message", "_error"],
         },
         "StockProfile": {
             "type": "object",
@@ -742,17 +813,17 @@ def _get_schemas():
                 "industry": {"type": "string"},
                 "website": {"type": "string"},
                 "employees": {"type": "integer"},
-                "exchange": {"type": "string"}
+                "exchange": {"type": "string"},
             },
-            "required": ["symbol"]
+            "required": ["symbol"],
         },
         "StockProfileResponse": {
             "type": "object",
             "properties": {
                 "statusCode": {"type": "integer", "example": 200},
-                "data": {"$ref": "#/components/schemas/StockProfile"}
+                "data": {"$re": "#/components/schemas/StockProfile"},
             },
-            "required": ["statusCode", "data"]
+            "required": ["statusCode", "data"],
         },
         "Signal": {
             "type": "object",
@@ -768,9 +839,9 @@ def _get_schemas():
                 "sma_200": {"type": "number"},
                 "sector": {"type": "string"},
                 "industry": {"type": "string"},
-                "_is_fallback": {"type": "boolean"}
+                "_is_fallback": {"type": "boolean"},
             },
-            "required": ["symbol", "signal", "date"]
+            "required": ["symbol", "signal", "date"],
         },
         "ListResponseData": {
             "type": "object",
@@ -778,9 +849,9 @@ def _get_schemas():
                 "items": {"type": "array", "items": {"type": "object"}},
                 "total": {"type": "integer"},
                 "limit": {"type": "integer"},
-                "offset": {"type": "integer"}
+                "offset": {"type": "integer"},
             },
-            "required": ["items", "total"]
+            "required": ["items", "total"],
         },
         "SignalsResponse": {
             "type": "object",
@@ -789,26 +860,28 @@ def _get_schemas():
                 "data": {
                     "type": "object",
                     "properties": {
-                        "items": {"type": "array", "items": {"$ref": "#/components/schemas/Signal"}},
+                        "items": {
+                            "type": "array",
+                            "items": {"$re": "#/components/schemas/Signal"},
+                        },
                         "total": {"type": "integer"},
                         "limit": {"type": "integer"},
-                        "offset": {"type": "integer"}
-                    }
+                        "offset": {"type": "integer"},
+                    },
                 },
-                "data_freshness": {"$ref": "#/components/schemas/DataFreshness"}
+                "data_freshness": {"$re": "#/components/schemas/DataFreshness"},
             },
-            "required": ["statusCode", "data"]
+            "required": ["statusCode", "data"],
         },
         "KeyMetricsResponse": {
             "type": "object",
             "properties": {
                 "statusCode": {"type": "integer", "example": 200},
-                "data": {"$ref": "#/components/schemas/ListResponseData"},
-                "data_freshness": {"$ref": "#/components/schemas/DataFreshness"}
-            }
+                "data": {"$re": "#/components/schemas/ListResponseData"},
+                "data_freshness": {"$re": "#/components/schemas/DataFreshness"},
+            },
         },
     }
-
 
 def _get_common_responses():
     """Generate common response definitions."""
@@ -817,56 +890,56 @@ def _get_common_responses():
             "description": "Bad request - invalid parameters",
             "content": {
                 "application/json": {
-                    "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                    "schema": {"$re": "#/components/schemas/ErrorResponse"},
                     "example": {
                         "statusCode": 400,
                         "errorType": "bad_request",
                         "message": "Invalid symbol format",
-                        "_error": "bad_request"
-                    }
+                        "_error": "bad_request",
+                    },
                 }
-            }
+            },
         },
         "Unauthorized": {
             "description": "Unauthorized - authentication required",
             "content": {
                 "application/json": {
-                    "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                    "schema": {"$re": "#/components/schemas/ErrorResponse"},
                     "example": {
                         "statusCode": 401,
                         "errorType": "unauthorized",
                         "message": "Authentication required",
-                        "_error": "unauthorized"
-                    }
+                        "_error": "unauthorized",
+                    },
                 }
-            }
+            },
         },
         "NotFound": {
             "description": "Resource not found",
             "content": {
                 "application/json": {
-                    "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                    "schema": {"$re": "#/components/schemas/ErrorResponse"},
                     "example": {
                         "statusCode": 404,
                         "errorType": "not_found",
                         "message": "Stock not found",
-                        "_error": "not_found"
-                    }
+                        "_error": "not_found",
+                    },
                 }
-            }
+            },
         },
         "ServiceUnavailable": {
             "description": "Service unavailable - database or external service error",
             "content": {
                 "application/json": {
-                    "schema": {"$ref": "#/components/schemas/ErrorResponse"},
+                    "schema": {"$re": "#/components/schemas/ErrorResponse"},
                     "example": {
                         "statusCode": 503,
                         "errorType": "connection_error",
                         "message": "Database connection failed",
-                        "_error": "connection_error"
-                    }
+                        "_error": "connection_error",
+                    },
                 }
-            }
-        }
+            },
+        },
     }

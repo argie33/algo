@@ -13,12 +13,11 @@ from pathlib import Path
 from typing import Tuple
 
 REPO_ROOT = Path(__file__).parent.parent
-ROUTES_DIR = REPO_ROOT / 'lambda' / 'api' / 'routes'
-
+ROUTES_DIR = REPO_ROOT / "lambda" / "api" / "routes"
 
 def fix_routes_file(filepath: Path) -> Tuple[int, str]:
     """Fix a single route file. Returns (changes_made, warnings)."""
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         original = f.read()
 
     modified = original
@@ -32,12 +31,12 @@ def fix_routes_file(filepath: Path) -> Tuple[int, str]:
         changes += len(re.findall(pattern, original))
 
     # Fix 2: Ensure imports are present
-    if 'from routes.utils import' in modified and 'error_response' in modified:
-        if 'from utils.error_handlers import' not in modified:
+    if "from routes.utils import" in modified and "error_response" in modified:
+        if "from utils.error_handlers import" not in modified:
             # Add import after other imports
             modified = modified.replace(
-                'from routes.utils import',
-                'from utils.error_handlers import make_error_response\nfrom routes.utils import'
+                "from routes.utils import",
+                "from utils.error_handlers import make_error_response\nfrom routes.utils import",
             )
             changes += 1
 
@@ -52,20 +51,21 @@ def fix_routes_file(filepath: Path) -> Tuple[int, str]:
 
     # Write back if changes made
     if modified != original:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(modified)
         return changes, f"Fixed {filepath.name}"
     else:
         return 0, f"No changes needed for {filepath.name}"
 
-
 def main():
     """Apply fixes to all route files."""
-    route_files = sorted([f for f in ROUTES_DIR.glob('*.py') if f.name != '__init__.py'])
+    route_files = sorted(
+        [f for f in ROUTES_DIR.glob("*.py") if f.name != "__init__.py"]
+    )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PHASE 2: API Routes - Systematic Fixes")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     total_changes = 0
     for route_file in route_files:
@@ -76,10 +76,9 @@ def main():
         else:
             print(f"[--] {msg}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(f"Total changes applied: {total_changes}")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

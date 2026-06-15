@@ -7,13 +7,12 @@ Uses rules from utils/validation/freshness_config.py as ground truth.
 """
 
 import logging
-from datetime import date, datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List
+from datetime import date, datetime
+from typing import Optional, Dict, Any
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
 
 logger = logging.getLogger(__name__)
-
 
 class DataAgeValidator:
     """Single source of truth for data freshness checks."""
@@ -45,18 +44,19 @@ class DataAgeValidator:
         rule = get_freshness_rule(table_name)
         if rule is None:
             return {
-                'is_fresh': True,
-                'age_days': None,
-                'max_date': None,
-                'rule': None,
-                'message': f"✓ {table_name} (no rule defined, assuming fresh)",
-                'is_critical': False,
+                "is_fresh": True,
+                "age_days": None,
+                "max_date": None,
+                "rule": None,
+                "message": f"✓ {table_name} (no rule defined, assuming fresh)",
+                "is_critical": False,
             }
 
         # Query for latest date
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 import psycopg2.sql
+
                 cur.execute(
                     psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
                         psycopg2.sql.Identifier(date_column),
@@ -68,23 +68,23 @@ class DataAgeValidator:
         except Exception as e:
             logger.error(f"[{table_name}] Could not query {date_column}: {e}")
             return {
-                'is_fresh': False,
-                'age_days': None,
-                'max_date': None,
-                'rule': rule,
-                'message': f"✗ {table_name}: Query failed — {e}",
-                'is_critical': rule.get('critical', False),
+                "is_fresh": False,
+                "age_days": None,
+                "max_date": None,
+                "rule": rule,
+                "message": f"✗ {table_name}: Query failed — {e}",
+                "is_critical": rule.get("critical", False),
             }
 
         # Parse and normalize date
         if max_date is None:
             return {
-                'is_fresh': False,
-                'age_days': None,
-                'max_date': None,
-                'rule': rule,
-                'message': f"✗ {table_name}: No data in table",
-                'is_critical': rule.get('critical', False),
+                "is_fresh": False,
+                "age_days": None,
+                "max_date": None,
+                "rule": rule,
+                "message": f"✗ {table_name}: No data in table",
+                "is_critical": rule.get("critical", False),
             }
 
         if isinstance(max_date, datetime):
@@ -94,12 +94,12 @@ class DataAgeValidator:
                 max_date = datetime.fromisoformat(max_date).date()
             except (ValueError, AttributeError):
                 return {
-                    'is_fresh': False,
-                    'age_days': None,
-                    'max_date': None,
-                    'rule': rule,
-                    'message': f"✗ {table_name}: Invalid date format {max_date}",
-                    'is_critical': rule.get('critical', False),
+                    "is_fresh": False,
+                    "age_days": None,
+                    "max_date": None,
+                    "rule": rule,
+                    "message": f"✗ {table_name}: Invalid date format {max_date}",
+                    "is_critical": rule.get("critical", False),
                 }
 
         # Calculate age
@@ -107,7 +107,7 @@ class DataAgeValidator:
 
         # Adjust for weekends: Friday data stays "fresh" through Sunday
         weekday = current_date.weekday()  # 0=Mon ... 6=Sun
-        threshold_days = rule['max_age_days']
+        threshold_days = rule["max_age_days"]
         if weekday == 5:  # Saturday: Friday data is 1 day old → +1
             adjusted_threshold = threshold_days + 1
         elif weekday == 6:  # Sunday: Friday data is 2 days old → +2
@@ -124,20 +124,22 @@ class DataAgeValidator:
         else:
             status = "✗"
             level = "STALE"
-            logger.warning(f"[{table_name}] Data is {age_days} days old (threshold {adjusted_threshold}d)")
+            logger.warning(
+                f"[{table_name}] Data is {age_days} days old (threshold {adjusted_threshold}d)"
+            )
 
         message = f"{status} {table_name}: {age_days}d old (threshold {adjusted_threshold}d) — {level}"
         if verbose and rule:
             message += f" [applies to: {', '.join(rule.get('applies_to', []))}]"
 
         return {
-            'is_fresh': is_fresh,
-            'age_days': age_days,
-            'max_date': max_date,
-            'threshold_days': adjusted_threshold,
-            'rule': rule,
-            'message': message,
-            'is_critical': rule.get('critical', False),
+            "is_fresh": is_fresh,
+            "age_days": age_days,
+            "max_date": max_date,
+            "threshold_days": adjusted_threshold,
+            "rule": rule,
+            "message": message,
+            "is_critical": rule.get("critical", False),
         }
 
     @staticmethod
@@ -148,7 +150,7 @@ class DataAgeValidator:
     ) -> bool:
         """Quick boolean check: is table data fresh?"""
         result = DataAgeValidator.check(table_name, date_column, current_date)
-        return result['is_fresh']
+        return result["is_fresh"]
 
     @staticmethod
     def check_multiple(
@@ -176,20 +178,20 @@ class DataAgeValidator:
         for table_name, date_column in tables.items():
             result = DataAgeValidator.check(table_name, date_column, current_date)
             results[table_name] = result
-            messages.append(result['message'])
+            messages.append(result["message"])
 
-            if not result['is_fresh']:
+            if not result["is_fresh"]:
                 all_fresh = False
                 stale_tables.append(table_name)
-                if result['is_critical']:
+                if result["is_critical"]:
                     critical_stale.append(table_name)
 
         return {
-            'all_fresh': all_fresh,
-            'stale_tables': stale_tables,
-            'critical_stale': critical_stale,
-            'results': results,
-            'messages': messages,
+            "all_fresh": all_fresh,
+            "stale_tables": stale_tables,
+            "critical_stale": critical_stale,
+            "results": results,
+            "messages": messages,
         }
 
     @staticmethod
@@ -202,6 +204,7 @@ class DataAgeValidator:
         """Get the watermark (last successfully loaded date) for a loader."""
         try:
             from utils.data.watermark import WatermarkManager
+
             mgr = WatermarkManager(loader_name, table_name, granularity=granularity)
             return mgr.get_current_watermark(symbol=symbol)
         except Exception as e:
@@ -220,12 +223,14 @@ class DataAgeValidator:
         """Record successful watermark advance for incremental loading."""
         try:
             from utils.data.watermark import WatermarkManager
+
             mgr = WatermarkManager(loader_name, table_name, granularity=granularity)
-            return mgr.advance_watermark(new_watermark, symbol=symbol, rows_loaded=rows_loaded)
+            return mgr.advance_watermark(
+                new_watermark, symbol=symbol, rows_loaded=rows_loaded
+            )
         except Exception as e:
             logger.error(f"Could not record watermark: {e}")
             return False
-
 
 # Backwards compatibility wrappers
 def is_fresh(
@@ -252,7 +257,6 @@ def is_fresh(
     except Exception:
         return False
 
-
 def check_freshness(
     last_loaded_date: Optional[Any],
     data_type: str = "generic",
@@ -265,11 +269,11 @@ def check_freshness(
 
     if last_loaded_date is None:
         return {
-            'is_fresh': False,
-            'age_days': -1,
-            'threshold_days': 3,
-            'message': f"[{data_type}] Data missing {context}".strip(),
-            'last_loaded_date': None,
+            "is_fresh": False,
+            "age_days": -1,
+            "threshold_days": 3,
+            "message": f"[{data_type}] Data missing {context}".strip(),
+            "last_loaded_date": None,
         }
 
     try:
@@ -281,28 +285,28 @@ def check_freshness(
             loaded_date = date.fromisoformat(last_loaded_date)
         else:
             return {
-                'is_fresh': False,
-                'age_days': -1,
-                'threshold_days': 3,
-                'message': f"[{data_type}] Invalid date type",
-                'last_loaded_date': None,
+                "is_fresh": False,
+                "age_days": -1,
+                "threshold_days": 3,
+                "message": f"[{data_type}] Invalid date type",
+                "last_loaded_date": None,
             }
 
         age = (today - loaded_date).days
         is_fresh_val = age <= 3
         msg = f"[{data_type}] {'Fresh' if is_fresh_val else 'STALE'} ({age}d old) {context}".strip()
         return {
-            'is_fresh': is_fresh_val,
-            'age_days': age,
-            'threshold_days': 3,
-            'message': msg,
-            'last_loaded_date': loaded_date,
+            "is_fresh": is_fresh_val,
+            "age_days": age,
+            "threshold_days": 3,
+            "message": msg,
+            "last_loaded_date": loaded_date,
         }
     except Exception as e:
         return {
-            'is_fresh': False,
-            'age_days': -1,
-            'threshold_days': 3,
-            'message': f"[{data_type}] Error checking freshness: {e}",
-            'last_loaded_date': None,
+            "is_fresh": False,
+            "age_days": -1,
+            "threshold_days": 3,
+            "message": f"[{data_type}] Error checking freshness: {e}",
+            "last_loaded_date": None,
         }

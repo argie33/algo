@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 import psycopg2
 import os
-from datetime import datetime, date, timedelta
 
 try:
     conn = psycopg2.connect(
-        host=os.environ['DB_HOST'],
-        port=os.environ['DB_PORT'],
-        user=os.environ['DB_USER'],
-        password=os.environ['DB_PASSWORD'],
-        database=os.environ['DB_NAME']
+        host=os.environ["DB_HOST"],
+        port=os.environ["DB_PORT"],
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        database=os.environ["DB_NAME"],
     )
     cur = conn.cursor()
 
@@ -58,10 +57,15 @@ try:
     for symbol, completion, loaded, failed, started, completed in cur.fetchall():
         duration = (completed - started).total_seconds() if completed else None
         status = f"{completion:.0f}% complete"
-        print(f"  {started.strftime('%Y-%m-%d %H:%M')}: {status} | Loaded: {loaded}, Failed: {failed}, Duration: {duration:.0f}s" if duration else f"  {started.strftime('%Y-%m-%d %H:%M')}: {status} | Loaded: {loaded}, Failed: {failed}")
+        print(
+            f"  {started.strftime('%Y-%m-%d %H:%M')}: {status} | Loaded: {loaded}, Failed: {failed}, Duration: {duration:.0f}s"
+            if duration
+            else f"  {started.strftime('%Y-%m-%d %H:%M')}: {status} | Loaded: {loaded}, Failed: {failed}"
+        )
 
     conn.close()
 except Exception as e:
     print(f"Error: {e}")
     import traceback
+
     traceback.print_exc()

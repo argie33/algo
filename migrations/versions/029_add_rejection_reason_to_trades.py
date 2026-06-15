@@ -6,7 +6,7 @@ from migrations.migration_helper import DatabaseContext
 DESCRIPTION = "Add rejection_reason column to algo_trades"
 
 def up():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE algo_trades
             ADD COLUMN IF NOT EXISTS rejection_reason TEXT
@@ -16,9 +16,8 @@ def up():
         """)
 
 def down():
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute("""
             ALTER TABLE algo_trades
             DROP COLUMN IF EXISTS rejection_reason
         """)
-

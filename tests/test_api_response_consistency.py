@@ -7,7 +7,8 @@ and that all data fetchers can work with the unwrapped responses.
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'tools', 'dashboard'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools", "dashboard"))
 from api_data_layer import _unwrap_api_response
 
 def test_unwrap_single_object_response():
@@ -16,11 +17,8 @@ def test_unwrap_single_object_response():
         "statusCode": 200,
         "data": {
             "run_id": "test-123",
-            "portfolio": {
-                "total_value": 100000,
-                "daily_return_pct": 1.5
-            }
-        }
+            "portfolio": {"total_value": 100000, "daily_return_pct": 1.5},
+        },
     }
     unwrapped = _unwrap_api_response(response)
     assert "statusCode" not in unwrapped, "statusCode should be removed"
@@ -33,12 +31,9 @@ def test_unwrap_list_response():
     """Test unwrapping list_response format."""
     response = {
         "statusCode": 200,
-        "items": [
-            {"symbol": "AAPL", "price": 150},
-            {"symbol": "MSFT", "price": 320}
-        ],
+        "items": [{"symbol": "AAPL", "price": 150}, {"symbol": "MSFT", "price": 320}],
         "total": 2,
-        "pagination": {"limit": 10, "offset": 0}
+        "pagination": {"limit": 10, "offset": 0},
     }
     unwrapped = _unwrap_api_response(response)
     assert "statusCode" not in unwrapped, "statusCode should be removed"
@@ -53,7 +48,7 @@ def test_unwrap_direct_fields_response():
         "n": 5,
         "total": 10,
         "buy_sigs": [{"symbol": "ABC"}],
-        "grades": {"a": 2, "b": 3}
+        "grades": {"a": 2, "b": 3},
     }
     unwrapped = _unwrap_api_response(response)
     assert "statusCode" not in unwrapped, "statusCode should be removed"
@@ -67,7 +62,7 @@ def test_unwrap_preserves_metadata():
     response = {
         "statusCode": 200,
         "items": [{"id": 1}],
-        "data_freshness": {"is_stale": False, "data_age_days": 0}
+        "data_freshness": {"is_stale": False, "data_age_days": 0},
     }
     unwrapped = _unwrap_api_response(response)
     assert "statusCode" not in unwrapped
@@ -113,5 +108,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[ERROR] Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

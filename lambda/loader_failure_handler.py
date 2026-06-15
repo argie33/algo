@@ -6,8 +6,8 @@ import logging
 from datetime import datetime, timezone
 import boto3
 
-cloudwatch = boto3.client('cloudwatch')
-sns = boto3.client('sns')
+cloudwatch = boto3.client("cloudwatch")
+sns = boto3.client("sns")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -15,9 +15,9 @@ logger.setLevel(logging.INFO)
 # Loaders that are CRITICAL - pipeline halts if they fail (FAIL-CLOSED)
 # These loaders block all downstream operations and are essential for data completeness
 CRITICAL_LOADERS = {
-    'stock_prices_daily',      # Blocks: technicals, buy_sell, signals, scores
-    'stock_symbols',           # Reference data; blocks price loading
-    'swing_trader_scores',     # Needed for Phase 5 signal generation; blocks trading
+    "stock_prices_daily",  # Blocks: technicals, buy_sell, signals, scores
+    "stock_symbols",  # Reference data; blocks price loading
+    "swing_trader_scores",  # Needed for Phase 5 signal generation; blocks trading
 }
 
 def lambda_handler(event, context):
@@ -31,14 +31,18 @@ def lambda_handler(event, context):
     - sector_ranking, algo_metrics_daily, etc.: Graceful degradation OK
     """
     try:
-        loader_name = event.get('loader_name', 'unknown')
-        error_type = event.get('error', 'unknown')
-        error_message = event.get('error_message', '')
-        is_critical = event.get('is_critical_loader', loader_name in CRITICAL_LOADERS)
+        loader_name = event.get("loader_name", "unknown")
+        error_type = event.get("error", "unknown")
+        error_message = event.get("error_message", "")
+        is_critical = event.get("is_critical_loader", loader_name in CRITICAL_LOADERS)
         timestamp = datetime.now(timezone.utc).isoformat()
 
         # Log the failure
-        degradation_mode = "FAIL-CLOSED (halting pipeline)" if is_critical else "FAIL-OPEN (graceful degradation)"
+        degradation_mode = (
+            "FAIL-CLOSED (halting pipeline)"
+            if is_critical
+            else "FAIL-OPEN (graceful degradation)"
+        )
         logger.warning(
             f"Loader failure [{degradation_mode}]: loader={loader_name} "
             f"error={error_type} message={error_message}"
@@ -46,20 +50,23 @@ def lambda_handler(event, context):
 
         # Publish CloudWatch metric for visibility
         cloudwatch.put_metric_data(
-            Namespace='Algo/DataLoading',
+            Namespace="Algo/DataLoading",
             MetricData=[
                 {
-                    'MetricName': 'LoaderFailure',
-                    'Value': 1,
-                    'Unit': 'Count',
-                    'Timestamp': datetime.now(timezone.utc),
-                    'Dimensions': [
-                        {'Name': 'LoaderName', 'Value': loader_name},
-                        {'Name': 'ErrorType', 'Value': error_type},
-                        {'Name': 'Mode', 'Value': 'FailClosed' if is_critical else 'FailOpen'},
-                    ]
+                    "MetricName": "LoaderFailure",
+                    "Value": 1,
+                    "Unit": "Count",
+                    "Timestamp": datetime.now(timezone.utc),
+                    "Dimensions": [
+                        {"Name": "LoaderName", "Value": loader_name},
+                        {"Name": "ErrorType", "Value": error_type},
+                        {
+                            "Name": "Mode",
+                            "Value": "FailClosed" if is_critical else "FailOpen",
+                        },
+                    ],
                 }
-            ]
+            ],
         )
 
         # Alert on any loader failure
@@ -75,21 +82,21 @@ def lambda_handler(event, context):
             alert_message += (
                 f"\nPipeline is HALTING because {loader_name} is critical.\n"
                 f"Reason: {loader_name} failure prevents reliable data loading.\n"
-                f"Action: Investigate and fix the underlying issue."
+                "Action: Investigate and fix the underlying issue."
             )
         else:
             alert_message += (
-                f"\nPipeline is continuing with graceful degradation.\n"
-                f"Some data may be incomplete or stale."
+                "\nPipeline is continuing with graceful degradation.\n"
+                "Some data may be incomplete or stale."
             )
 
-        sns_topic = os.getenv('SNS_ALERT_TOPIC_ARN')
+        sns_topic = os.getenv("SNS_ALERT_TOPIC_ARN")
         if sns_topic:
             try:
                 sns.publish(
                     TopicArn=sns_topic,
                     Subject=f"[{'CRITICAL' if is_critical else 'WARNING'}] Loader Failure: {loader_name}",
-                    Message=alert_message
+                    Message=alert_message,
                 )
             except Exception as e:
                 logger.error(f"Failed to send SNS alert: {e}")
@@ -98,17 +105,21 @@ def lambda_handler(event, context):
         # For non-critical loaders, SUCCEED so pipeline continues
         if is_critical:
             logger.error(f"CRITICAL LOADER {loader_name} FAILED - Halting pipeline")
-            raise Exception(f"Critical loader {loader_name} failed. Pipeline halted to prevent trading on incomplete data.")
+            raise Exception(
+                f"Critical loader {loader_name} failed. Pipeline halted to prevent trading on incomplete data."
+            )
 
         # Non-critical loader: return success for graceful degradation
         return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Non-critical loader failure - pipeline continuing',
-                'loader_name': loader_name,
-                'timestamp': timestamp,
-                'critical': False
-            })
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "message": "Non-critical loader failure - pipeline continuing",
+                    "loader_name": loader_name,
+                    "timestamp": timestamp,
+                    "critical": False,
+                }
+            ),
         }
 
     except Exception as e:

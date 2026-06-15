@@ -14,7 +14,7 @@ DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"
 
 def up():
     """Add user isolation columns to remaining trading tables."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Note: cognito_sub was already added to algo_positions and algo_trades by migration 011
         # This migration adds it to algo_portfolio_snapshots and algo_trade_adds
 
@@ -39,28 +39,35 @@ def up():
         """)
 
         # 3. Backfill admin user's cognito_sub for existing data
-        admin_cognito_sub = 'admin-user'
+        admin_cognito_sub = "admin-user"
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE algo_portfolio_snapshots
             SET cognito_sub = %s
             WHERE cognito_sub IS NULL
-        """, (admin_cognito_sub,))
+        """,
+            (admin_cognito_sub,),
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE algo_trade_adds
             SET cognito_sub = %s
             WHERE cognito_sub IS NULL
-        """, (admin_cognito_sub,))
+        """,
+            (admin_cognito_sub,),
+        )
 
 def down():
     """Remove user isolation columns."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Drop indexes
         cur.execute("DROP INDEX IF EXISTS idx_algo_trade_adds_user_date")
         cur.execute("DROP INDEX IF EXISTS idx_algo_portfolio_snapshots_user_date")
 
         # Drop columns
         cur.execute("ALTER TABLE algo_trade_adds DROP COLUMN IF EXISTS cognito_sub")
-        cur.execute("ALTER TABLE algo_portfolio_snapshots DROP COLUMN IF EXISTS cognito_sub")
-
+        cur.execute(
+            "ALTER TABLE algo_portfolio_snapshots DROP COLUMN IF EXISTS cognito_sub"
+        )

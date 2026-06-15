@@ -12,12 +12,11 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'lambda' / 'api'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from routes.algo import _check_admin_access
 import api_router
-
 
 class TestJWTFlowIntegration:
     """Test JWT flow through the complete request pipeline."""
@@ -37,14 +36,14 @@ class TestJWTFlowIntegration:
         """
         # Simulate JWT claims from Cognito for admin user
         admin_jwt_claims = {
-            'sub': 'admin-user-id-123',
-            'email': 'edgebrookecapital@gmail.com',
-            'email_verified': True,
-            'cognito:groups': ['admin'],
-            'token_use': 'access',
-            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId',
-            'exp': 1719432000,
-            'iat': 1719428400
+            "sub": "admin-user-id-123",
+            "email": "edgebrookecapital@gmail.com",
+            "email_verified": True,
+            "cognito:groups": ["admin"],
+            "token_use": "access",
+            "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId",
+            "exp": 1719432000,
+            "iat": 1719428400,
         }
 
         # The algo.handle() would check this at each protected endpoint
@@ -67,14 +66,14 @@ class TestJWTFlowIntegration:
         """
         # Simulate JWT claims from Cognito for trader user
         trader_jwt_claims = {
-            'sub': 'trader-user-id-456',
-            'email': 'argeropolos@gmail.com',
-            'email_verified': True,
-            'cognito:groups': ['trader'],
-            'token_use': 'access',
-            'iss': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId',
-            'exp': 1719432000,
-            'iat': 1719428400
+            "sub": "trader-user-id-456",
+            "email": "argeropolos@gmail.com",
+            "email_verified": True,
+            "cognito:groups": ["trader"],
+            "token_use": "access",
+            "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TestPoolId",
+            "exp": 1719432000,
+            "iat": 1719428400,
         }
 
         # The algo.handle() would check this at each protected endpoint
@@ -89,11 +88,16 @@ class TestJWTFlowIntegration:
         # The route_request function signature shows it accepts jwt_claims:
         # def route_request(cur, path, method, params, body=None, jwt_claims=None):
         import inspect
+
         sig = inspect.signature(api_router.route_request)
         params = list(sig.parameters.keys())
 
-        assert 'jwt_claims' in params, "router.route_request must accept jwt_claims parameter"
-        assert params[-1] == 'jwt_claims', "jwt_claims should be last parameter for optional passing"
+        assert (
+            "jwt_claims" in params
+        ), "router.route_request must accept jwt_claims parameter"
+        assert (
+            params[-1] == "jwt_claims"
+        ), "jwt_claims should be last parameter for optional passing"
 
     def test_handler_receives_claims(self):
         """Verify handler.handle() receives jwt_claims parameter."""
@@ -103,7 +107,7 @@ class TestJWTFlowIntegration:
         sig = inspect.signature(algo.handle)
         params = list(sig.parameters.keys())
 
-        assert 'jwt_claims' in params, "algo.handle() must accept jwt_claims parameter"
+        assert "jwt_claims" in params, "algo.handle() must accept jwt_claims parameter"
 
     def test_protected_endpoints_require_admin_group(self):
         """Verify protected endpoints are gated on 'admin' group membership.
@@ -121,16 +125,15 @@ class TestJWTFlowIntegration:
         - /api/algo/pre-trade-impact
         - Notification endpoints
         """
-        trader_claims = {
-            'sub': 'trader-user-id',
-            'cognito:groups': ['trader']
-        }
+        trader_claims = {"sub": "trader-user-id", "cognito:groups": ["trader"]}
 
         # All protected endpoints use the same check
         is_authorized = _check_admin_access(trader_claims)
 
         # Trader should NOT be authorized
-        assert is_authorized is False, "Trader should be denied access to admin endpoints"
+        assert (
+            is_authorized is False
+        ), "Trader should be denied access to admin endpoints"
 
     def test_public_endpoints_allow_all_authenticated(self):
         """Verify public endpoints allow all authenticated users.
@@ -148,8 +151,8 @@ class TestJWTFlowIntegration:
         # (These endpoints don't call _check_admin_access at all)
         from routes.algo import _check_admin_access
 
-        admin_claims = {'cognito:groups': ['admin']}
-        trader_claims = {'cognito:groups': ['trader']}
+        admin_claims = {"cognito:groups": ["admin"]}
+        trader_claims = {"cognito:groups": ["trader"]}
 
         # Verify public endpoints don't require admin access
         # by checking they're not gated on _check_admin_access
@@ -160,8 +163,9 @@ class TestJWTFlowIntegration:
         # Admin can access everything
         assert admin_can_access is True, "Admin should have access"
         # Trader can't access admin endpoints (but CAN access public)
-        assert trader_for_public is True, "Trader blocked from admin endpoints (but public endpoints not gated)"
-
+        assert (
+            trader_for_public is True
+        ), "Trader blocked from admin endpoints (but public endpoints not gated)"
 
 class TestCognitoConfiguration:
     """Verify Cognito environment is configured correctly."""
@@ -181,13 +185,14 @@ class TestCognitoConfiguration:
     def test_admin_and_trader_groups_match_code(self):
         """Verify group names match between setup script and code."""
         # Setup script creates these groups
-        setup_groups = ['admin', 'trader']
+        setup_groups = ["admin", "trader"]
 
         # Code checks for 'admin' group specifically
-        code_admin_group = 'admin'
+        code_admin_group = "admin"
 
-        assert code_admin_group in setup_groups, "Code checks for 'admin' group that setup script creates"
+        assert (
+            code_admin_group in setup_groups
+        ), "Code checks for 'admin' group that setup script creates"
 
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

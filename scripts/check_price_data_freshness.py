@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Check how much price history we have."""
+
 import psycopg2
 import os
-from datetime import datetime
 
 conn = psycopg2.connect(
-    host=os.environ['DB_HOST'],
-    port=os.environ['DB_PORT'],
-    user=os.environ['DB_USER'],
-    password=os.environ['DB_PASSWORD'],
-    database=os.environ['DB_NAME']
+    host=os.environ["DB_HOST"],
+    port=os.environ["DB_PORT"],
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    database=os.environ["DB_NAME"],
 )
 cur = conn.cursor()
 
@@ -27,7 +27,7 @@ cur.execute("""
 """)
 
 oldest, newest, dates, symbols, total = cur.fetchone()
-print(f"Price data range:")
+print("Price data range:")
 print(f"  Oldest: {oldest}")
 print(f"  Newest: {newest}")
 print(f"  Span: {(newest - oldest).days} days")
@@ -39,7 +39,7 @@ if symbols and total:
     avg_per_symbol = total / symbols
     print(f"  Avg records per symbol: {avg_per_symbol:.0f}")
 
-print(f"\nIf we need 1 year (252 trading days) × 10,506 symbols:")
+print("\nIf we need 1 year (252 trading days) × 10,506 symbols:")
 print(f"  Expected records: {252 * 10506:,}")
 print(f"  Actual records: {total:,}")
 print(f"  Deficit: {max(0, 252 * 10506 - total):,}")

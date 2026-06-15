@@ -9,14 +9,12 @@ Verifies that the new unified DataAgeValidator:
 """
 
 import pytest
-from datetime import date, datetime, timedelta
-from utils.data.age_validator import DataAgeValidator
+from datetime import date, timedelta
 from utils.validation.freshness_config import (
     get_freshness_rule,
     is_critical_table,
     FRESHNESS_RULES,
 )
-
 
 class TestWatermarkConsolidation:
     """Verify unified watermark/freshness system."""
@@ -24,40 +22,44 @@ class TestWatermarkConsolidation:
     def test_freshness_rules_defined(self):
         """Ensure all critical tables have freshness rules."""
         critical_tables = [
-            'price_daily',
-            'algo_portfolio_snapshots',
-            'algo_performance_daily',
-            'algo_risk_daily',
-            'buy_sell_daily',
-            'swing_trader_scores',
-            'market_health_daily',
-            'market_exposure_daily',
+            "price_daily",
+            "algo_portfolio_snapshots",
+            "algo_performance_daily",
+            "algo_risk_daily",
+            "buy_sell_daily",
+            "swing_trader_scores",
+            "market_health_daily",
+            "market_exposure_daily",
         ]
 
         for table in critical_tables:
             rule = get_freshness_rule(table)
             assert rule is not None, f"Missing rule for {table}"
-            assert rule.get('critical') is True, f"{table} should be critical"
-            assert rule.get('max_age_days') > 0, f"{table} should have max_age_days"
+            assert rule.get("critical") is True, f"{table} should be critical"
+            assert rule.get("max_age_days") > 0, f"{table} should have max_age_days"
 
     def test_critical_table_detection(self):
         """Verify critical tables are marked correctly."""
-        assert is_critical_table('price_daily') is True
-        assert is_critical_table('algo_portfolio_snapshots') is True
-        assert is_critical_table('sector_ranking') is False
-        assert is_critical_table('economic_data') is False
+        assert is_critical_table("price_daily") is True
+        assert is_critical_table("algo_portfolio_snapshots") is True
+        assert is_critical_table("sector_ranking") is False
+        assert is_critical_table("economic_data") is False
 
     def test_freshness_rule_thresholds(self):
         """Verify threshold values are reasonable."""
         # Critical tables should have tight thresholds (1 day)
-        for table in ['price_daily', 'algo_portfolio_snapshots', 'market_health_daily']:
+        for table in ["price_daily", "algo_portfolio_snapshots", "market_health_daily"]:
             rule = get_freshness_rule(table)
-            assert rule['max_age_days'] <= 1, f"{table} critical, should have 1d or tighter threshold"
+            assert (
+                rule["max_age_days"] <= 1
+            ), f"{table} critical, should have 1d or tighter threshold"
 
         # Important tables should have reasonable thresholds (7 days)
-        for table in ['technical_data_daily', 'trend_template_data']:
+        for table in ["technical_data_daily", "trend_template_data"]:
             rule = get_freshness_rule(table)
-            assert rule['max_age_days'] <= 7, f"{table} important, should have <=7d threshold"
+            assert (
+                rule["max_age_days"] <= 7
+            ), f"{table} important, should have <=7d threshold"
 
     def test_no_hardcoded_thresholds(self):
         """Ensure no hardcoded threshold values are used."""
@@ -82,24 +84,23 @@ class TestWatermarkConsolidation:
 
         # 2 days old, generic 3-day threshold should be fresh
         two_days_ago = date.today() - timedelta(days=2)
-        assert is_fresh(two_days_ago, data_type='price') is True
+        assert is_fresh(two_days_ago, data_type="price") is True
 
         # 5 days old should be stale
         five_days_ago = date.today() - timedelta(days=5)
-        assert is_fresh(five_days_ago, data_type='price') is False
+        assert is_fresh(five_days_ago, data_type="price") is False
 
     def test_backwards_compat_check_freshness(self):
         """Verify deprecated check_freshness() still works."""
         from utils.data.age_validator import check_freshness
 
         two_days_ago = date.today() - timedelta(days=2)
-        result = check_freshness(two_days_ago, data_type='earnings')
+        result = check_freshness(two_days_ago, data_type="earnings")
 
         assert isinstance(result, dict)
-        assert 'is_fresh' in result
-        assert 'age_days' in result
-        assert 'message' in result
-
+        assert "is_fresh" in result
+        assert "age_days" in result
+        assert "message" in result
 
 class TestDataAgeValidator:
     """Test new unified DataAgeValidator interface."""
@@ -107,7 +108,14 @@ class TestDataAgeValidator:
     def test_check_method_returns_complete_dict(self):
         """Verify check() returns all expected fields."""
         # Note: This test uses mock data; in integration tests would use real DB
-        expected_keys = ['is_fresh', 'age_days', 'max_date', 'rule', 'message', 'is_critical']
+        expected_keys = [
+            "is_fresh",
+            "age_days",
+            "max_date",
+            "rule",
+            "message",
+            "is_critical",
+        ]
         # We'd need a real DB to test this fully
 
     def test_validator_handles_missing_tables(self):
@@ -118,8 +126,8 @@ class TestDataAgeValidator:
     def test_multiple_tables_check(self):
         """Verify check_multiple() aggregates results correctly."""
         tables = {
-            'price_daily': 'date',
-            'market_health_daily': 'date',
+            "price_daily": "date",
+            "market_health_daily": "date",
         }
 
         # Expected structure:
@@ -130,7 +138,6 @@ class TestDataAgeValidator:
         #   'results': {table: result},
         #   'messages': [list],
         # }
-
 
 class TestConsolidationRemovesRedundancy:
     """Verify consolidation eliminates redundant systems."""
@@ -149,6 +156,5 @@ class TestConsolidationRemovesRedundancy:
         # DataAgeValidator.record_loader_watermark() should work
         # These are thin wrappers around WatermarkManager
 
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
