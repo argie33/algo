@@ -80,7 +80,7 @@ const AuditViewerContent = () => {
 
       {auditError && (
         <div style={{ padding: '12px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', marginBottom: '16px' }}>
-          Error: {auditError}
+          Error: {auditError?.message || 'Failed to load audit logs'}
         </div>
       )}
 

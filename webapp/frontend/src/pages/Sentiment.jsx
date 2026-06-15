@@ -353,7 +353,7 @@ function SentimentContent() {
         {error && (
           <div className="alert alert-danger">
             <AlertCircle size={16} />
-            <div>Failed to load sentiment data: {error.message}</div>
+            <div>Failed to load sentiment data: {error?.message || 'Unknown error'}</div>
           </div>
         )}
 
