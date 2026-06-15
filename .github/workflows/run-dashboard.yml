@@ -34,7 +34,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
           role-session-name: github-health-check
 
