@@ -19,7 +19,7 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
-from config.credential_manager import get_credential_manager
+from config.credential_manager import get_credential_manager, get_alpaca_credentials
 from config.alpaca_config import get_alpaca_base_url
 from utils.db import DatabaseContext
 import json

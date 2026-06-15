@@ -62,13 +62,8 @@ class DataPatrol:
             elapsed = time.time() - start
             self.check_timings[check_name] = elapsed
             if elapsed > PATROL_SLOW_CHECK_THRESHOLD_SEC:
-                self.log(
-                    cur,
-                    "perf_slow",
-                    "warn",
-                    "patrol_perf",
-                    f"{check_name} took {elapsed:.1f}s (slow)",
-                    {"check": check_name, "seconds": round(elapsed, 1)},
+                logger.warning(
+                    f"[patrol_perf] {check_name} took {elapsed:.1f}s (slow)",
                 )
         except Exception:
             elapsed = time.time() - start
@@ -141,7 +136,7 @@ class DataPatrol:
             },
             "price_sanity": {
                 "max_daily_move_pct": self._get_config_value(
-                    cur, "patrol_max_daily_move_pct", EXTREME_PRICE_MOVE_PCT
+                    cur, "patrol_max_daily_move_pct", EXTREME_PRICE_MOVE_RATIO
                 ),
                 "max_daily_move_count": self._get_config_value(
                     cur, "patrol_max_daily_move_count", EXTREME_MOVE_COUNT_THRESHOLD
@@ -1096,7 +1091,7 @@ class DataPatrol:
                 cur, "alignment", ERROR, "signal_alignment", f"Check failed: {e}", None
             )
 
-    def check_yahoo_cross_validate(self, top_n=None):
+    def check_yahoo_cross_validate(self, cur, top_n=None):
         """P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
         Second-source verification - if our DB matches Alpaca but disagrees with
@@ -1207,7 +1202,7 @@ class DataPatrol:
                 None,
             )
 
-    def check_alpaca_cross_validate(self, top_n=None):
+    def check_alpaca_cross_validate(self, cur, top_n=None):
         """P6. Cross-validate top symbols vs Alpaca (uses existing free credentials)."""
         if top_n is None:
             top_n = XVAL_TOP_N_SYMBOLS

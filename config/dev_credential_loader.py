@@ -163,7 +163,7 @@ class DevCredentialLoader:
 
     def get_secret_with_fallback(
         self, secret_name: str, fetch_from_aws_fn, default: Optional[str] = None
-    ) -> Optional[str]:
+    ) -> Optional[Any]:
         """
         Fetch secret with fallback chain:
         1. Local cache (if fresh)
