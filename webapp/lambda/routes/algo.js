@@ -3018,19 +3018,64 @@ router.get('/execution/recent', async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
+    const days = Math.min(parseInt(req.query.days) || 7, 90);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
 
-    const result = await pool.query(`
-      SELECT * FROM order_execution_log
-      ORDER BY execution_time DESC LIMIT 20
-    `);
+    const result = await pool.query(
+      `SELECT run_id, run_date, started_at, completed_at, overall_status, summary,
+              phases_completed, phases_halted, phases_errored
+       FROM orchestrator_execution_log
+       WHERE run_date >= CURRENT_DATE - $1
+       ORDER BY started_at DESC
+       LIMIT $2`,
+      [days, limit]
+    );
 
     return sendSuccess(res, {
-      executions: result.rows || [],
+      items: result.rows || [],
       total: result.rows.length || 0
     });
   } catch (error) {
     logger.error('Error in /algo/execution/recent:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while fetching recent executions');
+  }
+});
+
+router.get('/execution/stats', async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+    const days = Math.min(parseInt(req.query.days) || 7, 90);
+
+    const result = await pool.query(
+      `SELECT overall_status, COUNT(*) as count
+       FROM orchestrator_execution_log
+       WHERE run_date >= CURRENT_DATE - $1
+       GROUP BY overall_status`,
+      [days]
+    );
+
+    const byStatus = {};
+    let total = 0;
+    for (const row of result.rows) {
+      byStatus[row.overall_status] = parseInt(row.count);
+      total += parseInt(row.count);
+    }
+    const successCount = byStatus.success || 0;
+    const haltCount = byStatus.halted || 0;
+    const errorCount = byStatus.error || 0;
+
+    return sendSuccess(res, {
+      total_runs: total,
+      by_status: byStatus,
+      success_rate: total > 0 ? `${(successCount / total * 100).toFixed(1)}%` : 'N/A',
+      halt_rate: total > 0 ? `${(haltCount / total * 100).toFixed(1)}%` : 'N/A',
+      error_rate: total > 0 ? `${(errorCount / total * 100).toFixed(1)}%` : 'N/A',
+      period_days: days
+    });
+  } catch (error) {
+    logger.error('Error in /algo/execution/stats:', { error: error.message });
+    return sendDatabaseError(res, error, 'An error occurred while fetching execution stats');
   }
 });
 

@@ -288,8 +288,10 @@ class VectorizedSwingScoresLoader:
                 inserted = 0
 
                 for _, row in df.iterrows():
-                    # Prepare components as JSONB
+                    grade = row.get("grade", "C")
+                    # Include grade in components so API can read it via components->>'grade'
                     components = {
+                        "grade": grade,
                         "setup": float(row.get("setup_score", 50)),
                         "trend": float(row.get("trend_score", 50)),
                         "momentum": float(row.get("momentum_score", 50)),
@@ -299,25 +301,20 @@ class VectorizedSwingScoresLoader:
                         "multi_t": float(row.get("multi_tf_score", 50)),
                     }
 
-                    # Get grade_id (A=1, B=2, C=3, D=4, F=5)
-                    grade = row.get("grade", "C")
-                    grade_map = {"A+": 1, "A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
-                    grade_id = grade_map.get(grade, 3)
-
                     cur.execute(
                         """INSERT INTO swing_trader_scores
-                           (symbol, date, score, components, grade_id, created_at, updated_at)
-                           VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                           (symbol, date, score, components, grade, created_at)
+                           VALUES (%s, %s, %s, %s, %s, NOW())
                            ON CONFLICT (symbol, date) DO UPDATE
                            SET score = EXCLUDED.score, components = EXCLUDED.components,
-                               grade_id = EXCLUDED.grade_id, updated_at = NOW()
+                               grade = EXCLUDED.grade
                         """,
                         (
                             row["symbol"],
                             row["date"],
                             float(row.get("total_score", 50)),
                             json.dumps(components),
-                            grade_id,
+                            grade,
                         ),
                     )
                     inserted += cur.rowcount if hasattr(cur, "rowcount") else 1

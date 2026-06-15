@@ -12,7 +12,22 @@
 --
 -- CREATED: 2026-06-11
 
-DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk CASCADE;
+-- Drop any existing relation (table, view, or materialized view) by the same name.
+-- In PostgreSQL, DROP TABLE/MATERIALIZED VIEW with IF EXISTS still errors when the
+-- relation exists but is the wrong type. Use a DO block to detect the relkind first.
+DO $$
+DECLARE v_relkind char;
+BEGIN
+    SELECT relkind INTO v_relkind
+    FROM pg_class
+    WHERE relname = 'algo_positions_with_risk'
+      AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+    IF v_relkind = 'r' THEN
+        EXECUTE 'DROP TABLE algo_positions_with_risk CASCADE';
+    ELSIF v_relkind IN ('m', 'v') THEN
+        EXECUTE 'DROP MATERIALIZED VIEW algo_positions_with_risk CASCADE';
+    END IF;
+END $$;
 
 CREATE MATERIALIZED VIEW algo_positions_with_risk AS
 WITH latest_prices AS (

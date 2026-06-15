@@ -2,7 +2,19 @@
 -- Idempotent recreation in case migration 040 was skipped or view was dropped.
 -- This view enriches positions with stops, targets, sector, and technical scores.
 
-DROP MATERIALIZED VIEW IF EXISTS algo_positions_with_risk;
+DO $$
+DECLARE v_relkind char;
+BEGIN
+    SELECT relkind INTO v_relkind
+    FROM pg_class
+    WHERE relname = 'algo_positions_with_risk'
+      AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+    IF v_relkind = 'r' THEN
+        EXECUTE 'DROP TABLE algo_positions_with_risk CASCADE';
+    ELSIF v_relkind IN ('m', 'v') THEN
+        EXECUTE 'DROP MATERIALIZED VIEW algo_positions_with_risk CASCADE';
+    END IF;
+END $$;
 
 CREATE MATERIALIZED VIEW algo_positions_with_risk AS
 WITH latest_prices AS (
