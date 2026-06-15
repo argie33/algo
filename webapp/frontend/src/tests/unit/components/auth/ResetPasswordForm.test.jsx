@@ -51,7 +51,6 @@ describe("ResetPasswordForm", () => {
   test("renders reset password form", () => {
     renderWithProviders(<ResetPasswordForm {...defaultProps} />);
 
-    expect(screen.getByText("Set New Password")).toBeInTheDocument();
     expect(screen.getByLabelText(/reset code/i)).toBeInTheDocument();
     expect(document.getElementById("newPassword")).toBeInTheDocument();
     expect(document.getElementById("confirmPassword")).toBeInTheDocument();

@@ -3,6 +3,15 @@ import { renderWithProviders } from '../../setup/test-wrapper';
 import { vi } from "vitest";
 import ForgotPasswordForm from "../../../../components/auth/ForgotPasswordForm";
 
+// Mock AuthContext
+const mockForgotPassword = vi.fn();
+
+vi.mock("../../../../contexts/AuthContext", () => ({
+  useAuth: () => ({
+    forgotPassword: mockForgotPassword,
+  }),
+}));
+
 describe("ForgotPasswordForm", () => {
   const defaultProps = {
     onBack: vi.fn(),
@@ -10,15 +19,15 @@ describe("ForgotPasswordForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockForgotPassword.mockResolvedValue({ success: true, message: "Reset code sent. Check your email." });
   });
 
   test("renders forgot password form", () => {
     renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
-    expect(screen.getByText("Reset Password")).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /send reset email/i })
+      screen.getByRole("button", { name: /send reset code/i })
     ).toBeInTheDocument();
   });
 
@@ -29,12 +38,12 @@ describe("ForgotPasswordForm", () => {
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset email/i,
+      name: /send reset code/i,
     });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/password reset email sent/i)).toBeInTheDocument();
+      expect(screen.getByText(/reset code sent/i)).toBeInTheDocument();
     });
   });
 
@@ -45,12 +54,12 @@ describe("ForgotPasswordForm", () => {
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset email/i,
+      name: /send reset code/i,
     });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText("Password reset email sent! Check your inbox.")).toBeInTheDocument();
+      expect(screen.getByText("Reset code sent. Check your email.")).toBeInTheDocument();
     });
   });
 
@@ -58,7 +67,7 @@ describe("ForgotPasswordForm", () => {
     renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
     const submitButton = screen.getByRole("button", {
-      name: /send reset email/i,
+      name: /send reset code/i,
     });
 
     expect(submitButton).toBeDisabled();

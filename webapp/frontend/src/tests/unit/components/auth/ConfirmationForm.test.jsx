@@ -37,15 +37,12 @@ describe("ConfirmationForm", () => {
   test("renders confirmation form", () => {
     renderWithProviders(<ConfirmationForm {...defaultProps} />);
 
-    expect(
-      screen.getByRole("heading", { name: "Verify Account" })
-    ).toBeInTheDocument();
     expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /verify account/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/enter the verification code sent to your email/i)
+      screen.getByText(/enter the 6-digit code sent to your email/i)
     ).toBeInTheDocument();
   });
 

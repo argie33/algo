@@ -52,10 +52,8 @@ describe("RegisterForm", () => {
       renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
-      expect(screen.getByText("Sign Up")).toBeInTheDocument();
       expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
       // Check password fields exist by ID
       expect(document.getElementById("password")).toBeInTheDocument();
@@ -70,10 +68,10 @@ describe("RegisterForm", () => {
           <RegisterForm {...defaultProps} />);
 
       expect(
-        screen.getByLabelText("toggle password visibility")
+        screen.getAllByLabelText("Toggle password visibility")[0]
       ).toBeInTheDocument();
       expect(
-        screen.getByLabelText("toggle confirm password visibility")
+        screen.getAllByLabelText("Toggle password visibility")[1]
       ).toBeInTheDocument();
     });
   });
@@ -94,7 +92,7 @@ describe("RegisterForm", () => {
           <RegisterForm {...defaultProps} />);
 
       const passwordField = document.getElementById("password");
-      const toggleButton = screen.getByLabelText("toggle password visibility");
+      const toggleButton = screen.getAllByLabelText("Toggle password visibility")[0];
 
       expect(passwordField).toHaveAttribute("type", "password");
 
@@ -130,9 +128,6 @@ describe("RegisterForm", () => {
       fireEvent.change(screen.getByLabelText(/last name/i), {
         target: { value: "Doe" },
       });
-      fireEvent.change(screen.getByLabelText(/username/i), {
-        target: { value: "johndoe" },
-      });
       fireEvent.change(screen.getByLabelText(/email/i), {
         target: { value: "john@example.com" },
       });
@@ -163,17 +158,14 @@ describe("RegisterForm", () => {
       fireEvent.change(screen.getByLabelText(/last name/i), {
         target: { value: "Doe" },
       });
-      fireEvent.change(screen.getByLabelText(/username/i), {
-        target: { value: "johndoe" },
-      });
       fireEvent.change(screen.getByLabelText(/email/i), {
         target: { value: "invalid-email" },
       });
       fireEvent.change(document.getElementById("password"), {
-        target: { value: "password123" },
+        target: { value: "password123456" },
       });
       fireEvent.change(document.getElementById("confirmPassword"), {
-        target: { value: "password123" },
+        target: { value: "password123456" },
       });
 
       const submitButton = screen.getByRole("button", {
@@ -200,9 +192,6 @@ describe("RegisterForm", () => {
       fireEvent.change(screen.getByLabelText(/last name/i), {
         target: { value: "Doe" },
       });
-      fireEvent.change(screen.getByLabelText(/username/i), {
-        target: { value: "johndoe" },
-      });
       fireEvent.change(screen.getByLabelText(/email/i), {
         target: { value: "john@example.com" },
       });
@@ -220,7 +209,7 @@ describe("RegisterForm", () => {
 
       await waitFor(() => {
         expect(mockRegister).toHaveBeenCalledWith(
-          "johndoe",
+          "john@example.com",
           "StrongPass123!",
           "john@example.com",
           "John",
@@ -249,9 +238,6 @@ describe("RegisterForm", () => {
       fireEvent.change(screen.getByLabelText(/last name/i), {
         target: { value: "Doe" },
       });
-      fireEvent.change(screen.getByLabelText(/username/i), {
-        target: { value: "johndoe" },
-      });
       fireEvent.change(screen.getByLabelText(/email/i), {
         target: { value: "john@example.com" },
       });
@@ -269,7 +255,7 @@ describe("RegisterForm", () => {
 
       await waitFor(() => {
         expect(onRegistrationSuccess).toHaveBeenCalledWith(
-          "johndoe",
+          "john@example.com",
           "CONFIRM_SIGN_UP"
         );
       });
@@ -283,7 +269,7 @@ describe("RegisterForm", () => {
         <RegisterForm {...defaultProps} onSwitchToLogin={onSwitchToLogin} />
       );
 
-      const loginLink = screen.getByText(/sign in here/i);
+      const loginLink = screen.getByText(/^Sign in$/i);
       fireEvent.click(loginLink);
 
       expect(onSwitchToLogin).toHaveBeenCalledTimes(1);

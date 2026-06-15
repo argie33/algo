@@ -28,6 +28,7 @@ describe("MFAChallenge", () => {
     message: "Please enter the verification code sent to your device.",
     onSuccess: vi.fn(),
     onCancel: vi.fn(),
+    onVerify: vi.fn().mockResolvedValue({ success: true, username: "testuser" }),
   };
 
   beforeEach(() => {

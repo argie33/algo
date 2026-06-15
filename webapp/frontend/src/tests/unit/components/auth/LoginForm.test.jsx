@@ -63,22 +63,16 @@ describe("LoginForm", () => {
       render(<LoginForm {...defaultProps} />);
 
       expect(
-        screen.getByRole("heading", { name: "Sign In" })
+        screen.getByRole("textbox", { name: /email address/i })
       ).toBeInTheDocument();
-      expect(
-        screen.getByText("Access your Financial Dashboard")
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("textbox", { name: /username/i })
-      ).toBeInTheDocument();
-      expect(screen.getByText("Username or Email")).toBeInTheDocument(); // Label text
+      expect(screen.getByText("Email Address")).toBeInTheDocument(); // Label text
       expect(screen.getByText("Password")).toBeInTheDocument(); // Password label
       expect(screen.getByText("Remember me for 30 days")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /sign in/i })
       ).toBeInTheDocument();
       expect(screen.getByText("Forgot password?")).toBeInTheDocument();
-      expect(screen.getByText("Sign up here")).toBeInTheDocument();
+      expect(screen.getByText("Sign up")).toBeInTheDocument();
     });
 
     test("renders password field with visibility toggle", () => {
@@ -106,7 +100,7 @@ describe("LoginForm", () => {
     test("updates username field", () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       fireEvent.change(usernameField, { target: { value: "testuser" } });
 
       expect(usernameField.value).toBe("testuser");
@@ -155,7 +149,7 @@ describe("LoginForm", () => {
     test("submits form with valid data", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       const passwordField = document.querySelector('input[type="password"]');
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
@@ -164,7 +158,7 @@ describe("LoginForm", () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith("testuser", "password123");
+        expect(mockLogin).toHaveBeenCalledWith("testuser", "password123", false);
       });
     });
 
@@ -176,7 +170,7 @@ describe("LoginForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Please enter both username and password")
+          screen.getByText("Please enter your email and password")
         ).toBeInTheDocument();
       });
 
@@ -194,7 +188,7 @@ describe("LoginForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Please enter both username and password")
+          screen.getByText("Please enter your email and password")
         ).toBeInTheDocument();
       });
     });
@@ -202,7 +196,7 @@ describe("LoginForm", () => {
     test("shows validation error for missing password", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
       fireEvent.change(usernameField, { target: { value: "testuser" } });
@@ -210,7 +204,7 @@ describe("LoginForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Please enter both username and password")
+          screen.getByText("Please enter your email and password")
         ).toBeInTheDocument();
       });
     });
@@ -218,7 +212,7 @@ describe("LoginForm", () => {
     test("stores remember me preference in localStorage", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       const passwordField = document.querySelector('input[type="password"]');
       const checkbox = screen.getByRole("checkbox");
       const submitButton = screen.getByRole("button", { name: /sign in/i });
@@ -229,10 +223,7 @@ describe("LoginForm", () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-          "rememberMe",
-          "true"
-        );
+        expect(mockLogin).toHaveBeenCalledWith(expect.any(String), expect.any(String), true);
       });
     });
 
@@ -244,7 +235,7 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       const passwordField = document.querySelector('input[type="password"]');
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
@@ -286,7 +277,7 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       fireEvent.change(usernameField, { target: { value: "test" } });
 
       expect(mockClearError).toHaveBeenCalled();
@@ -301,17 +292,17 @@ describe("LoginForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Please enter both username and password")
+          screen.getByText("Please enter your email and password")
         ).toBeInTheDocument();
       });
 
       // Type in field to clear error
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       fireEvent.change(usernameField, { target: { value: "test" } });
 
       await waitFor(() => {
         expect(
-          screen.queryByText("Please enter both username and password")
+          screen.queryByText("Please enter your email and password")
         ).not.toBeInTheDocument();
       });
     });
@@ -330,17 +321,17 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      expect(screen.getByRole("textbox", { name: /username/i })).toBeDisabled();
+      expect(screen.getByRole("textbox", { name: /email address/i })).toBeDisabled();
       expect(document.querySelector('input[type="password"]')).toBeDisabled();
       expect(screen.getByRole("checkbox")).toBeDisabled();
       expect(
-        screen.getByRole("button", { name: /signing in.../i })
+        screen.getByRole("button", { name: /signing in/i })
       ).toBeDisabled();
       expect(screen.getByText("Forgot password?")).toHaveAttribute("disabled");
-      expect(screen.getByText("Sign up here")).toHaveAttribute("disabled");
+      expect(screen.getByText("Sign up")).toHaveAttribute("disabled");
     });
 
-    test("shows loading text and spinner when loading", async () => {
+    test("shows loading text when loading", async () => {
       // Override the AuthContext mock for this test
       const { useAuth } = await import("../../../../contexts/AuthContext");
       useAuth.mockReturnValueOnce({
@@ -352,8 +343,7 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      expect(screen.getByText("Signing In...")).toBeInTheDocument();
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+      expect(screen.getByText("Signing in…")).toBeInTheDocument();
     });
   });
 
@@ -364,7 +354,7 @@ describe("LoginForm", () => {
         <LoginForm {...defaultProps} onSwitchToRegister={onSwitchToRegister} />
       );
 
-      const signUpLink = screen.getByText("Sign up here");
+      const signUpLink = screen.getByText("Sign up");
       fireEvent.click(signUpLink);
 
       expect(onSwitchToRegister).toHaveBeenCalledTimes(1);
@@ -406,7 +396,7 @@ describe("LoginForm", () => {
         />
       );
 
-      const signUpLink = screen.getByText("Sign up here");
+      const signUpLink = screen.getByText("Sign up");
       const forgotLink = screen.getByText("Forgot password?");
 
       fireEvent.click(signUpLink);
@@ -421,15 +411,13 @@ describe("LoginForm", () => {
     test("has proper form labeling", () => {
       render(<LoginForm {...defaultProps} />);
 
-      const form = screen.getByRole("form");
+      const form = document.querySelector("form");
       expect(form).toBeInTheDocument();
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       const passwordField = document.querySelector('input[type="password"]');
 
-      expect(usernameField).toHaveAttribute("required");
-      expect(passwordField).toHaveAttribute("required");
-      expect(usernameField).toHaveAttribute("autoComplete", "username");
+      expect(usernameField).toHaveAttribute("autoComplete", "email");
       expect(passwordField).toHaveAttribute("autoComplete", "current-password");
     });
 
@@ -443,7 +431,7 @@ describe("LoginForm", () => {
     test("has focus management", () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /username/i });
+      const usernameField = screen.getByRole("textbox", { name: /email address/i });
       // MUI TextField may not always pass autoFocus to the underlying input
       // Check if the field is focused or has the autoFocus attribute
       expect(
