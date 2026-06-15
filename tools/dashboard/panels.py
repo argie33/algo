@@ -203,14 +203,15 @@ def panel_orch(run, cfg, risk=None):
             if (risk.get("beta") or 0) >= 1.2
             else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         )
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
             if risk.get("svar") and float(risk.get("svar") or 0) > 0
             else ""
         )
         var_line = (
-            f"\n[dim]VaR 95%:[/][white]{(risk.get('var95') or 0):.2f}%[/]"
-            f"  [dim]CVaR 95%:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]"
+            f"\n[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]"
+            f"  [dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]"
             f"  [dim]Portfolio Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]"
             f"  [dim]Top-5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]" + svar_s
         )
@@ -790,10 +791,11 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             if (risk.get("beta") or 0) >= 1.2
             else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         )
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         rows.append(
             Text.from_markup(
-                f"[dim]VaR:[/][white]{(risk.get('var95') or 0):.2f}%[/]  "
-                f"[dim]CVaR:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]  "
+                f"[dim]VaR:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]  "
+                f"[dim]CVaR:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]  "
                 f"[dim]β:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
                 f"[dim]Top5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
             )
@@ -871,7 +873,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
     wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
     dd_v = perf.get("maxdd") or 0
-    dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
+    dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
@@ -883,7 +885,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         Text.from_markup(
             f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
             f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
-            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v:.1f}%{f' (+{losing_open} open L)' if losing_open > 0 else ''}[/]  "
+            f"[dim]WR:[/][{G if wr_v >= 45 else (Y if wr_v >= 40 else R)}]{wr_v:.1f}%{f' (+{losing_open} open L)' if losing_open > 0 else ''}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
         ),
@@ -953,7 +955,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             anl_parts.append(f"[dim]Calmar:[/][{sc}]{calmar:.2f}[/]")
         total_trades = perf.get("n", 0) if perf else 0
         if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
-            wrc = G if wr50 >= 55 else (Y if wr50 >= 45 else R)
+            wrc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
             anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
         if anl_parts:
             rows.append(Text.from_markup("  ".join(anl_parts)))
@@ -2777,9 +2779,10 @@ def panel_algo_health(
             if (risk.get("conc5") or 0) >= 35
             else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         )
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{(risk.get('var95') or 0):.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]",
+            f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
+            f"[dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
             f"[dim]Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
         ]
@@ -3395,9 +3398,10 @@ def panel_algo_health_expanded(
             if (risk.get("conc5") or 0) >= 35
             else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         )
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{(risk.get('var95') or 0):.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]",
+            f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
+            f"[dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
             f"[dim]Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
         ]
@@ -4241,12 +4245,12 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
-        wrc = G if wr_v >= 55 else (Y if wr_v >= 45 else R)
+        wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
         exp_c = G if (exp is None or exp >= 0) else R
         str_c = G if streak >= 0 else R
         str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-        dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
+        dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
 
         perfblk = Table.grid(padding=(0, 3), expand=False)
         perfblk.add_column("label", style="dim")
@@ -4368,9 +4372,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rtbl.add_column("val2")
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         rtbl.add_row(
-            "VaR (95%):", Text(f"{(risk.get('var95') or 0):.2f}%", style="white"),
-            "CVaR (95%):", Text(f"{(risk.get('cvar95') or 0):.2f}%", style="white"),
+            "VaR (95%):", Text(f"{(risk.get('var95') or 0):.2f}%", style=var_c),
+            "CVaR (95%):", Text(f"{(risk.get('cvar95') or 0):.2f}%", style=var_c),
         )
         rtbl.add_row(
             "Portfolio Beta:", Text(f"{(risk.get('beta') or 0):.2f}", style=beta_c),
