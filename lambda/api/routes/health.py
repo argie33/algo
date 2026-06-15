@@ -89,13 +89,14 @@ def _handle_basic(cur) -> Dict:
         if not result:
             return error_response(503, "connection_error", "Database connection failed")
 
-        # Signal freshness check (uses idx_signal_quality_scores_created_at)
+        # Signal freshness check using swing_trader_scores (primary signal source).
+        # signal_quality_scores was removed from the pipeline; swing_trader_scores replaced it.
         try:
             signal_check = execute_with_timeout(
                 cur,
                 """
                 SELECT created_at AS latest_signal
-                FROM signal_quality_scores
+                FROM swing_trader_scores
                 ORDER BY created_at DESC
                 LIMIT 1
             """,
@@ -113,12 +114,12 @@ def _handle_basic(cur) -> Dict:
                         has_critical = True
                         health["freshness"] = {
                             "status": "STALE",
-                            "age_hours": round(age_hours, 1),
+                            "signal_age_hours": round(age_hours, 1),
                         }
                     else:
                         health["freshness"] = {
                             "status": "OK",
-                            "age_hours": round(age_hours, 1),
+                            "signal_age_hours": round(age_hours, 1),
                         }
                 else:
                     health["freshness"] = {"status": "UNKNOWN"}
