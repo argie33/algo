@@ -45,7 +45,7 @@ export default function ConfigurationViewer() {
       setLoading(true);
       const response = await getAlgoConfig();
       // Extract items from response (could be array directly or wrapped in items property)
-      const items = Array.isArray(response) ? response : response?.items || [];
+      const items = Array.isArray(response) ? response : response?.data?.items || response?.items || [];
       setConfig(items);
       // Auto-select first category
       if (items.length > 0) {

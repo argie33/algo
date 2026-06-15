@@ -789,7 +789,7 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
 function AnalystInsights({ symbol, onClose }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['analyst-insights', symbol],
-    queryFn: () => api.get(`/api/sentiment/analyst/insights/${symbol}`).then((r) => r?.data || null).catch(() => null),
+    queryFn: () => api.get(`/api/sentiment/analyst/insights/${symbol}`).then((r) => r?.data?.data || r?.data || null).catch(() => null),
     enabled: !!symbol,
   });
 
@@ -1063,7 +1063,7 @@ function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
 function SocialInsights({ symbol, onClose }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['social-insights', symbol],
-    queryFn: () => api.get(`/api/sentiment/social/insights/${symbol}`).then((r) => r?.data || null).catch(() => null),
+    queryFn: () => api.get(`/api/sentiment/social/insights/${symbol}`).then((r) => r?.data?.data || r?.data || null).catch(() => null),
     enabled: !!symbol,
   });
 

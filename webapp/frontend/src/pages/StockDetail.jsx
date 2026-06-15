@@ -127,8 +127,8 @@ function StockDetailContent() {
     async () => {
       const r = await api.get(`/api/algo/swing-scores?symbol=${symbol.toUpperCase()}&limit=1`);
       const extracted = extractData(r);
-      const items = Array.isArray(extracted) ? extracted : (extracted?.items || []);
-      return items && items.length > 0 ? items[0] : null;
+      const items = Array.isArray(extracted) ? extracted : (extracted?.data?.items || extracted?.items || []);
+      return items.length > 0 ? items[0] : null;
     },
     { enabled: !!symbol, staleTime: 60_000 }
   );
