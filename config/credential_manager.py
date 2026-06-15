@@ -28,6 +28,28 @@ from typing import Dict, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Dev bypass mode support (optional, imported on demand)
+_dev_loader = None
+
+
+def _get_dev_loader():
+    global _dev_loader
+    if _dev_loader is None and os.getenv("DEV_BYPASS_MODE", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    ):
+        try:
+            from config.dev_credential_loader import get_dev_loader as get_loader
+
+            _dev_loader = get_loader()
+        except ImportError:
+            logger.debug(
+                "dev_credential_loader not available; continuing without dev cache"
+            )
+    return _dev_loader
+
+
 # Database defaults
 DEFAULT_DB_PORT = "5432"
 DEFAULT_DB_USER = "stocks"
@@ -35,6 +57,7 @@ DEFAULT_DB_NAME = "stocks"
 
 # Cache TTL for credential secrets (5 minutes to balance freshness with API costs)
 CREDENTIAL_CACHE_TTL_SECONDS = 300
+
 
 class CredentialManager:
     """Centralized credential fetcher with caching and TTL-based expiration."""
@@ -153,10 +176,35 @@ class CredentialManager:
         )
 
     def _fetch_from_secrets_manager(self, secret_name: str) -> Optional[str]:
-        """Fetch from AWS Secrets Manager. Returns None if not found."""
+        """Fetch from AWS Secrets Manager. Returns None if not found.
+
+        With DEV_BYPASS_MODE enabled, checks local cache first and falls back
+        to test credentials if AWS is unavailable.
+        """
+        # Check dev cache if enabled
+        dev_loader = _get_dev_loader()
+        if dev_loader:
+            cached = dev_loader.get_cached_secret(secret_name)
+            if cached:
+                value = (
+                    cached
+                    if isinstance(cached, str)
+                    else cached.get("result") or str(cached)
+                )
+                logger.debug(f"[DEV_CACHE] Using cached secret: {secret_name}")
+                return value
+
         try:
             client = self._get_secrets_client()
             if not client:
+                # If AWS is unavailable and dev cache/fallback enabled, try fallback
+                if dev_loader:
+                    test_creds = dev_loader.get_test_credentials()
+                    if test_creds:
+                        logger.info(
+                            f"[DEV_CACHE] AWS unavailable; using test credentials for {secret_name}"
+                        )
+                        return test_creds.get("result") or str(test_creds)
                 return None
 
             # Try to get the secret by name
@@ -164,10 +212,25 @@ class CredentialManager:
             secret_value = response.get("SecretString") or response.get(
                 "SecretBinary", ""
             )
+
+            if secret_value and dev_loader:
+                # Cache successful fetch
+                dev_loader.set_cached_secret(secret_name, secret_value)
+
             return secret_value if secret_value else None
 
         except Exception as e:
             logger.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
+
+            # If AWS fetch failed and dev cache/fallback enabled, try fallback
+            if dev_loader:
+                test_creds = dev_loader.get_test_credentials()
+                if test_creds:
+                    logger.info(
+                        f"[DEV_CACHE] AWS fetch failed; using test credentials for {secret_name}"
+                    )
+                    return test_creds.get("result") or str(test_creds)
+
             return None
 
     def get_db_credentials(self) -> Dict[str, Any]:
@@ -471,9 +534,11 @@ class CredentialManager:
                 "[CREDENTIALS_INVALID] Alpaca credentials not in cache (already cleared or never cached)"
             )
 
+
 # Singleton instance (thread-safe)
 _manager = None
 _manager_lock = threading.Lock()
+
 
 def get_credential_manager() -> CredentialManager:
     """Get the global credential manager instance (thread-safe).
@@ -488,17 +553,21 @@ def get_credential_manager() -> CredentialManager:
                 _manager = CredentialManager()
     return _manager
 
+
 def get_password(secret_name: str, default: Optional[str] = None) -> str:
     """Module-level convenience function."""
     return get_credential_manager().get_password(secret_name, default)
+
 
 def get_secret(secret_name: str, default: Optional[str] = None) -> str:
     """Module-level convenience function (alias)."""
     return get_credential_manager().get_secret(secret_name, default)
 
+
 def get_db_credentials() -> Dict[str, str]:
     """Module-level convenience function."""
     return get_credential_manager().get_db_credentials()
+
 
 def get_alpaca_credentials(user_id: Optional[str] = None) -> Dict[str, str]:
     """Module-level convenience function for Alpaca credentials.
@@ -509,6 +578,7 @@ def get_alpaca_credentials(user_id: Optional[str] = None) -> Dict[str, str]:
     """
     return get_credential_manager().get_alpaca_credentials(user_id=user_id)
 
+
 def get_db_password() -> str:
     """Get database password only.
 
@@ -518,6 +588,7 @@ def get_db_password() -> str:
     creds = get_db_credentials()
     return creds["password"]
 
+
 def get_db_config() -> Dict[str, Any]:
     """Get full database configuration dict.
 
@@ -525,6 +596,7 @@ def get_db_config() -> Dict[str, Any]:
     Returns host, port, user, password, database.
     """
     return get_db_credentials()
+
 
 def clear_credential_cache():
     """Clear the credential cache.
@@ -540,6 +612,7 @@ def clear_credential_cache():
     mgr.clear_cache()
     return True
 
+
 def clear_expired_credentials():
     """Remove only expired credentials from cache, keeping fresh ones.
 
@@ -553,6 +626,7 @@ def clear_expired_credentials():
     mgr.clear_expired_credentials()
     return True
 
+
 def invalidate_alpaca_credentials():
     """FIX S-17: Clear cached Alpaca credentials when detected as invalid (e.g., 401 from API).
 
@@ -562,6 +636,7 @@ def invalidate_alpaca_credentials():
     """
     mgr = get_credential_manager()
     mgr.invalidate_alpaca_credentials()
+
 
 if __name__ == "__main__":
     # Simple test: try to get credentials

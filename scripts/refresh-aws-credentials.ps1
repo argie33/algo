@@ -88,33 +88,41 @@ if (-not $AccessKeyId -or -not $SecretKey) {
     exit 1
 }
 
-# Ensure ~/.aws directory exists
-$AwsDir = Split-Path $CredFile -Parent
-New-Item -ItemType Directory -Force -Path $AwsDir | Out-Null
+# Update cache if dev-cache-manager.ps1 is available
+$CacheManager = Join-Path (Split-Path $PSScriptRoot) "dev-cache-manager.ps1"
+if (Test-Path $CacheManager) {
+    Write-Host "Updating credential cache..." -ForegroundColor Gray
+    & $CacheManager -Mode Set -AccessKeyId $AccessKeyId -SecretKey $SecretKey 2>&1 | Write-Host
+} else {
+    Write-Host "Cache manager not found; falling back to direct update" -ForegroundColor Gray
+    # Ensure ~/.aws directory exists
+    $AwsDir = Split-Path $CredFile -Parent
+    New-Item -ItemType Directory -Force -Path $AwsDir | Out-Null
 
-# Read existing credentials and replace or add the algo-developer block
-$Existing = if (Test-Path $CredFile) { $r = Get-Content $CredFile -Raw; if ($r) { $r } else { "" } } else { "" }
+    # Read existing credentials and replace or add the algo-developer block
+    $Existing = if (Test-Path $CredFile) { $r = Get-Content $CredFile -Raw; if ($r) { $r } else { "" } } else { "" }
 
-$NewBlock = @"
+    $NewBlock = @"
 [$Profile]
 aws_access_key_id = $AccessKeyId
 aws_secret_access_key = $SecretKey
 region = $Region
 "@
 
-# Remove existing algo-developer block if present
-$Pattern = "(?ms)\[$Profile\][^\[]*"
-$Updated = if ($Existing -match $Pattern) {
-    $Existing -replace $Pattern, ""
-} else {
-    $Existing
-}
+    # Remove existing algo-developer block if present
+    $Pattern = "(?ms)\[$Profile\][^\[]*"
+    $Updated = if ($Existing -match $Pattern) {
+        $Existing -replace $Pattern, ""
+    } else {
+        $Existing
+    }
 
-# Trim trailing whitespace and append new block
-$Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
-# Write credentials file (UTF-8 without BOM — botocore rejects BOM in credentials files)
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
+    # Trim trailing whitespace and append new block
+    $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
+    # Write credentials file (UTF-8 without BOM — botocore rejects BOM in credentials files)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
+}
 
 # Clean up temp dir
 Remove-Item -Recurse -Force $TmpDir

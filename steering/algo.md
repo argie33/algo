@@ -125,7 +125,41 @@ What `setup-local-dev.ps1` does:
 2. Auto-discovers Dashboard config (Secrets Manager → Terraform → known fallback)
 3. Generates `webapp/frontend/public/config.js` with API credentials
 4. Updates PowerShell profile so credentials auto-load in future sessions
-5. Verifies API connectivity
+5. **Enables dev bypass mode** (caches credentials locally to avoid repeated logins)
+6. Verifies API connectivity
+
+**Dev Bypass Mode (No More "Log In Every Time"):**
+
+`setup-local-dev.ps1` automatically enables **dev bypass mode**, which caches AWS credentials locally with a 24-hour TTL. This eliminates repeated login prompts during development.
+
+How it works:
+- First refresh: `scripts/refresh-aws-credentials.ps1` (standard flow, ~15-20s via GitHub Actions)
+- Subsequent refreshes (24h window): Cached credentials used automatically
+- Pre-expiry refresh: Background check at 23h marks credential for renewal
+- If AWS unavailable: Falls back to test credentials (if `DEV_TEST_CREDENTIALS` set)
+
+Cache location: `~/.aws-dev/secrets-cache.json` (encrypted with Windows DPAPI, no plaintext credentials)
+
+**Check cache status:**
+```powershell
+scripts/credential-cache-status.ps1 -Action Status  # Show cache age & TTL
+scripts/credential-cache-status.ps1 -Action Test    # Verify cached creds with AWS CLI
+scripts/credential-cache-status.ps1 -Action Clear   # Clear cache (forces fresh refresh)
+```
+
+**Manual override (if needed):**
+```powershell
+# Force immediate refresh (ignores cache)
+scripts/refresh-aws-credentials.ps1
+
+# Or disable dev bypass mode temporarily
+$env:DEV_BYPASS_MODE = "false"
+```
+
+**Environment variables (set automatically by setup-local-dev.ps1):**
+- `DEV_BYPASS_MODE = true` — Enable local credential caching
+- `DEV_CACHE_TTL_HOURS = 24` — Credentials valid for 24 hours before refresh needed
+- `DEV_CACHE_DIR = ~/.aws-dev` — Cache storage location (can be overridden)
 
 **Legacy Setup (if automated setup doesn't work):**
 
@@ -773,6 +807,24 @@ curl https://<api-gateway-endpoint>/api/health
 ```
 
 ## Troubleshooting
+
+**Dev bypass mode not working / "can't find cache":**
+- Dev bypass is enabled automatically by `setup-local-dev.ps1` (check `$env:DEV_BYPASS_MODE`)
+- Cache is stored in `~/.aws-dev/` — check if directory exists: `ls $HOME/.aws-dev/`
+- If cache missing: Run `scripts/refresh-aws-credentials.ps1` to create first cache
+- Clear stale cache: `scripts/credential-cache-status.ps1 -Action Clear`
+- Check Python can import dev_credential_loader: `python -c "from config.dev_credential_loader import get_dev_loader"`
+
+**"Error: The security token included in the request is invalid" when running loaders/scripts:**
+- Credentials may have expired (check: `scripts/credential-cache-status.ps1`)
+- Cache corrupted: Clear and refresh: `scripts/credential-cache-status.ps1 -Action Clear; scripts/refresh-aws-credentials.ps1`
+- AWS access revoked: Contact administrator or run `scripts/refresh-aws-credentials.ps1` to fetch new credentials from Secrets Manager
+
+**Dev cache not being used (scripts always hit AWS):**
+- Verify `DEV_BYPASS_MODE = true` in current session: `echo $env:DEV_BYPASS_MODE`
+- If false, source profile: `. $PROFILE` (reloads PowerShell environment)
+- If still false, manually enable: `$env:DEV_BYPASS_MODE = "true"`
+- Check logs for `[DEV_CACHE]` prefix: `$env:DEV_CACHE_DEBUG = "true"` then run script
 
 **Lambda returns 502 Bad Gateway (VPC cold-start timeout):**
 - Cause: VPC cold-start (15-40s) exceeds API Gateway timeout (29s). Provisioned concurrency should prevent this.
