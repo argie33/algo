@@ -107,7 +107,6 @@ class TrackedConnection:
     def __init__(self, conn, pool=None):
         self._conn = conn
         self._pool = pool
-        from algo.monitoring.connection_monitor import on_connect
         on_connect()
 
     def __getattr__(self, name):
@@ -122,7 +121,6 @@ class TrackedConnection:
 
     def close(self):
         """Return connection to pool (if managed) or close it."""
-        from algo.monitoring.connection_monitor import on_disconnect
         on_disconnect()
         if self._pool:
             try:
