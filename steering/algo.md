@@ -540,7 +540,7 @@ If alarms trigger:
 
 ## Orchestrator Phases
 
-1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if SPY/market_health/trend_template >1 trading day old
+1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily/buy_sell_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking
 2. **Phase 2:** Circuit breakers (FAIL-CLOSED) — halt if any breaker triggered (drawdown ≥20%, daily loss ≥2%, consecutive losses ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%)
 3. **Phase 3:** Position monitor + market exposure policy
 4. **Phase 4:** Execute exits (always runs, unblocked by halt)
@@ -550,24 +550,21 @@ If alarms trigger:
 
 ## Signal Generation (Phase 5)
 
-**Vectorized on-the-fly computation** from price_daily (no pre-computed dependency):
-1. Fetch 300-day OHLC history for all symbols in ONE query (bulk load)
-2. Compute Minervini + Weinstein + power_trend in **parallel** for all symbols using NumPy
-3. Apply hard gate: skip if Minervini template fails (8 criteria)
-4. Quality score: Minervini-scaled (30-40) + Weinstein Stage 2 (+20) + VCP (+20) + base (+15) + power (+5) = 100 max, min 50
-5. Close quality gate: skip if close in bottom 40% of range
-6. Liquidity check on top 10 candidates (parallelized)
-7. SwingScore 7-component ranking (disabled for speed, using quality ranking instead)
+**Pre-computed pipeline data** — reads buy_sell_daily BUY signals and ranks by composite_score:
+1. Market regime gate: halt if `market_exposure_daily.is_entry_allowed = false`
+2. Check halt flag (set by Phase 1 on stale data)
+3. Verify buy_sell_daily freshness (warning if >24h old)
+4. Fetch BUY signals from buy_sell_daily at or before run_date
+5. Trend filter: skip if close < sma_50 (price must be above 50-day MA)
+6. Enrich with composite_score from stock_scores
+7. Composite score gate: skip if composite_score < 50 (default, configurable via phase5_min_composite_score in algo_config)
+8. Close quality gate: skip if close in bottom 40% of range (distribution signal)
+9. Liquidity check on top 10 candidates (parallelized)
+10. Return composite-score-ranked candidates to Phase 6
 
-**Performance (vectorized implementation):**
-- 9,940 symbols → 33.4 seconds (19x faster than sequential)
-- 3,294 passed Minervini gate (33%)
-- 1,211 qualified at quality >=50 (12%)
-- 8 final signals with quality 80-95
+**Ranking:** composite_score from stock_scores (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%). Fundamentals determine rank; buy_sell_daily breakout timing determines entry trigger.
 
 **Position limits:** Max 8 sector, max 5 industry (configurable via algo_config table)
-
-**Signal freshness check:** Logs warning if swing_trader_scores >1 day old, but doesn't halt (Phase 1 already halted on stale data)
 
 ## Infrastructure Constraints
 
