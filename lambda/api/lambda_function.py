@@ -1041,9 +1041,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ),
             }
 
-        # Skip rate limiting for health check endpoints (required for uptime monitoring)
-        path in RATE_LIMIT_EXEMPT_PATHS
-
         # Detailed and pipeline health checks are handled via api_router (routes/health.py)
         # They verify authentication through the normal flow and provide consistent response format
 
@@ -1217,8 +1214,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     else json.dumps(response["body"], default=_json_default)
                 )
             else:
-                # Route handlers return data dicts directly (no body key) — include statusCode in body
-                body = json.dumps(response, default=_json_default)
+                # Route handlers return data dicts directly — exclude internal routing metadata from body
+                body_data = {k: v for k, v in response.items() if k != "headers"}
+                body = json.dumps(body_data, default=_json_default)
 
             # Log successful requests (2xx, 3xx)
             if status < 400:

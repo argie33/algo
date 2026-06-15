@@ -98,6 +98,13 @@ class MarketHealthDailyLoader(OptimalLoader):
         for m in health_metrics:
             m["vix_level"] = vix.get(m["date"])
 
+        # Merge today's put/call ratio from SPY options (only available on trading days)
+        today_pc = self._fetch_put_call_ratio(end)
+        if today_pc is not None:
+            for m in health_metrics:
+                if m["date"] == end.isoformat():
+                    m["put_call_ratio"] = today_pc
+
         # Merge yield curve slope from economic_metrics_daily (10Y-2Y spread loaded by FRED loader)
         yield_curve = self._fetch_yield_curve_data(start, end)
         for m in health_metrics:
@@ -150,6 +157,52 @@ class MarketHealthDailyLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"VIX fetch failed (circuit breaker will use None): {e}")
             return {}
+
+    def _fetch_put_call_ratio(self, eval_date: date) -> Optional[float]:
+        """Compute put/call ratio from SPY options chain volume via yfinance.
+
+        Sums total puts and calls volume across near-term expirations as a proxy
+        for the daily equity put/call ratio. Only runs on trading days.
+        High ratio (>1.1): fear/hedging dominant. Low ratio (<0.6): complacency.
+        """
+        from algo.infrastructure import MarketCalendar
+
+        today = datetime.now(EASTERN_TZ).date()
+        if not MarketCalendar.is_trading_day(today):
+            return None
+        try:
+            from utils.external.yfinance import YFinanceWrapper
+
+            ticker = YFinanceWrapper.get_ticker("SPY")
+            if not ticker:
+                return None
+
+            expirations = ticker.options
+            if not expirations:
+                return None
+
+            total_puts = 0.0
+            total_calls = 0.0
+            for exp in expirations[:4]:  # near-term expirations (most liquid)
+                try:
+                    chain = ticker.option_chain(exp)
+                    total_puts += float(chain.puts["volume"].fillna(0).sum())
+                    total_calls += float(chain.calls["volume"].fillna(0).sum())
+                except Exception as e:
+                    logger.debug(f"Option chain error for {exp}: {e}")
+                    continue
+
+            if total_calls > 0:
+                ratio = round(total_puts / total_calls, 3)
+                logger.info(
+                    f"Put/call ratio: {ratio:.3f} "
+                    f"(puts={total_puts:.0f}, calls={total_calls:.0f})"
+                )
+                return ratio
+            return None
+        except Exception as e:
+            logger.warning(f"Put/call ratio fetch failed: {e}")
+            return None
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
         """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""

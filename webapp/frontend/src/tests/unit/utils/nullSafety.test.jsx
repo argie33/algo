@@ -66,7 +66,7 @@ describe('Null Safety Utilities', () => {
       expect(result.vix_regime.value).toBe(20);
       expect(result.distribution_days.regime).toBe('strong');
       expect(result.breadth_50dma).toEqual({});
-      expect(result.follow_through_day).toEqual({});
+      expect(result.spy_momentum).toEqual({});
     });
   });
 

@@ -860,36 +860,6 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             if r_parts:
                 rows.append(Text.from_markup("  ".join(r_parts)))
 
-    # Recent closed trades — last 3 exits with result
-    rec_items = (
-        rec.get("items", [])
-        if isinstance(rec, dict)
-        else rec if isinstance(rec, list) else []
-    )
-    recent = [
-        t
-        for t in rec_items
-        if isinstance(t, dict) and t.get("status") == "closed" and t.get("exit_date")
-    ][:3]
-    if recent:
-        rows.append(Text.from_markup("[dim]Recent exits:[/]"))
-        for t in recent:
-            pv2 = float(t.get("profit_loss_dollars") or 0)
-            pct_v = float(t.get("profit_loss_pct") or 0)
-            rv = (
-                float(t.get("exit_r_multiple") or 0)
-                if t.get("exit_r_multiple")
-                else None
-            )
-            sym = t.get("symbol") or "--"
-            c = G if pv2 >= 0 else R
-            rv_s = f" {sign(rv)}{rv:.1f}R" if rv is not None else ""
-            rows.append(
-                Text.from_markup(
-                    f"  [{c}]{sym}[/] [{c}]{sign(pct_v)}{pct_v:.1f}%  {fmt_money(pv2)}{rv_s}[/]"
-                )
-            )
-
     return Panel(
         Group(*rows),
         title="[bold green]PERFORMANCE[/]",
@@ -1373,24 +1343,27 @@ def panel_recent_trades(trades):
                 date_s = date[5:10]
         else:
             date_s = str(date or "--")[:5]
-        pnl_d = float(tr.get("profit_loss_dollars") or 0)
-        pnl_p = float(tr.get("profit_loss_pct") or 0)
+        pnl_d_raw = tr.get("profit_loss_dollars")
+        pnl_p_raw = tr.get("profit_loss_pct")
+        pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
+        pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
         rmul = tr.get("exit_r_multiple")
         status = tr.get("status") or ""
-        is_closed = status == "closed"
-        pc = G if pnl_d > 0 else (R if is_closed else Y)
+        is_closed = status.lower() == "closed"
+        has_pnl = pnl_d is not None and pnl_p is not None
+        pc = G if (pnl_d or 0) > 0 else (R if (is_closed or has_pnl) else Y)
         si = (
             f"[{G}]OK[/]"
-            if pnl_d > 0
-            else (f"[{R}]X[/]" if is_closed else f"[{Y}]◌[/]")
+            if (pnl_d or 0) > 0
+            else (f"[{R}] X[/]" if (is_closed or has_pnl) else f"[{Y}] ◌[/]")
         )
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
-            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if is_closed else "--", style=pc),
-            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if is_closed else "--", style=pc),
+            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if has_pnl else "--", style=pc),
+            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if has_pnl else "--", style=pc),
             Text(f"{float(rmul):.2f}R" if rmul is not None else "--", style=pc),
-            status[:4],
+            status[:4].upper(),
         )
 
     # Build content with optional placeholder warning
@@ -1783,9 +1756,12 @@ def panel_exposure_compact(exp_f):
         if key == "breadth_200dma":
             v = f.get("value")
             return f" {v:.0f}%" if v is not None else ""
-        if key == "mcclellan":
+        if key == "spy_momentum":
             v = f.get("value")
-            return f" {v:+.0f}" if v is not None else ""
+            return f" {v:+.1f}%" if v is not None else ""
+        if key == "put_call_ratio":
+            v = f.get("value")
+            return f" {v:.2f}" if v is not None else ""
         if key == "vix_regime":
             v = f.get("value")
             return f" {v:.1f}" if v is not None else ""
@@ -1811,29 +1787,25 @@ def panel_exposure_compact(exp_f):
         if key == "naaim":
             v = f.get("value")
             return f" {v:.0f}" if v is not None else ""
-        if key == "ibd_state":
-            st = (
-                (f.get("state") or "")
-                .replace("_under_pressure", "→")
-                .replace("_", " ")[:9]
-            )
-            dd = f.get("distribution_days_25d")
-            dd_s = f" D{dd}" if dd is not None else ""
-            return f" {st}{dd_s}"
+        if key == "distribution_days":
+            cnt = f.get("count")
+            regime = (f.get("regime") or "")[:5]
+            return f" {cnt}d/{regime}" if cnt is not None else ""
         return ""
 
     FACTOR_MAP = [
-        ("trend_30wk", "30wk Trend", 15),
-        ("breadth_50dma", "Breadth 50MA", 14),
-        ("ibd_state", "IBD State", 18),
-        ("breadth_200dma", "Breadth 200MA", 10),
-        ("mcclellan", "McClellan Osc", 9),
-        ("vix_regime", "VIX Level", 8),
-        ("new_highs_lows", "New Hi vs Lo", 7),
-        ("credit_spread", "Credit Spread", 7),
-        ("ad_line", "Adv/Dec Line", 5),
-        ("aaii_sentiment", "AAII Sentiment", 4),
-        ("naaim", "NAAIM Exposure", 3),
+        ("trend_30wk",       "30wk Trend",     15),
+        ("spy_momentum",     "SPY 12mo Mom",   10),
+        ("breadth_200dma",   "Breadth 200MA",  10),
+        ("distribution_days","Sell Pressure",  10),
+        ("vix_regime",       "VIX + Struct",   10),
+        ("credit_spread",    "Credit Spread",  10),
+        ("put_call_ratio",   "Put/Call Ratio",  8),
+        ("new_highs_lows",   "New Hi vs Lo",    7),
+        ("ad_line",          "Adv/Dec Line",    6),
+        ("breadth_50dma",    "Breadth 50MA",    6),
+        ("naaim",            "NAAIM Exposure",  5),
+        ("aaii_sentiment",   "AAII Sentiment",  3),
     ]
 
     tbl = Table.grid(padding=(0, 1), expand=True)
@@ -1916,13 +1888,13 @@ def panel_status(
     )
     if run_id_top or run_at_top:
         sts = (
-            "[bold bright_green]OK COMPLETED[/]"
+            "[bold bright_green]✓ COMPLETED[/]"
             if (run_valid and run.get("success") and not run.get("halted"))
             else (
                 "[bold yellow]~ HALTED[/]"
                 if (run_valid and run.get("halted"))
                 else (
-                    "[bold bright_red]aœ˜ ERROR[/]"
+                    "[bold bright_red]✗ ERROR[/]"
                     if (run_valid and run.get("errored"))
                     else "[dim]RUN[/]"
                 )
@@ -3034,7 +3006,7 @@ def panel_signals_expanded(sig, sig_eval=None):
     )
     return Panel(
         Group(*rows),
-        title=f"{title}  [dim][s] return[/]",
+        title=title,
         border_style=border,
         padding=(0, 1),
     )

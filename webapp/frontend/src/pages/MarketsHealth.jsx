@@ -444,18 +444,18 @@ function ExposureFactors({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const list = [
-    ['follow_through_day', 'FOLLOW-THROUGH DAY',         10],
-    ['trend_30wk',         '30-WEEK MA TREND',           15],
-    ['breadth_50dma',      'BREADTH (% > 50-DMA)',       14],
-    ['breadth_200dma',     'HEALTH (% > 200-DMA)',       10],
-    ['mcclellan',          'MCCLELLAN OSCILLATOR',        9],
-    ['distribution_days',  'DISTRIBUTION DAYS PRESSURE',  8],
-    ['vix_regime',         'VIX REGIME',                  8],
-    ['new_highs_lows',     'NEW HIGHS - LOWS',            7],
-    ['credit_spread',      'HY CREDIT SPREAD',            7],
-    ['ad_line',            'A/D LINE CONFIRMATION',       5],
-    ['aaii_sentiment',     'AAII SENTIMENT (CONTRARIAN)', 4],
-    ['naaim',              'NAAIM PROFESSIONAL EXPOSURE', 3],
+    ['trend_30wk',         '30-WEEK MA TREND',               15],
+    ['spy_momentum',       'SPY 12-MONTH MOMENTUM',          10],
+    ['breadth_200dma',     'BREADTH (% > 200-DMA)',          10],
+    ['distribution_days',  'SELLING PRESSURE (VOLUME DAYS)', 10],
+    ['vix_regime',         'VIX REGIME + TERM STRUCTURE',    10],
+    ['credit_spread',      'HY CREDIT SPREAD',               10],
+    ['put_call_ratio',     'PUT/CALL RATIO (CONTRARIAN)',      8],
+    ['new_highs_lows',     'NEW HIGHS - LOWS',                7],
+    ['ad_line',            'A/D LINE CONFIRMATION',           6],
+    ['breadth_50dma',      'BREADTH (% > 50-DMA)',            6],
+    ['naaim',              'NAAIM PROFESSIONAL EXPOSURE',     5],
+    ['aaii_sentiment',     'AAII SENTIMENT (EXTREMES ONLY)',  3],
   ];
 
   const eco = factors?.economic_overlay || {};
@@ -553,9 +553,10 @@ function MarketPulse({ markets }) {
   if (!safeCurrent) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
   const factors = safeGetFactors(safeCurrent);
   const dd = safeCurrent.distribution_days || 0;
-  const ftd = factors.follow_through_day?.has_ftd;
   const ddRegime = factors.distribution_days?.regime || '—';
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
+  const pcRatio = factors.put_call_ratio?.value;
+  const pcSignal = pcRatio == null ? '—' : pcRatio > 1.1 ? 'FEAR' : pcRatio < 0.6 ? 'GREED' : 'NEUTRAL';
 
   return (
     <div className="card">
@@ -580,19 +581,21 @@ function MarketPulse({ markets }) {
         <div className="eyebrow center" style={{ marginBottom: 'var(--space-4)' }}>Distribution Days (25 sessions)</div>
         <div className="panel" style={{ background: 'var(--bg-2)' }}>
           <div className="flex items-center justify-between t-sm mono" style={{ padding: '6px 0' }}>
-            <span className="muted">Follow-Through Day</span>
-            <span className={ftd ? 'up' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>{ftd ? 'YES' : 'NO'}</span>
+            <span className="muted">Put/Call Ratio</span>
+            <span className={pcRatio != null && pcRatio > 1.1 ? 'up' : pcRatio != null && pcRatio < 0.6 ? 'down' : 'neutral'} style={{ fontWeight: 'var(--w-bold)' }}>
+              {pcRatio != null ? `${pcRatio.toFixed(2)} (${pcSignal})` : '—'}
+            </span>
           </div>
           <div className="flex items-center justify-between t-sm mono" style={{ padding: '6px 0', borderTop: '1px solid var(--border-soft)' }}>
             <span className="muted">Regime</span>
-            <span className={ddRegime.includes('strong') ? 'up' : ddRegime.includes('caution') ? 'neutral' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>
+            <span className={ddRegime.includes('clean') ? 'up' : ddRegime.includes('caution') ? 'neutral' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>
               {ddRegime.replace(/_/g, ' ').toUpperCase()}
             </span>
           </div>
         </div>
         <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          5+ distribution days in 4 weeks signals correction. Confirmed uptrend requires
-          &lt; 4 dist days plus a follow-through day after a rally attempt.
+          5+ selling-pressure days in 4 weeks signals institutional distribution.
+          Put/call ratio above 1.1 indicates fear; below 0.6 indicates complacency.
         </div>
       </div>
     </div>
@@ -697,9 +700,9 @@ function BreadthCard({ markets }) {
             <div className="stile-sub">{b200.above || 0} of {b200.total || 0}</div>
           </div>
           <div className="stile">
-            <div className="stile-label">McClellan</div>
-            <div className="stile-value">{num(factors.mcclellan?.value, 1)}</div>
-            <div className="stile-sub">{(factors.mcclellan?.value ?? 0) > 0 ? 'positive' : 'negative'}</div>
+            <div className="stile-label">A/D Signal</div>
+            <div className="stile-value">{factors.ad_line?.relation ? factors.ad_line.relation.replace(/_/g, ' ') : '—'}</div>
+            <div className="stile-sub">vs SPY 20d</div>
           </div>
         </div>
       </div>

@@ -3,39 +3,49 @@
 """
 Quantitative Market Exposure Engine - Research-backed 12-factor composite
 
-Replaces simple "Stage 2 yes/no" gating with a 0-100 portfolio risk allocation
-score driven by these inputs (weights from synthesis of IBD, O'Neil, Weinstein,
-Zweig, AAII/NAAIM contrarian, Schwab/Fidelity breadth research, Apollo/Goldman
-credit cycle research):
+Composite 0-100 portfolio risk allocation score. Factor selection and weights
+derived from synthesis of academic momentum research (AQR/Moskowitz-Ooi-Pedersen),
+Zweig breadth research, Weinstein stage analysis, AAII/NAAIM contrarian studies,
+Apollo/Goldman credit cycle research, and Pan-Poteshman options flow research.
 
-    10pt  FOLLOW-THROUGH DAY    IBD confirmation after correction signal
     15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
-    14pt  BREADTH % > 50-DMA    short-term participation (linear 20-80%)
-    10pt  BREADTH % > 200-DMA   longer-term health (linear 30-80%)
-     9pt  MCCLELLAN OSCILLATOR  short-term momentum (-100 to +100 zone)
-     8pt  DISTRIBUTION DAYS     IBD pressure metric: 0-2 = 1.0, 3-4 = 0.6, 5+ = 0.2
-     8pt  VIX REGIME            <15 / 15-25 / 25-35 / 35+
-     7pt  NEW HIGHS - LOWS      regime health indicator
-     7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
-     5pt  ADVANCE-DECLINE LINE  confirmation / divergence vs index
-     4pt  AAII SENTIMENT        contrarian: extreme bearish crowd → bullish signal
-     3pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
+    10pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM — most replicated quant signal)
+    10pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
+    10pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
+    10pt  VIX REGIME            level (<15/15-25/25-35/35+) + term structure (VIX3M/VIX ratio)
+    10pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research)
+     8pt  PUT/CALL RATIO        options market sentiment — contrarian at extremes (daily signal)
+     7pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
+     6pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
+     6pt  BREADTH % > 50-DMA   short-term market participation (linear 20-80%)
+     5pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
+     3pt  AAII SENTIMENT        contrarian at extremes only (±15+ spread; neutral in middle range)
 
-Removed old "IBD MARKET STATE" 18pt factor (it double-counted distribution days and
-follow-through day logic). Now they are separate factors: FTD = 10pt (confirmation),
-DD = 8pt (pressure gauge).
+Removed factors vs prior version:
+  - FOLLOW-THROUGH DAY (was 10pt): ~50% reliability per independent backtests
+    (Quantifiable Edges, 37yr study); retained only as hard veto
+  - MCCLELLAN OSCILLATOR (was 9pt): redundant with A/D line — both derive from
+    advance/decline data; A/D line direction vs SPY is the less correlated signal
 
-PLUS HARD VETOES (cap at ≤25-35%):
+Breadth signal consolidation: prior version had 5 breadth signals at 45pt total,
+all highly correlated. Now 4 signals at 26pt covering distinct information:
+  % > 200-DMA (long-term regime), NH/NL (leadership), A/D line (direction),
+  % > 50-DMA (short-term participation).
+
+HARD VETOES (cap exposure at ≤25-40%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
   - VIX > 40 with rising trend
-  - 6+ distribution days in last 25 sessions (reinforces DD factor veto)
-  - No follow-through day after correction
+  - 6+ selling-pressure days in last 25 sessions
+  - No market confirmation signal (volume-backed rally) while SPY below 30-week MA
   - HY credit spread > 8.5% (systemic stress)
 
-PLUS ECONOMIC REGIME OVERLAY (penalty, not a factor):
-  - Computed from: T10Y2Y yield curve, HY spread trend, jobless claims trend
-  - Macro stress 40-60: -4pts
-  - Macro stress > 60: -7pts, cap at 40%
+ECONOMIC REGIME OVERLAY (penalty, not a factor; applied post-scoring):
+  - Yield curve (T10Y2Y): inversion duration matters
+  - Jobless claims trend (ICSA): rising claims precede recessions
+  - St. Louis Financial Stress Index (STLFSI4): 18-variable composite
+  - Chicago Fed National Activity Index (CFNAI): 85-indicator composite
+  HY credit spread excluded from overlay (it is a direct 10pt factor above;
+  including it in both places would double-count the same data series).
 
 Output:
     market_exposure_pct (0-100): drives dynamic risk allocation
@@ -59,18 +69,18 @@ class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
     # Factor weights (sum = 100)
-    W_FTD = 10  # Follow-through day: uptrend confirmation
     W_TREND_30WK = 15
-    W_BREADTH_50 = 14
+    W_SPY_MOMENTUM = 10       # 12-month TSMOM (replaces follow-through day)
     W_BREADTH_200 = 10
-    W_MCCLELLAN = 9
-    W_DISTRIBUTION_DAYS = 8  # New: Distribution days (market pressure gauge)
-    W_VIX = 8
+    W_SELLING_PRESSURE = 10   # heavy-volume down days (was distribution_days, was 8pt)
+    W_VIX = 10                # level + VIX3M term structure (was 8pt)
+    W_CREDIT_SPREAD = 10      # HY OAS (was 7pt)
+    W_PUT_CALL = 8            # options put/call ratio (replaces McClellan oscillator)
     W_NEW_HIGHS_LOWS = 7
-    W_CREDIT_SPREAD = 7
-    W_AD_LINE = 5
-    W_AAII = 4
-    W_NAAIM = 3
+    W_AD_LINE = 6             # A/D direction vs SPY (was 5pt)
+    W_BREADTH_50 = 6          # reduced from 14pt (was overweighted relative to 200-DMA)
+    W_NAAIM = 5               # (was 3pt)
+    W_AAII = 3                # extremes-only scoring (was 4pt)
 
     def __init__(self):
         pass
@@ -168,18 +178,7 @@ class MarketExposure:
             factors = {}
             score = 0.0
 
-            # --- 1. Follow-through day (IBD uptrend confirmation) ---
-            ftd = self._follow_through_day_factor(eval_date, cur)
-            ftd_pts = self.W_FTD * ftd["score_factor"]
-            factors["follow_through_day"] = {
-                **ftd,
-                "pts": round(ftd_pts, 1),
-                "max": self.W_FTD,
-            }
-            score += ftd_pts
-            logger.debug(f"  Follow-through day: {ftd_pts:.1f} pts")
-
-            # --- 2. Trend 30-week MA (SPY vs SMA_150 + slope) ---
+            # --- 1. Trend 30-week MA (SPY vs SMA_150 + slope) ---
             t30 = self._trend_30wk(eval_date, cur)
             t30_pts = self.W_TREND_30WK * t30["score_factor"]
             factors["trend_30wk"] = {
@@ -189,6 +188,17 @@ class MarketExposure:
             }
             score += t30_pts
             logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
+
+            # --- 2. SPY 12-month momentum (TSMOM — most replicated quant signal) ---
+            mom = self._spy_momentum(eval_date, cur)
+            mom_pts = self.W_SPY_MOMENTUM * mom["score_factor"]
+            factors["spy_momentum"] = {
+                **mom,
+                "pts": round(mom_pts, 1),
+                "max": self.W_SPY_MOMENTUM,
+            }
+            score += mom_pts
+            logger.debug(f"  SPY 12-month momentum: {mom_pts:.1f} pts")
 
             # --- 3. Breadth: % stocks above 50-DMA ---
             b50 = self._pct_above_ma(eval_date, ma_days=50, cur=cur)
@@ -216,36 +226,36 @@ class MarketExposure:
                 f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts"
             )
 
-            # --- 5. McClellan oscillator ---
-            mc = self._mcclellan(eval_date, cur)
-            mc_pts = self.W_MCCLELLAN * mc["score_factor"]
-            factors["mcclellan"] = {
-                **mc,
-                "pts": round(mc_pts, 1),
-                "max": self.W_MCCLELLAN,
+            # --- 5. Selling pressure (heavy-volume down days) ---
+            sp = self._selling_pressure_factor(eval_date, cur)
+            sp_pts = self.W_SELLING_PRESSURE * sp["score_factor"]
+            factors["distribution_days"] = {  # key preserved for frontend/API compatibility
+                **sp,
+                "pts": round(sp_pts, 1),
+                "max": self.W_SELLING_PRESSURE,
             }
-            score += mc_pts
-            logger.debug(f"  McClellan: {mc_pts:.1f} pts")
-
-            # --- 6. Distribution days (IBD market pressure gauge) ---
-            dd = self._distribution_days_factor(eval_date, cur)
-            dd_pts = self.W_DISTRIBUTION_DAYS * dd["score_factor"]
-            factors["distribution_days"] = {
-                **dd,
-                "pts": round(dd_pts, 1),
-                "max": self.W_DISTRIBUTION_DAYS,
-            }
-            score += dd_pts
+            score += sp_pts
             logger.debug(
-                f"  Distribution days: {dd.get('count', 0)} days, {dd_pts:.1f} pts"
+                f"  Selling pressure: {sp.get('count', 0)} days, {sp_pts:.1f} pts"
             )
 
-            # --- 7. VIX regime ---
+            # --- 6. VIX regime (level + VIX3M term structure) ---
             vix = self._vix_regime(eval_date, cur)
             vix_pts = self.W_VIX * vix["score_factor"]
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
             logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
+
+            # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
+            pc = self._put_call_ratio(eval_date, cur)
+            pc_pts = self.W_PUT_CALL * pc["score_factor"]
+            factors["put_call_ratio"] = {
+                **pc,
+                "pts": round(pc_pts, 1),
+                "max": self.W_PUT_CALL,
+            }
+            score += pc_pts
+            logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
             nhnl = self._new_highs_lows(eval_date, cur)
@@ -276,7 +286,7 @@ class MarketExposure:
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
-            # --- 11. AAII sentiment (contrarian at extremes) ---
+            # --- 11. AAII sentiment (contrarian at extremes only) ---
             aaii = self._aaii(eval_date, cur)
             aaii_pts = self.W_AAII * aaii["score_factor"]
             factors["aaii_sentiment"] = {
@@ -347,22 +357,22 @@ class MarketExposure:
             if t30.get("price_below_ma") and b50.get("value", 100) < 30:
                 halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                 cap = min(cap, 25.0)
-            # Veto 2: VIX > 40 rising (H11 FIX: only if VIX data available, not converting None to 0)
+            # Veto 2: VIX > 40 rising (only if VIX data available)
             vix_value = vix.get("value")
             if vix_value is not None and vix_value > 40 and vix.get("rising"):
                 halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
                 cap = min(cap, 30.0)
-            # Veto 3: 6+ distribution days (reinforces DD factor)
-            dd_count = dd.get("count", 0)
-            if dd_count >= 6:
-                halt_reasons.append(f"{dd_count} distribution days >= 6")
+            # Veto 3: 6+ selling-pressure days (severe institutional distribution)
+            sp_count = sp.get("count", 0)
+            if sp_count >= 6:
+                halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
                 cap = min(cap, 35.0)
-            # Veto 4: no follow-through day — only applies when SPY is actually below its
-            # 30-week MA (i.e., we're in a correction that needs confirming). In smooth
-            # uptrends SPY never drops enough to need an FTD, so requiring one would
-            # permanently cap exposure at 40% during the best trading environments.
-            if not ftd.get("has_ftd") and t30.get("price_below_ma"):
-                halt_reasons.append("No follow-through day while SPY below 30-week MA")
+            # Veto 4: No market confirmation signal while SPY below 30-week MA.
+            # Only applies when SPY is actually below its 30-week MA — in smooth uptrends
+            # SPY never drops enough to need confirmation, so this veto is dormant.
+            has_confirmation = self._has_market_confirmation(eval_date, cur)
+            if not has_confirmation and t30.get("price_below_ma"):
+                halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
             if cs.get("value") and cs["value"] > 8.5:
@@ -399,7 +409,7 @@ class MarketExposure:
                 "exposure_pct": round(final, 1),
                 "regime": regime,
                 "halt_reasons": halt_reasons,
-                "distribution_days": dd_count,
+                "distribution_days": sp_count,
                 "factors": factors,
             }
             self._persist(eval_date, result)
@@ -407,31 +417,66 @@ class MarketExposure:
 
     # ====== Factor implementations ======
 
-    def _follow_through_day_factor(self, eval_date, cur):
-        """Follow-through day: IBD confirmation after correction signal.
+    def _spy_momentum(self, eval_date, cur):
+        """SPY 12-month price momentum — trailing return over ~252 trading days.
 
-        FTD = index closes >= 1.7% on volume above prior (any time in last 30 days).
-        Presence of FTD indicates market has confirmed an uptrend after a correction.
+        Time-series momentum (TSMOM) is the most replicated signal in quantitative
+        finance. Source: Moskowitz, Ooi & Pedersen (JFE, 2012); AQR Century of
+        Evidence on Trend-Following (2017). Positive 12-month return = uptrend;
+        negative = bear market or correction.
         """
-        ftd = self._has_follow_through_day(eval_date, cur)
-        sf = 1.0 if ftd else 0.2
+        cur.execute(
+            """
+            SELECT date, close FROM price_daily
+            WHERE symbol = 'SPY' AND date <= %s
+            ORDER BY date DESC LIMIT 255
+            """,
+            (eval_date,),
+        )
+        rows = cur.fetchall()
+        if len(rows) < 250:
+            return {"score_factor": 0.5, "value": None, "reason": "Insufficient history"}
+
+        current_close = float(rows[0][1])
+        past_close = float(rows[251][1])  # ~252 trading days ago
+        momentum_pct = (
+            (current_close - past_close) / past_close * 100 if past_close > 0 else 0
+        )
+
+        if momentum_pct > 20:
+            sf = 1.0
+        elif momentum_pct > 10:
+            sf = 0.85
+        elif momentum_pct > 5:
+            sf = 0.70
+        elif momentum_pct > 0:
+            sf = 0.55
+        elif momentum_pct > -5:
+            sf = 0.35
+        elif momentum_pct > -10:
+            sf = 0.20
+        else:
+            sf = 0.05
+
         return {
             "score_factor": sf,
-            "has_ftd": ftd,
-            "description": "FTD present" if ftd else "No FTD in last 30 days",
+            "value": round(momentum_pct, 1),
+            "current_close": round(current_close, 2),
+            "past_close_252d": round(past_close, 2),
         }
 
-    def _distribution_days_factor(self, eval_date, cur):
-        """Distribution days: IBD market pressure gauge (last 25 trading sessions).
+    def _selling_pressure_factor(self, eval_date, cur):
+        """Institutional selling pressure: heavy-volume down days in last 25 sessions.
 
-        DD = sessions where close down >= 0.2% AND volume > prior day.
-        This is a pressure metric that builds through market corrections.
+        Counts sessions where the market closes down ≥0.2% on above-average volume —
+        a sign of institutional distribution rather than retail-driven selling.
+        A cluster of these days signals professionals are reducing exposure.
 
         Scoring (gradient, not a cliff):
-        - 0-2 DDs:   market strong, 1.0 factor
-        - 3-4 DDs:   caution building, 0.6 factor
-        - 5+ DDs:    pressure mounting, 0.2 factor
-        - 6+ DDs:    severe pressure (also hard veto cap)
+        - 0-2 days:  market absorbing selling, 1.0 factor
+        - 3-4 days:  caution building, 0.6 factor
+        - 5+ days:   pressure mounting, 0.2 factor
+        - 6+ days:   severe pressure (also triggers hard veto cap)
         """
         dd_count = self._distribution_days(eval_date, cur)
 
@@ -446,19 +491,18 @@ class MarketExposure:
             "score_factor": sf,
             "count": dd_count,
             "regime": (
-                "strong"
+                "clean"
                 if dd_count <= 2
                 else ("caution" if dd_count <= 4 else "pressure")
             ),
         }
 
     def _distribution_days(self, eval_date, cur):
-        """IBD distribution day count over last 25 trading sessions on SPY.
+        """Count heavy-volume down days over last 25 trading sessions on SPY.
 
-        Canonical IBD definition: a session where close declines >= 0.2%
-        AND volume is heavier than the prior day. Counted in a rolling
-        25-session window. (LIMIT 26: first row lacks prev_close due to LAG,
-        so only 25 valid comparisons are made.)
+        A qualifying session: close declines ≥0.2% AND volume is heavier than
+        the prior day. Rolling 25-session window. (LIMIT 26: first row lacks
+        prev_close due to LAG, so only 25 valid comparisons are made.)
         """
         cur.execute(
             """
@@ -480,8 +524,14 @@ class MarketExposure:
         row = cur.fetchone()
         return int(row[0]) if row is not None and row[0] is not None else 0
 
-    def _has_follow_through_day(self, eval_date, cur):
-        """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""
+    def _has_market_confirmation(self, eval_date, cur):
+        """Detect a volume-backed rally day in last 30 days.
+
+        A qualifying day: index closes ≥1.7% on volume above prior day.
+        Used only as a hard veto condition (not a scoring factor): when SPY
+        is below its 30-week MA and no such day has occurred, the market has
+        not confirmed an attempted recovery, so exposure is capped at 40%.
+        """
         cur.execute(
             """
             WITH d AS (
@@ -602,7 +652,14 @@ class MarketExposure:
         }
 
     def _vix_regime(self, eval_date, cur):
-        """VIX value -> regime score factor."""
+        """VIX level + VIX3M/VIX term structure.
+
+        VIX level captures current implied volatility / fear.
+        VIX term structure (VIX3M/VIX ratio) is more forward-looking:
+        - Contango (VIX3M > VIX): market expects volatility to subside → positive signal
+        - Backwardation (VIX3M < VIX): near-term stress worse than medium-term → negative
+        VIX3M is pre-loaded to price_daily by load_market_health_daily.
+        """
         cur.execute(
             """
             SELECT close, LAG(close, 5) OVER (ORDER BY date) AS prior
@@ -611,8 +668,20 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        row = cur.fetchone()
-        if not row or row[0] is None:
+        vix_row = cur.fetchone()
+
+        # Get VIX3M for term structure
+        cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = '^VIX3M' AND date <= %s
+            ORDER BY date DESC LIMIT 1
+            """,
+            (eval_date,),
+        )
+        vix3m_row = cur.fetchone()
+
+        if not vix_row or vix_row[0] is None:
             # Fallback to market_health_daily if ^VIX missing
             cur.execute(
                 "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
@@ -620,16 +689,23 @@ class MarketExposure:
             )
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
-                # M2 FIX: Fail-closed on missing data (0.1 instead of 0.7)
                 return {"score_factor": 0.1, "value": None}
             vix = float(r2[0])
-            return self._vix_score(vix, rising=False)
-        vix = float(row[0])
-        prior = float(row[1]) if row[1] is not None else vix
-        rising = vix > prior * 1.05
-        return self._vix_score(vix, rising=rising)
+            return self._vix_score(vix, rising=False, term_structure=None)
 
-    def _vix_score(self, vix, rising):
+        vix = float(vix_row[0])
+        prior = float(vix_row[1]) if vix_row[1] is not None else vix
+        rising = vix > prior * 1.05
+
+        term_structure = None
+        if vix3m_row and vix3m_row[0] is not None and vix > 0:
+            vix3m = float(vix3m_row[0])
+            term_structure = vix3m / vix  # >1.0 = contango, <1.0 = backwardation
+
+        return self._vix_score(vix, rising=rising, term_structure=term_structure)
+
+    def _vix_score(self, vix, rising, term_structure=None):
+        # Base score from VIX level
         if vix < 15:
             sf = 1.0
         elif vix < 20:
@@ -642,62 +718,70 @@ class MarketExposure:
             sf = 0.30
         else:
             sf = 0.10
+
+        # Rising VIX penalty: stress accelerating
         if rising and vix > 20:
-            sf *= 0.7
-        return {"score_factor": sf, "value": round(vix, 2), "rising": rising}
+            sf *= 0.75
 
-    def _mcclellan(self, eval_date, cur):
-        """McClellan Oscillator: 19-EMA(adv-dec) - 39-EMA(adv-dec).
+        # Term structure adjustment
+        ts_detail = {}
+        if term_structure is not None:
+            if term_structure > 1.10:  # steep contango: market expects calm
+                sf = min(1.0, sf * 1.10)
+                ts_detail["term_structure_signal"] = "contango"
+            elif term_structure > 1.0:  # mild contango
+                sf = min(1.0, sf * 1.05)
+                ts_detail["term_structure_signal"] = "mild_contango"
+            elif term_structure < 0.90:  # backwardation: near-term stress
+                sf *= 0.85
+                ts_detail["term_structure_signal"] = "backwardation"
+            else:
+                ts_detail["term_structure_signal"] = "flat"
+            ts_detail["vix3m_vix_ratio"] = round(term_structure, 3)
 
-        Uses pre-computed advance_decline_ratio from market_health_daily (fast, <1s)
-        instead of reading 95 days × 5000 stocks from price_daily (slow, 40-60s on t4g.micro).
+        return {
+            "score_factor": round(sf, 3),
+            "value": round(vix, 2),
+            "rising": rising,
+            **ts_detail,
+        }
 
-        advance_decline_ratio ≈ advances/declines. We derive net A/D percentage as:
-          net_pct = (ratio - 1) / (ratio + 1)  [ranges from -1 to +1]
-        and scale to 1000 to match original McClellan scale.
+    def _put_call_ratio(self, eval_date, cur):
+        """Put/call ratio — options market sentiment (contrarian, daily signal).
+
+        High P/C ratio (>1.1): elevated put buying = fear/hedging = contrarian bullish.
+        Low P/C ratio (<0.6): call-heavy = complacency/greed = contrarian bearish.
+        Populated daily from SPY options chain via load_market_health_daily.
+        Source: Pan & Poteshman (JoF, 2006) — statistically significant predictive
+        power for subsequent returns from options flow data.
         """
         cur.execute(
             """
-            SELECT date, advance_decline_ratio AS adv_dec_ratio
-            FROM market_health_daily
-            WHERE date <= %s AND advance_decline_ratio IS NOT NULL
-            ORDER BY date DESC LIMIT 60
+            SELECT put_call_ratio FROM market_health_daily
+            WHERE date <= %s AND put_call_ratio IS NOT NULL
+            ORDER BY date DESC LIMIT 1
             """,
             (eval_date,),
         )
-        rows = cur.fetchall()
-        if len(rows) < 39:
-            return {"score_factor": 0.5, "value": None}
-        # Convert A/D ratio to net advance percentage × 1000 for McClellan scale
-        # advance_decline_ratio = advances/declines, so net% = (ratio-1)/(ratio+1)
-        ratios = []
-        for row in sorted(rows, key=lambda r: r["date"]):  # ascending for EMA
-            ratio = float(row.get("adv_dec_ratio") or 1.0)
-            # net_pct: +1 = all advancing, -1 = all declining
-            net_pct = (ratio - 1) / (ratio + 1) if ratio > 0 else 0
-            ratios.append(net_pct * 1000)  # scale to match original McClellan
+        row = cur.fetchone()
+        if not row or row[0] is None:
+            return {"score_factor": 0.5, "value": None, "reason": "No put/call data"}
 
-        # Simple EMAs
-        def ema(values, span):
-            k = 2.0 / (span + 1)
-            e = values[0]
-            for v in values[1:]:
-                e = v * k + e * (1 - k)
-            return e
+        pc = float(row[0])
 
-        ema_19 = ema(ratios, 19)
-        ema_39 = ema(ratios, 39)
-        oscillator = ema_19 - ema_39
-        # Score factor: 0 to +100 = 1.0, 0 to -50 = 0.7, < -50 = 0.4, > +100 = 0.5 (overbought)
-        if 0 <= oscillator <= 100:
-            sf = 1.0
-        elif -50 <= oscillator < 0:
-            sf = 0.7
-        elif oscillator < -50:
-            sf = max(0.2, 0.4 + oscillator / 200)  # approaches 0.2 by -100
-        else:  # > 100
-            sf = 0.5
-        return {"score_factor": sf, "value": round(oscillator, 1)}
+        # Contrarian scoring: high P/C = fear = bullish for markets
+        if pc > 1.2:
+            sf = 1.0    # extreme fear → contrarian buy
+        elif pc > 0.9:
+            sf = 0.80   # elevated put buying
+        elif pc > 0.7:
+            sf = 0.65   # neutral
+        elif pc > 0.5:
+            sf = 0.40   # complacent
+        else:
+            sf = 0.20   # extreme greed → contrarian caution
+
+        return {"score_factor": sf, "value": round(pc, 3)}
 
     def _new_highs_lows(self, eval_date, cur):
         """52-week new highs vs new lows ratio.
@@ -762,7 +846,6 @@ class MarketExposure:
             return {"score_factor": 0.5, "value": None}
 
         # Check if SPY data is fresh (no older than 1 trading day)
-        # H8 FIX: Enforce market data freshness before using it
         if rows and rows[-1]:
             latest_date = rows[-1].get("date")
             if latest_date:
@@ -815,12 +898,11 @@ class MarketExposure:
         }
 
     def _aaii(self, eval_date, cur):
-        """AAII investor sentiment — contrarian: extreme bearish crowd → bullish signal.
+        """AAII investor sentiment — contrarian at extremes only.
 
-        Bull-bear spread (bullish% - bearish%) is the key metric:
-        < -20: extreme fear → contrarian buy (sf=1.0)
-        > +20: extreme greed → contrarian sell (sf=0.10)
-        Linear scale in between.
+        Bull-bear spread (bullish% - bearish%) is the key metric.
+        Signal is only meaningful at extreme readings (±15+ spread);
+        in the normal middle range it is noise with low predictive value.
         """
         cur.execute(
             """
@@ -839,18 +921,17 @@ class MarketExposure:
         bearish = float(row[1]) if row[1] is not None else 0.0
         spread = bullish - bearish  # positive = more bulls than bears
 
-        if spread < -20:
-            sf = 1.0
-        elif spread < -10:
-            sf = 0.80
-        elif spread < 0:
-            sf = 0.65
-        elif spread < 10:
-            sf = 0.50
-        elif spread < 20:
-            sf = 0.30
+        # Extremes-only scoring: neutral in the normal range (-15 to +15)
+        if spread < -25:
+            sf = 1.0    # extreme fear → strong contrarian buy
+        elif spread < -15:
+            sf = 0.75   # elevated bearishness
+        elif spread < 15:
+            sf = 0.50   # normal range — not predictive, neutral score
+        elif spread < 25:
+            sf = 0.30   # elevated bullishness
         else:
-            sf = 0.10
+            sf = 0.15   # extreme greed → contrarian caution
 
         return {
             "score_factor": sf,
@@ -909,6 +990,8 @@ class MarketExposure:
         (>+1pp in 20 trading days) get an additional 20% score haircut.
 
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
+        Note: HY OAS is intentionally excluded from the economic regime overlay
+        to avoid double-counting this data series.
         """
         cur.execute(
             """
@@ -957,6 +1040,9 @@ class MarketExposure:
         deteriorate, reduce max exposure regardless of short-term price action.
         This overlay is applied AFTER factor scoring, not as a factor weight.
 
+        Note: HY credit spread is excluded here — it is a direct 10pt factor.
+        Including it in both places would double-count the same data series.
+
         Returns: {macro_stress_score, penalty, cap, contributing_signals}
         """
         stress = 0.0
@@ -988,31 +1074,7 @@ class MarketExposure:
                 stress += 8.0
                 signals.append(f"Curve flat {latest_spread:.2f}%")
 
-        # Signal 2: HY credit spread trend — is credit stress building?
-        cur.execute(
-            """
-            SELECT value::float, date FROM economic_data
-            WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
-            ORDER BY date DESC LIMIT 60
-            """,
-            (eval_date,),
-        )
-        hy_rows = cur.fetchall()
-        if hy_rows:
-            hy_now = float(hy_rows[0][0])
-            hy_60d = float(hy_rows[-1][0]) if len(hy_rows) >= 50 else hy_now
-            hy_widening_60d = hy_now - hy_60d
-            if hy_now > 6.5:
-                stress += 35.0
-                signals.append(f"HY spread {hy_now:.2f}% (severe stress)")
-            elif hy_now > 5.0:
-                stress += 20.0
-                signals.append(f"HY spread {hy_now:.2f}% (elevated)")
-            elif hy_widening_60d > 1.5:
-                stress += 15.0
-                signals.append(f"HY spread widening +{hy_widening_60d:.2f}pp in 60d")
-
-        # Signal 3: Jobless claims trend — rising claims precede recessions
+        # Signal 2: Jobless claims trend — rising claims precede recessions
         cur.execute(
             """
             SELECT value::float, date FROM economic_data
@@ -1035,7 +1097,7 @@ class MarketExposure:
                 stress += 15.0
                 signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (elevated)")
 
-        # Signal 4: St. Louis Financial Stress Index — 18-variable financial market composite
+        # Signal 3: St. Louis Financial Stress Index — 18-variable financial market composite
         cur.execute(
             """
             SELECT value::float FROM economic_data
@@ -1054,7 +1116,7 @@ class MarketExposure:
                 stress += 12.0
                 signals.append(f"Financial stress index {stlfsi:.2f}σ (elevated)")
 
-        # Signal 5: Chicago Fed National Activity Index — 85-indicator broad economic composite
+        # Signal 4: Chicago Fed National Activity Index — 85-indicator broad economic composite
         cur.execute(
             """
             SELECT value::float FROM economic_data
@@ -1203,7 +1265,7 @@ if __name__ == "__main__":
     logger.info(f"Regime: {result['regime']}")
     logger.info(f"Exposure %: {result['exposure_pct']}%")
     logger.info(f"Raw score: {result['raw_score']}")
-    logger.info(f"Distribution days: {result['distribution_days']}")
+    logger.info(f"Selling pressure days: {result['distribution_days']}")
     if result["halt_reasons"]:
         logger.warning("HALT REASONS:")
         for r in result["halt_reasons"]:

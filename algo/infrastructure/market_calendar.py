@@ -7,7 +7,7 @@ Uses standard US market holidays. Can be extended for other markets.
 """
 
 import logging
-from datetime import datetime, date as _date, time, timezone
+from datetime import datetime, date as _date, time
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")

@@ -288,17 +288,17 @@ def handle(
                     )
                 base["breadth"] = {}
 
-            # Build 30-day McClellan Oscillator history
+            # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
             try:
                 cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT date,
-                           (factors->'mcclellan'->>'value')::float AS advance_decline_line
+                           (factors->'ad_line'->>'value')::float AS advance_decline_line
                     FROM market_exposure_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '35 days'
                           AND factors IS NOT NULL
-                          AND factors->'mcclellan' IS NOT NULL
-                          AND (factors->'mcclellan'->>'value') IS NOT NULL
+                          AND factors->'ad_line' IS NOT NULL
+                          AND (factors->'ad_line'->>'value') IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 30
                 """)

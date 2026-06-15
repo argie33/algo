@@ -40,6 +40,7 @@ class DynamoDBLockManager:
         self.lock_duration_seconds = lock_duration_seconds
         self.lock_id = str(uuid.uuid4())
         self.acquired = False
+        self.is_available = True
 
         try:
             self.dynamodb = boto3.resource("dynamodb")

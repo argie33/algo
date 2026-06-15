@@ -19,7 +19,7 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
-import { setRefreshCallback } from "../services/api";
+import api, { setRefreshCallback } from "../services/api";
 import { tokenManager } from "../services/tokenManager";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
@@ -199,6 +199,13 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
+      // Revoke token server-side before clearing local session
+      try {
+        await api.post("/api/logout");
+      } catch (_) {
+        // Best-effort — don't block logout if revocation fails
+      }
+
       sessionStorage.removeItem("accessToken");
       sessionStorage.removeItem("authToken");
 

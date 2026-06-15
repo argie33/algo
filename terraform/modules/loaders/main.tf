@@ -1096,6 +1096,11 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SECRET_ARN", value = var.db_secret_arn },
+        { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
+        { name = "DB_SSL", value = "require" },
+        { name = "ECS_CLUSTER_ARN", value = var.ecs_cluster_arn },
+        { name = "HALT_FLAG_TABLE", value = "algo_orchestrator_state" },
         { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) },
         { name = "ORCHESTRATOR_LOG_LEVEL", value = var.orchestrator_log_level },
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
@@ -1163,6 +1168,7 @@ resource "aws_ecs_task_definition" "data_patrol" {
         { name = "DB_NAME", value = var.db_name },
         { name = "DB_SECRET_ARN", value = var.db_secret_arn },
         { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
+        { name = "DB_SSL", value = "require" },
         { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
         { name = "PYTHONPATH", value = "/app" }
       ]

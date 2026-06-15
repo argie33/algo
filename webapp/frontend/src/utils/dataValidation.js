@@ -96,13 +96,14 @@ export const safeGetFactors = (current) => {
   const f = current.factors;
   return {
     ...f,
-    follow_through_day: f.follow_through_day && typeof f.follow_through_day === 'object' ? f.follow_through_day : {},
     distribution_days: f.distribution_days && typeof f.distribution_days === 'object' ? f.distribution_days : {},
     new_highs_lows: f.new_highs_lows && typeof f.new_highs_lows === 'object' ? f.new_highs_lows : {},
     vix_regime: f.vix_regime && typeof f.vix_regime === 'object' ? f.vix_regime : {},
     breadth_50dma: f.breadth_50dma && typeof f.breadth_50dma === 'object' ? f.breadth_50dma : {},
     breadth_200dma: f.breadth_200dma && typeof f.breadth_200dma === 'object' ? f.breadth_200dma : {},
-    mcclellan: f.mcclellan && typeof f.mcclellan === 'object' ? f.mcclellan : {},
+    spy_momentum: f.spy_momentum && typeof f.spy_momentum === 'object' ? f.spy_momentum : {},
+    put_call_ratio: f.put_call_ratio && typeof f.put_call_ratio === 'object' ? f.put_call_ratio : {},
+    ad_line: f.ad_line && typeof f.ad_line === 'object' ? f.ad_line : {},
     economic_overlay: f.economic_overlay && typeof f.economic_overlay === 'object' ? f.economic_overlay : {},
   };
 };
