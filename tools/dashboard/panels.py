@@ -4013,7 +4013,7 @@ def panel_trades_expanded(trades):
     total_pnl = sum(float(t.get("profit_loss_dollars") or 0) for t in closed)
     avg_r_list = [float(t["exit_r_multiple"]) for t in closed if t.get("exit_r_multiple") is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
-    wc = G if wr >= 55 else (Y if wr >= 45 else R)
+    wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R
     rows.append(Text.from_markup(
         f"[dim]Total:[/] [white]{total}[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
