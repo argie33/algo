@@ -2721,16 +2721,12 @@ def _get_rejection_funnel(cur) -> Dict:
                 "avg_score": 0,
             },
         )
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-        Exception,
-    ) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel"
         )
+        raise
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return json_response(
             200,
             {
@@ -3292,16 +3288,12 @@ def _get_algo_evaluate(cur) -> Dict:
                 },
             },
         )
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-        Exception,
-    ) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to evaluate algorithm: {type(e).__name__}: {e}\n  Operation: Evaluate algorithm with signals and constraints\n  Endpoint: GET /api/algo/evaluate"
         )
+        raise
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return json_response(
             200,
             {

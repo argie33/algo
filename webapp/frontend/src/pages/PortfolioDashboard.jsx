@@ -885,7 +885,7 @@ function EquityCurve({ series, loading }) {
         ) : data.length < 2 ? (
           <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} — need 2+ for a curve.`} />
         ) : (
-          <div style={{ height: 220 }}>
+          <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
@@ -936,7 +936,7 @@ function DrawdownChart({ series, loading }) {
         ) : data.length < 2 ? (
           <Empty title="Drawdown building" desc="Need 2+ snapshots to compute drawdown." />
         ) : (
-          <div style={{ height: 220 }}>
+          <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
@@ -997,7 +997,7 @@ function DailyReturnHistogram({ histogram_data, loading }) {
         ) : buckets.length === 0 || isPlaceholder ? (
           <Empty title="No daily-return data yet" desc={isPlaceholder ? "Algo is building trading history. Returns will show here after first trades." : undefined} />
         ) : (
-          <div style={{ height: 220 }}>
+          <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={buckets} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -1050,7 +1050,7 @@ function TradeDistribution({ distribution_data, loading }) {
         ) : buckets.length === 0 || isPlaceholder ? (
           <Empty title="No closed trades yet" desc={isPlaceholder ? "Trade distribution will appear after the first trade closes." : undefined} />
         ) : (
-          <div style={{ height: 220 }}>
+          <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={buckets} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
