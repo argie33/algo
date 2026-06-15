@@ -10,7 +10,6 @@ computation if trend_template_data is stale.
 
 from typing import Dict, Any
 import logging
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +37,7 @@ class SignalTrendMixin:
                 "reason": "Insufficient price history",
             }
 
+        import pandas as pd
         df = pd.DataFrame(rows, columns=["date", "close", "volume"])
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         df = df.dropna(subset=["close"]).sort_values("date").reset_index(drop=True)
@@ -77,8 +77,8 @@ class SignalTrendMixin:
             score += 1
         if sma150 and sma200 and sma150 > sma200:
             score += 1
-        sma200_slope = row["sma_200_slope"]
-        if sma200_slope and pd.notna(sma200_slope) and sma200_slope > 0:
+        sma200_slope = row["sma_200_slope"] if pd.notna(row["sma_200_slope"]) else None
+        if sma200_slope is not None and sma200_slope > 0:
             score += 1
         if high52 and c >= high52 * 0.75:
             score += 1
@@ -88,14 +88,13 @@ class SignalTrendMixin:
         pct_from_low = ((c - low52) / low52 * 100) if low52 else None
         pct_from_high = ((c - high52) / high52 * 100) if high52 else None
 
-        sma200_slope = row["sma_200_slope"]
         if sma200 and c > sma200:
-            if pd.notna(sma200_slope) and sma200_slope > 0:
+            if sma200_slope is not None and sma200_slope > 0:
                 weinstein_stage = 2
             else:
                 weinstein_stage = 3
         else:
-            if pd.notna(sma200_slope) and sma200_slope < 0:
+            if sma200_slope is not None and sma200_slope < 0:
                 weinstein_stage = 4
             else:
                 weinstein_stage = 1

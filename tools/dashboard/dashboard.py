@@ -73,6 +73,8 @@ from panels import (
     panel_scores,
     panel_scores_expanded,
     panel_trades_expanded,
+    panel_economic_expanded,
+    panel_portfolio_perf_expanded,
 )
 from formatters import mkt_hours_str
 
@@ -304,7 +306,7 @@ def render_dashboard(
     perf = data.get("perf") or {}
     pos = data.get("pos")
     sig = data.get("sig") or {}
-    hlth = _extract_items(data.get("health") or {})
+    hlth = data.get("health") or {}  # keep raw dict; ready_to_trade/critical_stale available to panels
     cb = data.get("cb") or {}
     rec = data.get("trades") or {}
     srank = _extract_items(data.get("srank") or {})
@@ -466,6 +468,15 @@ def render_dashboard(
     if view_mode == "trades":
         return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
 
+    if view_mode == "economic":
+        return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
+
+    if view_mode == "portfolio":
+        return _expanded_layout(
+            *_exp_top,
+            panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
+        )
+
     return outer
 
 
@@ -485,7 +496,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -544,7 +555,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
