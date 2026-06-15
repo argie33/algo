@@ -3165,7 +3165,7 @@ def _get_market(cur) -> Dict:
             "fed_rate_environment": market_health.get("fed_rate_environment"),
         }
 
-        return json_response(200, {"data": data})
+        return json_response(200, data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
