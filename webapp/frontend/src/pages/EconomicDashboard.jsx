@@ -309,6 +309,16 @@ function EconomicDashboardPage() {
           <div>{(leadQ.error?.message || leadQ.error?.responseData?.message || yldQ.error?.message || yldQ.error?.responseData?.message || 'Failed to load economic data')}</div>
         </div>
       )}
+      {/* No-data notice: indicators empty but no API error means the FRED loader hasn't run yet */}
+      {!leadQ.loading && !leadQ.error && indicators.length === 0 && (
+        <div className="alert alert-warn" style={{ marginBottom: 'var(--space-4)' }}>
+          <AlertCircle size={16} />
+          <div>
+            <div style={{ fontWeight: 'var(--w-semibold)' }}>Economic data not yet loaded</div>
+            <div className="t-sm muted">The FRED loader populates this dashboard. Run the economic data loader or wait for the next scheduled pipeline run. All values will show &mdash; until data is available.</div>
+          </div>
+        </div>
+      )}
 
       {/* Cycle Regime Banner */}
       <div className="card" style={{ marginBottom: 'var(--space-4)', borderLeft: `4px solid ${regime.color}` }}>

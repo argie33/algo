@@ -84,7 +84,10 @@ export const safeGetMarketCurrent = (markets) => {
 };
 
 /**
- * Safely access nested factors with all sub-properties defaulted
+ * Safely access nested factors with all sub-properties defaulted.
+ * Spreads ALL raw factor keys so ExposureFactors can access any key
+ * (trend_30wk, credit_spread, ad_line, aaii_sentiment, etc.) while
+ * type-checking the known complex-object keys.
  */
 export const safeGetFactors = (current) => {
   if (!current || !current.factors || typeof current.factors !== 'object') {
@@ -92,6 +95,7 @@ export const safeGetFactors = (current) => {
   }
   const f = current.factors;
   return {
+    ...f,
     follow_through_day: f.follow_through_day && typeof f.follow_through_day === 'object' ? f.follow_through_day : {},
     distribution_days: f.distribution_days && typeof f.distribution_days === 'object' ? f.distribution_days : {},
     new_highs_lows: f.new_highs_lows && typeof f.new_highs_lows === 'object' ? f.new_highs_lows : {},

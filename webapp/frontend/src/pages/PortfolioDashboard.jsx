@@ -111,7 +111,6 @@ const extractNestedValue = (obj, path, defaultValue = {}) => {
 
 const hasError = (data) => data?._error != null;
 const isCached = (data) => data?.fromCache === true;
-const isPlaceholder = (data) => data?._is_placeholder === true;
 
 const CachedDataBadge = () => (
   <span className="badge badge-amber" style={{ fontSize: 'var(--t-xs)', marginLeft: 'var(--space-1)' }}>
@@ -205,6 +204,7 @@ function PortfolioDashboardPage() {
 
   // Apply null safety and domain-specific filtering
   const safePositionsList = positionsList.length > 0 ? positionsList : [];
+  const openTradesCount = tradesList.filter(t => t && t.status === 'open').length;
   const safeTradesList = tradesList.length > 0
     ? tradesList.filter(t => t && t.status === 'closed')
     : [];
@@ -245,12 +245,6 @@ function PortfolioDashboardPage() {
   const equityDataError = hasError(equityItems) ? equityItems._error : null;
   const statusDataError = hasError(status) ? status._error : null;
 
-  const isPerfPlaceholder = isPlaceholder(perf);
-  const _isEquityPlaceholder = isPlaceholder(equityItems);
-  const _isTradesPlaceholder = isPlaceholder(trades);
-  const _isReturnHistogramPlaceholder = isPlaceholder(returnHistogram);
-  const _isDistributionPlaceholder = isPlaceholder(tradeDistribution);
-  const _isHoldingPlaceholder = isPlaceholder(holdingDistribution);
 
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
@@ -421,7 +415,6 @@ function PortfolioDashboardPage() {
 
       {/* Ratios row */}
       {hasCachedPerf && <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}><CachedDataBadge /> Performance Metrics (from cache)</div>}
-      {isPerfPlaceholder && <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}><span className="badge badge-warning">⚠️ Placeholder</span> Performance Metrics (building trading history)</div>}
       {isPrimaryLoading ? (
         <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
           <SkeletonKpi />
@@ -644,7 +637,12 @@ function PortfolioDashboardPage() {
             {isPrimaryLoading ? (
               <SkeletonTable />
             ) : (safeTradesList.length === 0) ? (
-              <Empty title="No closed trades yet" />
+              <Empty
+                title="No closed trades yet"
+                desc={openTradesCount > 0
+                  ? `${openTradesCount} open position${openTradesCount !== 1 ? 's' : ''} active — closed trades will appear here after exit.`
+                  : tradesError ? 'Could not reach trade history API.' : 'No trades have been executed yet.'}
+              />
             ) : (
             <div style={{ maxHeight: '360px', overflow: 'auto' }}>
               <table className="data-table">
@@ -964,26 +962,18 @@ function DrawdownChart({ series, loading }) {
 
 // ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
 function DailyReturnHistogram({ histogram_data, loading }) {
-  const { buckets, stats, isPlaceholder } = useMemo(() => {
-    if (!histogram_data) return { buckets: [], stats: null, isPlaceholder: false };
-    const data = histogram_data.buckets || [];
-    const stat = histogram_data.stats || null;
-    const placeholder = histogram_data._is_placeholder === true;
-    return { buckets: data, stats: stat, isPlaceholder: placeholder };
+  const { buckets, stats } = useMemo(() => {
+    if (!histogram_data) return { buckets: [], stats: null };
+    return { buckets: histogram_data.buckets || [], stats: histogram_data.stats || null };
   }, [histogram_data]);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            Daily Return Distribution
-            {isPlaceholder && <span className="badge badge-warning" style={{ fontSize: 'var(--t-2xs)' }}>Placeholder</span>}
-          </div>
+          <div className="card-title">Daily Return Distribution</div>
           <div className="card-sub">
-            {isPlaceholder
-              ? 'Data building - no trading history yet'
-              : stats
+            {stats
               ? `${stats.count} sessions · mean ${stats.mean.toFixed(2)}% · σ ${stats.std.toFixed(2)}%`
               : 'Last 90 days'}
           </div>
@@ -994,8 +984,8 @@ function DailyReturnHistogram({ histogram_data, loading }) {
           <div style={{ height: 220 }}>
             <SkeletonChart />
           </div>
-        ) : buckets.length === 0 || isPlaceholder ? (
-          <Empty title="No daily-return data yet" desc={isPlaceholder ? "Algo is building trading history. Returns will show here after first trades." : undefined} />
+        ) : buckets.length === 0 ? (
+          <Empty title="No daily-return data yet" desc="Returns build once the algo has trading history." />
         ) : (
           <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -1024,22 +1014,17 @@ function DailyReturnHistogram({ histogram_data, loading }) {
 
 // ─── Trade outcome distribution ────────────────────────────────────────────
 function TradeDistribution({ distribution_data, loading }) {
-  const { buckets, isPlaceholder } = useMemo(() => {
-    if (!distribution_data) return { buckets: [], isPlaceholder: false };
-    const data = distribution_data.buckets || [];
-    const placeholder = distribution_data._is_placeholder === true;
-    return { buckets: data, isPlaceholder: placeholder };
+  const buckets = useMemo(() => {
+    if (!distribution_data) return [];
+    return distribution_data.buckets || [];
   }, [distribution_data]);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            Trade Outcome Distribution
-            {isPlaceholder && <span className="badge badge-warning" style={{ fontSize: 'var(--t-2xs)' }}>Placeholder</span>}
-          </div>
-          <div className="card-sub">{isPlaceholder ? 'No trades yet' : 'R-multiples across closed trades'}</div>
+          <div className="card-title">Trade Outcome Distribution</div>
+          <div className="card-sub">R-multiples across closed trades</div>
         </div>
       </div>
       <div className="card-body">
@@ -1047,8 +1032,8 @@ function TradeDistribution({ distribution_data, loading }) {
           <div style={{ height: 220 }}>
             <SkeletonChart />
           </div>
-        ) : buckets.length === 0 || isPlaceholder ? (
-          <Empty title="No closed trades yet" desc={isPlaceholder ? "Trade distribution will appear after the first trade closes." : undefined} />
+        ) : buckets.length === 0 ? (
+          <Empty title="No closed trades yet" desc="Trade distribution will appear after the first trade closes." />
         ) : (
           <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -1074,27 +1059,22 @@ function TradeDistribution({ distribution_data, loading }) {
 
 // ─── Holding period histogram ──────────────────────────────────────────────
 function HoldingPeriodHistogram({ holding_data }) {
-  const { buckets, isPlaceholder } = useMemo(() => {
-    if (!holding_data || typeof holding_data !== 'object') return { buckets: [], isPlaceholder: false };
-    const data = Array.isArray(holding_data.buckets) ? holding_data.buckets : [];
-    const placeholder = holding_data._is_placeholder === true;
-    return { buckets: data, isPlaceholder: placeholder };
+  const buckets = useMemo(() => {
+    if (!holding_data || typeof holding_data !== 'object') return [];
+    return Array.isArray(holding_data.buckets) ? holding_data.buckets : [];
   }, [holding_data]);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            Holding Period Distribution
-            {isPlaceholder && <span className="badge badge-warning" style={{ fontSize: 'var(--t-2xs)' }}>Placeholder</span>}
-          </div>
-          <div className="card-sub">{isPlaceholder ? 'No trades yet' : 'Days held per closed trade'}</div>
+          <div className="card-title">Holding Period Distribution</div>
+          <div className="card-sub">Days held per closed trade</div>
         </div>
       </div>
       <div className="card-body">
-        {buckets.length === 0 || isPlaceholder ? (
-          <Empty title="No closed trades yet" desc={isPlaceholder ? "Holding period distribution will appear after trades close." : undefined} />
+        {buckets.length === 0 ? (
+          <Empty title="No closed trades yet" desc="Holding period distribution will appear after trades close." />
         ) : (
           <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
