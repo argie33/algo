@@ -1467,9 +1467,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if rows:
             rows.append(Rule(style="dim"))
         rows.append(
-            Text.from_markup(
-                "[dim]Top sectors by rank (momentum score, ↑↓= rank change vs 1wk/4wk):[/]"
-            )
+            Text.from_markup("[dim]Sector rankings (mom, ↑↓= vs 1wk/4wk):[/]")
         )
         srank_tbl = Table.grid(padding=(0, 2), expand=True)
         srank_tbl.add_column("a", ratio=1)
@@ -1500,7 +1498,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if valid_irank:
         rows.append(Rule(style="dim"))
         rows.append(
-            Text.from_markup("[dim]Top industries (sub-sector groups, ↑↓= vs 1wk):[/]")
+            Text.from_markup("[dim]Industries (↑↓= vs 1wk):[/]")
         )
         irank_tbl = Table.grid(padding=(0, 2), expand=True)
         irank_tbl.add_column("a", ratio=1)
@@ -3442,7 +3440,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:
         rows.append(
-            Text.from_markup("[dim]All sectors  (rank  momentum  ↑↓1wk/4wk):[/]")
+            Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]")
         )
         for r in valid_srank:
             nm = str(r.get("sector_name") or "")
@@ -3466,7 +3464,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:
         rows.append(
-            Text.from_markup("[dim]All industries  (rank  momentum  ↑↓1wk):[/]")
+            Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]")
         )
         for r in valid_irank:
             nm = str(r.get("industry") or "")
