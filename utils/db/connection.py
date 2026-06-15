@@ -24,12 +24,14 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from config.credential_manager import get_db_config
+from algo.monitoring.connection_monitor import on_connect, on_disconnect
 
 logger = logging.getLogger(__name__)
 
 # Connection pool shared across all requests in this Lambda container
 _connection_pool = None
 _pool_lock = threading.Lock()
+
 
 def _get_connection_pool():
     """Get or create the module-level connection pool (thread-safe).
