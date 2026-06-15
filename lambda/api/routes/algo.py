@@ -267,7 +267,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             if action_type:
                 action_type = action_type.lower()
                 VALID_ACTION_TYPES = {'entry', 'exit', 'alert', 'halt', 'reconciliation', 'error',
-                                      'stop', 'pyramid', 'skip', 'pass',
+                                      'stop', 'skip', 'pass',
                                       'phase_0_halt_flag_detected', 'phase_0_oom_prevention',
                                       'phase_0_table_validation',
                                       'phase_1_data_freshness', 'phase_1_data_patrol',
@@ -277,7 +277,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                                       'phase_3_halt_check_error',
                                       'phase_3a_reconciliation',
                                       'phase_3b_exposure_policy', 'phase_4_exit_execution',
-                                      'phase_4b_pyramid_adds', 'phase_5_signal_generation',
+                                      'phase_5_signal_generation',
                                       'phase_6_entry_execution',
                                       'phase_7_reconciliation', 'phase_7_daily_report',
                                       'phase_7_ic_computation', 'phase_7_performance',
@@ -850,7 +850,9 @@ def _get_algo_performance(cur) -> Dict:
             sanitized = APIResponseValidator.sanitize_response(response_data)
             return json_response(200, sanitized)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+                psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            raise  # Let @db_route_handler return proper 503/504
+        except Exception as e:
             logger.error(f'Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Query pre-computed algo_performance_metrics\n  Endpoint: GET /api/algo/performance')
             return error_response(500, 'internal_error', 'Failed to fetch performance metrics')
 
@@ -2514,6 +2516,7 @@ def _get_data_quality(cur) -> Dict:
             code, error_type, message = handle_db_error(e, 'check data quality')
             logger.error(f'Failed to check data quality: {error_type} - {message}')
             return error_response(code, error_type, message)
+@db_route_handler('fetch exposure policy')
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
@@ -2614,9 +2617,11 @@ def _get_exposure_policy(cur) -> Dict:
                 'as_of': row['date'] if row['date'] else None,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+                psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            raise  # Let @db_route_handler return proper 503/504
+        except Exception as e:
             logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}\n  Operation: Calculate exposure policy and market regime\n  Endpoint: GET /api/algo/exposure-policy')
-            return json_response(200, {'current_exposure_pct': 0, 'regime': 'unknown', 'halt_reasons': [], 'factor_quality': 'unavailable', 'factors': {}, 'as_of': None})
+            return error_response(503, 'service_unavailable', 'Market exposure data temporarily unavailable')
 def _get_sector_stage2(cur) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""
         try:
@@ -2681,8 +2686,8 @@ def _categorize_config_key(key: str) -> str:
             return 'Entry Quality Gates'
         elif 'require_target_pullback' in key or 't1_target' in key or 't2_target' in key or 't3_target' in key or 'imported_position' in key or 'min_hold' in key or 'max_hold' in key or 'exit_on' in key or 'use_chandelier' in key or 'switch_to_21ema' in key or 'eight_week_rule' in key or 'chandelier_atr' in key or 'move_be' in key:
             return 'Exit Rules'
-        elif 'pyramid' in key or 're_engage' in key:
-            return 'Pyramid & Re-engagement'
+        elif 're_engage' in key:
+            return 'Re-engagement'
         elif 'position_halt_flag' in key or 'max_reentries' in key or 'min_days_before_reentry' in key:
             return 'Position Monitoring'
         elif 'earnings' in key or 'halt_entries_before' in key or 'block_days_before' in key:

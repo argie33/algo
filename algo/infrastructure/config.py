@@ -149,12 +149,6 @@ class AlgoConfig:
         'chandelier_atr_mult': ('3.0', 'float', 'ATR multiplier for chandelier stop'),
         'move_be_at_r': ('1.0', 'float', 'R-multiple to trigger breakeven stop raise'),
 
-        # Pyramid Entry (Sprint 3)
-        'pyramid_enabled': ('true', 'bool', 'Enable multi-entry pyramiding'),
-        'pyramid_split_pct': ('50,33,17', 'string', 'Entry size split %'),
-        'pyramid_add_1_gain_pct': ('2.0', 'float', 'Gain % to trigger Add #1'),
-        'pyramid_add_2_gain_pct': ('3.0', 'float', 'Additional gain % to trigger Add #2'),
-
         # Drawdown Re-engagement (Sprint 3)
         're_engage_recovery_pct': ('8.0', 'float', '% recovery from peak to resume trading'),
         're_engage_min_days': ('5', 'int', 'Min days after halt before re-engagement'),
@@ -198,7 +192,6 @@ class AlgoConfig:
         'min_adv_shares': ('50000', 'int', 'Minimum average daily volume (shares)'),
         'min_adv_dollars': ('500000', 'float', 'Minimum average daily dollar volume'),
         'min_order_size_dollars': ('100.0', 'float', 'Minimum order size in dollars'),
-        'max_pyramid_adds': ('3', 'int', 'Maximum number of additional pyramid entries'),
         'phase1_min_coverage_pct': ('75', 'int', 'Phase 1: Minimum data coverage %'),
         'phase1_min_symbol_count': ('8000', 'int', 'Phase 1: Minimum symbol count for healthy coverage'),
 
@@ -317,7 +310,7 @@ class AlgoConfig:
 
         Raises ValueError if validation fails.
         """
-        # Percentage values: 0-100 (skip string types like pyramid_split_pct, drawdown/halt thresholds)
+        # Percentage values: 0-100 (skip string types and drawdown/halt thresholds)
         is_drawdown_or_halt = 'drawdown' in key.lower() or 'halt' in key.lower()
         if 'pct' in key.lower() and dtype != 'string' and not is_drawdown_or_halt:
             f_val = float(value) if isinstance(value, (int, float, str)) else value
@@ -347,18 +340,6 @@ class AlgoConfig:
             f_val = float(value) if isinstance(value, (int, float, str)) else value
             if f_val < 0.5 or f_val > 10:
                 raise ValueError(f'{key}: {f_val} out of range [0.5-10]')
-
-        # Pyramid split: must be comma-separated numbers summing to 100
-        if key == 'pyramid_split_pct' and dtype == 'string':
-            try:
-                parts = [float(p.strip()) for p in str(value).split(',')]
-                total = sum(parts)
-                if abs(total - 100.0) > 1.0:
-                    raise ValueError(f'{key}: parts sum to {total:.1f}, must equal 100')
-            except ValueError as e:
-                if 'sum' in str(e) or 'equal' in str(e):
-                    raise
-                raise ValueError(f'{key}: expected comma-separated numbers like "50,33,17"')
 
         return True
 

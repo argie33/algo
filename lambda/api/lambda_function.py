@@ -695,29 +695,35 @@ def require_auth(event: Dict, path: str) -> tuple:
     """
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
-    PUBLIC_PREFIXES = {
-        '/api/health',  # Basic health check (no auth required for uptime monitoring)
-        # /api/health/detailed and /api/health/pipeline intentionally require authentication
-        # (they expose DB table names, loader names, row counts, freshness ages).
-        '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
-        '/api/algo/markets',  # Market regime data (public market conditions)
-        '/api/algo/swing-scores',  # Swing trader scores (used by TradingSignals page for all users)
-        '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
-        '/api/algo/sector-breadth',   # Sector breadth analysis (public market data)
-        '/api/algo/sector-stage2',    # Stage 2 sector stocks (public market analysis)
-        '/api/economic',  # Economic indicators (public data)
-        '/api/sectors',  # Sector analysis (aggregate market data only)
-        '/api/sentiment',  # Market sentiment (aggregate only)
-        '/api/industries',  # Industry analysis (aggregate market data)
-        '/api/prices',  # Historical prices (public market data)
-        '/api/stocks',  # Stock metadata/list (public data)
-        '/api/scores',  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
-        '/api/financials',  # Company financials (public data)
-        '/api/earnings',  # Earnings data (public data)
-        # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
-        '/api/data-coverage',  # Data freshness status (public metadata)
-        '/api/contact',  # Public contact form (no auth required)
-    }
+    # DEV MODE: When DEV_BYPASS_AUTH is enabled, all /api endpoints are public
+    # This is ONLY for local development with --local flag on dashboard.py
+    if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
+        PUBLIC_PREFIXES = {'/api'}  # All /api/* are public in dev mode
+    else:
+        PUBLIC_PREFIXES = {
+            '/api/health',  # Basic health check (no auth required for uptime monitoring)
+            # /api/health/detailed and /api/health/pipeline intentionally require authentication
+            # (they expose DB table names, loader names, row counts, freshness ages).
+            '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
+            '/api/algo/markets',  # Market regime data (public market conditions)
+            '/api/algo/swing-scores',  # Swing trader scores (used by TradingSignals page for all users)
+            '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
+            '/api/algo/sector-breadth',   # Sector breadth analysis (public market data)
+            '/api/algo/sector-stage2',    # Stage 2 sector stocks (public market analysis)
+            '/api/algo/dashboard-signals',  # Dashboard signals (used by ops terminal in local dev)
+            '/api/economic',  # Economic indicators (public data)
+            '/api/sectors',  # Sector analysis (aggregate market data only)
+            '/api/sentiment',  # Market sentiment (aggregate only)
+            '/api/industries',  # Industry analysis (aggregate market data)
+            '/api/prices',  # Historical prices (public market data)
+            '/api/stocks',  # Stock metadata/list (public data)
+            '/api/scores',  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
+            '/api/financials',  # Company financials (public data)
+            '/api/earnings',  # Earnings data (public data)
+            # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
+            '/api/data-coverage',  # Data freshness status (public metadata)
+            '/api/contact',  # Public contact form (no auth required)
+        }
 
     # Protected endpoints requiring authentication (strategy/trading data)
     # These endpoints are NOT in PUBLIC_PREFIXES:

@@ -365,8 +365,6 @@ export default function TradingSignals() {
           </select>
           <select className="select" value={timeframe} onChange={e => setTimeframe(e.target.value)} style={{ width: 120 }}>
             <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
           </select>
           <select className="select" value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ width: 170 }}>
             <option value="all">All stages</option>

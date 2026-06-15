@@ -19,7 +19,7 @@
  * from the critical path. Orchestrator Phase 5 computes signals on-the-fly from
  * price_daily; no pre-computed signal tables needed for trading.
  *
- * MORNING PIPELINE (2:15 AM ET, 2.5h max execution):
+ * MORNING PIPELINE (2:00 AM ET, 2.5h max execution):
  *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
  *     → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
  *                + trend_template_data (30 min expected, 90 min timeout = 5400s)
@@ -735,7 +735,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
-# Morning (3:30 AM ET): Load prices → technicals + market health → signals → sector ranking
+# Morning (2:00 AM ET): Load prices → market health → swing scores → sector ranking
 # FIXED Issue #13: Signals NOT generated here; orchestrator regenerates at 9:30 AM using fresh data
 # FIXED 2026-06-02: Added market_health_daily to morning pipeline (was only in EOD).
 # If EOD pipeline fails, market health data went stale; now refreshed daily at 3:30 AM.

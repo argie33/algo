@@ -158,15 +158,13 @@ def panel_orch(run, cfg, risk=None):
     min_score = cfg.get("min_score")
     base_risk = cfg.get("base_risk")
     t1r       = cfg.get("t1_r")
-    pyr       = cfg.get("pyramid", False)
 
     score_s   = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
     slots_s   = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s     = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s    = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
     t1r_s     = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r else ""
-    pyr_s     = f"[{G}]pyramid on[/]" if pyr else ""
-    config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s, pyr_s] if x)
+    config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s] if x)
 
     # VaR line — only show if table is populated with real data
     var_line = ""
@@ -419,13 +417,11 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             mc2       = G if "LIVE" in str(mode) else Y
             en_s      = "ENABLED" if cfg.get("enabled", True) else "DISABLED"
             ec        = G if cfg.get("enabled", True) else R
-            pyr       = cfg.get("pyramid", False)
             min_score = cfg.get("min_score")
             max_n     = cfg.get("max_pos_n")
             base_risk = cfg.get("base_risk")
             t1r       = cfg.get("t1_r")
             parts6    = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
-            if pyr:       parts6.append(f"[{G}]pyrOK[/]")
             if min_score: parts6.append(f"[dim]score≥[/][white]{min_score}[/]")
             if max_n:     parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
             if base_risk: parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
@@ -1398,7 +1394,6 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sector≤4:[/][white]{cfg_v['max_sec_n']}[/]")
     if cfg_v.get("base_risk"):   cfg_parts.append(f"[dim]risk:[/][white]{cfg_v['base_risk']}%[/]")
     if cfg_v.get("t1_r"):        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v['t1_r']}R[/]")
-    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyrOK[/]")
     if cfg_parts:
         rows.append(Text.from_markup("  ".join(cfg_parts)))
     rows.append(Rule(style="dim"))

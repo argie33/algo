@@ -80,7 +80,6 @@ PHASE_NAMES = {
     "phase_3a": "Reconcile",
     "phase_3b": "Exposure",
     "phase_4":  "Exits",
-    "phase_4b": "Pyramid",
     "phase_5":  "Signals",
     "phase_6":  "Entries",
     "phase_7":  "Wrap-up",

@@ -114,10 +114,10 @@ def fetch_algo_config(c):
     try:
         data = api_call('/api/algo/config')
         if data.get('_error'):
-            return {"_error": data.get('_error'), "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
+            return {"_error": data.get('_error'), "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None}
         cfg = data.get('data', {})
         if "_error" in cfg:
-            return {"_error": cfg["_error"], "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
+            return {"_error": cfg["_error"], "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None}
         return {
             "enabled": cfg.get("algo_enabled", True),
             "mode": cfg.get("trade_mode", "unknown"),
@@ -127,12 +127,11 @@ def fetch_algo_config(c):
             "min_score": safe_float(cfg.get("min_swing_score")),
             "base_risk": safe_float(cfg.get("base_risk_pct")),
             "t1_r": safe_float(cfg.get("t1_target_r_multiple")),
-            "pyramid": cfg.get("pyramid_enabled", "false").lower() == "true",
         }
     except Exception as e:
         error_msg = _format_fetcher_error("cfg", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None, "pyramid": False}
+        return {"_error": error_msg, "enabled": False, "mode": "unknown", "max_pos_pct": None, "max_pos_n": None, "max_sec_n": None, "min_score": None, "base_risk": None, "t1_r": None}
 
 def fetch_market(c):
     """Issue 3 FIX: API-only market data.

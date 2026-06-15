@@ -260,7 +260,8 @@ function PortfolioDashboardPage() {
     (perfError && !hasCachedPerf ? perfError : null) || (perfDataError && !hasCachedPerf ? perfDataError : null),
     (tradesError && !hasCachedTrades ? tradesError : null) || (tradesDataError && !hasCachedTrades ? tradesDataError : null),
     marketsError || marketsDataError,
-    (equityError && !hasCachedEquity ? equityError : null) || (equityDataError && !hasCachedEquity ? equityDataError : null)
+    (equityError && !hasCachedEquity ? equityError : null) || (equityDataError && !hasCachedEquity ? equityDataError : null),
+    _breakersError,
   ];
   const hasAnyError = criticalErrors.some(err => err);
   const errorList = [];
@@ -270,6 +271,7 @@ function PortfolioDashboardPage() {
   if ((tradesError && !hasCachedTrades) || (tradesDataError && !hasCachedTrades)) errorList.push({ section: 'Recent Trades', error: tradesError || tradesDataError });
   if (marketsError || marketsDataError) errorList.push({ section: 'Markets', error: marketsError || marketsDataError });
   if ((equityError && !hasCachedEquity) || (equityDataError && !hasCachedEquity)) errorList.push({ section: 'Equity Curve', error: equityError || equityDataError });
+  if (_breakersError) errorList.push({ section: 'Circuit Breakers', error: _breakersError });
 
   // Show stale data banner (but not as error — just informational)
   const staleSections = [];
@@ -476,7 +478,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Circuit breakers */}
-      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} />
+      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} error={_breakersError} />
 
       {/* Equity curve + Drawdown chart */}
       {equityDataError && !hasCachedEquity ? (
@@ -752,9 +754,10 @@ export default function PortfolioDashboard() {
 }
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
-function CircuitBreakerPanel({ data, loading }) {
+function CircuitBreakerPanel({ data, loading, error: queryError }) {
   const breakers = Array.isArray(data) ? data : (data && typeof data === 'object' && Array.isArray(data.breakers) ? data.breakers : []);
-  const error = data && typeof data === 'object' ? data._error : null;
+  const dataError = data && typeof data === 'object' ? data._error : null;
+  const error = queryError?.responseData?.message || queryError?.responseData?._error || queryError?.message || dataError;
 
   if (loading) {
     return <SkeletonCircuitBreaker />;
@@ -1496,6 +1499,7 @@ function Empty({ title, desc }) {
 CircuitBreakerPanel.propTypes = {
   data: PropTypes.oneOfType([PropTypes.array, PropTypes.object]),
   loading: PropTypes.bool,
+  error: PropTypes.object,
 };
 
 EquityCurve.propTypes = {

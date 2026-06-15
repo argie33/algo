@@ -768,17 +768,6 @@ class Orchestrator:
         )
         return not result.halted
 
-    def phase_4b_pyramid_adds(self) -> bool:
-        """Thin delegation to phase4b_pyramid_adds module."""
-        self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
-        from algo.orchestrator.phase4b_pyramid_adds import run as run_phase4b
-        result = run_phase4b(
-            self.config,
-            self.run_date, self.dry_run, self.alerts,
-            self.verbose, self.log_phase_result
-        )
-        return True  # fail-open
-
     def phase_5_signal_generation(self) -> bool:
         """Thin delegation to phase5_signal_generation module.
 
@@ -1008,15 +997,6 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, 'exit_execution', 'error', str(e))
-
-            # Phase 4b: Pyramid Adds
-            try:
-                with TimeBlock("phase_4b_pyramid_adds"):
-                    self.phase_4b_pyramid_adds()
-                logger.info("[OK] Phase 4b (Pyramid Adds) completed")
-            except Exception as e:
-                logger.error(f"✗ Phase 4b (Pyramid Adds) failed: {e}", exc_info=True)
-                self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
 
             # Phase 5: Signal Generation
             phase_5_start = time.time()

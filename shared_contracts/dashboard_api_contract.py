@@ -74,7 +74,7 @@ DASHBOARD_ENDPOINTS = {
             required_fields=[],
             optional_fields=["algo_enabled", "trade_mode", "max_position_size_pct", "max_positions",
                            "max_positions_per_sector", "min_swing_score", "base_risk_pct",
-                           "t1_target_r_multiple", "pyramid_enabled"],
+                           "t1_target_r_multiple"],
             field_types={
                 "algo_enabled": bool,
                 "trade_mode": str,

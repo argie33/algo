@@ -378,42 +378,37 @@ router.get('/positions', async (req, res) => {
     const pool = getPool();
 
     // Fetch positions and stage config in parallel
-    const [posResult, configResult, sectorResult] = await Promise.all([
+    const [posResult, configResult] = await Promise.all([
       pool.query(`
         SELECT
           position_id, symbol, quantity, avg_entry_price, current_price,
           position_value, unrealized_pnl, unrealized_pnl_pct,
           status, stage_in_exit_plan, days_since_entry,
-          current_stop_price as stop_loss_price,
-          NULL::float as target_1_price, NULL::float as target_2_price, NULL::float as target_3_price,
-          NULL::float as target_1_r_multiple, NULL::float as target_2_r_multiple, NULL::float as target_3_r_multiple,
-          NULL::text as sector, NULL::text as industry,
-          NULL::int as weinstein_stage, NULL::float as minervini_trend_score,
-          NULL::float as percent_from_52w_low, NULL::float as percent_from_52w_high,
-          NULL::float as r_multiple, NULL::float as initial_risk_per_share, NULL::float as open_risk_dollars,
-          NULL::float as distance_to_stop_pct, NULL::float as distance_to_t1_pct, NULL::float as distance_to_t2_pct, NULL::float as distance_to_t3_pct,
+          stop_loss_price,
+          target_1_price, target_2_price, target_3_price,
+          target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+          sector, industry,
+          weinstein_stage, minervini_trend_score,
+          percent_from_52w_low, percent_from_52w_high,
+          r_multiple, initial_risk_per_share, open_risk_dollars,
+          distance_to_stop_pct, distance_to_t1_pct, distance_to_t2_pct, distance_to_t3_pct,
           NULL::float as risk_pct, NULL::int as risk_rank,
           NULL::float as ladder_pct_stop, NULL::float as ladder_pct_entry, NULL::float as ladder_pct_current,
           NULL::float as ladder_pct_t1, NULL::float as ladder_pct_t2, NULL::float as ladder_pct_t3,
           NULL::float as ladder_scale_min, NULL::float as ladder_scale_max
-        FROM algo_positions
+        FROM algo_positions_with_risk
         WHERE status IN ('open', 'partially_closed')
         ORDER BY position_value DESC
       `),
       pool.query(`
         SELECT key, value FROM algo_config
         WHERE key IN ('stage_2_early_min_score', 'stage_2_mid_min_score', 'stage_2_late_min_score')
-      `),
-      pool.query(`
-        SELECT NULL::text as sector, 0 as position_count, 0.0 as total_value_dollars, 0.0 as allocation_pct, false as is_overweight
-        WHERE false
       `)
     ]);
 
     // Validate result structures
     validateQueryResult(posResult, { requireRows: false });
     validateQueryResult(configResult, { requireRows: false });
-    validateQueryResult(sectorResult, { requireRows: false });
 
     // Parse stage threshold config (with sensible defaults)
     const stageConfig = {
@@ -518,14 +513,24 @@ router.get('/positions', async (req, res) => {
       ladder_scale_max: sf(row.ladder_scale_max)
     }));
 
-    // Fetch pre-computed sector allocation from database (ISSUE #6)
-    const sector_allocation = validateAndCoerceRows(sectorResult, {
-      sector: { type: 'string', required: true },
-      position_count: { type: 'int', required: false, defaultValue: 0 },
-      total_value_dollars: { type: 'float', required: false, defaultValue: 0 },
-      allocation_pct: { type: 'float', required: false, defaultValue: 0 },
-      is_overweight: { type: 'bool', required: false, defaultValue: false }
-    });
+    // Compute sector allocation from positions
+    const sectorMap = {};
+    const totalValue = items.reduce((sum, p) => sum + (p.position_value || 0), 0) || 1;
+    for (const p of items) {
+      const sec = p.sector || 'Unknown';
+      if (!sectorMap[sec]) sectorMap[sec] = { position_count: 0, total_value_dollars: 0 };
+      sectorMap[sec].position_count += 1;
+      sectorMap[sec].total_value_dollars += p.position_value || 0;
+    }
+    const sector_allocation = Object.entries(sectorMap)
+      .map(([sector, d]) => ({
+        sector,
+        position_count: d.position_count,
+        total_value_dollars: parseFloat(d.total_value_dollars.toFixed(2)),
+        allocation_pct: parseFloat(((d.total_value_dollars / totalValue) * 100).toFixed(2)),
+        is_overweight: (d.total_value_dollars / totalValue) > 0.3,
+      }))
+      .sort((a, b) => b.total_value_dollars - a.total_value_dollars);
 
     return sendSuccess(res, {
       items,
@@ -1085,8 +1090,8 @@ router.get('/markets', async (req, res) => {
           raw_score: { type: 'float', required: false },
           regime: { type: 'string', required: false },
           distribution_days: { type: 'int', required: false },
-          factors: { type: 'string', required: false },
-          halt_reasons: { type: 'string', required: false },
+          factors: { type: 'raw', required: false },
+          halt_reasons: { type: 'raw', required: false },
           created_at: { type: 'date', required: false }
         })
       : null;
@@ -1130,6 +1135,16 @@ router.get('/markets', async (req, res) => {
       neutral: { type: 'float', required: false, defaultValue: 0 }
     });
 
+    // Parse halt_reasons: stored as VARCHAR containing JSON array string (e.g. "[]")
+    let parsedHaltReasons = [];
+    if (latest && latest.halt_reasons != null) {
+      if (typeof latest.halt_reasons === 'string') {
+        try { parsedHaltReasons = JSON.parse(latest.halt_reasons); } catch (_) { parsedHaltReasons = []; }
+      } else if (Array.isArray(latest.halt_reasons)) {
+        parsedHaltReasons = latest.halt_reasons;
+      }
+    }
+
     return sendSuccess(res, {
       current: latest ? {
         date: latest.date,
@@ -1137,8 +1152,8 @@ router.get('/markets', async (req, res) => {
         raw_score: latest.raw_score || 0,
         regime: latest.regime,
         distribution_days: latest.distribution_days,
-        factors: latest.factors,
-        halt_reasons: latest.halt_reasons,
+        factors: latest.factors || {},
+        halt_reasons: parsedHaltReasons,
       } : null,
       active_tier: policy,
       history: historyRows.map(r => ({
@@ -1875,7 +1890,6 @@ router.get('/performance', async (req, res) => {
         0 as current_win_streak, best_win_streak, worst_loss_streak,
         avg_holding_days as avg_hold_days, 0 as portfolio_snapshots_count
       FROM algo_performance_metrics
-      WHERE metric_date = CURRENT_DATE
       ORDER BY metric_date DESC LIMIT 1
     `);
 
@@ -2852,140 +2866,131 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 
 /**
  * GET /api/algo/daily-return-histogram
- * Issue #2: Returns pre-computed daily return histogram with statistics
- * Reads from algo_daily_return_histogram table (computed daily by orchestrator)
+ * Computes daily return histogram on-the-fly from algo_portfolio_snapshots.
  */
 router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT buckets, stats
-      FROM algo_daily_return_histogram
+      SELECT daily_return_pct
+      FROM algo_portfolio_snapshots
+      WHERE daily_return_pct IS NOT NULL
       ORDER BY snapshot_date DESC
-      LIMIT 1
+      LIMIT 250
     `);
 
-    validateQueryResult(result, { requireRows: false });
-
-    if (result.rows.length === 0) {
-      return sendSuccess(res, {
-        buckets: [],
-        stats: null,
-        count: 0,
-        _error: 'Daily return histogram not available - algo still building trading history',
-        _is_placeholder: true,
-      });
+    const returns = result.rows.map(r => parseFloat(r.daily_return_pct)).filter(v => !isNaN(v));
+    if (returns.length === 0) {
+      return sendSuccess(res, { buckets: [], stats: null });
     }
 
-    const row = result.rows[0];
-    const buckets = row.buckets || [];
-    const stats = row.stats || { n: 0, mean: 0, std: 0 };
-
+    const BW = 0.5;
+    const minB = Math.floor(Math.min(...returns) / BW) * BW;
+    const maxB = Math.ceil(Math.max(...returns) / BW) * BW;
+    const bucketsMap = {};
+    for (let mid = minB; mid <= maxB + 0.001; mid = Math.round((mid + BW) * 1000) / 1000) {
+      bucketsMap[mid] = 0;
+    }
+    for (const r of returns) {
+      const mid = Math.round(r / BW) * BW;
+      if (mid in bucketsMap) bucketsMap[mid]++;
+    }
+    const buckets = Object.entries(bucketsMap).map(([mid, count]) => ({ mid: parseFloat(mid), count }));
+    const mean = returns.reduce((s, v) => s + v, 0) / returns.length;
+    const std = Math.sqrt(returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length);
     return sendSuccess(res, {
       buckets,
-      stats,
+      stats: { count: returns.length, mean: parseFloat(mean.toFixed(2)), std: parseFloat(std.toFixed(2)) },
     });
   } catch (error) {
-    logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message, stack: error.stack });
-    return sendSuccess(res, {
-      buckets: [],
-      stats: null,
-      _error: error.message,
-      _is_placeholder: true,
-    });
+    logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message });
+    return sendSuccess(res, { buckets: [], stats: null, _error: error.message, _is_placeholder: true });
   }
 });
 
 /**
  * GET /api/algo/trade-distribution
- * Issue #3: Returns pre-computed trade outcome distribution by R-multiple
- * Reads from algo_trade_r_distribution table (computed daily by orchestrator)
+ * Computes trade R-multiple distribution on-the-fly from algo_trades.
  */
 router.get('/trade-distribution', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT buckets, total_trades
-      FROM algo_trade_r_distribution
-      ORDER BY snapshot_date DESC
-      LIMIT 1
+      SELECT exit_r_multiple
+      FROM algo_trades
+      WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
+      ORDER BY exit_date DESC LIMIT 500
     `);
 
-    validateQueryResult(result, { requireRows: false });
-
-    if (result.rows.length === 0) {
-      return sendSuccess(res, {
-        buckets: [],
-        total_trades: 0,
-        _error: 'Trade distribution not available - no closed trades yet',
-        _is_placeholder: true,
-      });
+    const rValues = result.rows.map(r => parseFloat(r.exit_r_multiple)).filter(v => !isNaN(v));
+    if (rValues.length === 0) {
+      return sendSuccess(res, { buckets: [], total_trades: 0 });
     }
 
-    const row = result.rows[0];
-    const buckets = row.buckets || [];
-    const totalTrades = row.total_trades || 0;
-
-    return sendSuccess(res, {
-      buckets,
-      total_trades: totalTrades,
-    });
+    const buckets = [
+      { range: '<-2R', count: 0 }, { range: '-2R to -1R', count: 0 },
+      { range: '-1R to 0R', count: 0 }, { range: '0R to 1R', count: 0 },
+      { range: '1R to 2R', count: 0 }, { range: '2R to 3R', count: 0 },
+      { range: '>3R', count: 0 },
+    ];
+    for (const r of rValues) {
+      if (r < -2) buckets[0].count++;
+      else if (r < -1) buckets[1].count++;
+      else if (r < 0) buckets[2].count++;
+      else if (r < 1) buckets[3].count++;
+      else if (r < 2) buckets[4].count++;
+      else if (r < 3) buckets[5].count++;
+      else buckets[6].count++;
+    }
+    return sendSuccess(res, { buckets: buckets.filter(b => b.count > 0), total_trades: rValues.length });
   } catch (error) {
-    logger.error('Error in /api/algo/trade-distribution:', { error: error.message, stack: error.stack });
-    return sendSuccess(res, {
-      buckets: [],
-      total_trades: 0,
-      _error: error.message,
-      _is_placeholder: true,
-    });
+    logger.error('Error in /api/algo/trade-distribution:', { error: error.message });
+    return sendSuccess(res, { buckets: [], total_trades: 0, _error: error.message, _is_placeholder: true });
   }
 });
 
 /**
  * GET /api/algo/holding-period-distribution
- * Issue #4: Returns pre-computed holding period distribution by days held
- * Reads from algo_holding_period_histogram table (computed daily by orchestrator)
+ * Computes holding period distribution on-the-fly from algo_trades.
  */
 router.get('/holding-period-distribution', authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
-      SELECT buckets, total_trades
-      FROM algo_holding_period_histogram
-      ORDER BY snapshot_date DESC
-      LIMIT 1
+      SELECT trade_duration_days
+      FROM algo_trades
+      WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
+      ORDER BY exit_date DESC LIMIT 500
     `);
 
-    validateQueryResult(result, { requireRows: false });
-
-    if (result.rows.length === 0) {
-      return sendSuccess(res, {
-        buckets: [],
-        total_trades: 0,
-        _error: 'Holding period distribution not available - no closed trades yet',
-        _is_placeholder: true,
-      });
+    const durations = result.rows.map(r => parseInt(r.trade_duration_days)).filter(v => !isNaN(v));
+    if (durations.length === 0) {
+      return sendSuccess(res, { buckets: [], total_trades: 0 });
     }
 
-    const row = result.rows[0];
-    const buckets = row.buckets || [];
-    const totalTrades = row.total_trades || 0;
-
-    return sendSuccess(res, {
-      buckets,
-      total_trades: totalTrades,
-    });
+    const buckets = [
+      { range: '1-3 days', count: 0 }, { range: '4-7 days', count: 0 },
+      { range: '8-14 days', count: 0 }, { range: '15-30 days', count: 0 },
+      { range: '31-60 days', count: 0 }, { range: '61-90 days', count: 0 },
+      { range: '91-180 days', count: 0 }, { range: '>180 days', count: 0 },
+    ];
+    for (const d of durations) {
+      if (d <= 3) buckets[0].count++;
+      else if (d <= 7) buckets[1].count++;
+      else if (d <= 14) buckets[2].count++;
+      else if (d <= 30) buckets[3].count++;
+      else if (d <= 60) buckets[4].count++;
+      else if (d <= 90) buckets[5].count++;
+      else if (d <= 180) buckets[6].count++;
+      else buckets[7].count++;
+    }
+    return sendSuccess(res, { buckets: buckets.filter(b => b.count > 0), total_trades: durations.length });
   } catch (error) {
-    logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message, stack: error.stack });
-    return sendSuccess(res, {
-      buckets: [],
-      total_trades: 0,
-      _error: error.message,
-      _is_placeholder: true,
-    });
+    logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message });
+    return sendSuccess(res, { buckets: [], total_trades: 0, _error: error.message, _is_placeholder: true });
   }
 });
 
@@ -3090,10 +3095,32 @@ router.get('/metrics', async (req, res) => {
 
 router.get('/risk-metrics', async (req, res) => {
   try {
+    ensureConnection();
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
+             portfolio_beta, top_5_concentration
+      FROM algo_risk_daily
+      ORDER BY report_date DESC LIMIT 1
+    `);
+
+    const row = result.rows[0];
+    if (!row) {
+      return sendSuccess(res, {
+        report_date: null, var_pct_95: null, cvar_pct_95: null,
+        stressed_var_pct: null, portfolio_beta: null, top_5_concentration: null
+      });
+    }
+
+    const sf = (v) => v == null ? null : parseFloat(v);
     return sendSuccess(res, {
-      portfolio_risk: null,
-      position_risk: [],
-      daily_risk: null
+      report_date: row.report_date,
+      var_pct_95: sf(row.var_pct_95),
+      cvar_pct_95: sf(row.cvar_pct_95),
+      stressed_var_pct: sf(row.stressed_var_pct),
+      portfolio_beta: sf(row.portfolio_beta),
+      top_5_concentration: sf(row.top_5_concentration),
     });
   } catch (error) {
     logger.error('Error in /algo/risk-metrics:', { error: error.message });

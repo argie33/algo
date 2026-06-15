@@ -124,12 +124,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "chandelier_atr_mult": 3.0,
     "move_be_at_r": 1.0,
 
-    # Pyramid Entry
-    "pyramid_enabled": True,
-    "pyramid_split_pct": "50,33,17",
-    "pyramid_add_1_gain_pct": 2.0,
-    "pyramid_add_2_gain_pct": 3.0,
-
     # Drawdown Re-engagement
     "re_engage_recovery_pct": 8.0,
     "re_engage_min_days": 5,
@@ -174,7 +168,6 @@ BASE_CONFIG: Dict[str, Any] = {
     "min_adv_shares": 50000,
     "min_adv_dollars": 500000,
     "min_order_size_dollars": 100.0,
-    "max_pyramid_adds": 3,
     "phase1_min_coverage_pct": 75,
     "phase1_min_symbol_count": 8000,
 

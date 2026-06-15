@@ -56,14 +56,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     SELECT id, created_at AS timestamp, action_type,
                            symbol, actor, status, error_message, details
                     FROM algo_audit_log
-                    WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
+                    WHERE action_type IN ('entry', 'exit', 'partial_exit')
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 audits = cur.fetchall()
                 cur.execute("""
                     SELECT COUNT(*) FROM algo_audit_log
-                    WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
+                    WHERE action_type IN ('entry', 'exit', 'partial_exit')
                 """)
                 total = next(iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0)
                 freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)

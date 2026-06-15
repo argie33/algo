@@ -21,7 +21,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT 1
             """)
             row = cur.fetchone()
-            result = safe_json_serialize(dict(row)) if row else {}
+            if not row:
+                return error_response(503, 'no_data', 'Market status data not yet available')
+
+            result = safe_json_serialize(dict(row))
 
             # Add freshness check
             freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)

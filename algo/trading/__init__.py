@@ -3,7 +3,6 @@
 from .executor import TradeExecutor
 from .pretrade_checks import PreTradeChecks
 from .exit_engine import ExitEngine
-from .pyramid import PyramidEngine
 from .tca import TCAEngine
 from .position_sizer import PositionSizer
 
@@ -12,6 +11,5 @@ __all__ = [
     'PositionSizer',
     'PreTradeChecks',
     'ExitEngine',
-    'PyramidEngine',
     'TCAEngine',
 ]

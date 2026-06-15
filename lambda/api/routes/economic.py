@@ -74,7 +74,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(504, 'timeout', 'Economic data query exceeded timeout')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema error in economic route {path}: {str(e)}")
-            return json_response(200, {'indicators': []})
+            return error_response(503, 'schema_mismatch', 'Economic data schema not yet available')
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             logger.error(f"Database error in economic route {path}: {str(e)}")
             return error_response(503, 'service_unavailable', 'Database temporarily unavailable. Using cached data.')

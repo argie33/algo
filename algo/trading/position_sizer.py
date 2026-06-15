@@ -5,7 +5,6 @@ Position Sizer - Calculates trade size based on risk management rules
 Rules:
 - Base risk: 0.75% of portfolio per trade
 - Drawdown defense: reduce risk at -5%, -10%, -15%, -20%
-- Pyramid entry: 50/33/17 split across multiple entries
 - Max position size: 8% of portfolio
 - Max concentration: 50% in single position
 - Max positions: 12 concurrent
@@ -498,11 +497,3 @@ class PositionSizer:
                 'reason': str(e)
             }
 
-    def get_pyramid_split(self):
-        """Get pyramid entry split percentages."""
-        split_str = self.config.get('pyramid_split_pct', '50,33,17')
-        try:
-            splits = [float(x.strip()) / 100 for x in split_str.split(',')]
-            return splits
-        except (ValueError, AttributeError):
-            return [0.50, 0.33, 0.17]

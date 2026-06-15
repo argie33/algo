@@ -109,7 +109,7 @@ This verifies:
 - No orphaned positions (in `algo_positions` but not `algo_trades`)
 - No stale positions (marked open but trade is closed)
 - No missing positions (trade is open but no position record)
-- Quantity matches (for pyramided positions)
+- Quantity matches between `algo_positions` and `algo_trades`
 
 ---
 
