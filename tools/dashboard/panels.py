@@ -458,7 +458,109 @@ def panel_circuit(cb):
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(
         Group(*parts),
-        title="[bold blue]CIRCUIT BREAKERS[/]",
+        title="[bold blue]CIRCUIT BREAKERS[/]  [dim][b] expand[/]",
+        border_style="blue",
+        padding=(0, 1),
+    )
+
+
+@register_panel(
+    "circuit_expanded",
+    endpoint_deps=["cb"],
+    optional=False,
+    description="Circuit Breakers Expanded",
+)
+def panel_circuit_expanded(cb):
+    """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
+    rows = [
+        Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+
+    err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS - EXPANDED", border="blue")
+    if err_panel:
+        return err_panel
+
+    n_f = cb.get("n", 0)
+    any_f = cb.get("any", False)
+    hc = R if any_f else G
+    if any_f:
+        rows.append(Text.from_markup(
+            f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]"
+        ))
+    else:
+        rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  —  NO BREAKERS ACTIVE[/]"))
+    rows.append(Rule(style="dim"))
+
+    bs = cb.get("bs", [])
+    if not bs:
+        rows.append(Text("no breaker data", style="dim"))
+    else:
+        tbl = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim bold",
+            padding=(0, 2),
+            expand=True,
+            row_styles=["", "dim"],
+        )
+        tbl.add_column("Breaker", no_wrap=True, min_width=20)
+        tbl.add_column("Current", justify="right", no_wrap=True, min_width=8)
+        tbl.add_column("Threshold", justify="right", no_wrap=True, min_width=9)
+        tbl.add_column("Utilization", no_wrap=True, min_width=18)
+        tbl.add_column("Status", justify="center", no_wrap=True, min_width=8)
+
+        for br in bs:
+            lbl = str(br.get("lbl") or "--")
+            cur = br.get("cur")
+            thr = br.get("thr")
+            u = str(br.get("u") or "")
+            fired = br.get("fired", False)
+
+            if cur is None or thr is None:
+                cur_s = f"{cur}{u}" if cur is not None else "--"
+                thr_s = f"{thr}{u}" if thr is not None else "--"
+                util_bar = Text("-- / --", style="dim")
+                status = Text("UNKNOWN", style="dim")
+            else:
+                thr_f = float(thr or 1)
+                cur_f = float(cur or 0)
+                util = cur_f / thr_f if thr_f > 0 else 0
+                util_pct = util * 100
+                fc = R if fired else (Y if util >= 0.75 else G)
+                bar_f = int(min(util, 1.0) * 12)
+                bar_s = Text.from_markup(
+                    f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{util_pct:.0f}%[/]"
+                )
+                cur_s = f"{cur_f:.1f}{u}" if u else f"{cur_f:.2f}"
+                thr_s = f"{thr_f:.1f}{u}" if u else f"{thr_f:.2f}"
+                util_bar = bar_s
+                if fired:
+                    status = Text.from_markup(f"[bold {R}]FIRED[/]")
+                elif util >= 0.75:
+                    status = Text.from_markup(f"[{Y}]WARNING[/]")
+                else:
+                    status = Text.from_markup(f"[{G}]CLEAR[/]")
+
+            tbl.add_row(
+                Text(lbl, style=f"bold {R}" if fired else ("white" if (cur is not None and thr is not None and float(cur or 0) / float(thr or 1) >= 0.75) else "dim")),
+                Text(cur_s, style=R if fired else "white"),
+                Text(thr_s, style="dim"),
+                util_bar,
+                status,
+            )
+        rows.append(tbl)
+
+        if any_f:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup(
+                f"[bold {R}]Trading is halted until the circuit breaker condition clears.[/]\n"
+                f"[dim]Breakers auto-reset when the monitored metric falls below threshold.[/]"
+            ))
+
+    return Panel(
+        Group(*rows),
+        title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]  [dim][b] return[/]",
         border_style="blue",
         padding=(0, 1),
     )
