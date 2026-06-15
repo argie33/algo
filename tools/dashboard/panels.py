@@ -2364,7 +2364,6 @@ def panel_algo_health(
     hlth,
     notifs,
     algo_metrics=None,
-    loader=None,
     audit=None,
     exec_hist=None,
     risk=None,
@@ -3063,7 +3062,6 @@ def panel_algo_health_expanded(
     hlth,
     notifs,
     algo_metrics=None,
-    loader=None,
     audit=None,
     exec_hist=None,
     risk=None,
@@ -3380,10 +3378,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         cyc_s = float(sec_rot.get("cyc_score") or 0)
         strength = float(sec_rot.get("strength") or 0)
         sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
+        rot_date = sec_rot.get("date")
+        date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
         rows.append(
             Text.from_markup(
                 f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
-                f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]"
+                f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]{date_s}"
             )
         )
         rows.append(Rule(style="dim"))

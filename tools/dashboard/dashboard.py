@@ -322,7 +322,6 @@ def render_dashboard(
     sec_rot = data.get("sec_rot") or {}
     algo_metrics = _extract_items(data.get("algo_metrics") or {})
     irank = _extract_items(data.get("irank") or {})
-    loader = hlth
     audit = _extract_items(data.get("audit") or {})
     exec_hist = _extract_items(data.get("exec_hist") or {})
     scores = data.get("scores") or {}
@@ -387,7 +386,6 @@ def render_dashboard(
                 hlth,
                 notifs,
                 algo_metrics,
-                loader,
                 audit,
                 exec_hist,
                 risk=risk,
@@ -451,7 +449,6 @@ def render_dashboard(
                 hlth,
                 notifs,
                 algo_metrics,
-                loader,
                 audit,
                 exec_hist,
                 risk=risk,
