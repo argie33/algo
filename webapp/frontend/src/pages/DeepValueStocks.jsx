@@ -38,6 +38,7 @@ const DeepValueStocksContent = () => {
 
       return {
         ...s,
+        _financial_data_unavailable: s._financial_data_unavailable === true,
         generational_score: parseFloat(s.generational_score) || 0,
         current_price: current,
         trailing_pe: num(s.trailing_pe),
@@ -248,6 +249,11 @@ const DeepValueStocksContent = () => {
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#22c55e' }}>💎 Quality & Profitability</h3>
+              {stock._financial_data_unavailable && (
+                <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-xs)', color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: 'var(--space-2)', borderRadius: '4px' }}>
+                  Financial data not yet available — quality metrics pending loader run
+                </p>
+              )}
               <MetricGrid items={[
                 ["ROE", fmtPct(stock.roe_pct), stock.roe_pct >= 35 ? "#22c55e" : "inherit"],
                 ["ROA", fmtPct(stock.roa_pct)],
