@@ -1597,6 +1597,7 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     base_type VARCHAR(50),
     base_quality VARCHAR(50),
     stage_phase INTEGER,
+    entry_stage VARCHAR(20),
     sector VARCHAR(50),
     industry VARCHAR(100),
     rs_percentile DECIMAL(8, 4),
