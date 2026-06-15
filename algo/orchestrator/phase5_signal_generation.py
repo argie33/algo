@@ -36,7 +36,6 @@ from typing import Callable, Dict, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.db.context import DatabaseContext
-from algo.signals import SignalComputer, VectorizedSignalGenerator, SwingTraderScore
 from algo.risk import LiquidityChecks
 from algo.orchestrator.phase_result import PhaseResult
 from config.thresholds import ThresholdConfig
@@ -214,6 +213,7 @@ def run(
     config=None,
 ) -> PhaseResult:
     import os
+    from algo.signals import SignalComputer, VectorizedSignalGenerator, SwingTraderScore
 
     # Enforce config parameter for dependency injection
     if config is None:
