@@ -2001,7 +2001,6 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
         return error_response(500, "internal_error", "Failed to fetch notifications")
 
 
-
 @db_route_handler("calculate trade preview")
 def _calculate_trade_preview(cur, body: Dict) -> Dict:
     """Calculate position preview before trade entry.
