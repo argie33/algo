@@ -558,10 +558,11 @@ class TradeExecutor:
                         order_result.get("rejection_reason")
                         or "Order rejected by Alpaca (no reason provided)"
                     )
-                # CRITICAL: Do NOT use entry_price as fallback for pending Alpaca orders.
-                # This corrupts fill price data and breaks slippage/position accounting.
-                # Pending orders will be reconciled when they actually fill.
-                executed_price = order_result.get("executed_price")
+                # For pending orders, executed_price is None (order not yet filled).
+                # Use entry_price as the initial DB value; reconciliation updates it to
+                # the actual fill price when the order executes. Slippage is computed at
+                # reconciliation time, not here, so this doesn't corrupt fill data.
+                executed_price = order_result.get("executed_price") or entry_price
 
                 # Verify bracket legs were created successfully — FAIL-CLOSED if missing stop leg
                 legs = order_result.get("legs", [])
