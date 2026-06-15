@@ -3917,7 +3917,6 @@ def _get_algo_audit_log(
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 @db_route_handler("fetch orchestrator execution recent")
-@db_route_handler("fetch orchestrator execution recent")
 def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
     """Return recent orchestrator execution runs."""
     try:
