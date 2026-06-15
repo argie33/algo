@@ -1,4 +1,4 @@
-/**
+﻿﻿/**
  * Enterprise-Grade Chart Theme System
  * Award-winning financial data visualization
  * Designed for wealth management & professional trading platforms
@@ -394,8 +394,8 @@ export const formatChartPercent = (value) => {
  * Get icon for trend direction
  */
 export const getTrendIcon = (value) => {
-  if (value > 0) return 'â†—ï¸';
-  if (value < 0) return 'â†˜ï¸';
+  if (value > 0) return '↗';
+  if (value < 0) return '↘';
   return '→';
 };
 

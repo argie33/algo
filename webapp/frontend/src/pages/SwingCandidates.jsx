@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Swing Candidates — full-universe analytical workbench.
  *
  * Sections:
@@ -376,7 +376,7 @@ export default function SwingCandidates() {
                   <option value={50}>50 per page</option>
                   <option value={100}>100 per page</option>
                 </select>
-                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">â† Prev</button>
+                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">← Prev</button>
                 <div style={{ minWidth: '80px', textAlign: 'center', fontSize: 'var(--t-xs)' }}>Page {currentPage} of {totalPages}</div>
                 <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next →</button>
               </div>

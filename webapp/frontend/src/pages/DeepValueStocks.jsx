@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+﻿import React, { useState, useMemo } from "react";
 import {
   TrendingUp,
   Download as DownloadIcon,
@@ -272,7 +272,7 @@ const DeepValueStocksContent = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#f97316' }}>⚠ï¸ Trap Detection (YoY Trends)</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#f97316' }}>⚠️ Trap Detection (YoY Trends)</h3>
               <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)' }}>
                 Are quality metrics improving ✓ or declining ✗? Negative = potential value trap.
               </p>

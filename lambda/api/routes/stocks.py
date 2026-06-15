@@ -184,47 +184,47 @@ def handle(
                     COALESCE(cp.sector, 'Unknown') AS sector,
                     COALESCE(cp.industry, 'Unknown') AS industry,
                     cp.market_cap,
-                    COALESCE(lp.current_price, 0) AS current_price,
+                    lp.current_price,
                     (lp.current_price IS NULL OR s52.high_52w IS NULL OR s52.low_52w IS NULL) AS _is_fallback,
                     ROUND((
-                        COALESCE(sc.value_score, 0) * 0.5 +
-                        COALESCE(sc.quality_score, 0) * 0.3 +
-                        COALESCE(sc.growth_score, 0) * 0.2
+                        sc.value_score * 0.5 +
+                        sc.quality_score * 0.3 +
+                        sc.growth_score * 0.2
                     )::numeric, 2) AS generational_score,
-                    COALESCE(vm.pe_ratio, 0) AS trailing_pe,
-                    COALESCE(vm.pb_ratio, 0) AS price_to_book,
-                    COALESCE(vm.ps_ratio, 0) AS price_to_sales,
+                    vm.pe_ratio AS trailing_pe,
+                    vm.pb_ratio AS price_to_book,
+                    vm.ps_ratio AS price_to_sales,
                     NULL::numeric AS ev_to_ebitda,
-                    COALESCE(vm.peg_ratio, 0) AS peg_ratio,
-                    COALESCE(vm.dividend_yield, 0) AS dividend_yield,
-                    ROUND(COALESCE(qm.roe, 0)::numeric, 2) AS roe_pct,
-                    ROUND(COALESCE(qm.operating_margin, 0)::numeric, 2) AS op_margin_pct,
-                    ROUND(COALESCE(md.gross_margin_pct, 0)::numeric, 2) AS gross_margin_pct,
-                    ROUND(COALESCE(qm.net_margin, 0)::numeric, 2) AS net_margin_pct,
-                    ROUND(COALESCE(qm.roa, 0)::numeric, 2) AS roa_pct,
-                    COALESCE(qm.debt_to_equity, 0) AS debt_to_equity,
-                    COALESCE(qm.current_ratio, 0) AS current_ratio,
-                    COALESCE(s52.high_52w, 0) AS high_52w,
-                    COALESCE(s52.low_52w, 0) AS low_52w,
+                    vm.peg_ratio AS peg_ratio,
+                    vm.dividend_yield AS dividend_yield,
+                    ROUND(qm.roe::numeric, 2) AS roe_pct,
+                    ROUND(qm.operating_margin::numeric, 2) AS op_margin_pct,
+                    ROUND(md.gross_margin_pct::numeric, 2) AS gross_margin_pct,
+                    ROUND(qm.net_margin::numeric, 2) AS net_margin_pct,
+                    ROUND(qm.roa::numeric, 2) AS roa_pct,
+                    qm.debt_to_equity AS debt_to_equity,
+                    qm.current_ratio AS current_ratio,
+                    s52.high_52w AS high_52w,
+                    s52.low_52w AS low_52w,
                     NULL::numeric AS high_3y,
-                    ROUND(((COALESCE(s52.high_52w, 0) - lp.current_price) / NULLIF(COALESCE(s52.high_52w, 0), 0) * 100)::numeric, 2) AS drop_from_52w_high_pct,
+                    ROUND(((s52.high_52w - lp.current_price) / NULLIF(s52.high_52w, 0) * 100)::numeric, 2) AS drop_from_52w_high_pct,
                     NULL::numeric AS drop_from_3y_high_pct,
-                    COALESCE(sm.sector_median_pe, 0) AS sector_median_pe,
-                    COALESCE(mm.market_median_pe, 0) AS market_median_pe,
-                    ROUND(((COALESCE(sm.sector_median_pe, 0) - COALESCE(vm.pe_ratio, 0)) / NULLIF(COALESCE(sm.sector_median_pe, 0), 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
-                    ROUND(((COALESCE(mm.market_median_pe, 0) - COALESCE(vm.pe_ratio, 0)) / NULLIF(COALESCE(mm.market_median_pe, 0), 0) * 100)::numeric, 2) AS discount_vs_market_pe_pct,
-                    ROUND((lp.current_price / NULLIF(COALESCE(vm.pb_ratio, 0), 0))::numeric, 2) AS intrinsic_value_per_share,
-                    ROUND(COALESCE(gm.revenue_growth_3y, 0)::numeric, 2) AS revenue_growth_3y_pct,
-                    ROUND(COALESCE(gm.eps_growth_3y, 0)::numeric, 2) AS eps_growth_3y_pct,
-                    ROUND(COALESCE(gm.revenue_growth_1y, 0)::numeric, 2) AS revenue_growth_yoy_pct,
-                    ROUND(((COALESCE(fg.fcf_cur, 0) - COALESCE(fg.fcf_pri, 0)) / NULLIF(ABS(COALESCE(fg.fcf_pri, 0)), 0) * 100)::numeric, 2) AS fcf_growth_yoy_pct,
+                    sm.sector_median_pe AS sector_median_pe,
+                    mm.market_median_pe AS market_median_pe,
+                    ROUND(((sm.sector_median_pe - vm.pe_ratio) / NULLIF(sm.sector_median_pe, 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
+                    ROUND(((mm.market_median_pe - vm.pe_ratio) / NULLIF(mm.market_median_pe, 0) * 100)::numeric, 2) AS discount_vs_market_pe_pct,
+                    ROUND((lp.current_price / NULLIF(vm.pb_ratio, 0))::numeric, 2) AS intrinsic_value_per_share,
+                    ROUND(gm.revenue_growth_3y::numeric, 2) AS revenue_growth_3y_pct,
+                    ROUND(gm.eps_growth_3y::numeric, 2) AS eps_growth_3y_pct,
+                    ROUND(gm.revenue_growth_1y::numeric, 2) AS revenue_growth_yoy_pct,
+                    ROUND(((fg.fcf_cur - fg.fcf_pri) / NULLIF(ABS(fg.fcf_pri), 0) * 100)::numeric, 2) AS fcf_growth_yoy_pct,
                     NULL::numeric AS sustainable_growth_pct,
-                    ROUND((COALESCE(md.op_margin_cur, 0) - COALESCE(md.op_margin_pri, 0))::numeric, 2) AS op_margin_trend_pp,
-                    ROUND((COALESCE(md.gross_margin_cur, 0) - COALESCE(md.gross_margin_pri, 0))::numeric, 2) AS gross_margin_trend_pp,
-                    ROUND((COALESCE(md.roe_cur, 0) - COALESCE(md.roe_pri, 0))::numeric, 2) AS roe_trend_pp,
+                    ROUND((md.op_margin_cur - md.op_margin_pri)::numeric, 2) AS op_margin_trend_pp,
+                    ROUND((md.gross_margin_cur - md.gross_margin_pri)::numeric, 2) AS gross_margin_trend_pp,
+                    ROUND((md.roe_cur - md.roe_pri)::numeric, 2) AS roe_trend_pp,
                     CASE
-                        WHEN COALESCE(qm.roe, 0) >= 25 AND COALESCE(qm.operating_margin, 0) >= 15 THEN 'tier1'
-                        WHEN COALESCE(qm.roe, 0) >= 20 AND COALESCE(qm.operating_margin, 0) >= 12 THEN 'tier2'
+                        WHEN qm.roe >= 25 AND qm.operating_margin >= 15 THEN 'tier1'
+                        WHEN qm.roe >= 20 AND qm.operating_margin >= 12 THEN 'tier2'
                         ELSE 'other'
                     END AS quality_rank
                 FROM value_stocks vs

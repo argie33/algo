@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Data Integration Tests
  * Tests real-time data loading, API responses, and data consistency
  */
@@ -239,7 +239,7 @@ test.describe("Financial Platform - Data Integration", () => {
   });
 
   test("should handle error states gracefully", async ({ page }) => {
-    console.log("⚠ï¸ Testing error handling...");
+    console.log("⚠️ Testing error handling...");
 
     let consoleErrors = [];
     let networkErrors = [];
@@ -267,7 +267,7 @@ test.describe("Financial Platform - Data Integration", () => {
       )
       .count();
 
-    console.log(`⚠ï¸ Error elements found: ${errorElements}`);
+    console.log(`⚠️ Error elements found: ${errorElements}`);
     console.log(`ðŸ” Console errors: ${consoleErrors.length}`);
     console.log(`ðŸŒ Network errors: ${networkErrors.length}`);
 

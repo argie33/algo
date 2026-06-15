@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+﻿import React, { useMemo } from "react";
 import {
   Box,
   Card,
@@ -82,7 +82,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
       } else if (advancePercent < 35) {
         signals.push({ label: "Weak Breadth", color: "error", icon: "📉" });
       } else if (advancePercent < 45) {
-        signals.push({ label: "Declining Breadth", color: "warning", icon: "⚠ï¸" });
+        signals.push({ label: "Declining Breadth", color: "warning", icon: "⚠️" });
       }
     }
     breakdown.breadth = breadthScore;
@@ -132,16 +132,16 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     if (recentDistribution >= 6) {
       distributionScore = -30; // Maximum penalty
-      signals.push({ label: "High Distribution ⚠ï¸", color: "error", icon: "⛔" });
+      signals.push({ label: "High Distribution ⚠️", color: "error", icon: "⛔" });
     } else if (recentDistribution >= 4) {
       distributionScore = -20;
       signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "⛔" });
     } else if (recentDistribution >= 2) {
       distributionScore = -10;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "⚠ï¸" });
+      signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "⚠️" });
     } else if (recentDistribution === 1) {
       distributionScore = -5;
-      signals.push({ label: "1 Distribution Day", color: "warning", icon: "⚠ï¸" });
+      signals.push({ label: "1 Distribution Day", color: "warning", icon: "⚠️" });
     }
     breakdown.distribution = distributionScore;
     score += distributionScore;
@@ -223,7 +223,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
               }}
             >
               <Typography variant="body2" color="error">
-                ⚠ï¸ Unable to calculate exposure: {exposureScore.error || "Market data unavailable"}
+                ⚠️ Unable to calculate exposure: {exposureScore.error || "Market data unavailable"}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
                 Please ensure market data is loading correctly
@@ -474,7 +474,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                ⚠ï¸ If Mixed: Use trailing stops
+                ⚠️ If Mixed: Use trailing stops
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>

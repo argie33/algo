@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 
 test.describe("Market Overview Page E2E Tests", () => {
   test.setTimeout(30000);
@@ -72,7 +72,7 @@ test.describe("Market Overview Page E2E Tests", () => {
       expect(hasMarketContent).toBeGreaterThan(0);
 
     } catch (error) {
-      console.log("⚠ï¸ Market Overview failed to load:", error.message);
+      console.log("⚠️ Market Overview failed to load:", error.message);
       await page.screenshot({ path: 'debug-market-overview.png' });
       throw error;
     }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Market Health — flagship dashboard.
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind. Dark theme.
@@ -1639,7 +1639,7 @@ function DistributionDaysTimeline() {
                 })}
               </div>
               <div className="t-2xs faint" style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <span>â† 25 sessions ago</span>
+                <span>← 25 sessions ago</span>
                 <span>today →</span>
               </div>
             </div>

@@ -207,9 +207,9 @@ def handle(
                             AVG(ss.quality_score) as quality_score,
                             AVG(ss.growth_score) as growth_score,
                             AVG(ss.stability_score) as stability_score,
-                            COALESCE(sp.perf_1d, 0) as perf_1d,
-                            COALESCE(sp.perf_5d, 0) as perf_5d,
-                            COALESCE(sp.perf_20d, 0) as perf_20d,
+                            sp.perf_1d,
+                            sp.perf_5d,
+                            sp.perf_20d,
                             (sp.sector IS NULL) as _is_fallback
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Accessibility Testing (A11y)
  * Tests WCAG compliance, keyboard navigation, and screen reader compatibility
  */
@@ -133,7 +133,7 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         // Continue testing even if individual focus operations fail
-        console.log(`⚠ï¸ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠️ Tab ${i + 1} failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -216,7 +216,7 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`⚠ï¸ ARIA check failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠️ ARIA check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -278,7 +278,7 @@ test.describe("Financial Platform - Accessibility", () => {
           );
         } else if (pageAccessibilityScore > 0) {
           console.log(
-            `⚠ï¸ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
+            `⚠️ ${pagePath}: Some accessibility features (${pageAccessibilityScore}/6)`
           );
         } else {
           console.log(
@@ -363,7 +363,7 @@ test.describe("Financial Platform - Accessibility", () => {
           }
         }
       } catch (error) {
-        console.log(`⚠ï¸ Contrast check failed: ${error.message.slice(0, 30)}`);
+        console.log(`⚠️ Contrast check failed: ${error.message.slice(0, 30)}`);
       }
     }
 
@@ -416,7 +416,7 @@ test.describe("Financial Platform - Accessibility", () => {
         }
       } catch (error) {
         console.log(
-          `⚠ï¸ Screen reader check failed: ${error.message.slice(0, 30)}`
+          `⚠️ Screen reader check failed: ${error.message.slice(0, 30)}`
         );
       }
     }

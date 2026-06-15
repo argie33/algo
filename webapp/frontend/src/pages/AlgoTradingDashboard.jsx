@@ -409,7 +409,7 @@ function AlgoTradingDashboardContent() {
               <p className="empty-sub">The orchestrator logs runs to the orchestrator_execution_log table after each execution.</p>
             </div>
           ) : (
-            <table className="table" style={{ width: '100%' }}>
+            <table className="data-table" style={{ width: '100%' }}>
               <thead>
                 <tr>
                   <th style={{ width: 24 }}></th>

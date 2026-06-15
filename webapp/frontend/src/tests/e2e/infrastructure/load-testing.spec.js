@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Load Testing for High-Traffic Scenarios
  * Tests system behavior under heavy load and concurrent users
  */
@@ -405,7 +405,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         }
       } catch (error) {
         console.log(
-          `⚠ï¸ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
+          `⚠️ Interaction ${i + 1} failed: ${error.message.slice(0, 50)}`
         );
         interactionTimes.push(1000); // Penalty for failed interaction
       }

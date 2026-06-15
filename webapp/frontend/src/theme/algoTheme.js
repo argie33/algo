@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Bullseye Trading — Unified Design System
  *
  * Hybrid light/dark theme inspired by Bloomberg Terminal, Koyfin, Stripe.
@@ -329,7 +329,7 @@ export const comp = {
 // FORMATTERS
 // ============================================================================
 export const pnlColor = (n) => (n > 0 ? _tokens.bull : n < 0 ? _tokens.bear : _tokens.textDim);
-export const arrowFor = (n) => (n > 0 ? 'â–²' : n < 0 ? 'â–¼' : '·');
+export const arrowFor = (n) => (n > 0 ? '▲' : n < 0 ? '▼' : '·');
 
 export const fmt$ = (n, decimals = 2) => {
   if (n === null || n === undefined || isNaN(n)) return '-';

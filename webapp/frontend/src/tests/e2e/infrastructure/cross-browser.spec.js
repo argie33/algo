@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Safari-Specific Routing Tests
  * Addresses Safari compatibility issues with SPA routing and navigation
  */
@@ -182,7 +182,7 @@ test.describe("Safari Routing Compatibility", () => {
       );
     } catch (error) {
       console.log(
-        `⚠ï¸ Safari history navigation issue: ${error.message.slice(0, 60)}`
+        `⚠️ Safari history navigation issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail the test entirely, as Safari history can be finicky
       expect(error).toBeDefined(); // At least the error is captured
@@ -279,7 +279,7 @@ test.describe("Safari Routing Compatibility", () => {
 
     } catch (error) {
       console.log(
-        `⚠ï¸ Safari state persistence issue: ${error.message.slice(0, 60)}`
+        `⚠️ Safari state persistence issue: ${error.message.slice(0, 60)}`
       );
       // Don't fail entirely, as some state management can be browser-specific
       expect(error).toBeDefined();

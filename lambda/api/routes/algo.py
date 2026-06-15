@@ -2375,9 +2375,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
 def _get_sector_breadth(cur) -> Dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
-    Uses pre-computed sma_50/sma_200 from trend_template_data (fast indexed lookup).
-    technical_data_daily was removed from the pipeline; trend_template_data has
-    the same sma_50/sma_200 columns and is actively populated.
+    Uses pre-computed sma_50/sma_200 from technical_data_daily (populated daily by vectorized loader).
     """
     try:
         # SAVEPOINT isolation: a timeout here must not abort the outer transaction
@@ -2385,11 +2383,11 @@ def _get_sector_breadth(cur) -> Dict:
         cur.execute("SAVEPOINT sector_breadth_check")
         cur.execute("""
                 WITH latest_tech AS (
-                    SELECT DISTINCT ON (tt.symbol)
-                        tt.symbol, tt.sma_50, tt.sma_200
-                    FROM trend_template_data tt
-                    WHERE tt.date >= CURRENT_DATE - INTERVAL '7 days'
-                    ORDER BY tt.symbol, tt.date DESC
+                    SELECT DISTINCT ON (td.symbol)
+                        td.symbol, td.sma_50, td.sma_200
+                    FROM technical_data_daily td
+                    WHERE td.date >= CURRENT_DATE - INTERVAL '7 days'
+                    ORDER BY td.symbol, td.date DESC
                 ),
                 latest_price AS (
                     SELECT DISTINCT ON (pd.symbol)

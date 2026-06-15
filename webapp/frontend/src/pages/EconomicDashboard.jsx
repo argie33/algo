@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+﻿import React, { useMemo, useState, useEffect } from 'react';
 import {
   RefreshCw, TrendingUp, Activity,
   AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home, Globe,
@@ -1288,8 +1288,8 @@ function EconomicRegimeClock({ indicators, _yieldData, phillyfed }) {
             }} />
 
             {/* Axis Labels */}
-            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5 }}>Weak â† Growth → Strong</div>
-            <div style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Low â† Inflation → High</div>
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5 }}>Weak ← Growth → Strong</div>
+            <div style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Low ← Inflation → High</div>
           </div>
 
           {/* Key Inputs */}

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Main Entry Point Tests
  * Tests the critical initialization patterns used in main.jsx
  *
@@ -152,7 +152,7 @@ describe("Main Entry Point", () => {
         if (window.__CONFIG__) {
           return true;
         } else {
-          console.warn("⚠ï¸ Config not loaded yet, check index.html script tag");
+          console.warn("⚠️ Config not loaded yet, check index.html script tag");
           return false;
         }
       };
@@ -165,7 +165,7 @@ describe("Main Entry Point", () => {
 
       expect(result).toBe(false);
       expect(console.warn).toHaveBeenCalledWith(
-        "⚠ï¸ Config not loaded yet, check index.html script tag"
+        "⚠️ Config not loaded yet, check index.html script tag"
       );
 
       // Restore config

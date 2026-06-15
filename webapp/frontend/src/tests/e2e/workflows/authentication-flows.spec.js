@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Authentication Flow Tests
  * Tests login, logout, API key setup, and protected routes
  */
@@ -150,7 +150,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
           accessibleRoutes++;
         }
       } catch (error) {
-        console.log(`⚠ï¸ ${route}: Error - ${error.message.slice(0, 50)}`);
+        console.log(`⚠️ ${route}: Error - ${error.message.slice(0, 50)}`);
       }
     }
 

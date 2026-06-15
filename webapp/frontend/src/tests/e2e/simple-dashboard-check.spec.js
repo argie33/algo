@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   // Navigate to portfolio dashboard
@@ -66,7 +66,7 @@ test('Portfolio Dashboard - Simple data rendering check', async ({ page }) => {
   const rendererWorking = cardCount > 100 && svgCount > 10;
   const dataLoaded = holdingsFound >= 5 && metricsFound >= 3;
 
-  console.log(`${errors === 0 ? 'âœ…' : '⚠ï¸'} No errors on page`);
+  console.log(`${errors === 0 ? 'âœ…' : '⚠️'} No errors on page`);
 
 
   // Basic assertions - all 10 holdings should render
