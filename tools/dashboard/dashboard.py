@@ -424,6 +424,7 @@ def render_dashboard(
         hint = Text.from_markup(
             "[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]"
         )
+        _pos_items = pos.get("items", []) if isinstance(pos, dict) else (pos or [])
         return _expanded_layout(
             *_exp_top,
             Panel(
@@ -432,7 +433,7 @@ def render_dashboard(
                     Rule(style="dim"),
                     panel_positions(pos, compact=False, trades=rec),
                 ),
-                title=f"[bold cyan]ALL POSITIONS ({len(pos or [])})[/]",
+                title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
                 border_style="cyan",
                 padding=(0, 1),
             ),

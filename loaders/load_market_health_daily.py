@@ -148,10 +148,11 @@ class MarketHealthDailyLoader(OptimalLoader):
                     else str(idx)[:10]
                 )
                 close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
-                if close_val is not None and not (
-                    isinstance(close_val, float) and close_val != close_val
-                ):
+                is_nan = isinstance(close_val, float) and close_val != close_val
+                if close_val is not None and not is_nan and float(close_val) > 5.0:
                     result[date_str] = round(float(close_val), 2)
+                elif close_val is not None and not is_nan:
+                    logger.warning(f"VIX value {close_val} for {date_str} is implausibly low — skipping")
             logger.info(f"Fetched VIX data: {len(result)} days")
             return result
         except Exception as e:
@@ -209,9 +210,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT date, yield_curve_slope_10y2y FROM economic_metrics_daily"
-                    " WHERE date >= %s AND date <= %s AND yield_curve_slope_10y2y IS NOT NULL"
-                    " ORDER BY date",
+                    "SELECT report_date, yield_curve_slope_10y2y FROM economic_metrics_daily"
+                    " WHERE report_date >= %s AND report_date <= %s AND yield_curve_slope_10y2y IS NOT NULL"
+                    " ORDER BY report_date",
                     (start, end),
                 )
                 rows = cur.fetchall()

@@ -130,24 +130,23 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                 ycs_error = None
                 try:
                     cur.execute("""
-                        SELECT series_id, value FROM economic_data
+                        SELECT DISTINCT ON (series_id) series_id, value FROM economic_data
                         WHERE series_id IN ('DGS10', 'DGS2')
                         ORDER BY series_id, date DESC
-                        LIMIT 2
                     """)
                     ycs_rows = cur.fetchall() or []
 
-                    # Group by series_id, take most recent
+                    # Each series_id appears once (most recent date)
                     dgs10 = None
                     dgs2 = None
                     for row in ycs_rows:
-                        if row.get("series_id") == "DGS10" and dgs10 is None:
+                        if row.get("series_id") == "DGS10":
                             dgs10 = (
                                 float(row.get("value"))
                                 if row.get("value") is not None
                                 else None
                             )
-                        elif row.get("series_id") == "DGS2" and dgs2 is None:
+                        elif row.get("series_id") == "DGS2":
                             dgs2 = (
                                 float(row.get("value"))
                                 if row.get("value") is not None

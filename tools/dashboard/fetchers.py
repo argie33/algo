@@ -257,6 +257,8 @@ def fetch_market(c):
                 if vix_raw is not None
                 else None
             )
+            if vix is not None and vix <= 0:
+                vix = None  # VIX = 0 is bad data; loader now rejects values <= 5
             spy = safe_float(current.get("spy_close"), default=None)
         except StrictValidationError as e:
             error_msg = f"Critical market data missing: {str(e)}"

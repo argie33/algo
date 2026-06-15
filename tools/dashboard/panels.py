@@ -506,7 +506,7 @@ def panel_header_market(
         rows.append(
             Text.from_markup(
                 f"[{tc}][bold]{lbl}[/]  [dim]exp[/][{tc}]{exp_s}[/]{bar}  "
-                f"VIX:[{vc}]{vix}[/]  [dim]Dist:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
+                f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
         upvol = mkt.get("upvol")
@@ -650,7 +650,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         if urp is not None
         else "[dim]--[/]"
     )
-    rows.append(Text.from_markup(f"[dim]Day:[/] {dr_s}  " f"[dim]Unrlzd:[/] {urp_s}"))
+    rows.append(Text.from_markup(f"[dim]Day:[/] {dr_s}  " f"[dim]Unrealized:[/] {urp_s}"))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
     cum_v = float(cum) if cum is not None else None
@@ -694,7 +694,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
                 f"[dim]VaR:[/][white]{(risk.get('var95') or 0):.2f}%[/]  "
                 f"[dim]CVaR:[/][white]{(risk.get('cvar95') or 0):.2f}%[/]  "
                 f"[dim]β:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
-                f"[dim]Conc5:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
+                f"[dim]Top5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
             )
         )
 
@@ -787,10 +787,10 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         ),
         Text.from_markup(
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
-            f"[dim]PF:[/][{pf_c}]{pf_s}[/]  "
+            f"[dim]ProfFact:[/][{pf_c}]{pf_s}[/]  "
             f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
-            f"[dim]Exp:[/][{exp_c}]{exp_s}[/]  "
-            f"[dim]AvgR:[/][white]{avg_r_s}[/]"
+            f"[dim]Expect:[/][{exp_c}]{exp_s}[/]  "
+            f"[dim]Avg R:[/][white]{avg_r_s}[/]"
         ),
         Text.from_markup(
             f"[dim]AvgWin:[/][{G}]{avg_win_s}[/]  "
@@ -920,8 +920,8 @@ def panel_positions(pos, compact=False, trades=None):
     if not compact:
         t.add_column("T1->", justify="right", no_wrap=True)
         t.add_column("Days", justify="right", no_wrap=True, min_width=4)
-        t.add_column("Stg", justify="center", no_wrap=True, min_width=3)
-        t.add_column("Swg", justify="right", no_wrap=True, min_width=4)
+        t.add_column("Stage", justify="center", no_wrap=True, min_width=3)
+        t.add_column("Swing", justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     invalid_count = 0
     for p in pos_items:
@@ -1315,7 +1315,7 @@ def panel_recent_trades(trades):
     t.add_column("P&L%", justify="right", no_wrap=True, min_width=6)
     t.add_column("R", justify="right", no_wrap=True, min_width=5)
     t.add_column("Days", justify="right", no_wrap=True, min_width=4)
-    t.add_column("Grd", justify="center", no_wrap=True, min_width=3)
+    t.add_column("Grade", justify="center", no_wrap=True, min_width=5)
 
     def _fmt_date(d):
         if hasattr(d, "strftime"):
@@ -2645,46 +2645,6 @@ def panel_algo_health(
                 Text.from_markup(f"{rtt_pfx}[dim]Stale:[/] " + "  ".join(stale_parts))
             )
 
-    # Loader status (compact inline)
-    loader_items = (
-        loader.get("items", [])
-        if isinstance(loader, dict) and "items" in loader
-        else (loader if isinstance(loader, list) else [])
-    )
-    loader_error = loader.get("_error") if isinstance(loader, dict) else None
-    valid_loader = loader_items if loader_items and not loader_error else []
-    problem_loader = [
-        r
-        for r in valid_loader
-        if isinstance(r, dict)
-        and (r.get("status") or "") in ("error", "failed", "stale")
-    ]
-    running_loader = [
-        r
-        for r in valid_loader
-        if isinstance(r, dict) and (r.get("status") or "") == "loading"
-    ]
-    ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
-    if problem_loader:
-        ldr_parts = [
-            f"[{R if (r.get('status') or '') in ('error','failed') else Y}]{(r.get('table_name') or r.get('tbl') or r.get('name') or '')[:12]}[/]"
-            for r in problem_loader[:3]
-        ]
-        rows.append(
-            Text.from_markup(
-                f"[dim]Loaders:[/] [{Y}]{len(problem_loader)} issues:[/] "
-                + "  ".join(ldr_parts)
-            )
-        )
-    elif running_loader:
-        rows.append(
-            Text.from_markup(
-                f"[{CY}]Loading:[/] [dim]{(running_loader[0].get('table_name') or running_loader[0].get('tbl') or '')[:16]}[/]"
-            )
-        )
-    else:
-        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]OK {ok_count} healthy[/]"))
-
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     if (
         risk
@@ -3296,36 +3256,6 @@ def panel_algo_health_expanded(
         rows.append(tbl_h)
 
     rows.append(Rule(style="dim"))
-
-    # All loader statuses with full error messages — two-column
-    loader_items_exp = (
-        loader.get("items", [])
-        if isinstance(loader, dict) and "items" in loader
-        else (loader if isinstance(loader, list) else [])
-    )
-    loader_error_exp = loader.get("_error") if isinstance(loader, dict) else None
-    valid_loader = loader_items_exp if loader_items_exp and not loader_error_exp else []
-    if valid_loader:
-        rows.append(Text.from_markup("[dim]Data loaders:[/]"))
-        tbl_l = Table.grid(padding=(0, 1), expand=True)
-        tbl_l.add_column("left", ratio=1)
-        tbl_l.add_column("right", ratio=1)
-
-        def _fmt_loader_row(r):
-            if r is None:
-                return ""
-            st = str(r.get("status") or r.get("st") or "")
-            nm = str(r.get("table_name") or r.get("tbl") or r.get("name") or "--")
-            err = (r.get("error_message") or "")[:28]
-            sc = R if st in ("error", "failed") else (Y if st == "stale" else (CY if st == "loading" else G))
-            return f"[{sc}]{nm:<18}[/][dim]{st:<7}[/]" + (f" [{R}]{err}[/]" if err else "")
-
-        for a, b in zip(valid_loader[::2], valid_loader[1::2] + [None]):
-            tbl_l.add_row(
-                Text.from_markup(_fmt_loader_row(a)),
-                Text.from_markup(_fmt_loader_row(b)) if b else Text(""),
-            )
-        rows.append(tbl_l)
 
     # Risk snapshot
     if (

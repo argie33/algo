@@ -48,9 +48,9 @@ class ValueAtRisk:
             with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
+                    WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
                     ORDER BY snapshot_date ASC
-                    """)
+                    """, (int(lookback_days),))
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
@@ -105,9 +105,9 @@ class ValueAtRisk:
             with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(lookback_days)} days'
+                    WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
                     ORDER BY snapshot_date ASC
-                    """)
+                    """, (int(lookback_days),))
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
