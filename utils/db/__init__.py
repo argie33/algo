@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from .connection import get_db_connection
+from .connection import get_db_connection, register_connection_callbacks
 from .context import DatabaseContext
 from .dynamo_health import DynamoDBHealthCheck
 from .dynamo_lock import DynamoDBLockManager
@@ -23,6 +23,7 @@ from .sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 __all__ = [
     "DatabaseContext",
     "get_db_connection",
+    "register_connection_callbacks",
     "DynamoDBHealthCheck",
     "DynamoDBLockManager",
     "RDSPoolMonitor",

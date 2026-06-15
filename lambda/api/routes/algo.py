@@ -4565,7 +4565,6 @@ def _get_stage_distribution(cur) -> Dict:
 
 
 @db_route_handler("get market sentiment")
-@db_route_handler("get market sentiment")
 def _get_market_sentiment(cur) -> Dict:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
