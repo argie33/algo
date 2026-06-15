@@ -1673,18 +1673,24 @@ def panel_economic_pulse(eco, econ_cal=None):
         today = date.today()
         seen_keys = set()
         for ev in valid_cal[:6]:
-            ed = ev.get("event_date")
+            ed_raw = ev.get("event_date")
+            # API returns event_date as ISO string; parse to date for arithmetic
+            try:
+                ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
+            except (ValueError, TypeError):
+                ed = None
             full_nm = ev.get("event_name") or ""
             name = str(full_nm)[:24]
-            key = (str(ed) + str(full_nm)[:24]).lower()
+            key = (str(ed_raw) + str(full_nm)[:24]).lower()
             if key in seen_keys:
                 continue
             seen_keys.add(key)
             imp = (ev.get("importance") or "LOW").upper()
             ic = IMP_C.get(imp, "dim")
-            f_v = ev.get("forecast_value")
-            a_v = ev.get("actual_value")
-            p_v = ev.get("previous_value")
+            # API fields: forecast, actual, previous (not *_value suffixes)
+            f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
+            a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
+            p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
             if ed == today:
                 when = "TODAY"
             elif ed is not None:
@@ -1693,13 +1699,18 @@ def panel_economic_pulse(eco, econ_cal=None):
             else:
                 when = "--"
             vals = ""
-            if a_v is not None:
-                ac = G if float(a_v) <= float(f_v if f_v is not None else a_v) else R
-                vals = f" [{ac}]A={a_v:.1f}[/]"
-            elif f_v is not None:
-                vals = f" [dim]F={f_v:.1f}[/]"
-            if p_v is not None:
-                vals += f"[dim] P={p_v:.1f}[/]"
+            try:
+                if a_v is not None:
+                    a_f = float(a_v)
+                    f_f = float(f_v) if f_v is not None else a_f
+                    ac = G if a_f <= f_f else R
+                    vals = f" [{ac}]A={a_f:.1f}[/]"
+                elif f_v is not None:
+                    vals = f" [dim]F={float(f_v):.1f}[/]"
+                if p_v is not None:
+                    vals += f"[dim] P={float(p_v):.1f}[/]"
+            except (ValueError, TypeError):
+                pass
             et = ev.get("event_time")
             et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
             rows.append(

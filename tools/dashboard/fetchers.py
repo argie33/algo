@@ -900,19 +900,41 @@ def _get_data_status_cached():
 
 
 def fetch_health(c):
-    """Fetch data loader health status from API. Uses cached data-status."""
+    """Fetch data loader health status from API. Uses cached data-status.
+
+    Normalizes API field names to panel-expected short names:
+      name → tbl, status → st, age_hours → age (in days), adds role field.
+    """
     try:
         data = _get_data_status_cached()
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        # api_call returns full response: {statusCode, data: {ready_to_trade, summary, sources, ...}}
         inner = data.get("data", {})
-        sources = inner.get("sources", []) if isinstance(inner, dict) else []
+        if not isinstance(inner, dict):
+            inner = {}
+        raw_sources = inner.get("sources", [])
+        critical_stale = inner.get("critical_stale", []) or []
+        critical_names = set(critical_stale) if isinstance(critical_stale, list) else set()
+        sources = []
+        for s in raw_sources:
+            name = s.get("name", "")
+            sources.append({
+                "tbl": name,
+                "st": s.get("status", "ok"),
+                "age": round(s.get("age_hours", 0) / 24, 1),
+                "role": "CRIT" if name in critical_names else "NORM",
+                # preserve originals for other panels that may use them
+                "name": name,
+                "status": s.get("status", "ok"),
+                "last_updated": s.get("last_updated"),
+                "age_hours": s.get("age_hours"),
+                "row_count": s.get("row_count"),
+            })
         return {
             "items": sources,
-            "ready_to_trade": inner.get("ready_to_trade") if isinstance(inner, dict) else None,
-            "summary": inner.get("summary") if isinstance(inner, dict) else {},
-            "critical_stale": inner.get("critical_stale", []) if isinstance(inner, dict) else [],
+            "ready_to_trade": inner.get("ready_to_trade"),
+            "summary": inner.get("summary", {}),
+            "critical_stale": critical_stale,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("health", e)
