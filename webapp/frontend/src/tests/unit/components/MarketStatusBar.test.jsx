@@ -240,7 +240,7 @@ describe("MarketStatusBar", () => {
 
       await waitFor(() => {
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to fetch market status:",
+          "[MarketStatusBar] Failed to fetch market status:",
           expect.any(Error)
         );
       });

@@ -51,7 +51,10 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           responseData = response?.data || [];
         }
 
-        const data = Array.isArray(responseData) ? responseData : (Array.isArray(responseData?.data) ? responseData.data : []);
+        const data = Array.isArray(responseData) ? responseData
+          : Array.isArray(responseData?.items) ? responseData.items
+          : Array.isArray(responseData?.data) ? responseData.data
+          : [];
 
         // Transform data for chart
         const transformed = data.map((row) => ({

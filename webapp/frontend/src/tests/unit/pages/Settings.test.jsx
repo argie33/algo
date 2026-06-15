@@ -1,6 +1,10 @@
-/**
+﻿/**
  * Settings Page Unit Tests
- * Tests API key management, user preferences, and configuration options
+ * Component has 3 plain <button> tabs: "General Settings", "Preferences", "Account"
+ * Uses named exports getSettings/updateSettings from api.js
+ * Loading state: "Loading settings..."
+ * Success: "Settings saved successfully!"
+ * Errors: "Failed to save settings" / "Failed to load settings"
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -12,693 +16,229 @@ import {
   createMockUser,
 } from "../../test-utils.jsx";
 import Settings from "../../../pages/Settings.jsx";
-import api from "../../../services/api.js";
 
-// Mock AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
     user: createMockUser(),
     isAuthenticated: true,
     isLoading: false,
   })),
-  AuthProvider: ({ children }) => children, // Mock AuthProvider as a pass-through
+  AuthProvider: ({ children }) => children,
 }));
-
-// Mock API service - using vi.mocked(api) pattern
 
 vi.mock("../../../services/api.js", () => ({
-  default: {
-    getSettings: vi.fn(),
-    updateSettings: vi.fn(),
-    getApiKeys: vi.fn(),
-    saveApiKey: vi.fn(),
-    deleteApiKey: vi.fn(),
-    testApiKey: vi.fn(),
-  },
-  // Named exports used by Settings.jsx component directly
+  default: { get: vi.fn(), post: vi.fn() },
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
+  getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
 }));
 
-// Note: ApiKeyProvider removed - API key functionality now handled directly by Settings page
-
 describe("Settings Page", () => {
-  beforeEach(() => {
+  let getSettings;
+  let updateSettings;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const apiModule = await import("../../../services/api.js");
+    getSettings = apiModule.getSettings;
+    updateSettings = apiModule.updateSettings;
 
-    // Reset mocked api functions with proper default implementations
-    const mockedApi = vi.mocked(api);
-    mockedApi.getSettings.mockReset();
-    mockedApi.updateSettings.mockReset();
-    mockedApi.getApiKeys.mockReset();
-    mockedApi.saveApiKey.mockReset();
-    mockedApi.deleteApiKey.mockReset();
-    mockedApi.testApiKey.mockReset();
-
-    // Provide default implementations that return proper response objects
-    mockedApi.getSettings.mockResolvedValue({
-      notifications: { email: true, push: false },
-      profile: { firstName: "Test", lastName: "User" },
-    });
-
-    mockedApi.getApiKeys.mockResolvedValue({
-      ok: true,
+    getSettings.mockResolvedValue({
       data: {
-        alpaca: { keyId: "PK***ABC", isValid: true },
-        polygon: { keyId: "poly***XYZ", isValid: true },
+        notifications: { email: true, push: false, alerts: false },
+        profile: { firstName: "Test", lastName: "User", email: "test@example.com" },
+        theme: "dark",
+        defaultView: "market",
       },
     });
-
-    mockedApi.updateSettings.mockResolvedValue({ ok: true, success: true });
-    mockedApi.saveApiKey.mockResolvedValue({ ok: true, success: true });
-    mockedApi.deleteApiKey.mockResolvedValue({ ok: true, success: true });
-    mockedApi.testApiKey.mockResolvedValue({ ok: true, isValid: true });
+    updateSettings.mockResolvedValue({ ok: true, success: true });
   });
 
   describe("Settings Page Layout", () => {
-    it("should display settings navigation tabs", async () => {
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: true, push: false },
-        profile: { firstName: "Test", lastName: "User" },
-      });
-
+    it("should render the Settings heading", async () => {
       renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByText("Settings")).toBeInTheDocument(); });
+    });
 
+    it("should display three tab buttons", async () => {
+      renderWithProviders(<Settings />);
       await waitFor(() => {
-        // Should have tab navigation
-        expect(
-          screen.getByText(/API Keys/i) ||
-            screen.getByText(/Preferences/i) ||
-            screen.getByText(/Notifications/i) ||
-            screen.getByRole("tab")
-        ).toBeTruthy();
+        expect(screen.getByRole("button", { name: "General Settings" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
       });
     });
 
-    it("should load user settings on mount", async () => {
-      const mockSettings = {
-        notifications: {
-          email: true,
-          push: false,
-          alerts: true,
-        },
-        profile: {
-          firstName: "Test",
-          lastName: "User",
-          email: "test@example.com",
-        },
-      };
-
-      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
-
+    it("should call getSettings on mount", async () => {
       renderWithProviders(<Settings />);
+      await waitFor(() => { expect(getSettings).toHaveBeenCalled(); });
+    });
 
-      await waitFor(() => {
-        // Settings component should render the main heading
-        expect(screen.getByText(/Settings/i)).toBeInTheDocument();
-      });
+    it("should show loading state before settings resolve", () => {
+      getSettings.mockImplementation(() => new Promise(() => {}));
+      renderWithProviders(<Settings />);
+      expect(screen.getByText(/Loading settings/i)).toBeInTheDocument();
     });
   });
 
-  describe("API Keys Management", () => {
-    it("should display existing API keys", async () => {
-      // Set up API keys mock data
-      vi.mocked(api).getApiKeys.mockResolvedValue({
-        ok: true,
-        data: {
-          alpaca: {
-            keyId: "PK***ABC",
-            isValid: true,
-            lastValidated: "2025-01-15T10:30:00Z",
-          },
-          polygon: {
-            keyId: "poly***XYZ",
-            isValid: true,
-            lastValidated: "2025-01-15T10:30:00Z",
-          },
-        },
-      });
-
+  describe("General Settings Tab (default)", () => {
+    it("should display Theme label on default tab", async () => {
       renderWithProviders(<Settings />);
-
-      await waitFor(() => {
-        // Check if API Keys tab is present (indicating the component loaded)
-        expect(
-          screen.getByText(/API Keys/i) || screen.getByText(/Settings/i)
-        ).toBeTruthy();
-      });
-
-      // Look for any indication that API key functionality is present
-      // This may be in forms, tabs, or other UI elements
-      await waitFor(() => {
-        const apiElements = screen.queryAllByText(/API/i);
-        expect(apiElements.length).toBeGreaterThan(0);
-      });
+      await waitFor(() => { expect(screen.getByText("Theme")).toBeInTheDocument(); });
     });
 
-    it("should allow adding new API keys", async () => {
-      const user = userEvent.setup();
-
-      vi.mocked(api).saveApiKey.mockResolvedValue({ success: true });
-      vi.mocked(api).testApiKey.mockResolvedValue({ isValid: true });
-
+    it("should display Default View label", async () => {
       renderWithProviders(<Settings />);
-
-      // Skip if API Keys tab has been removed from this component
-      await waitFor(() => {
-        expect(screen.getByText(/Settings/i)).toBeInTheDocument();
-      });
-      const apiKeysTabElement = screen.queryByTestId("api-keys-tab");
-      if (!apiKeysTabElement) return; // Feature moved elsewhere, test passes trivially
-
-      // Click on the API Keys tab
-      const apiKeysTab = screen.getByTestId("api-keys-tab");
-      await user.click(apiKeysTab);
-
-      // Wait for API key data to load and render  
-      await waitFor(() => {
-        // Look for the add button which should always be present
-        const addButton = screen.getByTestId("add-api-key-button");
-        expect(addButton).toBeInTheDocument();
-      });
-
-      // Click add API key button
-      const addButton =
-        screen.getByText(/Add API Key/i) ||
-        screen.getByRole("button", { name: /add/i });
-      await user.click(addButton);
-
-      await waitFor(() => {
-        // Should show API key form
-        expect(
-          screen.getByText(/Provider/i) ||
-            screen.getByText(/API Key/i) ||
-            screen.getByText(/Secret/i)
-        ).toBeTruthy();
-      });
+      await waitFor(() => { expect(screen.getByText("Default View")).toBeInTheDocument(); });
     });
 
-    it("should validate API keys before saving", async () => {
-      const user = userEvent.setup();
-
-      vi.mocked(api).testApiKey.mockResolvedValue({
-        isValid: false,
-        error: "Invalid credentials",
-      });
-
+    it("should have Save Settings button", async () => {
       renderWithProviders(<Settings />);
-
-      // Simulate filling API key form
-      const apiKeyInput =
-        screen.queryByLabelText(/API Key/i) ||
-        screen.queryByPlaceholderText(/API Key/i);
-
-      if (apiKeyInput) {
-        await user.type(apiKeyInput, "invalid-key");
-
-        const testButton =
-          screen.getByText(/Test/i) ||
-          screen.getByRole("button", { name: /test/i });
-        await user.click(testButton);
-
-        await waitFor(() => {
-          expect(vi.mocked(api).testApiKey).toHaveBeenCalledWith(
-            expect.objectContaining({
-              keyId: "invalid-key",
-            })
-          );
-        });
-
-        // Should show validation error
-        expect(
-          screen.getByText(/Invalid credentials/i) ||
-            screen.getByText(/validation failed/i)
-        ).toBeTruthy();
-      }
+      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
     });
 
-    it("should allow deleting API keys", async () => {
-      // ApiKeyProvider no longer exists - test functionality moved to direct API integration
+    it("should call updateSettings on Save Settings click", async () => {
       const user = userEvent.setup();
-
-      const _mockApiKeys = {
-        alpaca: { keyId: "PK***ABC", isValid: true },
-      };
-
-      // useApiKeys no longer exists - API functionality handled directly by Settings page
-
-      vi.mocked(api).deleteApiKey.mockResolvedValue({ success: true });
-
       renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: /Save Settings/i }));
+      await waitFor(() => { expect(updateSettings).toHaveBeenCalled(); });
+    });
 
-      // Skip if API Keys tab has been removed from this component
-      await waitFor(() => {
-        expect(screen.getByText(/Settings/i)).toBeInTheDocument();
-      });
-      const apiKeysTabElement = screen.queryByTestId("api-keys-tab");
-      if (!apiKeysTabElement) return; // Feature moved elsewhere, test passes trivially
-
-      // Click on the API Keys tab
-      const apiKeysTab = screen.getByTestId("api-keys-tab");
-      await user.click(apiKeysTab);
-
-      // Wait for API key management interface to load
-      await waitFor(() => {
-        // The add button should always be present in the API Keys tab
-        const addButton = screen.getByTestId("add-api-key-button");
-        expect(addButton).toBeInTheDocument();
-      });
-
-      // For this test, we'll check that delete functionality exists
-      // The actual API key list might not render in test due to async loading
-      // So we'll just verify the delete function would be called properly
-      await waitFor(() => {
-        // Check that the API was called to load keys
-        expect(vi.mocked(api).getApiKeys).toHaveBeenCalled();
-      });
-
-      // Test passes if we can navigate to API Keys tab and basic functionality is present
-      expect(true).toBe(true);
+    it("should show success message after saving", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: /Save Settings/i }));
+      await waitFor(() => { expect(screen.getByText(/Settings saved successfully/i)).toBeInTheDocument(); });
     });
   });
 
-  describe("User Preferences", () => {
-    it("should display notification preferences", async () => {
-      const mockSettings = {
-        notifications: {
-          email: true,
-          push: false,
-          priceAlerts: true,
-          newsAlerts: false,
-        },
-      };
-
-      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
-
-      renderWithProviders(<Settings />);
-
-      // Wait for component to load
-      await waitFor(() => {
-        expect(screen.getByText(/Notifications/i)).toBeInTheDocument();
-      });
-
-      // Navigate to Notifications tab to see notification preferences
-      const notificationsTab = screen.getByRole("tab", { name: /notification preferences/i });
-      await userEvent.setup().click(notificationsTab);
-
-      await waitFor(() => {
-        // Check that we successfully navigated to the notifications tab
-        const notificationsTab = screen.getByRole("tab", { name: /notification preferences/i });
-        expect(notificationsTab).toHaveAttribute("aria-selected", "true");
-      });
-    });
-
-    it("should allow updating notification preferences", async () => {
+  describe("Preferences Tab", () => {
+    it("should show Email Notifications label", async () => {
       const user = userEvent.setup();
-
-      // Mock fetch for preferences endpoint that component actually calls
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ preferences: { email: false, push: false } })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ preferences: { darkMode: false } })
-        });
-
-      vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
-
       renderWithProviders(<Settings />);
-
-      // Navigate to Notifications tab first
-      await waitFor(() => {
-        expect(screen.getByText(/Notifications/i)).toBeInTheDocument();
-      });
-
-      const notificationsTab = screen.getByRole("tab", { name: /notification preferences/i });
-      await user.click(notificationsTab);
-
-      await waitFor(() => {
-        const emailToggle = screen.getByLabelText(/email notifications/i);
-        expect(emailToggle).toBeTruthy();
-      });
-
-      // Toggle email notifications
-      const emailToggle = screen.getByLabelText(/email notifications/i);
-      await user.click(emailToggle);
-
-      // Click the Save button to persist the changes
-      const saveButton = screen.getByRole("button", { name: /save notification preferences/i });
-      await user.click(saveButton);
-
-      await waitFor(() => {
-        expect(vi.mocked(api).updateSettings).toHaveBeenCalledWith(
-          expect.objectContaining({
-            preferences: expect.objectContaining({
-              email: true,
-            }),
-          })
-        );
-      });
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Preferences" }));
+      await waitFor(() => { expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument(); });
     });
 
-    it("should display profile preferences", async () => {
-      const mockSettings = {
-        profile: {
-          firstName: "John",
-          lastName: "Doe",
-          email: "john.doe@example.com",
-        },
-      };
-
-      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
-
+    it("should show Push Notifications label", async () => {
+      const user = userEvent.setup();
       renderWithProviders(<Settings />);
-
-      await waitFor(() => {
-        // Should show profile tab content
-        expect(
-          screen.getByText(/Profile/i) ||
-            screen.getByText(/First Name/i) ||
-            screen.getByText(/Email/i)
-        ).toBeTruthy();
-      });
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Preferences" }));
+      // Use getAllByText since "push" appears in both the label and subtitle text
+      await waitFor(() => { expect(screen.getAllByText(/Push Notifications/i).length).toBeGreaterThan(0); });
     });
 
-    it("should display notification settings", async () => {
-      const mockSettings = {
-        notifications: {
-          email: true,
-          push: false,
-          alerts: true,
-        },
-      };
-
-      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
-
+    it("should show Trading Alerts label", async () => {
+      const user = userEvent.setup();
       renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Preferences" }));
+      await waitFor(() => { expect(screen.getByText(/Trading Alerts/i)).toBeInTheDocument(); });
+    });
 
-      await waitFor(() => {
-        // Should show notification settings
-        expect(
-          screen.getByText(/Notifications/i) ||
-            screen.getByText(/Email/i) ||
-            screen.getByText(/Alerts/i)
-        ).toBeTruthy();
-      });
+    it("should show auto-save note", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Preferences" }));
+      await waitFor(() => { expect(screen.getByText(/automatically saved/i)).toBeInTheDocument(); });
     });
   });
 
-  describe("Settings Persistence", () => {
-    it("should save settings changes automatically", async () => {
+  describe("Account Tab", () => {
+    it("should show First Name field", async () => {
       const user = userEvent.setup();
-
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: false },
-      });
-      vi.mocked(api).updateSettings.mockResolvedValue({ ok: true, success: true });
-
       renderWithProviders(<Settings />);
-
-      // Wait for component to fully load - start on Profile tab
-      await waitFor(() => {
-        expect(screen.getByRole("tab", { name: /profile settings/i })).toBeInTheDocument();
-      });
-
-      // Click on notifications tab to navigate there
-      const notificationsTab = screen.getByRole("tab", { name: /notification preferences/i });
-      await user.click(notificationsTab);
-
-      // Wait for tab panel content to render and switches to appear
-      await waitFor(() => {
-        expect(screen.getByText(/Delivery Methods/i)).toBeInTheDocument();
-      }, { timeout: 3000 });
-
-      await waitFor(() => {
-        const emailSwitch = screen.getByLabelText(/email notifications/i);
-        expect(emailSwitch).toBeInTheDocument();
-      }, { timeout: 2000 });
-
-      // Toggle the email notifications switch
-      const emailSwitch = screen.getByLabelText(/email notifications/i);
-      await user.click(emailSwitch);
-
-      // Click the Save button since this component doesn't auto-save
-      const saveButton = screen.getByRole("button", { name: /save notification preferences/i });
-      await user.click(saveButton);
-
-      // Should save after clicking the save button
-      await waitFor(
-        () => {
-          expect(vi.mocked(api).updateSettings).toHaveBeenCalled();
-        },
-        { timeout: 2000 }
-      );
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      await waitFor(() => { expect(screen.getByText("First Name")).toBeInTheDocument(); });
     });
 
-    it("should show save status indicators", async () => {
+    it("should show Last Name field", async () => {
       const user = userEvent.setup();
-
-      vi.mocked(api).updateSettings.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve({ success: true }), 1000)
-          )
-      );
-
       renderWithProviders(<Settings />);
-
-      const toggle =
-        screen.queryByRole("checkbox") || screen.queryByRole("switch");
-
-      if (toggle) {
-        await user.click(toggle);
-
-        // Should show saving indicator
-        await waitFor(() => {
-          expect(
-            screen.getByText(/Saving/i) ||
-              screen.getByText(/Loading/i) ||
-              screen.getByTestId("saving-indicator")
-          ).toBeTruthy();
-        });
-      }
-    });
-  });
-
-  describe("Account Management", () => {
-    it("should display account information", async () => {
-      const mockSettings = {
-        account: {
-          email: "test@example.com",
-          createdAt: "2024-01-15T10:30:00Z",
-          lastLogin: "2025-01-15T10:30:00Z",
-        },
-      };
-
-      vi.mocked(api).getSettings.mockResolvedValue(mockSettings);
-
-      renderWithProviders(<Settings />);
-
-      await waitFor(() => {
-        // Should show account details - check for Profile tab which shows user info
-        expect(screen.getByText(/Profile/i)).toBeInTheDocument();
-      });
-
-      // Check that user information from mock user is displayed
-      await waitFor(() => {
-        expect(
-          screen.getByText(/test@example\.com/i) ||
-          screen.getByText(/Account Overview/i) ||
-          screen.getByText(/Test User/i)
-        ).toBeTruthy();
-      });
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      await waitFor(() => { expect(screen.getByText("Last Name")).toBeInTheDocument(); });
     });
 
-    it("should allow password change", async () => {
+    it("should show Email field", async () => {
       const user = userEvent.setup();
-
-      vi.mocked(api).updateSettings.mockResolvedValue({ success: true });
-
       renderWithProviders(<Settings />);
-
-      const passwordButton =
-        screen.queryByText(/Change Password/i) ||
-        screen.queryByRole("button", { name: /password/i });
-
-      if (passwordButton) {
-        await user.click(passwordButton);
-
-        await waitFor(() => {
-          expect(
-            screen.getByText(/Current Password/i) ||
-              screen.getByText(/New Password/i) ||
-              screen.getByLabelText(/password/i)
-          ).toBeTruthy();
-        });
-      }
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      await waitFor(() => { expect(screen.getByText("Email")).toBeInTheDocument(); });
     });
-  });
 
-  describe("Data Export/Import", () => {
-    it("should allow data export", async () => {
+    it("should show Save Profile button", async () => {
       const user = userEvent.setup();
-
       renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Profile/i })).toBeInTheDocument(); });
+    });
 
-      const exportButton =
-        screen.queryByText(/Export/i) ||
-        screen.queryByRole("button", { name: /export/i });
-
-      if (exportButton) {
-        await user.click(exportButton);
-
-        // Should trigger data export
-        await waitFor(() => {
-          expect(
-            screen.getByText(/Exporting/i) || screen.getByText(/Download/i)
-          ).toBeTruthy();
-        });
-      }
+    it("should show email cannot be changed note", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Settings />);
+      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      await waitFor(() => { expect(screen.getByText(/Email cannot be changed/i)).toBeInTheDocument(); });
     });
   });
 
   describe("Error Handling", () => {
-    it("should handle settings load errors", async () => {
-      vi.mocked(api).getSettings.mockRejectedValue(
-        new Error("Settings unavailable")
-      );
-
+    it("should show error when settings fail to load", async () => {
+      getSettings.mockRejectedValue(new Error("Settings unavailable"));
       renderWithProviders(<Settings />);
-
-      // Component should still render the main interface even with errors
-      await waitFor(() => {
-        expect(screen.getByText(/Account Settings/i)).toBeInTheDocument();
-      });
-
-      // Should show the Profile tab (default tab) with empty form fields
-      await waitFor(() => {
-        expect(screen.getByRole("tab", { name: /profile settings/i })).toBeInTheDocument();
-      });
+      await waitFor(() => { expect(screen.getByText(/Failed to load settings/i)).toBeInTheDocument(); });
     });
 
-    it("should handle save errors gracefully", async () => {
+    it("should show error when save fails", async () => {
       const user = userEvent.setup();
-
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: false },
-      });
-      vi.mocked(api).updateSettings.mockRejectedValue(new Error("Save failed"));
-
+      updateSettings.mockRejectedValue(new Error("Save failed"));
       renderWithProviders(<Settings />);
-
-      // Navigate to notifications tab and try to save
-      await waitFor(() => {
-        expect(screen.getByRole("tab", { name: /notification preferences/i })).toBeInTheDocument();
-      });
-
-      const notificationsTab = screen.getByRole("tab", { name: /notification preferences/i });
-      await user.click(notificationsTab);
-
-      await waitFor(() => {
-        const emailSwitch = screen.getByLabelText(/email notifications/i);
-        expect(emailSwitch).toBeInTheDocument();
-      });
-
-      const emailSwitch = screen.getByLabelText(/email notifications/i);
-      await user.click(emailSwitch);
-
-      const saveButton = screen.getByRole("button", { name: /save notification preferences/i });
-      await user.click(saveButton);
-
-      // Should call updateSettings even if it fails
-      await waitFor(() => {
-        expect(vi.mocked(api).updateSettings).toHaveBeenCalled();
-      });
+      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await user.click(screen.getByRole("button", { name: /Save Settings/i }));
+      await waitFor(() => { expect(screen.getByText(/Failed to save settings/i)).toBeInTheDocument(); });
     });
 
-    it("should handle API key validation errors", async () => {
-      vi.mocked(api).testApiKey.mockRejectedValue(
-        new Error("Connection timeout")
-      );
-
+    it("should not crash on settings error", async () => {
+      getSettings.mockRejectedValue(new Error("error"));
       renderWithProviders(<Settings />);
-
-      // Should handle validation errors gracefully
-      expect(document.body).toBeTruthy(); // Component doesn't crash
+      await waitFor(() => { expect(document.body).toBeTruthy(); });
     });
   });
 
   describe("Accessibility", () => {
-    it("should have proper form labels", async () => {
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: true },
-      });
-
+    it("should have select controls on General Settings tab", async () => {
       renderWithProviders(<Settings />);
-
       await waitFor(() => {
-        // Should have labeled form controls - Profile tab has textboxes
-        const textboxes = screen.queryAllByRole("textbox");
-        const comboboxes = screen.queryAllByRole("combobox");
-        const totalFormControls = textboxes.length + comboboxes.length;
-        expect(totalFormControls).toBeGreaterThan(0);
+        const selects = screen.queryAllByRole("combobox");
+        expect(selects.length).toBeGreaterThan(0);
       });
     });
 
     it("should be keyboard navigable", async () => {
       const user = userEvent.setup();
-
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: true },
-      });
-
       renderWithProviders(<Settings />);
-
-      // Should be able to tab through interactive elements
+      await waitFor(() => { expect(screen.getByText("Settings")).toBeInTheDocument(); });
       await user.tab();
-
-      const focusedElement = document.activeElement;
-      expect(focusedElement).toBeTruthy();
-      expect(focusedElement?.tagName).toMatch(/BUTTON|INPUT|SELECT/i);
+      const focused = document.activeElement;
+      expect(focused).toBeTruthy();
+      expect(focused?.tagName).toMatch(/BUTTON|INPUT|SELECT/i);
     });
   });
 
   describe("Responsive Design", () => {
-    it("should adapt to mobile layout", async () => {
-      vi.mocked(api).getSettings.mockResolvedValue({
-        notifications: { email: true },
-      });
-
-      // Mock mobile viewport
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
-
-      try {
-        renderWithProviders(<Settings />);
-
-        await waitFor(() => {
-          // Should render without horizontal scroll
-          expect(document.body).toBeTruthy();
-        });
-      } catch (error) {
-        // Component should render without critical errors related to viewport
-        if (error.message && error.message.includes('Should not already be working')) {
-          // This is a React internal warning, not a viewport issue
-          expect(true).toBeTruthy();
-        } else {
-          throw error;
-        }
-      }
+    it("should render on mobile viewport", async () => {
+      Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 375 });
+      renderWithProviders(<Settings />);
+      await waitFor(() => { expect(document.body).toBeTruthy(); });
     });
   });
 });
-

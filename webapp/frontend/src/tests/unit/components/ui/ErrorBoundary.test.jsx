@@ -90,10 +90,10 @@ describe("UI ErrorBoundary", () => {
         </UIErrorBoundary>
       );
 
+      // Component logs multiple entries; verify the full-error entry is present
       expect(console.error).toHaveBeenCalledWith(
-        "ErrorBoundary caught a React render error:",
-        expect.any(Error),
-        expect.any(Object)
+        "Full error:",
+        expect.any(Error)
       );
     });
 
