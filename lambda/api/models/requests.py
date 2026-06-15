@@ -37,58 +37,6 @@ class TradePreviewRequest(BaseModel):
         return v
 
 
-class PreTradeImpactRequest(BaseModel):
-    """Request model for POST /api/algo/pre-trade-impact - Analyze impact of potential trade."""
-
-    symbol: str = Field(
-        ..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10
-    )
-    entry_price: Optional[float] = Field(
-        None, description="Proposed entry price (optional)"
-    )
-    position_dollars: Optional[float] = Field(
-        None, description="Position size in dollars (optional)"
-    )
-    position_pct: Optional[float] = Field(
-        None, description="Position size as percentage of portfolio (optional)"
-    )
-
-    @field_validator("symbol")
-    @classmethod
-    def validate_symbol(cls, v: str) -> str:
-        """Validate symbol format - alphanumeric with optional dash/caret."""
-        if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
-            raise ValueError(
-                "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
-            )
-        return v.upper()
-
-    @field_validator("entry_price")
-    @classmethod
-    def validate_entry_price(cls, v: Optional[float]) -> Optional[float]:
-        """Validate entry price is positive if provided."""
-        if v is not None and v <= 0:
-            raise ValueError("Entry price must be greater than 0")
-        return v
-
-    @field_validator("position_dollars")
-    @classmethod
-    def validate_position_dollars(cls, v: Optional[float]) -> Optional[float]:
-        """Validate position size in dollars is positive if provided."""
-        if v is not None and v <= 0:
-            raise ValueError("Position dollars must be greater than 0")
-        return v
-
-    @field_validator("position_pct")
-    @classmethod
-    def validate_position_pct(cls, v: Optional[float]) -> Optional[float]:
-        """Validate position percentage is between 0 and 100 if provided."""
-        if v is not None:
-            if v <= 0 or v > 100:
-                raise ValueError("Position percentage must be between 0 and 100")
-        return v
-
-
 class ContactSubmissionRequest(BaseModel):
     """Request model for POST /api/contact - Submit contact form."""
 

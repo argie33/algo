@@ -404,60 +404,6 @@ def _dispatch(
                     400, "bad_request", f"Invalid action_type: {action_type}"
                 )
         return _get_algo_audit_log(cur, limit, offset, action_type)
-        limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
-        offset_str = params.get("offset", [None])[0] if params else None
-        offset = safe_offset(offset_str)
-        action_type = params.get("action_type", [None])[0] if params else None
-        # Validate action_type parameter (normalize to lowercase for case-insensitive matching)
-        if action_type:
-            action_type = action_type.lower()
-            VALID_ACTION_TYPES = {
-                "entry",
-                "exit",
-                "alert",
-                "halt",
-                "reconciliation",
-                "error",
-                "stop",
-                "skip",
-                "pass",
-                "phase_0_halt_flag_detected",
-                "phase_0_oom_prevention",
-                "phase_0_table_validation",
-                "phase_1_data_freshness",
-                "phase_1_data_patrol",
-                "phase_1_pipeline_health",
-                "phase_1_signal_quality_scores",
-                "phase_2_circuit_breakers",
-                "phase_2_market_circuit_breaker",
-                "phase_3_position_monitor",
-                "phase_3_single_stock_halts",
-                "phase_3_halt_check_error",
-                "phase_3a_reconciliation",
-                "phase_3b_exposure_policy",
-                "phase_4_exit_execution",
-                "phase_5_signal_generation",
-                "phase_6_entry_execution",
-                "phase_7_reconciliation",
-                "phase_7_daily_report",
-                "phase_7_ic_computation",
-                "phase_7_performance",
-                "phase_7_risk_metrics",
-                "phase_7_signal_attribution",
-                "phase_7_weight_optimization",
-                "halt_flag_detected",
-                "position_review",
-                "position_monitor",
-                "pipeline_health",
-                "single_stock_halts",
-                "halt_check_error",
-            }
-            if action_type not in VALID_ACTION_TYPES:
-                return error_response(
-                    400, "bad_request", f"Invalid action_type: {action_type}"
-                )
-        return _get_algo_audit_log(cur, limit, offset, action_type)
     elif path == "/api/algo/execution/recent":
         # FIXED Issue #6: View recent orchestrator execution history
         if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
@@ -942,7 +888,6 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         {
             "sector": sector,
             "allocation_pct": round((value / total_value) * 100, 1),
-            "pct": round((value / total_value) * 100, 1),
             "is_overweight": (value / total_value) * 100 > 30,
         }
         for sector, value in sorted(

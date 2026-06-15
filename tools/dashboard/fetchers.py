@@ -40,10 +40,6 @@ FETCHER_METADATA = {
     "cb": {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},
     "srank": {"endpoint": "/api/algo/sector-rotation", "desc": "Sector rankings"},
     "activity": {"endpoint": "/api/algo/audit-log", "desc": "Activity log"},
-    "exp_factors": {
-        "endpoint": "/api/algo/exposure-policy",
-        "desc": "Exposure factors",
-    },
     "eco": {"endpoint": "/api/algo/economic-calendar", "desc": "Economic calendar"},
     "notifs": {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
     "sentiment": {"endpoint": "/api/algo/sentiment", "desc": "Market sentiment"},
@@ -354,38 +350,6 @@ def fetch_market(c):
             "fed": None,
         }
 
-
-def fetch_exposure_factors(c):
-    """Issue 3 FIX: API-only exposure factors."""
-    try:
-        data = api_call("/api/algo/exposure-policy")
-        if data.get("_error"):
-            return {
-                "_error": data.get("_error"),
-                "raw_score": None,
-                "exposure_pct": None,
-                "regime": None,
-                "factors": {},
-            }
-        d = data.get("data", {})
-        return {
-            "raw_score": safe_float(d.get("factor_quality")),
-            "exposure_pct": safe_float(d.get("current_exposure_pct")),
-            "regime": d.get("regime"),
-            "factors": safe_json_parse(
-                d.get("factors"), default={}, field_name="factors"
-            ),
-        }
-    except Exception as e:
-        error_msg = _format_fetcher_error("exp_factors", e)
-        logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "raw_score": None,
-            "exposure_pct": None,
-            "regime": None,
-            "factors": {},
-        }
 
 
 def _validate_required_fields(data_dict, required_fields, source_name):
@@ -1331,7 +1295,6 @@ FETCHERS = {
     "cb": fetch_circuit,
     "srank": fetch_sector_ranking,
     "activity": fetch_activity,
-    "exp_factors": fetch_exposure_factors,
     "eco": fetch_economic_pulse,
     "notifs": fetch_notifications,
     "sentiment": fetch_sentiment,
@@ -1385,7 +1348,6 @@ def load_all() -> dict:
     OPTIONAL_FETCHERS = {
         "srank",
         "activity",
-        "exp_factors",
         "eco",
         "notifs",
         "sentiment",

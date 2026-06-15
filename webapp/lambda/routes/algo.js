@@ -1430,31 +1430,6 @@ router.get('/data-status', async (req, res) => {
 });
 
 // ============================================================
-// EXPOSURE POLICY â€” current tier rules
-// ============================================================
-router.get('/exposure-policy', async (req, res) => {
-  try {
-    ensureConnection();
-    const pool = getPool();
-    const tiers = await getActiveTiers();
-
-    // Find active tier from latest exposure
-    const latest = await pool.query(`SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1`);
-    const exp = latest.rows[0] ? parseFloat(latest.rows[0].exposure_pct) : null;
-    const active = exp !== null
-      ? getActiveTier(exp, tiers)
-      : null;
-
-    return sendSuccess(res, {
-      current_exposure_pct: exp,
-      active_tier: active,
-      all_tiers: tiers,
-    });
-  } catch (error) {
-    logger.error('Error in /algo/exposure-policy:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching exposure policy');
-  }
-});
 
 // ============================================================
 // RUN ORCHESTRATOR â€” trigger the daily algo workflow from UI (admin only)
@@ -1734,137 +1709,6 @@ router.post('/notifications/seen', authenticateToken, async (req, res) => {
   }
 });
 
-// ============================================================
-// PRE-TRADE SIMULATION â€” what would the algo do? (admin only)
-// ============================================================
-router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
-  const { spawn } = require('child_process');
-  const path = require('path');
-  try {
-    const date = req.body?.date || null;
-
-    // Validate date format (YYYY-MM-DD) to prevent command injection
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return sendError(res, 'Invalid date format. Expected YYYY-MM-DD', 400);
-    }
-
-    const args = ['algo_orchestrator.py', '--dry-run'];
-    if (date) args.push('--date', date);
-
-    const repoRoot = path.resolve(__dirname, '../../..');
-    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
-    const output = [];
-    const result = await new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (_e) {
-          // Ignore error if process already exited
-        }
-        resolve({ timeout: true, exitCode: -1, output });
-      }, 120000);
-      child.stdout.on('data', (c) => output.push(c.toString()));
-      child.stderr.on('data', (c) => output.push(c.toString()));
-      child.on('exit', (code) => {
-        clearTimeout(timeout);
-        resolve({ timeout: false, exitCode: code, output });
-      });
-    });
-
-    return sendSuccess(res, {
-      exit_code: result.exitCode,
-      output: result.output.join('')
-    });
-  } catch (error) {
-    logger.error('Error in /algo/simulate-execution:', { error: error.message, stack: error.stack });
-    return sendError(res, 'An error occurred while simulating trade execution', 500);
-  }
-});
-
-// ============================================================
-// ============================================================
-// PRE-TRADE SIMULATION â€” Impact analysis before execution
-// ============================================================
-router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    ensureConnection();
-    const pool = getPool();
-    const { symbol, entry_price, position_dollars, position_pct } = req.body;
-
-    if (!symbol || (!position_dollars && !position_pct)) {
-      return sendError(res, 'symbol and (position_dollars or position_pct) required', 400);
-    }
-
-    // Call stored procedure to compute all impact metrics in database
-    const result = await pool.query(`
-      SELECT
-        position_size_dollars, position_size_percent, new_total_positions,
-        new_sector_percent, new_sector_invested, drawdown_impact_pct,
-        sector_name, sector_count,
-        meets_position_limit, meets_size_limit, meets_sector_limit,
-        meets_cash_requirement, meets_risk_limit
-      FROM calculate_pretrade_impact($1, $2, $3, $4)
-    `, [symbol.toUpperCase(), entry_price || null, position_dollars || null, position_pct || null]);
-
-    if (!result.rows.length) {
-      return sendError(res, `Unable to calculate impact for ${symbol}`, 500);
-    }
-
-    const impact = validateAndCoerceRow(result.rows[0], {
-      position_size_dollars: { type: 'float', required: false },
-      position_size_percent: { type: 'float', required: false },
-      new_total_positions: { type: 'int', required: false },
-      new_sector_percent: { type: 'float', required: false },
-      new_sector_invested: { type: 'float', required: false },
-      drawdown_impact_pct: { type: 'float', required: false },
-      sector_name: { type: 'string', required: false },
-      sector_count: { type: 'int', required: false },
-      meets_position_limit: { type: 'bool', required: false },
-      meets_size_limit: { type: 'bool', required: false },
-      meets_sector_limit: { type: 'bool', required: false },
-      meets_cash_requirement: { type: 'bool', required: false },
-      meets_risk_limit: { type: 'bool', required: false }
-    });
-
-    const allOk = impact.meets_position_limit && impact.meets_size_limit &&
-                  impact.meets_sector_limit && impact.meets_cash_requirement &&
-                  impact.meets_risk_limit;
-
-    return sendSuccess(res, {
-      symbol: symbol.toUpperCase(),
-      entry_price: parseFloat(entry_price || 0),
-      position_size_dollars: parseFloat(impact.position_size_dollars || 0),
-      position_size_percent: parseFloat(impact.position_size_percent || 0),
-      sector: impact.sector_name,
-
-      portfolio_impact: {
-        new_total_positions: impact.new_total_positions,
-        position_limit: 6,
-        position_limit_ok: impact.meets_position_limit,
-
-        new_position_percent: parseFloat(impact.position_size_percent || 0),
-        max_position_percent: 15,
-        position_size_ok: impact.meets_size_limit,
-
-        new_sector_percent: parseFloat(impact.new_sector_percent || 0),
-        max_sector_percent: 30,
-        sector_limit_ok: impact.meets_sector_limit,
-
-        worst_case_drawdown_impact: parseFloat(impact.drawdown_impact_pct || 0),
-        max_acceptable_impact: 0.05,
-        drawdown_risk_ok: impact.meets_risk_limit,
-
-        cash_required: parseFloat(impact.position_size_dollars || 0),
-        cash_available: 0,
-        cash_ok: impact.meets_cash_requirement
-      },
-
-      all_constraints_met: allOk,
-      recommendation: allOk ? 'READY TO TRADE' : 'CONSTRAINTS VIOLATED'
-    });
-  } catch (error) {
-    logger.error('Pre-trade impact error:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing trade impact');
-  }
-});
 
 // PERFORMANCE METRICS â€” Sharpe, Sortino, Calmar, max DD, profit factor
 // ============================================================
@@ -3222,4 +3066,5 @@ router.get('/signals/stocks', async (req, res) => {
 });
 
 module.exports = router;
+
 

@@ -28,7 +28,6 @@ from .responses import (
 
 from .requests import (
     TradePreviewRequest,
-    PreTradeImpactRequest,
     ContactSubmissionRequest,
     VerifyUserEmailRequest,
     ManualTradeRequest,
@@ -61,7 +60,6 @@ __all__ = [
     "DataCoverageResponse",
     # Request models
     "TradePreviewRequest",
-    "PreTradeImpactRequest",
     "ContactSubmissionRequest",
     "VerifyUserEmailRequest",
     "ManualTradeRequest",

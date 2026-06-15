@@ -1279,7 +1279,7 @@ function SectorConcentration({ sector_allocation, loading }) {
         <div>
           <div className="card-title">Sector Concentration</div>
           <div className="card-sub">
-            {overweight ? `Heavy in ${overweight.sector} (${overweight.pct.toFixed(1)}%)`
+            {overweight ? `Heavy in ${overweight.sector} (${overweight.allocation_pct.toFixed(1)}%)`
                         : 'Diversified across sectors'}
           </div>
         </div>

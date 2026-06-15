@@ -116,7 +116,7 @@ class StockSymbolsLoader(OptimalLoader):
                             "symbol": sym,
                             "security_name": name,
                             "exchange": r.get("Listing Exchange", "NASDAQ").upper(),
-                            "et": "N",
+                            "etf": "N",
                         }
                     )
 

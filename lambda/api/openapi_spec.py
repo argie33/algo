@@ -534,52 +534,6 @@ def _get_paths():
                 },
             }
         },
-        "/api/algo/pre-trade-impact": {
-            "post": {
-                "tags": ["Algo", "Trading"],
-                "summary": "Analyze pre-trade portfolio impact",
-                "description": "Analyze impact of potential trade on portfolio constraints with request validation via Pydantic PreTradeImpactRequest",
-                "requestBody": {
-                    "required": True,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "symbol": {
-                                        "type": "string",
-                                        "description": "Stock ticker symbol (1-10 chars, alphanumeric/dash/caret)",
-                                        "minLength": 1,
-                                        "maxLength": 10,
-                                    },
-                                    "entry_price": {
-                                        "type": "number",
-                                        "description": "Proposed entry price (optional, must be > 0)",
-                                    },
-                                    "position_dollars": {
-                                        "type": "number",
-                                        "description": "Position size in dollars (optional, must be > 0)",
-                                    },
-                                    "position_pct": {
-                                        "type": "number",
-                                        "description": "Position size as percentage of portfolio (optional, 0 < x <= 100)",
-                                    },
-                                },
-                                "required": ["symbol"],
-                            }
-                        }
-                    },
-                },
-                "responses": {
-                    "200": {
-                        "description": "Pre-trade impact analysis",
-                        "content": {"application/json": {"schema": {"type": "object"}}},
-                    },
-                    "400": {"$re": "#/components/responses/BadRequest"},
-                    "500": {"$re": "#/components/responses/InternalError"},
-                },
-            }
-        },
         "/api/admin/verify-user-email": {
             "post": {
                 "tags": ["Admin"],

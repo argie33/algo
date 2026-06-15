@@ -212,7 +212,7 @@ class StockScoresLoader(OptimalLoader):
         """Fetch quality metrics for symbol."""
         try:
             cur.execute(
-                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity FROM quality_metrics WHERE symbol = %s",
+                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio FROM quality_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
@@ -223,6 +223,8 @@ class StockScoresLoader(OptimalLoader):
                     "operating_margin": float(row[2]) if row[2] else None,
                     "net_margin": float(row[3]) if row[3] else None,
                     "debt_to_equity": float(row[4]) if row[4] else None,
+                    "current_ratio": float(row[5]) if row[5] else None,
+                    "quick_ratio": float(row[6]) if row[6] else None,
                 }
         except Exception as e:
             logger.debug(f"Failed to fetch metrics: {e}")
@@ -232,7 +234,7 @@ class StockScoresLoader(OptimalLoader):
         """Fetch growth metrics for symbol."""
         try:
             cur.execute(
-                "SELECT revenue_growth_1y, revenue_growth_3y, eps_growth_1y, eps_growth_3y FROM growth_metrics WHERE symbol = %s",
+                "SELECT revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y FROM growth_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
@@ -240,8 +242,10 @@ class StockScoresLoader(OptimalLoader):
                 return {
                     "revenue_growth_1y": float(row[0]) if row[0] else None,
                     "revenue_growth_3y": float(row[1]) if row[1] else None,
-                    "eps_growth_1y": float(row[2]) if row[2] else None,
-                    "eps_growth_3y": float(row[3]) if row[3] else None,
+                    "revenue_growth_5y": float(row[2]) if row[2] else None,
+                    "eps_growth_1y": float(row[3]) if row[3] else None,
+                    "eps_growth_3y": float(row[4]) if row[4] else None,
+                    "eps_growth_5y": float(row[5]) if row[5] else None,
                 }
         except Exception as e:
             logger.debug(f"Failed to fetch metrics: {e}")
@@ -251,7 +255,7 @@ class StockScoresLoader(OptimalLoader):
         """Fetch value metrics for symbol."""
         try:
             cur.execute(
-                "SELECT pe_ratio, pb_ratio, ps_ratio, dividend_yield FROM value_metrics WHERE symbol = %s",
+                "SELECT pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield FROM value_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
@@ -260,7 +264,9 @@ class StockScoresLoader(OptimalLoader):
                     "pe_ratio": float(row[0]) if row[0] else None,
                     "pb_ratio": float(row[1]) if row[1] else None,
                     "ps_ratio": float(row[2]) if row[2] else None,
-                    "dividend_yield": float(row[3]) if row[3] else None,
+                    "peg_ratio": float(row[3]) if row[3] else None,
+                    "dividend_yield": float(row[4]) if row[4] else None,
+                    "fcf_yield": float(row[5]) if row[5] else None,
                 }
         except Exception as e:
             logger.debug(f"Failed to fetch metrics: {e}")
@@ -270,14 +276,15 @@ class StockScoresLoader(OptimalLoader):
         """Fetch positioning metrics for symbol."""
         try:
             cur.execute(
-                "SELECT institutional_ownership, short_interest_percent FROM positioning_metrics WHERE symbol = %s",
+                "SELECT institutional_ownership, insider_ownership, short_interest_percent FROM positioning_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
                 return {
                     "institutional_ownership": float(row[0]) if row[0] else None,
-                    "short_interest": float(row[1]) if row[1] else None,
+                    "insider_ownership": float(row[1]) if row[1] else None,
+                    "short_interest": float(row[2]) if row[2] else None,
                 }
         except Exception as e:
             logger.debug(f"Failed to fetch metrics: {e}")
@@ -287,14 +294,17 @@ class StockScoresLoader(OptimalLoader):
         """Fetch stability metrics for symbol."""
         try:
             cur.execute(
-                "SELECT volatility_252d, beta FROM stability_metrics WHERE symbol = %s",
+                "SELECT volatility_252d, volatility_60d, volatility_30d, beta, debt_to_assets FROM stability_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
                 return {
                     "volatility_252d": float(row[0]) if row[0] else None,
-                    "beta": float(row[1]) if row[1] else None,
+                    "volatility_60d": float(row[1]) if row[1] else None,
+                    "volatility_30d": float(row[2]) if row[2] else None,
+                    "beta": float(row[3]) if row[3] else None,
+                    "debt_to_assets": float(row[4]) if row[4] else None,
                 }
         except Exception as e:
             logger.debug(f"Failed to fetch metrics: {e}")
@@ -369,130 +379,254 @@ class StockScoresLoader(OptimalLoader):
 
         scores = []
 
-        # ROE: higher is better (target 15%+)
+        # ROE: higher is better (target 15%+, cap at 40%)
         if metrics.get("roe"):
-            roe = min(metrics["roe"], 30)  # Cap at 30%
-            scores.append(min(100, (roe / 30) * 100))
+            roe = min(metrics["roe"], 40)
+            scores.append(min(100, (roe / 40) * 100))
 
-        # Operating margin: higher is better (target 10%+)
-        if metrics.get("operating_margin"):
-            om = min(metrics["operating_margin"], 20)
-            scores.append(min(100, (om / 20) * 100))
+        # ROA: higher is better (target 5%+, cap at 20%)
+        if metrics.get("roa") and metrics["roa"] > 0:
+            roa = min(metrics["roa"], 20)
+            scores.append(min(100, (roa / 20) * 100))
+
+        # Net margin: higher is better (target 10%+, cap at 30%)
+        if metrics.get("net_margin") and metrics["net_margin"] > 0:
+            nm = min(metrics["net_margin"], 30)
+            scores.append(min(100, (nm / 30) * 100))
+
+        # Operating margin: higher is better (target 10%+, cap at 30%)
+        if metrics.get("operating_margin") and metrics["operating_margin"] > 0:
+            om = min(metrics["operating_margin"], 30)
+            scores.append(min(100, (om / 30) * 100))
 
         # Debt-to-equity: lower is better (target <1.0)
-        if metrics.get("debt_to_equity"):
-            de = min(
-                metrics["debt_to_equity"], 5
-            )  # Cap at 5.0 to prevent extreme negatives
-            if de > 0:
-                score = max(0, 100 - (de * 20))
-                scores.append(min(100, score))
+        if metrics.get("debt_to_equity") is not None and metrics["debt_to_equity"] >= 0:
+            de = min(metrics["debt_to_equity"], 5)
+            score = max(0, 100 - (de * 20))
+            scores.append(min(100, score))
+
+        # Current ratio: above 1.5 is good, above 2.0 is excellent
+        if metrics.get("current_ratio") and metrics["current_ratio"] > 0:
+            cr = metrics["current_ratio"]
+            if cr >= 2.0:
+                scores.append(100)
+            elif cr >= 1.5:
+                scores.append(80)
+            elif cr >= 1.0:
+                scores.append(60)
+            else:
+                scores.append(max(0, cr * 60))
 
         return sum(scores) / len(scores) if scores else None
 
     def _score_growth(self, metrics: Optional[Dict]) -> Optional[float]:
-        """Score growth metrics on 0-100 scale. Returns None if no real data."""
+        """Score growth metrics on 0-100 scale. Returns None if no real data.
+
+        Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
+        Longer-term growth signals more durable earnings quality.
+        """
         if not metrics:
             return None
 
-        scores = []
+        weighted_sum = 0.0
+        total_weight = 0.0
 
-        # 1-year EPS growth: target 10%+
-        if metrics.get("eps_growth_1y"):
-            eps = min(metrics["eps_growth_1y"], 50)
-            scores.append(min(100, (eps / 50) * 100))
+        def _score_single_growth(val, cap):
+            """Score a single growth rate capped at `cap`%."""
+            if val is None:
+                return None
+            if val <= 0:
+                # Negative growth: map [-50, 0] → [0, 40]
+                return max(0, 40 + (val / 50) * 40)
+            return min(100, (val / cap) * 100)
 
-        # 1-year revenue growth: target 5%+
-        if metrics.get("revenue_growth_1y"):
-            rev = min(metrics["revenue_growth_1y"], 30)
-            scores.append(min(100, (rev / 30) * 100))
+        # 1-year EPS growth: target 25%+ for growth stocks (highest weight)
+        eps_1y = _score_single_growth(metrics.get("eps_growth_1y"), 50)
+        if eps_1y is not None:
+            weighted_sum += eps_1y * 0.35
+            total_weight += 0.35
 
-        return sum(scores) / len(scores) if scores else None
+        # 1-year revenue growth: target 15%+
+        rev_1y = _score_single_growth(metrics.get("revenue_growth_1y"), 30)
+        if rev_1y is not None:
+            weighted_sum += rev_1y * 0.25
+            total_weight += 0.25
+
+        # 3-year EPS CAGR: sustained growth signal
+        eps_3y = _score_single_growth(metrics.get("eps_growth_3y"), 35)
+        if eps_3y is not None:
+            weighted_sum += eps_3y * 0.20
+            total_weight += 0.20
+
+        # 3-year revenue CAGR: sustained top-line growth
+        rev_3y = _score_single_growth(metrics.get("revenue_growth_3y"), 20)
+        if rev_3y is not None:
+            weighted_sum += rev_3y * 0.15
+            total_weight += 0.15
+
+        # 5-year EPS CAGR: long-term compounding quality (lower weight)
+        eps_5y = _score_single_growth(metrics.get("eps_growth_5y"), 30)
+        if eps_5y is not None:
+            weighted_sum += eps_5y * 0.05
+            total_weight += 0.05
+
+        return weighted_sum / total_weight if total_weight > 0 else None
 
     def _score_value(self, metrics: Optional[Dict]) -> Optional[float]:
-        """Score value metrics on 0-100 scale. Returns None if no real data."""
+        """Score value metrics on 0-100 scale. Returns None if no real data.
+
+        Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
+        Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
+        """
         if not metrics:
             return None
 
-        scores = []
+        weighted_sum = 0.0
+        total_weight = 0.0
 
-        # P/E ratio: peak zone 15-25 for growth momentum stocks
-        # Continuous piecewise linear â€" no score jumps at breakpoints
+        # P/E ratio: sweet spot 15-30 for growth momentum stocks
         if metrics.get("pe_ratio") and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
-                pe_score = 40 + pe * 2  # 40 at pe=0 â†' 60 at pe=10
+                pe_score = 40 + pe * 2    # very cheap / possibly value trap
             elif pe <= 20:
-                pe_score = 60 + (pe - 10) * 4  # 60 at pe=10 â†' 100 at pe=20
-            elif pe <= 40:
-                pe_score = 100 - (pe - 20) * 2.5  # 100 at pe=20 â†' 50 at pe=40
+                pe_score = 60 + (pe - 10) * 4   # good range
+            elif pe <= 35:
+                pe_score = 100 - (pe - 20) * 2   # growth premium zone → 70 at pe=35
             else:
-                pe_score = max(0, 50 - (pe - 40) * 1.25)  # 50 at pe=40 â†' 0 at pe=80
-            scores.append(pe_score)
+                pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive → 0 at pe~85
+            weighted_sum += pe_score * 0.50
+            total_weight += 0.50
 
-        # Dividend yield: higher is better (target 2%+)
-        # yfinance returns dividendYield as decimal fraction (0.0229 = 2.29%); convert to percent
-        if metrics.get("dividend_yield"):
-            div = min(
-                metrics["dividend_yield"] * 100, 5
-            )  # Decimal â†' percent, cap at 5%
-            scores.append(min(100, div * 20))
+        # P/B ratio: lower is better for value; < 3 is reasonable for most sectors
+        if metrics.get("pb_ratio") and metrics["pb_ratio"] > 0:
+            pb = metrics["pb_ratio"]
+            if pb <= 1.0:
+                pb_score = 100
+            elif pb <= 3.0:
+                pb_score = 100 - ((pb - 1.0) / 2.0) * 30   # 100→70 in [1,3]
+            elif pb <= 7.0:
+                pb_score = 70 - ((pb - 3.0) / 4.0) * 40    # 70→30 in [3,7]
+            else:
+                pb_score = max(0, 30 - (pb - 7.0) * 3)
+            weighted_sum += pb_score * 0.25
+            total_weight += 0.25
 
-        return sum(scores) / len(scores) if scores else None
+        # FCF yield: positive FCF yield is healthy; > 3% is good
+        if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
+            fcf_pct = metrics["fcf_yield"] * 100  # stored as decimal fraction
+            fcf_score = min(100, fcf_pct * 20)    # 5% FCF yield = 100 score
+            weighted_sum += fcf_score * 0.15
+            total_weight += 0.15
+
+        # Dividend yield: bonus signal for income/quality (optional)
+        if metrics.get("dividend_yield") and metrics["dividend_yield"] > 0:
+            div = min(metrics["dividend_yield"] * 100, 6)   # decimal → percent, cap 6%
+            div_score = min(100, div * 16.7)
+            weighted_sum += div_score * 0.10
+            total_weight += 0.10
+
+        return weighted_sum / total_weight if total_weight > 0 else None
 
     def _score_positioning(self, metrics: Optional[Dict]) -> Optional[float]:
         """Score positioning metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
             return None
 
-        scores = []
+        weighted_sum = 0.0
+        total_weight = 0.0
 
-        # Institutional ownership: higher is better (target 50%+)
+        # Institutional ownership: higher is better (target 50%+, cap at 95%)
         if metrics.get("institutional_ownership"):
-            io = min(metrics["institutional_ownership"], 100)
-            scores.append(io)
+            io = min(metrics["institutional_ownership"], 95)
+            weighted_sum += io * 0.55
+            total_weight += 0.55
+
+        # Insider ownership: moderate insider ownership (5-20%) is a positive signal
+        if metrics.get("insider_ownership") is not None:
+            ins = metrics["insider_ownership"] * 100  # stored as decimal fraction
+            if ins >= 20:
+                ins_score = 100
+            elif ins >= 5:
+                ins_score = 60 + (ins - 5) / 15 * 40
+            elif ins >= 1:
+                ins_score = 40 + (ins - 1) / 4 * 20
+            else:
+                ins_score = ins * 40
+            weighted_sum += min(100, ins_score) * 0.20
+            total_weight += 0.20
 
         # Short interest: lower is better (target <5%)
-        # Use piecewise scoring instead of linear (which was too harsh)
         if metrics.get("short_interest"):
             si = metrics["short_interest"]
             if si < 5:
-                # Normal range: -10 points per 1% short
                 score = 100 - (si * 10)
             elif si < 15:
-                # High range (5-15%): slower penalty (-2 per 1% above 5%)
                 score = 50 - ((si - 5) * 2)
             else:
-                # Very high (15%+): floor at 30 (possible contrarian value, not zero)
                 score = 30
-            scores.append(max(0, min(100, score)))
+            weighted_sum += max(0, min(100, score)) * 0.25
+            total_weight += 0.25
 
-        return sum(scores) / len(scores) if scores else None
+        return weighted_sum / total_weight if total_weight > 0 else None
 
     def _score_stability(self, metrics: Optional[Dict]) -> Optional[float]:
-        """Score stability metrics on 0-100 scale. Returns None if no real data."""
+        """Score stability metrics on 0-100 scale. Returns None if no real data.
+
+        Uses 12-month volatility (primary), beta vs market (secondary),
+        and debt-to-assets (tertiary solvency signal).
+        """
         if not metrics:
             return None
 
-        scores = []
+        weighted_sum = 0.0
+        total_weight = 0.0
 
-        # Volatility: lower is better (inverse relationship)
-        if metrics.get("volatility_252d"):
-            vol = min(metrics["volatility_252d"], 0.3)  # Cap at 30%
-            # 30%+ volatility is high, <15% is low
-            if vol > 0:
-                score = max(0, 100 - (vol / 0.3 * 100))
-                scores.append(min(100, score))
+        # 12-month (252-day) annualized volatility: lower is better
+        # Swing traders can tolerate moderate volatility; penalty starts above 25%
+        if metrics.get("volatility_252d") and metrics["volatility_252d"] > 0:
+            vol = metrics["volatility_252d"]
+            if vol <= 0.15:
+                vol_score = 100
+            elif vol <= 0.30:
+                vol_score = 100 - ((vol - 0.15) / 0.15) * 50   # 100→50 in [15%,30%]
+            elif vol <= 0.60:
+                vol_score = 50 - ((vol - 0.30) / 0.30) * 40    # 50→10 in [30%,60%]
+            else:
+                vol_score = max(0, 10 - (vol - 0.60) * 20)
+            weighted_sum += vol_score * 0.50
+            total_weight += 0.50
 
-        # Beta: close to 1.0 is best, target 0.8-1.2
-        if metrics.get("beta"):
+        # 60-day volatility: recent stability proxy (higher weight than 12m for swing traders)
+        if metrics.get("volatility_60d") and metrics["volatility_60d"] > 0:
+            vol60 = metrics["volatility_60d"]
+            if vol60 <= 0.15:
+                v60_score = 100
+            elif vol60 <= 0.30:
+                v60_score = 100 - ((vol60 - 0.15) / 0.15) * 50
+            elif vol60 <= 0.60:
+                v60_score = 50 - ((vol60 - 0.30) / 0.30) * 40
+            else:
+                v60_score = max(0, 10 - (vol60 - 0.60) * 20)
+            weighted_sum += v60_score * 0.25
+            total_weight += 0.25
+
+        # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading
+        if metrics.get("beta") and metrics["beta"] > 0:
             beta = metrics["beta"]
-            if beta > 0:
-                diff = min(abs(beta - 1.0), 2.0)  # Cap difference at 2.0
-                score = max(0, 100 - (diff * 50))
-                scores.append(min(100, score))
+            diff = min(abs(beta - 1.0), 2.0)
+            beta_score = max(0, 100 - (diff * 50))
+            weighted_sum += beta_score * 0.15
+            total_weight += 0.15
 
-        return sum(scores) / len(scores) if scores else None
+        # Debt-to-assets: lower is better (target < 0.5)
+        if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
+            dta = min(metrics["debt_to_assets"], 1.0)
+            dta_score = max(0, 100 - (dta * 100))
+            weighted_sum += dta_score * 0.10
+            total_weight += 0.10
+
+        return weighted_sum / total_weight if total_weight > 0 else None
 
     def _score_momentum(self, metrics: Optional[Dict]) -> Optional[float]:
         """Score momentum metrics on 0-100 scale. Returns None if no real data.

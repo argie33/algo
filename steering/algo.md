@@ -21,7 +21,7 @@ See `steering/rate-limiting-strategy.md` for complete rate limiting strategy. Qu
   - `/api/algo/markets`, `/api/algo/market-factors`, etc.: 50-100 req/min
 - **Admin endpoints** (requires 'admin' Cognito group): Per-user, per-endpoint limits via `check_admin_rate_limit()`
   - Health checks: 30 req/min (loader-status, system-health)
-  - Expensive operations: 5 req/5min (patrol, pre-trade-impact)
+  - Expensive operations: 5 req/5min (patrol)
   - Dashboard endpoints: 20 req/min
 - **External APIs** (yfinance, FRED): Handled by adaptive rate limiting in loaders
 

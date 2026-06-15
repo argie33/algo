@@ -147,6 +147,7 @@ def _get_stock_scores(
                     COALESCE(cp.industry, 'Unknown') AS industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
+                    sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
                     COALESCE(lp.current_close, 0) AS current_price,
                     COALESCE(lp.current_close, 0) AS price,
@@ -155,12 +156,17 @@ def _get_stock_scores(
                         WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
+                    -- Value metrics
                     vm.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     vm.ps_ratio AS ps_ratio_val,
                     vm.peg_ratio AS peg_ratio_val,
                     vm.dividend_yield,
+                    vm.fcf_yield AS fcf_yield_val,
+                    vm.held_percent_insiders AS vm_held_insiders,
+                    vm.held_percent_institutions AS vm_held_institutions,
+                    -- Quality metrics
                     qm.roe AS roe_pct,
                     qm.roa AS roa_val,
                     qm.debt_to_equity,
@@ -168,19 +174,38 @@ def _get_stock_scores(
                     qm.quick_ratio AS quick_ratio_val,
                     qm.operating_margin AS operating_margin_val,
                     qm.net_margin AS net_margin_val,
-                    gm.revenue_growth_1y AS revenue_growth_yoy_pct,
-                    gm.eps_growth_1y AS eps_growth_yoy_pct,
+                    qm.interest_coverage AS interest_coverage_val,
+                    -- Growth metrics
+                    gm.revenue_growth_1y AS rev_growth_1y_val,
+                    gm.eps_growth_1y AS eps_growth_1y_val,
                     gm.revenue_growth_3y AS rev_growth_3y_val,
                     gm.eps_growth_3y AS eps_growth_3y_val,
+                    gm.revenue_growth_5y AS rev_growth_5y_val,
+                    gm.eps_growth_5y AS eps_growth_5y_val,
+                    -- Stability metrics
                     sm.beta AS beta_val,
                     sm.volatility_252d AS volatility_12m_val,
+                    sm.volatility_30d AS volatility_30d_val,
+                    sm.volatility_60d AS volatility_60d_val,
+                    sm.debt_to_assets AS debt_to_assets_val,
+                    -- Positioning metrics
                     pm.institutional_ownership AS inst_own_val,
                     pm.insider_ownership AS insider_own_val,
                     pm.short_interest_percent AS short_pct_val,
-                    COALESCE(tdd.rsi_14, 0) AS tdd_rsi,
-                    COALESCE(tdd.macd, 0) AS tdd_macd,
+                    pm.shares_short_prior_month AS shares_short_prior_month_val,
+                    pm.short_interest_trend AS short_interest_trend_val,
+                    -- Technical indicators
+                    tdd.rsi_14 AS tdd_rsi,
+                    tdd.macd AS tdd_macd,
+                    tdd.roc_20d AS tdd_roc_20d,
+                    tdd.roc_60d AS tdd_roc_60d,
+                    tdd.roc_120d AS tdd_roc_120d,
+                    tdd.roc_252d AS tdd_roc_252d,
                     ROUND(CASE WHEN tdd.sma_50 > 0 THEN ((lp.current_close - tdd.sma_50) / tdd.sma_50 * 100) END, 2) AS price_vs_sma_50,
-                    ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200
+                    ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200,
+                    -- 52-week high from price history
+                    pw52.high_52w AS high_52w_val,
+                    ROUND(CASE WHEN pw52.high_52w > 0 THEN ((lp.current_close - pw52.high_52w) / pw52.high_52w * 100) END, 2) AS price_vs_52w_high_val
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
@@ -192,19 +217,27 @@ def _get_stock_scores(
                 LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
                 LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
                 LEFT JOIN LATERAL (
-                    SELECT rsi_14, macd, sma_50, sma_200
+                    SELECT rsi_14, macd, sma_50, sma_200,
+                           roc_20d, roc_60d, roc_120d, roc_252d
                     FROM technical_data_daily
                     WHERE symbol = sc.symbol
                     ORDER BY date DESC LIMIT 1
                 ) tdd ON true
+                LEFT JOIN LATERAL (
+                    SELECT MAX(ph.high) AS high_52w
+                    FROM price_daily ph
+                    WHERE ph.symbol = sc.symbol
+                      AND ph.date >= CURRENT_DATE - INTERVAL '52 weeks'
+                ) pw52 ON true
                 {where_clause}
                 AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
-                AND COALESCE(ss.etf, 'N') != 'Y'
+                AND (ss.etf IS NULL OR ss.etf NOT IN ('Y', 'y'))
+                AND (ss.market_category IS NULL OR ss.market_category NOT ILIKE '%ETF%')
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """
         params_list.extend([limit, offset])
-        scores = execute_with_timeout(cur, query, params_list, timeout_sec=25)
+        scores = execute_with_timeout(cur, query, params_list, timeout_sec=30)
 
         def _f(v):
             return float(v) if v is not None else None
@@ -212,14 +245,21 @@ def _get_stock_scores(
         items = []
         for row in scores:
             d = dict(row)
+
+            # Compute 12-3 momentum: 12-month return minus 3-month (skip short-term reversal)
+            roc252 = _f(d.get("tdd_roc_252d"))
+            roc60 = _f(d.get("tdd_roc_60d"))
+            momentum_12_3 = round(roc252 - roc60, 4) if (roc252 is not None and roc60 is not None) else roc252
+
             d["quality_inputs"] = {
                 "return_on_equity_pct": _f(d.get("roe_pct")),
                 "return_on_assets_pct": _f(d.get("roa_val")),
+                "operating_margin_pct": _f(d.get("operating_margin_val")),
+                "profit_margin_pct": _f(d.get("net_margin_val")),
                 "debt_to_equity": _f(d.get("debt_to_equity")),
                 "current_ratio": _f(d.get("current_ratio_val")),
                 "quick_ratio": _f(d.get("quick_ratio_val")),
-                "operating_margin_pct": _f(d.get("operating_margin_val")),
-                "profit_margin_pct": _f(d.get("net_margin_val")),
+                "interest_coverage": _f(d.get("interest_coverage_val")),
             }
             d["value_inputs"] = {
                 "stock_pe": _f(d.get("trailing_pe")),
@@ -227,26 +267,40 @@ def _get_stock_scores(
                 "stock_ps": _f(d.get("ps_ratio_val")),
                 "peg_ratio": _f(d.get("peg_ratio_val")),
                 "stock_dividend_yield": _f(d.get("dividend_yield")),
+                "fcf_yield": _f(d.get("fcf_yield_val")),
             }
             d["growth_inputs"] = {
-                "revenue_growth_yoy_pct": _f(d.get("revenue_growth_yoy_pct")),
-                "eps_growth_yoy_pct": _f(d.get("eps_growth_yoy_pct")),
+                "revenue_growth_1y_pct": _f(d.get("rev_growth_1y_val")),
+                "eps_growth_1y_pct": _f(d.get("eps_growth_1y_val")),
                 "revenue_growth_3y_cagr": _f(d.get("rev_growth_3y_val")),
                 "eps_growth_3y_cagr": _f(d.get("eps_growth_3y_val")),
+                "revenue_growth_5y_cagr": _f(d.get("rev_growth_5y_val")),
+                "eps_growth_5y_cagr": _f(d.get("eps_growth_5y_val")),
             }
             d["stability_inputs"] = {
-                "beta": _f(d.get("beta_val")),
                 "volatility_12m": _f(d.get("volatility_12m_val")),
+                "volatility_60d": _f(d.get("volatility_60d_val")),
+                "volatility_30d": _f(d.get("volatility_30d_val")),
+                "beta": _f(d.get("beta_val")),
+                "debt_to_assets": _f(d.get("debt_to_assets_val")),
             }
             d["positioning_inputs"] = {
                 "institutional_ownership_pct": _f(d.get("inst_own_val")),
+                "top_10_institutions_pct": _f(d.get("vm_held_institutions")),
                 "insider_ownership_pct": _f(d.get("insider_own_val")),
                 "short_percent_of_float": _f(d.get("short_pct_val")),
+                "short_interest_pct": _f(d.get("short_pct_val")),
+                "shares_short_prior_month": d.get("shares_short_prior_month_val"),
+                "short_interest_trend": d.get("short_interest_trend_val"),
             }
             d["momentum_inputs"] = {
                 "current_price": _f(d.get("current_price")),
                 "price_vs_sma_50": _f(d.get("price_vs_sma_50")),
                 "price_vs_sma_200": _f(d.get("price_vs_sma_200")),
+                "price_vs_52w_high": _f(d.get("price_vs_52w_high_val")),
+                "momentum_3m": _f(d.get("tdd_roc_60d")),
+                "momentum_6m": _f(d.get("tdd_roc_120d")),
+                "momentum_12_3": momentum_12_3,
                 "rsi": _f(d.get("tdd_rsi")),
                 "macd": _f(d.get("tdd_macd")),
             }

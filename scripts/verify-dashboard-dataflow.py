@@ -75,7 +75,6 @@ endpoints = [
     ("/api/algo/markets", "Market Data"),
     ("/api/algo/config", "Algo Configuration"),
     ("/api/algo/last-run", "Last Orchestrator Run"),
-    ("/api/algo/exposure-policy", "Exposure Policy"),
     ("/api/algo/performance", "Performance Metrics"),
 ]
 

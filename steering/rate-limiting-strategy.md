@@ -78,7 +78,6 @@ Accessible only to users in the 'admin' Cognito group. Per-user, per-endpoint li
 **Trigger Operations** (Start async jobs, expensive computation):
 ```
 /api/algo/patrol (5 req/5min) — Triggers data validation scan
-/api/algo/pre-trade-impact (5 req/5min) — Calculates position impact on algorithm
 ```
 
 **Dashboard Histogram Endpoints** (Aggregation queries):

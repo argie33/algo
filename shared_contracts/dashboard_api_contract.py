@@ -334,28 +334,6 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
-    "exp_factors": {
-        "path": "/api/algo/exposure-policy",
-        "method": "GET",
-        "description": "Exposure factors and policy",
-        "response_schema": ResponseSchema(
-            required_fields=[],
-            optional_fields=[
-                "factor_quality",
-                "current_exposure_pct",
-                "regime",
-                "factors",
-            ],
-            field_types={
-                "factor_quality": (float, int),
-                "current_exposure_pct": (float, int),
-            },
-            description="Exposure policy and factors",
-        ),
-        "freshness_max_age_seconds": 300,
-        "strict_fields": [],
-        "critical": False,
-    },
     "eco": {
         "path": "/api/algo/economic-calendar",
         "method": "GET",
@@ -607,11 +585,6 @@ DASHBOARD_PANELS = {
         "endpoint_deps": ["mkt", "sentiment"],
         "optional": False,
         "description": "Header with market status and sentiment",
-    },
-    "exposure": {
-        "endpoint_deps": ["exp_factors"],
-        "optional": True,
-        "description": "Exposure factors",
     },
     "circuit": {
         "endpoint_deps": ["cb"],
