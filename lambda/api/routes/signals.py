@@ -1,5 +1,6 @@
 """Route: signals"""
 
+import re
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
@@ -66,9 +67,14 @@ def handle(
 def _get_signals_stocks(
     cur, limit: int = 500, timeframe: str = "daily", symbol_filter: Optional[str] = None
 ) -> Dict:
-    """Get stock trading signals with all available technical and analytical data."""
+    """Get stock trading signals from swing_trader_scores (primary signal source).
+
+    buy_sell_daily was removed from both EOD and morning pipelines; orchestrator
+    Phase 5 computes signals on-the-fly from price_daily. This endpoint now
+    sources from swing_trader_scores + trend_template_data, which are actively
+    populated by the pipeline.
+    """
     try:
-        # SECURITY L-05: Validate timeframe parameter (currently only 'daily' supported)
         VALID_TIMEFRAMES = {"daily"}
         if timeframe.lower() not in VALID_TIMEFRAMES:
             return error_response(
@@ -78,67 +84,91 @@ def _get_signals_stocks(
             )
 
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
-        where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
-        params = [limit]
+        params = []
+        symbol_clause = ""
 
         if symbol_filter:
-            # Validate symbol format before use
-            # Only alphanumeric and common separators allowed
-            import re
-
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
                 return error_response(400, "bad_request", "Invalid symbol format")
-            where_clause += " AND bsd.symbol = %s"
-            params.insert(0, symbol_filter.upper())
+            symbol_clause = "AND s.symbol = %s"
+            params.append(symbol_filter.upper())
+
+        params.append(limit)
 
         cur.execute(
-            """
-                SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
-                    bsd.timeframe, bsd.signal_type, bsd.strength,
-                    bsd.entry_quality_score,
-                    COALESCE(sqs.composite_sqs, bsd.signal_quality_score) AS signal_quality_score,
-                    bsd.volume_surge_pct, bsd.risk_reward_ratio,
-                    bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-                    bsd.atr, bsd.adx, COALESCE(bsd.mansfield_rs, 0) as mansfield_rs,
-                    bsd.rs_rating, bsd.breakout_quality, bsd.risk_pct,
-                    bsd.current_gain_pct, bsd.days_in_position,
-                    bsd.position_size_recommendation,
-                    bsd.stage_number, bsd.reason, bsd.substage,
-                    bsd.close, bsd.volume, bsd.base_type, bsd.base_length_days,
-                    bsd.market_stage, bsd.buylevel, bsd.stoplevel,
-                    bsd.signal_triggered_date, bsd.entry_price,
-                    bsd.buy_zone_start, bsd.buy_zone_end,
-                    bsd.pivot_price, bsd.initial_stop, bsd.trailing_stop,
-                    bsd.sell_level,
-                    bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
-                    bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
-                    bsd.avg_volume_50d,
-                    COALESCE(cp.sector, 'Unknown') as sector,
-                    COALESCE(cp.industry, 'Unknown') as industry,
-                    (bsd.mansfield_rs IS NULL OR sqs.composite_sqs IS NULL) AS _is_fallback
-                FROM buy_sell_daily bsd
-                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
-                LEFT JOIN LATERAL (
-                    SELECT composite_sqs
-                    FROM signal_quality_scores
-                    WHERE symbol = bsd.symbol
-                    ORDER BY date DESC
-                    LIMIT 1
-                ) sqs ON true
-                """
-            + where_clause
-            + """
-                ORDER BY bsd.date DESC, COALESCE(sqs.composite_sqs, bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
-                LIMIT %s
+            f"""
+            SELECT
+                s.symbol,
+                s.date,
+                'BUY'::text AS signal,
+                'daily'::text AS timeframe,
+                s.score AS entry_quality_score,
+                s.score AS signal_quality_score,
+                s.score AS strength,
+                COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
+                s.components->>'grade' AS grade,
+                s.components->>'fail_reason' AS reason,
+                s.components AS components,
+                t.sma_50,
+                t.sma_200,
+                CASE t.weinstein_stage
+                    WHEN 1 THEN 'Stage 1'
+                    WHEN 2 THEN 'Stage 2 - Markup'
+                    WHEN 3 THEN 'Stage 3 - Topping'
+                    WHEN 4 THEN 'Stage 4'
+                END AS market_stage,
+                t.weinstein_stage AS stage_number,
+                p.close,
+                p.volume,
+                COALESCE(cp.sector, 'Unknown') AS sector,
+                COALESCE(cp.industry, 'Unknown') AS industry,
+                NULL::numeric AS rsi,
+                NULL::numeric AS ema_21,
+                NULL::numeric AS atr,
+                NULL::numeric AS adx,
+                NULL::numeric AS mansfield_rs,
+                NULL::numeric AS rs_rating,
+                NULL::numeric AS volume_surge_pct,
+                NULL::numeric AS risk_reward_ratio,
+                NULL::numeric AS buylevel,
+                NULL::numeric AS stoplevel,
+                NULL::text AS base_type,
+                NULL::integer AS base_length_days,
+                NULL::numeric AS profit_target_8pct,
+                NULL::numeric AS profit_target_20pct,
+                NULL::numeric AS profit_target_25pct,
+                NULL::numeric AS exit_trigger_1_price,
+                NULL::numeric AS exit_trigger_2_price,
+                NULL::numeric AS buy_zone_start,
+                NULL::numeric AS buy_zone_end,
+                NULL::numeric AS pivot_price,
+                NULL::numeric AS initial_stop,
+                NULL::numeric AS trailing_stop,
+                NULL::numeric AS sell_level,
+                NULL::numeric AS avg_volume_50d,
+                s.date AS signal_triggered_date,
+                NULL::numeric AS entry_price,
+                NULL::text AS signal_type,
+                NULL::text AS substage
+            FROM swing_trader_scores s
+            LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
+            LEFT JOIN LATERAL (
+                SELECT close, volume
+                FROM price_daily
+                WHERE symbol = s.symbol
+                ORDER BY date DESC
+                LIMIT 1
+            ) p ON true
+            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+            WHERE s.date >= CURRENT_DATE - INTERVAL '90 days'
+            {symbol_clause}
+            ORDER BY s.date DESC, s.score DESC
+            LIMIT %s
             """,
             tuple(params),
         )
         signals = cur.fetchall()
-
-        # Check data freshness
-        freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
-
+        freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
         return list_response(
             [safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness
         )
@@ -155,32 +185,49 @@ def _get_signals_stocks(
 
 @db_route_handler("fetch ETF signals")
 def _get_signals_etf(cur, limit: int = 500) -> Dict:
-    """Get ETF trading signals."""
+    """Get ETF market-regime signals from price_daily + trend_template_data.
+
+    buy_sell_daily_etf and technical_data_daily were removed from the pipeline.
+    This endpoint derives signals from Weinstein stage in trend_template_data:
+    stage 2 = BUY, stage 3/4 = SELL, stage 1 = HOLD.
+    """
     try:
+        cur.execute("SET LOCAL statement_timeout = '15000ms'")
+        etf_symbols = ['SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA']
         cur.execute(
             """
-                SELECT
-                    bsd.id, bsd.symbol, bsd.signal, bsd.date,
-                    bsd.strength, NULL as reason,
-                    COALESCE(td.close, 0) as close,
-                    COALESCE(td.rsi_14, 0) as rsi,
-                    COALESCE(td.sma_50, 0) as sma_50,
-                    COALESCE(td.sma_200, 0) as sma_200,
-                    COALESCE(tt.weinstein_stage::TEXT, 'unknown') as market_stage,
-                    COALESCE(cp.short_name, cp.long_name, bsd.symbol) as company_name,
-                    (td.close IS NULL OR td.rsi_14 IS NULL OR td.sma_50 IS NULL OR td.sma_200 IS NULL) AS _is_fallback
-                FROM buy_sell_daily_etf bsd
-                LEFT JOIN technical_data_daily td ON bsd.symbol = td.symbol
-                    AND bsd.date = td.date
-                LEFT JOIN trend_template_data tt ON bsd.symbol = tt.symbol
-                    AND bsd.date = tt.date
-                LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
-                WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'
-                AND bsd.symbol IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
-                ORDER BY bsd.date DESC
-                LIMIT %s
+            SELECT
+                pd.symbol,
+                pd.date,
+                CASE
+                    WHEN tt.weinstein_stage = 2 THEN 'BUY'
+                    WHEN tt.weinstein_stage IN (3, 4) THEN 'SELL'
+                    ELSE 'HOLD'
+                END AS signal,
+                COALESCE(tt.weinstein_stage::text, '—') AS strength,
+                NULL::text AS reason,
+                pd.close,
+                NULL::numeric AS rsi,
+                tt.sma_50,
+                tt.sma_200,
+                CASE tt.weinstein_stage
+                    WHEN 1 THEN 'Stage 1'
+                    WHEN 2 THEN 'Stage 2 - Markup'
+                    WHEN 3 THEN 'Stage 3 - Topping'
+                    WHEN 4 THEN 'Stage 4'
+                    ELSE 'unknown'
+                END AS market_stage,
+                COALESCE(cp.short_name, cp.long_name, pd.symbol) AS company_name,
+                (tt.symbol IS NULL) AS _is_fallback
+            FROM etf_price_daily pd
+            LEFT JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
+            LEFT JOIN company_profile cp ON cp.ticker = pd.symbol
+            WHERE pd.symbol = ANY(%s)
+            AND pd.date >= CURRENT_DATE - INTERVAL '90 days'
+            ORDER BY pd.date DESC, pd.symbol
+            LIMIT %s
             """,
-            (limit,),
+            (etf_symbols, limit),
         )
         signals = cur.fetchall()
         return list_response([safe_json_serialize(dict(s)) for s in signals])

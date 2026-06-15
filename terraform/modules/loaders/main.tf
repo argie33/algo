@@ -611,8 +611,9 @@ locals {
     }
 
     # NOTE: These loaders are managed via the Step Functions EOD pipeline:
-    # - trend_template_data, signal_quality_scores, technical_data_daily,
-    #   algo_metrics_daily, swing_trader_scores, buy_sell_daily
+    # - trend_template_data, algo_metrics_daily, swing_trader_scores
+    # signal_quality_scores, technical_data_daily, buy_sell_daily were removed
+    # from the pipeline. Orchestrator Phase 5 computes signals on-the-fly.
     # Task definitions remain in all_loaders for Step Functions to reference.
   }
 }

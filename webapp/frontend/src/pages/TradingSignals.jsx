@@ -257,7 +257,7 @@ export default function TradingSignals() {
           <div>
             <div className="page-head-title">Trading Signals</div>
             <div className="page-head-sub">
-              {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
+              {tab === 'stocks' ? 'Algo swing-trade candidates scored by orchestrator' : 'Market ETF regime signals from Weinstein stage'}
               {' · click any row for full detail'}
               {' · '}
               <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
