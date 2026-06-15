@@ -64,13 +64,6 @@ class DynamoDBLockManager:
 
         Returns: True if lock acquired, False if another instance holds it
         """
-        if not self.dynamodb:
-            logger.warning(
-                "[LOCK] DynamoDB unavailable — allowing execution without distributed lock (DEV MODE)"
-            )
-            self.acquired = False
-            return True  # Allow execution to proceed even without DynamoDB
-
         start_time = time.time()
         while time.time() - start_time < timeout_seconds:
             try:

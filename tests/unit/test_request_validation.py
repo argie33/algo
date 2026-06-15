@@ -319,18 +319,19 @@ class TestContactSubmissionRequest:
                 subject="<img src=x onerror=alert(1)>",
             )
 
-    def test_sql_injection_in_message_rejected(self):
-        """SQL injection attempts in message are rejected."""
-        sql_payloads = [
+    def test_sql_patterns_in_message_allowed(self):
+        """SQL patterns in message are allowed (parameterized queries prevent injection)."""
+        sql_like_messages = [
             "'; DROP TABLE users; --",
             "UNION SELECT * FROM users",
             "DELETE FROM users WHERE 1=1",
+            "How do I write queries like SELECT * FROM table?",
         ]
-        for payload in sql_payloads:
-            with pytest.raises(ValidationError):
-                ContactSubmissionRequest(
-                    name="John Doe", email="john@example.com", message=payload
-                )
+        for message in sql_like_messages:
+            req = ContactSubmissionRequest(
+                name="John Doe", email="john@example.com", message=message
+            )
+            assert req.message == message
 
     def test_valid_phone_formats(self):
         """Valid phone formats are accepted."""

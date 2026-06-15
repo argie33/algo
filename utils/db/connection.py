@@ -23,42 +23,13 @@ project_root = str(
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Try importing with fallback strategies
-try:
-    from config.credential_manager import get_db_config
-except ImportError:
-    # Fallback 1: Direct import from config directory
-    try:
-        config_path = str(
-            Path(__file__).resolve().parent.parent.parent.parent / "config"
-        )
-        if config_path not in sys.path:
-            sys.path.insert(0, config_path)
-        from credential_manager import get_db_config  # type: ignore[no-redef]
-    except ImportError:
-        # Fallback 2: Environment-based credential loading
-        # This allows the API to work even without the credential_manager module
-        def get_db_config():  # type: ignore[misc]
-            return {
-                "host": os.getenv("DB_HOST"),
-                "port": os.getenv("DB_PORT"),
-                "user": os.getenv("DB_USER", "stocks"),
-                "password": os.getenv("DB_PASSWORD"),
-                "database": os.getenv("DB_NAME", "stocks"),
-            }
-
-        logging.warning(
-            "[DB_CONFIG] Using environment-only credential loading (credential_manager module not found)"
-        )
+from config.credential_manager import get_db_config
 
 logger = logging.getLogger(__name__)
 
 # Connection pool shared across all requests in this Lambda container
 _connection_pool = None
 _pool_lock = threading.Lock()
-
-from algo.monitoring import on_connect, on_disconnect  # type: ignore[attr-defined]
-
 
 def _get_connection_pool():
     """Get or create the module-level connection pool (thread-safe).
@@ -134,6 +105,7 @@ class TrackedConnection:
     def __init__(self, conn, pool=None):
         self._conn = conn
         self._pool = pool
+        from algo.monitoring.connection_monitor import on_connect
         on_connect()
 
     def __getattr__(self, name):
@@ -148,6 +120,7 @@ class TrackedConnection:
 
     def close(self):
         """Return connection to pool (if managed) or close it."""
+        from algo.monitoring.connection_monitor import on_disconnect
         on_disconnect()
         if self._pool:
             try:

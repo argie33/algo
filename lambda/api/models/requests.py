@@ -79,12 +79,12 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("message", "name", "subject")
     @classmethod
     def check_dangerous_content(cls, v: Optional[str], info) -> Optional[str]:
-        """Check for dangerous patterns that could indicate XSS/SQL injection attempts."""
+        """Check for XSS patterns (plaintext input that will be rendered as HTML)."""
         if v is None:
             return v
 
         field_name = info.field_name
-        dangerous_patterns = [
+        xss_patterns = [
             r"<script",
             r"<iframe",
             r"<embed",
@@ -95,21 +95,9 @@ class ContactSubmissionRequest(BaseModel):
             r"vbscript:",
             r"data:text/html",
             r"on\w+[\s/]*=",
-            r"&#x[0-9a-fA-F]+;",
-            r"&#\d{2,};",
-            r"formaction\s*=",
-            r"onfocus\s*=",
-            r"onblur\s*=",
-            r"union\s+select",
-            r"drop\s+table",
-            r"update\s+\w+\s+set",
-            r"delete\s+from",
-            r"insert\s+into",
-            r";\s*rm\s",
-            r";\s*cat\s",
         ]
 
-        for pattern in dangerous_patterns:
+        for pattern in xss_patterns:
             if re.search(pattern, v, re.IGNORECASE):
                 raise ValueError(f"{field_name} contains invalid content")
 
