@@ -671,3 +671,9 @@ p { margin: 0; }
   width: 100% !important;
   height: 100% !important;
 }
+
+/* Recharts SVG elements must expand to fill ResponsiveContainer */
+.recharts-surface {
+  width: 100% !important;
+  height: 100% !important;
+}

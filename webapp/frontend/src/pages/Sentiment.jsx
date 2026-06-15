@@ -1334,7 +1334,7 @@ function RatingFunnel({ data }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
+        <div style={{ height: '240px', width: '100%', display: 'flex', flex: 1, overflow: 'hidden' }}>
           <ResponsiveContainer width="100%" height="100%">
             <FunnelChart>
               <RechartsTooltip contentStyle={TT_STYLE}
@@ -1490,7 +1490,7 @@ function DivergenceTimeline({ rows }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: '220px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
+        <div style={{ height: '220px', width: '100%', display: 'flex', flex: 1, overflow: 'hidden' }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
