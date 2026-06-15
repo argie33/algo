@@ -2,10 +2,6 @@
 
 **Purpose:** Document all signal rejection reasons for explainability and Phase 5 filtering.
 
-**Last Updated:** 2026-06-13
-
----
-
 ## Pre-Tier Rejections (Tier 0)
 
 **These occur before signals enter the 5-tier filter pipeline.**
