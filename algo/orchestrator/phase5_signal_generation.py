@@ -152,6 +152,7 @@ def _compute_swing_score_parallel(
             raise ValueError(
                 "_compute_swing_score_parallel requires config parameter (dependency injection)"
             )
+        from algo.signals import SwingTraderScore
         swing_scorer = SwingTraderScore(config)
         result = swing_scorer.compute(candidate["symbol"], run_date)
         if result and result.get("pass") and result.get("swing_score", 0) >= min_swing:
@@ -213,7 +214,7 @@ def run(
     config=None,
 ) -> PhaseResult:
     import os
-    from algo.signals import SignalComputer, VectorizedSignalGenerator, SwingTraderScore
+    from algo.signals import SignalComputer, VectorizedSignalGenerator
 
     # Enforce config parameter for dependency injection
     if config is None:
