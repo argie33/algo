@@ -136,36 +136,40 @@ class OptimalLoader(ABC):
         Used by Phase 1 to detect if loader is in progress vs finished.
         """
         try:
-            with DatabaseContext("write") as cur:
-                if status == "RUNNING":
-                    # Mark loader as running, preserve prior stats if any
-                    # ISSUE #2 FIX: Set execution_started to track when loader began
-                    cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
-                        "WHERE table_name = %s",
-                        (status, self.table_name),
-                    )
-                    if cur.rowcount == 0:
-                        # First run, insert entry
+            # Use a fresh connection (bypassing the long-running pooled connection)
+            # to avoid statement timeout from long-running transaction state.
+            from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+            saved_conn = get_pooled_connection()
+            set_pooled_connection(None)
+            try:
+                with DatabaseContext("write", enable_correlation_tracking=False) as cur:
+                    cur.execute("SET LOCAL statement_timeout = 0")  # no timeout for status writes
+                    if status == "RUNNING":
                         cur.execute(
-                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
-                            "VALUES (%s, %s, NOW(), NOW())",
-                            (self.table_name, status),
+                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
+                            "WHERE table_name = %s",
+                            (status, self.table_name),
                         )
-                    logger.debug(
-                        f"[{self.table_name}] Status updated to RUNNING, execution_started recorded"
-                    )
-                elif status == "COMPLETED":
-                    # Mark loader as completed with current timestamp
-                    # ISSUE #2 FIX: Set execution_completed to detect post-completion crashes (>10 min old = likely crash)
-                    cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
-                        "WHERE table_name = %s",
-                        (status, self.table_name),
-                    )
-                    logger.debug(
-                        f"[{self.table_name}] Status updated to COMPLETED, execution_completed timestamp recorded"
-                    )
+                        if cur.rowcount == 0:
+                            cur.execute(
+                                "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
+                                "VALUES (%s, %s, NOW(), NOW())",
+                                (self.table_name, status),
+                            )
+                        logger.debug(
+                            f"[{self.table_name}] Status updated to RUNNING, execution_started recorded"
+                        )
+                    elif status == "COMPLETED":
+                        cur.execute(
+                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
+                            "WHERE table_name = %s",
+                            (status, self.table_name),
+                        )
+                        logger.debug(
+                            f"[{self.table_name}] Status updated to COMPLETED, execution_completed timestamp recorded"
+                        )
+            finally:
+                set_pooled_connection(saved_conn)
         except Exception as e:
             logger.warning(
                 f"[{self.table_name}] Failed to update status to {status}: {e}"
@@ -1061,61 +1065,63 @@ class OptimalLoader(ABC):
                         "Phase 1 will detect this and trigger failsafe retry"
                     )
 
-                with DatabaseContext("write") as cur:
-                    # ISSUE #2 FIX: Preserve execution_started timestamp across DELETE+INSERT
-                    # Read current execution_started before wiping it out
-                    cur.execute(
-                        "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,),
-                    )
-                    existing = cur.fetchone()
-                    execution_started = (
-                        existing[0] if existing and existing[0] else "NOW()"
-                    )
-
-                    # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
-                    # dependency (works even if PRIMARY KEY was added after initial creation)
-                    cur.execute(
-                        "DELETE FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,),
-                    )
-
-                    # Include execution_started (preserved) and execution_completed (set now) in INSERT
-                    if execution_started == "NOW()":
-                        # execution_started was null, set it now
+                # Use a fresh connection for the final status write to avoid
+                # statement timeout from the long-running pooled connection state.
+                from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                _saved_conn = get_pooled_connection()
+                set_pooled_connection(None)
+                try:
+                    with DatabaseContext("write", enable_correlation_tracking=False) as cur:
+                        cur.execute("SET LOCAL statement_timeout = 0")  # no timeout for status writes
                         cur.execute(
-                            "INSERT INTO data_loader_status "
-                            "(table_name, row_count, latest_date, last_updated, status, "
-                            "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
-                            (
-                                self.table_name,
-                                total_rows,
-                                latest_date,
-                                loader_status,
-                                completion_pct,
-                                symbols_expected,
-                                symbols_successfully_loaded,
-                            ),
+                            "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
+                            (self.table_name,),
                         )
-                    else:
-                        # execution_started already exists, preserve it
+                        existing = cur.fetchone()
+                        execution_started = (
+                            existing[0] if existing and existing[0] else "NOW()"
+                        )
+
                         cur.execute(
-                            "INSERT INTO data_loader_status "
-                            "(table_name, row_count, latest_date, last_updated, status, "
-                            "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
-                            (
-                                self.table_name,
-                                total_rows,
-                                latest_date,
-                                loader_status,
-                                completion_pct,
-                                symbols_expected,
-                                symbols_successfully_loaded,
-                                execution_started,
-                            ),
+                            "DELETE FROM data_loader_status WHERE table_name = %s",
+                            (self.table_name,),
                         )
+
+                        if execution_started == "NOW()":
+                            cur.execute(
+                                "INSERT INTO data_loader_status "
+                                "(table_name, row_count, latest_date, last_updated, status, "
+                                "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
+                                "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
+                                (
+                                    self.table_name,
+                                    total_rows,
+                                    latest_date,
+                                    loader_status,
+                                    completion_pct,
+                                    symbols_expected,
+                                    symbols_successfully_loaded,
+                                ),
+                            )
+                        else:
+                            cur.execute(
+                                "INSERT INTO data_loader_status "
+                                "(table_name, row_count, latest_date, last_updated, status, "
+                                "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
+                                "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
+                                (
+                                    self.table_name,
+                                    total_rows,
+                                    latest_date,
+                                    loader_status,
+                                    completion_pct,
+                                    symbols_expected,
+                                    symbols_successfully_loaded,
+                                    execution_started,
+                                ),
+                            )
+                finally:
+                    set_pooled_connection(_saved_conn)
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"

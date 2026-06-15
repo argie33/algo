@@ -18,7 +18,13 @@ export default defineConfig({
         "dist/",
       ],
     },
-    include: ["src/**/*.{test,spec}.{js,jsx}"],
+    include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
+    exclude: [
+      "src/tests/e2e/**",
+      "src/tests/security/**",
+      "src/tests/system-audit.test.js",
+      "node_modules/**",
+    ],
     testTimeout: 10000,
   },
   resolve: {
