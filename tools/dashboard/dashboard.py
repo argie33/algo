@@ -60,6 +60,7 @@ from panels import (
     panel_exposure_compact,
     panel_circuit,
     panel_circuit_expanded,
+    panel_exposure_expanded,
     panel_algo_health,
     panel_portfolio,
     panel_performance_spark,
@@ -422,6 +423,9 @@ def render_dashboard(
     if view_mode == "circuit":
         return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
 
+    if view_mode == "exposure":
+        return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
+
     if view_mode == "positions":
         hint = Text.from_markup(
             "[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]"
@@ -498,7 +502,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -557,7 +561,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
