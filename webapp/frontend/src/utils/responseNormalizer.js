@@ -33,12 +33,12 @@ export const extractData = (response) => {
 
   // Check for error responses first
   if (data.success === false) {
-    const errorMsg = data.error || data.message || 'API request failed';
+    const errorMsg = data.message || data.error || 'API request failed';
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
     error.details = {
-      originalMessage: data.error || data.message,
+      originalMessage: data.message || data.error,
       errorType: data.errorType,
       statusCode: data.statusCode || response.status,
       timestamp: data.timestamp,
@@ -171,12 +171,12 @@ export const extractPaginatedData = (response) => {
 
   // Check for error responses
   if (data.success === false) {
-    const errorMsg = data.error || data.message || 'API request failed';
+    const errorMsg = data.message || data.error || 'API request failed';
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
     error.details = {
-      originalMessage: data.error || data.message,
+      originalMessage: data.message || data.error,
       errorType: data.errorType,
       statusCode: data.statusCode || response.status,
       timestamp: data.timestamp,

@@ -460,7 +460,7 @@ def get_security_headers() -> Dict[str, str]:
         "X-XSS-Protection": "1; mode=block",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-        "Content-Security-Policy": "default-src 'sel'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'",
+        "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'",
     }
 
 
