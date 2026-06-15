@@ -851,6 +851,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     streak = perf.get("streak") if perf.get("streak") is not None else 0
     str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c = G if streak >= 0 else R
+    unrlzd = perf.get("unrealized_pnl")
     pnl_val = perf.get("pnl")
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pf = perf.get("profit_factor")
@@ -887,8 +888,9 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
         ),
         Text.from_markup(
-            f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
-            f"[dim]ProfFact:[/][{pf_c}]{pf_s}[/]  "
+            f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
+            + (f"  [dim]Unrlzd:[/][{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]" if unrlzd is not None else "")
+            + f"  [dim]ProfFact:[/][{pf_c}]{pf_s}[/]  "
             f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
             f"[dim]Expect:[/][{exp_c}]{exp_s}[/]  "
             f"[dim]Avg R:[/][white]{avg_r_s}[/]"
@@ -3864,6 +3866,13 @@ def panel_trades_expanded(trades):
     ))
     rows.append(Rule(style="dim"))
 
+    _EXIT_SHORT = {
+        "stop_loss": "stop", "stop": "stop",
+        "t1_target": "T1", "t1_hit": "T1", "t1": "T1",
+        "t2_target": "T2", "t2_hit": "T2", "t2": "T2",
+        "manual": "man", "time_exit": "time", "time": "time",
+    }
+
     tbl = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
@@ -3882,6 +3891,7 @@ def panel_trades_expanded(trades):
     tbl.add_column("R", justify="right", no_wrap=True, min_width=5)
     tbl.add_column("Days", justify="right", no_wrap=True, min_width=4)
     tbl.add_column("Grade", justify="center", no_wrap=True, min_width=5)
+    tbl.add_column("Exit", justify="center", no_wrap=True, min_width=4)
     tbl.add_column("MFE%", justify="right", no_wrap=True, min_width=5)
     tbl.add_column("MAE%", justify="right", no_wrap=True, min_width=5)
 
@@ -3917,6 +3927,9 @@ def panel_trades_expanded(trades):
         mae = float(mae_raw) if mae_raw is not None else None
         trade_date = tr.get("trade_date") or tr.get("signal_date")
         exit_date = tr.get("exit_date")
+        exit_rsn_raw = (tr.get("exit_reason") or "").lower().strip()
+        exit_rsn = _EXIT_SHORT.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
+        exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
         pc = G if (pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
@@ -3933,6 +3946,7 @@ def panel_trades_expanded(trades):
             Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
             Text(f"{dur}d" if dur is not None else "--", style="dim"),
             Text(grade, style=grade_c),
+            Text(exit_rsn, style=exit_rsn_c),
             Text(f"{mfe:.1f}%" if mfe is not None else "--", style=G if (mfe or 0) > 0 else DIM),
             Text(f"{mae:.1f}%" if mae is not None else "--", style=R if (mae or 0) < 0 else DIM),
         )
@@ -4214,6 +4228,8 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         wr_v = perf.get("wr") or 0
         streak = perf.get("streak") or 0
         pnl_val = perf.get("pnl")
+        unrlzd_pnl = perf.get("unrealized_pnl")
+        open_cnt = perf.get("open_count")
         pf = perf.get("profit_factor")
         sharpe_v = perf.get("sharpe")
         exp = perf.get("expectancy")
@@ -4245,6 +4261,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         perfblk.add_row(
             "Total P&L:", Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),
             "Profit Factor:", Text(f"{pf:.2f}" if pf else "--", style=pf_c),
+        )
+        perfblk.add_row(
+            "Unrealized P&L:", Text(fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--", style=G if (unrlzd_pnl or 0) >= 0 else R),
+            "Open Positions:", Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
         )
         perfblk.add_row(
             "Max Drawdown:", Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
