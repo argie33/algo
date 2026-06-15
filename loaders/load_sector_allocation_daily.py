@@ -52,7 +52,8 @@ class SectorAllocationDailyLoader(OptimalLoader):
 
                 # Get total portfolio value for % calculations
                 cur.execute("""
-                    SELECT total_balance FROM algo_portfolio WHERE portfolio_id = 1
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 total_value_row = cur.fetchone()
                 total_portfolio_value = (

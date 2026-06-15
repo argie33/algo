@@ -3557,3 +3557,44 @@ LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
 WHERE ap.status IN ('open', 'partially_closed')
 GROUP BY cp.sector
 ORDER BY allocation_pct DESC;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Missing pre-computed loader tables
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Sector lookup for positions (populated by loaders that know sector data)
+CREATE TABLE IF NOT EXISTS company_sector_mapping (
+    symbol VARCHAR(20) PRIMARY KEY,
+    sector_name VARCHAR(100),
+    industry_name VARCHAR(100),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Pre-computed sector allocations (load_sector_allocation_daily.py)
+CREATE TABLE IF NOT EXISTS sector_allocation_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    sector_name VARCHAR(100) NOT NULL,
+    symbol_count INTEGER DEFAULT 0,
+    total_position_value DECIMAL(14, 2) DEFAULT 0,
+    pct_portfolio DECIMAL(8, 4) DEFAULT 0,
+    avg_unrealized_pnl_pct DECIMAL(8, 4),
+    sector_day_return_pct DECIMAL(8, 4),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (date, sector_name)
+);
+CREATE INDEX IF NOT EXISTS idx_sector_alloc_date ON sector_allocation_daily(date DESC);
+
+-- Pre-computed R-ladder risk distribution (load_r_ladder_distribution_daily.py)
+CREATE TABLE IF NOT EXISTS r_ladder_distribution_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    r_multiple_bucket VARCHAR(20) NOT NULL,
+    position_count INTEGER DEFAULT 0,
+    total_position_value DECIMAL(14, 2) DEFAULT 0,
+    avg_days_in_trade DECIMAL(8, 2),
+    avg_unrealized_pnl_pct DECIMAL(8, 4),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (date, r_multiple_bucket)
+);
+CREATE INDEX IF NOT EXISTS idx_r_ladder_date ON r_ladder_distribution_daily(date DESC);
