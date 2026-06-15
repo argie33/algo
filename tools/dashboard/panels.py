@@ -1141,6 +1141,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not sig_eval.get("_error"):
         ev_tot = sig_eval.get("total") or 0
+        ev_t1 = sig_eval.get("t1")
+        ev_t2 = sig_eval.get("t2")
+        ev_t3 = sig_eval.get("t3")
+        ev_t4 = sig_eval.get("t4")
         ev_t5 = sig_eval.get("t5") or 0
         ev_avg = sig_eval.get("avg_score") or 0
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
@@ -1159,10 +1163,17 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
         else:
             blocks_s = ""
+        has_full_funnel = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
+        if has_full_funnel:
+            funnel_s = (
+                f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{ev_t1}[dim]→[/]{ev_t2}"
+                f"[dim]→[/]{ev_t3}[dim]→[/]{ev_t4}[dim]→[/][{ev_c}]{ev_t5}[/]"
+            )
+        else:
+            funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
         rows.append(
             Text.from_markup(
-                f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
-                f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
+                funnel_s + f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
             )
         )
 
@@ -1406,7 +1417,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         strength = float(sec_rot.get("strength") or 0)
         sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
         scores_s = (
-            f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]"
+            f" [dim]def:{def_s:.0f} cyc:{cyc_s:.0f}[/]"
             if def_s or cyc_s
             else ""
         )
