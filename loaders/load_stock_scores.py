@@ -707,17 +707,21 @@ def main():
             else get_active_symbols(timeout_secs=60)
         )
         # Filter out ETFs from both sources (stock_symbols.etf column and etf_symbols table)
-        # This ensures ETFs are excluded even if etf_symbols table is unpopulated
+        # This ensures ETFs are excluded even if either source is incomplete
         with DatabaseContext("read") as cur:
             cur.execute("""
-                SELECT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') = 'Y'
-                UNION
-                SELECT symbol FROM etf_symbols
+                SELECT DISTINCT symbol FROM (
+                    SELECT symbol FROM stock_symbols WHERE etf = 'Y'
+                    UNION ALL
+                    SELECT symbol FROM etf_symbols
+                ) etf_sources
             """)
             etf_symbol_set = {row[0] for row in cur.fetchall()}
+
+        excluded_count = sum(1 for s in all_symbols if s in etf_symbol_set)
         symbols = [s for s in all_symbols if s not in etf_symbol_set]
         logger.info(
-            f"Filtering out {len(all_symbols) - len(symbols)} ETFs from {len(all_symbols)} total symbols"
+            f"Filtering out {excluded_count} ETFs from {len(all_symbols)} total symbols"
         )
 
         loader = StockScoresLoader()
