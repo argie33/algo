@@ -91,15 +91,12 @@ def _handle_basic(cur) -> Dict:
 
         # Signal freshness check using swing_trader_scores (primary signal source).
         # signal_quality_scores was removed from the pipeline; swing_trader_scores replaced it.
+        # MAX(date) uses the btree index on date; ORDER BY created_at had no index and scanned
+        # the full table, timing out on every health request.
         try:
             signal_check = execute_with_timeout(
                 cur,
-                """
-                SELECT created_at AS latest_signal
-                FROM swing_trader_scores
-                ORDER BY created_at DESC
-                LIMIT 1
-            """,
+                "SELECT MAX(date)::timestamp AS latest_signal FROM swing_trader_scores",
                 timeout_sec=2,
             )
 
