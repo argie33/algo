@@ -1110,38 +1110,34 @@ def _get_dashboard_signals(cur) -> Dict:
     """
     try:
 
+        # buy_sell_daily was removed from the pipeline; use swing_trader_scores instead.
         cur.execute(
             """
-                SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
-                WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
-                  AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))"""
+                SELECT COUNT(*) AS n, MAX(date) AS d FROM swing_trader_scores
+                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)"""
         )
         sig = cur.fetchone()
+        total_n = int(sig["n"] or 0) if sig else 0
 
-        cur.execute(
-            """SELECT COUNT(*) AS n FROM buy_sell_daily
-                           WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))"""
-        )
-        total_r = cur.fetchone()
-        total_n = int(total_r["n"] or 0) if total_r else 0
-
-        # Actual BUY signals with rich setup detail
+        # Top swing candidates with swing score and sector
         cur.execute("""
-                SELECT b.symbol, b.signal_type, b.stage_number, b.signal_quality_score,
-                       b.entry_quality_score, b.close, b.buylevel, b.stoplevel,
-                       b.risk_reward_ratio, b.volume_surge_pct, b.rs_rating,
-                       b.breakout_quality, b.base_type, b.reason,
+                SELECT s.symbol, t.weinstein_stage AS stage_number, s.score AS signal_quality_score,
+                       s.score AS entry_quality_score, p.close,
+                       NULL::numeric AS buylevel, NULL::numeric AS stoplevel,
+                       NULL::numeric AS risk_reward_ratio, NULL::numeric AS volume_surge_pct,
+                       NULL::numeric AS rs_rating, NULL::numeric AS breakout_quality,
+                       NULL::text AS base_type, s.components->>'fail_reason' AS reason,
+                       NULL::text AS signal_type,
                        cp.sector,
                        s.score AS swing_score
-                FROM buy_sell_daily b
-                LEFT JOIN company_profile cp ON cp.ticker = b.symbol
-                LEFT JOIN (
-                    SELECT DISTINCT ON (symbol) symbol, score
-                    FROM swing_trader_scores ORDER BY symbol, date DESC
-                ) s ON s.symbol = b.symbol
-                WHERE b.signal='BUY' AND b.timeframe IN ('1d', 'daily', 'Daily')
-                  AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))
-                ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
+                FROM swing_trader_scores s
+                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
+                ) p ON true
+                WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+                ORDER BY s.score DESC
                 LIMIT 30""")
         buy_sigs = [
             safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()
@@ -1178,17 +1174,17 @@ def _get_dashboard_signals(cur) -> Dict:
                 ORDER BY s.score DESC LIMIT 20""")
         top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Signal count trend: last 7 trading days
+        # Signal count trend: last 7 trading days from swing_trader_scores
         cur.execute("""
                 SELECT date,
-                       COUNT(*) FILTER (WHERE signal='BUY') AS buy_n,
+                       COUNT(*) FILTER (WHERE score >= 60) AS buy_n,
                        COUNT(*) AS total_n
-                FROM buy_sell_daily
-                WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
+                FROM swing_trader_scores
+                WHERE date >= CURRENT_DATE - 14
                 GROUP BY date ORDER BY date DESC LIMIT 7""")
         trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
+        freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
         return json_response(
             200,
@@ -2379,22 +2375,21 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
 def _get_sector_breadth(cur) -> Dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
-    Uses pre-computed sma_50/sma_200 from technical_data_daily (fast indexed lookup)
-    instead of recomputing window functions over 290 days of price_daily (too slow on
-    t4g.micro â€" caused 20s timeout). Joins latest tech row per symbol with company_profile.
+    Uses pre-computed sma_50/sma_200 from trend_template_data (fast indexed lookup).
+    technical_data_daily was removed from the pipeline; trend_template_data has
+    the same sma_50/sma_200 columns and is actively populated.
     """
     try:
-        # SAVEPOINT isolation: sector breadth joins price_daily + technical_data_daily.
-        # Both tables receive heavy writes from ECS loaders â€" a timeout here must not
-        # abort the outer transaction and break subsequent API requests in the same Lambda.
+        # SAVEPOINT isolation: a timeout here must not abort the outer transaction
+        # and break subsequent API requests in the same Lambda.
         cur.execute("SAVEPOINT sector_breadth_check")
         cur.execute("""
                 WITH latest_tech AS (
-                    SELECT DISTINCT ON (tdd.symbol)
-                        tdd.symbol, tdd.sma_50, tdd.sma_200
-                    FROM technical_data_daily tdd
-                    WHERE tdd.date >= CURRENT_DATE - INTERVAL '7 days'
-                    ORDER BY tdd.symbol, tdd.date DESC
+                    SELECT DISTINCT ON (tt.symbol)
+                        tt.symbol, tt.sma_50, tt.sma_200
+                    FROM trend_template_data tt
+                    WHERE tt.date >= CURRENT_DATE - INTERVAL '7 days'
+                    ORDER BY tt.symbol, tt.date DESC
                 ),
                 latest_price AS (
                     SELECT DISTINCT ON (pd.symbol)
@@ -2682,10 +2677,10 @@ def _get_rejection_funnel(cur) -> Dict:
     try:
         today = date.today()
 
-        # Get total initial signals
+        # Get total initial candidates (swing_trader_scores replaced buy_sell_daily)
         cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as total_signals
-                FROM buy_sell_daily
+                FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
         row = cur.fetchone()

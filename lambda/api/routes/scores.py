@@ -217,11 +217,13 @@ def _get_stock_scores(
                 LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
                 LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
                 LEFT JOIN LATERAL (
-                    SELECT rsi_14, macd, sma_50, sma_200,
-                           roc_20d, roc_60d, roc_120d, roc_252d
-                    FROM technical_data_daily
-                    WHERE symbol = sc.symbol
-                    ORDER BY date DESC LIMIT 1
+                    SELECT NULL::numeric AS rsi_14, NULL::numeric AS macd,
+                           tt.sma_50, tt.sma_200,
+                           NULL::numeric AS roc_20d, NULL::numeric AS roc_60d,
+                           NULL::numeric AS roc_120d, NULL::numeric AS roc_252d
+                    FROM trend_template_data tt
+                    WHERE tt.symbol = sc.symbol
+                    ORDER BY tt.date DESC LIMIT 1
                 ) tdd ON true
                 LEFT JOIN LATERAL (
                     SELECT MAX(ph.high) AS high_52w
