@@ -44,7 +44,7 @@ from utils.validation import (
     safe_int_strict,
     APIResponseValidator,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
+from models.requests import TradePreviewRequest
 import math
 
 logger = logging.getLogger(__name__)
@@ -1738,6 +1738,7 @@ def _get_circuit_breakers(cur) -> Dict:
         return error_response(500, "internal_error", "Failed to fetch circuit breakers")
 
 
+@db_route_handler("fetch equity curve")
 def _get_equity_curve(cur, days: int = 180) -> Dict:
     """Get equity curve for last N days."""
     try:
@@ -1804,6 +1805,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         return error_response(500, "internal_error", "Failed to fetch equity curve")
 
 
+@db_route_handler("fetch data status")
 def _get_data_status(cur) -> Dict:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -1927,6 +1929,7 @@ def _get_data_status(cur) -> Dict:
         return error_response(500, "internal_error", "Failed to fetch data status")
 
 
+@db_route_handler("fetch notifications")
 def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
@@ -1998,87 +2001,8 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
         return error_response(500, "internal_error", "Failed to fetch notifications")
 
 
-@db_route_handler("analyze trade impact")
-def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
-    """Analyze impact of a potential trade on portfolio constraints."""
-    try:
-        req = PreTradeImpactRequest(**body)
-    except ValidationError as e:
-        error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
-        return error_response(
-            400,
-            "bad_request",
-            f"Invalid request: {error_details.get('msg', 'Validation failed')}",
-        )
 
-    symbol = req.symbol
-    entry_price = req.entry_price
-    position_dollars = req.position_dollars
-    position_pct = req.position_pct
-
-    # Call stored procedure to compute all impact metrics in database
-    cur.execute(
-        """
-            SELECT position_size_dollars, position_size_percent, new_total_positions,
-                   new_sector_percent, new_sector_invested, drawdown_impact_pct,
-                   sector_name, sector_count,
-                   meets_position_limit, meets_size_limit, meets_sector_limit,
-                   meets_cash_requirement, meets_risk_limit
-            FROM calculate_pretrade_impact(%s, %s, %s, %s)
-        """,
-        (symbol, entry_price, position_dollars, position_pct),
-    )
-    impact_row = cur.fetchone()
-
-    if not impact_row:
-        return error_response(
-            500, "internal_error", f"Unable to calculate impact for {symbol}"
-        )
-
-    impact = safe_json_serialize(safe_dict_convert(impact_row))
-
-    allOk = (
-        impact.get("meets_position_limit", False)
-        and impact.get("meets_size_limit", False)
-        and impact.get("meets_sector_limit", False)
-        and impact.get("meets_cash_requirement", False)
-        and impact.get("meets_risk_limit", False)
-    )
-
-    return json_response(
-        200,
-        {
-            "symbol": symbol,
-            "entry_price": float(entry_price) if entry_price else 0,
-            "position_size_dollars": float(impact.get("position_size_dollars", 0)),
-            "position_size_percent": float(impact.get("position_size_percent", 0)),
-            "sector": impact.get("sector_name"),
-            "risk_score": 0.0 if allOk else 0.5,
-            "all_constraints_met": allOk,
-            "recommendation": "APPROVED" if allOk else "REJECTED",
-            "portfolio_impact": {
-                "new_total_positions": impact.get("new_total_positions", 0),
-                "position_limit": 6,
-                "position_limit_ok": impact.get("meets_position_limit", False),
-                "new_position_percent": float(impact.get("position_size_percent", 0)),
-                "max_position_percent": 15,
-                "position_size_ok": impact.get("meets_size_limit", False),
-                "new_sector_percent": float(impact.get("new_sector_percent", 0)),
-                "max_sector_percent": 30,
-                "sector_limit_ok": impact.get("meets_sector_limit", False),
-                "worst_case_drawdown_impact": float(
-                    impact.get("drawdown_impact_pct", 0)
-                ),
-                "max_acceptable_impact": 0.05,
-                "drawdown_risk_ok": impact.get("meets_risk_limit", False),
-                "cash_available": 0,
-                "cash_required": float(impact.get("position_size_dollars", 0)),
-                "cash_ok": impact.get("meets_cash_requirement", False),
-            },
-        },
-    )
-
-
+@db_route_handler("calculate trade preview")
 def _calculate_trade_preview(cur, body: Dict) -> Dict:
     """Calculate position preview before trade entry.
 
@@ -2173,6 +2097,7 @@ def _calculate_trade_preview(cur, body: Dict) -> Dict:
         )
 
 
+@db_route_handler("trigger data patrol")
 def _trigger_data_patrol() -> Dict:
     """Trigger async data patrol ECS task."""
     try:
@@ -2402,6 +2327,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
     return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
 
 
+@db_route_handler("get sector breadth")
 def _get_sector_breadth(cur) -> Dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -2488,6 +2414,7 @@ def _get_sector_breadth(cur) -> Dict:
         return error_response(500, "internal_error", "Failed to fetch sector breadth")
 
 
+@db_route_handler("get sector position warnings")
 def _get_sector_position_warnings(cur) -> Dict:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
 
@@ -2581,6 +2508,7 @@ def _get_sector_position_warnings(cur) -> Dict:
         )
 
 
+@db_route_handler("fetch swing scores")
 def _get_swing_scores(
     cur, limit: int = 100, min_score: float = None, symbol: str = None
 ) -> Dict:
@@ -2633,6 +2561,7 @@ def _get_swing_scores(
         return error_response(500, "internal_error", "Failed to fetch swing scores")
 
 
+@db_route_handler("fetch swing scores history")
 def _get_swing_scores_history(cur, days: int = 30) -> Dict:
     """Get swing scores historical data."""
     try:
@@ -2699,6 +2628,7 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
+@db_route_handler("fetch rejection funnel")
 def _get_rejection_funnel(cur) -> Dict:
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
@@ -2932,6 +2862,7 @@ _TIER_CONFIG = {
 }
 
 
+@db_route_handler("get markets")
 def _get_markets(cur) -> Dict:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
@@ -3091,6 +3022,7 @@ def _get_markets(cur) -> Dict:
         )
 
 
+@db_route_handler("get market")
 def _get_market(cur) -> Dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -3211,6 +3143,7 @@ def _get_market(cur) -> Dict:
         return error_response(503, "service_unavailable", "Failed to fetch market data")
 
 
+@db_route_handler("get market factors")
 def _get_market_factors(cur) -> Dict:
     """Get market exposure factors for dashboard display."""
     try:
@@ -3275,6 +3208,7 @@ def _get_market_factors(cur) -> Dict:
         )
 
 
+@db_route_handler("get algo evaluate")
 def _get_algo_evaluate(cur) -> Dict:
     """Get comprehensive signal evaluation with candidate analysis and constraints."""
     try:
@@ -3435,6 +3369,7 @@ def _get_algo_evaluate(cur) -> Dict:
         )
 
 
+@db_route_handler("get data quality")
 def _get_data_quality(cur) -> Dict:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
@@ -3546,156 +3481,7 @@ def _get_data_quality(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch exposure policy")
-def _get_exposure_policy(cur) -> Dict:
-    """Get detailed market exposure policy with calculation factors."""
-    try:
-        cur.execute("""
-                SELECT date, exposure_pct, regime, factors, halt_reasons, distribution_days
-                FROM market_exposure_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-        row = cur.fetchone()
-        if not row:
-            return json_response(
-                200,
-                {
-                    "current_exposure_pct": None,
-                    "active_tier": None,
-                    "all_tiers": [{"name": k, **v} for k, v in _TIER_CONFIG.items()],
-                    "regime_factors": {},
-                },
-            )
-
-        row = safe_json_serialize(safe_dict_convert(row))
-
-        # Parse JSON strings from database (halt_reasons and factors are stored as JSON text)
-        if row.get("halt_reasons"):
-            try:
-                row["halt_reasons"] = (
-                    json.loads(row["halt_reasons"])
-                    if isinstance(row["halt_reasons"], str)
-                    else row["halt_reasons"]
-                )
-            except (json.JSONDecodeError, TypeError):
-                row["halt_reasons"] = []
-        else:
-            row["halt_reasons"] = []
-
-        tier_key = str(row.get("regime") or "").lower()
-        tier_conf = _TIER_CONFIG.get(tier_key, {})
-        active_tier = {"name": tier_key, **tier_conf}
-        active_tier["halt"] = bool(row.get("halt_reasons")) or tier_conf.get(
-            "halt", False
-        )
-
-        # Parse factors from JSON if available
-        factors = {}
-        factor_quality = "ok"
-        if row.get("factors"):
-            try:
-                if isinstance(row["factors"], str):
-                    factors = json.loads(row["factors"])
-                else:
-                    factors = row["factors"]
-            except (json.JSONDecodeError, KeyError, TypeError) as e:
-                logger.warning(f"Failed to parse factors: {e}")
-                factors = {}
-                factor_quality = "parse_error"
-
-        # Validate expected factor keys are present
-        expected_factor_keys = {
-            "stage_number",
-            "ad_ratio",
-            "vix",
-            "breadth_momentum",
-            "mcclellan",
-        }
-        if factors and not isinstance(factors, dict):
-            logger.error(f"Factors not a dict: {type(factors)}")
-            factor_quality = "invalid_structure"
-        elif factors:
-            found_keys = set(factors.keys())
-            missing_keys = expected_factor_keys - found_keys
-            if missing_keys:
-                logger.warning(
-                    f"Market exposure factors missing keys: {missing_keys} (found: {found_keys})"
-                )
-                factor_quality = "degraded" if missing_keys else "ok"
-
-        # Get latest market health for additional context
-        market_health = {}
-        try:
-            cur.execute("""
-                    SELECT
-                        market_stage, market_trend, vix_level,
-                        advance_decline_ratio, new_highs_count, new_lows_count,
-                        breadth_momentum_10d
-                    FROM market_health_daily
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-            mh_row = cur.fetchone()
-            if mh_row:
-                market_health = safe_json_serialize(safe_dict_convert(mh_row))
-        except psycopg2.Error as e:
-            logger.warning(f"Failed to fetch market health: {e}")
-
-        exposure_pct_val = row.get("exposure_pct")
-        return json_response(
-            200,
-            {
-                "current_exposure_pct": (
-                    float(exposure_pct_val) if exposure_pct_val is not None else None
-                ),
-                "exposure_tier": tier_key,
-                "is_entry_allowed": not active_tier["halt"],
-                "active_tier": active_tier,
-                "all_tiers": [{"name": k, **v} for k, v in _TIER_CONFIG.items()],
-                "regime_factors": {
-                    "sp500_stage": factors.get("stage_number"),
-                    "advance_decline_ratio": (
-                        factors.get("ad_ratio")
-                        if factors.get("ad_ratio") is not None
-                        else market_health.get("advance_decline_ratio")
-                    ),
-                    "vix_level": (
-                        factors.get("vix")
-                        if factors.get("vix") is not None
-                        else market_health.get("vix_level")
-                    ),
-                    "breadth_momentum": (
-                        factors.get("breadth_momentum")
-                        if factors.get("breadth_momentum") is not None
-                        else market_health.get("breadth_momentum_10d")
-                    ),
-                    "distribution_days": row.get("distribution_days"),
-                    "market_stage": market_health.get("market_stage"),
-                    "market_trend": market_health.get("market_trend"),
-                    "mcclellan_oscillator": factors.get("mcclellan"),
-                },
-                "factor_quality": factor_quality,
-                "halt_reasons": row.get("halt_reasons"),
-                "as_o": row["date"] if row["date"] else None,
-            },
-        )
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-    ):
-        raise  # Let @db_route_handler return proper 503/504
-    except Exception as e:
-        logger.error(
-            f"Failed to fetch exposure policy: {type(e).__name__}: {e}\n  Operation: Calculate exposure policy and market regime\n  Endpoint: GET /api/algo/exposure-policy"
-        )
-        return error_response(
-            503, "service_unavailable", "Market exposure data temporarily unavailable"
-        )
-
-
+@db_route_handler("get sector stage2")
 def _get_sector_stage2(cur) -> Dict:
     """Get percentage of stocks in Stage 2 by sector."""
     try:
@@ -4311,6 +4097,7 @@ def _get_algo_portfolio(cur) -> Dict:
         return error_response(503, "service_unavailable", "Portfolio data unavailable")
 
 
+@db_route_handler("get algo metrics")
 def _get_algo_metrics(cur) -> Dict:
     """Get daily algo metrics (total actions, entries, exits)."""
     try:
