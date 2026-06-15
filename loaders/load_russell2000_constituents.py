@@ -2,6 +2,7 @@
 """Russell 2000 Constituents Loader - Mark Russell 2000 membership (Market-wide)."""
 
 import sys
+import socket
 import logging
 from datetime import date
 from typing import Optional, List

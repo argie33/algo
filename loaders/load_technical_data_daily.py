@@ -11,7 +11,7 @@ import sys
 import argparse
 import logging
 import psycopg2.sql
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 import pandas as pd

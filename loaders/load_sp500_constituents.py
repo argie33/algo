@@ -2,6 +2,7 @@
 """S&P 500 Constituents Loader - Mark S&P 500 membership (Market-wide)."""
 
 import sys
+import socket
 import logging
 from datetime import date
 from typing import Optional, List
@@ -10,6 +11,7 @@ import requests
 from io import StringIO
 
 from utils.optimal_loader import OptimalLoader
+from utils.infrastructure.timeout import ExecutionTimeout
 
 logger = logging.getLogger(__name__)
 

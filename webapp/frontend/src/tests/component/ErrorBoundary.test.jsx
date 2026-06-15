@@ -258,7 +258,7 @@ describe("ErrorBoundary Component", () => {
       const errorBoundaryCall = calls.find(
         (call) =>
           typeof call[0] === "string" &&
-          call[0].includes("ErrorBoundary caught a React render error:")
+          call[0].includes("ErrorBoundary caught an error:")
       );
       expect(errorBoundaryCall).toBeDefined();
 

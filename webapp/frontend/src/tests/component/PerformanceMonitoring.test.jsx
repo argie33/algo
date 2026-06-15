@@ -576,9 +576,9 @@ describe("Performance Monitoring Tests", () => {
 
       // All API calls should show response times - check that all endpoints are present (order may vary)
       const allText = screen.getByTestId("api-performance-monitor").textContent;
-      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms âœ"/);
-      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms âœ"/);
-      expect(allText).toMatch(/\/api\/news: [\d.]+ms âœ"/);
+      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms \[OK\]/);
+      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms \[OK\]/);
+      expect(allText).toMatch(/\/api\/news: [\d.]+ms \[OK\]/);
     });
 
     test("should detect slow API calls", async () => {

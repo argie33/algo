@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 import psycopg2.sql
 from utils.loaders.helpers import get_active_symbols
 from utils.infrastructure.timezone import EASTERN_TZ
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from typing import List, Optional, Dict
 import json
 

@@ -3101,12 +3101,10 @@ def _get_market_factors(cur) -> Dict:
             return json_response(
                 200,
                 {
-                    "data": {
-                        "exposure_pct": None,
-                        "raw_score": None,
-                        "regime": None,
-                        "factors": {},
-                    }
+                    "exposure_pct": None,
+                    "raw_score": None,
+                    "regime": None,
+                    "factors": {},
                 },
             )
 
@@ -3132,7 +3130,7 @@ def _get_market_factors(cur) -> Dict:
             "factors": factors,
         }
 
-        return json_response(200, {"data": data})
+        return json_response(200, data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

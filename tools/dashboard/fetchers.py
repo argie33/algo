@@ -1,6 +1,7 @@
 """Fetcher functions for dashboard data from API endpoints."""
 
 import random
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -63,6 +64,10 @@ FETCHER_METADATA = {
     "exec_hist": {
         "endpoint": "/api/algo/execution/recent",
         "desc": "Execution history",
+    },
+    "exp_factors": {
+        "endpoint": "/api/algo/market-factors",
+        "desc": "Market exposure factors",
     },
 }
 
@@ -351,7 +356,6 @@ def fetch_market(c):
         }
 
 
-
 def _validate_required_fields(data_dict, required_fields, source_name):
     """Validate that all required fields exist in response dict. Return error dict if missing."""
     if not isinstance(data_dict, dict):
@@ -428,10 +432,11 @@ def fetch_portfolio(c):
             }
         port = data.get("data", {})
 
-        # Check data freshness before validation (portfolio data > 1 hour old is stale)
+        # Check data freshness before validation (portfolio data > 3 days old is stale;
+        # algo only runs on trading days so weekend data is legitimately 48-72h old)
         snapshot_date = port.get("last_run")
         is_fresh, freshness_error = _check_data_freshness(
-            snapshot_date, max_age_seconds=3600, source_name="Portfolio"
+            snapshot_date, max_age_seconds=259200, source_name="Portfolio"
         )
         if not is_fresh:
             logger.warning(freshness_error)
@@ -735,7 +740,8 @@ def fetch_recent_trades(c):
     """AWS-only trades data (no local fallback)."""
     try:
         data = api_call(
-            _get_endpoint_path("trades", params={"limit": 10, "status": "closed"})
+            _get_endpoint_path("trades"),
+            params={"limit": 20},
         )
         if data.get("_error"):
             return {
@@ -864,6 +870,10 @@ def fetch_activity(c):
         }
 
 
+_data_status_cache: dict = {}
+_data_status_lock = threading.Lock()
+
+
 def _get_data_status_cached():
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
 
@@ -871,7 +881,7 @@ def _get_data_status_cached():
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
     """
-    global _data_status_cache, _data_status_lock  # noqa: F824
+    global _data_status_cache, _data_status_lock
 
     if "result" in _data_status_cache:
         return _data_status_cache["result"]
@@ -896,12 +906,41 @@ def fetch_health(c):
         data = _get_data_status_cached()
         if data.get("_error"):
             return {"_error": data.get("_error"), "items": []}
-        health = data.get("data", [])
-        return {"items": health if isinstance(health, list) else []}
+        # api_call returns full response: {statusCode, data: {ready_to_trade, summary, sources, ...}}
+        inner = data.get("data", {})
+        sources = inner.get("sources", []) if isinstance(inner, dict) else []
+        return {
+            "items": sources,
+            "ready_to_trade": inner.get("ready_to_trade") if isinstance(inner, dict) else None,
+            "summary": inner.get("summary") if isinstance(inner, dict) else {},
+            "critical_stale": inner.get("critical_stale", []) if isinstance(inner, dict) else [],
+        }
     except Exception as e:
         error_msg = _format_fetcher_error("health", e)
         logger.error(error_msg)
         return {"_error": error_msg, "items": []}
+
+
+def fetch_exp_factors(c):
+    """Fetch 12-factor market exposure data from /api/algo/market-factors."""
+    try:
+        data = api_call(_get_endpoint_path("exp_factors"))
+        if data.get("_error"):
+            return {"_error": data.get("_error")}
+        # Response: {statusCode, data: {exposure_pct, raw_score, regime, factors}}
+        inner = data.get("data", {})
+        if not isinstance(inner, dict):
+            return {"_error": "Unexpected response format from market-factors"}
+        return {
+            "exposure_pct": safe_float(inner.get("exposure_pct"), default=None),
+            "raw_score": safe_float(inner.get("raw_score"), default=None),
+            "regime": inner.get("regime"),
+            "factors": inner.get("factors") or {},
+        }
+    except Exception as e:
+        error_msg = _format_fetcher_error("exp_factors", e)
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
 
 def fetch_economic_pulse(c):
@@ -1307,6 +1346,7 @@ FETCHERS = {
     "irank": fetch_industry_ranking,
     "audit": fetch_audit_log,
     "exec_hist": fetch_exec_history,
+    "exp_factors": fetch_exp_factors,
 }
 
 
@@ -1360,6 +1400,7 @@ def load_all() -> dict:
         "irank",
         "audit",
         "exec_hist",
+        "exp_factors",
     }
 
     def one(name, fn):

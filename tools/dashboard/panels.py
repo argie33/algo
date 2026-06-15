@@ -1862,6 +1862,13 @@ def panel_status(
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
     rows: list = []
 
+    # Extract items from data dicts
+    hlth_items = (
+        hlth.get("items", [])
+        if isinstance(hlth, dict) and "items" in hlth
+        else (hlth if isinstance(hlth, list) else [])
+    )
+
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")

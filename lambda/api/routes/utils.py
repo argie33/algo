@@ -1,7 +1,6 @@
 """Shared route utilities."""
 
 import setup_imports  # noqa: F401
-
 import psycopg2.errors
 import psycopg2
 import logging
@@ -9,10 +8,9 @@ import time
 from functools import wraps
 from datetime import datetime, date, timezone
 
-logger = logging.getLogger(__name__)
-
-# Import response validator to sanitize None values in API responses (Issue #14)
 from utils.validation import APIResponseValidator
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_to_utc_datetime(dt):

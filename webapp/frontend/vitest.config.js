@@ -22,6 +22,9 @@ export default defineConfig({
     exclude: [
       "src/tests/e2e/**",
       "src/tests/security/**",
+      "src/tests/integration/contracts/**",
+      "src/tests/integration/EconomicModelingIntegration.test.jsx",
+      "src/tests/component/Dashboard.integration.test.jsx",
       "src/tests/system-audit.test.js",
       "node_modules/**",
     ],

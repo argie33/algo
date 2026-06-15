@@ -91,12 +91,13 @@ def _apply_route_standardization(content: str) -> str:
     # This is complex - we'll do selective replacements
     # Pattern: Remove redundant default_error_response parameters
 
-    pattern = r"@db_route_handler\([^)]+default_error_response=[^,)]+,?\s*\)"
-    replacement = lambda m: m.group(0).replace(
-        "default_error_response=", "default_error_response_REMOVE="
-    )
+    def replace_default_error(m):
+        return m.group(0).replace(
+            "default_error_response=", "default_error_response_REMOVE="
+        )
 
-    content = re.sub(pattern, replacement, content)
+    pattern = r"@db_route_handler\([^)]+default_error_response=[^,)]+,?\s*\)"
+    content = re.sub(pattern, replace_default_error, content)
 
     # Clean up the REMOVE markers
     content = content.replace("default_error_response_REMOVE=", "")

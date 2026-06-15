@@ -16,6 +16,7 @@ import logging
 import secrets
 import string
 import boto3
+import psycopg2
 from typing import Dict, Any
 
 logger = logging.getLogger()

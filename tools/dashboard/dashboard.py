@@ -67,6 +67,12 @@ from panels import (
 )
 from formatters import mkt_hours_str
 
+try:
+    from panels import _REGISTRY_AVAILABLE, PANEL_REGISTRY
+except ImportError:
+    _REGISTRY_AVAILABLE = False
+    PANEL_REGISTRY = None
+
 
 def _validate_watch_interval(value):
     """Validate watch interval is between 5 and 600 seconds."""
