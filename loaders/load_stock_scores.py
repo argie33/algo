@@ -17,7 +17,7 @@ Run: python3 loaders/load_stock_scores.py [--symbols AAPL,MSFT] [--parallelism 8
 
 import sys
 import argparse
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional, Dict
 import logging
 
@@ -202,6 +202,7 @@ class StockScoresLoader(OptimalLoader):
                 "stability_score": round(stability_score, 2),
                 "rs_percentile": rs_percentile,
                 "data_completeness": data_completeness,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
