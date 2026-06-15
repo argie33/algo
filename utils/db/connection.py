@@ -24,13 +24,24 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from config.credential_manager import get_db_config
-from algo.monitoring.connection_monitor import on_connect, on_disconnect
 
 logger = logging.getLogger(__name__)
 
 # Connection pool shared across all requests in this Lambda container
 _connection_pool = None
 _pool_lock = threading.Lock()
+
+# Optional monitoring callbacks — registered by algo.monitoring to avoid circular imports.
+# utils.db must not depend on algo.monitoring directly (circular: connection → monitoring → utils.db).
+_on_connect = None
+_on_disconnect = None
+
+
+def register_connection_callbacks(on_connect, on_disconnect):
+    """Register pool monitoring callbacks. Called by algo.monitoring after it initializes."""
+    global _on_connect, _on_disconnect
+    _on_connect = on_connect
+    _on_disconnect = on_disconnect
 
 
 def _get_connection_pool():
@@ -107,7 +118,8 @@ class TrackedConnection:
     def __init__(self, conn, pool=None):
         self._conn = conn
         self._pool = pool
-        on_connect()
+        if _on_connect:
+            _on_connect()
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
@@ -121,7 +133,8 @@ class TrackedConnection:
 
     def close(self):
         """Return connection to pool (if managed) or close it."""
-        on_disconnect()
+        if _on_disconnect:
+            _on_disconnect()
         if self._pool:
             try:
                 self._pool.putconn(self._conn)
