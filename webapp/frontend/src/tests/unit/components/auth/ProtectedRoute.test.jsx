@@ -64,6 +64,18 @@ vi.mock("../../../../config/amplify", () => ({
   isCognitoConfigured: vi.fn().mockReturnValue(false),
 }));
 
+// Mock AuthContext to return isLoading: false immediately.
+// The real AuthProvider starts with isLoading: true (pending async auth check),
+// which causes ProtectedRoute to render a loading spinner instead of children.
+vi.mock("../../../../contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+  })),
+  AuthProvider: ({ children }) => children,
+}));
+
 describe("ProtectedRoute", () => {
   describe("Basic Functionality", () => {
     test("renders children without authentication", () => {
