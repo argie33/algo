@@ -123,7 +123,7 @@ def fetch_run(c):
         # api_call returns {statusCode, data: {...}} — unwrap inner data
         inner = data.get("data", {}) if isinstance(data.get("data"), dict) else data
         phases = inner.get("phases") or []
-        halted_phases = [p for p in phases if p.get("status") == "halt"]
+        halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
@@ -1446,6 +1446,11 @@ def load_all() -> dict:
     Issue 12 FIX: API calls use retry logic with capped exponential backoff.
     """
     from utilities import API_MAX_BACKOFF
+
+    # Clear per-call cache so watch mode gets fresh health data on each refresh.
+    # _get_data_status_cached() deduplicates concurrent fetches within one load_all()
+    # call but must not persist across refresh cycles.
+    _data_status_cache.clear()
 
     out: dict = {}
     MAX_RETRIES = 3

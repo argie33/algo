@@ -612,9 +612,9 @@ def _get_last_run(cur) -> Dict:
     )
     phases = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
-    halted = any(p.get("status") == "halt" for p in phases)
+    halted = any(p.get("status") in ("halt", "halted") for p in phases)
     errored = any(p.get("status") == "error" for p in phases)
-    success = len(phases) > 0 and not errored
+    success = len(phases) > 0 and not errored and not halted
 
     return json_response(
         200,
@@ -1093,6 +1093,42 @@ def _get_algo_performance(cur) -> Dict:
         except Exception:
             pass
 
+        # Equity curve values from portfolio snapshots for sparkline and recent returns strip
+        equity_vals: list = []
+        recent_rets: list = []
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).date()
+            cur.execute(
+                """
+                SELECT snapshot_date, total_portfolio_value, daily_return_pct
+                FROM algo_portfolio_snapshots
+                WHERE snapshot_date >= %s AND total_portfolio_value > 0
+                ORDER BY snapshot_date ASC
+                """,
+                (cutoff,),
+            )
+            snap_rows = cur.fetchall()
+            if snap_rows:
+                equity_vals = [
+                    float(r["total_portfolio_value"])
+                    for r in snap_rows
+                    if r.get("total_portfolio_value") is not None
+                ]
+                # Last 10 in chronological order; panel takes [-5:] for the 5 most recent
+                recent_rets = [
+                    [
+                        r["snapshot_date"].isoformat()
+                        if hasattr(r["snapshot_date"], "isoformat")
+                        else str(r["snapshot_date"]),
+                        float(r["daily_return_pct"])
+                        if r.get("daily_return_pct") is not None
+                        else 0.0,
+                    ]
+                    for r in snap_rows[-10:]
+                ]
+        except Exception as eq_err:
+            logger.warning("Could not fetch equity sparkline data for performance: %s", eq_err)
+
         response_data = {
             "total_trades": total_trades,
             "winning_trades": winning,
@@ -1131,19 +1167,19 @@ def _get_algo_performance(cur) -> Dict:
             "expectancy_r": expectancy_r,
             "avg_hold_days": safe_float(metrics.get("avg_holding_days")),
             "avg_holding_days": safe_float(metrics.get("avg_holding_days")),
-            "portfolio_snapshots": 0,
+            "portfolio_snapshots": len(equity_vals),
             "best_win_streak": metrics.get("best_win_streak") or 0,
             "worst_loss_streak": metrics.get("worst_loss_streak") or 0,
             "current_streak": current_streak,
-            "equity_vals": [],
-            "recent_rets": [],
+            "equity_vals": equity_vals,
+            "recent_rets": recent_rets,
             "stale_alerts": [],
             "data_freshness": {"is_stale": False},
             "confidence_metadata": {
                 "sharpe_confidence": "high",
                 "win_rate_confidence": "high" if win_loss_total >= 30 else "medium",
                 "return_confidence": "high",
-                "snapshot_count": 0,
+                "snapshot_count": len(equity_vals),
                 "total_trades": total_trades,
             },
         }
@@ -2164,9 +2200,10 @@ def _calculate_pre_trade_impact(cur, body: Dict) -> Dict:
         sector_exposure = {}
         try:
             cur.execute("""
-                SELECT cp.sector, SUM(ap.position_value) AS sector_value
+                SELECT COALESCE(cp.sector, 'Unknown') AS sector,
+                       SUM(ap.position_value) AS sector_value
                 FROM algo_positions ap
-                JOIN company_profile cp ON cp.ticker = ap.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
                 WHERE ap.status = 'open'
                 GROUP BY cp.sector
             """)
@@ -3367,9 +3404,9 @@ def _get_algo_evaluate(cur) -> Dict:
         cur.execute("""
                 WITH distinct_trades AS (
                     SELECT DISTINCT ON (at.symbol)
-                        at.symbol, cp.sector
+                        at.symbol, COALESCE(cp.sector, 'Unknown') AS sector
                     FROM algo_trades at
-                    JOIN company_profile cp ON at.symbol = cp.ticker
+                    LEFT JOIN company_profile cp ON at.symbol = cp.ticker
                     WHERE at.status = 'open'
                     ORDER BY at.symbol
                 )
