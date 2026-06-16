@@ -39,10 +39,13 @@ _PERIOD_CONFIG = {
             }
         ),
         "field_mapping": {
-            # Revenue: SEC EDGAR returns "Revenues" (FY2018+) or "SalesRevenueNet" (FY2009-2017)
+            # Revenue: legacy concepts (pre-ASC 606, before 2018)
             "revenues": "revenue",
             "sales_revenue_net": "revenue",
-            # Cost of Revenue: SEC EDGAR returns "CostOfRevenue" or "CostsAndExpenses"
+            # Revenue: post-ASC 606 concepts (2018+) used by most large-cap companies
+            "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
+            "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
+            # Cost of Revenue
             "cost_of_revenue": "cost_of_revenue",
             "costs_and_expenses": "cost_of_revenue",
             # Gross Profit
@@ -52,7 +55,7 @@ _PERIOD_CONFIG = {
             "operating_income_loss": "operating_income",
             # Net Income
             "net_income_loss": "net_income",
-            # EPS: SEC EDGAR returns both basic and diluted, we prefer basic
+            # EPS: prefer basic over diluted
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",
             # Shares outstanding
@@ -77,6 +80,8 @@ _PERIOD_CONFIG = {
             "fiscal_period": "fiscal_quarter",  # "Q1".."Q4"  ->  integer (converted in transform)
             "revenues": "revenue",
             "sales_revenue_net": "revenue",
+            "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
+            "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
             "net_income_loss": "net_income",
             "earnings_per_share_basic": "earnings_per_share",
             "earnings_per_share_diluted": "earnings_per_share",
@@ -143,9 +148,10 @@ class IncomeStatementLoader(OptimalLoader):
                 db_field = self._field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
-                    if (
-                        db_field not in row
-                    ):  # Don't overwrite if already set (e.g., prefer basic over diluted EPS)
+                    # Prefer non-None: set if not yet set, or replace None with a real value.
+                    # This handles multiple concepts mapping to the same column (e.g., legacy
+                    # "Revenues" vs. post-ASC 606 "RevenueFromContractWithCustomer...").
+                    if db_field not in row or (row[db_field] is None and value is not None):
                         row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 row["fiscal_quarter"] = self._QUARTER_MAP.get(row["fiscal_quarter"])

@@ -545,7 +545,7 @@ class StockScoresLoader(OptimalLoader):
 
         # Insider ownership: moderate insider ownership (5-20%) is a positive signal
         if metrics.get("insider_ownership") is not None:
-            ins = metrics["insider_ownership"] * 100  # stored as decimal fraction
+            ins = metrics["insider_ownership"]  # stored as percentage (e.g., 5.2 = 5.2%)
             if ins >= 20:
                 ins_score = 100
             elif ins >= 5:

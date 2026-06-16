@@ -28,7 +28,7 @@ class PositioningMetricsLoader(OptimalLoader):
 
     table_name = "positioning_metrics"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch positioning metrics for this symbol."""
