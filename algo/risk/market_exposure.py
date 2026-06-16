@@ -247,11 +247,16 @@ class MarketExposure:
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             vix = self._vix_regime(eval_date, cur)
+            if vix.get("value") is None:
+                logger.warning(
+                    f"VIX data missing for {eval_date}: ^VIX not in price_daily and/or "
+                    f"vix_level not in market_health_daily — check data loaders"
+                )
             vix_pts, vix_avail = self._wt_pts(vix, self.W_VIX)
             avail_max += vix_avail
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
-            logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
+            logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
 
             # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
             pc = self._put_call_ratio(eval_date, cur)
@@ -720,8 +725,14 @@ class MarketExposure:
             )
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
+                logger.error(
+                    f"[VIX ERROR] No VIX data available for {eval_date}: "
+                    f"^VIX missing from price_daily AND vix_level missing/null in market_health_daily. "
+                    f"Check that load_market_health_daily loader is running and fetching VIX from external sources."
+                )
                 return {"score_factor": None, "value": None}
             vix = float(r2[0])
+            logger.debug(f"[VIX] Using fallback: vix_level={vix} from market_health_daily for {eval_date}")
             return self._vix_score(vix, rising=False, term_structure=None)
 
         vix = float(vix_row[0])
@@ -733,6 +744,10 @@ class MarketExposure:
             vix3m = float(vix3m_row[0])
             term_structure = vix3m / vix  # >1.0 = contango, <1.0 = backwardation
 
+        logger.debug(
+            f"[VIX] Computed from ^VIX: value={vix:.2f}, rising={rising}, "
+            f"term_structure={term_structure if term_structure else 'N/A'} for {eval_date}"
+        )
         return self._vix_score(vix, rising=rising, term_structure=term_structure)
 
     def _vix_score(self, vix, rising, term_structure=None):
