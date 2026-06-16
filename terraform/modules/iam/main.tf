@@ -1270,8 +1270,7 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "ecs:RunTask",
       "ecs:StopTask",
-      "ecs:DescribeTasks",
-      "ecs:ListTasks"
+      "ecs:DescribeTasks"
     ]
 
     resources = [
@@ -1280,14 +1279,17 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
-  # ECS cluster access
+  # ECS cluster access + list tasks (ListTasks is evaluated against the cluster resource, not task ARNs)
   statement {
     sid    = "ECSClusterAccess"
     effect = "Allow"
 
     actions = [
-      "ecs:DescribeCluster",
-      "ecs:ListClusters"
+      "ecs:DescribeClusters",
+      "ecs:ListClusters",
+      "ecs:ListTasks",
+      "ecs:ListServices",
+      "ecs:DescribeServices"
     ]
 
     resources = [
