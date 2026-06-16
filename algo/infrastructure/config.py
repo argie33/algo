@@ -469,7 +469,7 @@ class AlgoConfig:
         "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars"),
         "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %"),
         "phase1_min_symbol_count": (
-            "8000",
+            "5000",
             "int",
             "Phase 1: Minimum symbol count for healthy coverage",
         ),

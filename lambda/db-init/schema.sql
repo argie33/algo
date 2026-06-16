@@ -3257,6 +3257,7 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('eight_week_rule_window_days', '21', 'int', 'Days to check for 20pct plus gain', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 
 -- ISSUES #8-23 Configuration: Data Freshness, Completeness, and Pipeline Coordination
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_min_symbol_count', '5000', 'int', 'Min absolute symbol count in price_daily for Phase 1 to pass', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_coverage_min_pct', '75', 'int', 'Min symbol coverage % for halt (Issue #8)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_coverage_optimal_pct', '95', 'int', 'Optimal symbol coverage % for data quality (Issue #2)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_halt_stale_days_threshold', '2', 'int', 'Days before data considered stale for halt (Issue #10)', 'schema-seed') ON CONFLICT (key) DO NOTHING;

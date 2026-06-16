@@ -95,6 +95,13 @@ def _get_connection_pool():
                         user=db_config["user"],
                         password=db_config["password"],
                         connect_timeout=10,
+                        # TCP keepalives: prevent RDS Proxy from silently dropping idle SSL
+                        # connections on warm Lambda containers (causes "SSL connection has been
+                        # closed unexpectedly" 503s on the next request after a long idle period).
+                        keepalives=1,
+                        keepalives_idle=60,    # start probing after 60s idle
+                        keepalives_interval=10, # probe every 10s
+                        keepalives_count=5,     # 5 failed probes → declare dead
                         # Note: Do NOT pass options= parameter to RDS Proxy
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
@@ -186,6 +193,18 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                 logger.debug(
                     f"[DB_CONNECT] Got connection from pool on attempt {attempt}"
                 )
+
+            # Validate the connection is still alive before returning it. psycopg2's
+            # SimpleConnectionPool returns connections without health-checking them,
+            # so a warm Lambda container can get a stale connection whose SSL layer
+            # was silently closed by RDS Proxy during an idle period.
+            if conn.closed:
+                logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
+                try:
+                    pool.putconn(conn, close=True)
+                except Exception:
+                    pass
+                continue
 
             return TrackedConnection(conn, pool=pool)
 

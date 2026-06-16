@@ -30,10 +30,24 @@ from utils.db import assert_safe_table
 from utils.db import DatabaseContext
 from utils.logging import get_tracker
 import logging
-from monitoring.metrics_context import (
-    TimeBlock,
-    log_metrics_summary,
-)
+try:
+    from monitoring.metrics_context import (
+        TimeBlock,
+        log_metrics_summary,
+    )
+except ImportError:
+    from contextlib import contextmanager
+
+    class TimeBlock:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+
+    def log_metrics_summary():  # type: ignore[no-redef]
+        pass
 
 logger = logging.getLogger(__name__)
 

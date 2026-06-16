@@ -45,7 +45,7 @@ def run(
     phase_start = time.time()
 
     min_coverage_pct = config.get("phase1_min_coverage_pct", 75) if config else 75
-    min_symbol_count = config.get("phase1_min_symbol_count", 8000) if config else 8000
+    min_symbol_count = config.get("phase1_min_symbol_count", 5000) if config else 5000
     signal_freshness_hours = (
         config.get("phase1_signal_freshness_hours", 24) if config else 24
     )

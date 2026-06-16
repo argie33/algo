@@ -3213,89 +3213,6 @@ def panel_algo_health(
     )
 
 
-def panel_data_freshness(hlth):
-    """All data tables in a 2-column compact grid — full freshness picture at a glance."""
-    hlth_list = (
-        hlth.get("items", [])
-        if isinstance(hlth, dict) and "items" in hlth
-        else (hlth if isinstance(hlth, list) else [])
-    )
-    ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
-
-    if not hlth_list:
-        return Panel(
-            Text("no data health info", style="dim"),
-            title="[bold yellow]DATA FRESHNESS[/]",
-            border_style="yellow",
-            padding=(0, 1),
-        )
-
-    stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"]
-    n_fresh = len(hlth_list) - len(stale)
-    crit_stale = [r for r in stale if r.get("role") == "CRIT"]
-
-    if ready_to_trade is True:
-        rtt = f"[bold {G}]✓ READY TO TRADE[/]"
-    elif ready_to_trade is False:
-        rtt = f"[bold {R}]✗ NOT READY[/]"
-    else:
-        rtt = f"[{G}]✓ Data OK[/]" if not crit_stale else f"[bold {R}]CRIT STALE[/]"
-
-    status_c = G if not stale else (R if crit_stale else Y)
-    summary = Text.from_markup(
-        f"[{status_c}]{n_fresh}/{len(hlth_list)} fresh[/]  {rtt}"
-        + (f"  [{R}]{len(stale)} stale[/]" if stale else "")
-    )
-
-    _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
-    sorted_items = sorted(
-        [r for r in hlth_list if isinstance(r, dict)],
-        key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
-    )
-
-    def _age_fmt_f(r):
-        ah = r.get("age_hours")
-        if ah is not None:
-            h = float(ah)
-            return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
-        ad = r.get("age")
-        if ad is not None:
-            return f"{float(ad):.1f}d"
-        return "?"
-
-    def _cell(r):
-        nm = str(r.get("tbl") or "--")[:24]
-        role = str(r.get("role") or "NORM")
-        st = r.get("st", "ok")
-        ok = st == "ok"
-        ic = G if ok else (Y if st == "empty" else R)
-        ii = "✓" if ok else ("−" if st == "empty" else "✗")
-        rc_style = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-        age = _age_fmt_f(r)
-        return Text.from_markup(
-            f"[{ic}]{ii}[/][{rc_style}]{role[:4]}[/][dim] {nm}[/] [{ic}]{age}[/]"
-        )
-
-    mid = (len(sorted_items) + 1) // 2
-    left_items = sorted_items[:mid]
-    right_items = sorted_items[mid:]
-
-    tbl = Table.grid(padding=(0, 2), expand=True)
-    tbl.add_column("left", ratio=1)
-    tbl.add_column("right", ratio=1)
-
-    for i, left_r in enumerate(left_items):
-        right_r = right_items[i] if i < len(right_items) else None
-        tbl.add_row(_cell(left_r), _cell(right_r) if right_r else Text(""))
-
-    return Panel(
-        Group(summary, tbl),
-        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] full view[/]",
-        border_style="yellow",
-        padding=(0, 1),
-    )
-
-
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
@@ -3637,164 +3554,48 @@ def panel_algo_health_expanded(
     exec_hist=None,
     risk=None,
 ):
-    """Full-screen algo health - complete run history, all data tables, all notifications."""
-    rows: list = [
-        Text.from_markup(
-            "[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"
-        ),
-        Rule(style="dim"),
-    ]
-
-    # Extract items from data dicts
+    """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
     hlth_items = (
         hlth.get("items", [])
         if isinstance(hlth, dict) and "items" in hlth
         else (hlth if isinstance(hlth, list) else [])
     )
-    hlth.get("_error") if isinstance(hlth, dict) else None
-
-    run_valid = run and not run.get("_error")
-    act_valid = act and not act.get("_error")
-    run_at = (
-        run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
-    )
-    age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
-
-    if run_valid:
-        sts = (
-            f"[bold {G}]OK COMPLETED[/]"
-            if run.get("success") and not run.get("halted")
-            else (
-                f"[bold {Y}]~ HALTED[/]"
-                if run.get("halted")
-                else f"[bold {R}]X ERROR[/]"
-            )
-        )
-        rid = run.get("run_id") or ""
-        rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
-        halt_r = run.get("halt_reason") or ""
-        summary = run.get("summary") or ""
-        if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
-                prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"  [{Y}]→ {prefix}{detail}[/]"))
-        elif summary:
-            rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
-
-    phase_badges: list = []
-    if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results") or []:
-            raw = (p.get("name") or p.get("phase", "")).lower()
-            parts_p = raw.split("_")
-            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = (p.get("status") or "").lower()
-            sc = (
-                G
-                if ps in ("success", "completed", "ok")
-                else (
-                    Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R
-                )
-            )
-            si = (
-                "✓"
-                if ps in ("success", "completed", "ok")
-                else (
-                    "~"
-                    if ps in ("halt", "halted", "warn", "degraded", "skipped")
-                    else "✗"
-                )
-            )
-            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
-    if phase_badges:
-        rows.append(Text.from_markup("  ".join(phase_badges)))
-
-    rows.append(Rule(style="dim"))
-
-    # Full run history — all runs, untruncated halt reasons, with timestamps
-    valid_hist = (
-        exec_hist
-        if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error")))
-        else []
-    )
-    if valid_hist:
-        n_ok = sum(
-            1
-            for r in valid_hist
-            if (r.get("overall_status") or "").lower() in ("success", "completed")
-        )
-        wc = G if n_ok == len(valid_hist) else (Y if n_ok > 0 else R)
-        rows.append(
-            Text.from_markup(
-                f"[dim]Run history ({len(valid_hist)} runs):[/]  [{wc}]{n_ok}/{len(valid_hist)} success[/]"
-            )
-        )
-        for r in valid_hist:
-            s = (r.get("overall_status") or "").lower()
-            dt = r.get("started_at")
-            dt_s = (
-                dt.strftime("%b %d  %I:%M %p")
-                if hasattr(dt, "strftime")
-                else str(dt or "")[:16]
-            )
-            ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
-            ii = (
-                "✓"
-                if s in ("success", "completed")
-                else ("~" if s == "halted" else "✗")
-            )
-            hr = r.get("halt_reason") or ""
-            lph = _fmt_phases_halted(r.get("phases_halted"))
-            body = hr or lph
-            ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
-            hr_s = f"  [{Y}]→ {body}[/]{ph_s}" if body else ""
-            rows.append(
-                Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}")
-            )
-
-    rows.append(Rule(style="dim"))
-
-    # All data tables — grouped by role with section headers
     ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
+
+    # ── LEFT: full data-freshness table ────────────────────────────────────────
+    left_rows: list = []
+
     if hlth_items:
-        stale_count = sum(
-            1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"
-        )
+        stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
         crit_stale = [
             r for r in hlth_items
             if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"
         ]
         if crit_stale:
-            crit_names = "  ".join(
-                f"[bold white]{r.get('tbl','')[:18]}[/]" for r in crit_stale
-            )
-            rows.append(
-                Text.from_markup(f"[bold {R}]⚠ CRITICAL DATA STALE:[/]  {crit_names}")
-            )
+            crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
+            left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
         rtt_part = ""
         if ready_to_trade is True:
             rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
         elif ready_to_trade is False:
-            rtt_part = f"  [bold {R}]✗ NOT READY TO TRADE[/]"
+            rtt_part = f"  [bold {R}]✗ NOT READY[/]"
         status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
-        rows.append(
-            Text.from_markup(
-                f"[dim]Data freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} tables fresh[/]"
-                + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
-                + rtt_part
-            )
-        )
+        left_rows.append(Text.from_markup(
+            f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
+            + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
+            + rtt_part
+        ))
 
-        def _fmt_age(r):
-            age_hours = r.get("age_hours")
-            age_days = r.get("age")
-            if age_hours is not None:
-                return f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
-            elif age_days is not None:
-                return f"{float(age_days):.1f}d"
+        def _fmt_age_e(r):
+            ah = r.get("age_hours")
+            ad = r.get("age")
+            if ah is not None:
+                return f"{ah:.0f}h" if float(ah) < 24 else f"{float(ah) / 24:.1f}d"
+            elif ad is not None:
+                return f"{float(ad):.1f}d"
             return "?"
 
-        def _fmt_lat(r):
+        def _fmt_lat_e(r):
             lat = r.get("last_updated") or r.get("latest")
             if hasattr(lat, "strftime"):
                 return lat.strftime("%m/%d")
@@ -3807,14 +3608,9 @@ def panel_algo_health_expanded(
             [r for r in hlth_items if isinstance(r, dict)],
             key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
         )
-
         all_tbl = Table(
-            box=box.SIMPLE_HEAD,
-            show_header=True,
-            header_style="dim",
-            padding=(0, 1),
-            expand=True,
-            row_styles=["", "dim"],
+            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
+            padding=(0, 1), expand=True, row_styles=["", "dim"],
         )
         all_tbl.add_column("Role", no_wrap=True, min_width=4)
         all_tbl.add_column("Table", no_wrap=True, min_width=26)
@@ -3836,14 +3632,187 @@ def panel_algo_health_expanded(
             all_tbl.add_row(
                 Text(role, style=rc),
                 Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-                Text(_fmt_age(r), style=DIM if ok else Y),
-                Text(_fmt_lat(r), style="dim"),
+                Text(_fmt_age_e(r), style=DIM if ok else Y),
+                Text(_fmt_lat_e(r), style="dim"),
                 Text(rc_s, style="dim"),
                 Text(st_label, style=G if ok else (Y if st == "empty" else R)),
             )
-        rows.append(all_tbl)
+        left_rows.append(all_tbl)
+    else:
+        left_rows.append(Text("no data health info", style="dim"))
 
-    rows.append(Rule(style="dim"))
+    left_panel = Panel(
+        Group(*left_rows),
+        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
+
+    # ── RIGHT: run results, history, risk, notifications, audit ─────────────────
+    right_rows: list = [
+        Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+
+    run_valid = run and not run.get("_error")
+    act_valid = act and not act.get("_error")
+    run_at = (
+        run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    )
+    age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
+
+    if run_valid:
+        sts = (
+            f"[bold {G}]OK COMPLETED[/]"
+            if run.get("success") and not run.get("halted")
+            else (
+                f"[bold {Y}]~ HALTED[/]"
+                if run.get("halted")
+                else f"[bold {R}]X ERROR[/]"
+            )
+        )
+        rid = run.get("run_id") or ""
+        rid = run.get("run_id") or ""
+        right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
+        halt_r = run.get("halt_reason") or ""
+        summary = run.get("summary") or ""
+        if run.get("halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+                prefix = f"{label}: " if label else ""
+                right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
+        elif summary:
+            right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
+
+    phase_badges_e: list = []
+    if run_valid and run.get("_source") == "exec_log":
+        for p in run.get("phase_results") or []:
+            raw = (p.get("name") or p.get("phase", "")).lower()
+            parts_p = raw.split("_")
+            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+            ps = (p.get("status") or "").lower()
+            sc = (
+                G
+                if ps in ("success", "completed", "ok")
+                else (
+                    Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R
+                )
+            )
+            si = (
+                "v"
+                if ps in ("success", "completed", "ok")
+                else (
+                    "~"
+                    if ps in ("halt", "halted", "warn", "degraded", "skipped")
+                    else "x"
+                )
+            )
+            phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
+    if phase_badges_e:
+        right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
+
+    # entries/exits today
+    signals_gen = 0
+    entries_exec = 0
+    exits_exec = 0
+    if run_valid and run.get("_source") == "exec_log":
+        for p in run.get("phase_results") or []:
+            pdata = p.get("data") or {}
+            if isinstance(pdata, str):
+                try:
+                    import json as _json
+                    pdata = _json.loads(pdata)
+                except Exception:
+                    pdata = {}
+            sg = pdata.get("signals_generated")
+            ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+            xe = pdata.get("exits_executed")
+            if sg:
+                signals_gen = max(signals_gen, int(sg))
+            if ee:
+                entries_exec = max(entries_exec, int(ee))
+            if xe:
+                exits_exec = max(exits_exec, int(xe))
+
+    valid_metrics_e = (
+        algo_metrics
+        if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error")))
+        else []
+    )
+    today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
+    if not entries_exec:
+        entries_exec = int(today_m_e.get("entries") or 0)
+    if not exits_exec:
+        exits_exec = int(today_m_e.get("exits") or 0)
+
+    action_parts_e = []
+    if signals_gen > 0:
+        action_parts_e.append(f"[dim]Signals:[/][white]{signals_gen}[/]")
+    action_parts_e.append(f"[dim]Entries:[/][{G if entries_exec > 0 else DIM}]{entries_exec}[/]")
+    action_parts_e.append(f"[dim]Exits:[/][{Y if exits_exec > 0 else DIM}]{exits_exec}[/]")
+    avg_sig_score_e = today_m_e.get("avg_signal_score")
+    if avg_sig_score_e is not None:
+        avg_sig_v = float(avg_sig_score_e)
+        if avg_sig_v > 0:
+            sc_c = G if avg_sig_v >= 80 else (Y if avg_sig_v >= 65 else "white")
+            action_parts_e.append(f"[dim]Avg score:[/][{sc_c}]{avg_sig_v:.0f}[/]")
+    if action_parts_e:
+        right_rows.append(Text.from_markup("  ".join(action_parts_e)))
+
+    if len(valid_metrics_e) >= 2:
+        day_parts_e = []
+        for m in valid_metrics_e[:5]:
+            d = m.get("date")
+            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            en = int(m.get("entries") or 0)
+            ex = int(m.get("exits") or 0)
+            e_c = G if en > 0 else DIM
+            x_c = Y if ex > 0 else DIM
+            day_parts_e.append(f"[dim]{d_s}:[/][{e_c}]{en}up[/][{x_c}]{ex}dn[/]")
+        right_rows.append(Text.from_markup("[dim]5d:[/] " + "  ".join(day_parts_e)))
+
+    right_rows.append(Rule(style="dim"))
+
+    # Full run history
+    valid_hist_e = (
+        exec_hist
+        if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error")))
+        else []
+    )
+    if valid_hist_e:
+        n_ok = sum(
+            1
+            for r in valid_hist_e
+            if (r.get("overall_status") or "").lower() in ("success", "completed")
+        )
+        wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
+        right_rows.append(
+            Text.from_markup(
+                f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]"
+            )
+        )
+        for r in valid_hist_e:
+            s = (r.get("overall_status") or "").lower()
+            dt = r.get("started_at")
+            dt_s = (
+                dt.strftime("%b %d  %I:%M %p")
+                if hasattr(dt, "strftime")
+                else str(dt or "")[:16]
+            )
+            ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
+            ii = (
+                "v"
+                if s in ("success", "completed")
+                else ("~" if s == "halted" else "x")
+            )
+            hr = r.get("halt_reason") or ""
+            lph = _fmt_phases_halted(r.get("phases_halted"))
+            body = hr or lph
+            ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
+            hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
+            right_rows.append(
+                Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}")
+            )
 
     # Risk snapshot
     if (
@@ -3852,7 +3821,7 @@ def panel_algo_health_expanded(
         and risk.get("var95")
         and float(risk.get("var95") or 0) > 0
     ):
-        rows.append(Rule(style="dim"))
+        right_rows.append(Rule(style="dim"))
         beta_c = (
             R
             if (risk.get("beta") or 0) >= 1.2
@@ -3863,20 +3832,23 @@ def panel_algo_health_expanded(
             if (risk.get("conc5") or 0) >= 35
             else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         )
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
-        risk_parts = [
-            f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
-            f"[dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
+        var_c = (
+            R if (risk.get("var95") or 0) >= 4
+            else (Y if (risk.get("var95") or 0) >= 2 else "white")
+        )
+        risk_parts_e = [
+            f"[dim]VaR95:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
+            f"[dim]CVaR:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
             f"[dim]Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
+            f"[dim]Top5:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
         ]
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(
-                f"[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
+            risk_parts_e.append(
+                f"[dim]StressVaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
             )
-        rows.append(Text.from_markup("  ".join(risk_parts)))
+        right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
-    # All notifications — untruncated titles
+    # Notifications
     notifs_items_exp = (
         notifs.get("items", [])
         if isinstance(notifs, dict) and "items" in notifs
@@ -3885,8 +3857,8 @@ def panel_algo_health_expanded(
     notifs_error_exp = notifs.get("_error") if isinstance(notifs, dict) else None
     valid_notifs = notifs_items_exp if notifs_items_exp and not notifs_error_exp else []
     if valid_notifs:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Notifications:[/]"))
+        right_rows.append(Rule(style="dim"))
+        right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
         SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
         for n in valid_notifs:
             if not isinstance(n, dict):
@@ -3894,27 +3866,27 @@ def panel_algo_health_expanded(
             sc = SEV_C.get(n.get("severity", "info"), DIM)
             title = n.get("title") or ""
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "·"
-            rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
+            unread = "-" if not n.get("seen", True) else "."
+            right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    # Audit log — recent action events with timestamps
+    # Audit log
     valid_audit_exp = (
         audit
         if (audit and not (isinstance(audit, dict) and audit.get("_error")))
         else []
     )
     if valid_audit_exp:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Audit log:[/]"))
+        right_rows.append(Rule(style="dim"))
+        right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
         for a in valid_audit_exp[:20]:
             if not isinstance(a, dict):
                 continue
             at = (a.get("action_type") or "").replace("_", " ")
             sym = a.get("symbol") or ""
-            st = a.get("status") or ""
-            sc = G if st in ("success", "ok") else (Y if st in ("warn", "warning") else R)
+            st_a = a.get("status") or ""
+            sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)
             ts_s = fmt_age(a.get("created_at") or a.get("timestamp"))
-            rows.append(
+            right_rows.append(
                 Text.from_markup(
                     f"  [{sc}]{at[:32]}[/]"
                     + (f" [white]{sym}[/]" if sym else "")
@@ -3922,12 +3894,19 @@ def panel_algo_health_expanded(
                 )
             )
 
-    return Panel(
-        Group(*rows),
-        title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]",
+    right_panel = Panel(
+        Group(*right_rows),
+        title="[bold yellow]RUN RESULTS & HISTORY[/]  [dim][h] return[/]",
         border_style="yellow",
         padding=(0, 1),
     )
+
+    dual = Layout()
+    dual.split_row(
+        Layout(left_panel, ratio=2, name="freshness"),
+        Layout(right_panel, ratio=3, name="runs"),
+    )
+    return dual
 
 
 @register_panel(
