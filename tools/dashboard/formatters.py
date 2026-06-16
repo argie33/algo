@@ -315,7 +315,15 @@ def _next_run_hardcoded() -> str:
 
 
 def hbar(cur, thr, w=6):
-    r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
+    thr_f = float(thr) if thr else 0
+    cur_f = float(cur) if cur is not None else 0
+    if thr_f > 0:
+        r = min(cur_f / thr_f, 1.0)
+    elif thr_f < 0 and cur_f < 0:
+        # Lower-bound breaker (e.g. SPY day change threshold of -2%): fires when cur <= thr
+        r = min(cur_f / thr_f, 1.0)
+    else:
+        r = 0
     f = int(r * w)
     c = R if r >= 1 else (Y if r >= 0.75 else G)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"

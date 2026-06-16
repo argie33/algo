@@ -446,7 +446,12 @@ def panel_circuit(cb):
                 return f"[{R if fired else 'dim'}]{str(br.get('lbl', 'N/A'))}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
             thr_f = float(thr or 1)
             cur_f = float(cur or 0)
-            util = cur_f / thr_f if thr_f > 0 else 0
+            if thr_f > 0:
+                util = cur_f / thr_f
+            elif thr_f < 0 and cur_f < 0:
+                util = min(cur_f / thr_f, 1.0)
+            else:
+                util = 0
             fc = R if fired else (Y if util >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             pct_s = f"[dim] {util*100:.0f}%[/]" if not fired else ""
@@ -526,7 +531,12 @@ def panel_circuit_expanded(cb):
             else:
                 thr_f = float(thr or 1)
                 cur_f = float(cur or 0)
-                util = cur_f / thr_f if thr_f > 0 else 0
+                if thr_f > 0:
+                    util = cur_f / thr_f
+                elif thr_f < 0 and cur_f < 0:
+                    util = min(cur_f / thr_f, 1.0)
+                else:
+                    util = 0
                 util_pct = util * 100
                 fc = R if fired else (Y if util >= 0.75 else G)
                 bar_f = int(min(util, 1.0) * 12)
