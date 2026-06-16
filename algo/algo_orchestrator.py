@@ -1069,9 +1069,15 @@ class Orchestrator:
                 )
             except Exception as e:
                 logger.error(
-                    f"\nERROR in phase 1 (data freshness): {e}. Running Phase 7 (reconciliation) before halting."
+                    f"\nERROR in phase 1 (data freshness): {e}. Running Phase 3/4/7 before halting."
                 )
                 self.log_phase_result(1, "data_freshness", "error", str(e))
+                try:
+                    self.phase_3_position_monitor()
+                    self.phase_3b_exposure_policy()
+                    self.phase_4_exit_execution()
+                except Exception as phase4_err:
+                    logger.error(f"Phase 3/4 also failed after Phase 1 error: {phase4_err}")
                 self.phase_7_reconcile()
                 return self._final_report()
 
