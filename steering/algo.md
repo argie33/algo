@@ -865,10 +865,3 @@ curl https://<api-gateway-endpoint>/api/health
 - Check CloudWatch logs for "Lock acquisition failed"
 - Verify no ECS tasks stuck: `aws ecs list-tasks --cluster algo-cluster`
 
-## Documentation Standards
-
-**Allowed:** steering/*.md (permanent procedures, architecture), git commit messages (what changed & why), memory files (temp guidance only)
-
-**Prohibited:** Session docs at root (STATUS_*.md, EXECUTION_*.md, CHECKLIST.md), one-time scripts at root, logs at root
-
-**Why:** Prevents bloat. Git log + steering docs = permanent source of truth.
