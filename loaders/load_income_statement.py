@@ -112,6 +112,19 @@ class IncomeStatementLoader(OptimalLoader):
         super().__init__()
         self._sec_client = SecEdgarClient()
 
+    def _get_null_revenue_years(self, symbol: str) -> set:
+        """Return fiscal years in the DB where revenue is NULL (need backfill)."""
+        try:
+            from utils.db.context import DatabaseContext
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT fiscal_year FROM {self.table_name} WHERE symbol = %s AND revenue IS NULL",
+                    (symbol,),
+                )
+                return {row[0] for row in cur.fetchall()}
+        except Exception:
+            return set()
+
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         try:
             if not self._sec_client.symbol_to_cik(symbol):
@@ -126,11 +139,18 @@ class IncomeStatementLoader(OptimalLoader):
                 )
                 return None
             since_year = int(since.year) if since else 2000
-            filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
+            # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
+            null_revenue_years = self._get_null_revenue_years(symbol)
+            filtered = [
+                r for r in rows
+                if r.get("fiscal_year", 0) > since_year
+                or r.get("fiscal_year") in null_revenue_years
+            ]
             if len(filtered) < len(rows):
                 logging.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
-                    f"(watermark incremental load — keeping {len(filtered)} newer rows)"
+                    f"(watermark incremental load — keeping {len(filtered)} newer rows; "
+                    f"{len(null_revenue_years)} null-revenue years also included)"
                 )
             return filtered or None
         except Exception as e:
