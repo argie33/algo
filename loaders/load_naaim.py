@@ -38,7 +38,7 @@ class NAAIMExposureLoader(OptimalLoader):
             # Try pandas read_html
             from io import StringIO
 
-            tables = pd.read_html(StringIO(response.text), flavor="html.parser")
+            tables = pd.read_html(StringIO(response.text), flavor="bs4")
 
             if not tables:
                 logger.warning("No tables found in NAAIM page")
