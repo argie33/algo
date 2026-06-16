@@ -328,6 +328,17 @@ def run(
         finally:
             log_phase_result_fn(7, "metrics_update", metrics_status, metrics_summary)
 
+        # Refresh materialized view so positions dashboard reflects current state.
+        # This runs after reconciliation updates algo_positions from Alpaca.
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
+            logger.info("[PHASE 7] Refreshed algo_positions_with_risk materialized view")
+            log_phase_result_fn(7, "positions_view_refresh", "success", "algo_positions_with_risk refreshed")
+        except Exception as e:
+            logger.warning(f"[PHASE 7] Could not refresh algo_positions_with_risk: {e}")
+            log_phase_result_fn(7, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
+
         data = {
             "portfolio_value": result.get("portfolio_value", 0),
             "positions": result.get("positions", 0),
