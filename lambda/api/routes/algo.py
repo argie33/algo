@@ -7,7 +7,7 @@ import logging
 import re
 import os
 
-from utils import (
+from routes.utils import (
     error_response,
     json_response,
     safe_limit,
@@ -25,7 +25,7 @@ from utils.rate_limiting import (
 from utils.validation import safe_float_strict
 
 # Import handler functions from modular packages
-from algo_handlers.dashboard import (
+from .algo_handlers.dashboard import (
     _get_algo_status,
     _get_algo_trades,
     _get_algo_positions,
@@ -34,7 +34,7 @@ from algo_handlers.dashboard import (
     _get_dashboard_signals,
 )
 
-from algo_handlers.metrics import (
+from .algo_handlers.metrics import (
     _get_algo_performance,
     _get_algo_metrics,
     _get_risk_metrics,
@@ -48,7 +48,7 @@ from algo_handlers.metrics import (
     _get_algo_portfolio,
 )
 
-from algo_handlers.sector import (
+from .algo_handlers.sector import (
     _get_sector_rotation,
     _get_sector_breadth,
     _get_sector_position_warnings,
@@ -56,7 +56,7 @@ from algo_handlers.sector import (
     _get_algo_evaluate,
 )
 
-from algo_handlers.signals import (
+from .algo_handlers.signals import (
     _get_swing_scores,
     _get_swing_scores_history,
     _get_rejection_funnel,
@@ -65,7 +65,7 @@ from algo_handlers.signals import (
     _calculate_pre_trade_impact,
 )
 
-from algo_handlers.market import (
+from .algo_handlers.market import (
     _get_markets,
     _get_market,
     _get_market_factors,
@@ -75,7 +75,7 @@ from algo_handlers.market import (
     _get_trend_criteria,
 )
 
-from algo_handlers.config import (
+from .algo_handlers.config import (
     _get_algo_config,
     _get_algo_config_key,
     _update_algo_config_key,
@@ -83,7 +83,7 @@ from algo_handlers.config import (
     _categorize_config_key,
 )
 
-from algo_handlers.orchestration import (
+from .algo_handlers.orchestration import (
     _get_orchestrator_execution_recent,
     _get_orchestrator_execution_failed,
     _get_orchestrator_execution_details,
@@ -91,7 +91,7 @@ from algo_handlers.orchestration import (
     _get_orchestrator_execution_stats,
 )
 
-from algo_handlers.monitoring import (
+from .algo_handlers.monitoring import (
     _trigger_data_patrol,
     _get_patrol_log,
     _get_algo_audit_log,
@@ -99,7 +99,7 @@ from algo_handlers.monitoring import (
     _get_notifications,
 )
 
-from algo_handlers.external import (
+from .algo_handlers.external import (
     _get_sentiment,
     _get_economic_calendar,
 )

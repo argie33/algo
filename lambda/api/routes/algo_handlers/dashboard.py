@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
-from utils import (
+from routes.utils import (
     error_response,
     success_response,
     list_response,
