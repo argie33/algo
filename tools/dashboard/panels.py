@@ -509,8 +509,8 @@ def panel_market_expanded(mkt, sentiment=None):
         Text(""),
     ]
 
-    for l, r in zip(left, right):
-        grid.add_row(l, r)
+    for left_item, right_item in zip(left, right):
+        grid.add_row(left_item, right_item)
     rows.append(grid)
 
     if sentiment and not sentiment.get("_error"):
@@ -567,10 +567,11 @@ def panel_circuit(cb):
             fired = br.get("fired", False)
             thr = br.get("thr")
             cur = br.get("cur")
+            lbl_s = str(br.get("lbl", "N/A"))[:20]
             if thr is None or cur is None:
                 thr_s = "--" if thr is None else f"{float(thr or 0):.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                return f"[{R if fired else 'dim'}]{str(br.get('lbl', 'N/A'))}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
+                return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
             thr_f = float(thr or 1)
             cur_f = float(cur or 0)
             if thr_f > 0:
@@ -584,7 +585,7 @@ def panel_circuit(cb):
             pct_s = f"[dim] {util*100:.0f}%[/]" if not fired else ""
             cur_fmt = f"{cur_f:.1f}" if cur_f != int(cur_f) else f"{int(cur_f)}"
             return (
-                f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{cur_fmt}{str(br.get('u', ''))}"
+                f"[{fc}]{lbl_s}:[/]{cur_fmt}{str(br.get('u', ''))}"
                 f"[dim]/{thr_f:.0f}{str(br.get('u', ''))}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
             )
 
@@ -1029,14 +1030,14 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         ),
         Text.from_markup(
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
-            + (f"  [dim]Unrlzd:[/][{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]" if unrlzd is not None else "")
-            + f"  [dim]ProfFact:[/][{pf_c}]{pf_s}[/]  "
+            + (f"  [dim]Unrealized:[/][{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]" if unrlzd is not None else "")
+            + f"  [dim]Profit Factor:[/][{pf_c}]{pf_s}[/]  "
             f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
-            f"[dim]Expect:[/][{exp_c}]{exp_s}[/]"
+            f"[dim]Expectancy:[/][{exp_c}]{exp_s}[/]"
         ),
         Text.from_markup(
-            f"[dim]AvgWin:[/][{G}]{avg_win_s}[/]  "
-            f"[dim]AvgLoss:[/][{R}]{avg_loss_s}[/]"
+            f"[dim]Avg Win:[/][{G}]{avg_win_s}[/]  "
+            f"[dim]Avg Loss:[/][{R}]{avg_loss_s}[/]"
         ),
     ]
 
@@ -2028,18 +2029,18 @@ def panel_exposure_compact(exp_f):
         return ""
 
     FACTOR_MAP = [
-        ("trend_30wk",       "30wk Trend",     15),
+        ("trend_30wk",       "30-Week Trend",  15),
         ("spy_momentum",     "SPY 12mo Mom",   10),
-        ("breadth_200dma",   "Breadth 200MA",  10),
+        ("breadth_200dma",   "Breadth 200 MA", 10),
         ("distribution_days","Sell Pressure",  10),
         ("vix_regime",       "VIX + Struct",   10),
         ("credit_spread",    "Credit Spread",  10),
-        ("put_call_ratio",   "Put/Call Rat",    8),
+        ("put_call_ratio",   "Put/Call Ratio",  8),
         ("new_highs_lows",   "New Hi vs Lo",    7),
         ("ad_line",          "Adv/Dec Line",    6),
-        ("breadth_50dma",    "Breadth 50MA",    6),
-        ("naaim",            "NAAIM Exposr",    5),
-        ("aaii_sentiment",   "AAII Sentmnt",    3),
+        ("breadth_50dma",    "Breadth 50 MA",   6),
+        ("naaim",            "NAAIM Alloc",     5),
+        ("aaii_sentiment",   "AAII Sentiment",  3),
     ]
 
     tbl = Table.grid(padding=(0, 1), expand=True)
