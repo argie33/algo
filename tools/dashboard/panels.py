@@ -1504,7 +1504,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     ][:10]  # Limit to top 10
 
     if scored_with_signals:
-        rows.append(Text.from_markup(f"[{G}][bold]TOP SCORES WITH BUY SIGNALS ★[/][/]"))
+        rows.append(Text.from_markup(f"[{G}][bold]TOP SCORES WITH BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} actionable trades)[/]"))
         sig_table = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -1562,10 +1562,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(sig_table)
         rows.append(Rule(style="dim"))
 
-    # ── Composite score candidate table (only show if no buy signals or as secondary) ──
+    # ── Composite score candidate table (only show if no buy signals exist) ──
     buy_sig_map_cmp = _build_buy_sig_map(buy_sigs)
     show_full_scores = (not scored_with_signals) and top_scores
     if show_full_scores:
+        rows.append(Text.from_markup(f"[{Y}][bold]ALL TOP SCORES[/][/] [dim](no active buy signals yet)[/]"))
         t = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -3503,6 +3504,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold]ALL CANDIDATES ({len(top_scores or [])} stocks)[/] [dim]with detailed scores & signals[/]"))
     buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
     if top_scores:
         sig_tbl = Table(
@@ -3530,6 +3532,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
         for sc in top_scores:
             sym = str(sc.get("symbol") or "--")
+            sym_norm = sym.upper().strip()
             comp = sc.get("composite_score")
             mom = sc.get("momentum_score")
             qual = sc.get("quality_score")
@@ -3561,7 +3564,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             sig_tbl.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _swing_cell(buy_sig_map_exp.get(sym)),
+                _swing_cell(buy_sig_map_exp.get(sym_norm)),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(val),
