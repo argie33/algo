@@ -1487,9 +1487,82 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     rows.append(Rule(style="dim"))
 
-    # ── Composite score candidate table ──────────────────────────────────────
+    # ── Top Scores WITH Buy Signals (actionable opportunities) ────────────────
+    # Build full buy signal details map for this section
+    buy_sig_details = {}
+    for bs in buy_sigs:
+        sym = bs.get("symbol")
+        if sym:
+            buy_sig_details[sym] = bs
+
+    # Find stocks that have BOTH high composite score AND active buy signal
+    scored_with_signals = [
+        s for s in top_scores
+        if s.get("symbol") in buy_sig_details
+    ][:10]  # Limit to top 10
+
+    if scored_with_signals:
+        rows.append(Text.from_markup(f"[{G}][bold]TOP SCORES WITH BUY SIGNALS ★[/][/]"))
+        sig_table = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 1),
+            expand=True,
+            row_styles=["", "dim"],
+        )
+        sig_table.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        sig_table.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        sig_table.add_column("Swing", justify="right", no_wrap=True, min_width=5)
+        sig_table.add_column("Price", justify="right", no_wrap=True, min_width=7)
+        sig_table.add_column("Buy Lvl", justify="right", no_wrap=True, min_width=8)
+        sig_table.add_column("Stop", justify="right", no_wrap=True, min_width=8)
+        sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=5)
+        sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=6)
+
+        for score_item in scored_with_signals:
+            sym = score_item.get("symbol") or "--"
+            comp_score = score_item.get("composite_score")
+            sector = (score_item.get("sector") or "")[:12]
+            sig_obj = buy_sig_details.get(sym, {})
+
+            # Extract signal details
+            swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score") or 0
+            entry_qual = sig_obj.get("entry_quality_score") or swing_score
+            buy_lvl = sig_obj.get("buylevel")
+            stop_lvl = sig_obj.get("stoplevel")
+            price = sig_obj.get("close") or score_item.get("current_price")
+
+            # Calculate R/R ratio
+            rr_ratio = None
+            if buy_lvl and stop_lvl and float(stop_lvl) > 0:
+                try:
+                    rr_ratio = (float(buy_lvl) - float(stop_lvl)) / float(stop_lvl)
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
+
+            comp_v = float(comp_score) if comp_score is not None else 0
+            comp_c = _composite_score_color(comp_v)
+            swing_c = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
+            rr_c = G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
+
+            sig_table.add_row(
+                Text(sym, style=f"bold {G}"),
+                Text(f"{comp_v:.0f}", style=comp_c),
+                Text(f"▲{swing_score:.0f}", style=swing_c),
+                Text(f"${float(price):.2f}" if price else "--", style="dim"),
+                Text(f"${float(buy_lvl):.2f}" if buy_lvl else "--", style=CY),
+                Text(f"${float(stop_lvl):.2f}" if stop_lvl else "--", style=R),
+                Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
+                Text(f"{entry_qual:.0f}", style=CY),
+            )
+        rows.append(sig_table)
+        rows.append(Rule(style="dim"))
+
+    # ── Composite score candidate table (only show if no buy signals or as secondary) ──
     buy_sig_map_cmp = _build_buy_sig_map(buy_sigs)
-    if top_scores:
+    show_full_scores = (not scored_with_signals) and top_scores
+    if show_full_scores:
         t = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
