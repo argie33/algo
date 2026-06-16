@@ -1051,6 +1051,11 @@ class Orchestrator:
                         self.log_phase_result(
                             1, "data_freshness", "halt", phase1_result.error or ""
                         )
+                        # Still run Phase 3/4 so stops are checked on open positions.
+                        # Phase 4 comment: "exits must always run to reduce risk even when entries are halted."
+                        self.phase_3_position_monitor()
+                        self.phase_3b_exposure_policy()
+                        self.phase_4_exit_execution()
                         self.phase_7_reconcile()
                         return self._final_report()
                     elif phase1_result.halted and bypass_phase1:
