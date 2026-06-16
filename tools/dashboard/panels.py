@@ -793,7 +793,9 @@ def panel_header_market(
             parts4.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-            parts4.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
+            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
+        else:
+            parts4.append(f"[dim]Breadth Mom:[/][dim]--[/]")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
@@ -904,39 +906,13 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
     tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
-    # Largest position + performance highlights in the same row when possible
+    # Largest position
     if lgpos is not None:
         lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")
-        lp_cell = cell("Largest Position:", f"[{lp_c}]{float(lgpos):.1f}%[/]")
-    else:
-        lp_cell = None
-
-    # Performance highlights (win rate, P&L, streak, profit factor)
-    if perf and not perf.get("_error"):
-        wr_v = perf.get("wr") or 0
-        wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
-        pnl_v = perf.get("pnl")
-        pnl_c = G if (pnl_v or 0) >= 0 else R
-        pnl_s = f"[{pnl_c}]{fmt_money(pnl_v)}[/]" if pnl_v is not None else "[dim]--[/]"
-        streak = perf.get("streak") or 0
-        str_c = G if streak >= 0 else R
-        str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-        pf = perf.get("profit_factor")
-        pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
-        pf_s = f"[{pf_c}]{pf:.2f}[/]" if pf is not None else "[dim]--[/]"
-        n_trades = perf.get("n") or 0
-        # Pair largest position with win rate on the same row to save space
-        if lp_cell is not None:
-            tbl.add_row(lp_cell, cell("Win Rate:", f"[{wrc}]{wr_v:.1f}%[/][dim] ({n_trades} trades)[/]"))
-        else:
-            tbl.add_row(cell("Win Rate:", f"[{wrc}]{wr_v:.1f}%[/][dim] ({n_trades} trades)[/]"), Text(""))
-        tbl.add_row(cell("Realized P&L:", pnl_s), cell("Profit Factor:", pf_s))
         tbl.add_row(
-            cell("Streak:", f"[{str_c}]{str_s}[/]"),
+            cell("Largest Position:", f"[{lp_c}]{float(lgpos):.1f}%[/]"),
             Text(""),
         )
-    elif lp_cell is not None:
-        tbl.add_row(lp_cell, Text(""))
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
@@ -1039,7 +1015,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
     wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
-    open_l_s = f" [dim](+{losing_open} open)[/]" if losing_open > 0 else ""
+    open_l_s = f" [dim](+{losing_open} open L)[/]" if losing_open > 0 else ""
 
     # Header line: trade summary
     header = Text.from_markup(
@@ -4158,8 +4134,8 @@ def panel_scores(scores):
     optional=True,
     description="Scores Expanded",
 )
-def panel_scores_expanded(scores):
-    """Full-screen stock scores — all sub-scores, price data, sector breakdown."""
+def panel_scores_expanded(scores, sig=None):
+    """Full-screen stock scores — all sub-scores, price data, sector breakdown, with buy signal cross-reference."""
     err_panel = _error_panel("scores", scores, "SCORES - EXPANDED", border="bright_cyan")
     if err_panel:
         return err_panel
@@ -4170,6 +4146,35 @@ def panel_scores_expanded(scores):
 
     top = scores.get("top", [])
     bot = scores.get("bottom", [])
+
+    # Build buy signal lookup from signals data (swing_trader_scores)
+    buy_sig_map: dict = {}  # symbol -> signal_quality_score
+    if sig and not sig.get("_error"):
+        for bs in (sig.get("buy_sigs") or []):
+            sym_b = bs.get("symbol")
+            if sym_b:
+                sq = bs.get("signal_quality_score") or bs.get("swing_score") or 0
+                buy_sig_map[sym_b] = float(sq) if sq is not None else 0
+
+    # Summary line for buy signals
+    if sig and not sig.get("_error"):
+        n_buy = sig.get("n", 0)
+        total_scr = sig.get("total", 0)
+        buy_c = G if n_buy >= 5 else (Y if n_buy >= 1 else (DIM if total_scr == 0 else R))
+        sig_d = sig.get("date")
+        sig_ds = ""
+        if sig_d and isinstance(sig_d, str) and len(sig_d) >= 10:
+            try:
+                from datetime import date as _sdate
+                sig_ds = f"  [dim]{_sdate.fromisoformat(str(sig_d)[:10]).strftime('%b %d')}[/]"
+            except (ValueError, TypeError):
+                pass
+        n_xref = sum(1 for s in top if s.get("symbol") in buy_sig_map)
+        xref_s = f"  [dim]{n_xref} of top scores have swing signals[/]" if n_xref else ""
+        rows.append(Text.from_markup(
+            f"[dim]Swing signals:[/] [{buy_c}]{n_buy} BUY[/][dim] from {total_scr} screened{sig_ds}[/]{xref_s}"
+        ))
+        rows.append(Rule(style="dim"))
 
     def _score_section(items, label, color):
         if not items:
@@ -4182,6 +4187,7 @@ def panel_scores_expanded(scores):
         tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
         tbl.add_column("Name", style="dim", no_wrap=True, max_width=18)
         tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        tbl.add_column("Swing", justify="right", no_wrap=True, min_width=5)
         tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
         tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
         tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
@@ -4192,14 +4198,6 @@ def panel_scores_expanded(scores):
         tbl.add_column("Price", justify="right", no_wrap=True, min_width=7)
         tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
         tbl.add_column("Sector", no_wrap=True, max_width=16)
-        def _sub_s(v):
-            if v is None or v == "":
-                return Text("--", style=DIM)
-            try:
-                fv = float(v)
-            except (ValueError, TypeError):
-                return Text("--", style=DIM)
-            return Text(f"{fv:.0f}", style="white")
 
         def _sub_colored(v):
             if v is None or v == "":
@@ -4220,7 +4218,7 @@ def panel_scores_expanded(scores):
             val = s.get("value_score")
             grwth = s.get("growth_score")
             stab = s.get("stability_score")
-            pos = s.get("positioning_score")
+            pos_s = s.get("positioning_score")
             rs_pct = s.get("rs_percentile")
             price = s.get("current_price")
             chg = s.get("change_percent")
@@ -4237,16 +4235,25 @@ def panel_scores_expanded(scores):
                 rs_v = None
             chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
 
+            # Buy signal indicator from swing_trader_scores
+            swing_v = buy_sig_map.get(sym)
+            if swing_v is not None:
+                swing_c = G if swing_v >= 80 else (CY if swing_v >= 70 else Y)
+                swing_cell = Text(f"▲{swing_v:.0f}", style=swing_c)
+            else:
+                swing_cell = Text("--", style=DIM)
+
             tbl.add_row(
                 Text(sym, style=f"bold {color}"),
                 Text(name, style="dim"),
                 Text(f"{sc_v:.0f}", style=sc_c),
+                swing_cell,
                 _sub_colored(mom),
                 _sub_colored(qual),
                 _sub_colored(val),
                 _sub_colored(grwth),
                 _sub_colored(stab),
-                _sub_colored(pos),
+                _sub_colored(pos_s),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--",
                      style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style="dim"),
@@ -4302,7 +4309,7 @@ def panel_trades_expanded(trades):
             padding=(0, 1),
         )
 
-    # Summary stats
+    # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
     wins = sum(1 for t in closed if (t.get("profit_loss_pct") or 0) > 0)
     losses = total - wins
@@ -4313,9 +4320,9 @@ def panel_trades_expanded(trades):
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R
     rows.append(Text.from_markup(
-        f"[dim]Total:[/] [white]{total}[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
+        f"[dim]Showing {total} trades:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
         f"[dim]Win Rate:[/][{wc}]{wr:.0f}%[/]  "
-        f"[dim]Total P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
+        f"[dim]P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
         + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
     ))
     rows.append(Rule(style="dim"))
@@ -4679,7 +4686,6 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         n = perf.get("n") or 0
         w = perf.get("w") or 0
         l = perf.get("l") or 0
-        wr_v = perf.get("wr") or 0
         streak = perf.get("streak") or 0
         pnl_val = perf.get("pnl")
         unrlzd_pnl = perf.get("unrealized_pnl")
@@ -4690,6 +4696,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         dd_v = perf.get("maxdd") or 0
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
+
+        wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+        losing_open = (adj_l or 0) - (l or 0)
+        wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
         wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
@@ -4708,7 +4718,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Win/Loss:", Text.from_markup(f"[{G}]{w}W[/][dim]/[/][{R}]{l}L[/]"),
         )
         perfblk.add_row(
-            "Win Rate:", Text(f"{wr_v:.1f}%", style=wrc),
+            wr_label, Text(f"{wr_v:.1f}%", style=wrc),
             "Streak:", Text(str_s, style=str_c),
         )
         perfblk.add_row(

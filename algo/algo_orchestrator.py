@@ -737,15 +737,14 @@ class Orchestrator:
         # Store result for Phase 5 to check degradation status
         self._phase1_result = result
 
-        # ISSUE #9 FIX: Write Phase 1 degraded mode status to DynamoDB for health endpoint visibility
-        # ISSUE #8 FIX: Manage halt flag lifecycle based on data freshness status
+        # Informational DynamoDB write (phase1_degraded_mode key) — separate from halt flag
+        # management so a DynamoDB write failure never prevents the halt flag from being cleared.
         try:
             import boto3
 
             dynamodb = boto3.resource("dynamodb")
             table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
             table = dynamodb.Table(table_name)
-
             degraded_status = result.status == "degraded"
             table.put_item(
                 Item={
@@ -756,21 +755,27 @@ class Orchestrator:
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
+        except Exception as e:
+            logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
 
+        # Halt flag lifecycle: always run regardless of informational write success above.
+        # Previously coupled with the DynamoDB write in one try-block, which meant a
+        # DynamoDB write failure would silently prevent clearing a stuck halt flag.
+        try:
+            degraded_status = result.status == "degraded"
             if degraded_status:
                 logger.info(
                     f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}"
                 )
-                # ISSUE #8 FIX: Set halt flag to stop Phase 5 from generating full-intensity signals
                 self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
             elif result.status == "ok":
-                # ISSUE #8 FIX: Clear halt flag when Phase 1 verifies data is fresh
-                # This allows Phase 5 to resume normal signal generation
+                # Clear halt flag so Phase 5/6 can resume signal generation and entries.
+                # This undoes any halt set by data-freshness-monitor or a prior failed run.
                 self._clear_halt_flag(
                     f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
                 )
         except Exception as e:
-            logger.debug(f"Failed to write Phase 1 degraded status to DynamoDB: {e}")
+            logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
         return not result.halted
 

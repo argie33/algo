@@ -380,7 +380,7 @@ def render_dashboard(
     outer["top"]["mascot"].update(mascot_panel)
 
     outer["r1"].split_row(
-        Layout(panel_circuit(cb), ratio=1, name="cb"),
+        Layout(panel_circuit(cb), ratio=3, name="cb"),
         Layout(
             panel_algo_health(
                 run,
@@ -392,7 +392,7 @@ def render_dashboard(
                 exec_hist,
                 risk=risk,
             ),
-            ratio=2,
+            ratio=5,
             name="health",
         ),
     )
@@ -471,7 +471,7 @@ def render_dashboard(
         )
 
     if view_mode == "scores":
-        return _expanded_layout(*_exp_top, panel_scores_expanded(scores))
+        return _expanded_layout(*_exp_top, panel_scores_expanded(scores, sig=sig))
 
     if view_mode == "trades":
         return _expanded_layout(*_exp_top, panel_trades_expanded(rec))

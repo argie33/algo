@@ -54,17 +54,24 @@ def _get_db_connection():
         raise
 
 
-# Active pipeline tables only. buy_sell_daily, technical_data_daily, and
-# signal_quality_scores were removed from all pipelines. swing_trader_scores
-# runs weekly (Mon AM), so stale threshold is 5 days.
-_CRITICAL_TABLES = {
-    "price_daily":          ("prices",         2),
-    "market_health_daily":  ("market health",  2),
+# Tables that trigger a halt flag when stale — must match Phase 1 HALT tables exactly.
+# swing_trader_scores, trend_template_data, sector_ranking are WARN-only in Phase 1
+# and must NOT be here; setting the halt flag for them would block all trading whenever
+# these auxiliary tables are more than a few days old (e.g. after a 3-day weekend).
+_HALT_TABLES = {
+    "price_daily":           ("prices",         2),
+    "market_health_daily":   ("market health",  2),
     "market_exposure_daily": ("market exposure", 2),
-    "swing_trader_scores":  ("swing scores",   5),
-    "trend_template_data":  ("trend template", 5),
-    "sector_ranking":       ("sector data",    5),
 }
+
+# Warn-only tables — logged for visibility but never trigger a halt flag.
+_WARN_TABLES = {
+    "swing_trader_scores": ("swing scores",   5),
+    "trend_template_data": ("trend template", 5),
+    "sector_ranking":      ("sector data",    5),
+}
+
+_CRITICAL_TABLES = {**_HALT_TABLES, **_WARN_TABLES}
 
 
 def _check_critical_table_freshness() -> dict:
@@ -72,25 +79,37 @@ def _check_critical_table_freshness() -> dict:
         conn = _get_db_connection()
         cur = conn.cursor()
         now_date = datetime.now(timezone.utc).date()
-        stale_tables = []
+        # halt_stale: HALT tables (price_daily, market_health_daily, market_exposure_daily)
+        # warn_stale: WARN-only tables (swing_trader_scores, trend_template_data, sector_ranking)
+        halt_stale = []
+        warn_stale = []
         age_details = {}
 
         for table_name, (description, max_age_days) in _CRITICAL_TABLES.items():
+            is_halt_table = table_name in _HALT_TABLES
             try:
                 cur.execute(f"SELECT MAX(date) FROM {_safe_table(table_name)}")
                 max_date = cur.fetchone()[0]
                 if max_date is None:
+                    msg = f"{description} (empty)"
                     logger.warning(f"[FRESHNESS] {description} table is EMPTY")
-                    stale_tables.append(f"{description} (empty)")
                     age_details[table_name] = {"status": "empty"}
+                    if is_halt_table:
+                        halt_stale.append(msg)
+                    else:
+                        warn_stale.append(msg)
                     continue
                 age_days = (now_date - max_date).days
                 if age_days > max_age_days:
+                    msg = f"{description} ({age_days}d old)"
                     logger.warning(
                         f"[FRESHNESS] {description}: {age_days}d old (max {max_age_days}d)"
                     )
-                    stale_tables.append(f"{description} ({age_days}d old)")
                     age_details[table_name] = {"status": "stale", "age_days": age_days}
+                    if is_halt_table:
+                        halt_stale.append(msg)
+                    else:
+                        warn_stale.append(msg)
                 else:
                     age_details[table_name] = {
                         "status": "ok",
@@ -107,11 +126,18 @@ def _check_critical_table_freshness() -> dict:
         cur.close()
         conn.close()
 
-        if len(stale_tables) > 2:
-            return {"status": "critical", "stale_tables": stale_tables, "age_details": age_details}
-        if stale_tables:
-            return {"status": "degraded", "stale_tables": stale_tables, "age_details": age_details}
-        return {"status": "ok", "stale_tables": [], "age_details": age_details}
+        if warn_stale:
+            logger.warning(f"[FRESHNESS] Warn-only stale tables (no halt): {'; '.join(warn_stale)}")
+
+        # Status and halt flag are driven by HALT tables only (matching Phase 1 behavior).
+        # WARN tables (swing_trader_scores, trend_template_data, sector_ranking) are
+        # logged above but never trigger a halt flag — Phase 1 treats them as warnings.
+        all_stale = halt_stale + warn_stale
+        if len(halt_stale) > 2:
+            return {"status": "critical", "stale_tables": all_stale, "halt_stale": halt_stale, "age_details": age_details}
+        if halt_stale:
+            return {"status": "degraded", "stale_tables": all_stale, "halt_stale": halt_stale, "age_details": age_details}
+        return {"status": "ok", "stale_tables": all_stale, "halt_stale": [], "age_details": age_details}
 
     except Exception as e:
         logger.error(f"Data freshness check failed: {e}")
@@ -143,12 +169,20 @@ def lambda_handler(event, context):
     logger.info("Starting data freshness monitor check")
     freshness = _check_critical_table_freshness()
 
-    if freshness["status"] in ["degraded", "critical"]:
+    # Only set halt flag for HALT-table staleness (price_daily, market_health_daily,
+    # market_exposure_daily). WARN tables are already logged in _check_critical_table_freshness
+    # but must never trigger the halt flag — Phase 1 treats them as non-blocking warnings.
+    halt_stale = freshness.get("halt_stale", [])
+    if halt_stale:
         logger.critical(
-            f"[FRESHNESS] Data quality {freshness['status']}: {freshness.get('stale_tables', [])}"
+            f"[FRESHNESS] HALT-table staleness detected: {halt_stale}"
         )
-        reason = f"Data freshness {freshness['status']}: {'; '.join(freshness.get('stale_tables', [])[:3])}"
+        reason = f"Critical pipeline data stale: {'; '.join(halt_stale[:3])}"
         _set_halt_flag_dynamodb(reason)
+    elif freshness["status"] in ["degraded", "critical"]:
+        logger.warning(
+            f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables', [])}"
+        )
 
     return {
         "statusCode": 200 if freshness["status"] == "ok" else 202,
