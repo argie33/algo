@@ -1656,11 +1656,21 @@ CREATE TABLE IF NOT EXISTS algo_positions (
 );
 
 -- Add target level hit timestamp columns (Issue #17: idempotency for partial exits)
+-- Also adds columns introduced by migrations that run after schema init.
 ALTER TABLE algo_positions
 ADD COLUMN IF NOT EXISTS target_1_hit_time TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS target_2_hit_time TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS target_3_hit_time TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255);
+ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255),
+ADD COLUMN IF NOT EXISTS stop_loss_price DECIMAL(12, 4),
+ADD COLUMN IF NOT EXISTS target_1_price DECIMAL(12, 4),
+ADD COLUMN IF NOT EXISTS target_2_price DECIMAL(12, 4),
+ADD COLUMN IF NOT EXISTS target_3_price DECIMAL(12, 4),
+ADD COLUMN IF NOT EXISTS target_1_r_multiple DECIMAL(8, 4),
+ADD COLUMN IF NOT EXISTS target_2_r_multiple DECIMAL(8, 4),
+ADD COLUMN IF NOT EXISTS target_3_r_multiple DECIMAL(8, 4),
+ADD COLUMN IF NOT EXISTS r_multiple DECIMAL(8, 4),
+ADD COLUMN IF NOT EXISTS initial_risk_per_share DECIMAL(12, 4);
 
 -- Daily portfolio snapshots
 CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
