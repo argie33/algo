@@ -540,7 +540,7 @@ If alarms trigger:
 
 ## Orchestrator Phases
 
-1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily/buy_sell_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking
+1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking (buy_sell_daily removed from pipeline)
 2. **Phase 2:** Circuit breakers (FAIL-CLOSED) — halt if any breaker triggered (drawdown ≥20%, daily loss ≥2%, consecutive losses ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%)
 3. **Phase 3:** Position monitor + market exposure policy
 4. **Phase 4:** Execute exits (always runs, unblocked by halt)
@@ -550,19 +550,17 @@ If alarms trigger:
 
 ## Signal Generation (Phase 5)
 
-**Pre-computed pipeline data** — reads buy_sell_daily BUY signals and ranks by composite_score:
-1. Market regime gate: halt if `market_exposure_daily.is_entry_allowed = false`
-2. Check halt flag (set by Phase 1 on stale data)
-3. Verify buy_sell_daily freshness (warning if >24h old)
-4. Fetch BUY signals from buy_sell_daily at or before run_date
-5. Trend filter: skip if close < sma_50 (price must be above 50-day MA)
-6. Enrich with composite_score from stock_scores
-7. Composite score gate: skip if composite_score < 50 (default, configurable via phase5_min_composite_score in algo_config)
-8. Close quality gate: skip if close in bottom 40% of range (distribution signal)
-9. Liquidity check on top 10 candidates (parallelized)
-10. Return composite-score-ranked candidates to Phase 6
+**On-the-fly generation** — computes signals directly from stock_scores + price_daily (buy_sell_daily removed from pipeline):
+1. Check halt flag (set by Phase 1 on stale data)
+2. Market regime gate: halt if `market_exposure_daily.is_entry_allowed = false`
+3. Exposure policy gate: halt if `exposure_constraints.halt_new_entries = true` (from Phase 3b)
+4. Fetch candidates: `stock_scores` with `composite_score >= 50` JOIN LATERAL latest `price_daily` + SMA_50 + `company_profile` for sector/industry
+5. Trend filter: skip if close < sma_50
+6. Close quality gate: skip if close in bottom 40% of day's range (distribution signal)
+7. Liquidity check on top 10 candidates (parallelized)
+8. Return composite-score-ranked candidates to Phase 6
 
-**Ranking:** composite_score from stock_scores (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%). Fundamentals determine rank; buy_sell_daily breakout timing determines entry trigger.
+**Ranking:** composite_score from stock_scores (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%).
 
 **Position limits:** Max 8 sector, max 5 industry (configurable via algo_config table)
 
