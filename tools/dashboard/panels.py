@@ -2050,14 +2050,20 @@ def panel_exposure_compact(exp_f):
     items = []
     for key, label, max_pts in FACTOR_MAP:
         f = factors.get(key) or {}
-        pts = float(f.get("pts") or 0)
-        bar = mini_bar(pts, max_pts, w=3)
-        fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
-        det = factor_detail(key)
-        det_markup = f"[dim]{det}[/]" if det else ""
-        items.append(
-            f"[{fc}]{str(label)[:13]:<13}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}"
-        )
+        sf = f.get("score_factor")
+        if sf is None:
+            items.append(
+                f"[yellow]{str(label)[:13]:<13}[/] [yellow]⚠ N/A[/][dim]  /{max_pts}[/]"
+            )
+        else:
+            pts = float(f.get("pts") or 0)
+            bar = mini_bar(pts, max_pts, w=3)
+            fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
+            det = factor_detail(key)
+            det_markup = f"[dim]{det}[/]" if det else ""
+            items.append(
+                f"[{fc}]{str(label)[:13]:<13}[/]{bar}[dim]{pts:.0f}/{max_pts}[/]{det_markup}"
+            )
 
     sr = factors.get("sector_rotation") or {}
     eco = factors.get("economic_overlay") or {}
@@ -2151,6 +2157,22 @@ def panel_exposure_expanded(exp_f):
 
     for key, label, max_pts, context in FACTOR_MAP_EXP:
         f = factors.get(key) or {}
+        sf = f.get("score_factor")
+
+        if sf is None:
+            # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
+            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
+            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
+            tbl.add_row(
+                Text(label, style="yellow"),
+                Text("--", style="yellow"),
+                Text(str(max_pts), style="dim"),
+                bar_s,
+                Text(f"⚠ {reason}", style="yellow"),
+                context,
+            )
+            continue
+
         pts = float(f.get("pts") or 0)
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
@@ -3632,58 +3654,46 @@ def panel_algo_health_expanded(
                 return lat[5:10]
             return str(lat or "")[:5]
 
-        def _build_section_table(items):
-            t = Table(
-                box=box.SIMPLE_HEAD,
-                show_header=True,
-                header_style="dim",
-                padding=(0, 1),
-                expand=True,
-                row_styles=["", "dim"],
+        _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
+        sorted_items = sorted(
+            [r for r in hlth_items if isinstance(r, dict)],
+            key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
+        )
+
+        all_tbl = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 1),
+            expand=True,
+            row_styles=["", "dim"],
+        )
+        all_tbl.add_column("Role", no_wrap=True, min_width=4)
+        all_tbl.add_column("Table", no_wrap=True, min_width=26)
+        all_tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
+        all_tbl.add_column("Updated", no_wrap=True, min_width=5)
+        all_tbl.add_column("Rows", no_wrap=True, min_width=8, justify="right")
+        all_tbl.add_column("Status", no_wrap=True, min_width=6)
+        for r in sorted_items:
+            nm = str(r.get("tbl") or "--")
+            role = str(r.get("role") or "NORM")
+            st = r.get("st", "ok")
+            ok = st == "ok"
+            ic = G if ok else (Y if st == "empty" else R)
+            ii = "✓" if ok else ("−" if st == "empty" else "✗")
+            rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
+            row_count = r.get("row_count")
+            rc_s = f"{row_count:,}" if row_count is not None else "--"
+            st_label = "ok" if ok else st.upper()
+            all_tbl.add_row(
+                Text(role, style=rc),
+                Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
+                Text(_fmt_age(r), style=DIM if ok else Y),
+                Text(_fmt_lat(r), style="dim"),
+                Text(rc_s, style="dim"),
+                Text(st_label, style=G if ok else (Y if st == "empty" else R)),
             )
-            t.add_column("Table", no_wrap=True, min_width=26)
-            t.add_column("Age", no_wrap=True, min_width=5, justify="right")
-            t.add_column("Updated", no_wrap=True, min_width=5)
-            t.add_column("Rows", no_wrap=True, min_width=8, justify="right")
-            t.add_column("Status", no_wrap=True, min_width=6)
-            for r in items:
-                if not isinstance(r, dict):
-                    continue
-                nm = str(r.get("tbl") or "--")
-                role = str(r.get("role") or "")
-                st = r.get("st", "ok")
-                ok = st == "ok"
-                ic = G if ok else (Y if st == "empty" else R)
-                ii = "✓" if ok else ("−" if st == "empty" else "✗")
-                rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-                row_count = r.get("row_count")
-                rc_s = f"{row_count:,}" if row_count is not None else "--"
-                st_label = "ok" if ok else st.upper()
-                t.add_row(
-                    Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-                    Text(_fmt_age(r), style=DIM if ok else Y),
-                    Text(_fmt_lat(r), style="dim"),
-                    Text(rc_s, style="dim"),
-                    Text(st_label, style=G if ok else (Y if st == "empty" else R)),
-                )
-            return t
-
-        grouped: dict = {"CRIT": [], "IMP": [], "NORM": []}
-        for r in hlth_items:
-            if isinstance(r, dict):
-                role = r.get("role") if r.get("role") in grouped else "NORM"
-                grouped[role].append(r)
-
-        for role_key, section_label in [
-            ("CRIT", "CRITICAL TABLES"),
-            ("IMP", "IMPORTANT TABLES"),
-            ("NORM", "SUPPORTING TABLES"),
-        ]:
-            items = grouped.get(role_key, [])
-            if not items:
-                continue
-            rows.append(Rule(section_label, style="dim"))
-            rows.append(_build_section_table(items))
+        rows.append(all_tbl)
 
     rows.append(Rule(style="dim"))
 
