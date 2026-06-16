@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 @dataclass
 class PhaseResult:
     """Standardized result envelope every orchestrator phase returns."""
 
-    phase_num: int
+    phase_num: Union[int, str]
     phase_name: str
     status: str  # 'ok' | 'halted' | 'degraded' | 'skipped'
     data: Dict[str, Any] = field(default_factory=dict)
