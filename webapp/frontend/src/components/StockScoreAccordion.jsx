@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Accordion,
   AccordionSummary,
@@ -9,9 +9,11 @@ import {
   Chip,
   useTheme,
   alpha,
+  CircularProgress,
 } from '@mui/material';
-import { ExpandMore, Star } from '@mui/icons-material';
+import { ExpandMore, Star, TrendingUp } from '@mui/icons-material';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
+import { api } from '../services/api';
 
 const num = (v, dp = 1) => formatNumber(v, dp);
 const pct = (v, dp = 2) => formatPercentageChange(v, dp);
@@ -60,6 +62,104 @@ const FACTORS = [
   { key: 'positioning', label: 'Positioning', scoreKey: 'positioning_score' },
   { key: 'stability',   label: 'Stability',   scoreKey: 'stability_score' },
 ];
+
+const SignalsForStock = ({ symbol }) => {
+  const [signals, setSignals] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    api
+      .get(`/api/signals/stocks?symbol=${symbol}&limit=10`)
+      .then((res) => {
+        setSignals(res.data?.items || []);
+      })
+      .catch((err) => {
+        setError(err?.message || 'Failed to load signals');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [symbol]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+        <CircularProgress size={28} />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="caption" color="error">
+          {error}
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (!signals || signals.length === 0) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="caption" color="text.secondary">
+          No recent trading signals
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Box sx={{ overflowX: 'auto' }}>
+        <table className="data-table" style={{ minWidth: 600 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 80 }}>Date</th>
+              <th style={{ width: 60 }}>Signal</th>
+              <th style={{ width: 80 }}>Score</th>
+              <th style={{ width: 100 }}>Grade</th>
+              <th style={{ width: 120 }}>Pass Gates</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {signals.map((sig, idx) => (
+              <tr key={`${sig.symbol}-${sig.date}-${idx}`}>
+                <td style={{ fontSize: '0.85rem' }}>
+                  {sig.date ? new Date(sig.date).toLocaleDateString() : '—'}
+                </td>
+                <td style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  <Chip
+                    label={sig.signal || '—'}
+                    size="small"
+                    color={sig.signal === 'BUY' ? 'success' : 'error'}
+                    sx={{ fontWeight: 700 }}
+                  />
+                </td>
+                <td style={{ fontSize: '0.85rem', fontWeight: 600, textAlign: 'center' }}>
+                  {sig.entry_quality_score != null ? formatNumber(sig.entry_quality_score, 1) : '—'}
+                </td>
+                <td style={{ fontSize: '0.85rem' }}>
+                  {sig.grade || '—'}
+                </td>
+                <td style={{ fontSize: '0.85rem' }}>
+                  {sig.pass_gates ? '✓ Pass' : '✗ Fail'}
+                </td>
+                <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  {sig.reason || '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Box>
+    </Box>
+  );
+};
 
 const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) => {
   const theme = useTheme();
@@ -183,7 +283,7 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {stocks.map((stock, index) => {
-        const sectorAvgsForStock = sectorAvgs[stock.symbol] || {};
+        const sectorAvgsForStock = sectorAvgs || {};
 
         return (
           <Accordion
@@ -419,7 +519,7 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
               </Box>
 
               {/* ─── Factor Inputs Tables ─── */}
-              <Box>
+              <Box sx={{ mb: 4 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.9rem', letterSpacing: '0.5px' }}>
                   📋 Detailed Factor Inputs
                 </Typography>
@@ -431,6 +531,14 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
                   <InputsGrid title="Positioning" inputs={stock.positioning_inputs} schema={POSITIONING_SCHEMA} />
                   <InputsGrid title="Stability" inputs={stock.stability_inputs} schema={STABILITY_SCHEMA} />
                 </Grid>
+              </Box>
+
+              {/* ─── Trading Signals ─── */}
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.9rem', letterSpacing: '0.5px' }}>
+                  📈 Recent Trading Signals
+                </Typography>
+                <SignalsForStock symbol={stock.symbol} />
               </Box>
             </AccordionDetails>
           </Accordion>

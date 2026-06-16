@@ -67,12 +67,11 @@ def handle(
 def _get_signals_stocks(
     cur, limit: int = 500, timeframe: str = "daily", symbol_filter: Optional[str] = None
 ) -> Dict:
-    """Get stock trading signals from swing_trader_scores (primary signal source).
+    """Get stock trading signals from buy_sell_daily (primary signal source).
 
-    buy_sell_daily was removed from both EOD and morning pipelines; orchestrator
-    Phase 5 computes signals on-the-fly from price_daily. This endpoint now
-    sources from swing_trader_scores + trend_template_data, which are actively
-    populated by the pipeline.
+    EOD pipeline runs: prices → metrics → swing_trader_scores → buy_sell_daily.
+    buy_sell_daily generates BUY/SELL/HOLD signals from technical indicators and
+    quality scores. This endpoint sources from buy_sell_daily with price/sector data.
     """
     try:
         VALID_TIMEFRAMES = {"daily"}
@@ -90,7 +89,7 @@ def _get_signals_stocks(
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
                 return error_response(400, "bad_request", "Invalid symbol format")
-            symbol_clause = "AND s.symbol = %s"
+            symbol_clause = "AND b.symbol = %s"
             params.append(symbol_filter.upper())
 
         params.append(limit)
@@ -98,19 +97,19 @@ def _get_signals_stocks(
         cur.execute(
             f"""
             SELECT
-                s.symbol,
-                s.date,
-                'BUY'::text AS signal,
+                b.symbol,
+                b.date,
+                b.signal,
                 'daily'::text AS timeframe,
-                s.score AS entry_quality_score,
-                s.score AS signal_quality_score,
-                s.score AS strength,
-                COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
-                s.components->>'grade' AS grade,
-                s.components->>'fail_reason' AS reason,
-                s.components AS components,
-                tech.sma_50 AS sma_50,
-                tech.sma_200 AS sma_200,
+                b.entry_quality_score,
+                b.signal_quality_score,
+                b.strength,
+                TRUE AS pass_gates,
+                NULL::text AS grade,
+                b.reason,
+                NULL::jsonb AS components,
+                b.sma_50,
+                b.sma_200,
                 CASE t.weinstein_stage
                     WHEN 1 THEN 'Stage 1'
                     WHEN 2 THEN 'Stage 2 - Markup'
@@ -118,63 +117,50 @@ def _get_signals_stocks(
                     WHEN 4 THEN 'Stage 4'
                 END AS market_stage,
                 t.weinstein_stage AS stage_number,
-                p.close,
-                p.volume,
+                b.close,
+                b.volume,
                 COALESCE(cp.sector, 'Unknown') AS sector,
                 COALESCE(cp.industry, 'Unknown') AS industry,
-                tech.rsi,
-                NULL::numeric AS ema_21,
-                tech.atr,
-                tech.adx,
-                tech.mansfield_rs,
-                NULL::numeric AS rs_rating,
-                NULL::numeric AS volume_surge_pct,
-                NULL::numeric AS risk_reward_ratio,
-                NULL::numeric AS buylevel,
-                NULL::numeric AS stoplevel,
-                NULL::text AS base_type,
-                NULL::integer AS base_length_days,
-                NULL::numeric AS profit_target_8pct,
-                NULL::numeric AS profit_target_20pct,
-                NULL::numeric AS profit_target_25pct,
-                NULL::numeric AS exit_trigger_1_price,
-                NULL::numeric AS exit_trigger_2_price,
-                NULL::numeric AS buy_zone_start,
-                NULL::numeric AS buy_zone_end,
-                NULL::numeric AS pivot_price,
-                NULL::numeric AS initial_stop,
-                NULL::numeric AS trailing_stop,
-                NULL::numeric AS sell_level,
-                NULL::numeric AS avg_volume_50d,
-                s.date AS signal_triggered_date,
-                NULL::numeric AS entry_price,
-                NULL::text AS signal_type,
-                NULL::text AS substage
-            FROM swing_trader_scores s
-            LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
-            LEFT JOIN LATERAL (
-                SELECT close, volume
-                FROM price_daily
-                WHERE symbol = s.symbol
-                ORDER BY date DESC
-                LIMIT 1
-            ) p ON true
-            LEFT JOIN LATERAL (
-                SELECT td.sma_50, td.sma_200, td.rsi_14 AS rsi, td.atr, td.adx, td.mansfield_rs
-                FROM technical_data_daily td
-                WHERE td.symbol = s.symbol
-                ORDER BY td.date DESC LIMIT 1
-            ) tech ON true
-            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-            WHERE s.date >= CURRENT_DATE - INTERVAL '90 days'
+                b.rsi,
+                b.ema_21,
+                b.atr,
+                b.adx,
+                b.mansfield_rs,
+                b.rs_rating,
+                b.volume_surge_pct,
+                b.risk_reward_ratio,
+                b.buylevel,
+                b.stoplevel,
+                b.base_type,
+                b.base_length_days,
+                b.profit_target_8pct,
+                b.profit_target_20pct,
+                b.profit_target_25pct,
+                b.exit_trigger_1_price,
+                b.exit_trigger_2_price,
+                b.buy_zone_start,
+                b.buy_zone_end,
+                b.pivot_price,
+                b.initial_stop,
+                b.trailing_stop,
+                b.sell_level,
+                b.avg_volume_50d,
+                b.signal_triggered_date,
+                b.entry_price,
+                b.signal_type,
+                b.substage
+            FROM buy_sell_daily b
+            LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
+            LEFT JOIN company_profile cp ON cp.ticker = b.symbol
+            WHERE b.date >= CURRENT_DATE - INTERVAL '90 days'
             {symbol_clause}
-            ORDER BY s.date DESC, s.score DESC
+            ORDER BY b.date DESC, b.signal DESC, b.entry_quality_score DESC
             LIMIT %s
             """,
             tuple(params),
         )
         signals = cur.fetchall()
-        freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
+        freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
         return list_response(
             [safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness
         )
