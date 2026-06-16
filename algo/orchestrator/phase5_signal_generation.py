@@ -362,19 +362,20 @@ def run(
         logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
-    # Fallback: stock_scores-only when buy_sell_daily has no fresh data (e.g., morning runs
-    # before EOD pipeline has completed today's signals; EOD loader runs at 4:05 PM ET).
+    # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
+    # Fail explicitly if unavailable — don't silently degrade to stock_scores.
     raw_candidates = _get_candidates_from_buysell(run_date, min_composite_score)
-    if raw_candidates:
-        signal_source = "buysell_breakout"
-    else:
-        logger.warning(
-            "[PHASE 5] No buy_sell_daily BUY signals found within last %d calendar days — "
-            "falling back to stock_scores-only candidates (no breakout gate)",
-            _BUYSELL_LOOKBACK_DAYS,
+    if not raw_candidates:
+        msg = (
+            f"[PHASE 5 CRITICAL] No buy_sell_daily BUY signals found within last {_BUYSELL_LOOKBACK_DAYS} "
+            "calendar days. Phase 5 requires buy_sell_daily breakout signals as primary gate. "
+            "Check that EOD pipeline (4:05 PM ET) has completed and buy_sell_daily loader ran successfully."
         )
-        raw_candidates = _get_candidates(run_date, min_composite_score)
-        signal_source = "stock_scores_fallback"
+        logger.critical(msg)
+        log_phase_result_fn(5, "signal_generation", "halt", msg)
+        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+
+    signal_source = "buysell_breakout"
 
     if not raw_candidates:
         msg = f"No candidates (source={signal_source}) for {run_date} with composite_score >= {min_composite_score}"

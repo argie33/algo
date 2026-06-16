@@ -15,9 +15,9 @@
  *             → sector_ranking (15 min expected, 15 min timeout = 900s)
  *               → algo_orchestrator (dry-run & live: Phase 1-7)
  *
- * KEY INSIGHT: Removed technical_data_daily, buy_sell_daily, signal_quality_scores
- * from the critical path. Orchestrator Phase 5 computes signals on-the-fly from
- * price_daily; no pre-computed signal tables needed for trading.
+ * KEY INSIGHT: buy_sell_daily is CRITICAL for Phase 5 signal generation.
+ * Removed: technical_data_daily, signal_quality_scores (technical indicators
+ * computed on-the-fly by buy_sell_daily loader; no longer needed separately).
  *
  * MORNING PIPELINE (2:00 AM ET, 2.5h max execution):
  *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
@@ -483,7 +483,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogSwingScoresFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "SectorRanking"
+        Next = "BuySellDaily"
       }
 
       LogSwingScoresFailure = {
@@ -515,6 +515,59 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type  = "Fail"
         Error = "CRITICAL_LOADER_FAILURE"
         Cause = "swing_trader_scores failed after retries. Pipeline halted because signals cannot be generated without trader scores. Check CloudWatch logs for details."
+      }
+
+      # ── Step 8b: Buy/Sell Daily Signals (depends on prices + scores) ──────────────
+      # CRITICAL FOR PHASE 5: Must provide fresh buy_sell_daily BUY signals.
+      # Phase 5 signal generation uses these signals as primary path (with composite_score ranking).
+      # Depends on: stock_prices_daily (completed), swing_trader_scores (just completed)
+      # Timeout: 21600s (6 hours) - vectorized loader runs in ~30 min, but allow headroom
+      BuySellDaily = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 21600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 120
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogBuySellFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SectorRanking"
+      }
+
+      LogBuySellFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "buy_sell_daily"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SectorRanking"
+          ResultPath  = "$.logError"
+        }]
+        Next = "SectorRanking"
       }
 
       # ── Step 8c: Sector ranking (depends on stock_scores) ──────────────
@@ -966,9 +1019,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       # ── Morning swing trader scores (only critical supporting loader) ─
-      # REFACTORED: Removed technical_data_daily, buy_sell_daily, signal_quality_scores.
-      # Orchestrator Phase 5 computes signals on-the-fly; pre-computed tables no longer needed.
-      # swing_trader_scores still runs for ranking/reporting, but not critical for trading.
+      # NOTE: buy_sell_daily runs only in EOD pipeline, not morning.
+      # Morning orchestrator (9:30 AM) uses buy_sell signals from previous day's EOD run.
+      # Removed: technical_data_daily, signal_quality_scores (computed on-the-fly instead).
       # FIXED 2026-06-XX: Switched to vectorized loader (2-3x faster)
       # Vectorized approach: 10-20 min vs old 30-40 min (2-3x faster)
       MorningSwingScores = {
