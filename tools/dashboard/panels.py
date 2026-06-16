@@ -1504,7 +1504,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     ][:10]  # Limit to top 10
 
     if scored_with_signals:
-        rows.append(Text.from_markup(f"[{G}][bold]TOP SCORES WITH BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} actionable trades)[/]"))
+        rows.append(Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} trades with price targets)[/]"))
         sig_table = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -1513,14 +1513,14 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             expand=True,
             row_styles=["", "dim"],
         )
-        sig_table.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        sig_table.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        sig_table.add_column("Swing", justify="right", no_wrap=True, min_width=5)
+        sig_table.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
+        sig_table.add_column("Comp Score", justify="right", no_wrap=True, min_width=7)
         sig_table.add_column("Price", justify="right", no_wrap=True, min_width=7)
-        sig_table.add_column("Buy Lvl", justify="right", no_wrap=True, min_width=8)
-        sig_table.add_column("Stop", justify="right", no_wrap=True, min_width=8)
-        sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=5)
-        sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=6)
+        sig_table.add_column("Buy Level", justify="right", no_wrap=True, min_width=9)
+        sig_table.add_column("Stop Level", justify="right", no_wrap=True, min_width=9)
+        sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=6)
+        sig_table.add_column("Swing", justify="right", no_wrap=True, min_width=6)
+        sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=7)
 
         for score_item in scored_with_signals:
             sym = score_item.get("symbol") or "--"
@@ -1562,11 +1562,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(sig_table)
         rows.append(Rule(style="dim"))
 
-    # ── Composite score candidate table (only show if no buy signals exist) ──
-    buy_sig_map_cmp = _build_buy_sig_map(buy_sigs)
-    show_full_scores = (not scored_with_signals) and top_scores
+    # ── Stock quality scores table (always show if data exists) ──
+    show_full_scores = bool(top_scores)
     if show_full_scores:
-        rows.append(Text.from_markup(f"[{Y}][bold]ALL TOP SCORES[/][/] [dim](no active buy signals yet)[/]"))
+        scores_msg = "(all candidates)" if not scored_with_signals else "(additional candidates without active signals)"
+        rows.append(Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim]{scores_msg}[/]"))
         t = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -1575,15 +1575,14 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             expand=True,
             row_styles=["", "dim"],
         )
-        t.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        t.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        t.add_column("Swing", justify="right", no_wrap=True, min_width=5)
-        t.add_column("Mom", justify="right", no_wrap=True, min_width=4)
-        t.add_column("Qual", justify="right", no_wrap=True, min_width=4)
-        t.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
-        t.add_column("Stab", justify="right", no_wrap=True, min_width=4)
-        t.add_column("RS%", justify="right", no_wrap=True, min_width=4)
-        t.add_column("Chg%", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
+        t.add_column("Composite", justify="right", no_wrap=True, min_width=7)
+        t.add_column("Momentum", justify="right", no_wrap=True, min_width=8)
+        t.add_column("Quality", justify="right", no_wrap=True, min_width=7)
+        t.add_column("Growth", justify="right", no_wrap=True, min_width=7)
+        t.add_column("Stability", justify="right", no_wrap=True, min_width=8)
+        t.add_column("RS%", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
         t.add_column("Sector", no_wrap=True, max_width=12)
         for sc in top_scores[:15]:
             sym = sc.get("symbol") or "--"
@@ -1611,7 +1610,6 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             t.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _swing_cell(buy_sig_map_cmp.get(sym_norm)),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(grwth),
@@ -1623,7 +1621,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(t)
     else:
         rows.append(
-            Text.from_markup(f"[{Y}]No composite score data — check Data Health[/]")
+            Text.from_markup(f"[{Y}]No score data — check Data Health[/]")
         )
 
     # ── Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) ──
@@ -3447,6 +3445,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     gd_s = f"{gd}" if gd is not None else "--"
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     rows = [
+        Text.from_markup(f"[{CY}][bold]SIGNAL OVERVIEW[/][/]"),
         Text.from_markup(
             f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
             f"[{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]  "
@@ -3504,8 +3503,9 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[bold]ALL CANDIDATES ({len(top_scores or [])} stocks)[/] [dim]with detailed scores & signals[/]"))
+    rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))
     buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
+    rows.append(Text.from_markup(f"[dim]Top {len(top_scores or [])} candidates with component scores[/]"))
     if top_scores:
         sig_tbl = Table(
             box=box.SIMPLE_HEAD,
