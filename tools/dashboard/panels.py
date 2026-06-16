@@ -4317,7 +4317,7 @@ def panel_scores_expanded(scores, sig=None):
                 _score_cell(val),
                 _score_cell(grwth),
                 _score_cell(stab),
-                _sub_colored(pos_s),
+                _score_cell(pos_s),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--",
                      style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style="dim"),
