@@ -265,7 +265,10 @@ def run(
             logger.info(
                 f"  - Prices: {max_date} ({symbols_loaded} symbols, {coverage_pct:.1f}%)"
             )
-            logger.info("  - All pipeline tables (market_health, trend_template, market_exposure) fresh")
+            if not warn_stale:
+                logger.info("  - All pipeline tables (market_health, trend_template, market_exposure) fresh")
+            else:
+                logger.info("  - Critical pipeline tables (market_health, market_exposure) fresh; auxiliary warnings above")
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
             log_phase_result_fn(

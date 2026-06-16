@@ -1151,9 +1151,9 @@ class Orchestrator:
                     if not result:
                         # ISSUE #10 FIX: Provide context about why Phase 5 halted
                         # Phase 5's phase_5_signal_generation() method logs halt reason internally
-                        logger.critical(
-                            "HALT: Phase 5 (Signal Generation) halted — no signal-based trades will be generated. "
-                            "See logs above for halt reason (likely data quality degradation). Skipping Phase 6."
+                        logger.warning(
+                            "Phase 5 (Signal Generation) halted — no entries this run. "
+                            "See Phase 5 logs above for reason (market regime, exposure policy, no qualified signals, or data quality). Skipping Phase 6."
                         )
                         # Phase 7 must still run: it creates the portfolio snapshot that Phase 5
                         # needs on its next invocation. Skipping Phase 7 here causes a deadlock
