@@ -107,10 +107,16 @@ def compute_performance_metrics(cur, metric_date: date = None):
             metrics["avg_trade_pct"] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
             metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
             metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
+            win_pcts = [p for p in pnl_pcts if p > 0]
+            loss_pcts = [p for p in pnl_pcts if p < 0]
+            metrics["avg_win_pct"] = round(sum(win_pcts) / len(win_pcts), 2) if win_pcts else 0.0
+            metrics["avg_loss_pct"] = round(sum(loss_pcts) / len(loss_pcts), 2) if loss_pcts else 0.0
         else:
             metrics["avg_trade_pct"] = 0.0
             metrics["best_trade_pct"] = 0.0
             metrics["worst_trade_pct"] = 0.0
+            metrics["avg_win_pct"] = 0.0
+            metrics["avg_loss_pct"] = 0.0
 
         metrics["avg_holding_days"] = (
             round(sum(holding_days_list) / len(holding_days_list), 1)
@@ -250,11 +256,11 @@ def _insert_default_metrics(cur, metric_date: date):
         INSERT INTO algo_performance_metrics (
             metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
             win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
-            avg_trade_pct, best_trade_pct, worst_trade_pct, avg_holding_days,
-            sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio, cagr_pct,
-            best_win_streak, worst_loss_streak
-        ) VALUES (%s, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
+            avg_trade_pct, best_trade_pct, worst_trade_pct, avg_win_pct, avg_loss_pct,
+            avg_holding_days, sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio,
+            cagr_pct, best_win_streak, worst_loss_streak
+        ) VALUES (%s, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
         ON CONFLICT (metric_date) DO NOTHING
     """,
         (metric_date,),
@@ -269,10 +275,10 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
             INSERT INTO algo_performance_metrics (
                 metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
                 win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
-                avg_trade_pct, best_trade_pct, worst_trade_pct, avg_holding_days,
-                sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio, cagr_pct,
-                best_win_streak, worst_loss_streak
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                avg_trade_pct, best_trade_pct, worst_trade_pct, avg_win_pct, avg_loss_pct,
+                avg_holding_days, sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio,
+                cagr_pct, best_win_streak, worst_loss_streak
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (metric_date) DO UPDATE SET
                 total_trades = EXCLUDED.total_trades,
                 winning_trades = EXCLUDED.winning_trades,
@@ -285,6 +291,8 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
                 avg_trade_pct = EXCLUDED.avg_trade_pct,
                 best_trade_pct = EXCLUDED.best_trade_pct,
                 worst_trade_pct = EXCLUDED.worst_trade_pct,
+                avg_win_pct = EXCLUDED.avg_win_pct,
+                avg_loss_pct = EXCLUDED.avg_loss_pct,
                 avg_holding_days = EXCLUDED.avg_holding_days,
                 sharpe_ratio = EXCLUDED.sharpe_ratio,
                 sortino_ratio = EXCLUDED.sortino_ratio,
@@ -308,6 +316,8 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
                 metrics.get("avg_trade_pct", 0.0),
                 metrics.get("best_trade_pct", 0.0),
                 metrics.get("worst_trade_pct", 0.0),
+                metrics.get("avg_win_pct", 0.0),
+                metrics.get("avg_loss_pct", 0.0),
                 metrics.get("avg_holding_days", 0.0),
                 metrics.get("sharpe_ratio", 0.0),
                 metrics.get("sortino_ratio", 0.0),

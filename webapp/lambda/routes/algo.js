@@ -1724,7 +1724,8 @@ router.get('/performance', async (req, res) => {
       SELECT
         total_trades, winning_trades, losing_trades,
         win_rate_pct,
-        best_trade_pct as avg_win_pct, worst_trade_pct as avg_loss_pct,
+        COALESCE(avg_win_pct, best_trade_pct) as avg_win_pct,
+        COALESCE(avg_loss_pct, worst_trade_pct) as avg_loss_pct,
         0.0 as avg_win_r, 0.0 as avg_loss_r,
         0.0 as expectancy_r, profit_factor,
         total_pnl_dollars, 0.0 as gross_win_dollars, 0.0 as gross_loss_dollars, total_pnl_pct as total_return_pct,

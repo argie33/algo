@@ -3530,6 +3530,8 @@ CREATE TABLE IF NOT EXISTS algo_performance_metrics (
     avg_trade_pct NUMERIC(8, 2),                -- average trade P&L %
     best_trade_pct NUMERIC(8, 2),               -- best single trade %
     worst_trade_pct NUMERIC(8, 2),              -- worst single trade %
+    avg_win_pct NUMERIC(8, 2),                  -- average P&L % of winning trades
+    avg_loss_pct NUMERIC(8, 2),                 -- average P&L % of losing trades
     avg_holding_days NUMERIC(8, 1),             -- average days held per position
     sharpe_ratio NUMERIC(8, 4),                 -- annualized (sqrt(252) × mean / std_dev)
     sortino_ratio NUMERIC(8, 4),                -- annualized downside deviation variant
