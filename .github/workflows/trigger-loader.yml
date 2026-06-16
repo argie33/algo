@@ -81,7 +81,7 @@ jobs:
           echo "Launched: $TASK_ARN"
 
       - name: Wait for completion
-        if: inputs.wait_for_completion == 'true'
+        if: inputs.wait_for_completion
         run: |
           echo "Waiting for ${{ inputs.loader_name }} to finish..."
           aws ecs wait tasks-stopped \
