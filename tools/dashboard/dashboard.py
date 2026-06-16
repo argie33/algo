@@ -73,7 +73,6 @@ from panels import (
     panel_signals_expanded,
     panel_algo_health_expanded,
     panel_sectors_expanded,
-    panel_scores_expanded,
     panel_trades_expanded,
     panel_economic_expanded,
     panel_portfolio_perf_expanded,
@@ -470,9 +469,6 @@ def render_dashboard(
             *_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank)
         )
 
-    if view_mode == "scores":
-        return _expanded_layout(*_exp_top, panel_scores_expanded(scores, sig=sig))
-
     if view_mode == "trades":
         return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
 
@@ -504,7 +500,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -563,7 +559,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:

@@ -3408,7 +3408,7 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
     description="Signals Expanded",
 )
 def panel_signals_expanded(sig, sig_eval=None, scores=None):
-    """Full-screen composite score candidates with pipeline funnel context."""
+    """Full-screen signals & scores - pipeline funnel context, detailed score breakdowns, and all top candidates."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
@@ -3591,9 +3591,9 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
 
     border = "red" if is_placeholder else "magenta"
     title = (
-        "[bold red]TOP SCORES ⚠ NO DATA[/]"
+        "[bold red]SIGNALS & SCORES ⚠ NO DATA[/]"
         if is_placeholder
-        else "[bold magenta]TOP SCORES - EXPANDED[/]"
+        else "[bold magenta]SIGNALS & SCORES - EXPANDED[/]"
     )
     return Panel(
         Group(*rows),
