@@ -85,12 +85,13 @@ def _score_cell(v):
 
 
 def _build_buy_sig_map(buy_sigs) -> dict:
-    """Map symbol -> signal-quality (swing) score from buy-signal records."""
+    """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols."""
     out: dict = {}
     for bs in buy_sigs or []:
         sym = bs.get("symbol")
         if sym:
-            out[sym] = float(bs.get("signal_quality_score") or bs.get("swing_score") or 0)
+            sym_norm = str(sym).upper().strip()
+            out[sym_norm] = float(bs.get("signal_quality_score") or bs.get("swing_score") or 0)
     return out
 
 
@@ -1605,10 +1606,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
                 rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
             except (ValueError, TypeError):
                 rs_v = None
+            sym_norm = str(sym).upper().strip()
             t.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _swing_cell(buy_sig_map_cmp.get(sym)),
+                _swing_cell(buy_sig_map_cmp.get(sym_norm)),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(grwth),
