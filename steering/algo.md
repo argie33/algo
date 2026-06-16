@@ -545,7 +545,7 @@ If alarms trigger:
 
 ## Orchestrator Phases
 
-1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking (buy_sell_daily removed from pipeline)
+1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking/buy_sell_daily
 2. **Phase 2:** Circuit breakers (FAIL-CLOSED) — halt if any breaker triggered (drawdown ≥20%, daily loss ≥2%, consecutive losses ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%)
 3. **Phase 3:** Position monitor + market exposure policy
 4. **Phase 4:** Execute exits (always runs, unblocked by halt)
@@ -555,15 +555,25 @@ If alarms trigger:
 
 ## Signal Generation (Phase 5)
 
-**On-the-fly generation** — computes signals directly from stock_scores + price_daily (buy_sell_daily removed from pipeline):
+**Primary: Pivot-breakout BUY signals filtered by quality ranking.** Combines buy_sell_daily technical breakout timing with stock_scores fundamental quality to generate high-conviction entries at key inflection points.
+
+Pipeline:
 1. Check halt flag (set by Phase 1 on stale data)
 2. Market regime gate: halt if `market_exposure_daily.is_entry_allowed = false`
 3. Exposure policy gate: halt if `exposure_constraints.halt_new_entries = true` (from Phase 3b)
-4. Fetch candidates: `stock_scores` with `composite_score >= 50` JOIN LATERAL latest `price_daily` + SMA_50 + `company_profile` for sector/industry
-5. Trend filter: skip if close < sma_50
-6. Close quality gate: skip if close in bottom 40% of day's range (distribution signal)
-7. Liquidity check on top 10 candidates (parallelized)
-8. Return composite-score-ranked candidates to Phase 6
+4. **Primary path:** Fetch `buy_sell_daily` BUY signals within last 3 calendar days (covers 2 trading days, tolerant of weekends)
+   - Must have signal_type='BUY' (pivot high > recent swing high AND swing high > SMA_50)
+   - JOIN to `stock_scores` (composite_score >= 50)
+   - JOIN to current `price_daily` + SMA_50 + `company_profile` for sector/industry
+5. **Fallback:** If no buy_sell_daily BUY signals (e.g., morning runs before EOD loader runs at 4:05 PM ET), use stock_scores + price_daily without breakout gate
+6. Trend filter: skip if close < sma_50 (uptrend confirmation)
+7. Close quality gate: skip if close in bottom 40% of day's range (distribution signal)
+8. Liquidity check on top 10 candidates (parallelized)
+9. Return composite-score-ranked candidates to Phase 6
+
+**Signal source logic:**
+- `buysell_breakout`: buy_sell_daily BUY signals found (preferred, highest conviction)
+- `stock_scores_fallback`: no fresh buy_sell_daily BUY signals available (early morning before EOD pipeline)
 
 **Ranking:** composite_score from stock_scores (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%).
 

@@ -2,14 +2,16 @@
 """
 PHASE 5: SIGNAL GENERATION
 
-Generates candidate signals on-the-fly from stock_scores + price_daily.
-buy_sell_daily was removed from the EOD pipeline; Phase 5 now queries live data.
+Primary path: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
+Fallback path: stock_scores + price_daily only (when buy_sell_daily has no fresh data).
 
 Pipeline:
 1. Check halt flag (data freshness gate)
 2. Check market regime: halt if entries not allowed per market_exposure_daily
-3. Fetch candidates: stock_scores (composite ranking) + price_daily (latest prices + SMA_50)
-4. Filter: close > sma_50 (price must be in uptrend above 50-day MA)
+3. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
+   joined to stock_scores (composite ranking) + price_daily (current prices + SMA_50)
+   Fallback: stock_scores with composite_score >= threshold + price_daily
+4. Filter: close > sma_50 (uptrend confirmation)
 5. Filter: composite_score >= min threshold
 6. Close quality gate: skip weak closes (bottom of day's range = distribution)
 7. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
@@ -17,11 +19,15 @@ Pipeline:
 
 Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
 positioning 15%, stability 12%, momentum 8%).
+
+Signal source priority:
+  buy_sell_daily (breakout timing gate) → stock_scores (quality ranking)
+  Fallback: stock_scores only when buy_sell_daily has no fresh BUY signals
 """
 
 import logging
 import time
-from datetime import date as _date
+from datetime import date as _date, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -35,6 +41,7 @@ logger = logging.getLogger(__name__)
 _LIQUIDITY_CHECK_LIMIT = 10
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0–100 scale)
+_BUYSELL_LOOKBACK_DAYS = 3  # Calendar days; covers 2 trading days including weekends
 
 
 def _check_market_regime(run_date: _date) -> Dict:
@@ -107,11 +114,120 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
         return candidate, False
 
 
-def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
-    """Fetch candidate symbols from stock_scores with current prices from price_daily.
+def _get_candidates_from_buysell(
+    run_date: _date, min_score: float, limit: int = 100
+) -> List[Dict]:
+    """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking.
 
-    Computes on-the-fly: no pre-computed buy_sell_daily needed.
-    Returns symbols ranked by composite_score with latest price data.
+    Returns candidates that have BOTH a recent BUY signal (pivot breakout above swing high
+    that was above SMA_50) AND a high composite_score. The breakout confirms the entry timing;
+    composite_score ranks quality to be selective.
+
+    Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days — covers the prior EOD pipeline's
+    signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
+    """
+    lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SET LOCAL statement_timeout = '15000ms'")
+            cur.execute(
+                """
+                SELECT
+                    bsd.symbol,
+                    ss.composite_score,
+                    ss.quality_score,
+                    ss.growth_score,
+                    ss.momentum_score,
+                    ss.rs_percentile,
+                    p.close,
+                    p.high,
+                    p.low,
+                    sma.avg_close AS sma_50,
+                    cp.sector,
+                    cp.industry,
+                    bsd.buylevel,
+                    bsd.stoplevel,
+                    bsd.strength AS signal_strength,
+                    bsd.volume_surge_pct,
+                    bsd.market_stage,
+                    bsd.date AS signal_date
+                FROM (
+                    SELECT DISTINCT ON (symbol) *
+                    FROM buy_sell_daily
+                    WHERE signal_type = 'BUY'
+                      AND date >= %s
+                      AND date <= %s
+                    ORDER BY symbol, date DESC
+                ) bsd
+                JOIN stock_scores ss ON ss.symbol = bsd.symbol
+                JOIN LATERAL (
+                    SELECT close, high, low
+                    FROM price_daily
+                    WHERE symbol = bsd.symbol AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                ) p ON TRUE
+                JOIN LATERAL (
+                    SELECT AVG(close) AS avg_close
+                    FROM (
+                        SELECT close FROM price_daily
+                        WHERE symbol = bsd.symbol AND date <= %s
+                        ORDER BY date DESC LIMIT 50
+                    ) t
+                ) sma ON TRUE
+                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
+                WHERE ss.composite_score >= %s
+                ORDER BY ss.composite_score DESC NULLS LAST
+                LIMIT %s
+                """,
+                (lookback_date, run_date, run_date, run_date, min_score, limit),
+            )
+            rows = cur.fetchall()
+
+        candidates = []
+        for r in rows:
+            close = float(r[6]) if r[6] is not None else None
+            composite = float(r[1]) if r[1] is not None else None
+            raw_strength = float(r[14]) if r[14] is not None else None
+            strength = raw_strength if raw_strength is not None else (
+                composite / 100.0 if composite else 0.5
+            )
+            candidates.append({
+                "symbol": r[0],
+                "composite_score": composite,
+                "quality_score": float(r[2]) if r[2] is not None else None,
+                "growth_score": float(r[3]) if r[3] is not None else None,
+                "momentum_score": float(r[4]) if r[4] is not None else None,
+                "rs_percentile": float(r[5]) if r[5] is not None else None,
+                "close": close,
+                "high": float(r[7]) if r[7] is not None else None,
+                "low": float(r[8]) if r[8] is not None else None,
+                "sma_50": float(r[9]) if r[9] is not None else None,
+                "entry_price": close,
+                "signal_strength": strength,
+                "sector": r[10],
+                "industry": r[11],
+                "buylevel": float(r[12]) if r[12] is not None else None,
+                "stoplevel": float(r[13]) if r[13] is not None else None,
+                "volume_surge_pct": float(r[15]) if r[15] is not None else None,
+                "market_stage": r[16],
+                "signal_date": str(r[17]) if r[17] is not None else None,
+            })
+
+        logger.info(
+            f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily BUY signals + stock_scores "
+            f"(lookback: {lookback_date} to {run_date})"
+        )
+        return candidates
+    except Exception as e:
+        logger.error(f"[PHASE 5] Error fetching buy_sell_daily candidates: {e}", exc_info=True)
+        return []
+
+
+def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
+    """Fallback: fetch candidates from stock_scores with current prices from price_daily.
+
+    Used when buy_sell_daily has no fresh BUY signals (e.g., EOD loader hasn't run yet).
+    Returns symbols ranked by composite_score — no breakout confirmation, just uptrend + quality.
     """
     try:
         with DatabaseContext("read") as cur:
@@ -245,11 +361,23 @@ def run(
     elif bypass_exposure and exposure_constraints and exposure_constraints.get("halt_new_entries"):
         logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
 
-    # Fetch candidates from stock_scores + price_daily (on-the-fly, no buy_sell_daily)
-    raw_candidates = _get_candidates(run_date, min_composite_score)
+    # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
+    # Fallback: stock_scores-only when buy_sell_daily has no fresh data (e.g., morning runs
+    # before EOD pipeline has completed today's signals; EOD loader runs at 4:05 PM ET).
+    raw_candidates = _get_candidates_from_buysell(run_date, min_composite_score)
+    if raw_candidates:
+        signal_source = "buysell_breakout"
+    else:
+        logger.warning(
+            "[PHASE 5] No buy_sell_daily BUY signals found within last %d calendar days — "
+            "falling back to stock_scores-only candidates (no breakout gate)",
+            _BUYSELL_LOOKBACK_DAYS,
+        )
+        raw_candidates = _get_candidates(run_date, min_composite_score)
+        signal_source = "stock_scores_fallback"
 
     if not raw_candidates:
-        msg = f"No candidates in stock_scores with composite_score >= {min_composite_score} for {run_date}"
+        msg = f"No candidates (source={signal_source}) for {run_date} with composite_score >= {min_composite_score}"
         logger.warning(f"[PHASE 5] {msg}")
         log_phase_result_fn(5, "signal_generation", "halt", msg)
         return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
@@ -323,17 +451,23 @@ def run(
     # Final ranking by composite_score
     liq_passed.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
 
-    logger.info("[PHASE 5] Top 10 qualified signals:")
+    logger.info(f"[PHASE 5] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
         def _fmt(v, spec=":.1f"):
             return format(v, spec[1:]) if v is not None else "?"
+        buylevel_str = (
+            f" buylevel={_fmt(sig.get('buylevel'), ':.2f')}"
+            f" signal_date={sig.get('signal_date', '?')}"
+            if sig.get("buylevel") else ""
+        )
         logger.info(
             f"  {i+1}. {sig['symbol']:6s} "
             f"composite={_fmt(sig.get('composite_score'))} "
             f"quality={_fmt(sig.get('quality_score'))} "
             f"momentum={_fmt(sig.get('momentum_score'))} "
             f"rs_pct={_fmt(sig.get('rs_percentile'))} "
-            f"strength={_fmt(sig.get('signal_strength'), ':.2f')}"
+            f"stage={sig.get('market_stage', '?')}"
+            f"{buylevel_str}"
         )
 
     elapsed = time.time() - phase_start
@@ -354,7 +488,8 @@ def run(
             "quality_filtered": len(quality_filtered),
             "liquidity_passed": len(liq_passed),
             "regime": regime,
+            "signal_source": signal_source,
         },
         False,
-        f"Generated {len(liq_passed)} signals in {elapsed:.1f}s",
+        f"Generated {len(liq_passed)} signals in {elapsed:.1f}s (source={signal_source})",
     )
