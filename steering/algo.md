@@ -361,7 +361,7 @@ unzip -l terraform/lambda_api.zip | head -30
 - Legacy `positions` table DROPPED (was empty, replaced by algo_positions in Phase 3)
 
 **Positions view notes:**
-- `stop_loss_price` = `COALESCE(algo_positions.stop_loss_price, algo_positions.current_stop_price)` — current_stop_price is used because the executor and reconciliation write stops there; stop_loss_price mirrors it as of migration 077/executor fix
+- `stop_loss_price` = `COALESCE(algo_positions.stop_loss_price, algo_positions.current_stop_price)` — current_stop_price is used because the executor and reconciliation write stops there; stop_loss_price mirrors it for consistency
 - `r_multiple` = `(current_price - entry) / (entry - stop)` — positive when profitable, negative when at a loss
 - Sector comes from `COALESCE(algo_trades.sector, company_profile.sector, 'Unknown')` — trades get sector at entry time from Phase 5 signal
 
