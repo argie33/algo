@@ -30,7 +30,7 @@ class StabilityMetricsLoader(OptimalLoader):
 
     table_name = "stability_metrics"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute stability metrics for this symbol."""
