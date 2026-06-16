@@ -1488,17 +1488,18 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     rows.append(Rule(style="dim"))
 
     # ── Top Scores WITH Buy Signals (actionable opportunities) ────────────────
-    # Build full buy signal details map for this section
+    # Build full buy signal details map for this section (normalize symbols for matching)
     buy_sig_details = {}
     for bs in buy_sigs:
         sym = bs.get("symbol")
         if sym:
-            buy_sig_details[sym] = bs
+            sym_norm = str(sym).upper().strip()
+            buy_sig_details[sym_norm] = bs
 
     # Find stocks that have BOTH high composite score AND active buy signal
     scored_with_signals = [
         s for s in top_scores
-        if s.get("symbol") in buy_sig_details
+        if str(s.get("symbol", "")).upper().strip() in buy_sig_details
     ][:10]  # Limit to top 10
 
     if scored_with_signals:
@@ -1524,7 +1525,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             sym = score_item.get("symbol") or "--"
             comp_score = score_item.get("composite_score")
             sector = (score_item.get("sector") or "")[:12]
-            sig_obj = buy_sig_details.get(sym, {})
+            sym_norm = str(sym).upper().strip()
+            sig_obj = buy_sig_details.get(sym_norm, {})
 
             # Extract signal details
             swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score") or 0
