@@ -22,12 +22,12 @@ class TestWatermarkConsolidation:
 
     def test_freshness_rules_defined(self):
         """Ensure all critical tables have freshness rules."""
+        # buy_sell_daily removed from EOD pipeline — Phase 5 computes signals on-the-fly.
         critical_tables = [
             "price_daily",
             "algo_portfolio_snapshots",
             "algo_performance_daily",
             "algo_risk_daily",
-            "buy_sell_daily",
             "swing_trader_scores",
             "market_health_daily",
             "market_exposure_daily",
@@ -38,6 +38,11 @@ class TestWatermarkConsolidation:
             assert rule is not None, f"Missing rule for {table}"
             assert rule.get("critical") is True, f"{table} should be critical"
             assert rule.get("max_age_days") > 0, f"{table} should have max_age_days"
+
+        # buy_sell_daily is no longer critical (pipeline removed, Phase 5 computes on-the-fly)
+        buy_sell_rule = get_freshness_rule("buy_sell_daily")
+        assert buy_sell_rule is not None, "buy_sell_daily should still have a rule"
+        assert buy_sell_rule.get("critical") is False, "buy_sell_daily is legacy, not critical"
 
     def test_critical_table_detection(self):
         """Verify critical tables are marked correctly."""
@@ -55,12 +60,13 @@ class TestWatermarkConsolidation:
                 rule["max_age_days"] <= 1
             ), f"{table} critical, should have 1d or tighter threshold"
 
-        # Important tables should have reasonable thresholds (7 days)
-        for table in ["technical_data_daily", "trend_template_data"]:
-            rule = get_freshness_rule(table)
-            assert (
-                rule["max_age_days"] <= 7
-            ), f"{table} important, should have <=7d threshold"
+        # trend_template_data: non-critical but still regularly refreshed (7-day tolerance)
+        trend_rule = get_freshness_rule("trend_template_data")
+        assert trend_rule["max_age_days"] <= 7, "trend_template_data should have <=7d threshold"
+
+        # technical_data_daily: removed from EOD pipeline, legacy table with long tolerance
+        tech_rule = get_freshness_rule("technical_data_daily")
+        assert tech_rule["max_age_days"] >= 7, "technical_data_daily is legacy, should have relaxed threshold"
 
     def test_no_hardcoded_thresholds(self):
         """Ensure no hardcoded threshold values are used."""
