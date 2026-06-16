@@ -809,7 +809,8 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             weinstein_stage,
             percent_from_52w_low,
             percent_from_52w_high,
-            stage_in_exit_plan
+            stage_in_exit_plan,
+            swing_score
             FROM algo_positions_with_risk
             ORDER BY position_value DESC
             LIMIT 1000
