@@ -1,0 +1,54 @@
+name: Deploy API Lambda
+
+# Deploys only the API Lambda handler code (lambda/api/).
+# Use when you need to push a code change without a full Terraform apply.
+# Does NOT rebuild the layer — only updates the function code package.
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    name: Package & Deploy API Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Package API Lambda handler
+        run: |
+          python3 - << 'EOF'
+          import os, zipfile
+          from pathlib import Path
+
+          api_path = Path("lambda/api")
+          zip_path = Path("api_lambda.zip")
+
+          with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+              for fp in api_path.rglob("*"):
+                  if fp.is_file() and not (fp.name.endswith(".pyc") or "__pycache__" in str(fp)):
+                      zf.write(str(fp), str(fp.relative_to(api_path)))
+
+          print(f"Packaged {zip_path.stat().st_size / 1024:.0f} KB")
+          EOF
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name algo-api-dev \
+            --zip-file fileb://api_lambda.zip \
+            --region us-east-1 \
+            --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
+            --output json
