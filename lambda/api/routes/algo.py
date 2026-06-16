@@ -3169,6 +3169,21 @@ def _get_markets(cur) -> Dict:
             logger.warning(f"Could not fetch SPY price: {spy_e}")
 
         current_date = row.get("date")
+
+        # Validate vix_regime is present in factors; log if missing
+        if "vix_regime" not in factors:
+            logger.warning(
+                f"[MARKETS API] vix_regime missing from factors for {current_date}: "
+                f"market exposure computation may not have run or vix_regime computation failed. "
+                f"Check market_exposure_daily and load_market_exposure_daily logs."
+            )
+        elif factors.get("vix_regime", {}).get("value") is None:
+            logger.warning(
+                f"[MARKETS API] VIX value is None in vix_regime for {current_date}: "
+                f"VIX fetch from ^VIX or market_health_daily returned no data. "
+                f"Check load_market_health_daily logs and yfinance availability."
+            )
+
         return json_response(
             200,
             {
