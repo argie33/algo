@@ -67,7 +67,6 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
     cur.execute("""
             SELECT
             symbol,
-            company_name,
             quantity,
             avg_entry_price,
             current_price,
@@ -96,8 +95,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             weinstein_stage,
             percent_from_52w_low,
             percent_from_52w_high,
-            stage_in_exit_plan,
-            swing_score
+            stage_in_exit_plan
             FROM algo_positions_with_risk
             ORDER BY position_value DESC
             LIMIT 1000

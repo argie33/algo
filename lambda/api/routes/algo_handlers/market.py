@@ -45,6 +45,7 @@ from utils.validation import (
     APIResponseValidator,
 )
 from models.requests import TradePreviewRequest, PreTradeImpactRequest
+from .signals import _TIER_CONFIG
 import math
 
 logger = logging.getLogger(__name__)
