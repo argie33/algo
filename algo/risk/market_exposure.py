@@ -177,10 +177,12 @@ class MarketExposure:
             cur.execute("SET statement_timeout = 45000")
             factors = {}
             score = 0.0
+            avail_max = 0.0  # sum of weights for factors that have real data
 
             # --- 1. Trend 30-week MA (SPY vs SMA_150 + slope) ---
             t30 = self._trend_30wk(eval_date, cur)
-            t30_pts = self.W_TREND_30WK * t30["score_factor"]
+            t30_pts, t30_avail = self._wt_pts(t30, self.W_TREND_30WK)
+            avail_max += t30_avail
             factors["trend_30wk"] = {
                 **t30,
                 "pts": round(t30_pts, 1),
@@ -191,7 +193,8 @@ class MarketExposure:
 
             # --- 2. SPY 12-month momentum (TSMOM — most replicated quant signal) ---
             mom = self._spy_momentum(eval_date, cur)
-            mom_pts = self.W_SPY_MOMENTUM * mom["score_factor"]
+            mom_pts, mom_avail = self._wt_pts(mom, self.W_SPY_MOMENTUM)
+            avail_max += mom_avail
             factors["spy_momentum"] = {
                 **mom,
                 "pts": round(mom_pts, 1),
@@ -202,7 +205,8 @@ class MarketExposure:
 
             # --- 3. Breadth: % stocks above 50-DMA ---
             b50 = self._pct_above_ma(eval_date, ma_days=50, cur=cur)
-            b50_pts = self.W_BREADTH_50 * b50["score_factor"]
+            b50_pts, b50_avail = self._wt_pts(b50, self.W_BREADTH_50)
+            avail_max += b50_avail
             factors["breadth_50dma"] = {
                 **b50,
                 "pts": round(b50_pts, 1),
@@ -215,7 +219,8 @@ class MarketExposure:
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self._pct_above_ma(eval_date, ma_days=200, cur=cur)
-            b200_pts = self.W_BREADTH_200 * b200["score_factor"]
+            b200_pts, b200_avail = self._wt_pts(b200, self.W_BREADTH_200)
+            avail_max += b200_avail
             factors["breadth_200dma"] = {
                 **b200,
                 "pts": round(b200_pts, 1),
@@ -228,7 +233,8 @@ class MarketExposure:
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self._selling_pressure_factor(eval_date, cur)
-            sp_pts = self.W_SELLING_PRESSURE * sp["score_factor"]
+            sp_pts, sp_avail = self._wt_pts(sp, self.W_SELLING_PRESSURE)
+            avail_max += sp_avail
             factors["distribution_days"] = {  # key preserved for frontend/API compatibility
                 **sp,
                 "pts": round(sp_pts, 1),
@@ -241,14 +247,16 @@ class MarketExposure:
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             vix = self._vix_regime(eval_date, cur)
-            vix_pts = self.W_VIX * vix["score_factor"]
+            vix_pts, vix_avail = self._wt_pts(vix, self.W_VIX)
+            avail_max += vix_avail
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
             logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
 
             # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
             pc = self._put_call_ratio(eval_date, cur)
-            pc_pts = self.W_PUT_CALL * pc["score_factor"]
+            pc_pts, pc_avail = self._wt_pts(pc, self.W_PUT_CALL)
+            avail_max += pc_avail
             factors["put_call_ratio"] = {
                 **pc,
                 "pts": round(pc_pts, 1),
@@ -259,7 +267,8 @@ class MarketExposure:
 
             # --- 8. New highs vs new lows ---
             nhnl = self._new_highs_lows(eval_date, cur)
-            nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl["score_factor"]
+            nhnl_pts, nhnl_avail = self._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
+            avail_max += nhnl_avail
             factors["new_highs_lows"] = {
                 **nhnl,
                 "pts": round(nhnl_pts, 1),
@@ -270,14 +279,16 @@ class MarketExposure:
 
             # --- 9. A/D line confirmation ---
             ad = self._ad_line(eval_date, cur)
-            ad_pts = self.W_AD_LINE * ad["score_factor"]
+            ad_pts, ad_avail = self._wt_pts(ad, self.W_AD_LINE)
+            avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date, cur)
-            cs_pts = self.W_CREDIT_SPREAD * cs["score_factor"]
+            cs_pts, cs_avail = self._wt_pts(cs, self.W_CREDIT_SPREAD)
+            avail_max += cs_avail
             factors["credit_spread"] = {
                 **cs,
                 "pts": round(cs_pts, 1),
@@ -288,7 +299,8 @@ class MarketExposure:
 
             # --- 11. AAII sentiment (contrarian at extremes only) ---
             aaii = self._aaii(eval_date, cur)
-            aaii_pts = self.W_AAII * aaii["score_factor"]
+            aaii_pts, aaii_avail = self._wt_pts(aaii, self.W_AAII)
+            avail_max += aaii_avail
             factors["aaii_sentiment"] = {
                 **aaii,
                 "pts": round(aaii_pts, 1),
@@ -299,7 +311,8 @@ class MarketExposure:
 
             # --- 12. NAAIM professional manager exposure (contrarian at extremes) ---
             naaim = self._naaim(eval_date, cur)
-            naaim_pts = self.W_NAAIM * naaim["score_factor"]
+            naaim_pts, naaim_avail = self._wt_pts(naaim, self.W_NAAIM)
+            avail_max += naaim_avail
             factors["naaim"] = {
                 **naaim,
                 "pts": round(naaim_pts, 1),
@@ -308,6 +321,11 @@ class MarketExposure:
             score += naaim_pts
             logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
 
+            # Normalize to 100-point scale when some factors had no data,
+            # so missing factors don't silently pull the score toward zero.
+            if 0 < avail_max < 100:
+                score = score / avail_max * 100
+                logger.debug(f"  Score normalized: avail_max={avail_max:.1f}/100")
             score = max(0.0, min(100.0, score))
 
             try:
@@ -405,6 +423,7 @@ class MarketExposure:
             result = {
                 "eval_date": str(eval_date),
                 "raw_score": round(score, 1),
+                "available_factors_max": round(avail_max, 1),
                 "capped_score": round(final, 1),
                 "exposure_pct": round(final, 1),
                 "regime": regime,
@@ -416,6 +435,18 @@ class MarketExposure:
             return result
 
     # ====== Factor implementations ======
+
+    @staticmethod
+    def _wt_pts(factor, weight):
+        """Return (pts, avail_weight) for a scoring factor.
+
+        When score_factor is None (data missing), returns (0.0, 0.0) so the
+        factor is excluded from both the score and the available-max denominator.
+        The caller normalizes the final score against avail_max so missing factors
+        don't silently skew the result toward neutral.
+        """
+        sf = factor.get("score_factor")
+        return (float(weight) * sf, float(weight)) if sf is not None else (0.0, 0.0)
 
     def _spy_momentum(self, eval_date, cur):
         """SPY 12-month price momentum — trailing return over ~252 trading days.
@@ -435,7 +466,7 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 250:
-            return {"score_factor": 0.5, "value": None, "reason": "Insufficient history"}
+            return {"score_factor": None, "value": None, "reason": "Insufficient history"}
 
         current_close = float(rows[0][1])
         past_close = float(rows[251][1])  # ~252 trading days ago
@@ -573,7 +604,7 @@ class MarketExposure:
         rows = cur.fetchall()
         if not rows or rows[0][2] is None:
             return {
-                "score_factor": 0.1,
+                "score_factor": None,
                 "value": None,
                 "reason": "Insufficient history",
             }
@@ -636,7 +667,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or not row[1]:
-            return {"score_factor": 0.5, "value": None}
+            return {"score_factor": None, "value": None}
         above, total = int(row[0]), int(row[1])
         pct = above / total * 100.0 if total > 0 else 0
         # Linear: 20% -> 0pts, 80% -> 1.0
@@ -689,7 +720,7 @@ class MarketExposure:
             )
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
-                return {"score_factor": 0.1, "value": None}
+                return {"score_factor": None, "value": None}
             vix = float(r2[0])
             return self._vix_score(vix, rising=False, term_structure=None)
 
@@ -765,7 +796,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": 0.5, "value": None, "reason": "No put/call data"}
+            return {"score_factor": None, "value": None, "reason": "No put/call data"}
 
         pc = float(row[0])
 
@@ -801,7 +832,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if row is None:
-            return {"score_factor": 0.5, "value": None}
+            return {"score_factor": None, "value": None}
         new_hi = int(row["new_highs_count"] or 0)
         new_lo = int(row["new_lows_count"] or 0)
         net = new_hi - new_lo
@@ -843,7 +874,7 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 5:
-            return {"score_factor": 0.5, "value": None}
+            return {"score_factor": None, "value": None}
 
         # Check if SPY data is fresh (no older than 1 trading day)
         if rows and rows[-1]:
@@ -861,7 +892,7 @@ class MarketExposure:
                     logger.warning(
                         f"SPY data stale: latest {latest_date} vs expected {expected_date}, returning neutral A/D score"
                     )
-                    return {"score_factor": 0.5, "value": None, "stale": True}
+                    return {"score_factor": None, "value": None, "stale": True}
 
         # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
         nets = [
@@ -915,7 +946,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": 0.5, "value": None, "reason": "No AAII data"}
+            return {"score_factor": None, "value": None, "reason": "No AAII data"}
 
         bullish = float(row[0])
         bearish = float(row[1]) if row[1] is not None else 0.0
@@ -959,7 +990,7 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": 0.5, "value": None, "reason": "No NAAIM data"}
+            return {"score_factor": None, "value": None, "reason": "No NAAIM data"}
 
         exposure = float(row[0])
         clamped = max(0.0, min(100.0, exposure))
@@ -1004,7 +1035,7 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if not rows:
-            return {"score_factor": 0.7, "value": None, "reason": "No HY spread data"}
+            return {"score_factor": None, "value": None, "reason": "No HY spread data"}
 
         hy = float(rows[0][0])
         # Trend: compare latest vs 20 days ago

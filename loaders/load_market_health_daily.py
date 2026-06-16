@@ -170,36 +170,56 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         today = datetime.now(EASTERN_TZ).date()
         if not MarketCalendar.is_trading_day(today):
+            logger.debug("Put/call: skipping (not a trading day)")
             return None
         try:
-            from utils.external.yfinance import YFinanceWrapper
+            from utils.external.yfinance import YFinanceWrapper, _throttled_yf_request
 
             ticker = YFinanceWrapper.get_ticker("SPY")
             if not ticker:
+                logger.warning("Put/call: could not get SPY ticker from yfinance")
                 return None
 
-            expirations = ticker.options
+            # ticker.options makes an outbound request — run through the rate limiter
+            # so it doesn't race against other yfinance calls sharing the NAT gateway IP.
+            try:
+                expirations = _throttled_yf_request(lambda: ticker.options)
+            except Exception as e:
+                logger.warning(f"Put/call: ticker.options failed: {e}")
+                return None
+
             if not expirations:
+                logger.warning("Put/call: no option expirations returned by yfinance (ticker.options empty)")
                 return None
 
             total_puts = 0.0
             total_calls = 0.0
+            chain_errors = 0
             for exp in expirations[:4]:  # near-term expirations (most liquid)
                 try:
-                    chain = ticker.option_chain(exp)
+                    chain = _throttled_yf_request(lambda e=exp: ticker.option_chain(e))
                     total_puts += float(chain.puts["volume"].fillna(0).sum())
                     total_calls += float(chain.calls["volume"].fillna(0).sum())
                 except Exception as e:
-                    logger.debug(f"Option chain error for {exp}: {e}")
+                    logger.warning(f"Put/call: option_chain({exp}) failed: {e}")
+                    chain_errors += 1
                     continue
+
+            if chain_errors == min(4, len(expirations)):
+                logger.warning("Put/call: all option chain fetches failed — no data available")
+                return None
 
             if total_calls > 0:
                 ratio = round(total_puts / total_calls, 3)
                 logger.info(
                     f"Put/call ratio: {ratio:.3f} "
-                    f"(puts={total_puts:.0f}, calls={total_calls:.0f})"
+                    f"(puts={total_puts:.0f}, calls={total_calls:.0f}, chain_errors={chain_errors})"
                 )
                 return ratio
+            logger.warning(
+                f"Put/call: zero calls volume across {len(expirations[:4])} expirations "
+                f"(puts={total_puts:.0f}) — returning None"
+            )
             return None
         except Exception as e:
             logger.warning(f"Put/call ratio fetch failed: {e}")
