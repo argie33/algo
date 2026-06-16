@@ -72,6 +72,41 @@ def mascot_pose(data: dict, frame: int) -> int:
     return LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
 
 
+def _score_cell(v):
+    """Colored 0-100 sub-score cell: green >=70, cyan >=50, yellow >=30, else red."""
+    if v is None or v == "":
+        return Text("--", style=DIM)
+    try:
+        fv = float(v)
+    except (ValueError, TypeError):
+        return Text("--", style=DIM)
+    c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
+    return Text(f"{fv:.0f}", style=c)
+
+
+def _build_buy_sig_map(buy_sigs) -> dict:
+    """Map symbol -> signal-quality (swing) score from buy-signal records."""
+    out: dict = {}
+    for bs in buy_sigs or []:
+        sym = bs.get("symbol")
+        if sym:
+            out[sym] = float(bs.get("signal_quality_score") or bs.get("swing_score") or 0)
+    return out
+
+
+def _swing_cell(swing_v):
+    """Swing-signal cell: ▲score colored by strength, or dim -- when absent."""
+    if swing_v is None:
+        return Text("--", style=DIM)
+    c = G if swing_v >= 80 else (CY if swing_v >= 70 else Y)
+    return Text(f"▲{swing_v:.0f}", style=c)
+
+
+def _composite_score_color(v) -> str:
+    """Color for composite scores: green >=80, cyan >=60, yellow >=40, else white."""
+    return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
+
+
 def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
 
@@ -1453,6 +1488,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     rows.append(Rule(style="dim"))
 
     # ── Composite score candidate table ──────────────────────────────────────
+    buy_sig_map_cmp = _build_buy_sig_map(buy_sigs)
     if top_scores:
         t = Table(
             box=box.SIMPLE_HEAD,
@@ -1464,6 +1500,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         )
         t.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
         t.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        t.add_column("Swing", justify="right", no_wrap=True, min_width=5)
         t.add_column("Mom", justify="right", no_wrap=True, min_width=4)
         t.add_column("Qual", justify="right", no_wrap=True, min_width=4)
         t.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
@@ -1471,16 +1508,6 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         t.add_column("RS%", justify="right", no_wrap=True, min_width=4)
         t.add_column("Chg%", justify="right", no_wrap=True, min_width=5)
         t.add_column("Sector", no_wrap=True, max_width=12)
-        def _sub(v):
-            if v is None or v == "":
-                return Text("--", style=DIM)
-            try:
-                fv = float(v)
-            except (ValueError, TypeError):
-                return Text("--", style=DIM)
-            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-            return Text(f"{fv:.0f}", style=c)
-
         for sc in top_scores[:15]:
             sym = sc.get("symbol") or "--"
             comp = sc.get("composite_score")
@@ -1492,7 +1519,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             chg = sc.get("change_percent")
             sector = (sc.get("sector") or "")[:12]
             comp_v = float(comp) if comp is not None else 0
-            sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
+            sc_c = _composite_score_color(comp_v)
 
             try:
                 chg_v = float(chg) if chg is not None and chg != "" else None
@@ -1506,10 +1533,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             t.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _sub(mom),
-                _sub(qual),
-                _sub(grwth),
-                _sub(stab),
+                _swing_cell(buy_sig_map_cmp.get(sym)),
+                _score_cell(mom),
+                _score_cell(qual),
+                _score_cell(grwth),
+                _score_cell(stab),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--", style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(sector, style=DIM),
@@ -3398,6 +3426,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
+    buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
     if top_scores:
         sig_tbl = Table(
             box=box.SIMPLE_HEAD,
@@ -3409,6 +3438,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         )
         sig_tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
         sig_tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Swing", justify="right", no_wrap=True, min_width=5)
         sig_tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
@@ -3421,16 +3451,6 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         sig_tbl.add_column("vs50%", justify="right", no_wrap=True, min_width=6)
         sig_tbl.add_column("vs200%", justify="right", no_wrap=True, min_width=7)
         sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
-        def _sub_exp(v):
-            if v is None or v == "":
-                return Text("--", style=DIM)
-            try:
-                fv = float(v)
-            except (ValueError, TypeError):
-                return Text("--", style=DIM)
-            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-            return Text(f"{fv:.0f}", style=c)
-
         for sc in top_scores:
             sym = str(sc.get("symbol") or "--")
             comp = sc.get("composite_score")
@@ -3448,7 +3468,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             vs200 = sc.get("price_vs_sma_200") or mom_inputs.get("price_vs_sma_200")
             sector = (sc.get("sector") or "")[:14]
             comp_v = float(comp) if comp is not None else 0
-            sc_c = G if comp_v >= 80 else (CY if comp_v >= 60 else (Y if comp_v >= 40 else "white"))
+            sc_c = _composite_score_color(comp_v)
 
             try:
                 chg_v = float(chg) if chg is not None and chg != "" else None
@@ -3464,12 +3484,13 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             sig_tbl.add_row(
                 sym,
                 Text(f"{comp_v:.0f}", style=sc_c),
-                _sub_exp(mom),
-                _sub_exp(qual),
-                _sub_exp(val),
-                _sub_exp(grwth),
-                _sub_exp(stab),
-                _sub_exp(pos),
+                _swing_cell(buy_sig_map_exp.get(sym)),
+                _score_cell(mom),
+                _score_cell(qual),
+                _score_cell(val),
+                _score_cell(grwth),
+                _score_cell(stab),
+                _score_cell(pos),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--",
                      style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style=DIM),
@@ -4039,16 +4060,6 @@ def panel_scores(scores):
     bot = scores.get("bottom", [])
 
     def _score_row(tbl, items, color):
-        def _sub_v(v):
-            if v is None or v == "":
-                return Text("--", style=DIM)
-            try:
-                fv = float(v)
-            except (ValueError, TypeError):
-                return Text("--", style=DIM)
-            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-            return Text(f"{fv:.0f}", style=c)
-
         for s in items:
             sym = s.get("symbol") or "--"
             sc = s.get("composite_score")
@@ -4060,7 +4071,7 @@ def panel_scores(scores):
             sector = (s.get("sector") or "")[:10]
             chg = s.get("change_percent")
             sc_v = float(sc) if sc is not None else 0
-            sc_c = G if sc_v >= 80 else (CY if sc_v >= 60 else (Y if sc_v >= 40 else "white"))
+            sc_c = _composite_score_color(sc_v)
             try:
                 chg_v = float(chg) if chg is not None and chg != "" else None
                 rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
@@ -4071,10 +4082,10 @@ def panel_scores(scores):
             tbl.add_row(
                 Text(sym, style=f"bold {color}"),
                 Text(f"{sc_v:.0f}", style=sc_c),
-                _sub_v(mom),
-                _sub_v(qual),
-                _sub_v(grwth),
-                _sub_v(stab),
+                _score_cell(mom),
+                _score_cell(qual),
+                _score_cell(grwth),
+                _score_cell(stab),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--",
                      style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
@@ -4148,13 +4159,7 @@ def panel_scores_expanded(scores, sig=None):
     bot = scores.get("bottom", [])
 
     # Build buy signal lookup from signals data (swing_trader_scores)
-    buy_sig_map: dict = {}  # symbol -> signal_quality_score
-    if sig and not sig.get("_error"):
-        for bs in (sig.get("buy_sigs") or []):
-            sym_b = bs.get("symbol")
-            if sym_b:
-                sq = bs.get("signal_quality_score") or bs.get("swing_score") or 0
-                buy_sig_map[sym_b] = float(sq) if sq is not None else 0
+    buy_sig_map = _build_buy_sig_map(sig.get("buy_sigs") if sig and not sig.get("_error") else [])
 
     # Summary line for buy signals
     if sig and not sig.get("_error"):
@@ -4199,16 +4204,6 @@ def panel_scores_expanded(scores, sig=None):
         tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
         tbl.add_column("Sector", no_wrap=True, max_width=16)
 
-        def _sub_colored(v):
-            if v is None or v == "":
-                return Text("--", style=DIM)
-            try:
-                fv = float(v)
-            except (ValueError, TypeError):
-                return Text("--", style=DIM)
-            c = G if fv >= 70 else (CY if fv >= 50 else (Y if fv >= 30 else R))
-            return Text(f"{fv:.0f}", style=c)
-
         for s in items:
             sym = s.get("symbol") or "--"
             name = (s.get("company_name") or s.get("name") or "")[:18]
@@ -4224,7 +4219,7 @@ def panel_scores_expanded(scores, sig=None):
             chg = s.get("change_percent")
             sector = (s.get("sector") or "")[:14]
             sc_v = float(sc) if sc is not None else 0
-            sc_c = G if sc_v >= 80 else (CY if sc_v >= 60 else (Y if sc_v >= 40 else "white"))
+            sc_c = _composite_score_color(sc_v)
             try:
                 chg_v = float(chg) if chg is not None and chg != "" else None
             except (ValueError, TypeError):
@@ -4235,24 +4230,16 @@ def panel_scores_expanded(scores, sig=None):
                 rs_v = None
             chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
 
-            # Buy signal indicator from swing_trader_scores
-            swing_v = buy_sig_map.get(sym)
-            if swing_v is not None:
-                swing_c = G if swing_v >= 80 else (CY if swing_v >= 70 else Y)
-                swing_cell = Text(f"▲{swing_v:.0f}", style=swing_c)
-            else:
-                swing_cell = Text("--", style=DIM)
-
             tbl.add_row(
                 Text(sym, style=f"bold {color}"),
                 Text(name, style="dim"),
                 Text(f"{sc_v:.0f}", style=sc_c),
-                swing_cell,
-                _sub_colored(mom),
-                _sub_colored(qual),
-                _sub_colored(val),
-                _sub_colored(grwth),
-                _sub_colored(stab),
+                _swing_cell(buy_sig_map.get(sym)),
+                _score_cell(mom),
+                _score_cell(qual),
+                _score_cell(val),
+                _score_cell(grwth),
+                _score_cell(stab),
                 _sub_colored(pos_s),
                 Text(f"{rs_v:.0f}" if rs_v is not None else "--",
                      style=G if (rs_v or 0) >= 70 else DIM),
