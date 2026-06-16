@@ -356,9 +356,14 @@ unzip -l terraform/lambda_api.zip | head -30
 ## Data Architecture: Positions
 
 **Single Source of Truth:** `algo_positions` table
-- `algo_positions_with_risk` view: enriched with stops, targets, risk metrics (used by dashboard)
+- `algo_positions_with_risk`: MATERIALIZED VIEW — enriched with stops, targets, sector, swing_score, R-multiple, and risk metrics. Refreshed at end of Phase 7 via `REFRESH MATERIALIZED VIEW`. Dashboard queries this view.
 - `open_positions` view: filtered for OPEN/PARTIALLY_EXITED only
 - Legacy `positions` table DROPPED (was empty, replaced by algo_positions in Phase 3)
+
+**Positions view notes:**
+- `stop_loss_price` = `COALESCE(algo_positions.stop_loss_price, algo_positions.current_stop_price)` — current_stop_price is used because the executor and reconciliation write stops there; stop_loss_price mirrors it as of migration 077/executor fix
+- `r_multiple` = `(current_price - entry) / (entry - stop)` — positive when profitable, negative when at a loss
+- Sector comes from `COALESCE(algo_trades.sector, company_profile.sector, 'Unknown')` — trades get sector at entry time from Phase 5 signal
 
 
 ## Data Architecture: Market Exposure
