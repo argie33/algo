@@ -342,7 +342,7 @@ def panel_market_full(mkt, sentiment=None):
     fed = mkt.get("fed")
 
     uvc = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
-    pcr_c = G if (pcr or 99) <= 0.8 else (Y if (pcr or 99) <= 1.0 else R)
+    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
     nhnl_c = (
         (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R))
@@ -381,10 +381,12 @@ def panel_market_full(mkt, sentiment=None):
     ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
-        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.2f}[/]")
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+    else:
+        bmom_pcr.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.1f}[/]")
+        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
     if ycs is not None:
         yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
         bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
@@ -408,6 +410,131 @@ def panel_market_full(mkt, sentiment=None):
 
     txt = Text.from_markup("\n".join(lines))
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
+
+
+@register_panel(
+    "market_expanded",
+    endpoint_deps=["mkt", "sentiment"],
+    optional=False,
+    description="Market Expanded",
+)
+def panel_market_expanded(mkt, sentiment=None):
+    """Full-screen market internals — regime, breadth, sentiment, macro."""
+    rows = [
+        Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+    err_panel = _error_panel("market", mkt, "MARKET - EXPANDED", border="blue")
+    if err_panel:
+        return err_panel
+
+    tier = mkt.get("tier", "unknown")
+    tc = TIER_COLOR.get(tier, "dim")
+    lbl = TIER_SHORT.get(tier, "LOADING")
+    exp = mkt.get("pct")
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+    bar = exp_bar(exp or 0, w=14)
+    vix = mkt.get("vix")
+    vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
+    vix_s = f"{vix:.1f}" if vix is not None else "--"
+    rows.append(Text.from_markup(
+        f"[{tc}][bold]{lbl}[/]  [dim]Exposure:[/][{tc}]{exp_s}[/]  {bar}  [dim]VIX:[/][{vc}]{vix_s}[/]"
+    ))
+    rows.append(Rule(style="dim"))
+
+    spy_raw = mkt.get("spy")
+    spy_chg = mkt.get("spy_chg")
+    stage = str(mkt.get("stage") or "--")
+    trend = (mkt.get("trend") or "").upper() or "--"
+    dist = mkt.get("dist")
+    fed = str(mkt.get("fed") or "--")
+    ycs = mkt.get("ycs")
+    upvol = mkt.get("upvol")
+    adr = mkt.get("adr")
+    nh = mkt.get("nh")
+    nl = mkt.get("nl")
+    pcr = mkt.get("pcr")
+    bmom = mkt.get("bmom")
+    halts = mkt.get("halts") or []
+
+    spy_s = f"${float(spy_raw):.2f}" if spy_raw else "--"
+    spy_chg_c = G if (spy_chg or 0) >= 0 else R
+    spy_chg_s = f"{sign(spy_chg)}{spy_chg:.2f}%" if spy_chg is not None else "--"
+    dist_c = R if (dist or 0) >= 5 else (Y if (dist or 0) >= 3 else G)
+    dist_s = f"{dist} days" if dist is not None else "--"
+    yc_c = G if (ycs or 0) >= 0.5 else (Y if (ycs or 0) >= 0 else R)
+    yc_s = f"{ycs:+.3f}" if ycs is not None else "--"
+    uvc = DIM if upvol is None else (G if upvol >= 60 else (Y if upvol >= 50 else R))
+    upvol_s = f"{upvol:.1f}%" if upvol is not None else "--"
+    adr_s = f"{adr:.2f}" if adr is not None else "--"
+    nh_s = str(nh) if nh is not None else "--"
+    nl_s = str(nl) if nl is not None else "--"
+    nhnl = (nh - nl) if (nh is not None and nl is not None) else None
+    nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
+    nhnl_s = f"{sign(nhnl)}{nhnl}" if nhnl is not None else "--"
+    bmc = DIM if bmom is None else (G if bmom >= 0.5 else (Y if bmom >= 0 else R))
+    bmom_s = f"{bmom:.3f}" if bmom is not None else "--"
+    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
+    pcr_s = f"{pcr:.3f}" if pcr is not None else "⚠ N/A"
+
+    grid = Table.grid(padding=(0, 4), expand=True)
+    grid.add_column("left", ratio=1)
+    grid.add_column("right", ratio=1)
+
+    left = [
+        Text.from_markup("[dim bold]PRICE & REGIME[/]"),
+        Text.from_markup(f"  [dim]SPY Price:[/]       [white]{spy_s}[/]"),
+        Text.from_markup(f"  [dim]SPY Change:[/]      [{spy_chg_c}]{spy_chg_s}[/]"),
+        Text.from_markup(f"  [dim]VIX Level:[/]       [{vc}]{vix_s}[/]"),
+        Text.from_markup(f"  [dim]Market Stage:[/]    [white]{stage}[/]"),
+        Text.from_markup(f"  [dim]Market Trend:[/]    [white]{trend}[/]"),
+        Text.from_markup(f"  [dim]Distribution:[/]    [{dist_c}]{dist_s}[/]"),
+        Text(""),
+        Text.from_markup("[dim bold]MACRO & FED[/]"),
+        Text.from_markup(f"  [dim]Yield Curve:[/]     [{yc_c}]{yc_s}[/]"),
+        Text.from_markup(f"  [dim]Fed Environment:[/] [white]{fed[:28]}[/]"),
+    ]
+
+    right = [
+        Text.from_markup("[dim bold]BREADTH & INTERNALS[/]"),
+        Text.from_markup(f"  [dim]Up Volume:[/]       [{uvc}]{upvol_s}[/]"),
+        Text.from_markup(f"  [dim]Adv/Dec Ratio:[/]   [white]{adr_s}[/]"),
+        Text.from_markup(f"  [dim]New Highs:[/]       [{G}]{nh_s}[/]"),
+        Text.from_markup(f"  [dim]New Lows:[/]        [{R}]{nl_s}[/]"),
+        Text.from_markup(f"  [dim]NH-NL Net:[/]       [{nhnl_c}]{nhnl_s}[/]"),
+        Text.from_markup(f"  [dim]Breadth Momentum:[/][{bmc}]{bmom_s}[/]"),
+        Text(""),
+        Text.from_markup("[dim bold]OPTIONS & SENTIMENT[/]"),
+        Text.from_markup(f"  [dim]Put/Call Ratio:[/]  [{pcr_c}]{pcr_s}[/]"),
+        Text(""),
+    ]
+
+    for l, r in zip(left, right):
+        grid.add_row(l, r)
+    rows.append(grid)
+
+    if sentiment and not sentiment.get("_error"):
+        rows.append(Rule(style="dim"))
+        fg_v = sentiment.get("fg") or 0
+        fg_lbl = (sentiment.get("label") or "")[:22]
+        fg_c = sentiment.get("color", "dim")
+        fg_bar_f = int(fg_v / 100 * 24)
+        fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
+        rows.append(Text.from_markup(
+            f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"
+        ))
+
+    rows.append(Rule(style="dim"))
+    hc = Y if halts else G
+    halt_s = "  |  ".join(str(h)[:35] for h in halts[:3]) if halts else "none"
+    rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
+
+    return Panel(
+        Group(*rows),
+        title="[bold blue]MARKET - EXPANDED[/]  [dim][m] return[/]",
+        border_style="blue",
+        padding=(0, 1),
+    )
 
 
 @register_panel(
@@ -455,8 +582,9 @@ def panel_circuit(cb):
             fc = R if fired else (Y if util >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             pct_s = f"[dim] {util*100:.0f}%[/]" if not fired else ""
+            cur_fmt = f"{cur_f:.1f}" if cur_f != int(cur_f) else f"{int(cur_f)}"
             return (
-                f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{str(cur or 0)}{str(br.get('u', ''))}"
+                f"[{fc}]{str(br.get('lbl', 'N/A'))}:[/]{cur_fmt}{str(br.get('u', ''))}"
                 f"[dim]/{thr_f:.0f}{str(br.get('u', ''))}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
             )
 
@@ -634,7 +762,7 @@ def panel_header_market(
                 else DIM
             )
             adr_s = (
-                f"  [dim]A/D:[/][white]{float(adr or 0):.1f}[/]"
+                f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
                 if adr is not None
                 else ""
             )
@@ -645,7 +773,7 @@ def panel_header_market(
             )
             rows.append(
                 Text.from_markup(
-                    f"[dim]UpVol:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
+                    f"[dim]Up Vol:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
                     f"[dim]NH:[/][{G}]{str(nh or '--')}[/] [dim]NL:[/][{R}]{str(nl or '--')}[/]  "
                     f"{nhnl_s}"
                 )
@@ -657,13 +785,15 @@ def panel_header_market(
         parts4 = []
         if pcr is not None:
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
-            parts4.append(f"[dim]P/C:[/][{pcr_c}]{pcr:.2f}[/]")
+            parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+        else:
+            parts4.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.1f}[/]")
+            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
-            parts4.append(f"[dim]Yld Curve:[/][{yc_c}]{ycs:+.2f}[/]")
+            parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         if fed:
             parts4.append(f"[dim]Fed:[/][white]{fed[:20]}[/]")
         if parts4:
@@ -671,14 +801,14 @@ def panel_header_market(
         halts = mkt.get("halts") or []
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
-        line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
+        line5 = f"[dim]Trading Halt:[/][{hc_col}]{halt_s}[/]"
         if sentiment and not sentiment.get("_error"):
             fg_v = sentiment.get("fg") or 0
             fg_lbl = (sentiment.get("label") or "")[:14]
             fg_c = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
-            line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
+            line5 += f"  [dim]Fear/Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
             mode = cfg.get("mode", "?")
@@ -706,7 +836,7 @@ def panel_header_market(
     else:
         rows.append(Text("no market data", style="dim"))
     return Panel(
-        Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1)
+        Group(*rows), title="[bold blue]MARKET[/]  [dim][m] expand[/]", border_style="blue", padding=(0, 1)
     )
 
 
@@ -1863,7 +1993,9 @@ def panel_exposure_compact(exp_f):
             return f" {v:+.1f}%" if v is not None else ""
         if key == "put_call_ratio":
             v = f.get("value")
-            return f" {v:.2f}" if v is not None else ""
+            if v is not None:
+                return f" {v:.2f}"
+            return " [yellow]⚠[/]" if f.get("reason") else ""
         if key == "vix_regime":
             v = f.get("value")
             return f" {v:.1f}" if v is not None else ""
@@ -3451,7 +3583,7 @@ def panel_algo_health_expanded(
 
     rows.append(Rule(style="dim"))
 
-    # All data tables — full aligned table with row counts and freshness
+    # All data tables — grouped by role with section headers
     ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
     if hlth_items:
         stale_count = sum(
@@ -3461,15 +3593,12 @@ def panel_algo_health_expanded(
             r for r in hlth_items
             if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"
         ]
-        # Callout box for critical stale tables
         if crit_stale:
             crit_names = "  ".join(
-                f"[bold white]{r.get('tbl','')[:16]}[/]" for r in crit_stale
+                f"[bold white]{r.get('tbl','')[:18]}[/]" for r in crit_stale
             )
             rows.append(
-                Text.from_markup(
-                    f"[bold {R}]⚠ CRITICAL DATA STALE:[/]  {crit_names}"
-                )
+                Text.from_markup(f"[bold {R}]⚠ CRITICAL DATA STALE:[/]  {crit_names}")
             )
         rtt_part = ""
         if ready_to_trade is True:
@@ -3502,41 +3631,58 @@ def panel_algo_health_expanded(
                 return lat[5:10]
             return str(lat or "")[:5]
 
-        tbl_h = Table(
-            box=box.SIMPLE_HEAD,
-            show_header=True,
-            header_style="dim",
-            padding=(0, 1),
-            expand=True,
-            row_styles=["", "dim"],
-        )
-        tbl_h.add_column("Table", no_wrap=True, min_width=20)
-        tbl_h.add_column("Role", no_wrap=True, min_width=4, justify="center")
-        tbl_h.add_column("Age", no_wrap=True, min_width=5, justify="right")
-        tbl_h.add_column("Updated", no_wrap=True, min_width=5)
-        tbl_h.add_column("Rows", no_wrap=True, min_width=6, justify="right")
-        tbl_h.add_column("Status", no_wrap=True, min_width=6)
-
-        for r in hlth_items:
-            if not isinstance(r, dict):
-                continue
-            nm = str(r.get("tbl") or "--")
-            role = str(r.get("role") or "")
-            ok = r.get("st") == "ok"
-            ic = G if ok else R
-            ii = "✓" if ok else "✗"
-            rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-            row_count = r.get("row_count")
-            rc_s = f"{row_count:,}" if row_count is not None else "--"
-            tbl_h.add_row(
-                Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-                Text(role, style=rc),
-                Text(_fmt_age(r), style=DIM if ok else Y),
-                Text(_fmt_lat(r), style="dim"),
-                Text(rc_s, style="dim"),
-                Text("ok" if ok else "STALE", style=G if ok else R),
+        def _build_section_table(items):
+            t = Table(
+                box=box.SIMPLE_HEAD,
+                show_header=True,
+                header_style="dim",
+                padding=(0, 1),
+                expand=True,
+                row_styles=["", "dim"],
             )
-        rows.append(tbl_h)
+            t.add_column("Table", no_wrap=True, min_width=26)
+            t.add_column("Age", no_wrap=True, min_width=5, justify="right")
+            t.add_column("Updated", no_wrap=True, min_width=5)
+            t.add_column("Rows", no_wrap=True, min_width=8, justify="right")
+            t.add_column("Status", no_wrap=True, min_width=6)
+            for r in items:
+                if not isinstance(r, dict):
+                    continue
+                nm = str(r.get("tbl") or "--")
+                role = str(r.get("role") or "")
+                st = r.get("st", "ok")
+                ok = st == "ok"
+                ic = G if ok else (Y if st == "empty" else R)
+                ii = "✓" if ok else ("−" if st == "empty" else "✗")
+                rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
+                row_count = r.get("row_count")
+                rc_s = f"{row_count:,}" if row_count is not None else "--"
+                st_label = "ok" if ok else st.upper()
+                t.add_row(
+                    Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
+                    Text(_fmt_age(r), style=DIM if ok else Y),
+                    Text(_fmt_lat(r), style="dim"),
+                    Text(rc_s, style="dim"),
+                    Text(st_label, style=G if ok else (Y if st == "empty" else R)),
+                )
+            return t
+
+        grouped: dict = {"CRIT": [], "IMP": [], "NORM": []}
+        for r in hlth_items:
+            if isinstance(r, dict):
+                role = r.get("role") if r.get("role") in grouped else "NORM"
+                grouped[role].append(r)
+
+        for role_key, section_label in [
+            ("CRIT", "CRITICAL TABLES"),
+            ("IMP", "IMPORTANT TABLES"),
+            ("NORM", "SUPPORTING TABLES"),
+        ]:
+            items = grouped.get(role_key, [])
+            if not items:
+                continue
+            rows.append(Rule(section_label, style="dim"))
+            rows.append(_build_section_table(items))
 
     rows.append(Rule(style="dim"))
 
@@ -4434,7 +4580,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         perfblk.add_row(
             "Max Drawdown:", Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
-            "Sharpe (annl.):", Text(f"{sharpe_v:.2f}" if sharpe_v else "--", style="white"),
+            "Sharpe (annl.):", Text(f"{sharpe_v:.2f}" if sharpe_v is not None else "--", style="white"),
         )
         perfblk.add_row(
             "Expectancy:", Text(f"{exp:.2f}R" if exp is not None else "--", style=exp_c),
@@ -4496,9 +4642,9 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         exp2 = perf_anl.get("expectancy")
         maxdd2 = perf_anl.get("maxdd")
         anl.add_row(
-            "Sharpe (252d):", Text(f"{sharpe252:.2f}" if sharpe252 else "--",
+            "Sharpe (252d):", Text(f"{sharpe252:.2f}" if sharpe252 is not None else "--",
                 style=G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R)),
-            "Sortino:", Text(f"{sortino:.2f}" if sortino else "--",
+            "Sortino:", Text(f"{sortino:.2f}" if sortino is not None else "--",
                 style=G if (sortino or 0) >= 1.5 else (Y if (sortino or 0) >= 0 else R)),
         )
         anl.add_row(

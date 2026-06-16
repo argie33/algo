@@ -918,15 +918,23 @@ def fetch_health(c):
             inner = {}
         raw_sources = inner.get("sources", [])
         critical_stale = inner.get("critical_stale", []) or []
-        critical_names = set(critical_stale) if isinstance(critical_stale, list) else set()
         sources = []
         for s in raw_sources:
             name = s.get("name", "")
+            # API now returns role (CRIT/IMP/NORM); fall back to freshness_config if absent
+            role = s.get("role")
+            if not role:
+                try:
+                    from utils.validation.freshness_config import FRESHNESS_RULES as _FR
+                    r = _FR.get(name, {})
+                    role = "CRIT" if r.get("critical") else ("IMP" if r.get("max_age_days", 999) <= 7 else "NORM")
+                except ImportError:
+                    role = "CRIT" if name in set(critical_stale) else "NORM"
             sources.append({
                 "tbl": name,
                 "st": s.get("status", "ok"),
                 "age": round(s.get("age_hours", 0) / 24, 1),
-                "role": "CRIT" if name in critical_names else "NORM",
+                "role": role,
                 # preserve originals for other panels that may use them
                 "name": name,
                 "status": s.get("status", "ok"),

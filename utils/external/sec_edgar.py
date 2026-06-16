@@ -10821,9 +10821,12 @@ class SecEdgarClient:
     ) -> List[Dict[str, Any]]:
         concepts = [
             "Revenues",
-            "SalesRevenueNet",  # Revenue (try both concept names)
+            "SalesRevenueNet",
+            # Post-ASC 606 (post-2018) revenue concepts used by most large-cap companies:
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "RevenueFromContractWithCustomerIncludingAssessedTax",
             "CostOfRevenue",
-            "CostsAndExpenses",  # Cost (try both)
+            "CostsAndExpenses",
             "GrossProfit",
             "OperatingExpenses",
             "OperatingIncomeLoss",
@@ -10888,18 +10891,25 @@ class SecEdgarClient:
                     if period == "quarterly" and fp not in fp_filter:
                         continue
 
+                    # Use period end year as the fiscal year key, not SEC's fy field.
+                    # SEC tags ALL periods in a 10-K with fy=FILING_YEAR — so prior-year
+                    # comparison data (end='2022-06-30') included in a FY2024 10-K would
+                    # have fy=2024 instead of fy=2022. Deriving year from end date correctly
+                    # separates current-year data from the multi-year comparison tables.
+                    end_date = entry.get("end", "")
+                    period_year = int(end_date[:4]) if end_date and len(end_date) >= 4 else entry.get("fy")
+
                     key = (
-                        entry.get("fy"),
+                        period_year,
                         fp if period == "quarterly" else "FY",
-                        entry.get("end"),
                     )
                     row = rows.setdefault(
                         key,
                         {
                             "symbol": symbol,
-                            "fiscal_year": entry.get("fy"),
+                            "fiscal_year": period_year,
                             "fiscal_period": fp if period == "quarterly" else "FY",
-                            "period_end": entry.get("end"),
+                            "period_end": end_date,
                             "filed": entry.get("filed"),
                             "form": entry.get("form"),
                         },

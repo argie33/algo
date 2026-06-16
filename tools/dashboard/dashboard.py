@@ -57,6 +57,7 @@ from panels import (
     loading_layout,
     _expanded_layout,
     panel_header_market,
+    panel_market_expanded,
     panel_exposure_compact,
     panel_circuit,
     panel_circuit_expanded,
@@ -371,8 +372,8 @@ def render_dashboard(
         )
 
     outer["top"].split_row(
-        Layout(name="hdr", ratio=1),
-        Layout(name="exposure", ratio=2),
+        Layout(name="hdr", ratio=2),
+        Layout(name="exposure", ratio=3),
         Layout(name="mascot", size=MASCOT_W),
     )
     outer["top"]["hdr"].update(hdr_panel)
@@ -425,6 +426,9 @@ def render_dashboard(
 
     if view_mode == "exposure":
         return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
+
+    if view_mode == "market":
+        return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
 
     if view_mode == "positions":
         hint = Text.from_markup(
@@ -502,7 +506,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
@@ -561,7 +565,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure"}
+    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "c": "scores", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
