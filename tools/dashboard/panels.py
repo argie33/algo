@@ -3359,7 +3359,7 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
         f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
         "  [dim]Connecting to database...[/]\n\n"
         "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
-        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]c[/][dim] scores  [/][cyan]t[/][dim] trades  "
+        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]t[/][dim] trades  "
         "[/][cyan]e[/][dim] economic  [/][cyan]f[/][dim] portfolio  [/][cyan]q[/][dim] quit[/]"
     )
     main_panel = Panel(
