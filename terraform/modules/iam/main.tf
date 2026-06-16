@@ -1279,7 +1279,7 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
-  # ECS cluster access + list tasks (ListTasks is evaluated against the cluster resource, not task ARNs)
+  # ECS cluster access: DescribeClusters/List require cluster resource ARN
   statement {
     sid    = "ECSClusterAccess"
     effect = "Allow"
@@ -1287,7 +1287,6 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "ecs:DescribeClusters",
       "ecs:ListClusters",
-      "ecs:ListTasks",
       "ecs:ListServices",
       "ecs:DescribeServices"
     ]
@@ -1295,6 +1294,28 @@ data "aws_iam_policy_document" "developer" {
     resources = [
       "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*"
     ]
+  }
+
+  # ListTasks requires resources = "*" — IAM evaluates it against container-instance ARNs,
+  # not cluster ARNs, regardless of --cluster filter. Use ecs:cluster condition to restrict scope.
+  statement {
+    sid    = "ECSListTasks"
+    effect = "Allow"
+
+    actions = [
+      "ecs:ListTasks"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringLike"
+      variable = "ecs:cluster"
+      values = [
+        "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*",
+        "${var.project_name}-*"
+      ]
+    }
   }
 
   # IAM pass role (needed to run ECS tasks)
