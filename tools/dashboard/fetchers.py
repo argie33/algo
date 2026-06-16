@@ -71,7 +71,7 @@ FETCHER_METADATA = {
     },
     "scores": {
         "endpoint": "/api/scores",
-        "desc": "Top and bottom stock scores",
+        "desc": "Top stock scores for signals panel display",
     },
 }
 
@@ -1332,10 +1332,9 @@ def fetch_exec_history(c):
 
 
 def fetch_scores(c):
-    """Fetch top 10 and bottom 10 stock scores from /api/scores."""
+    """Fetch top stock scores from /api/scores. Used by signals panel for composite score display."""
     try:
-        top_data = api_call("/api/scores", params={"limit": 10, "sortOrder": "desc"})
-        bot_data = api_call("/api/scores", params={"limit": 10, "sortOrder": "asc"})
+        top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})
 
         def _extract(d):
             if d.get("_error"):
@@ -1348,14 +1347,13 @@ def fetch_scores(c):
             return []
 
         top = _extract(top_data)
-        bot = _extract(bot_data)
-        if not top and not bot:
-            return {"_error": "No score data available", "top": [], "bottom": []}
-        return {"top": top, "bottom": bot}
+        if not top:
+            return {"_error": "No score data available", "top": []}
+        return {"top": top}
     except Exception as e:
         error_msg = _format_fetcher_error("scores", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "top": [], "bottom": []}
+        return {"_error": error_msg, "top": []}
 
 
 def fetch_audit_log(c):
