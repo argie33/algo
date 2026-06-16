@@ -5,19 +5,22 @@
  * Step Functions state machines. Guarantees the orchestrator only runs when
  * all signal data is actually ready, not on a fixed timer.
  *
- * EOD PIPELINE (4:05 PM ET, 3h max execution):
+ * EOD PIPELINE (4:05 PM ET, 4h max execution):
  *   stock_symbols (10 min, 600s timeout)
  *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s) [CRITICAL: must succeed]
  *       → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
  *                  + trend_template_data (30 min expected, 90 min timeout = 5400s)
  *         → algo_metrics_daily (12 min expected, 2h timeout = 7200s)
  *           → swing_trader_scores (30+ min expected, 2h timeout = 7200s)
- *             → sector_ranking (15 min expected, 15 min timeout = 900s)
- *               → algo_orchestrator (dry-run & live: Phase 1-7)
+ *             → technical_data_daily (15-25 min expected, 1h timeout = 3600s) [REQUIRED: buy_sell_daily depends on it]
+ *               → buy_sell_daily (30 min expected, 6h timeout = 21600s for vectorized loader)
+ *                 → sector_ranking (15 min expected, 15 min timeout = 900s)
+ *                   → algo_orchestrator (dry-run & live: Phase 1-7)
  *
- * KEY INSIGHT: buy_sell_daily is CRITICAL for Phase 5 signal generation.
- * Removed: technical_data_daily, signal_quality_scores (technical indicators
- * computed on-the-fly by buy_sell_daily loader; no longer needed separately).
+ * KEY INSIGHTS:
+ * 1. technical_data_daily REQUIRED: buy_sell_daily loader validates freshness before signal generation
+ * 2. buy_sell_daily CRITICAL: Phase 5 uses breakout signals as primary path for entries
+ * Note: signal_quality_scores removed (on-the-fly computation not yet implemented; use stock_scores instead)
  *
  * MORNING PIPELINE (2:00 AM ET, 2.5h max execution):
  *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
@@ -483,7 +486,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogSwingScoresFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "BuySellDaily"
+        Next = "TechnicalDataDaily"
       }
 
       LogSwingScoresFailure = {
@@ -517,10 +520,70 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "swing_trader_scores failed after retries. Pipeline halted because signals cannot be generated without trader scores. Check CloudWatch logs for details."
       }
 
-      # ── Step 8b: Buy/Sell Daily Signals (depends on prices + scores) ──────────────
+      # ── Step 8b: Technical Data Daily (depends on prices) ──────────────
+      # REQUIRED BY PHASE 1 & BUY_SELL_DAILY: Computes RSI, MACD, ATR, Bollinger Bands, etc.
+      # buy_sell_daily loader validates that technical_data_daily is fresh before generating signals.
+      # Uses vectorized loader: 5000+ symbols in 15-25 minutes (single bulk fetch + vectorized pandas ops).
+      # Timeout: 3600s (1 hour) for full load with 300-day lookback.
+      TechnicalDataDaily = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily_vectorized"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogTechDataFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "BuySellDaily"
+      }
+
+      LogTechDataFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "technical_data_daily"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = true
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "TechDataFailureHalt"
+          ResultPath  = "$.logError"
+        }]
+        Next = "TechDataFailureHalt"
+      }
+
+      # Fail-closed terminal state: pipeline halts when technical_data_daily fails
+      TechDataFailureHalt = {
+        Type  = "Fail"
+        Error = "CRITICAL_LOADER_FAILURE"
+        Cause = "technical_data_daily failed after retries. Pipeline halted because buy_sell_daily requires fresh technical indicators. Check CloudWatch logs for details."
+      }
+
+      # ── Step 8c: Buy/Sell Daily Signals (depends on prices + scores + technical data) ──────────────
       # CRITICAL FOR PHASE 5: Must provide fresh buy_sell_daily BUY signals.
       # Phase 5 signal generation uses these signals as primary path (with composite_score ranking).
-      # Depends on: stock_prices_daily (completed), swing_trader_scores (just completed)
+      # Depends on: stock_prices_daily (completed), swing_trader_scores (completed), technical_data_daily (completed)
       # Timeout: 21600s (6 hours) - vectorized loader runs in ~30 min, but allow headroom
       BuySellDaily = {
         Type           = "Task"
