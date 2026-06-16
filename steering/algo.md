@@ -58,243 +58,31 @@ curl https://api.example.com/api/algo/sentiment
 
 ## Credentials & Secrets
 
-**Credential Sources (Priority Order):**
+**Sources (priority order):** Environment variables → Terraform outputs (S3 remote) → AWS Secrets Manager (`algo/*` secrets).
 
-1. **Environment Variables** (local dev, CI override)
-   - `DASHBOARD_API_URL`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID` (dashboard)
-   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (database)
-   - `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET` (trading)
-   - `FRED_API_KEY` (economic data)
-
-2. **Terraform Outputs** (after GitHub Actions deploy)
-   - `terraform output -json` fetches: api_url, cognito_user_pool_id, cognito_user_pool_client_id
-   - Stored in S3 remote backend (stocks-terraform-state bucket)
-   - Dashboard reads automatically via `_fetch_terraform_credentials()`
-
-3. **AWS Secrets Manager** (fallback, production)
-   - `algo/dashboard-config` (api_url, cognito_user_pool_id, cognito_user_pool_client_id)
-   - `algo/database` (RDS credentials)
-   - `algo/alpaca` (Alpaca API keys)
-   - `algo/fred` (FRED API key)
-
-**Dashboard Credential Flow (Fully Dynamic - Bootstrap Required):**
-
-After GitHub Actions deploy-all-infrastructure.yml runs:
-1. Terraform outputs are collected (api_url, cognito_user_pool_id, cognito_user_pool_client_id)
-2. Workflow saves to AWS Secrets Manager as `algo/dashboard-config`
-3. You must bootstrap AWS credentials locally first, then dashboard auto-fetches
-
-```
-STEP 1: Set up AWS credentials (after deploy-all-infrastructure.yml succeeds)
-  $ scripts/refresh-aws-credentials.ps1
-  (fetches fresh developer credentials from Secrets Manager via OIDC, writes to ~/.aws/credentials)
-  (AWS_PROFILE=algo-developer is then available)
-
-STEP 2: Run dashboard
-  $ python tools/dashboard/dashboard.py
-  
-Flow inside dashboard.py:
-  ↓
-Check environment variables (DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID)
-  ↓ (if not set)
-Try Terraform: cd terraform && terraform output -json
-  (reads from S3 remote backend, requires AWS_PROFILE=algo-developer)
-  ↓ (if Terraform fails)
-Try AWS Secrets Manager: algo/dashboard-config
-  (reads from Secrets Manager, requires AWS_PROFILE=algo-developer)
-  ↓ (if all fail)
-Show error with 3 setup options
-```
-
-**Local Dev Setup (Fully Automated - RECOMMENDED):**
-
-One-command setup that discovers credentials and configures dashboard + frontend:
-
+**Local Setup:**
 ```powershell
-# Automated setup - fetches credentials and configures everything
-scripts/setup-local-dev.ps1
-
-# Then start any of these (credentials are already configured):
-scripts/run-dashboard.ps1 -w 30           # Terminal dashboard with auto-refresh
-cd webapp/frontend && npm run dev         # React web frontend (localhost:5173)
-python scripts/api-proxy-server.py        # Local API proxy (if using --local mode)
+scripts/setup-local-dev.ps1  # Fetch credentials, configure dashboard + frontend, enable 24h credential cache
+# Then: scripts/run-dashboard.ps1, npm run dev (webapp/frontend), or api-proxy-server.py
 ```
 
-What `setup-local-dev.ps1` does:
-1. Fetches AWS credentials from Secrets Manager (or via workflow if missing)
-2. Auto-discovers Dashboard config (Secrets Manager → Terraform → known fallback)
-3. Generates `webapp/frontend/public/config.js` with API credentials
-4. Updates PowerShell profile so credentials auto-load in future sessions
-5. **Enables dev bypass mode** (caches credentials locally to avoid repeated logins)
-6. Verifies API connectivity
+**Credential Locations:**
+- Dashboard API: `algo/dashboard-config`
+- Database: `algo/database`
+- Trading (Alpaca): `algo/alpaca` (paper trading via ALPACA_PAPER_TRADING=true)
+- Economic data (FRED): `algo/fred`
 
-**Dev Bypass Mode (No More "Log In Every Time"):**
+**Rules:** Rotate quarterly (first Monday). Rotate immediately if leaked. Never commit `.env` files. GitHub Actions uses AWS OIDC (no static keys).
 
-`setup-local-dev.ps1` automatically enables **dev bypass mode**, which caches AWS credentials locally with a 24-hour TTL. This eliminates repeated login prompts during development.
-
-How it works:
-- First refresh: `scripts/refresh-aws-credentials.ps1` (standard flow, ~15-20s via GitHub Actions)
-- Subsequent refreshes (24h window): Cached credentials used automatically
-- Pre-expiry refresh: Background check at 23h marks credential for renewal
-- If AWS unavailable: Falls back to test credentials (if `DEV_TEST_CREDENTIALS` set)
-
-Cache location: `~/.aws-dev/secrets-cache.json` (encrypted with Windows DPAPI, no plaintext credentials)
-
-**Check cache status:**
-```powershell
-scripts/credential-cache-status.ps1 -Action Status  # Show cache age & TTL
-scripts/credential-cache-status.ps1 -Action Test    # Verify cached creds with AWS CLI
-scripts/credential-cache-status.ps1 -Action Clear   # Clear cache (forces fresh refresh)
-```
-
-**Manual override (if needed):**
-```powershell
-# Force immediate refresh (ignores cache)
-scripts/refresh-aws-credentials.ps1
-
-# Or disable dev bypass mode temporarily
-$env:DEV_BYPASS_MODE = "false"
-```
-
-**Environment variables (set automatically by setup-local-dev.ps1):**
-- `DEV_BYPASS_MODE = true` — Enable local credential caching
-- `DEV_CACHE_TTL_HOURS = 24` — Credentials valid for 24 hours before refresh needed
-- `DEV_CACHE_DIR = ~/.aws-dev` — Cache storage location (can be overridden)
-
-**Legacy Setup (if automated setup doesn't work):**
-
-```powershell
-# Option 1: AWS credentials bootstrap + auto-fetch from Secrets Manager
-scripts/refresh-aws-credentials.ps1  # creates ~/.aws/credentials with algo-developer profile
-python tools/dashboard/dashboard.py  # auto-fetches from Secrets Manager
-
-# Option 2: Local development without AWS infrastructure
-python scripts/api-proxy-server.py                    # Terminal 1: Local API proxy
-python tools/dashboard/dashboard.py --local -w 30    # Terminal 2: Dashboard
-```
-
-Note: Never hardcode API URL or Cognito credentials. All values come from `algo/dashboard-config`
-in Secrets Manager (set by Terraform on deploy). Run `scripts/refresh-aws-credentials.ps1`
-if credential errors occur.
-
-**Local API Proxy Server (`scripts/api-proxy-server.py`):**
-- Runs on http://localhost:3001
-- Forwards HTTP requests to the real Lambda function code (not mocked)
-- Uses actual database connections (configure DB credentials via environment or PowerShell profile)
-- Allows frontend/dashboard development without AWS credentials or deployed infrastructure
-
-**Local Database + Trading Credentials (PowerShell profile):**
-DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, ALPACA_PAPER_TRADING=true, APCA_API_BASE_URL=https://paper-api.alpaca.markets
-
-**Local Dev Note:** ALPACA_PAPER_TRADING must be 'true' and APCA_API_BASE_URL must point to paper trading endpoint. System fetches Alpaca credentials from AWS Secrets Manager (algo/alpaca); set AWS credentials via `aws configure` or PowerShell profile.
-
-**Production (AWS Secrets Manager):** algo/database, algo/alpaca, algo/fred, algo/dashboard-config (created automatically by Terraform)
-
-**CI (GitHub Actions):** AWS_OIDC_ROLE_ARN (for OIDC authentication, no static keys stored)
-
-**Rules:** Rotate quarterly (first Monday of each quarter). If leaked, rotate immediately. Never commit .env files. OIDC for GitHub Actions (no static keys).
-
-**Credential Refresh (if expired):**
-```powershell
-scripts/refresh-aws-credentials.ps1
-```
-
-## Centralized Credential Manager (Unified Secret Access)
-
-**Single Source of Truth:** `config/credential_manager.py`
-
-All Lambda functions and utilities must fetch secrets through the centralized `CredentialManager` class instead of directly calling boto3. This ensures:
-- Consistent error handling and timeouts (Secrets Manager uses 10s connect timeout, 15s read timeout)
-- Unified fallback chain: Cache → Secrets Manager → Environment Variables → Default/Error
-- Automatic caching with 5-minute TTL (balances freshness with cost)
-- Thread-safe credential access with double-checked locking
-
-**Implementation:**
-- Core class: `CredentialManager` (lines 40-405)
-- Module-level functions: `get_secret()`, `get_password()`, `get_db_credentials()`, `get_alpaca_credentials()` (lines 423-442)
-- Singleton instance: `get_credential_manager()` (thread-safe, lines 410-421)
-
-**Usage in Lambda Functions:**
-```python
-# CORRECT: Use credential_manager for all secret access
-from config.credential_manager import get_secret, get_db_credentials, get_alpaca_credentials
-
-secret = get_secret('algo/orchestrator', default='{}')
-db_creds = get_db_credentials()  # Returns {host, port, user, password, database}
-alpaca = get_alpaca_credentials(user_id=None)  # Returns {key, secret}
-```
-
-**DO NOT directly call boto3:**
-```python
-# WRONG: Direct boto3 calls bypass error handling, caching, timeouts
-import boto3
-client = boto3.client('secretsmanager')
-response = client.get_secret_value(SecretId='algo/secret')  # ❌ NO
-```
-
-**Specific Secrets Managed:**
-- `DB_SECRET_ARN` → parsed by `get_db_credentials()`, returns connection dict
-- `algo/alpaca` → parsed by `get_alpaca_credentials()`, supports per-user isolation
-- `algo/orchestrator` → fetched via `get_secret()`, circuit breaker halt flag
-- `algo/cloudfront-domain` → fetched via `get_secret()`, CORS configuration
-- Other secrets → fetched via `get_secret(secret_name)` with env var fallback
-
-**Credential Rotation & Caching:**
-- Cache TTL: 5 minutes (balances cost and rotation speed)
-- At Lambda invocation start: `clear_expired_credentials()` removes stale entries while keeping fresh ones
-- On credential 401 error: `invalidate_alpaca_credentials()` clears cache and emits CloudWatch alarm
-- Local dev: Set `FORCE_AWS=true` to access Secrets Manager from local machine
-
-**When credential_manager is unavailable (rare):**
-Lambda functions have fallback logic that reverts to direct boto3 calls (db-init, circuit-breaker). This is a last-resort safeguard and should never be needed in normal operation.
+**If credentials expire:** `scripts/refresh-aws-credentials.ps1` (fetches fresh from Secrets Manager via OIDC)
 
 ## Terraform Outputs: Version Control & Freshness
 
-**Problem Solved:** Terraform outputs were previously stored only in AWS S3 remote state, without git version control. This meant:
-- Outputs could become stale if Terraform wasn't re-run
-- No historical record of infrastructure changes
-- No way to detect if outputs were out of sync with AWS
+Outputs are tracked in git (`.terraform-outputs.json`) with timestamp for traceability. FRESH if < 24 hours old.
 
-**Solution:** Outputs are now tracked in git and validated for freshness.
+**Scripts:** `verify-terraform-outputs.ps1` (check freshness), `sync-terraform-outputs.ps1` (manual sync), `get-cached-terraform-outputs.ps1` (load cache or live fallback).
 
-**How it works:**
-
-1. **GitHub Actions saves outputs to git** (`deploy-all-infrastructure.yml`)
-   - After successful `terraform apply`, workflow saves `.terraform-outputs.json` to git
-   - File includes timestamp and commit hash for traceability
-   - Committed with message: `INFRA: Update Terraform outputs from successful apply`
-
-2. **Scripts for managing outputs:**
-   - `scripts/sync-terraform-outputs.ps1` — Manually sync live AWS state to git
-   - `scripts/verify-terraform-outputs.ps1` — Check if cached outputs are fresh (< 24h old)
-   - `scripts/get-cached-terraform-outputs.ps1` — Load outputs from cache with live fallback
-
-**Freshness Rules:**
-
-- Outputs are considered FRESH if < 24 hours old
-- `verify-terraform-outputs.ps1` compares git cache against live AWS state and alerts on differences
-- If stale or missing, scripts automatically fetch from live AWS (read-only, no state changes)
-- Dashboard and deployment scripts use cached outputs by default (fast, offline-safe)
-
-**Local Usage:**
-
-```powershell
-# Verify outputs are fresh and accurate
-scripts/verify-terraform-outputs.ps1
-
-# Manually sync outputs to git (only needed if outputs change outside GitHub Actions)
-scripts/sync-terraform-outputs.ps1
-
-# Load outputs for use in scripts (auto-selects cache or live)
-. scripts/get-cached-terraform-outputs.ps1
-$api_url = $env:API_GATEWAY_ENDPOINT
-```
-
-**In CI/CD:**
-
-- Outputs are automatically saved to git after `terraform apply` succeeds
-- No manual action needed
-- Allows infrastructure changes to be fully traceable (one commit = one state snapshot)
+CI/CD automatically saves outputs to git after `terraform apply`. If stale, scripts fetch from live AWS.
 
 ## Deployment
 
@@ -306,37 +94,13 @@ $api_url = $env:API_GATEWAY_ENDPOINT
 
 **Database:** Schema applied exclusively by GitHub Actions workflow, NOT by Terraform (avoids race conditions and state drift).
 
-## Lambda Ownership: Source of Truth vs Deployment Package
+## Lambda Ownership: Source of Truth
 
-**⚠️ CRITICAL: Edit code in `lambda/` directories, NOT in Terraform.**
+**Edit code in `lambda/` directories only. Never edit `terraform/lambda_*`.**
 
-**Ownership structure:**
+**Deployment (ONE-WAY):** `lambda/` source → CI/CD builds ZIP → Terraform deploys to AWS.
 
-| Directory | Purpose | Editable? |
-|-----------|---------|-----------|
-| `lambda/api/` | **SOURCE OF TRUTH** for API code | ✅ YES — edit here |
-| `lambda/algo_orchestrator/` | **SOURCE OF TRUTH** for orchestrator code | ✅ YES — edit here |
-| `lambda/db-init/` | **SOURCE OF TRUTH** for database init code | ✅ YES — edit here |
-| `terraform/lambda_api.zip` | **AUTO-GENERATED** deployment package | ❌ NO — rebuilt by CI/CD |
-| `terraform/lambda/` | **AUTO-GENERATED** temporary files (ZIPs) | ❌ NO — ignore |
-| `terraform/modules/services/main.tf` | Terraform deployment config (references the ZIP) | ⚠️ Only edit if changing deployment params |
-
-**Deployment pipeline (ONE-WAY: Code → ZIP → Lambda):**
-
-1. **Developer edits code:** `lambda/api/lambda_function.py`, `lambda/api/routes/*.py`, etc.
-2. **Commit and push:** `git push main`
-3. **GitHub Actions (deploy-all-infrastructure.yml) runs:**
-   - Copies source: `cp -r lambda/api/* /tmp/api-lambda-pkg/`
-   - Includes dependencies: `config/`, `utils/` modules
-   - Installs packages: `pip install -r requirements.txt`
-   - Packages: `zip -r terraform/lambda_api.zip /tmp/api-lambda-pkg/`
-4. **Terraform deploys:** Uses the ZIP to update Lambda function in AWS
-
-**If you edit the wrong place:**
-
-- ❌ **Edited `terraform/lambda_api.zip` directly?** Your changes are overwritten on next deployment
-- ❌ **Created code in `terraform/modules/services/`?** It's never deployed; it's only infrastructure config
-- ✅ **Edited `lambda/api/`?** Your changes are deployed on next `git push main`
+Editing `terraform/lambda_api.zip` directly or writing code in `terraform/modules/services/` will be overwritten on next deployment. Source of truth is always `lambda/{api,algo_orchestrator,db-init}/`.
 
 **Verify source of truth:**
 

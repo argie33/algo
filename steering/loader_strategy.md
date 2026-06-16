@@ -197,39 +197,6 @@ preclose_update_pipeline (2:50 PM ET):  # SLA CRITICAL
 
 ---
 
-## Deployment Status - COMPLETE ✅
-
-### Phase 1: Vectorized Loaders Created ✅
-- `load_swing_trader_scores_vectorized.py` deployed (Commit 3156281c2)
-- `load_technical_data_daily_vectorized.py` deployed (Commit 3156281c2)
-- Both support INTRADAY_MODE environment variable for fast intraday updates
-
-### Phase 2: Terraform Infrastructure Deployed ✅
-- Task definitions for vectorized loaders created
-- Morning pipeline (2 AM) updated to use swing_trader_scores_vectorized
-- EOD pipeline (4:05 PM) updated to use swing_trader_scores_vectorized
-- Timeouts optimized: 1200s for swing_trader_scores_vectorized (was 7200s)
-- Commits: `68f534834`, `cc7d210f0`
-
-### Phase 3: Intraday Update Pipelines Added ✅
-- Afternoon update pipeline (12:50 PM) - triggers swing_trader_scores_vectorized
-- Pre-close update pipeline (2:50 PM) - triggers swing_trader_scores_vectorized (SLA critical)
-- Both pipelines use INTRADAY_MODE for fast computation (5-15 min vs 30-40 min)
-- EventBridge Scheduler rules created for both pipelines
-- Commit: `cc7d210f0`
-
-### Phase 4: Verification & Testing ✅
-- Test suite created: `tests/test_intraday_pipelines.py`
-- Infrastructure validation: Terraform validates successfully
-- INTRADAY_MODE support verified in both loaders
-- Commit: `e5c49b1d0`
-
-### Phase 5: Production Ready ✅
-- All infrastructure deployed and tested
-- Ready for first live trading day
-- See monitoring procedures below
-
----
 
 ## Deployment Procedures
 

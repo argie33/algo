@@ -66,34 +66,17 @@ Do NOT write to `algo_positions` directly. It should be updated only when `algo_
 
 ## Dashboard Data Flow
 
-### Old Pattern (PROBLEMATIC - DO NOT USE)
+### Query Pattern: ALWAYS query algo_trades directly
 
-```python
-fetch_positions():
-  SELECT FROM algo_positions WHERE status='open'  # ← May be out of date
+**Wrong:** Separate queries from algo_positions and algo_trades → data drift.  
+**Right:** All queries derive from algo_trades only. Status transitions (`open` → `closed`) and position counts come from the same authoritative source.
 
-fetch_perf():
-  SELECT FROM algo_trades WHERE status='closed'   # ← Authoritative
+```sql
+-- Correct: Positions from algo_trades
+SELECT symbol FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled');
+-- Correct: Performance from algo_trades  
+SELECT symbol FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL;
 ```
-
-**Problem:** Two independent queries, two different data sources. If positions table has orphaned rows, dashboard shows wrong counts.
-
-### New Pattern (CORRECT)
-
-```python
-fetch_positions():
-  SELECT FROM algo_trades
-  WHERE status IN ('open', 'filled', 'partially_filled', 'active')
-  GROUP BY symbol
-  # ← Single source of truth
-
-fetch_perf():
-  SELECT FROM algo_trades
-  WHERE status='closed' AND exit_date IS NOT NULL
-  # ← Same authoritative table
-```
-
-**Benefit:** One query, one source of truth, guaranteed consistency. The 9 positions count and the 3 closed trades count are derived from the same table, so they're always correct.
 
 ---
 
@@ -180,20 +163,6 @@ FROM algo_trades
 WHERE status IN ('open', 'filled', 'partially_filled')
 GROUP BY symbol
 ```
-
----
-
-## Migration Checklist
-
-- [x] Identify single source of truth (algo_trades)
-- [x] Create consistency checker (position_sync_checker.py)
-- [x] Update dashboard to query trades directly (fetch_positions)
-- [ ] Create materialized view `algo_positions_computed` (for complex joins)
-- [ ] Test dashboard with new queries in staging
-- [ ] Run consistency checker daily as part of reconciliation
-- [ ] Document all new query patterns
-- [ ] Plan deprecation of direct `algo_positions` writes
-- [ ] Eventually archive/remove old `algo_positions` table
 
 ---
 
