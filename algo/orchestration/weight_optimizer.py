@@ -68,8 +68,8 @@ class WeightOptimizer:
         """Fetch current weights from algo_config."""
         weights = {}
         for component, key in self.COMPONENT_KEYS.items():
-            val = self.config.get(key, 0)
-            weights[component] = int(val) if val else 0
+            val = self.config.get(key)  # uses AlgoConfig DEFAULTS as fallback, avoids mismatch warning
+            weights[component] = int(val) if val is not None else 0
         return weights
 
     def optimize(

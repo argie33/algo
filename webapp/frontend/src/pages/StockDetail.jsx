@@ -15,7 +15,7 @@ import {
   CartesianGrid, Tooltip as RTooltip, LineChart, BarChart, PieChart, Pie, Cell,
   ReferenceLine,
 } from 'recharts';
-import { ArrowLeft, RefreshCw, Inbox } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Inbox, AlertTriangle } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
@@ -93,14 +93,14 @@ function StockDetailContent() {
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
-  const { data: profileData, error: _profileError, refetch: _refetchProfile } = useApiQuery(
+  const { data: profileData, error: profileError, refetch: _refetchProfile } = useApiQuery(
     ['stock-profile', symbol],
     () => api.get(`/api/stocks/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Scores w/ all factor inputs (single-symbol path triggers full enrichment)
-  const { data: scoreData, error: _scoreError, refetch: _refetchScore } = useApiQuery(
+  const { data: scoreData, error: scoreError, refetch: _refetchScore } = useApiQuery(
     ['stock-scores-detail', symbol],
     () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
     { enabled: !!symbol }
@@ -108,21 +108,21 @@ function StockDetailContent() {
   const scoreRow = scoreData?.items?.[0] || null;
 
   // Key metrics (sector/industry + market cap + ownership %)
-  const { data: keyMetricsData, error: _keyMetricsError, refetch: _refetchKeyMetrics } = useApiQuery(
+  const { data: keyMetricsData, error: keyMetricsError, refetch: _refetchKeyMetrics } = useApiQuery(
     ['stock-keymetrics', symbol],
     () => api.get(`/api/financials/${symbol}/key-metrics`),
     { enabled: !!symbol }
   );
 
   // Signals (last 60d)
-  const { data: signalsData, error: _signalsError, refetch: _refetchSignals } = useApiQuery(
+  const { data: signalsData, error: signalsError, refetch: _refetchSignals } = useApiQuery(
     ['stock-signals', symbol],
     () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=60`),
     { enabled: !!symbol, staleTime: 60_000 }
   );
 
   // Algo swing-score (full eval)
-  const { data: swingScore, error: _swingScoreError, refetch: _refetchSwingScore } = useApiQuery(
+  const { data: swingScore, error: swingScoreError, refetch: _refetchSwingScore } = useApiQuery(
     ['stock-swing-score', symbol],
     async () => {
       const r = await api.get(`/api/algo/swing-scores?symbol=${symbol.toUpperCase()}&limit=1`);
@@ -134,28 +134,28 @@ function StockDetailContent() {
   );
 
   // Analyst sentiment
-  const { data: analystData, error: _analystError, refetch: _refetchAnalyst } = useApiQuery(
+  const { data: analystData, error: analystError, refetch: _refetchAnalyst } = useApiQuery(
     ['stock-analyst', symbol],
     () => api.get(`/api/sentiment/analyst/insights/${symbol}`),
     { enabled: !!symbol }
   );
 
   // Income statement
-  const { data: incomeData, error: _incomeError, refetch: _refetchIncome } = useApiQuery(
+  const { data: incomeData, error: incomeError, refetch: _refetchIncome } = useApiQuery(
     ['stock-income', symbol],
     () => api.get(`/api/financials/${symbol}/income-statement?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Balance sheet
-  const { data: balanceData, error: _balanceError, refetch: _refetchBalance } = useApiQuery(
+  const { data: balanceData, error: balanceError, refetch: _refetchBalance } = useApiQuery(
     ['stock-balance', symbol],
     () => api.get(`/api/financials/${symbol}/balance-sheet?period=quarterly`),
     { enabled: !!symbol }
   );
 
   // Cash flow
-  const { data: cashflowData, error: _cashflowError, refetch: _refetchCashflow } = useApiQuery(
+  const { data: cashflowData, error: cashflowError, refetch: _refetchCashflow } = useApiQuery(
     ['stock-cashflow', symbol],
     () => api.get(`/api/financials/${symbol}/cash-flow?period=quarterly`),
     { enabled: !!symbol }
@@ -325,6 +325,22 @@ function StockDetailContent() {
         </div>
       </div>
 
+      {/* Non-critical data errors — profile, scores, key metrics */}
+      {(profileError || scoreError || keyMetricsError) && (
+        <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-2) var(--space-4)', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--r-sm)', fontSize: 'var(--t-xs)', color: 'var(--text-muted)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <AlertTriangle size={12} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          <span>
+            Some metadata unavailable:{' '}
+            {[
+              profileError && 'profile',
+              scoreError && 'composite scores',
+              keyMetricsError && 'key metrics',
+            ].filter(Boolean).join(', ')}.
+            {' '}Sections using this data will show — instead of values.
+          </span>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginTop: 'var(--space-4)', gap: 0, overflowX: 'auto' }}>
         {[
@@ -367,13 +383,13 @@ function StockDetailContent() {
           <StatsTab scoreRow={scoreRow} km={km} marketCap={marketCap}
                     high52={high52} low52={low52} last={last?.close} />
         )}
-        {tab === 'algo' && <AlgoTab swing={swingScore} scoreRow={scoreRow} error={_swingScoreError} />}
+        {tab === 'algo' && <AlgoTab swing={swingScore} scoreRow={scoreRow} error={swingScoreError} />}
         {tab === 'financials' && (
           <FinancialsTab income={incomeData} balance={balanceData} cashflow={cashflowData}
-            incomeError={_incomeError} balanceError={_balanceError} cashflowError={_cashflowError} />
+            incomeError={incomeError} balanceError={balanceError} cashflowError={cashflowError} />
         )}
-        {tab === 'analysts' && <AnalystsTab data={analystData} last={last?.close} error={_analystError} />}
-        {tab === 'signals' && <SignalsTab signals={signalsData} error={_signalsError} />}
+        {tab === 'analysts' && <AnalystsTab data={analystData} last={last?.close} error={analystError} />}
+        {tab === 'signals' && <SignalsTab signals={signalsData} error={signalsError} />}
       </div>
     </div>
   );

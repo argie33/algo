@@ -207,17 +207,17 @@ function MarketsHealthPage() {
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} /></ErrorBoundary>
+        <ErrorBoundary><SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} error={sentError} /></ErrorBoundary>
         <ErrorBoundary><VixCard markets={m} /></ErrorBoundary>
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><InternalsCard data={technicalsData} loading={technicalsLoading} /></ErrorBoundary>
-        <ErrorBoundary><TopMoversCard data={moversData} loading={moversLoading} /></ErrorBoundary>
+        <ErrorBoundary><InternalsCard data={technicalsData} loading={technicalsLoading} error={techError} /></ErrorBoundary>
+        <ErrorBoundary><TopMoversCard data={moversData} loading={moversLoading} error={movError} /></ErrorBoundary>
       </div>
 
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SeasonalityCard data={seasonalityData} loading={seasonalityLoading} /></ErrorBoundary>
+        <ErrorBoundary><SeasonalityCard data={seasonalityData} loading={seasonalityLoading} error={seasError} /></ErrorBoundary>
       </div>
 
       {/* ──────────── 13. Sector Heat Map ──────────── */}
@@ -760,13 +760,24 @@ function NewHighsLowsCard({ markets }) {
 // 8. SENTIMENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function SentimentCard({ markets, sentiment, loading }) {
+function SentimentCard({ markets, sentiment, loading, error }) {
   const safeSentiment = safeGetSentimentData(sentiment);
   const aaiiHistoryRaw = safeSentiment.aaii?.history || safeSentiment.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const aaiiHistory = Array.isArray(aaiiHistoryRaw) ? aaiiHistoryRaw : [];
   const naaim = safeSentiment.naaim?.current ?? null;
   const fearGreed = safeSentiment.fearGreed?.current?.value ?? null;
   if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
+  if (error) return (
+    <div className="card">
+      <div className="card-head"><div><div className="card-title">Investor Sentiment</div></div></div>
+      <div className="card-body">
+        <div className="alert alert-danger" style={{ margin: 0 }}>
+          <AlertTriangle size={16} />
+          <div>Sentiment data unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+        </div>
+      </div>
+    </div>
+  );
   if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
     date: s?.date,
@@ -880,8 +891,20 @@ function VixCard({ markets }) {
 // 10. INTERNALS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function InternalsCard({ data, loading }) {
-  if (loading || !data) return <Empty title="Market Internals" desc={loading ? "Loading…" : "No data"} wrap />;
+function InternalsCard({ data, loading, error }) {
+  if (loading) return <Empty title="Market Internals" desc="Loading…" wrap />;
+  if (error) return (
+    <div className="card">
+      <div className="card-head"><div><div className="card-title">Market Internals</div></div></div>
+      <div className="card-body">
+        <div className="alert alert-danger" style={{ margin: 0 }}>
+          <AlertTriangle size={16} />
+          <div>Market internals unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+        </div>
+      </div>
+    </div>
+  );
+  if (!data) return <Empty title="Market Internals" desc="No data" wrap />;
   const breadth = (data && typeof data === 'object' && data.breadth) ? data.breadth : {};
   const advancing = breadth?.advancing != null ? parseInt(breadth.advancing) : 0;
   const declining = breadth?.declining != null ? parseInt(breadth.declining) : 0;
@@ -937,8 +960,20 @@ function InternalsCard({ data, loading }) {
 // 11. TOP MOVERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function TopMoversCard({ data, loading }) {
-  if (loading || !data) return <Empty title="Top Movers" desc={loading ? "Loading…" : "No data"} wrap />;
+function TopMoversCard({ data, loading, error }) {
+  if (loading) return <Empty title="Top Movers" desc="Loading…" wrap />;
+  if (error) return (
+    <div className="card">
+      <div className="card-head"><div><div className="card-title">Top Movers</div></div></div>
+      <div className="card-body">
+        <div className="alert alert-danger" style={{ margin: 0 }}>
+          <AlertTriangle size={16} />
+          <div>Top movers unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+        </div>
+      </div>
+    </div>
+  );
+  if (!data) return <Empty title="Top Movers" desc="No data" wrap />;
   const gainers = Array.isArray(data.gainers) ? data.gainers : [];
   const losers = Array.isArray(data.losers) ? data.losers : [];
   const totalGainers = Array.isArray(data.gainers) ? data.gainers.length : 0;
@@ -986,9 +1021,20 @@ function Mover({ symbol, chg, dir }) {
 // 12. SEASONALITY
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function SeasonalityCard({ data, loading }) {
+function SeasonalityCard({ data, loading, error }) {
   if (loading) return <Empty title="Seasonality Context" desc="Loading…" wrap />;
-  if (!data) return null;
+  if (error) return (
+    <div className="card">
+      <div className="card-head"><div><div className="card-title">Seasonality Context</div></div></div>
+      <div className="card-body">
+        <div className="alert alert-danger" style={{ margin: 0 }}>
+          <AlertTriangle size={16} />
+          <div>Seasonality data unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+        </div>
+      </div>
+    </div>
+  );
+  if (!data) return <Empty title="Seasonality Context" desc="No data available" wrap />;
   const summary = (data && typeof data === 'object' && data.summary) ? data.summary : {};
   const bestMonth = summary?.best_month;
   const worstMonth = summary?.worst_month;
@@ -1182,7 +1228,7 @@ function SectorRotationMap({ markets, onSelect }) {
     });
   }, [sectors]);
 
-  if (!data.length) return <Empty title="Sector Rotation" desc="Sector ranking data not available" />;
+  if (!data.length) return <Empty title="Sector Rotation" desc="Sector ranking data not available" wrap />;
 
   // Compute axis ranges
   const momRange = Math.max(2, Math.max(...data.map(d => Math.abs(d.rsMomentum))));

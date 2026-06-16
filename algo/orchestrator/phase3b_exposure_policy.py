@@ -89,7 +89,7 @@ def run(
                 f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions',
             )
             return PhaseResult(
-                3,
+                "3b",
                 "exposure_policy",
                 "ok",
                 {"constraints": constraints, "actions": []},
@@ -120,7 +120,7 @@ def run(
         )
 
         return PhaseResult(
-            3,
+            "3b",
             "exposure_policy",
             "ok",
             {"constraints": constraints, "actions": actions},
@@ -136,7 +136,7 @@ def run(
             "3b", "exposure_policy", "skip", f"Skipped due to error: {str(e)[:80]}"
         )
         return PhaseResult(
-            3,
+            "3b",
             "exposure_policy",
             "ok",
             {"constraints": None, "actions": []},
