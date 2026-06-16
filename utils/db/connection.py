@@ -184,9 +184,11 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
         try:
             if debug:
                 logger.debug(
-                    f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection"
+                    f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection (timeout={timeout}s)"
                 )
 
+            # Note: psycopg2's SimpleConnectionPool doesn't support timeout on getconn()
+            # Timeout is controlled via connect_timeout and keepalives at pool creation time
             conn = pool.getconn()
 
             if debug:

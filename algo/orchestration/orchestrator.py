@@ -1126,21 +1126,29 @@ class Orchestrator:
             logger.info(f"{'='*70}")
             logger.info("[CRITICAL] Running critical data checks...")
             try:
-                with DatabaseContext("read") as cur:
+                logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
+                with DatabaseContext("read", timeout=10) as cur:
                     # Validate required tables exist (schema check only).
                     # Data freshness and patrol are handled by Phase 1 with proper
                     # halt/observe-only distinctions and fresh patrol execution.
+                    logger.debug("[PREFLIGHT] Validating required tables")
                     if not self._validate_required_tables(cur):
                         logger.error("[HALT] Required tables missing — cannot proceed")
                         return self._final_report()
 
                     logger.info("[OK] All pre-flight checks passed")
+            except TimeoutError as e:
+                logger.error(f"  [HALT] Pre-flight database timeout (pool exhausted?): {e}")
+                report = self._final_report()
+                report["skipped"] = True
+                report["reason"] = "database_timeout"
+                return report
             except Exception as e:
-                logger.error(f"  [HALT] Pre-flight check failed: {e}")
+                logger.error(f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}", exc_info=True)
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
                 report = self._final_report()
-                if "connection" in str(e).lower() or "database" in str(e).lower():
+                if "connection" in str(e).lower() or "database" in str(e).lower() or "pool" in str(e).lower():
                     report["skipped"] = True
                     report["reason"] = "database_unavailable"
                 return report
