@@ -777,11 +777,11 @@ class TradeExecutor:
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, status,
-                        trade_ids_arr, current_stop_price, target_levels_hit,
+                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                         created_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, 'open',
-                        %s, %s, 0, CURRENT_TIMESTAMP
+                        %s, %s, %s, 0, CURRENT_TIMESTAMP
                     )
                     """,
                     (
@@ -792,6 +792,7 @@ class TradeExecutor:
                         executed_price,
                         position_value,
                         [trade_id],
+                        stop_loss_price,
                         stop_loss_price,
                     ),
                 )

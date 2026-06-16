@@ -975,9 +975,9 @@ class DailyReconciliation:
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, unrealized_pnl,
                         unrealized_pnl_pct, status, trade_ids_arr,
-                        current_stop_price, target_levels_hit, created_at
+                        current_stop_price, stop_loss_price, target_levels_hit, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
-                              %s, %s, %s, 0, CURRENT_TIMESTAMP)
+                              %s, %s, %s, %s, 0, CURRENT_TIMESTAMP)
                     ON CONFLICT (position_id) DO NOTHING
                 """,
                     (
@@ -991,7 +991,8 @@ class DailyReconciliation:
                         pnl_pct,
                         PositionStatus.OPEN.value,
                         [trade_id],
-                        stop_loss_price,  # use calculated stop, not hardcoded 8%
+                        stop_loss_price,
+                        stop_loss_price,
                     ),
                 )
                 imported += 1
