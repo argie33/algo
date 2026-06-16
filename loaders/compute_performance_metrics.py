@@ -182,21 +182,25 @@ def _compute_advanced_metrics(cur, metric_date: date):
         max_drawdown = MetricsCalculator.calculate_max_drawdown(vals)
         calmar = MetricsCalculator.calculate_calmar_ratio(vals)
 
-        # Log when metrics fail to compute (not mask with fallbacks)
+        # Log when metrics fail to compute and fall back to 0 (not mask silently)
         if sharpe is None:
             logger.warning(
-                f"Sharpe ratio failed to compute (need {min(5)} returns, got {len(returns)})"
+                f"Sharpe ratio failed to compute (need 5 returns, got {len(returns)})"
             )
+            sharpe = 0.0
         if sortino is None:
             logger.warning(
                 f"Sortino ratio failed to compute (need downside risk, got {len(returns)} returns)"
             )
+            sortino = 0.0
         if max_drawdown is None:
             logger.warning(
-                f"Max drawdown failed to compute (need {min(2)} portfolio values, got {len(vals)})"
+                f"Max drawdown failed to compute (need 2 portfolio values, got {len(vals)})"
             )
+            max_drawdown = 0.0
         if calmar is None:
             logger.warning("Calmar ratio failed to compute")
+            calmar = 0.0
 
         # CAGR calculation (not in MetricsCalculator, so keep custom implementation)
         start_val = vals[0]
