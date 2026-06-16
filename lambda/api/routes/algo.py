@@ -1864,18 +1864,49 @@ def _get_data_status(cur) -> Dict:
     """
     try:
         from algo.infrastructure import MarketCalendar
+        try:
+            from utils.validation.freshness_config import FRESHNESS_RULES as _FR
+        except ImportError:
+            _FR = {}
+
+        # Tables intentionally removed from the EOD pipeline — orchestrator Phase 5
+        # computes these signals on-the-fly. Excluding them prevents permanent false-stale
+        # alerts on the health panel (they will never be refreshed again by a loader).
+        PIPELINE_REMOVED_TABLES = {"technical_data_daily", "buy_sell_daily", "signal_quality_scores"}
 
         cur.execute("""
                 SELECT table_name, row_count, last_updated
                 FROM data_loader_status
                 ORDER BY table_name
             """)
-        rows = cur.fetchall()
+        loader_rows = [dict(r) for r in cur.fetchall() if r["table_name"] not in PIPELINE_REMOVED_TABLES]
+        loader_names = {r["table_name"] for r in loader_rows}
 
-        # Critical tables that halt trading in Phase 1 (price_daily, market_health_daily,
-        # market_exposure_daily). trend_template_data is warning-only in Phase 1 — stale
-        # does NOT prevent trading, so exclude it from critical to match Phase 1 behavior.
-        CRITICAL_TABLES = {"price_daily", "market_health_daily", "market_exposure_daily"}
+        # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
+        algo_rows = []
+        for tbl_name, query in [
+            ("algo_portfolio_snapshots", "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots"),
+            ("algo_performance_daily", "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily"),
+            ("algo_risk_daily", "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_risk_daily"),
+        ]:
+            if tbl_name in loader_names:
+                continue
+            try:
+                cur.execute(query)
+                r = cur.fetchone()
+                if r:
+                    algo_rows.append({"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]})
+            except Exception:
+                pass
+
+        rows = loader_rows + algo_rows
+
+        # Use freshness_config critical set; fall back to Phase 1 halt tables if unavailable.
+        # Note: trend_template_data is warning-only in Phase 1 — stale does NOT prevent
+        # trading, so it remains non-critical even though freshness_config marks it otherwise.
+        CRITICAL_TABLES = {t for t, r in _FR.items() if r.get("critical")} or {
+            "price_daily", "market_health_daily", "market_exposure_daily"
+        }
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
         today = date.today()
@@ -1903,20 +1934,21 @@ def _get_data_status(cur) -> Dict:
             elif last_updated is None:
                 status = "empty"
             else:
-                # Convert to date if datetime
                 data_date = (
                     last_updated.date()
                     if hasattr(last_updated, "date")
                     else last_updated
                 )
-
-                # Use Phase 1 logic: stale if data_date < expected_date
-                if data_date < expected_date:
-                    status = "stale"
+                rule = _FR.get(row["table_name"], {})
+                max_age = rule.get("max_age_days", 1)
+                if max_age <= 1:
+                    # Daily tables: use trading-day-aware comparison
+                    status = "stale" if data_date < expected_date else "ok"
                 else:
-                    status = "ok"
+                    # Weekly/biweekly tables: use simple calendar-day age threshold
+                    status = "stale" if (today - data_date).days > max_age else "ok"
 
-            # Calculate age in hours for reference
+            # Calculate age in hours for display
             last_updated_utc = normalize_to_utc_datetime(last_updated)
             if last_updated_utc:
                 age_h = (
@@ -1925,12 +1957,21 @@ def _get_data_status(cur) -> Dict:
             else:
                 age_h = 999
 
+            rule = _FR.get(row["table_name"], {})
+            if rule.get("critical"):
+                role = "CRIT"
+            elif rule.get("max_age_days", 999) <= 7:
+                role = "IMP"
+            else:
+                role = "NORM"
+
             summary[status] = summary.get(status, 0) + 1
             if status in ("stale", "empty") and row["table_name"] in CRITICAL_TABLES:
                 critical_stale.append(row["table_name"])
             sources.append(
                 {
                     "name": row["table_name"],
+                    "role": role,
                     "status": status,
                     "last_updated": last_updated.isoformat() if last_updated else None,
                     "age_hours": round(age_h, 1),

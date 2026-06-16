@@ -57,12 +57,15 @@ FRESHNESS_RULES = {
         "purpose": "Risk dashboard, position risk calculations",
         "applies_to": ["dashboard", "api"],
     },
+    # buy_sell_daily removed from EOD pipeline — Phase 5 computes signals on-the-fly.
+    # Keeping entry here for reference but marking non-critical so it won't block trading
+    # if old data remains in the table.
     "buy_sell_daily": {
-        "critical": True,
-        "max_age_days": 1,
-        "description": "Buy/sell signal flags for universe",
-        "purpose": "Signal generation, entry/exit logic",
-        "applies_to": ["orchestrator_phase5"],
+        "critical": False,
+        "max_age_days": 7,
+        "description": "Buy/sell signal flags for universe (computed on-the-fly by orchestrator)",
+        "purpose": "Legacy pre-computed signals — Phase 5 no longer reads from this table",
+        "applies_to": [],
     },
     "swing_trader_scores": {
         "critical": True,
@@ -86,12 +89,21 @@ FRESHNESS_RULES = {
         "applies_to": ["orchestrator_phase3b", "dashboard"],
     },
     # === IMPORTANT TABLES (Warning if stale, may still use) ===
+    # technical_data_daily and signal_quality_scores removed from EOD pipeline.
+    # Orchestrator Phase 5 computes these on-the-fly; pre-computed tables no longer used.
     "technical_data_daily": {
         "critical": False,
-        "max_age_days": 7,
-        "description": "Technical indicators (RSI, MACD, Bollinger Bands)",
-        "purpose": "Signal quality scoring, trade setup validation",
-        "applies_to": ["orchestrator_phase5"],
+        "max_age_days": 365,
+        "description": "Technical indicators (RSI, MACD, Bollinger Bands) — computed on-the-fly by orchestrator",
+        "purpose": "Legacy pre-computed technicals — Phase 5 no longer reads from this table",
+        "applies_to": [],
+    },
+    "signal_quality_scores": {
+        "critical": False,
+        "max_age_days": 365,
+        "description": "Signal quality scores — computed on-the-fly by orchestrator",
+        "purpose": "Legacy pre-computed scores — Phase 5 no longer reads from this table",
+        "applies_to": [],
     },
     "trend_template_data": {
         "critical": False,
