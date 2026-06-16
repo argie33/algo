@@ -1871,8 +1871,10 @@ def _get_data_status(cur) -> Dict:
             """)
         rows = cur.fetchall()
 
-        # Critical tables that must be fresh for live trading (same as Phase 1)
-        CRITICAL_TABLES = {"price_daily", "market_health_daily", "trend_template_data"}
+        # Critical tables that halt trading in Phase 1 (price_daily, market_health_daily,
+        # market_exposure_daily). trend_template_data is warning-only in Phase 1 — stale
+        # does NOT prevent trading, so exclude it from critical to match Phase 1 behavior.
+        CRITICAL_TABLES = {"price_daily", "market_health_daily", "market_exposure_daily"}
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
         today = date.today()
