@@ -2991,11 +2991,11 @@ router.get('/sentiment', async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    const fgiResult = await pool.query(`SELECT * FROM fear_greed_index ORDER BY date DESC LIMIT 1`);
+    const fgiResult = await pool.query(`SELECT date, fear_greed_value, fear_greed_label FROM fear_greed_index ORDER BY date DESC LIMIT 1`);
 
     return sendSuccess(res, {
       fear_greed_index: fgiResult.rows[0] || null,
-      current_sentiment: fgiResult.rows[0]?.value || null
+      current_sentiment: fgiResult.rows[0]?.fear_greed_value || null
     });
   } catch (error) {
     logger.error('Error in /algo/sentiment:', { error: error.message });
