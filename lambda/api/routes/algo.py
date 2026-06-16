@@ -3139,6 +3139,7 @@ def _get_markets(cur) -> Dict:
 
         # Fetch market health from market_health_daily for dashboard KPIs
         market_health = {}
+        vix_regime = {}
         try:
             cur.execute("""
                     SELECT market_trend, market_stage, vix_level, spy_change_pct,
@@ -3151,6 +3152,17 @@ def _get_markets(cur) -> Dict:
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
+                # Extract VIX data for factors.vix_regime
+                vix_level = market_health.get("vix_level")
+                if vix_level is not None:
+                    try:
+                        vix_value = float(vix_level)
+                        vix_regime = {
+                            "value": vix_value,
+                            "rising": None,  # Could be enhanced with historical comparison
+                        }
+                    except (ValueError, TypeError):
+                        vix_regime = {}
         except Exception as mhe:
             logger.warning(f"Could not fetch market_health_daily: {mhe}")
 
@@ -3169,6 +3181,10 @@ def _get_markets(cur) -> Dict:
             logger.warning(f"Could not fetch SPY price: {spy_e}")
 
         current_date = row.get("date")
+        # Add VIX data to factors if not already present
+        if vix_regime and "vix_regime" not in factors:
+            factors["vix_regime"] = vix_regime
+
         return json_response(
             200,
             {
