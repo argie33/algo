@@ -797,11 +797,9 @@ class CircuitBreaker:
             }
 
     def _check_sector_concentration(self, current_date: Any, cur) -> Dict[str, Any]:
-        """Log warning if any sector exceeds max position cap — does not halt all entries.
+        """Log warning if any sector exceeds max position cap — advisory only, no halt.
 
-        Phase 6 already blocks per-symbol sector violations with a FOR UPDATE lock
-        before each trade. A circuit-breaker full halt would incorrectly prevent entries
-        in all other sectors just because one sector is full.
+        Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
         try:
             max_sector_positions = int(self.config.get("max_positions_per_sector", 5))
