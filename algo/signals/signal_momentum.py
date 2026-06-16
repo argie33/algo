@@ -171,7 +171,7 @@ class SignalMomentumMixin:
         """
 
         def _compute(cur):
-            ret_21 = self._period_return(symbol, eval_date, 21, cur)
+            ret_21 = self._period_return(cur, symbol, eval_date, 21)
             return {
                 "power_trend": ret_21 is not None and ret_21 >= 0.20,
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
