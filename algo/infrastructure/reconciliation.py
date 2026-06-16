@@ -779,22 +779,32 @@ class DailyReconciliation:
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
                     qty_int = int(round(qty))
                     if abs(db_qty - qty_int) > 0:
+                        # Alpaca is the source of truth — correct the DB quantity
+                        try:
+                            cur.execute(
+                                "UPDATE algo_positions SET quantity = %s WHERE symbol = %s AND status = %s",
+                                (qty_int, sym, PositionStatus.OPEN.value),
+                            )
+                            logger.warning(
+                                f"[RECONCILE] Corrected {sym} quantity: DB had {db_qty}, Alpaca has {qty_int}"
+                            )
+                        except Exception as e:
+                            logger.error(f"  Could not correct {sym} quantity in DB: {e}")
                         try:
                             notify(
-                                severity="critical",
-                                title="CRITICAL: Quantity Mismatch",
-                                message=f"{sym} has {qty:.0f} shares on Alpaca but "
-                                f"{db_qty} in DB. Manual intervention required.",
+                                severity="warning",
+                                title="Quantity Corrected",
+                                message=f"{sym}: DB quantity corrected {db_qty} → {qty_int} to match Alpaca.",
                                 symbol=sym,
                                 details={
                                     "symbol": sym,
-                                    "alpaca_qty": qty,
-                                    "db_qty": db_qty,
+                                    "alpaca_qty": qty_int,
+                                    "db_qty_before": db_qty,
                                 },
                             )
                         except Exception as e:
                             logger.warning(
-                                f"  Could not send quantity drift alert: {e}"
+                                f"  Could not send quantity correction alert: {e}"
                             )
                 continue  # already tracked
 
