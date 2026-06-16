@@ -124,6 +124,14 @@ class FearGreedIndexLoader(OptimalLoader):
                         logger.debug(f"Fear & Greed entry parsing error: {e}")
                         continue
 
+                # CNN API includes today's date in both fear_and_greed_historical
+                # AND the current reading appended above. Deduplicate by date,
+                # keeping the last occurrence (current reading wins).
+                seen: dict = {}
+                for r in rows:
+                    seen[r["date"]] = r
+                rows = list(seen.values())
+
                 return rows if rows else None
 
             except Exception as e:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Market Sentiment Loader - Load market sentiment from available sources (Market-wide compute)."""
+"""Market Sentiment Loader - Aggregate sentiment score from AAII, NAAIM, CNN Fear/Greed."""
 
 import sys
 import logging
@@ -13,45 +13,69 @@ logger = logging.getLogger(__name__)
 
 
 class SentimentLoader(OptimalLoader):
-    """Load market sentiment from available sources."""
+    """Aggregate market sentiment from AAII, NAAIM, and CNN Fear & Greed."""
 
     table_name = "sentiment"
-    primary_key = ("symbol", "date")
-    watermark_field = "created_at"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Fetch market sentiment data."""
+        """Compute a single MARKET sentiment score from available data sources."""
         try:
             with DatabaseContext("read") as cur:
-                # Get sentiment from aggregated sources
-                cur.execute("""
-                    SELECT
-                        COALESCE(symbol, 'MARKET') AS symbol,
-                        MAX(date) as date,
-                        AVG(aggregate_sentiment) as sentiment_score,
-                        CASE
-                            WHEN AVG(aggregate_sentiment) > 65 THEN 'Bullish'
-                            WHEN AVG(aggregate_sentiment) > 40 THEN 'Neutral'
-                            ELSE 'Bearish'
-                        END AS sentiment_label
-                    FROM sentiment
-                    WHERE created_at > NOW() - INTERVAL '1 day'
-                    GROUP BY symbol
-                """)
+                scores = []
 
-                rows = cur.fetchall()
-                if not rows:
-                    logger.info("No sentiment data available")
+                # CNN Fear & Greed: scale 0-100 → already 0-100
+                cur.execute("""
+                    SELECT fear_greed_value
+                    FROM fear_greed_index
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    scores.append(float(row[0]))
+
+                # AAII sentiment: bullish% as 0-100 score
+                cur.execute("""
+                    SELECT bullish
+                    FROM aaii_sentiment
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    scores.append(float(row[0]))
+
+                # NAAIM exposure index: 0-200 scale → normalize to 0-100
+                cur.execute("""
+                    SELECT naaim_number_mean
+                    FROM naaim
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    scores.append(min(float(row[0]) / 2.0, 100.0))
+
+                if not scores:
+                    logger.info("No sentiment source data available")
                     return None
+
+                avg_score = sum(scores) / len(scores)
+                if avg_score > 65:
+                    label = "Bullish"
+                elif avg_score > 40:
+                    label = "Neutral"
+                else:
+                    label = "Bearish"
 
                 return [
                     {
-                        "symbol": r[0],
-                        "date": r[1] or date.today(),
-                        "sentiment_score": float(r[2]) if r[2] else 0.0,
-                        "sentiment_label": r[3],
+                        "symbol": "MARKET",
+                        "sentiment_score": round(avg_score, 4),
+                        "sentiment_label": label,
                     }
-                    for r in rows
                 ]
 
         except Exception as e:
