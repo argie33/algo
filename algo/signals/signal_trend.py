@@ -37,12 +37,22 @@ class SignalTrendMixin:
                 "reason": "Insufficient price history",
             }
 
-        import pandas as pd
-        df = pd.DataFrame(rows, columns=["date", "close", "volume"])
-        df["close"] = pd.to_numeric(df["close"], errors="coerce")
-        df = df.dropna(subset=["close"]).sort_values("date").reset_index(drop=True)
+        import numpy as np
 
-        if len(df) < 50:
+        closes_raw = [row[1] for row in rows]
+        try:
+            close = np.array([float(v) for v in closes_raw], dtype=np.float64)
+        except (TypeError, ValueError):
+            valid = []
+            for v in closes_raw:
+                try:
+                    valid.append(float(v))
+                except (TypeError, ValueError):
+                    pass
+            close = np.array(valid, dtype=np.float64)
+
+        close = close[np.isfinite(close)]
+        if len(close) < 50:
             return {
                 "score": 0,
                 "pass": False,
@@ -50,21 +60,23 @@ class SignalTrendMixin:
                 "reason": "Insufficient price history",
             }
 
-        close = df["close"]
-        df["sma_50"] = close.rolling(50, min_periods=50).mean()
-        df["sma_150"] = close.rolling(150, min_periods=150).mean()
-        df["sma_200"] = close.rolling(200, min_periods=200).mean()
-        df["sma_200_slope"] = df["sma_200"].diff(5) / df["sma_200"].shift(5)
-        df["high_52w"] = close.rolling(252, min_periods=252).max()
-        df["low_52w"] = close.rolling(252, min_periods=252).min()
+        def _sma(arr, n):
+            if len(arr) < n:
+                return None
+            return float(np.mean(arr[-n:]))
 
-        row = df.iloc[-1]
-        c = row["close"]
-        sma50 = row["sma_50"] if pd.notna(row["sma_50"]) else None
-        sma150 = row["sma_150"] if pd.notna(row["sma_150"]) else None
-        sma200 = row["sma_200"] if pd.notna(row["sma_200"]) else None
-        high52 = row["high_52w"] if pd.notna(row["high_52w"]) else None
-        low52 = row["low_52w"] if pd.notna(row["low_52w"]) else None
+        c = float(close[-1])
+        sma50 = _sma(close, 50)
+        sma150 = _sma(close, 150)
+        sma200 = _sma(close, 200)
+        high52 = float(np.max(close[-252:])) if len(close) >= 252 else None
+        low52 = float(np.min(close[-252:])) if len(close) >= 252 else None
+
+        sma200_slope = None
+        if sma200 is not None and len(close) >= 205:
+            sma200_5ago = float(np.mean(close[-205:-5]))
+            if sma200_5ago > 0:
+                sma200_slope = (sma200 - sma200_5ago) / sma200_5ago
 
         score = 0
         if sma50 and c > sma50:
@@ -77,7 +89,6 @@ class SignalTrendMixin:
             score += 1
         if sma150 and sma200 and sma150 > sma200:
             score += 1
-        sma200_slope = row["sma_200_slope"] if pd.notna(row["sma_200_slope"]) else None
         if sma200_slope is not None and sma200_slope > 0:
             score += 1
         if high52 and c >= high52 * 0.75:

@@ -45,7 +45,7 @@ def run(
     phase_start = time.time()
 
     min_coverage_pct = config.get("phase1_min_coverage_pct", 75) if config else 75
-    min_symbol_count = config.get("phase1_min_symbol_count", 2000) if config else 2000
+    min_symbol_count = config.get("phase1_min_symbol_count", 8000) if config else 8000
     signal_freshness_hours = (
         config.get("phase1_signal_freshness_hours", 24) if config else 24
     )
@@ -122,14 +122,19 @@ def run(
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
+                fail_reason = (
+                    f"symbols {symbols_loaded} < min {min_symbol_count}"
+                    if symbols_loaded < min_symbol_count
+                    else f"coverage {coverage_pct:.1f}% < min {min_coverage_pct}%"
+                )
                 logger.critical(
-                    f"[PHASE 1] Insufficient price coverage: {symbols_loaded} symbols ({coverage_pct:.1f}%)"
+                    f"[PHASE 1] Insufficient price coverage: {symbols_loaded} symbols ({coverage_pct:.1f}%) — {fail_reason}"
                 )
                 log_phase_result_fn(
                     1,
                     "price_coverage",
                     "halt",
-                    f"Price coverage {coverage_pct:.1f}% vs {min_coverage_pct}%",
+                    f"Price data insufficient: {fail_reason}",
                 )
                 return PhaseResult(
                     1,
@@ -137,7 +142,7 @@ def run(
                     "halted",
                     {},
                     True,
-                    f"Insufficient price coverage: {coverage_pct:.1f}%",
+                    f"Insufficient price data: {fail_reason}",
                 )
 
             # Halt-critical tables: Phase 5 cannot generate signals without these
