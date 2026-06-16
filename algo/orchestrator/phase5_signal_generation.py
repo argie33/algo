@@ -128,7 +128,9 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                     p.close,
                     p.high,
                     p.low,
-                    sma.avg_close AS sma_50
+                    sma.avg_close AS sma_50,
+                    cp.sector,
+                    cp.industry
                 FROM stock_scores ss
                 JOIN LATERAL (
                     SELECT close, high, low
@@ -144,6 +146,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                         ORDER BY date DESC LIMIT 50
                     ) t
                 ) sma ON TRUE
+                LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
                 WHERE ss.composite_score >= %s
                 ORDER BY ss.composite_score DESC NULLS LAST
                 LIMIT %s
@@ -168,6 +171,8 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 "sma_50": float(r[9]) if r[9] is not None else None,
                 "entry_price": close,
                 "signal_strength": (float(r[1]) / 100.0) if r[1] is not None else 0.5,
+                "sector": r[10],
+                "industry": r[11],
             })
 
         logger.info(f"[PHASE 5] {len(candidates)} candidates from stock_scores + price_daily")

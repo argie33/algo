@@ -312,6 +312,9 @@ def run(
                         stop_loss_price=stop_loss,
                         signal_date=run_date,
                         entry_date=run_date,
+                        sector=signal.get("sector"),
+                        industry=signal.get("industry"),
+                        rs_percentile=signal.get("rs_percentile"),
                     )
                     if result.get("success"):
                         executed_count += 1
