@@ -63,6 +63,7 @@ from panels import (
     panel_circuit_expanded,
     panel_exposure_expanded,
     panel_algo_health,
+    panel_data_freshness,
     panel_portfolio,
     panel_performance_spark,
     panel_economic_pulse,
@@ -355,7 +356,7 @@ def render_dashboard(
         outer.split_column(
             Layout(name="errors", size=3),
             Layout(name="top", size=10),
-            Layout(name="r1", ratio=2),
+            Layout(name="r1", ratio=3),
             Layout(name="r2", ratio=2),
             Layout(name="r3", ratio=2),
             Layout(name="pos", ratio=3),
@@ -364,7 +365,7 @@ def render_dashboard(
     else:
         outer.split_column(
             Layout(name="top", size=10),
-            Layout(name="r1", ratio=2),
+            Layout(name="r1", ratio=3),
             Layout(name="r2", ratio=2),
             Layout(name="r3", ratio=2),
             Layout(name="pos", ratio=3),
@@ -395,6 +396,7 @@ def render_dashboard(
             ratio=2,
             name="health",
         ),
+        Layout(panel_data_freshness(hlth), ratio=2, name="data_freshness"),
     )
 
     outer["r2"].split_row(

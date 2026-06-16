@@ -100,7 +100,10 @@ class AAIISentimentLoader(OptimalLoader):
                         )
 
                 excel_data = BytesIO(response.content)
-                df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
+                # Auto-detect format: XLSX files start with PK (ZIP signature); use openpyxl
+                # for XLSX and xlrd for legacy XLS. AAII changed their file format over time.
+                xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
+                df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
 
                 df.columns = df.columns.str.strip()
                 required_cols = ["Date", "Bullish", "Neutral", "Bearish"]

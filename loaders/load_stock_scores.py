@@ -381,9 +381,10 @@ class StockScoresLoader(OptimalLoader):
         scores = []
 
         # ROE: higher is better (target 15%+, cap at 40%)
-        if metrics.get("roe"):
+        # Use `is not None` to correctly handle ROE=0 (break-even) as a real data point.
+        if metrics.get("roe") is not None:
             roe = min(metrics["roe"], 40)
-            scores.append(min(100, (roe / 40) * 100))
+            scores.append(min(100, max(0, (roe / 40) * 100)))
 
         # ROA: higher is better (target 5%+, cap at 20%)
         if metrics.get("roa") and metrics["roa"] > 0:

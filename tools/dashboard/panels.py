@@ -3103,7 +3103,7 @@ def panel_algo_health(
                 return float(ad) * 24
             return None
 
-        def _age_fmt(r):
+        def _age_fmt_c(r):
             h = _age_h(r)
             if h is None:
                 return "?"
@@ -3119,15 +3119,12 @@ def panel_algo_health(
                 rtt_badge = f"[{G}]✓ Data OK[/]"
             n_total = len(hlth_list)
             n_crit = len(crit)
-            # Find oldest table for a freshness sanity check
             ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
-            oldest_s = f"  [dim]oldest: {_age_fmt(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
+            oldest_s = f"  [dim]oldest: {_age_fmt_c(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
             crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
-            rows.append(
-                Text.from_markup(
-                    f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
-                )
-            )
+            rows.append(Text.from_markup(
+                f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
+            ))
         else:
             crit_stale = [r for r in stale if r.get("role") == "CRIT"]
             if ready_to_trade is False:
@@ -3137,15 +3134,12 @@ def panel_algo_health(
             else:
                 rtt_pfx = f"[{Y}]{len(stale)} stale[/]  "
             stale_parts = []
-            # Show critical stale first, then others, up to 4 total
             ordered = crit_stale + [r for r in stale if r not in crit_stale]
             for r in ordered[:4]:
                 nm = (r.get("tbl") or "--")[:16]
                 cc = f"bold {R}" if r.get("role") == "CRIT" else R
-                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt(r)}[/]")
-            rows.append(
-                Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts))
-            )
+                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt_c(r)}[/]")
+            rows.append(Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts)))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     if (
@@ -3214,6 +3208,89 @@ def panel_algo_health(
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
+
+
+def panel_data_freshness(hlth):
+    """All data tables in a 2-column compact grid — full freshness picture at a glance."""
+    hlth_list = (
+        hlth.get("items", [])
+        if isinstance(hlth, dict) and "items" in hlth
+        else (hlth if isinstance(hlth, list) else [])
+    )
+    ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
+
+    if not hlth_list:
+        return Panel(
+            Text("no data health info", style="dim"),
+            title="[bold yellow]DATA FRESHNESS[/]",
+            border_style="yellow",
+            padding=(0, 1),
+        )
+
+    stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"]
+    n_fresh = len(hlth_list) - len(stale)
+    crit_stale = [r for r in stale if r.get("role") == "CRIT"]
+
+    if ready_to_trade is True:
+        rtt = f"[bold {G}]✓ READY TO TRADE[/]"
+    elif ready_to_trade is False:
+        rtt = f"[bold {R}]✗ NOT READY[/]"
+    else:
+        rtt = f"[{G}]✓ Data OK[/]" if not crit_stale else f"[bold {R}]CRIT STALE[/]"
+
+    status_c = G if not stale else (R if crit_stale else Y)
+    summary = Text.from_markup(
+        f"[{status_c}]{n_fresh}/{len(hlth_list)} fresh[/]  {rtt}"
+        + (f"  [{R}]{len(stale)} stale[/]" if stale else "")
+    )
+
+    _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
+    sorted_items = sorted(
+        [r for r in hlth_list if isinstance(r, dict)],
+        key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
+    )
+
+    def _age_fmt_f(r):
+        ah = r.get("age_hours")
+        if ah is not None:
+            h = float(ah)
+            return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
+        ad = r.get("age")
+        if ad is not None:
+            return f"{float(ad):.1f}d"
+        return "?"
+
+    def _cell(r):
+        nm = str(r.get("tbl") or "--")[:24]
+        role = str(r.get("role") or "NORM")
+        st = r.get("st", "ok")
+        ok = st == "ok"
+        ic = G if ok else (Y if st == "empty" else R)
+        ii = "✓" if ok else ("−" if st == "empty" else "✗")
+        rc_style = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
+        age = _age_fmt_f(r)
+        return Text.from_markup(
+            f"[{ic}]{ii}[/][{rc_style}]{role[:4]}[/][dim] {nm}[/] [{ic}]{age}[/]"
+        )
+
+    mid = (len(sorted_items) + 1) // 2
+    left_items = sorted_items[:mid]
+    right_items = sorted_items[mid:]
+
+    tbl = Table.grid(padding=(0, 2), expand=True)
+    tbl.add_column("left", ratio=1)
+    tbl.add_column("right", ratio=1)
+
+    for i, left_r in enumerate(left_items):
+        right_r = right_items[i] if i < len(right_items) else None
+        tbl.add_row(_cell(left_r), _cell(right_r) if right_r else Text(""))
+
+    return Panel(
+        Group(summary, tbl),
+        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] full view[/]",
         border_style="yellow",
         padding=(0, 1),
     )
