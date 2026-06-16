@@ -125,7 +125,7 @@ class DailyFinanceReport:
                 return {}
 
             return {
-                "sharpe": round(float(row[0]), 4) if row[0] else None,
+                "sharpe_ytd": round(float(row[0]), 4) if row[0] else None,
                 "sortino": round(float(row[1]), 4) if row[1] else None,
                 "max_drawdown_pct": round(float(row[2]), 2) if row[2] else None,
                 "calmar": round(float(row[3]), 4) if row[3] else None,
@@ -364,11 +364,11 @@ class DailyFinanceReport:
         risk = report.get("risk", {})
         var_95 = risk.get("var_95_pct")
         if var_95 is None:
-            logger.critical(
-                f"VaR 95% unavailable for {report['date']} - cannot assess daily risk threshold"
+            logger.warning(
+                f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline"
             )
             warnings.append(
-                "🔴 CRITICAL: VaR 95% missing - cannot assess daily risk. Manually verify before trading."
+                "VaR 95% not yet available - check algo_performance_metrics pipeline"
             )
         elif var_95 > 2.0:
             warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")

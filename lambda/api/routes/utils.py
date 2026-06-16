@@ -317,7 +317,7 @@ def check_data_freshness(
         Dict with data_age_days, is_stale, max_date, warning
     """
     if warning_days is None:
-        from ..utils.config import get_config
+        from api_utils.config import get_config
 
         config = get_config()
         warning_days = max(1, int(config.data_freshness_max_hours / 24))

@@ -149,47 +149,55 @@ function ServiceHealthContent() {
         )}
       </div>
 
-      {/* Two-column: data sources + recent patrol findings */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="card-title">Data Sources ({sources.length})</div>
-              <div className="card-sub">Per-table freshness · loader role · age</div>
-            </div>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {isLoading ? <Empty title="Loading…" /> : sources.length === 0 ? <Empty title="No data" /> : (
-              <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Table</th>
-                      <th className="num">Latest</th>
-                      <th className="num">Age</th>
-                      <th className="num">Rows</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sources.map((s, i) => (
-                      <tr key={i}>
-                        <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{s.name}</span></td>
-                        <td className="num mono t-xs">{s.last_updated ? String(s.last_updated).slice(0, 10) : '—'}</td>
-                        <td className={`num mono ${s.age_hours > 168 ? 'down' : ''}`}>{s.age_hours != null ? `${s.age_hours}h` : '—'}</td>
-                        <td className="num mono t-xs muted">{s.row_count ? Number(s.row_count).toLocaleString('en-US') : '—'}</td>
-                        <td>
-                          <span className={`badge ${STATUS_VARIANT[s.status] || 'badge'}`}>{(s.status || '').toUpperCase()}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Data Sources — full width so all tables are visible */}
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Data Sources ({sources.length})</div>
+            <div className="card-sub">Per-table freshness · loader role · age</div>
           </div>
         </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {isLoading ? <Empty title="Loading…" /> : sources.length === 0 ? <Empty title="No data" /> : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Table</th>
+                    <th>Role</th>
+                    <th className="num">Latest</th>
+                    <th className="num">Age</th>
+                    <th className="num">Rows</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((s, i) => (
+                    <tr key={i}>
+                      <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{s.name}</span></td>
+                      <td>
+                        <span className={`badge ${s.role === 'CRIT' ? 'badge-danger' : s.role === 'IMP' ? 'badge-amber' : 'badge'}`}
+                              style={{ fontSize: 'var(--t-2xs)' }}>
+                          {s.role || 'NORM'}
+                        </span>
+                      </td>
+                      <td className="num mono t-xs">{s.last_updated ? String(s.last_updated).slice(0, 10) : '—'}</td>
+                      <td className={`num mono ${s.age_hours > 168 ? 'down' : ''}`}>{s.age_hours != null ? `${s.age_hours}h` : '—'}</td>
+                      <td className="num mono t-xs muted">{s.row_count ? Number(s.row_count).toLocaleString('en-US') : '—'}</td>
+                      <td>
+                        <span className={`badge ${STATUS_VARIANT[s.status] || 'badge'}`}>{(s.status || '').toUpperCase()}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
 
+      {/* Two-column: patrol findings + orchestrator run status */}
+      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card">
           <div className="card-head">
             <div>
@@ -203,7 +211,7 @@ function ServiceHealthContent() {
             ) : findings.length === 0 ? (
               <Empty title="All clear" desc="No recent patrol findings." icon={CheckCircle} />
             ) : (
-              <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+              <div style={{ maxHeight: '400px', overflow: 'auto' }}>
                 {findings.map((f, i) => (
                   <FindingRow key={i} finding={f} />
                 ))}
@@ -211,40 +219,39 @@ function ServiceHealthContent() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* Algo run status panel */}
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card-head">
-          <div>
-            <div className="card-title">Last Orchestrator Run</div>
-            <div className="card-sub">Phase results from the most recent algo workflow execution</div>
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Last Orchestrator Run</div>
+              <div className="card-sub">Phase results from the most recent algo workflow execution</div>
+            </div>
           </div>
-        </div>
-        <div className="card-body">
-          {status ? (
-            <div className="grid grid-4">
-              <div className="stile">
-                <div className="stile-label">Last Run</div>
-                <div className="stile-value">{status.last_run ? fmtAgo(status.last_run) : '—'}</div>
-                <div className="stile-sub">{status.run_id || '—'}</div>
-              </div>
-              <div className="stile">
-                <div className="stile-label">Status</div>
-                <div className={`stile-value ${status.status === 'success' ? 'up' : 'down'}`}>
-                  {(status.status || 'UNKNOWN').toUpperCase()}
+          <div className="card-body">
+            {status ? (
+              <div className="grid grid-2">
+                <div className="stile">
+                  <div className="stile-label">Last Run</div>
+                  <div className="stile-value">{status.last_run ? fmtAgo(status.last_run) : '—'}</div>
+                  <div className="stile-sub">{status.run_id || '—'}</div>
+                </div>
+                <div className="stile">
+                  <div className="stile-label">Status</div>
+                  <div className={`stile-value ${status.status === 'success' ? 'up' : 'down'}`}>
+                    {(status.status || 'UNKNOWN').toUpperCase()}
+                  </div>
+                </div>
+                <div className="stile">
+                  <div className="stile-label">Current Phase</div>
+                  <div className="stile-value">{status.current_phase || '—'}</div>
+                </div>
+                <div className="stile">
+                  <div className="stile-label">Open Positions</div>
+                  <div className="stile-value">{status.portfolio?.open_positions ?? '—'}</div>
                 </div>
               </div>
-              <div className="stile">
-                <div className="stile-label">Current Phase</div>
-                <div className="stile-value">{status.current_phase || '—'}</div>
-              </div>
-              <div className="stile">
-                <div className="stile-label">Open Positions</div>
-                <div className="stile-value">{status.portfolio?.open_positions ?? '—'}</div>
-              </div>
-            </div>
-          ) : <Empty title="No status yet" desc="Algo orchestrator hasn't reported a run." />}
+            ) : <Empty title="No status yet" desc="Algo orchestrator hasn't reported a run." />}
+          </div>
         </div>
       </div>
     </div>

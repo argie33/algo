@@ -171,23 +171,23 @@ function PortfolioDashboardPage() {
     ['algo-equity-curve'],
     () => api.get('/api/algo/equity-curve?limit=180'),
   );
-  const { data: breakers, loading: breakersLoading, error: _breakersError, refetch: refetchBreakers } = useApiQuery(
+  const { data: breakers, loading: breakersLoading, error: breakersError, refetch: refetchBreakers } = useApiQuery(
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
   );
-  const { data: returnHistogram, loading: histogramLoading, error: _histogramError, refetch: refetchHistogram } = useApiQuery(
+  const { data: returnHistogram, loading: histogramLoading, error: histogramError, refetch: refetchHistogram } = useApiQuery(
     ['algo-daily-return-histogram'],
     () => api.get('/api/algo/daily-return-histogram'),
   );
-  const { data: tradeDistribution, loading: distLoading, error: _distError, refetch: refetchDistribution } = useApiQuery(
+  const { data: tradeDistribution, loading: distLoading, error: distError, refetch: refetchDistribution } = useApiQuery(
     ['algo-trade-distribution'],
     () => api.get('/api/algo/trade-distribution'),
   );
-  const { data: holdingDistribution, loading: holdingLoading, error: _holdingError, refetch: refetchHolding } = useApiQuery(
+  const { data: holdingDistribution, loading: holdingLoading, error: holdingError, refetch: refetchHolding } = useApiQuery(
     ['algo-holding-period-distribution'],
     () => api.get('/api/algo/holding-period-distribution'),
   );
-  const { data: stageDistribution, loading: stageLoading, error: _stageError, refetch: refetchStage } = useApiQuery(
+  const { data: stageDistribution, loading: stageLoading, error: stageError, refetch: refetchStage } = useApiQuery(
     ['algo-stage-distribution'],
     () => api.get('/api/algo/stage-distribution'),
   );
@@ -255,7 +255,11 @@ function PortfolioDashboardPage() {
     (tradesError && !hasCachedTrades ? tradesError : null) || (tradesDataError && !hasCachedTrades ? tradesDataError : null),
     marketsError || marketsDataError,
     (equityError && !hasCachedEquity ? equityError : null) || (equityDataError && !hasCachedEquity ? equityDataError : null),
-    _breakersError,
+    breakersError,
+    histogramError,
+    distError,
+    holdingError,
+    stageError,
   ];
   const hasAnyError = criticalErrors.some(err => err);
   const errorList = [];
@@ -265,7 +269,11 @@ function PortfolioDashboardPage() {
   if ((tradesError && !hasCachedTrades) || (tradesDataError && !hasCachedTrades)) errorList.push({ section: 'Recent Trades', error: tradesError || tradesDataError });
   if (marketsError || marketsDataError) errorList.push({ section: 'Markets', error: marketsError || marketsDataError });
   if ((equityError && !hasCachedEquity) || (equityDataError && !hasCachedEquity)) errorList.push({ section: 'Equity Curve', error: equityError || equityDataError });
-  if (_breakersError) errorList.push({ section: 'Circuit Breakers', error: _breakersError });
+  if (breakersError) errorList.push({ section: 'Circuit Breakers', error: breakersError });
+  if (histogramError) errorList.push({ section: 'Return Histogram', error: histogramError });
+  if (distError) errorList.push({ section: 'Trade Distribution', error: distError });
+  if (holdingError) errorList.push({ section: 'Holding Period', error: holdingError });
+  if (stageError) errorList.push({ section: 'Stage Distribution', error: stageError });
 
   // Show stale data banner (but not as error — just informational)
   const staleSections = [];
@@ -471,7 +479,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Circuit breakers */}
-      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} error={_breakersError} />
+      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} error={breakersError} />
 
       {/* Equity curve + Drawdown chart */}
       {equityDataError && !hasCachedEquity ? (
@@ -498,28 +506,14 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Daily-return histogram + Trade outcome distribution */}
-      {tradesDataError && !hasCachedTrades ? (
-        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
-              <div>
-                <div style={{ fontWeight: 'var(--w-semibold)' }}>Trade Analytics Unavailable</div>
-                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{tradesDataError}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-          <ErrorBoundary>
-            <DailyReturnHistogram histogram_data={returnHistogram} loading={isPrimaryLoading} />
-          </ErrorBoundary>
-          <ErrorBoundary>
-            <TradeDistribution distribution_data={tradeDistribution} loading={isPrimaryLoading} />
-          </ErrorBoundary>
-        </div>
-      )}
+      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+        <ErrorBoundary>
+          <DailyReturnHistogram histogram_data={returnHistogram} loading={isPrimaryLoading} error={histogramError} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <TradeDistribution distribution_data={tradeDistribution} loading={isPrimaryLoading} error={distError} />
+        </ErrorBoundary>
+      </div>
 
       {/* R-multiple ladder */}
       <ErrorBoundary>
@@ -537,7 +531,7 @@ function PortfolioDashboardPage() {
           <SectorConcentration sector_allocation={sectorAllocation} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <StagePhaseDonut distribution={stageDistribution} loading={isPrimaryLoading} />
+          <StagePhaseDonut distribution={stageDistribution} loading={isPrimaryLoading} error={stageError} />
         </ErrorBoundary>
       </div>
 
@@ -604,7 +598,7 @@ function PortfolioDashboardPage() {
           </div>
 
           <ErrorBoundary>
-            <HoldingPeriodHistogram holding_data={holdingDistribution} />
+            <HoldingPeriodHistogram holding_data={holdingDistribution} error={holdingError} />
           </ErrorBoundary>
         </div>
       )}
@@ -961,7 +955,7 @@ function DrawdownChart({ series, loading }) {
 }
 
 // ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
-function DailyReturnHistogram({ histogram_data, loading }) {
+function DailyReturnHistogram({ histogram_data, loading, error }) {
   const { buckets, stats } = useMemo(() => {
     if (!histogram_data) return { buckets: [], stats: null };
     return { buckets: histogram_data.buckets || [], stats: histogram_data.stats || null };
@@ -983,6 +977,14 @@ function DailyReturnHistogram({ histogram_data, loading }) {
         {loading ? (
           <div style={{ height: 220 }}>
             <SkeletonChart />
+          </div>
+        ) : error ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', padding: 'var(--space-4) 0' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 'var(--w-semibold)' }}>Return histogram unavailable</div>
+              <div className="muted t-xs" style={{ marginTop: 2 }}>{formatErrorDetail(error)}</div>
+            </div>
           </div>
         ) : buckets.length === 0 ? (
           <Empty title="No daily-return data yet" desc="Returns build once the algo has trading history." />
@@ -1013,7 +1015,7 @@ function DailyReturnHistogram({ histogram_data, loading }) {
 }
 
 // ─── Trade outcome distribution ────────────────────────────────────────────
-function TradeDistribution({ distribution_data, loading }) {
+function TradeDistribution({ distribution_data, loading, error }) {
   const buckets = useMemo(() => {
     if (!distribution_data) return [];
     return distribution_data.buckets || [];
@@ -1031,6 +1033,14 @@ function TradeDistribution({ distribution_data, loading }) {
         {loading ? (
           <div style={{ height: 220 }}>
             <SkeletonChart />
+          </div>
+        ) : error ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', padding: 'var(--space-4) 0' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 'var(--w-semibold)' }}>Trade distribution unavailable</div>
+              <div className="muted t-xs" style={{ marginTop: 2 }}>{formatErrorDetail(error)}</div>
+            </div>
           </div>
         ) : buckets.length === 0 ? (
           <Empty title="No closed trades yet" desc="Trade distribution will appear after the first trade closes." />
@@ -1058,7 +1068,7 @@ function TradeDistribution({ distribution_data, loading }) {
 }
 
 // ─── Holding period histogram ──────────────────────────────────────────────
-function HoldingPeriodHistogram({ holding_data }) {
+function HoldingPeriodHistogram({ holding_data, error }) {
   const buckets = useMemo(() => {
     if (!holding_data || typeof holding_data !== 'object') return [];
     return Array.isArray(holding_data.buckets) ? holding_data.buckets : [];
@@ -1073,7 +1083,15 @@ function HoldingPeriodHistogram({ holding_data }) {
         </div>
       </div>
       <div className="card-body">
-        {buckets.length === 0 ? (
+        {error ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', padding: 'var(--space-4) 0' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 'var(--w-semibold)' }}>Holding period data unavailable</div>
+              <div className="muted t-xs" style={{ marginTop: 2 }}>{formatErrorDetail(error)}</div>
+            </div>
+          </div>
+        ) : buckets.length === 0 ? (
           <Empty title="No closed trades yet" desc="Holding period distribution will appear after trades close." />
         ) : (
           <div style={{ height: '240px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
@@ -1296,7 +1314,7 @@ function SectorConcentration({ sector_allocation, loading }) {
 }
 
 // ─── Stage phase donut ─────────────────────────────────────────────────────
-function StagePhaseDonut({ distribution, loading }) {
+function StagePhaseDonut({ distribution, loading, error }) {
   const data = useMemo(() => {
     if (!distribution || typeof distribution !== 'object') return [];
     const distArray = Array.isArray(distribution.distribution) ? distribution.distribution : [];
@@ -1324,6 +1342,14 @@ function StagePhaseDonut({ distribution, loading }) {
       <div className="card-body">
         {loading ? (
           <SkeletonChartContent />
+        ) : error ? (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', padding: 'var(--space-4) 0' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 'var(--w-semibold)' }}>Stage distribution unavailable</div>
+              <div className="muted t-xs" style={{ marginTop: 2 }}>{formatErrorDetail(error)}</div>
+            </div>
+          </div>
         ) : data.length === 0 ? (
           <Empty title="No stage data" desc="Positions need trend_template_data coverage." />
         ) : (
@@ -1493,17 +1519,20 @@ DrawdownChart.propTypes = {
 };
 
 DailyReturnHistogram.propTypes = {
-  series: PropTypes.array,
+  histogram_data: PropTypes.object,
   loading: PropTypes.bool,
+  error: PropTypes.object,
 };
 
 TradeDistribution.propTypes = {
-  trades: PropTypes.array,
+  distribution_data: PropTypes.object,
   loading: PropTypes.bool,
+  error: PropTypes.object,
 };
 
 HoldingPeriodHistogram.propTypes = {
-  trades: PropTypes.array,
+  holding_data: PropTypes.object,
+  error: PropTypes.object,
 };
 
 RLadderPanel.propTypes = {
@@ -1528,6 +1557,7 @@ SectorConcentration.propTypes = {
 StagePhaseDonut.propTypes = {
   distribution: PropTypes.object,
   loading: PropTypes.bool,
+  error: PropTypes.object,
 };
 
 PositionHealthTable.propTypes = {

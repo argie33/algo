@@ -157,7 +157,8 @@ class SignalTradePerformancePopulator:
                                         / float(entry_price * entry_qty)
                                     )
                                     if (
-                                        entry_price
+                                        pnl_dollars is not None
+                                        and entry_price
                                         and entry_qty
                                         and entry_price * entry_qty != 0
                                     )

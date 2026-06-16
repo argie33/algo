@@ -24,7 +24,6 @@
  *  17. Distribution Days Timeline (last 25 sessions, colored bars)
  *  18. Sentiment Composite (Fear & Greed gauge + AAII spread)
  *  19. Economic Calendar (next 7 days)
- *  20. Earnings Calendar (this week)
  */
 
 import React, { useEffect, useState, useMemo } from 'react';

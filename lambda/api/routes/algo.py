@@ -2326,7 +2326,7 @@ def _trigger_data_patrol() -> Dict:
         try:
             ecs.describe_task_definition(taskDefinition=task_def_arn)
             logger.info(f"Patrol task definition validated: {task_def_arn}")
-        except ecs.exceptions.ClientError as desc_err:
+        except ClientError as desc_err:
             if desc_err.response["Error"]["Code"] == "ClientException":
                 logger.error(f"Patrol task definition not found: {task_def_arn}")
                 return error_response(
@@ -4762,26 +4762,30 @@ def _get_market_sentiment(cur) -> Dict:
 
 @db_route_handler("get trend criteria")
 def _get_trend_criteria(cur) -> Dict:
-    """Return trend criteria analysis with passing count."""
+    """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
-        SELECT COUNT(*) as total_symbols
+        SELECT
+            COUNT(*) as total_symbols,
+            COUNT(*) FILTER (WHERE price_above_sma50 = true) as above_sma50,
+            COUNT(*) FILTER (WHERE sma50_above_sma200 = true) as sma50_above_sma200,
+            COUNT(*) FILTER (WHERE price_above_sma200 = true) as above_sma200,
+            COUNT(*) FILTER (WHERE weinstein_stage = 2) as stage2
         FROM trend_template_data
         WHERE date = (SELECT MAX(date) FROM trend_template_data)
     """)
-    total_row = cur.fetchone()
-    total_symbols = safe_int(total_row["total_symbols"]) if total_row else 0
-
-    if total_symbols == 0:
+    row = cur.fetchone()
+    if not row or safe_int(row["total_symbols"]) == 0:
         return error_response(503, "no_data", "Trend template data not yet available")
 
+    total_symbols = safe_int(row["total_symbols"])
     criteria = [
-        {"name": "Price Above 50-Day", "passing": round(total_symbols * 0.75)},
-        {"name": "50-Day Above 200-Day", "passing": round(total_symbols * 0.65)},
-        {"name": "Price Above 200-Day", "passing": round(total_symbols * 0.60)},
-        {"name": "Volume Surge (>30%)", "passing": round(total_symbols * 0.45)},
+        {"name": "Price Above 50-Day MA", "passing": safe_int(row["above_sma50"]), "total": total_symbols},
+        {"name": "50-Day Above 200-Day MA", "passing": safe_int(row["sma50_above_sma200"]), "total": total_symbols},
+        {"name": "Price Above 200-Day MA", "passing": safe_int(row["above_sma200"]), "total": total_symbols},
+        {"name": "Stage 2 Uptrend (Weinstein)", "passing": safe_int(row["stage2"]), "total": total_symbols},
     ]
 
-    return json_response(200, {"criteria": criteria})
+    return json_response(200, {"criteria": criteria, "total_symbols": total_symbols})
 
 
 @db_route_handler("get performance metrics endpoint")

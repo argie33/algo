@@ -52,14 +52,12 @@ def get_price_coverage(cur) -> Dict[str, Any]:
         if not row:
             return error_response(500, "no_data_error", "No price data available")
 
-        (
-            total_symbols,
-            sp500_total,
-            latest_date,
-            total_rows,
-            zero_vol,
-            invalid_prices,
-        ) = row
+        total_symbols = row["total_symbols"]
+        sp500_total = row["sp500_total"]
+        latest_date = row["latest_date"]
+        total_rows = row["total_rows"]
+        zero_vol = row["zero_vol"]
+        invalid_prices = row["invalid_prices"]
 
         days_stale = (_date.today() - latest_date).days if latest_date else 999
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
@@ -170,7 +168,9 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
             WHERE date > NOW() - INTERVAL '7 days'
         """)
 
-        mh_date, mh_rows = cur.fetchone()
+        mh_row = cur.fetchone()
+        mh_date = mh_row["latest_date"] if mh_row else None
+        mh_rows = mh_row["rows"] if mh_row else 0
 
         # Economic data (FRED) — uses series_id not symbol
         cur.execute("""
@@ -179,7 +179,9 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
             WHERE date > NOW() - INTERVAL '30 days'
         """)
 
-        econ_date, econ_count = cur.fetchone()
+        econ_row = cur.fetchone()
+        econ_date = econ_row["latest_date"] if econ_row else None
+        econ_count = econ_row["indicators"] if econ_row else 0
 
         return success_response(
             {

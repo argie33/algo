@@ -94,7 +94,7 @@ export default function TradingSignals() {
 
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
-  const { data, loading: dataLoading, refetch, isFetching } = useApiQuery(
+  const { data, loading: dataLoading, error: dataError, refetch, isFetching } = useApiQuery(
     ['signals', tab, signal, timeframe, limit],
     () => {
       const params = new URLSearchParams();
@@ -298,6 +298,23 @@ export default function TradingSignals() {
           }}>{lbl} {tab === v && <span className="badge mono tnum" style={{ marginLeft: 6 }}>{rows.length}</span>}</button>
         ))}
       </div>
+
+      {/* Error banner when signals API fails */}
+      {dataError && (
+        <div className="card" style={{ background: 'rgba(239, 68, 68, 0.08)', borderLeft: '3px solid var(--danger)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ padding: 'var(--space-3)', display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
+            <span style={{ color: 'var(--danger)', fontWeight: 'var(--w-semibold)', fontSize: 'var(--t-sm)' }}>
+              Signals API error
+            </span>
+            <span className="muted t-sm">
+              {dataError?.responseData?.message || dataError?.message || `HTTP ${dataError?.status || 'unknown'}`}
+            </span>
+            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => refetch()}>
+              <RefreshCw size={12} /> Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Enhanced KPI strip */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-3)' }}>

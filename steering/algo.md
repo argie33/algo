@@ -1,6 +1,6 @@
 # Stock Analytics Platform: Algo
 
-Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. Up to 12 concurrent positions. Reconciles with Alpaca daily.
+Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. Up to 15 concurrent positions. Reconciles with Alpaca daily.
 
 ## System Map
 

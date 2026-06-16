@@ -227,14 +227,20 @@ class DatabaseContext:
                 # Only close connections we acquired (not pooled context connections)
                 if exc_type is None and self.role == "write":
                     self.conn.commit()
-                elif exc_type is not None:
+                else:
+                    # Always rollback for:
+                    # - Any exception (clears aborted transaction)
+                    # - Read connections with no exception (clears any internally-caught
+                    #   sub-query failures that left the connection in an aborted state;
+                    #   without this, the broken connection goes back to the pool and
+                    #   poisons the next request with InFailedSqlTransaction errors)
                     self.conn.rollback()
                 self.conn.close()
             elif self.conn and self._externally_managed:
                 # Still commit/rollback, but don't close the connection
                 if exc_type is None and self.role == "write":
                     self.conn.commit()
-                elif exc_type is not None:
+                else:
                     self.conn.rollback()
                 logger.debug(
                     "[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)"
