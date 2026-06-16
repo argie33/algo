@@ -372,8 +372,8 @@ def render_dashboard(
         )
 
     outer["top"].split_row(
-        Layout(name="hdr", ratio=2),
-        Layout(name="exposure", ratio=3),
+        Layout(name="hdr", ratio=3),
+        Layout(name="exposure", ratio=2),
         Layout(name="mascot", size=MASCOT_W),
     )
     outer["top"]["hdr"].update(hdr_panel)

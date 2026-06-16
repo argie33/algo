@@ -746,8 +746,8 @@ def panel_header_market(
         spy_s = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(
             Text.from_markup(
-                f"[{tc}][bold]{lbl}[/]  [dim]exp[/][{tc}]{exp_s}[/]{bar}  "
-                f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
+                f"[{tc}][bold]{lbl}[/]  [dim]Exposure[/][{tc}]{exp_s}[/]{bar}  "
+                f"VIX:[{vc}]{vix}[/]  [dim]Distribution Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
         upvol = mkt.get("upvol")
@@ -763,19 +763,19 @@ def panel_header_market(
                 else DIM
             )
             adr_s = (
-                f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
+                f"  [dim]Adv/Dec Ratio:[/][white]{float(adr or 0):.1f}[/]"
                 if adr is not None
                 else ""
             )
             nhnl_s = (
-                f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
+                f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
                 if nhnl is not None
-                else "[dim]NH-NL: --[/]"
+                else "[dim]New Hi-Lo: --[/]"
             )
             rows.append(
                 Text.from_markup(
-                    f"[dim]Up Vol:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
-                    f"[dim]NH:[/][{G}]{str(nh or '--')}[/] [dim]NL:[/][{R}]{str(nl or '--')}[/]  "
+                    f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
+                    f"[dim]New High:[/][{G}]{str(nh or '--')}[/] [dim]New Low:[/][{R}]{str(nl or '--')}[/]  "
                     f"{nhnl_s}"
                 )
             )
@@ -791,7 +791,7 @@ def panel_header_market(
             parts4.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
-            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
+            parts4.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
@@ -862,88 +862,72 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
-    if max_n:
-        _sb = mini_bar(npos, max_n, w=5)
-        pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
-    else:
-        pos_s = f"[dim]Pos:[/][white]{npos}[/]"
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
-    rows: list = []
+    # Header: portfolio value + age
+    header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 
-    # Line 1: portfolio value + snapshot age
-    rows.append(Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}"))
+    # 2-column grid — keeps labels from wrapping
+    def cell(label, value_markup):
+        return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
-    # Line 2: cash + open positions
-    rows.append(
-        Text.from_markup(
-            f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  "
-            f"{pos_s}"
-        )
+    tbl = Table.grid(padding=(0, 2), expand=True)
+    tbl.add_column("left", ratio=1)
+    tbl.add_column("right", ratio=1)
+
+    # Cash / Positions
+    if max_n:
+        _sb = mini_bar(npos, max_n, w=4)
+        pos_val = f"{_sb}[dim]{npos}/{max_n}[/]"
+    else:
+        pos_val = f"[white]{npos}[/]"
+    tbl.add_row(
+        cell("Cash:", f"[white]{fmt_money(cash)}[/]"),
+        cell("Positions:", pos_val),
     )
 
-    # Line 3: daily return + unrealized P&L
-    dr_s = (
-        f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]"
-        if dr is not None
-        else "[dim]--[/]"
-    )
-    urp_s = (
-        f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
-        if urp is not None
-        else "[dim]--[/]"
-    )
-    rows.append(Text.from_markup(f"[dim]Day:[/] {dr_s}  " f"[dim]Unrealized:[/] {urp_s}"))
+    # Daily return / Unrealized P&L
+    dr_s = f"[{G if (dr or 0) >= 0 else R}]{sign(dr or 0)}{(dr or 0):.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if (urp or 0) >= 0 else R}]{sign(urp or 0)}{(urp or 0):.2f}%[/]" if urp is not None else "[dim]--[/]"
+    tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
-    # Line 4: cumulative return + max drawdown (always show, "--" when missing)
+    # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
     cc = G if (cum_v or 0) >= 0 else R
-    cum_s = (
-        f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]"
-        if cum_v is not None
-        else "[dim]Total Return:[/] [dim]--[/]"
-    )
+    cum_val = f"[{cc}]{sign(cum_v or 0)}{(cum_v or 0):.2f}%[/]" if cum_v is not None else "[dim]--[/]"
     dd_v = abs(mxdd_v) if mxdd_v is not None else None
     dd_c = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
-    mxdd_s = (
-        f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]"
-        if dd_v is not None
-        else "[dim]MaxDD:[/] [dim]--[/]"
-    )
-    rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
+    dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
+    tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
-    # Line 5: largest position concentration (when available)
+    # Largest position (only if available)
     if lgpos is not None:
         lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")
-        rows.append(
-            Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]")
+        tbl.add_row(
+            cell("Largest Position:", f"[{lp_c}]{float(lgpos):.1f}%[/]"),
+            Text(""),
         )
 
-    # VaR metrics (compact one-liner)
-    if (
-        risk
-        and not risk.get("_error")
-        and risk.get("var95")
-        and float(risk.get("var95") or 0) > 0
-    ):
-        beta_c = (
-            R
-            if (risk.get("beta") or 0) >= 1.2
-            else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+    # Risk metrics (VaR, CVaR, Beta, concentration)
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+        var_v = risk.get("var95") or 0
+        cvar_v = risk.get("cvar95") or 0
+        beta_v = risk.get("beta") or 0
+        conc5_v = risk.get("conc5") or 0
+        var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
+        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
+        tbl.add_row(
+            cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
+            cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
         )
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
-        rows.append(
-            Text.from_markup(
-                f"[dim]VaR:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]  "
-                f"[dim]CVaR:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]  "
-                f"[dim]β:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]  "
-                f"[dim]Top5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]"
-            )
+        tbl.add_row(
+            cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
+            cell("Top 5 Concentration:", f"[white]{conc5_v:.0f}%[/]"),
         )
 
     return Panel(
-        Group(*rows),
+        Group(header, tbl),
         title="[bold green]PORTFOLIO[/]  [dim][f] expand[/]",
         border_style="green",
         padding=(0, 1),
@@ -1011,8 +995,6 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
     wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    dd_v = perf.get("maxdd") or 0
-    dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
@@ -1020,32 +1002,94 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
-    rows = [
-        Text.from_markup(
-            f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
-            f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
-            f"[dim]WR:[/][{G if wr_v >= 45 else (Y if wr_v >= 40 else R)}]{wr_v:.1f}%{f' (+{losing_open} open L)' if losing_open > 0 else ''}[/]  "
-            f"[{str_c}]{str_s}[/]  "
-            f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
-        ),
-        Text.from_markup(
-            f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
-            + (f"  [dim]Unrealized:[/][{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]" if unrlzd is not None else "")
-            + f"  [dim]Profit Factor:[/][{pf_c}]{pf_s}[/]  "
-            f"[dim]Sharpe:[/][white]{sharpe_s}[/]  "
-            f"[dim]Expectancy:[/][{exp_c}]{exp_s}[/]"
-        ),
-        Text.from_markup(
-            f"[dim]Avg Win:[/][{G}]{avg_win_s}[/]  "
-            f"[dim]Avg Loss:[/][{R}]{avg_loss_s}[/]"
-        ),
-    ]
+    wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
+    open_l_s = f" [dim](+{losing_open} open)[/]" if losing_open > 0 else ""
+
+    # Header line: trade summary
+    header = Text.from_markup(
+        f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
+        f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
+        f"[dim]Win Rate:[/][{wrc}]{wr_v:.1f}%[/]{open_l_s}  "
+        f"[{str_c}]{str_s} streak[/]"
+    )
+
+    # 2-column grid for metrics so labels don't wrap
+    def cell(label, value_markup):
+        return Text.from_markup(f"[dim]{label}[/] {value_markup}")
+
+    tbl = Table.grid(padding=(0, 2), expand=True)
+    tbl.add_column("left", ratio=1)
+    tbl.add_column("right", ratio=1)
+
+    grid_rows = []
+
+    # P&L row
+    pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
+    if unrlzd is not None:
+        unrlzd_s = f"[{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]"
+        grid_rows.append((cell("Realized P&L:", pnl_s), cell("Unrealized P&L:", unrlzd_s)))
+    else:
+        grid_rows.append((cell("Realized P&L:", pnl_s), Text("")))
+
+    # Ratios row
+    grid_rows.append((
+        cell("Profit Factor:", f"[{pf_c}]{pf_s}[/]"),
+        cell("Sharpe Ratio:", f"[white]{sharpe_s}[/]"),
+    ))
+
+    # Expectancy + avg win/loss row
+    grid_rows.append((
+        cell("Expectancy (R):", f"[{exp_c}]{exp_s}[/]"),
+        cell("Avg Win / Loss:", f"[{G}]{avg_win_s}[/][dim]/[/][{R}]{avg_loss_s}[/]"),
+    ))
+
+    # Rolling analytics
+    if perf_anl and not perf_anl.get("_error"):
+        sharpe252 = perf_anl.get("sharpe252")
+        sortino = perf_anl.get("sortino")
+        calmar = perf_anl.get("calmar")
+        wr50 = perf_anl.get("wr50")
+        avg_w_r = perf_anl.get("avg_w_r")
+        avg_l_r = perf_anl.get("avg_l_r")
+
+        if sharpe252 is not None and sharpe252 != 0.0 and sortino is not None and sortino != 0.0:
+            sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
+            sc2 = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
+            grid_rows.append((
+                cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"),
+                cell("Sortino Ratio:", f"[{sc2}]{sortino:.2f}[/]"),
+            ))
+        elif sharpe252 is not None and sharpe252 != 0.0:
+            sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
+            grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
+
+        total_trades = perf.get("n", 0) if perf else 0
+        calmar_cell = None
+        wr50_cell = None
+        if calmar is not None and calmar != 0.0:
+            cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
+            calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
+        if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
+            wc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
+            wr50_cell = cell("Win Rate (50 trades):", f"[{wc}]{wr50:.0f}%[/]")
+        if calmar_cell is not None or wr50_cell is not None:
+            grid_rows.append((calmar_cell or Text(""), wr50_cell or Text("")))
+
+        if avg_w_r is not None or avg_l_r is not None:
+            aw = cell("Avg Win (R-mult):", f"[{G}]{avg_w_r:.2f}R[/]") if avg_w_r is not None else Text("")
+            al = cell("Avg Loss (R-mult):", f"[{R}]{avg_l_r:.2f}R[/]") if avg_l_r is not None else Text("")
+            grid_rows.append((aw, al))
+
+    for left, right in grid_rows:
+        tbl.add_row(left, right)
+
+    rows = [header, tbl]
 
     # Equity curve sparkline
     equity_vals = perf.get("equity_vals") or []
     if len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
-        rows.append(Text.from_markup(f"[dim]Equity:[/] {sp}"))
+        rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
     # Recent daily returns (last 5 snapshots)
     recent_rets = perf.get("recent_rets") or []
@@ -1074,39 +1118,6 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
         if parts:
             rows.append(Text.from_markup("  ".join(parts)))
-
-    # Rolling analytics from algo_performance_daily (only show if populated with non-zero values)
-    if perf_anl and not perf_anl.get("_error"):
-        anl_parts = []
-        sharpe252 = perf_anl.get("sharpe252")
-        sortino = perf_anl.get("sortino")
-        calmar = perf_anl.get("calmar")
-        wr50 = perf_anl.get("wr50")
-        if sharpe252 is not None and sharpe252 != 0.0:
-            sc = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
-            anl_parts.append(f"[dim]Sharpe (1Y):[/][{sc}]{sharpe252:.2f}[/]")
-        if sortino is not None and sortino != 0.0:
-            sc = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
-            anl_parts.append(f"[dim]Sortino:[/][{sc}]{sortino:.2f}[/]")
-        if calmar is not None and calmar != 0.0:
-            sc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
-            anl_parts.append(f"[dim]Calmar:[/][{sc}]{calmar:.2f}[/]")
-        total_trades = perf.get("n", 0) if perf else 0
-        if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
-            wrc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
-            anl_parts.append(f"[dim]Win Rate (last 50T):[/][{wrc}]{wr50:.0f}%[/]")
-        if anl_parts:
-            rows.append(Text.from_markup("  ".join(anl_parts)))
-        avg_w_r = perf_anl.get("avg_w_r")
-        avg_l_r = perf_anl.get("avg_l_r")
-        if avg_w_r is not None or avg_l_r is not None:
-            r_parts = []
-            if avg_w_r is not None:
-                r_parts.append(f"[dim]Avg Win R:[/][{G}]{avg_w_r:.2f}R[/]")
-            if avg_l_r is not None:
-                r_parts.append(f"[dim]Avg Loss R:[/][{R}]{avg_l_r:.2f}R[/]")
-            if r_parts:
-                rows.append(Text.from_markup("  ".join(r_parts)))
 
     return Panel(
         Group(*rows),

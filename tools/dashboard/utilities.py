@@ -50,11 +50,11 @@ TIER_COLOR = {
 }
 
 TIER_SHORT = {
-    "confirmed_uptrend": "CONF UP",
-    "healthy_uptrend": "HLTH UP",
+    "confirmed_uptrend": "CONFIRMED UP",
+    "healthy_uptrend": "HEALTHY UP",
     "pressure": "PRESSURE",
     "caution": "CAUTION",
-    "correction": "CORRECT",
+    "correction": "CORRECTION",
 }
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
