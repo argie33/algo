@@ -71,10 +71,10 @@ def compute_performance_metrics(cur, metric_date: date = None):
             return
 
         # Extract metrics from trades
-        pnl_dollars = [safe_float(t[0]) for t in trades]
-        pnl_pcts = [safe_float(t[1]) for t in trades]
-        [safe_float(t[2]) for t in trades if t[2] is not None]
-        holding_days_list = [safe_float(t[3]) for t in trades if t[3]]
+        pnl_dollars = [safe_float(t["profit_loss_dollars"]) for t in trades]
+        pnl_pcts = [safe_float(t["profit_loss_pct"]) for t in trades]
+        [safe_float(t["exit_r_multiple"]) for t in trades if t["exit_r_multiple"] is not None]
+        holding_days_list = [safe_float(t["holding_days"]) for t in trades if t["holding_days"]]
 
         # Basic counts
         total_trades = len(pnl_dollars)
@@ -169,8 +169,8 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if len(snapshots) < 2:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
-        vals = [safe_float(s[1]) for s in snapshots]
-        dates = [s[0] for s in snapshots]
+        vals = [safe_float(s["total_portfolio_value"]) for s in snapshots]
+        dates = [s["snapshot_date"] for s in snapshots]
 
         # Calculate daily returns
         returns = []

@@ -123,12 +123,6 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
-        from algo.infrastructure import MarketCalendar
-
-        today = datetime.now(EASTERN_TZ).date()
-        if not MarketCalendar.is_trading_day(today):
-            logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
-            return {}
         try:
             from utils.external.yfinance import YFinanceWrapper
 

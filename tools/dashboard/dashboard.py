@@ -73,7 +73,6 @@ from panels import (
     panel_signals_expanded,
     panel_algo_health_expanded,
     panel_sectors_expanded,
-    panel_scores,
     panel_scores_expanded,
     panel_trades_expanded,
     panel_economic_expanded,
@@ -372,8 +371,8 @@ def render_dashboard(
         )
 
     outer["top"].split_row(
-        Layout(name="hdr", ratio=3),
-        Layout(name="exposure", ratio=2),
+        Layout(name="hdr", ratio=1),
+        Layout(name="exposure", ratio=1),
         Layout(name="mascot", size=MASCOT_W),
     )
     outer["top"]["hdr"].update(hdr_panel)
@@ -414,9 +413,8 @@ def render_dashboard(
     )
 
     outer["pos"].split_row(
-        Layout(panel_positions(pos, compact, trades=rec), ratio=3, name="positions"),
-        Layout(panel_scores(scores), ratio=2, name="scores"),
-        Layout(panel_recent_trades(rec), ratio=2, name="recent_trades"),
+        Layout(panel_positions(pos, compact, trades=rec), ratio=5, name="positions"),
+        Layout(panel_recent_trades(rec), ratio=3, name="recent_trades"),
     )
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)
@@ -441,7 +439,7 @@ def render_dashboard(
                 Group(
                     hint,
                     Rule(style="dim"),
-                    panel_positions(pos, compact=False, trades=rec),
+                    panel_positions(pos, compact=False, trades=rec, extended=True),
                 ),
                 title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
                 border_style="cyan",

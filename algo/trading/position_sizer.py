@@ -358,7 +358,7 @@ class PositionSizer:
             return 0
         except Exception as e:
             logger.error(f"WARNING: Could not fetch position count: {e}")
-            return int(self.config.get("max_positions", 12))
+            return int(self.config.get("max_positions", 15))
 
     def get_active_positions_capital_pct(self):
         """Issue #26: Get total capital invested as % of portfolio.
@@ -446,7 +446,7 @@ class PositionSizer:
             active_positions = self.get_position_count()
             active_position_value = self.get_active_positions_value()
 
-            max_positions = self.config.get("max_positions", 12)
+            max_positions = self.config.get("max_positions", 15)
             if active_positions >= max_positions:
                 return {
                     "shares": 0,

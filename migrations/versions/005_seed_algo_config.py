@@ -18,7 +18,7 @@ _DEFAULTS = [
     # Risk Management
     ("base_risk_pct", "0.75", "float", "Base portfolio risk per trade"),
     ("max_position_size_pct", "8.0", "float", "Maximum single position size"),
-    ("max_positions", "12", "int", "Maximum concurrent positions"),
+    ("max_positions", "15", "int", "Maximum concurrent positions"),
     ("max_concentration_pct", "50.0", "float", "Max concentration in top position"),
     # Drawdown Defense
     (

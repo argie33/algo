@@ -781,6 +781,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
     cur.execute("""
             SELECT
             symbol,
+            company_name,
             quantity,
             avg_entry_price,
             current_price,
@@ -2261,7 +2262,7 @@ def _calculate_pre_trade_impact(cur, body: Dict) -> Dict:
         projected_sector_dollars = current_sector_dollars + actual_dollars
         projected_sector_pct = (projected_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
 
-        max_positions = 12
+        max_positions = 15
         available_slots = max(0, max_positions - (open_positions or 0))
         sector_warning = sector and projected_sector_pct > 30
 
@@ -3425,9 +3426,9 @@ def _get_algo_evaluate(cur) -> Dict:
                     "candidates_screened": 0,
                     "candidates_passing": 0,
                     "constraints": {
-                        "max_positions": 12,
+                        "max_positions": 15,
                         "current_positions": 0,
-                        "available_slots": 12,
+                        "available_slots": 15,
                     },
                 },
             )
@@ -3441,7 +3442,7 @@ def _get_algo_evaluate(cur) -> Dict:
         pos_row = cur.fetchone()
         open_positions = pos_row["open_positions"] if pos_row else 0
 
-        max_positions = 12  # From steering doc
+        max_positions = 15
         available_slots = max(0, max_positions - open_positions)
 
         # Sector exposure

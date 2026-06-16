@@ -3202,7 +3202,7 @@ ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DE
 -- ============================================================
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('base_risk_pct', '0.75', 'float', 'Base portfolio risk per trade', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_position_size_pct', '8.0', 'float', 'Maximum single position size', 'schema-seed') ON CONFLICT (key) DO NOTHING;
-INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_positions', '12', 'int', 'Maximum concurrent positions', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_positions', '15', 'int', 'Maximum concurrent positions', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_concentration_pct', '50.0', 'float', 'Max concentration in top position', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('halt_drawdown_pct', '20.0', 'float', 'Portfolio drawdown pct to halt trading', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('risk_reduction_at_minus_5', '0.75', 'float', 'Risk pct at -5 pct drawdown', 'schema-seed') ON CONFLICT (key) DO NOTHING;
