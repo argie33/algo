@@ -18,7 +18,7 @@ class CompanyProfileLoader(OptimalLoader):
     """Load company profiles with sector and industry from yfinance."""
 
     table_name = "company_profile"
-    primary_key = ("symbol",)
+    primary_key = ("ticker",)
     watermark_field = "created_at"
 
     def fetch_incremental(
