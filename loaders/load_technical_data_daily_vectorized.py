@@ -20,6 +20,7 @@ import os
 import time
 import threading
 from datetime import date, datetime, timedelta
+from typing import Optional
 from zoneinfo import ZoneInfo
 import pandas as pd
 from pandas.tseries.offsets import CustomBusinessDay
@@ -46,7 +47,7 @@ class VectorizedTechnicalLoader:
     def __init__(self):
         self.table_name = "technical_data_daily"
 
-    def run(self, symbols: list, since_date: date = None) -> dict:
+    def run(self, symbols: list, since_date: Optional[date] = None) -> dict:
         """Load technical indicators for all symbols vectorized.
 
         Args:
@@ -120,10 +121,10 @@ class VectorizedTechnicalLoader:
                 query = """
                     SELECT symbol, date, open, high, low, close, volume
                     FROM price_daily
-                    WHERE symbol IN ({placeholders})
+                    WHERE symbol IN ({})
                     AND date >= %s AND date <= %s
                     ORDER BY symbol, date ASC
-                """
+                """.format(placeholders)
                 cur.execute(query, symbols + [start_date, end_date])
                 rows = cur.fetchall()
 
@@ -178,10 +179,10 @@ class VectorizedTechnicalLoader:
                 symbol_df["rsi"] = compute_rsi(symbol_df["close"])
                 symbol_df["rsi_14"] = symbol_df["rsi"]
 
-                macd_dict = compute_macd(symbol_df["close"])
-                symbol_df["macd"] = macd_dict.get("macd")
-                symbol_df["macd_signal"] = macd_dict.get("signal")
-                symbol_df["macd_hist"] = macd_dict.get("histogram")
+                macd_line, signal_line = compute_macd(symbol_df["close"])
+                symbol_df["macd"] = macd_line
+                symbol_df["macd_signal"] = signal_line
+                symbol_df["macd_hist"] = macd_line - signal_line
                 symbol_df["macd_histogram"] = symbol_df["macd_hist"]
 
                 # Momentum
@@ -304,7 +305,7 @@ class VectorizedTechnicalLoader:
             logger.error(f"Failed to fetch SPY prices for Mansfield RS: {e}")
             return []
 
-    def _bulk_insert(self, df: pd.DataFrame, since_date: date = None) -> int:
+    def _bulk_insert(self, df: pd.DataFrame, since_date: Optional[date] = None) -> int:
         """Bulk insert all indicators at once using COPY (fast)."""
         if df.empty:
             return 0
@@ -390,7 +391,7 @@ class VectorizedTechnicalLoader:
             return 0
 
 
-def _update_tech_loader_status(status: str, error_message: str = None):
+def _update_tech_loader_status(status: str, error_message: Optional[str] = None) -> None:
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
