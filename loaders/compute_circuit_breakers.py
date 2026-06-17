@@ -159,10 +159,11 @@ def _compute_vix_level(cur) -> float:
     try:
         cur.execute("""
             SELECT vix_level FROM market_health_daily
+            WHERE vix_level IS NOT NULL
             ORDER BY date DESC LIMIT 1
         """)
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if not row:
             return None
         vix = safe_float(row[0])
         return round(vix, 1)
@@ -215,6 +216,7 @@ def _compute_market_stage(cur) -> int:
     try:
         cur.execute("""
             SELECT market_stage FROM market_health_daily
+            WHERE market_stage IS NOT NULL
             ORDER BY date DESC LIMIT 1
         """)
         row = cur.fetchone()
