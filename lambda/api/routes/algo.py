@@ -158,7 +158,7 @@ def _dispatch(
     # Notification mark-as-read
     if method == "PATCH" and path.endswith("/read") and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1].replace("/read", "")
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -198,7 +198,7 @@ def _dispatch(
     # Notification delete
     if method == "DELETE" and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1]
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -232,7 +232,7 @@ def _dispatch(
 
     # Data patrol trigger
     if method == "POST" and path == "/api/algo/patrol":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -290,7 +290,7 @@ def _dispatch(
     elif path == "/api/algo/data-status":
         return _get_data_status(cur)
     elif path == "/api/algo/notifications":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -299,7 +299,7 @@ def _dispatch(
             return error_response(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -368,7 +368,7 @@ def _dispatch(
     elif path == "/api/algo/config":
         return _get_algo_config(cur)
     elif path.startswith("/api/algo/config/"):
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -387,7 +387,7 @@ def _dispatch(
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -420,7 +420,7 @@ def _dispatch(
                 )
         return _get_algo_audit_log(cur, limit, offset, action_type)
     elif path == "/api/algo/execution/recent":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -433,7 +433,7 @@ def _dispatch(
         limit = safe_limit(limit_str, max_val=1000, default=50)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -444,7 +444,7 @@ def _dispatch(
         days = safe_days(days_str, default=30, max_val=90)
         return _get_orchestrator_execution_failed(cur, days)
     elif path.startswith("/api/algo/execution/details/"):
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -454,7 +454,7 @@ def _dispatch(
         run_id = path.split("/api/algo/execution/details/")[-1]
         return _get_orchestrator_execution_details(cur, run_id)
     elif path == "/api/algo/execution/patterns":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(
@@ -465,7 +465,7 @@ def _dispatch(
         days = safe_days(days_str, default=30, max_val=90)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             logger.warning(

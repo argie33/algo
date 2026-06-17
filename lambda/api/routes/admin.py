@@ -89,7 +89,7 @@ def handle(
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Require admin role for all admin endpoints (bypass in dev mode)
-        if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
+        if not _check_admin_access(
             jwt_claims
         ):
             user_id = (jwt_claims or {}).get("sub", "unknown")

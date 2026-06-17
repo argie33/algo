@@ -178,24 +178,9 @@ class CredentialManager:
     def _fetch_from_secrets_manager(self, secret_name: str) -> Optional[str]:
         """Fetch from AWS Secrets Manager. Returns None if not found.
 
-        With DEV_BYPASS_MODE enabled in local dev (not AWS), checks local cache first.
-        PRODUCTION ONLY: Fails hard if AWS is unavailable — no fallback to test credentials.
+        Always fetches from AWS Secrets Manager. Fails fast if unavailable.
+        No local caching or fallbacks — credentials must be current.
         """
-        # Check dev cache if enabled (LOCAL DEV ONLY - never in AWS)
-        dev_loader = None
-        if not self._is_aws:
-            dev_loader = _get_dev_loader()
-            if dev_loader:
-                cached = dev_loader.get_cached_secret(secret_name)
-                if cached:
-                    value = (
-                        cached
-                        if isinstance(cached, str)
-                        else cached.get("result") or str(cached)
-                    )
-                    logger.debug(f"[DEV_CACHE] Using cached secret: {secret_name}")
-                    return value
-
         try:
             client = self._get_secrets_client()
             if not client:
@@ -206,10 +191,6 @@ class CredentialManager:
             secret_value = response.get("SecretString") or response.get(
                 "SecretBinary", ""
             )
-
-            if secret_value and dev_loader:
-                # Cache successful fetch
-                dev_loader.set_cached_secret(secret_name, secret_value)
 
             return secret_value if secret_value else None
 

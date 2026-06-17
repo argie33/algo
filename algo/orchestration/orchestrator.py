@@ -135,13 +135,8 @@ class Orchestrator:
         - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
 
-        PATH_B_OVERRIDE: If BYPASS_HALT_FLAG is set, always return False to allow Phase 5/6 to run.
         """
-        # PATH_B: Bypass halt flag for proof-of-concept testing
-        if os.getenv("BYPASS_HALT_FLAG", "").lower() in ("true", "1", "yes"):
-            logger.debug("[PATH_B] BYPASS_HALT_FLAG=true — halt flag check disabled")
-            return False
-
+        
         try:
             import boto3
 
@@ -1174,23 +1169,6 @@ class Orchestrator:
 
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self._health_check_diagnostics()
-
-            # PATH_B: If bypass flags are set, run phases even in dry-run to test signal generation
-            bypass_active = any(
-                os.getenv(var, "").lower() in ("true", "1", "yes")
-                for var in [
-                    "BYPASS_PHASE1_HALT",
-                    "BYPASS_HALT_FLAG",
-                    "BYPASS_MARKET_REGIME",
-                    "BYPASS_EXPOSURE_POLICY",
-                    "BYPASS_CIRCUIT_BREAKERS",
-                ]
-            )
-            if bypass_active and self.dry_run:
-                logger.critical(
-                    "[PATH_B] Bypass flags active in dry-run — running Phase 5-6 signal generation for testing"
-                )
-
             try:
                 phase_1_start = time.time()
                 logger.info(
@@ -1217,7 +1195,7 @@ class Orchestrator:
                         "1",
                         "yes",
                     )
-                    if phase1_result.halted and not bypass_phase1:
+                    if phase1_result.halted:
                         logger.error(
                             "\nPhase 1 failed: prices not loaded or coverage insufficient."
                         )

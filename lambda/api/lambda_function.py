@@ -775,12 +775,8 @@ def require_auth(event: Dict, path: str) -> tuple:
     """
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
-    # DEV MODE: When DEV_BYPASS_AUTH is enabled, all /api endpoints are public
-    # This is ONLY for local development with --local flag on dashboard.py
-    if os.getenv("DEV_BYPASS_AUTH", "").lower() == "true":
-        PUBLIC_PREFIXES = {"/api"}  # All /api/* are public in dev mode
-    else:
-        PUBLIC_PREFIXES = {
+    PUBLIC_PREFIXES = {
+        
             "/api/health",  # Basic health check (no auth required for uptime monitoring)
             # /api/health/detailed and /api/health/pipeline intentionally require authentication
             # (they expose DB table names, loader names, row counts, freshness ages).
@@ -849,14 +845,6 @@ def require_auth(event: Dict, path: str) -> tuple:
     if not cognito_enabled:
         # SECURITY FIX S-02: Dev mode only in local development (dev_server.py), never in Lambda
         # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
-
-        # DEV_BYPASS_AUTH: Allow all requests without authentication in local dev mode
-        # This is ONLY for local development - never used in production
-        if os.getenv("DEV_BYPASS_AUTH", "").lower() == "true":
-            logger.info(
-                "[DEV_BYPASS_AUTH] Development bypass enabled - allowing request without auth"
-            )
-            return (True, True, None, None)
 
         try:
             from dev_auth import validate_dev_token

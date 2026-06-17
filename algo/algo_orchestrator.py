@@ -134,13 +134,7 @@ class Orchestrator:
         - Falls back to RDS if DynamoDB unavailable
         - Circuit breaker: if DynamoDB unavailable >3 times in 5 min, uses RDS only
         - If both unavailable: conservative fail-closed (assume halt)
-
-        PATH_B_OVERRIDE: If BYPASS_HALT_FLAG is set, always return False to allow Phase 5/6 to run.
         """
-        # PATH_B: Bypass halt flag for proof-of-concept testing
-        if os.getenv("BYPASS_HALT_FLAG", "").lower() in ("true", "1", "yes"):
-            logger.debug("[PATH_B] BYPASS_HALT_FLAG=true — halt flag check disabled")
-            return False
 
         halt_flag, reason = self.halt_flag_manager.check_halt_flag()
 

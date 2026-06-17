@@ -12,9 +12,6 @@ import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-# DEVELOPMENT MODE: Enable dev token authentication
-# Allows frontend to authenticate with Bearer dev-admin tokens without Cognito
-os.environ["DEV_BYPASS_AUTH"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 
 

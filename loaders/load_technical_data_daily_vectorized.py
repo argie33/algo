@@ -58,12 +58,10 @@ class VectorizedTechnicalLoader:
         """
         start_time = time.time()
 
-        # Determine date range
         now_utc = datetime.now(ZoneInfo("UTC"))
         now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
 
-        # Load last 300 days for moving average warmup
         start_date = end_date - timedelta(days=300)
 
         logger.info(
@@ -71,7 +69,6 @@ class VectorizedTechnicalLoader:
         )
 
         try:
-            # STEP 1: Fetch ALL price data in single query (not per-symbol)
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)
             if not all_prices:
                 logger.warning("No price data found")
@@ -81,12 +78,10 @@ class VectorizedTechnicalLoader:
                 f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols"
             )
 
-            # STEP 2: Compute indicators for ALL symbols at once (vectorized)
             indicators_df = self._compute_all_indicators_vectorized(all_prices)
 
             logger.info(f"Computed indicators: {len(indicators_df)} rows")
 
-            # STEP 3: Bulk insert ALL results in one go
             inserted = self._bulk_insert(indicators_df, since_date)
 
             duration = time.time() - start_time

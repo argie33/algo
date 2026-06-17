@@ -263,15 +263,6 @@ def lambda_handler(event, context):
             logger.warning(
                 f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway..."
             )
-
-        # Set bypass flags from event (Path B testing)
-        # E.g.: {"bypass_flags": {"BYPASS_PHASE1_HALT": "true", "BYPASS_HALT_FLAG": "true"}}
-        bypass_flags = event.get("bypass_flags", {})
-        if bypass_flags and isinstance(bypass_flags, dict):
-            for flag_name, flag_value in bypass_flags.items():
-                os.environ[flag_name] = str(flag_value).lower()
-                logger.info(f"[PATH_B] Set {flag_name}={flag_value}")
-
         # Create orchestrator instance with explicit config dependency injection
         from algo.infrastructure import get_config
 

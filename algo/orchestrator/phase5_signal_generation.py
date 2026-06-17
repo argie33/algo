@@ -48,18 +48,6 @@ def _check_market_regime(run_date: _date) -> Dict:
     """Return current market regime from market_exposure_daily."""
     import os
 
-    bypass_regime = os.getenv("BYPASS_MARKET_REGIME", "").lower() in ("true", "1", "yes")
-    if bypass_regime:
-        logger.critical(
-            "[PATH_B] BYPASS_MARKET_REGIME=true — forcing is_entry_allowed=True"
-        )
-        return {
-            "is_entry_allowed": True,
-            "exposure_pct": 100,
-            "regime": "proof_of_concept",
-            "halt_reasons": [],
-        }
-
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -352,14 +340,12 @@ def run(
         )
 
     # Exposure policy gate
-    bypass_exposure = os.getenv("BYPASS_EXPOSURE_POLICY", "").lower() in ("true", "1", "yes")
-    if exposure_constraints and exposure_constraints.get("halt_new_entries") and not bypass_exposure:
+    if exposure_constraints and exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
         logger.warning(f"[PHASE 5] {reason}")
         log_phase_result_fn(5, "signal_generation", "halt", reason)
         return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
-    elif bypass_exposure and exposure_constraints and exposure_constraints.get("halt_new_entries"):
-        logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
+    
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
