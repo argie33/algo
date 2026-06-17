@@ -39,7 +39,6 @@ BASE_CONFIG: Dict[str, Any] = {
     # Market Conditions
     "max_distribution_days": 4,
     "require_stage_2_market": False,
-    "fallback_drawdown_pct_when_peak_missing": 25.0,
     "vix_max_threshold": 35.0,
     "vix_alert_threshold": 30.0,
     "vix_caution_threshold": 25.0,

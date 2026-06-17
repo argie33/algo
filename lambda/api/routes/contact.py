@@ -3,7 +3,7 @@
 import psycopg2
 import psycopg2.extras
 import psycopg2.errors
-from typing import Dict
+from typing import Dict, Optional
 import logging
 import re
 import os
@@ -21,7 +21,7 @@ from models.requests import ContactSubmissionRequest
 from time import time
 
 
-def _check_admin_access(jwt_claims: Dict) -> bool:
+def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
@@ -131,17 +131,15 @@ def handle(
     path: str,
     method: str,
     params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
+    body: Optional[Dict] = None,
+    jwt_claims: Optional[Dict] = None,
 ) -> Dict:
     """Handle /api/contact/* endpoints. Submissions require admin auth."""
     try:
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
                 return error_response(401, "unauthorized", "Authentication required")
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-                jwt_claims
-            ):
+            if not _check_admin_access(jwt_claims):
                 logger.warning(
                     f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}"
                 )

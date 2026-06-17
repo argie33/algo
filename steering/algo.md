@@ -580,23 +580,10 @@ curl https://<api-gateway-endpoint>/api/health
 
 ## Troubleshooting
 
-**Dev bypass mode not working / "can't find cache":**
-- Dev bypass is enabled automatically by `setup-local-dev.ps1` (check `$env:DEV_BYPASS_MODE`)
-- Cache is stored in `~/.aws-dev/` — check if directory exists: `ls $HOME/.aws-dev/`
-- If cache missing: Run `scripts/refresh-aws-credentials.ps1` to create first cache
-- Clear stale cache: `scripts/credential-cache-status.ps1 -Action Clear`
-- Check Python can import dev_credential_loader: `python -c "from config.dev_credential_loader import get_dev_loader"`
-
 **"Error: The security token included in the request is invalid" when running loaders/scripts:**
 - Credentials may have expired (check: `scripts/credential-cache-status.ps1`)
 - Cache corrupted: Clear and refresh: `scripts/credential-cache-status.ps1 -Action Clear; scripts/refresh-aws-credentials.ps1`
 - AWS access revoked: Contact administrator or run `scripts/refresh-aws-credentials.ps1` to fetch new credentials from Secrets Manager
-
-**Dev cache not being used (scripts always hit AWS):**
-- Verify `DEV_BYPASS_MODE = true` in current session: `echo $env:DEV_BYPASS_MODE`
-- If false, source profile: `. $PROFILE` (reloads PowerShell environment)
-- If still false, manually enable: `$env:DEV_BYPASS_MODE = "true"`
-- Check logs for `[DEV_CACHE]` prefix: `$env:DEV_CACHE_DEBUG = "true"` then run script
 
 **Lambda returns 502 Bad Gateway (VPC cold-start timeout):**
 - Cause: VPC cold-start (15-40s) exceeds API Gateway timeout (29s). Provisioned concurrency should prevent this.

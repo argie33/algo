@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 import psycopg2.sql
-from typing import Dict
+from typing import Dict, Optional
 import logging
 import os
 import uuid
@@ -25,7 +25,7 @@ from models.requests import ManualTradeRequest
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Dict) -> bool:
+def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
     if not jwt_claims:
         return False
     groups = jwt_claims.get("cognito:groups")
@@ -39,21 +39,17 @@ def handle(
     path: str,
     method: str,
     params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
+    body: Optional[Dict] = None,
+    jwt_claims: Optional[Dict] = None,
 ) -> Dict:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-                jwt_claims
-            ):
+            if not _check_admin_access(jwt_claims):
                 return error_response(403, "forbidden", "Admin access required")
             return _create_manual_trade(cur, body or {})
         if path == "/api/trades":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-                jwt_claims
-            ):
+            if not _check_admin_access(jwt_claims):
                 return error_response(403, "forbidden", "Admin access required")
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=5000, default=500)
@@ -115,9 +111,7 @@ def handle(
                 data_freshness=freshness,
             )
         elif path == "/api/trades/summary":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-                jwt_claims
-            ):
+            if not _check_admin_access(jwt_claims):
                 return error_response(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
             cur.execute("""

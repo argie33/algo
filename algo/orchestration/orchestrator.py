@@ -1188,13 +1188,6 @@ class Orchestrator:
                         self.log_phase_result,
                     )
                     self._phase1_result = phase1_result
-                    # BYPASS_PHASE1_HALT: For Path B proof-of-concept, ignore Phase 1's halt decision
-                    # and let Phase 5+ run with current prices to prove the concept works.
-                    bypass_phase1 = os.getenv("BYPASS_PHASE1_HALT", "").lower() in (
-                        "true",
-                        "1",
-                        "yes",
-                    )
                     if phase1_result.halted:
                         logger.error(
                             "\nPhase 1 failed: prices not loaded or coverage insufficient."
@@ -1204,11 +1197,6 @@ class Orchestrator:
                         )
                         self.phase_7_reconcile()
                         return self._final_report()
-                    elif phase1_result.halted and bypass_phase1:
-                        logger.critical(
-                            f"\n[PROOF_OF_CONCEPT] Phase 1 halted ({phase1_result.error}), "
-                            "but BYPASS_PHASE1_HALT=true — continuing to Phase 5+ to test signal generation with current prices"
-                        )
                 phase_1_elapsed = time.time() - phase_1_start
                 logger.info(
                     f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"

@@ -290,7 +290,6 @@ aws lambda list-functions                    # ✓ Lambda functions deployed
 ### Backend Development
 - Changes require server restart (manual or auto-detected)
 - Use `LOCAL_MODE=true` to use localhost database
-- Use `DEV_BYPASS_AUTH=true` to skip Cognito authentication
 - Use `ENVIRONMENT=development` for verbose logging
 
 ### Database Development

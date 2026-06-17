@@ -274,18 +274,12 @@ if (-not $ConfigOnly) {
 `$env:AWS_PROFILE = "$Script:Profile"
 `$env:AWS_DEFAULT_REGION = "$Script:Region"
 
-# Dev bypass mode: Cache AWS credentials locally (24h TTL) to avoid repeated logins
-# Credentials are cached in ~/.aws-dev/ with automatic refresh before expiration
-`$env:DEV_BYPASS_MODE = "true"
-`$env:DEV_CACHE_TTL_HOURS = "24"
-
 # VITE_PROXY_TARGET: Vite dev server proxies /api/* to this URL.
 # config.js uses empty API_URL for local dev, so the browser hits the Vite proxy
 # instead of the real AWS URL directly (which would cause CORS errors).
 `$env:VITE_PROXY_TARGET = "$ApiUrl"
 
 Write-Host "[Algo] Local dev environment loaded - API proxy: `$env:VITE_PROXY_TARGET" -ForegroundColor Cyan
-Write-Host "[Algo] Dev bypass mode enabled - credentials cached for 24h" -ForegroundColor Cyan
 
 # ===== End Algo Setup =====
 "@
@@ -333,8 +327,6 @@ Write-Host "[Algo] Dev bypass mode enabled - credentials cached for 24h" -Foregr
     $env:COGNITO_CLIENT_ID = $ClientId
     $env:AWS_PROFILE = $Script:Profile
     $env:AWS_DEFAULT_REGION = $Script:Region
-    $env:DEV_BYPASS_MODE = "true"
-    $env:DEV_CACHE_TTL_HOURS = "24"
     $env:VITE_PROXY_TARGET = $ApiUrl
 }
 

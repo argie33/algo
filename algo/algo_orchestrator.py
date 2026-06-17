@@ -1005,22 +1005,6 @@ class Orchestrator:
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self._health_check_diagnostics()
 
-            # PATH_B: If bypass flags are set, run phases even in dry-run to test signal generation
-            bypass_active = any(
-                os.getenv(var, "").lower() in ("true", "1", "yes")
-                for var in [
-                    "BYPASS_PHASE1_HALT",
-                    "BYPASS_HALT_FLAG",
-                    "BYPASS_MARKET_REGIME",
-                    "BYPASS_EXPOSURE_POLICY",
-                    "BYPASS_CIRCUIT_BREAKERS",
-                ]
-            )
-            if bypass_active and self.dry_run:
-                logger.critical(
-                    "[PATH_B] Bypass flags active in dry-run — running Phase 5-6 signal generation for testing"
-                )
-
             try:
                 phase_1_start = time.time()
                 logger.info(
@@ -1031,14 +1015,7 @@ class Orchestrator:
                     # lifecycle and degraded-mode writes in phase_1_data_freshness() execute.
                     self.phase_1_data_freshness()
                     phase1_result = self._phase1_result
-                    # BYPASS_PHASE1_HALT: For Path B proof-of-concept, ignore Phase 1's halt decision
-                    # and let Phase 5+ run with current prices to prove the concept works.
-                    bypass_phase1 = os.getenv("BYPASS_PHASE1_HALT", "").lower() in (
-                        "true",
-                        "1",
-                        "yes",
-                    )
-                    if phase1_result.halted and not bypass_phase1:
+                    if phase1_result.halted:
                         logger.error(
                             "\nPhase 1 failed: prices not loaded or coverage insufficient."
                         )
@@ -1052,11 +1029,6 @@ class Orchestrator:
                         self.phase_4_exit_execution()
                         self.phase_7_reconcile()
                         return self._final_report()
-                    elif phase1_result.halted and bypass_phase1:
-                        logger.critical(
-                            f"\n[PROOF_OF_CONCEPT] Phase 1 halted ({phase1_result.error}), "
-                            "but BYPASS_PHASE1_HALT=true — continuing to Phase 5+ to test signal generation with current prices"
-                        )
                 phase_1_elapsed = time.time() - phase_1_start
                 logger.info(
                     f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"

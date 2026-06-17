@@ -11,7 +11,7 @@ Endpoints:
 
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 from datetime import datetime, timezone
 from routes.utils import (
@@ -27,7 +27,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Dict) -> bool:
+def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
@@ -42,13 +42,11 @@ def handle(
     path: str,
     method: str,
     params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
+    body: Optional[Dict] = None,
+    jwt_claims: Optional[Dict] = None,
 ) -> Dict:
     """Route risk dashboard endpoints."""
-    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(
-        jwt_claims
-    ):
+    if not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
     if path == "/api/algo/risk-dashboard":
         return _get_comprehensive_risk_dashboard(cur)
@@ -87,10 +85,10 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         # Drawdown
         try:
             drawdown_info = _fetch_drawdown_info(cur)
-            result["drawdown"] = drawdown_info
+            result["drawdown"] = drawdown_info  # type: ignore[assignment]
         except Exception as e:
             logger.warning(f"Drawdown fetch failed: {e}")
-            result["drawdown"] = {
+            result["drawdown"] = {  # type: ignore[assignment]
                 "errorType": "fetch_failed",
                 "message": str(e),
                 "_error": str(e),
@@ -99,10 +97,10 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         # Exposure tier
         try:
             tier_info = _fetch_exposure_tier_info(cur)
-            result["exposure_tier"] = tier_info
+            result["exposure_tier"] = tier_info  # type: ignore[assignment]
         except Exception as e:
             logger.warning(f"Exposure tier fetch failed: {e}")
-            result["exposure_tier"] = {
+            result["exposure_tier"] = {  # type: ignore[assignment]
                 "errorType": "fetch_failed",
                 "message": str(e),
                 "_error": str(e),
@@ -128,7 +126,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
                     risk_reduction = 0.75
                 else:
                     risk_reduction = 0.0
-                result["vix_metrics"] = {
+                result["vix_metrics"] = {  # type: ignore[assignment]
                     "vix_level": vix,
                     "caution_threshold": 25.0,
                     "halt_threshold": 35.0,
@@ -155,7 +153,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             )
             row = rows[0] if rows else None
             if row:
-                result["position_sizing_stats"] = {
+                result["position_sizing_stats"] = {  # type: ignore[assignment]
                     "trades_30d": row["total_trades"],
                     "avg_cascade_multiplier": (
                         float(row["avg_cascade"]) if row["avg_cascade"] else None
@@ -192,7 +190,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             rules = {}
             for row in exit_rows:
                 rules[row["exit_rule"]] = row["count"]
-            result["exit_rules_distribution"] = rules
+            result["exit_rules_distribution"] = rules  # type: ignore[assignment]
         except Exception as e:
             logger.warning(f"Exit rules fetch failed: {e}")
 

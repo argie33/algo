@@ -156,52 +156,37 @@ class StockScoresLoader(OptimalLoader):
                 else:
                     normalized_weights[key] = 0
 
-            # Clamp all scores to 0-100 range (only actual computed scores, not filled)
-            quality_score = max(
-                0, min(100, quality_score if quality_score is not None else 0)
-            )
-            growth_score = max(
-                0, min(100, growth_score if growth_score is not None else 0)
-            )
-            value_score = max(
-                0, min(100, value_score if value_score is not None else 0)
-            )
-            positioning_score = max(
-                0, min(100, positioning_score if positioning_score is not None else 0)
-            )
-            stability_score = max(
-                0, min(100, stability_score if stability_score is not None else 0)
-            )
-            momentum_score = max(
-                0, min(100, momentum_score if momentum_score is not None else 0)
-            )
+            # Clamp scores to 0-100, keeping None for missing data
+            clamped_quality = max(0, min(100, quality_score)) if quality_score is not None else None
+            clamped_growth = max(0, min(100, growth_score)) if growth_score is not None else None
+            clamped_value = max(0, min(100, value_score)) if value_score is not None else None
+            clamped_positioning = max(0, min(100, positioning_score)) if positioning_score is not None else None
+            clamped_stability = max(0, min(100, stability_score)) if stability_score is not None else None
+            clamped_momentum = max(0, min(100, momentum_score)) if momentum_score is not None else None
 
-            # Compute weighted composite with normalized weights (sums to 1.0)
+            # Composite: convert None to 0 only for calculation, not for storage
             composite_score = round(
-                quality_score * normalized_weights["quality"]
-                + growth_score * normalized_weights["growth"]
-                + value_score * normalized_weights["value"]
-                + positioning_score * normalized_weights["positioning"]
-                + stability_score * normalized_weights["stability"]
-                + momentum_score * normalized_weights["momentum"],
+                (clamped_quality or 0) * normalized_weights["quality"]
+                + (clamped_growth or 0) * normalized_weights["growth"]
+                + (clamped_value or 0) * normalized_weights["value"]
+                + (clamped_positioning or 0) * normalized_weights["positioning"]
+                + (clamped_stability or 0) * normalized_weights["stability"]
+                + (clamped_momentum or 0) * normalized_weights["momentum"],
                 2,
             )
-            # Final clamp to ensure composite is in range
             composite_score = max(0, min(100, composite_score))
 
-            # RS percentile is set to 0 here and updated in a batch pass
-            # after all symbols are scored (see _update_rs_percentiles).
             rs_percentile = 0.0
 
             return {
                 "symbol": symbol,
                 "composite_score": composite_score,
-                "quality_score": round(quality_score, 2),
-                "growth_score": round(growth_score, 2),
-                "value_score": round(value_score, 2),
-                "momentum_score": round(momentum_score, 2),
-                "positioning_score": round(positioning_score, 2),
-                "stability_score": round(stability_score, 2),
+                "quality_score": round(clamped_quality, 2) if clamped_quality is not None else None,
+                "growth_score": round(clamped_growth, 2) if clamped_growth is not None else None,
+                "value_score": round(clamped_value, 2) if clamped_value is not None else None,
+                "momentum_score": round(clamped_momentum, 2) if clamped_momentum is not None else None,
+                "positioning_score": round(clamped_positioning, 2) if clamped_positioning is not None else None,
+                "stability_score": round(clamped_stability, 2) if clamped_stability is not None else None,
                 "rs_percentile": rs_percentile,
                 "data_completeness": data_completeness,
                 "updated_at": datetime.now(timezone.utc).isoformat(),

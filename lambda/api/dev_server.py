@@ -130,10 +130,6 @@ sys.path.insert(0, root_dir)
 sys.path.insert(1, lambda_dir)
 sys.path.insert(2, api_dir)
 
-print(
-    f"[DEV_SERVER_INIT] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}", flush=True
-)
-
 import lambda_function
 
 log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dev_server.log")

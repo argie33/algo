@@ -28,26 +28,6 @@ from typing import Dict, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Dev bypass mode support (optional, imported on demand)
-_dev_loader = None
-
-
-def _get_dev_loader():
-    global _dev_loader
-    if _dev_loader is None and os.getenv("DEV_BYPASS_MODE", "").lower() in (
-        "true",
-        "1",
-        "yes",
-    ):
-        try:
-            from config.dev_credential_loader import get_dev_loader as get_loader
-
-            _dev_loader = get_loader()
-        except ImportError:
-            logger.debug(
-                "dev_credential_loader not available; continuing without dev cache"
-            )
-    return _dev_loader
 
 
 # Database defaults
