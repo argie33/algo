@@ -254,7 +254,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 return [
                     {
                         "date": r[0].isoformat(),
-                        "minervini_score": float(r[1]) if r[1] is not None else 0,
+                        "minervini_score": float(r[1]) if r[1] is not None else None,
                         "weinstein_stage": r[2],
                     }
                     for r in cur.fetchall()

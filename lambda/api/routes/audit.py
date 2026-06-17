@@ -48,8 +48,8 @@ def handle(
     jwt_claims: Optional[Dict] = None,
 ) -> Dict:
     """Handle /api/audit/* endpoints."""
-    # Require admin authorization for all audit endpoints
-    if not _check_admin_access(jwt_claims):
+    # Require admin authorization for all audit endpoints (bypass in dev mode)
+    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
         return error_response(
             403, "forbidden", "Admin access required to view audit logs"
         )

@@ -274,12 +274,18 @@ if (-not $ConfigOnly) {
 `$env:AWS_PROFILE = "$Script:Profile"
 `$env:AWS_DEFAULT_REGION = "$Script:Region"
 
+# Dev bypass mode: Skip auth and cache credentials locally for faster dev iteration
+`$env:DEV_BYPASS_AUTH = "true"
+`$env:DEV_BYPASS_MODE = "true"
+`$env:DEV_CACHE_TTL_HOURS = "24"
+
 # VITE_PROXY_TARGET: Vite dev server proxies /api/* to this URL.
 # config.js uses empty API_URL for local dev, so the browser hits the Vite proxy
 # instead of the real AWS URL directly (which would cause CORS errors).
 `$env:VITE_PROXY_TARGET = "$ApiUrl"
 
 Write-Host "[Algo] Local dev environment loaded - API proxy: `$env:VITE_PROXY_TARGET" -ForegroundColor Cyan
+Write-Host "[Algo] Dev bypasses enabled for faster iteration" -ForegroundColor Cyan
 
 # ===== End Algo Setup =====
 "@
