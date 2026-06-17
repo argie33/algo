@@ -314,8 +314,12 @@ class CredentialManager:
     def get_alpaca_credentials(self, user_id: Optional[str] = None) -> Dict[str, str]:
         """Get Alpaca API credentials as a dict.
 
-        Always fetches fresh credentials from Secrets Manager. Never returns cached/stale credentials
-        for normal operation. Cache is only used as a last resort if all sources fail.
+        Always fetches fresh credentials from Secrets Manager. Never returns cached/stale credentials.
+        Enforces that credentials must be fetched within the last 5 minutes (CREDENTIAL_CACHE_TTL_SECONDS).
+
+        SECURITY: Stale credential fallback removed (FIX H-3). If Secrets Manager is unreachable,
+        the call fails hard rather than using potentially-rotated credentials. This prevents
+        trades from executing with invalid API keys after credential rotation.
 
         Supports per-user credential isolation for multi-tenant trading.
 
@@ -329,12 +333,10 @@ class CredentialManager:
         3. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
         4. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
         5. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
-        6. Last-resort: Cached credentials (only if all above fail)
+        6. Fail hard if no fresh credentials available (no stale fallback)
 
-        Raises ValueError if credentials not found from any source.
+        Raises ValueError if credentials not found or if Secrets Manager is unreachable.
         """
-        _ALPACA_CREDS_CACHE_KEY = "__alpaca_credentials__"
-
         # Step 1: Try user-specific secret if user_id provided
         if user_id and self._is_aws:
             try:
@@ -432,32 +434,28 @@ class CredentialManager:
             logger.info("[CREDENTIALS] Alpaca credentials loaded successfully")
             return {"key": key, "secret": secret}
 
-        # FIX H-3: Secrets Manager completely unavailable - check cache before failing
-        if _ALPACA_CREDS_CACHE_KEY in self._cache:
-            cached_creds: Dict[str, str]
-            timestamp: float
-            cached_creds, timestamp = self._cache[_ALPACA_CREDS_CACHE_KEY]  # type: ignore[misc]
-            age = time.time() - timestamp
-            # Use cache even if expired (last resort when Secrets Manager is down)
-            logger.warning(
-                f"[CREDENTIALS_H3_FALLBACK] Secrets Manager unavailable, using cached Alpaca credentials (age={age:.0f}s)"
-            )
-            return cached_creds
-
-        # No credentials found and no cache - fail hard
+        # FIX H-3: No credentials found from any fresh source
+        # CRITICAL: We DO NOT fall back to stale cached credentials when Secrets Manager is unreachable.
+        # If credentials were rotated and Secrets Manager becomes temporarily unavailable, using old
+        # cached credentials will cause trade execution with invalid API keys, leading to 401 errors
+        # or worse, failed trades with incorrect credentials.
+        #
+        # Instead, fail hard and let Lambda retry on the next invocation. This enforces that every
+        # trade execution uses credentials fetched within the last 5 minutes (CREDENTIAL_CACHE_TTL_SECONDS).
         logger.error(
             "[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!"
         )
         logger.error(
-            "[CREDENTIALS] Checked: ALGO_SECRETS_ARN, algo/alpaca secret, legacy secrets, env vars, and cache"
+            "[CREDENTIALS] Checked: user-specific secret, ALGO_SECRETS_ARN, algo/alpaca, legacy secrets, and env vars"
         )
         logger.error(
-            "[CREDENTIALS] This error occurs when Secrets Manager is unreachable AND no cached credentials are available"
+            "[CREDENTIALS_H3_FIX] Stale credential fallback REMOVED (was security risk after rotation)"
         )
         raise ValueError(
             "Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not found. "
             "Set these environment variables or configure 'algo/alpaca' secret in AWS Secrets Manager. "
-            "If Secrets Manager is unreachable, check CloudWatch alarm [ALPACA_CREDS_FETCH_FAILED]."
+            "If Secrets Manager is unreachable, check CloudWatch alarm [ALPACA_CREDS_FETCH_FAILED]. "
+            "NOTE: Stale credential fallback is disabled—credentials must be fetched fresh within the last 5 minutes."
         )
 
     def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:
