@@ -19,28 +19,6 @@ logger = logging.getLogger(__name__)
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_TIMEOUT = 10.0
 
-# Minimal fallback cache for most-traded symbols (used if SEC API unavailable).
-# Covers ~95% of typical trading volume. Updated quarterly from SEC.
-_FALLBACK_TICKERS = {
-    "NVDA": "1045810", "AAPL": "0000320193", "MSFT": "0000789019",
-    "GOOGL": "0001652044", "AMZN": "0001018724", "META": "0001326801",
-    "TSLA": "0001652860", "BRK.B": "0001067983", "JNJ": "0000200406",
-    "AVGO": "0001006748", "WMT": "0000104169", "JPM": "0000078635",
-    "MA": "0001141962", "V": "0001143289", "PG": "0000080424",
-    "COST": "0000909832", "MCD": "0000063908", "INTC": "0000050104",
-    "CSCO": "0000858877", "PEP": "0000103379", "KO": "0000021344",
-    "LLY": "0000059478", "IBM": "0000051143", "ORCL": "0001652044",
-    "CRM": "0001018724", "VZ": "0000732733", "BA": "0000012927",
-    "AXP": "0000004962", "AMD": "0000002488", "NFLX": "0001065280",
-    "QCOM": "0000804842", "ADBE": "0000796343", "AMAT": "0000006951",
-    "INTU": "0000896494", "NOW": "0001355891", "UBER": "0001543151",
-    "GE": "0000040545", "CAT": "0000018230", "MMM": "0000066740",
-    "PYPL": "0001633917", "ABNB": "0001559720", "TM": "0001021861",
-    "HO": "0000789733", "MU": "0000723125", "COIN": "0001679788",
-    "SNAP": "0001564408", "DISH": "0001128541", "TWTR": "0000000789",
-    "ARM": "0001949339"
-}
-
 
 class TickerCache:
     """Manages SEC ticker-to-CIK mappings with persistent file-based caching."""
@@ -122,10 +100,9 @@ class TickerCache:
                     )
                     time.sleep(wait_time)
                     continue
-                logger.error(
-                    f"SEC ticker cache network error after {max_retries} retries: {e}"
-                )
-                return {}
+                raise RuntimeError(
+                    f"SEC ticker cache unavailable after {max_retries} retries: {e}"
+                ) from e
 
             try:
                 if resp.status_code in (429, 403):
@@ -144,10 +121,9 @@ class TickerCache:
                         time.sleep(wait_time)
                         continue
                     else:
-                        logger.error(
+                        raise RuntimeError(
                             f"SEC ticker cache failed after {max_retries} retries: {resp.status_code} {resp.reason}"
                         )
-                        return {}
 
                 resp.raise_for_status()
                 data = resp.json()
@@ -162,28 +138,22 @@ class TickerCache:
                 return mapping
             except requests.HTTPError as e:
                 if resp.status_code not in (429, 403):
-                    logger.error(f"SEC ticker cache request failed: {e}")
-                    return {}
+                    raise RuntimeError(f"SEC ticker cache request failed: {e}") from e
 
-        return {}
+        raise RuntimeError("SEC ticker cache refresh exhausted all retries")
 
-    def symbol_to_cik(self, symbol: str) -> Optional[str]:
+    def symbol_to_cik(self, symbol: str) -> str:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193).
 
-        Refreshes cache if expired, falls back to minimal hardcoded cache.
-        Returns None if symbol not found.
+        Refreshes cache if expired. Raises RuntimeError if symbol not found.
         """
         if (
             self._ticker_cache is None
             or time.time() - self._ticker_cache_time > self._cache_ttl
         ):
-            result = self._refresh_ticker_cache()
-            if result is None or result == {}:
-                # Fall back to hardcoded cache for most-traded symbols
-                self._ticker_cache = _FALLBACK_TICKERS.copy()
-                self._ticker_cache_time = time.time()
-                logger.warning(
-                    f"SEC ticker API unavailable. Using fallback cache ({len(self._ticker_cache)} symbols)"
-                )
+            self._refresh_ticker_cache()
 
-        return (self._ticker_cache or {}).get(symbol.upper())
+        cik = (self._ticker_cache or {}).get(symbol.upper())
+        if not cik:
+            raise ValueError(f"Symbol {symbol} not found in SEC ticker cache")
+        return cik

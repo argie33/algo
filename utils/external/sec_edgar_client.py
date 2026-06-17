@@ -89,9 +89,9 @@ class SecEdgarClient:
 
     # ----- Symbol/CIK lookups -----
 
-    def symbol_to_cik(self, symbol: str) -> Optional[str]:
+    def symbol_to_cik(self, symbol: str) -> str:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193).
-        Falls back to hardcoded cache, then returns None for unknown symbols."""
+        Raises ValueError if symbol not found in SEC cache."""
         return self._ticker_cache_manager.symbol_to_cik(symbol)
 
     # ----- Core API -----
@@ -149,12 +149,13 @@ class SecEdgarClient:
                     )
                     time.sleep(wait_time)
                     continue
-                logger.error(f"SEC API network error after {max_retries} retries: {e}")
-                return {}
+                raise RuntimeError(
+                    f"SEC API network error after {max_retries} retries: {e}"
+                ) from e
 
             # 404 means the data doesn't exist
             if resp.status_code == 404:
-                return {}
+                raise FileNotFoundError(f"SEC filing not found: {url}")
 
             # Handle 429 (rate limit) and 403 (forbidden/throttle) with exponential backoff
             if resp.status_code in (429, 403):
@@ -173,20 +174,18 @@ class SecEdgarClient:
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.warning(
+                    raise RuntimeError(
                         f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}"
                     )
-                    return {}
 
             # Other HTTP errors
             try:
                 resp.raise_for_status()
                 return resp.json()
             except requests.HTTPError as e:
-                logger.debug(f"SEC API error for {url}: {e}")
-                return {}
+                raise RuntimeError(f"SEC API error for {url}: {e}") from e
 
-        return {}
+        raise RuntimeError("SEC API request exhausted all retries")
 
     # ----- High-level extraction helpers -----
 
@@ -204,13 +203,7 @@ class SecEdgarClient:
         ]
         """
         cik = self.symbol_to_cik(symbol)
-        if not cik:
-            return []
-        try:
-            data = self.get_concept(cik, taxonomy, concept)
-        except requests.HTTPError as e:
-            logger.debug("SEC %s/%s for %s: %s", taxonomy, concept, symbol, e)
-            return []
+        data = self.get_concept(cik, taxonomy, concept)
 
         units = data.get("units", {})
         results: List[Dict[str, Any]] = []
@@ -239,12 +232,7 @@ class SecEdgarClient:
     ) -> List[Dict[str, Any]]:
         """Same as annual, but returns quarterly periods (Q1-Q4)."""
         cik = self.symbol_to_cik(symbol)
-        if not cik:
-            return []
-        try:
-            data = self.get_concept(cik, taxonomy, concept)
-        except requests.HTTPError:
-            return []
+        data = self.get_concept(cik, taxonomy, concept)
 
         units = data.get("units", {})
         results: List[Dict[str, Any]] = []

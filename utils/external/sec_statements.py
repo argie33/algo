@@ -114,20 +114,9 @@ def _aggregate_concepts(
         List of dicts with aggregated concept data
     """
     cik = client.symbol_to_cik(symbol)
-    if not cik:
-        return []
 
     # Fetch all facts for this company in a single API call
-    try:
-        all_facts = client.get_company_facts(cik)
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Exception: {e}")
-        all_facts = {}
-
-    if not all_facts:
-        return []
+    all_facts = client.get_company_facts(cik)
 
     # Extract concepts from all_facts (us-gaap taxonomy)
     us_gaap_facts = all_facts.get("facts", {}).get("us-gaap", {})

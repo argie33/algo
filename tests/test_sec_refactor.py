@@ -25,12 +25,17 @@ print("TEST 2: Ticker resolution (symbol_to_cik)")
 print("=" * 60)
 try:
     client = SecEdgarClient()
-    for symbol in ["AAPL", "MSFT", "UNKNOWN"]:
+    for symbol in ["AAPL", "MSFT"]:
         cik = client.symbol_to_cik(symbol)
-        if cik:
-            print(f"✓ {symbol} -> {cik}")
-        else:
-            print(f"✗ {symbol} -> None (FAILED)")
+        print(f"✓ {symbol} -> {cik}")
+
+    # Test that unknown symbols raise an exception
+    try:
+        client.symbol_to_cik("UNKNOWN")
+        print("✗ UNKNOWN should have raised an exception")
+        sys.exit(1)
+    except (ValueError, RuntimeError):
+        print("✓ UNKNOWN raises exception (fail-fast)")
 except Exception as e:
     print(f"✗ Ticker resolution failed: {e}")
     sys.exit(1)
