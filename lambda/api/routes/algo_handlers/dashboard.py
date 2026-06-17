@@ -179,15 +179,17 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         sector_risk[sector] += pos_val
 
     # Compute sector_allocation array after processing all positions (E5 fix)
-    total_value = sum(sector_risk.values()) or 1
+    # Use absolute values to handle portfolios with shorts: total = sum of |position values|
+    # This prevents negative totals when shorts exceed longs, which would invert all percentages
+    total_abs_value = sum(abs(v) for v in sector_risk.values()) or 1
     sector_allocation = [
         {
             "sector": sector,
-            "allocation_pct": round((value / total_value) * 100, 1),
-            "is_overweight": (value / total_value) * 100 > 30,
+            "allocation_pct": round((abs(value) / total_abs_value) * 100, 1),
+            "is_overweight": (abs(value) / total_abs_value) * 100 > 30,
         }
         for sector, value in sorted(
-            sector_risk.items(), key=lambda x: x[1], reverse=True
+            sector_risk.items(), key=lambda x: abs(x[1]), reverse=True
         )
     ]
 
