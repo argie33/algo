@@ -105,11 +105,11 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100
 ) -> List[Dict]:
-    """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking.
+    """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking + swing_trader_scores.
 
     Returns candidates that have BOTH a recent BUY signal (pivot breakout above swing high
     that was above SMA_50) AND a high composite_score. The breakout confirms the entry timing;
-    composite_score ranks quality to be selective.
+    composite_score ranks quality; swing_trader_scores provides multi-component validation.
 
     Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days — covers the prior EOD pipeline's
     signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
@@ -138,7 +138,9 @@ def _get_candidates_from_buysell(
                     bsd.strength AS signal_strength,
                     bsd.volume_surge_pct,
                     bsd.market_stage,
-                    bsd.date AS signal_date
+                    bsd.date AS signal_date,
+                    COALESCE(sts.score, 0) AS swing_score,
+                    sts.components AS swing_components
                 FROM (
                     SELECT DISTINCT ON (symbol) *
                     FROM buy_sell_daily
@@ -148,6 +150,8 @@ def _get_candidates_from_buysell(
                     ORDER BY symbol, date DESC
                 ) bsd
                 JOIN stock_scores ss ON ss.symbol = bsd.symbol
+                LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
+                    AND sts.date <= %s
                 JOIN LATERAL (
                     SELECT close, high, low
                     FROM price_daily
@@ -164,10 +168,10 @@ def _get_candidates_from_buysell(
                 ) sma ON TRUE
                 LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                 WHERE ss.composite_score >= %s
-                ORDER BY ss.composite_score DESC NULLS LAST
+                ORDER BY COALESCE(sts.score, ss.composite_score/2) DESC NULLS LAST, ss.composite_score DESC NULLS LAST
                 LIMIT %s
                 """,
-                (lookback_date, run_date, run_date, run_date, min_score, limit),
+                (lookback_date, run_date, run_date, run_date, run_date, min_score, limit),
             )
             rows = cur.fetchall()
 
@@ -179,6 +183,8 @@ def _get_candidates_from_buysell(
             strength = raw_strength if raw_strength is not None else (
                 composite / 100.0 if composite else 0.5
             )
+            swing_score = float(r[18]) if r[18] is not None else 0.0
+            swing_components = r[19] if r[19] is not None else None
             candidates.append({
                 "symbol": r[0],
                 "composite_score": composite,
@@ -186,6 +192,8 @@ def _get_candidates_from_buysell(
                 "growth_score": float(r[3]) if r[3] is not None else None,
                 "momentum_score": float(r[4]) if r[4] is not None else None,
                 "rs_percentile": float(r[5]) if r[5] is not None else None,
+                "swing_score": swing_score,
+                "swing_components": swing_components,
                 "close": close,
                 "high": float(r[7]) if r[7] is not None else None,
                 "low": float(r[8]) if r[8] is not None else None,
@@ -212,10 +220,11 @@ def _get_candidates_from_buysell(
 
 
 def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
-    """Fallback: fetch candidates from stock_scores with current prices from price_daily.
+    """Fallback: fetch candidates from stock_scores + swing_trader_scores with current prices.
 
     Used when buy_sell_daily has no fresh BUY signals (e.g., EOD loader hasn't run yet).
-    Returns symbols ranked by composite_score — no breakout confirmation, just uptrend + quality.
+    Returns symbols ranked by swing_score (if available) or composite_score — no breakout confirmation,
+    just uptrend + quality + swing trading factors.
     """
     try:
         with DatabaseContext("read") as cur:
@@ -234,8 +243,12 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                     p.low,
                     sma.avg_close AS sma_50,
                     cp.sector,
-                    cp.industry
+                    cp.industry,
+                    COALESCE(sts.score, 0) AS swing_score,
+                    sts.components AS swing_components
                 FROM stock_scores ss
+                LEFT JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
+                    AND sts.date <= %s
                 JOIN LATERAL (
                     SELECT close, high, low
                     FROM price_daily
@@ -252,16 +265,18 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 ) sma ON TRUE
                 LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
                 WHERE ss.composite_score >= %s
-                ORDER BY ss.composite_score DESC NULLS LAST
+                ORDER BY COALESCE(sts.score, ss.composite_score/2) DESC NULLS LAST, ss.composite_score DESC NULLS LAST
                 LIMIT %s
                 """,
-                (run_date, run_date, min_score, limit),
+                (run_date, run_date, run_date, min_score, limit),
             )
             rows = cur.fetchall()
 
         candidates = []
         for r in rows:
             close = float(r[6]) if r[6] is not None else None
+            swing_score = float(r[12]) if r[12] is not None else 0.0
+            swing_components = r[13] if r[13] is not None else None
             candidates.append({
                 "symbol": r[0],
                 "composite_score": float(r[1]) if r[1] is not None else None,
@@ -269,6 +284,8 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 "growth_score": float(r[3]) if r[3] is not None else None,
                 "momentum_score": float(r[4]) if r[4] is not None else None,
                 "rs_percentile": float(r[5]) if r[5] is not None else None,
+                "swing_score": swing_score,
+                "swing_components": swing_components,
                 "close": close,
                 "high": float(r[7]) if r[7] is not None else None,
                 "low": float(r[8]) if r[8] is not None else None,
