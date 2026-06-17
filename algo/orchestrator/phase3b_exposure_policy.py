@@ -129,17 +129,32 @@ def run(
         )
 
     except Exception as e:
-        # FAIL-OPEN: exposure policy errors don't block execution
+        # FAIL-CLOSED: exposure policy errors result in conservative default constraints
         # (e.g., transaction aborts from prior phases, missing data, etc.)
-        logger.warning(f"Exposure policy phase skipped due to error (fail-open): {e}")
+        # Applies strictest tier to prevent position sizing violations when data is unavailable.
+        logger.critical(f"Exposure policy computation failed — applying conservative defaults (fail-closed): {e}")
+
+        # Conservative defaults: strictest constraints to prevent unlimited position sizing
+        conservative_constraints = {
+            "tier_name": "CAUTION",
+            "description": "Conservative defaults (exposure policy unavailable)",
+            "risk_multiplier": 0.5,
+            "max_new_positions_today": 2,  # Drastically limit new entries
+            "min_swing_grade": "A",  # Highest bar for entry
+            "halt_new_entries": False,  # Do not halt, but cap strictly
+            "max_concentration_pct": 5.0,  # Tightest concentration limit
+            "halt_reason": f"Exposure policy unavailable: {str(e)[:80]}",
+        }
+
         log_phase_result_fn(
-            "3b", "exposure_policy", "skip", f"Skipped due to error: {str(e)[:80]}"
+            "3b", "exposure_policy", "fallback",
+            f"Using conservative constraints due to error: {str(e)[:80]}"
         )
         return PhaseResult(
             "3b",
             "exposure_policy",
             "ok",
-            {"constraints": None, "actions": []},
+            {"constraints": conservative_constraints, "actions": []},
             False,
             None,
         )
