@@ -9,7 +9,7 @@ import json
 import time
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import argparse
 
 from utils.db import DatabaseContext
