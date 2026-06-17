@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Data staleness check - ensures data is fresh within expected windows."""
 
-from typing import List
+from typing import List, cast
 from datetime import datetime, date as _date, timezone
 import logging
 from ..base import BaseCheck, CheckResult
@@ -114,7 +114,7 @@ class StalenessChecker(BaseCheck):
 
         for tbl, col, freq, config_key, sev_on_stale in sources:
             try:
-                max_days = self.config.get(config_key, 7)
+                max_days = cast(int, self.config.get(config_key, 7))
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
 

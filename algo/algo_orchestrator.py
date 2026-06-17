@@ -930,14 +930,7 @@ class Orchestrator:
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
         # Skip lock check in dry-run mode (no actual trades) or when DynamoDB unavailable
-        # TESTING: Allow bypass via SKIP_ORCHESTRATOR_LOCK for local development/testing
-        skip_lock = os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in (
-            "true",
-            "1",
-            "yes",
-        )
-
-        if not self.dry_run and not skip_lock:
+        if not self.dry_run:
             lock_acquired = self._acquire_run_lock()
             if not lock_acquired:
                 if self.lock_manager.is_available:
@@ -951,10 +944,6 @@ class Orchestrator:
                     logger.warning(
                         "[DEGRADED MODE] DynamoDB lock unavailable - running without distributed lock protection"
                     )
-        elif skip_lock:
-            logger.critical(
-                "[TESTING] SKIP_ORCHESTRATOR_LOCK=true - bypassing lock check (unsafe for production!)"
-            )
         else:
             logger.info("[DRY-RUN] Skipping distributed lock check (dry-run mode)")
 

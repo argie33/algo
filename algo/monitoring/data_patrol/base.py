@@ -2,8 +2,11 @@
 """Base check class for data patrol checks."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from .config import PatrolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +44,7 @@ class BaseCheck(ABC):
     Subclasses implement specific data quality/integrity checks.
     """
 
-    def __init__(self, config: "PatrolConfig"):  # noqa: F821
+    def __init__(self, config: "PatrolConfig"):
         self.config = config
         self.results: List[CheckResult] = []
 

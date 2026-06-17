@@ -308,17 +308,11 @@ class SwingTraderScore:
           6. Industry rank <= max_industry_rank (config, default 100)
           7. Earnings not within N days (config, default 5 trading days)
 
-        Config keys: swing_hard_gates_enabled, swing_min_trend_score, swing_max_extension_pct,
+        Config keys: swing_min_trend_score, swing_max_extension_pct,
                     swing_min_industry_rank, swing_days_to_earnings_block
 
         Returns: {'pass': True} or {'pass': False, 'reason': str, ...details...}
         """
-        # Emergency bypass: if hard gates disabled via config, soft-pass all
-        gates_enabled = self._load_config_val("swing_hard_gates_enabled", True)
-        if not gates_enabled:
-            logger.info(f"Hard gates disabled via config for {symbol}")
-            return {"pass": True, "reason": "Hard gates disabled by config"}
-
         # Gate 1 & 2: Minervini trend score + Weinstein stage
         trend_score = 0
         stage = 1

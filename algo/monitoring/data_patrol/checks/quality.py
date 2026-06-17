@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Data quality checks - NULL anomalies, OHLC sanity, zero values, volume sanity."""
 
-from typing import List
+from typing import List, cast
 import logging
 from ..base import BaseCheck, CheckResult
 from ..config import INFO, WARN, ERROR, CRIT
@@ -26,7 +26,7 @@ class QualityChecker(BaseCheck):
     def check_null_anomalies(self, cur) -> None:
         """Check for sudden spike in NULL values."""
         try:
-            max_null_pct = self.config.get("patrol_max_null_pct_threshold", 5)
+            max_null_pct = cast(int, self.config.get("patrol_max_null_pct_threshold", 5))
 
             cur.execute("""
                 SELECT

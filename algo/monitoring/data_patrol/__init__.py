@@ -108,7 +108,7 @@ class DataPatrol:
                 self.check_timings[check_name] = elapsed
                 logger.error(f"Check {check_name} failed: {e}", exc_info=True)
 
-    def summarize(self, cur, elapsed_seconds: float = None) -> Dict[str, Any]:
+    def summarize(self, cur, elapsed_seconds: Optional[float] = None) -> Dict[str, Any]:
         """Summarize patrol results."""
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for result in self.results:
