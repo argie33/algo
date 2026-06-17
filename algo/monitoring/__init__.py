@@ -19,3 +19,4 @@ __all__ = [
 # so we register the callbacks here once both modules are fully loaded.
 from utils.db.connection import register_connection_callbacks
 register_connection_callbacks(on_connect, on_disconnect)
+
