@@ -28,6 +28,7 @@ from utilities import (
     Y,
     CY,
     DIM,
+    SPARKLINE_CHARS,
 )
 from formatters import (
     hbar,
