@@ -31,16 +31,17 @@ import logging
 from typing import Dict, List, Callable, Any, Optional, Tuple
 from dataclasses import dataclass
 
-try:
-    import sys
-    import os
+import sys
+import os
 
-    sys.path.insert(
-        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    )
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
+try:
     from shared_contracts import EndpointRegistry
 except ImportError:
-    EndpointRegistry = None
+    EndpointRegistry = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class PanelRegistry:
             logger.warning(f"Panel {name} already registered, replacing")
 
         # Validate endpoints exist in contract
-        if EndpointRegistry:
+        if EndpointRegistry is not None:
             missing = []
             for endpoint in endpoint_deps:
                 if not EndpointRegistry.validate_endpoint_exists(endpoint):
@@ -156,7 +157,7 @@ class PanelRegistry:
         if not panel:
             return False, [name]
 
-        if not EndpointRegistry:
+        if EndpointRegistry is None:
             return True, []  # Can't validate without contract
 
         missing = []

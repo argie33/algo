@@ -5,9 +5,9 @@ This prevents schema drift and catches breaking changes early.
 """
 
 import logging
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, cast, List
 
-from .dashboard_api_contract import DASHBOARD_ENDPOINTS
+from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class ResponseValidator:
             return False, f"Unknown endpoint: {endpoint_name}"
 
         endpoint = DASHBOARD_ENDPOINTS[endpoint_name]
-        schema = endpoint.get("response_schema")
+        schema = cast(ResponseSchema, endpoint.get("response_schema"))
 
         if not schema or not isinstance(response, dict):
             return False, f"Invalid response type for {endpoint_name}"
@@ -56,7 +56,7 @@ class ResponseValidator:
             )
 
         # Check strict fields (must not be None)
-        strict_fields = endpoint.get("strict_fields", [])
+        strict_fields = cast(List[str], endpoint.get("strict_fields", []))
         none_strict_fields = []
         for field in strict_fields:
             if field in response and response[field] is None:
@@ -163,7 +163,7 @@ class ResponseValidator:
             if isinstance(value, dict):
                 sanitized[key] = ResponseValidator.sanitize_response(value)
             elif isinstance(value, list):
-                sanitized[key] = [
+                sanitized[key] = cast(Any, [
                     (
                         ResponseValidator.sanitize_response(item)
                         if isinstance(item, dict)
@@ -171,7 +171,7 @@ class ResponseValidator:
                     )
                     for item in value
                     if item is not None
-                ]
+                ])
             else:
                 sanitized[key] = value
 

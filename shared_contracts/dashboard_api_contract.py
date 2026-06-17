@@ -17,7 +17,7 @@ UPDATE PROTOCOL:
 4. Test contract validation with contract_validator.py
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 from dataclasses import dataclass
 
 
@@ -27,7 +27,7 @@ class ResponseSchema:
 
     required_fields: List[str]
     optional_fields: List[str]
-    field_types: Dict[str, type]
+    field_types: Dict[str, Any]
     nested_schema: Optional[Dict[str, Any]] = None
     description: str = ""
 
@@ -646,7 +646,7 @@ class EndpointRegistry:
     def get_endpoint_path(name: str) -> Optional[str]:
         """Get endpoint path by name."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
-        return endpoint.get("path") if endpoint else None
+        return cast(Optional[str], endpoint.get("path") if endpoint else None)
 
     @staticmethod
     def get_critical_endpoints() -> Dict[str, Dict[str, Any]]:
@@ -664,7 +664,7 @@ class EndpointRegistry:
     def get_endpoint_freshness(name: str) -> Optional[int]:
         """Get data freshness threshold in seconds for endpoint."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
-        return endpoint.get("freshness_max_age_seconds") if endpoint else None
+        return cast(Optional[int], endpoint.get("freshness_max_age_seconds") if endpoint else None)
 
 
 class PanelRegistry:
@@ -684,13 +684,13 @@ class PanelRegistry:
     def get_panel_dependencies(name: str) -> List[str]:
         """Get list of endpoints required by a panel."""
         panel = DASHBOARD_PANELS.get(name)
-        return panel.get("endpoint_deps", []) if panel else []
+        return cast(List[str], panel.get("endpoint_deps", []) if panel else [])
 
     @staticmethod
     def is_panel_optional(name: str) -> bool:
         """Check if a panel is optional."""
         panel = DASHBOARD_PANELS.get(name)
-        return panel.get("optional", True) if panel else True
+        return cast(bool, panel.get("optional", True) if panel else True)
 
     @staticmethod
     def validate_panel_dependencies(name: str) -> tuple[bool, List[str]]:
@@ -703,7 +703,8 @@ class PanelRegistry:
             return False, [name]
 
         missing = []
-        for endpoint_name in panel.get("endpoint_deps", []):
+        endpoint_deps = cast(List[str], panel.get("endpoint_deps", []))
+        for endpoint_name in endpoint_deps:
             if not EndpointRegistry.validate_endpoint_exists(endpoint_name):
                 missing.append(endpoint_name)
 
