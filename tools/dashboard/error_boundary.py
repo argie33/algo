@@ -7,7 +7,10 @@ and making error state visible to operators.
 from typing import Any, Dict, List, Optional
 from rich.panel import Panel
 from rich.text import Text
-from .utilities import R, Y, DIM
+try:
+    from .utilities import R, Y, DIM
+except ImportError:
+    from utilities import R, Y, DIM
 
 
 def has_error(data: Any) -> bool:

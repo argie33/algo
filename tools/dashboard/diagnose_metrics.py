@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """Diagnostic script to identify why VIX and concentration are missing/wrong.
 
-Run: python -m tools.dashboard.diagnose_metrics
+Run: python diagnose_metrics.py
 """
 
 import sys
+import os
 
-# Ensure this script is run as a module
+# Support both direct execution and module import
 if __name__ == "__main__" and __package__ is None:
-    print("[ERROR] This script must be run as a module, not directly.")
-    print()
-    print("CORRECT:")
-    print("  python -m tools.dashboard.diagnose_metrics")
-    print()
-    sys.exit(1)
+    _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+    if _dashboard_dir not in sys.path:
+        sys.path.insert(0, _dashboard_dir)
 
-from .utilities import api_call, logger
+from utilities import api_call, logger
 import logging
 import json
 

@@ -2,16 +2,28 @@
 
 from datetime import date as _date, datetime, timedelta, timezone
 
-from .utilities import (
-    TIER_COLOR,
-    SPARKLINE_CHARS,
-    ET,
-    G,
-    R,
-    Y,
-    CY,
-    DIM,
-)
+try:
+    from .utilities import (
+        TIER_COLOR,
+        SPARKLINE_CHARS,
+        ET,
+        G,
+        R,
+        Y,
+        CY,
+        DIM,
+    )
+except ImportError:
+    from utilities import (
+        TIER_COLOR,
+        SPARKLINE_CHARS,
+        ET,
+        G,
+        R,
+        Y,
+        CY,
+        DIM,
+    )
 import time
 
 _schedule_cache = {"result": None, "timestamp": 0}
@@ -188,12 +200,16 @@ def next_run_str() -> str:
     now = time.time()
     if (
         _schedule_cache["result"] is not None
+        and _schedule_cache["timestamp"] is not None
         and (now - _schedule_cache["timestamp"]) < _SCHEDULE_CACHE_TTL
     ):
         return _schedule_cache["result"]
 
     try:
-        from utilities import api_call
+        try:
+            from .utilities import api_call
+        except ImportError:
+            from utilities import api_call
 
         resp = api_call("/api/algo/schedule")
         if not resp.get("_error") and "schedule" in resp:

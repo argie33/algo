@@ -16,9 +16,14 @@ from zoneinfo import ZoneInfo
 import requests
 import requests.exceptions
 
-from .data_validation import (
-    safe_float,
-)
+try:
+    from .data_validation import (
+        safe_float,
+    )
+except ImportError:
+    from data_validation import (
+        safe_float,
+    )
 
 from rich.console import Console
 
@@ -256,6 +261,9 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
             )
             _record_api_failure()
             return {"_error": str(e)}
+
+    # Should not reach here, but ensure a return exists
+    return {"_error": "API call failed"}
 
 
 def normalize_positions_data(data):

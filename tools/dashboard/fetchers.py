@@ -7,25 +7,44 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Optional
 
-from .data_validation import (
-    safe_int,
-    safe_float,
-    safe_json_parse,
-    safe_bool,
-    safe_float_strict,
-    safe_int_strict,
-    StrictValidationError,
-)
-
-from .utilities import (
-    api_call,
-    logger,
-    record_data_quality_issue,
-    G,
-    R,
-    Y,
-    CY,
-)
+try:
+    from .data_validation import (
+        safe_int,
+        safe_float,
+        safe_json_parse,
+        safe_bool,
+        safe_float_strict,
+        safe_int_strict,
+        StrictValidationError,
+    )
+    from .utilities import (
+        api_call,
+        logger,
+        record_data_quality_issue,
+        G,
+        R,
+        Y,
+        CY,
+    )
+except ImportError:
+    from data_validation import (
+        safe_int,
+        safe_float,
+        safe_json_parse,
+        safe_bool,
+        safe_float_strict,
+        safe_int_strict,
+        StrictValidationError,
+    )
+    from utilities import (
+        api_call,
+        logger,
+        record_data_quality_issue,
+        G,
+        R,
+        Y,
+        CY,
+    )
 
 # Fetcher metadata: endpoint and description for better error context
 FETCHER_METADATA = {
