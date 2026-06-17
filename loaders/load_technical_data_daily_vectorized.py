@@ -20,6 +20,7 @@ import os
 import time
 import threading
 from datetime import date, datetime, timedelta
+from io import StringIO
 from typing import Optional
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -378,8 +379,9 @@ class VectorizedTechnicalLoader:
                     ),
                 )
 
-                # Stream CSV data to COPY
-                csv_buffer = insert_df.to_csv(index=False, header=False, na_rep="")
+                # Stream CSV data to COPY (wrap string in StringIO for file-like object)
+                csv_string = insert_df.to_csv(index=False, header=False, na_rep="")
+                csv_buffer = StringIO(csv_string)
                 cur.copy_expert(sql, csv_buffer)
 
                 inserted = cur.rowcount
