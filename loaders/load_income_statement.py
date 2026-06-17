@@ -127,17 +127,23 @@ class IncomeStatementLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         try:
-            if not self._sec_client.symbol_to_cik(symbol):
-                logging.debug("Symbol %s not found in SEC EDGAR", symbol)
+            cik = self._sec_client.symbol_to_cik(symbol)
+            if not cik:
+                logging.warning("Symbol %s not found in SEC EDGAR (CIK resolution failed)", symbol)
                 return None
+            logging.debug("Symbol %s resolved to CIK %s", symbol, cik)
+
             rows = self._sec_client.get_income_statement(
                 symbol, period=self._edgar_period
             )
             if not rows:
-                logging.debug(
-                    "No %s income statement data for %s", self._edgar_period, symbol
+                logging.warning(
+                    "No %s income statement data for %s (symbol=%s, cik=%s)",
+                    self._edgar_period, symbol, symbol, cik
                 )
                 return None
+            logging.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self._edgar_period)
+
             since_year = int(since.year) if since else 2000
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
             null_revenue_years = self._get_null_revenue_years(symbol)
@@ -154,7 +160,7 @@ class IncomeStatementLoader(OptimalLoader):
                 )
             return filtered or None
         except Exception as e:
-            logging.error("SEC EDGAR error for %s: %s", symbol, e)
+            logging.error("SEC EDGAR error for %s: %s", symbol, e, exc_info=True)
             return None
 
     _QUARTER_MAP = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}

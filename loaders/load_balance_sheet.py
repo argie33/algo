@@ -114,13 +114,19 @@ class BalanceSheetLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         try:
-            if not self._sec_client.symbol_to_cik(symbol):
-                logging.debug("Symbol %s not found in SEC EDGAR", symbol)
+            cik = self._sec_client.symbol_to_cik(symbol)
+            if not cik:
+                logging.warning("Symbol %s not found in SEC EDGAR (CIK resolution failed)", symbol)
                 return None
+            logging.debug("Symbol %s resolved to CIK %s", symbol, cik)
+
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
-                logging.debug("No %s balance sheet data for %s", self.period, symbol)
+                logging.warning("No %s balance sheet data for %s (symbol=%s, cik=%s)",
+                               self.period, symbol, symbol, cik)
                 return None
+            logging.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
+
             since_year = int(since.year) if since else 2000
             filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
             if len(filtered) < len(rows):
@@ -130,7 +136,7 @@ class BalanceSheetLoader(OptimalLoader):
                 )
             return filtered or None
         except Exception as e:
-            logging.error("SEC EDGAR error for %s: %s", symbol, e)
+            logging.error("SEC EDGAR error for %s: %s", symbol, e, exc_info=True)
             return None
 
     def transform(self, rows):
