@@ -48,6 +48,15 @@ This fetches fresh credentials from IaC (Secrets Manager) and updates your local
 - `print()` in: `algo_loader_*.py`, `algo_daily_report.py`, `scripts/`, `tests/`
 - Configuration files that are generated/static
 
+**Type checking & import validation (enforced by hook):**
+- Type errors from mypy BLOCK commits — no exceptions
+- Code must be importable (no NameError at runtime)
+- Before committing, verify locally:
+  ```bash
+  python -m mypy <file>.py --ignore-missing-imports --no-error-summary
+  python -m pytest tests/ -x --tb=short
+  ```
+
 ## Documentation Management (Preventing Accumulation)
 
 **Steering docs** (`steering/*.md`): PERMANENT only.
