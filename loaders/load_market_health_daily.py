@@ -122,19 +122,28 @@ class MarketHealthDailyLoader(OptimalLoader):
         return health_metrics
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
-        """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
+        """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}.
+
+        CRITICAL: If yfinance returns data but ALL values are < 5.0, this is a
+        data quality issue (not missing data). Logs ERROR so operators know
+        to investigate yfinance feed.
+        """
         try:
             from utils.external.yfinance import YFinanceWrapper
 
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
-                logger.warning("VIX ticker not available")
+                logger.error(f"[VIX DATA ISSUE] Ticker ^VIX not available from yfinance for {start} to {end}")
                 return {}
             df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
-                logger.warning("VIX history returned no data")
+                logger.error(f"[VIX DATA ISSUE] yfinance ^VIX returned no data for {start} to {end}")
                 return {}
+
             result = {}
+            rejected_count = 0
+            rejected_values = []
+
             for idx, row in df.iterrows():
                 date_str = (
                     idx.strftime("%Y-%m-%d")
@@ -143,14 +152,34 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
                 close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
                 is_nan = isinstance(close_val, float) and close_val != close_val
-                if close_val is not None and not is_nan and float(close_val) > 5.0:
-                    result[date_str] = round(float(close_val), 2)
-                elif close_val is not None and not is_nan:
-                    logger.warning(f"VIX value {close_val} for {date_str} is implausibly low — skipping")
-            logger.info(f"Fetched VIX data: {len(result)} days")
+
+                if close_val is None or is_nan:
+                    continue
+
+                close_float = float(close_val)
+                if close_float > 5.0:
+                    result[date_str] = round(close_float, 2)
+                else:
+                    rejected_count += 1
+                    rejected_values.append(close_float)
+
+            # CRITICAL ERROR: If we got data but ZERO valid values, report it
+            if rejected_count > 0 and len(result) == 0:
+                logger.error(
+                    f"[VIX DATA ISSUE] yfinance returned {rejected_count} values, "
+                    f"ALL were < 5.0 (invalid): {rejected_values[:5]}... "
+                    f"This is a DATA QUALITY issue, not a network problem. "
+                    f"Probable causes: 1) Yahoo backend issue 2) Bad data stream 3) Rate limiting. "
+                    f"Check yfinance directly: import yfinance; print(yfinance.Ticker('^VIX').history(period='1d'))"
+                )
+            elif len(result) > 0:
+                logger.info(f"[VIX] Fetched {len(result)} valid days, rejected {rejected_count} low values")
+            else:
+                logger.warning(f"[VIX] No data returned by yfinance")
+
             return result
         except Exception as e:
-            logger.warning(f"VIX fetch failed (circuit breaker will use None): {e}")
+            logger.error(f"[VIX DATA ISSUE] yfinance exception: {type(e).__name__}: {e}")
             return {}
 
     def _fetch_put_call_ratio(self, eval_date: date) -> Optional[float]:

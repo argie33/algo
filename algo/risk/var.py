@@ -374,11 +374,14 @@ class ValueAtRisk:
                 sector_exposure: Dict[str, float] = {}
                 industry_exposure: Dict[str, float] = {}
 
+                excluded_count = 0
                 for symbol, qty, cur_price, entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or float(cur_price) <= 0:
+                        excluded_count += 1
                         logger.warning(
-                            f"[VAR exposure] {symbol}: missing or invalid current_price, excluding from exposure"
+                            f"[CONCENTRATION] {symbol}: excluded (current_price={cur_price}). "
+                            f"Check positions table current_price column."
                         )
                         continue
                     position_value = float(qty) * float(cur_price)
@@ -406,6 +409,20 @@ class ValueAtRisk:
                     )
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
+
+                # Diagnostic: log if positions exist but concentration is 0%
+                if len(positions) > 0 and top_5_pct == 0:
+                    logger.error(
+                        f"[CONCENTRATION DATA ISSUE] {len(positions)} positions in DB but top_5_pct={top_5_pct}. "
+                        f"Excluded: {excluded_count}. Portfolio value: ${portfolio_value}. "
+                        f"Likely cause: positions missing current_price. "
+                        f"Check algo_positions table for NULL current_price values."
+                    )
+                elif excluded_count > 0:
+                    logger.warning(
+                        f"[CONCENTRATION] {excluded_count}/{len(positions)} positions excluded "
+                        f"(no valid pricing), result: {top_5_pct:.1f}%"
+                    )
 
                 return {
                     "portfolio_value": round(portfolio_value, 2),

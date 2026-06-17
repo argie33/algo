@@ -217,6 +217,10 @@ def fetch_market(c):
 
     STRICT MODE: SPY price and VIX are critical for position sizing. Missing them
     is a critical data freshness issue, not a fallback-to-None situation.
+
+    If VIX is NULL, it means load_market_health_daily ran but yfinance returned
+    no valid data (likely all values < 5.0 threshold). This is a data quality issue,
+    not a missing loader issue.
     """
     try:
         mkt = api_call("/api/algo/markets")
