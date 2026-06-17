@@ -534,9 +534,9 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 - Final snapshots use same KMS key as database
 - Backup retention: 1-7 days (configurable)
 
-## Lambda API Configuration Status
+## Lambda API Configuration
 
-**Deployment Status:** ✓ DEPLOYED & OPERATIONAL
+**Lambda Function Configuration:**
 - Function name: `algo-api-dev`
 - Runtime: Python 3.12
 - Memory: 256 MB
