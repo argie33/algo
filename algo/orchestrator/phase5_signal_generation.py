@@ -209,9 +209,10 @@ def _get_candidates_from_buysell(
                 "signal_date": str(r[17]) if r[17] is not None else None,
             })
 
+        swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
         logger.info(
-            f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily BUY signals + stock_scores "
-            f"(lookback: {lookback_date} to {run_date})"
+            f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
+            f"(swing_scores: {swing_score_count}, lookback: {lookback_date} to {run_date})"
         )
         return candidates
     except Exception as e:
@@ -296,7 +297,11 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 "industry": r[11],
             })
 
-        logger.info(f"[PHASE 5] {len(candidates)} candidates from stock_scores + price_daily")
+        swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
+        logger.info(
+            f"[PHASE 5] {len(candidates)} candidates from stock_scores + swing_trader_scores + price_daily "
+            f"(swing_scores: {swing_score_count})"
+        )
         return candidates
     except Exception as e:
         logger.error(f"[PHASE 5] Error fetching candidates: {e}", exc_info=True)
