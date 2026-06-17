@@ -676,6 +676,7 @@ def _get_markets(cur) -> Dict:
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
                     FROM market_health_daily
+                    WHERE vix_level IS NOT NULL
                     ORDER BY date DESC LIMIT 1
                 """)
             mh_row = cur.fetchone()

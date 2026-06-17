@@ -347,12 +347,31 @@ class ValueAtRisk:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""
-                    SELECT ap.symbol, ap.quantity, ap.current_price, ap.avg_entry_price AS entry_price,
+                    WITH open_trades AS (
+                        SELECT DISTINCT ON (at.symbol)
+                            at.symbol, at.entry_quantity as quantity, at.entry_price,
+                            lp.current_price,
+                            (at.entry_quantity * lp.current_price) as position_value
+                        FROM algo_trades at
+                        LEFT JOIN (
+                            SELECT DISTINCT ON (symbol) symbol, close as current_price
+                            FROM price_daily
+                            WHERE symbol IN (
+                                SELECT DISTINCT symbol FROM algo_trades
+                                WHERE status IN ('open', 'filled', 'active', 'partially_filled')
+                                  AND exit_date IS NULL
+                            )
+                            ORDER BY symbol, date DESC
+                        ) lp ON at.symbol = lp.symbol
+                        WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
+                          AND at.exit_date IS NULL
+                        ORDER BY at.symbol, at.trade_date DESC
+                    )
+                    SELECT ot.symbol, ot.quantity, ot.current_price, ot.entry_price,
                            cp.sector, cp.industry
-                    FROM algo_positions ap
-                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
-                    WHERE ap.status = 'open'
-                    ORDER BY ap.position_value DESC
+                    FROM open_trades ot
+                    LEFT JOIN company_profile cp ON ot.symbol = cp.ticker
+                    ORDER BY ABS(ot.position_value) DESC
                     """)
                 positions = cur.fetchall()
 
