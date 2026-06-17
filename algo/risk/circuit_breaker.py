@@ -466,7 +466,7 @@ class CircuitBreaker:
 
     def _check_vix_spike(self, current_date: Any, cur) -> Dict[str, Any]:
         cur.execute(
-            "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()

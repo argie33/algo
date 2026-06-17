@@ -275,7 +275,7 @@ class PositionSizer:
 
             def fetch_vix(cur):
                 cur.execute(
-                    "SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1"
+                    "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
                 )
                 row = cur.fetchone()
                 if not row or row[0] is None:

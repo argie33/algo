@@ -720,7 +720,7 @@ class MarketExposure:
         if not vix_row or vix_row[0] is None:
             # Fallback to market_health_daily if ^VIX missing
             cur.execute(
-                "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             r2 = cur.fetchone()

@@ -114,6 +114,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
                 cur,
                 """
                 SELECT vix_level FROM market_health_daily
+                WHERE vix_level IS NOT NULL
                 ORDER BY date DESC LIMIT 1
             """,
                 timeout_sec=5,
