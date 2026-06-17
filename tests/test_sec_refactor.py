@@ -14,9 +14,9 @@ print("=" * 60)
 try:
     from utils.external.sec_edgar import SecEdgarClient
     from utils.external import sec_statements
-    print("✓ Imports successful")
+    print("[OK] Imports successful")
 except ImportError as e:
-    print(f"✗ Import failed: {e}")
+    print(f"[FAIL] Import failed: {e}")
     sys.exit(1)
 
 # Test 2: Create a SecEdgarClient and check ticker resolution
@@ -27,17 +27,17 @@ try:
     client = SecEdgarClient()
     for symbol in ["AAPL", "MSFT"]:
         cik = client.symbol_to_cik(symbol)
-        print(f"✓ {symbol} -> {cik}")
+        print(f"[OK] {symbol} -> {cik}")
 
     # Test that unknown symbols raise an exception
     try:
         client.symbol_to_cik("UNKNOWN")
-        print("✗ UNKNOWN should have raised an exception")
+        print("[FAIL] UNKNOWN should have raised an exception")
         sys.exit(1)
     except (ValueError, RuntimeError):
-        print("✓ UNKNOWN raises exception (fail-fast)")
+        print("[OK] UNKNOWN raises exception (fail-fast)")
 except Exception as e:
-    print(f"✗ Ticker resolution failed: {e}")
+    print(f"[FAIL] Ticker resolution failed: {e}")
     sys.exit(1)
 
 # Test 3: Fetch company facts
@@ -47,23 +47,23 @@ print("=" * 60)
 try:
     aapl_cik = client.symbol_to_cik("AAPL")
     if not aapl_cik:
-        print("✗ Could not resolve AAPL")
+        print("[FAIL] Could not resolve AAPL")
         sys.exit(1)
 
     facts = client.get_company_facts(aapl_cik)
     if facts and "facts" in facts:
         us_gaap = facts.get("facts", {}).get("us-gaap", {})
-        print(f"✓ Got {len(us_gaap)} concepts from us-gaap")
+        print(f"[OK] Got {len(us_gaap)} concepts from us-gaap")
 
         # Check for key concepts
         key_concepts = ["Assets", "AssetsCurrent", "Revenues", "NetIncomeLoss"]
         found = sum(1 for c in key_concepts if c in us_gaap)
         print(f"  {found}/{len(key_concepts)} key concepts found")
     else:
-        print("✗ No facts returned")
+        print("[FAIL] No facts returned")
         sys.exit(1)
 except Exception as e:
-    print(f"✗ get_company_facts failed: {e}")
+    print(f"[FAIL] get_company_facts failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -75,7 +75,7 @@ print("=" * 60)
 try:
     rows = client.get_balance_sheet("AAPL", period="annual")
     if rows:
-        print(f"✓ Got {len(rows)} annual balance sheet rows")
+        print(f"[OK] Got {len(rows)} annual balance sheet rows")
         # Show first row
         if rows:
             row = rows[0]
@@ -84,9 +84,9 @@ try:
             print(f"  fiscal_year: {row.get('fiscal_year')}")
             print(f"  total_assets: {row.get('total_assets')}")
     else:
-        print("✗ No balance sheet rows returned")
+        print("[FAIL] No balance sheet rows returned")
 except Exception as e:
-    print(f"✗ get_balance_sheet failed: {e}")
+    print(f"[FAIL] get_balance_sheet failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -98,16 +98,16 @@ print("=" * 60)
 try:
     rows = client.get_income_statement("AAPL", period="annual")
     if rows:
-        print(f"✓ Got {len(rows)} annual income statement rows")
+        print(f"[OK] Got {len(rows)} annual income statement rows")
         if rows:
             row = rows[0]
             print(f"  symbol: {row.get('symbol')}")
             print(f"  fiscal_year: {row.get('fiscal_year')}")
             print(f"  revenue: {row.get('revenue')}")
     else:
-        print("✗ No income statement rows returned")
+        print("[FAIL] No income statement rows returned")
 except Exception as e:
-    print(f"✗ get_income_statement failed: {e}")
+    print(f"[FAIL] get_income_statement failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -119,16 +119,16 @@ print("=" * 60)
 try:
     rows = client.get_cash_flow("AAPL", period="annual")
     if rows:
-        print(f"✓ Got {len(rows)} annual cash flow rows")
+        print(f"[OK] Got {len(rows)} annual cash flow rows")
         if rows:
             row = rows[0]
             print(f"  symbol: {row.get('symbol')}")
             print(f"  fiscal_year: {row.get('fiscal_year')}")
             print(f"  operating_cash_flow: {row.get('operating_cash_flow')}")
     else:
-        print("✗ No cash flow rows returned")
+        print("[FAIL] No cash flow rows returned")
 except Exception as e:
-    print(f"✗ get_cash_flow failed: {e}")
+    print(f"[FAIL] get_cash_flow failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
