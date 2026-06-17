@@ -178,33 +178,27 @@ class CredentialManager:
     def _fetch_from_secrets_manager(self, secret_name: str) -> Optional[str]:
         """Fetch from AWS Secrets Manager. Returns None if not found.
 
-        With DEV_BYPASS_MODE enabled, checks local cache first and falls back
-        to test credentials if AWS is unavailable.
+        With DEV_BYPASS_MODE enabled in local dev (not AWS), checks local cache first.
+        PRODUCTION ONLY: Fails hard if AWS is unavailable — no fallback to test credentials.
         """
-        # Check dev cache if enabled
-        dev_loader = _get_dev_loader()
-        if dev_loader:
-            cached = dev_loader.get_cached_secret(secret_name)
-            if cached:
-                value = (
-                    cached
-                    if isinstance(cached, str)
-                    else cached.get("result") or str(cached)
-                )
-                logger.debug(f"[DEV_CACHE] Using cached secret: {secret_name}")
-                return value
+        # Check dev cache if enabled (LOCAL DEV ONLY - never in AWS)
+        dev_loader = None
+        if not self._is_aws:
+            dev_loader = _get_dev_loader()
+            if dev_loader:
+                cached = dev_loader.get_cached_secret(secret_name)
+                if cached:
+                    value = (
+                        cached
+                        if isinstance(cached, str)
+                        else cached.get("result") or str(cached)
+                    )
+                    logger.debug(f"[DEV_CACHE] Using cached secret: {secret_name}")
+                    return value
 
         try:
             client = self._get_secrets_client()
             if not client:
-                # If AWS is unavailable and dev cache/fallback enabled, try fallback
-                if dev_loader:
-                    test_creds = dev_loader.get_test_credentials()
-                    if test_creds:
-                        logger.info(
-                            f"[DEV_CACHE] AWS unavailable; using test credentials for {secret_name}"
-                        )
-                        return test_creds.get("result") or str(test_creds)
                 return None
 
             # Try to get the secret by name
@@ -221,16 +215,6 @@ class CredentialManager:
 
         except Exception as e:
             logger.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
-
-            # If AWS fetch failed and dev cache/fallback enabled, try fallback
-            if dev_loader:
-                test_creds = dev_loader.get_test_credentials()
-                if test_creds:
-                    logger.info(
-                        f"[DEV_CACHE] AWS fetch failed; using test credentials for {secret_name}"
-                    )
-                    return test_creds.get("result") or str(test_creds)
-
             return None
 
     def get_db_credentials(self) -> Dict[str, Any]:

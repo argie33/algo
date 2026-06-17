@@ -231,16 +231,19 @@ def send_metric(
 
 
 def send_alert(subject: str, message: str):
-    """Send SNS alert if configured."""
+    """Send SNS alert (REQUIRED in production)."""
     sns_topic = os.environ.get("SNS_ALERT_TOPIC_ARN")
     if not sns_topic:
-        logger.warning("SNS_ALERT_TOPIC_ARN not configured, skipping alert")
-        return
+        raise ValueError(
+            "SNS_ALERT_TOPIC_ARN required for health monitoring in production. "
+            "Set SNS_ALERT_TOPIC_ARN environment variable."
+        )
 
     try:
         sns.publish(TopicArn=sns_topic, Subject=subject, Message=message)
     except Exception as e:
         logger.error(f"Failed to send alert: {e}")
+        raise
 
 
 def handler(event, context):

@@ -1477,13 +1477,11 @@ class DailyReconciliation:
                         else None
                     ),
                 }
-            logger.warning(
+            raise ValueError(
                 f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}"
             )
-            return None
         except Exception as e:
-            logger.warning(f"Could not fetch Alpaca account (skipping): {e}")
-            return None
+            raise ValueError(f"Could not fetch Alpaca account: {e}")
 
     def _fetch_initial_capital(self, cur):
         """Get the actual initial capital from Alpaca account history.

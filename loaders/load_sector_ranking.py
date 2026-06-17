@@ -28,8 +28,7 @@ class SectorRankingLoader(OptimalLoader):
                 latest_date = row["date"] if row else None
 
                 if not latest_date:
-                    logger.warning("No price data found — skipping sector ranking")
-                    return None
+                    raise ValueError("No price data found in price_daily table. Required for sector ranking computation.")
 
                 # Rank sectors by average composite score; pull historical ranks for comparison
                 cur.execute("""
