@@ -304,10 +304,6 @@ class DataProvenanceTracker:
 
     def _insert_provenance_record(self, record: Dict):
         """Insert a provenance record for a tick."""
-        # Allow disabling provenance at runtime via environment variable
-        if os.environ.get("DISABLE_PROVENANCE_TRACKING") == "true":
-            return
-
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
