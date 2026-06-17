@@ -7,8 +7,8 @@ from typing import Any, List, Tuple
 from rich.panel import Panel
 from rich.text import Text
 
-from panel_registry import register_panel
-from utilities import (
+from ..panel_registry import register_panel
+from ..utilities import (
     MASCOT_W,
     MASCOT_FRAMES,
     MASCOT_COLORS,

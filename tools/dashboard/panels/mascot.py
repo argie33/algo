@@ -20,7 +20,7 @@ from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     MASCOT_W,
     MASCOT_FRAMES,
     MASCOT_COLORS,

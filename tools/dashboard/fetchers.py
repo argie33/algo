@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Optional
 
-from data_validation import (
+from .data_validation import (
     safe_int,
     safe_float,
     safe_json_parse,
@@ -17,7 +17,7 @@ from data_validation import (
     StrictValidationError,
 )
 
-from utilities import (
+from .utilities import (
     api_call,
     logger,
     record_data_quality_issue,

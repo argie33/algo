@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import requests
 import requests.exceptions
 
-from data_validation import (
+from .data_validation import (
     safe_float,
 )
 
@@ -28,10 +28,11 @@ CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
 
 # Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
 _data_status_lock = threading.Lock()
-_data_status_cache = {}
+_data_status_cache: Dict[str, Any] = {}
 
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
+_sector_agg_cache: Dict[str, Any] = {}
 
 G = "bright_green"
 R = "bright_red"
@@ -393,13 +394,13 @@ def validate_data_freshness(
     return True
 
 
-_response_cache = {}
+_response_cache: Dict[str, Dict[str, Any]] = {}
 _response_cache_lock = threading.Lock()
 
 _circuit_breaker_state = "closed"
 _circuit_breaker_failures = 0
 _circuit_breaker_lock = threading.Lock()
-_circuit_breaker_reset_time = None
+_circuit_breaker_reset_time: Optional[float] = None
 CIRCUIT_BREAKER_THRESHOLD = 3
 CIRCUIT_BREAKER_RESET_SECONDS = 60
 
@@ -479,7 +480,7 @@ def get_cached_response(endpoint: str) -> Optional[dict]:
 
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
 
-_data_quality_issues = []
+_data_quality_issues: List[Dict[str, Any]] = []
 _data_quality_lock = threading.Lock()
 
 

@@ -23,14 +23,14 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     G,
     R,
     Y,
     CY,
     DIM,
 )
-from formatters import (
+from ..formatters import (
     fmt_age,
     fmt_money,
     sign,

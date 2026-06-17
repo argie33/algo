@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     TIER_COLOR,
     TIER_SHORT,
     G,
@@ -30,7 +30,7 @@ from utilities import (
     Y,
     DIM,
 )
-from formatters import (
+from ..formatters import (
     exp_bar,
     sign,
     next_run_str,

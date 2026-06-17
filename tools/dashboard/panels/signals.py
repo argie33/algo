@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     G,
     R,
     Y,
@@ -30,7 +30,7 @@ from utilities import (
     DIM,
     SPARKLINE_CHARS,
 )
-from formatters import (
+from ..formatters import (
     hbar,
     sparkline,
 )

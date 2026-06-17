@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 from rich.panel import Panel
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     PHASE_NAMES,
     G,
     R,

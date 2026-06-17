@@ -22,9 +22,9 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from data_validation import safe_float
+from ..data_validation import safe_float
 
-from utilities import (
+from ..utilities import (
     MASCOT_W,
     MASCOT_FRAMES,
     MASCOT_COLORS,
@@ -38,7 +38,7 @@ from utilities import (
     CY,
     DIM,
 )
-from formatters import (
+from ..formatters import (
     fmt_age,
     fmt_money,
     fmt_money_short,

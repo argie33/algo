@@ -21,13 +21,13 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from utilities import (
+from ..utilities import (
     G,
     R,
     Y,
     DIM,
 )
-from formatters import (
+from ..formatters import (
     hbar,
 )
 

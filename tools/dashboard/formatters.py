@@ -2,7 +2,7 @@
 
 from datetime import date as _date, datetime, timedelta, timezone
 
-from utilities import (
+from .utilities import (
     TIER_COLOR,
     SPARKLINE_CHARS,
     ET,

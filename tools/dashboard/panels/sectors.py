@@ -21,8 +21,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from data_validation import safe_float
-from utilities import (
+from ..data_validation import safe_float
+from ..utilities import (
     compute_sector_agg,
     normalize_positions_data,
     G,
@@ -31,7 +31,7 @@ from utilities import (
     CY,
     DIM,
 )
-from formatters import (
+from ..formatters import (
     hbar,
     mini_bar,
 )

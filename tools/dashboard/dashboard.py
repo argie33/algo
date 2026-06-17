@@ -2,29 +2,39 @@
 """Algo Ops Terminal Dashboard
 
 Usage:
-  python tools/dashboard/dashboard.py                 # live view (AWS endpoints, q or Ctrl+C to exit)
-  python tools/dashboard/dashboard.py -w              # watch mode, auto-refresh every 30s
-  python tools/dashboard/dashboard.py -w 60           # watch mode, refresh every 60s
-  python tools/dashboard/dashboard.py --compact       # narrow positions table
-  python tools/dashboard/dashboard.py --local         # use local API (localhost:3001) instead of AWS
+  python -m tools.dashboard.dashboard                 # live view (AWS endpoints, q or Ctrl+C to exit)
+  python -m tools.dashboard.dashboard -w              # watch mode, auto-refresh every 30s
+  python -m tools.dashboard.dashboard -w 60           # watch mode, refresh every 60s
+  python -m tools.dashboard.dashboard --compact       # narrow positions table
+  python -m tools.dashboard.dashboard --local         # use local API (localhost:3001) instead of AWS
 
 Modes:
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
   Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
-import argparse
 import sys
 import os
+
+# CRITICAL: This script must be run as a module to work with relative imports.
+# If run directly with `python dashboard.py`, it will fail.
+# This check ensures users get a clear error with the correct command.
+if __name__ == "__main__" and __package__ is None:
+    print("[ERROR] This script must be run as a module, not directly.")
+    print()
+    print("CORRECT:")
+    print("  python -m tools.dashboard.dashboard")
+    print()
+    print("WRONG (will not work):")
+    print("  python tools/dashboard/dashboard.py")
+    print()
+    sys.exit(1)
+
+import argparse
 import threading
 import time
 from datetime import datetime
 from typing import Optional
-
-# Ensure tools/dashboard is in the Python path for imports
-_dashboard_dir = os.path.dirname(os.path.abspath(__file__))
-if _dashboard_dir not in sys.path:
-    sys.path.insert(0, _dashboard_dir)
 
 try:
     import msvcrt
@@ -48,10 +58,10 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-from fetchers import load_all
-from error_boundary import error_summary_panel
-from panels import (
+from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
+from .fetchers import load_all
+from .error_boundary import error_summary_panel
+from .panels import (
     _extract_items,
     mascot_compact,
     loading_layout,
@@ -77,10 +87,10 @@ from panels import (
     panel_economic_expanded,
     panel_portfolio_perf_expanded,
 )
-from formatters import mkt_hours_str
+from .formatters import mkt_hours_str
 
 try:
-    from panel_registry import get_panel_registry as _get_panel_registry
+    from .panel_registry import get_panel_registry as _get_panel_registry
     PANEL_REGISTRY = _get_panel_registry()
     _REGISTRY_AVAILABLE = True
 except ImportError:
