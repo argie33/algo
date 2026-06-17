@@ -130,6 +130,20 @@ unzip -l terraform/lambda_api.zip | head -30
 - Sector comes from `COALESCE(algo_trades.sector, company_profile.sector, 'Unknown')` — trades get sector at entry time from Phase 5 signal
 
 
+## Data Architecture: Technical Indicators (Redundancy)
+
+**Single Source of Truth:** `technical_data_daily` table (RSI, MACD, ATR, Bollinger Bands, Mansfield RS, etc.)
+- Computed TWICE per trading day: **morning prep + EOD pipeline** (vectorized loader: 15-25 min per run)
+- Phase 1 validates technical data freshness (< 2 trading days old) before signal generation
+- Phase 5 signal generation depends on fresh technical_data_daily for buy_sell_daily signals
+- Dual-computation eliminates single point of failure (was: EOD-only before 2026-06-16)
+
+**Resilience:** If EOD pipeline fails on day 1:
+- Day 1 morning pipeline still computes technical indicators (fresh at 2:00 AM) ✅
+- Phase 1 passes freshness checks using morning data (not stale)
+- Phase 5 signal generation uses previous day's buy_sell_daily signals (fallback) ✅
+- Next day: Morning pipeline recomputes technical data, fresh for trading ✓
+
 ## Data Architecture: Market Exposure
 
 **Single Source of Truth:** `market_exposure_daily` table computed daily (12 quantitative factors → market regime)
@@ -158,11 +172,11 @@ unzip -l terraform/lambda_api.zip | head -30
 
 ## Schedule (Daily, Mon-Fri)
 
-**2:00 AM ET:** morning-prep-pipeline (Step Functions) — loads prices + market health + swing_trader_scores (5-5.5h) before 9:30 AM deadline
+**2:00 AM ET:** morning-prep-pipeline (Step Functions) — loads prices + market health + swing_trader_scores + technical indicators (5-5.5h) before 9:30 AM deadline
 
 **2:40 AM ET:** Load SP500/Russell constituents (EventBridge)
 
-**4:05 PM ET:** EOD pipeline (Step Functions) — loads prices, market health, market exposure, algo metrics, swing scores (3-4h)
+**4:05 PM ET:** EOD pipeline (Step Functions) — loads prices, market health, market exposure, technical indicators, algo metrics, swing scores, buy/sell signals (3-4h)
 
 **4:30 PM ET:** Compute circuit breaker metrics (EventBridge)
 

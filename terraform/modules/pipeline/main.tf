@@ -1084,7 +1084,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # ── Morning swing trader scores (only critical supporting loader) ─
       # NOTE: buy_sell_daily runs only in EOD pipeline, not morning.
       # Morning orchestrator (9:30 AM) uses buy_sell signals from previous day's EOD run.
-      # Removed: technical_data_daily, signal_quality_scores (computed on-the-fly instead).
+      # Removed: signal_quality_scores (computed on-the-fly instead).
       # FIXED 2026-06-XX: Switched to vectorized loader (2-3x faster)
       # Vectorized approach: 10-20 min vs old 30-40 min (2-3x faster)
       MorningSwingScores = {
@@ -1107,8 +1107,39 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSectorRanking"
+          Next        = "MorningTechnicalData"
           ResultPath  = "$.swingError"
+        }]
+        Next = "MorningTechnicalData"
+      }
+
+      # ── Morning technical data daily (required for Phase 1 freshness) ──
+      # FIXED Issue #18: Add technical_data_daily_vectorized to morning pipeline for redundancy
+      # If EOD pipeline fails, morning pipeline ensures technical_data_daily is fresh for Phase 1 checks
+      # and Phase 5 signal generation that may run later in the day.
+      # Depends on: stock_prices_daily (already completed)
+      # Timeout: 3600s (1 hour) for full 300-day lookback vectorized load
+      # Fail-open: If technical data fails in morning, Phase 1 doesn't block Phase 5 (has fallback)
+      MorningTechnicalData = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily_vectorized"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSectorRanking"
+          ResultPath  = "$.techDataError"
         }]
         Next = "MorningSectorRanking"
       }
