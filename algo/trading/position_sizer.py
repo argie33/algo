@@ -175,54 +175,46 @@ class PositionSizer:
     def get_current_drawdown(self):
         """Calculate current drawdown from peak.
 
-        B13: Fail-closed — if any data missing, assume worst case to protect capital.
+        Fails fast — raises if any data missing. Position sizing requires accurate
+        drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
         """
-        try:
-            fallback_dd = self.config.get(
-                "fallback_drawdown_pct_when_peak_missing", 25.0
-            )
+        def calc_drawdown(cur):
+            cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
+            count_result = cur.fetchone()
+            if not count_result or count_result[0] == 0:
+                raise RuntimeError(
+                    "No portfolio snapshots found. Phase 7 must run daily to maintain drawdown tracking."
+                )
 
-            def calc_drawdown(cur):
-                cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
-                count_result = cur.fetchone()
-                if not count_result or count_result[0] == 0:
-                    return 0.0
+            cur.execute("""
+                SELECT
+                    MAX(total_portfolio_value) as peak,
+                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                     ORDER BY snapshot_date DESC LIMIT 1) as current
+                FROM algo_portfolio_snapshots
+            """)
+            result = cur.fetchone()
+            if not result or not result[0] or not result[1]:
+                raise RuntimeError(
+                    "Portfolio snapshot data inconsistent. Cannot calculate drawdown for position sizing."
+                )
 
-                cur.execute("""
-                    SELECT
-                        MAX(total_portfolio_value) as peak,
-                        (SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                         ORDER BY snapshot_date DESC LIMIT 1) as current
-                    FROM algo_portfolio_snapshots
-                """)
-                result = cur.fetchone()
-                if not result or not result[0] or not result[1]:
-                    logger.warning(
-                        f"Portfolio snapshot data inconsistent; assuming {fallback_dd}% drawdown (fail-closed)"
-                    )
-                    return fallback_dd
+            peak = float(result[0])
+            current = float(result[1])
+            if peak == 0:
+                raise RuntimeError(
+                    "Peak portfolio value is zero. Portfolio snapshots data is invalid."
+                )
 
-                peak = float(result[0])
-                current = float(result[1])
-                if peak == 0:
-                    logger.warning(
-                        f"Peak portfolio value is zero; assuming {fallback_dd}% drawdown (fail-closed)"
-                    )
-                    return fallback_dd
+            drawdown_pct = ((peak - current) / peak) * 100
+            return max(0, drawdown_pct)
 
-                drawdown_pct = ((peak - current) / peak) * 100
-                return max(0, drawdown_pct)
-
-            result = self._with_cursor(calc_drawdown)
-            if result is not None:
-                return result
-            return fallback_dd
-        except Exception as e:
-            logger.error(f"Could not calculate drawdown: {e}")
-            fallback_dd = self.config.get(
-                "fallback_drawdown_pct_when_peak_missing", 25.0
-            )
-            return fallback_dd
+        result = self._with_cursor(calc_drawdown)
+        if result is not None:
+            return result
+        raise RuntimeError(
+            "Could not fetch drawdown from database. Cannot calculate risk adjustment for position sizing."
+        )
 
     def get_risk_adjustment(self):
         """Get risk adjustment factor based on drawdown.

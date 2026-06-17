@@ -109,11 +109,6 @@ class AlgoConfig:
             "bool",
             "Require market Stage 2 at Tier 2 (disabled: CB6 blocks Stage 4; per-stock weinstein_stage=2 check and exposure policy manage regime risk)",
         ),
-        "fallback_drawdown_pct_when_peak_missing": (
-            "25.0",
-            "float",
-            "Fallback drawdown % when portfolio peak data missing (fail-closed assumption)",
-        ),
         "vix_max_threshold": ("35.0", "float", "VIX level to halt trading"),
         "vix_alert_threshold": (
             "30.0",
