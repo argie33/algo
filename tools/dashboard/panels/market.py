@@ -1,0 +1,422 @@
+"""Market regime, internals, breadth, sentiment panel functions."""
+
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    from panel_registry import register_panel
+except ImportError as e:
+    logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+    def register_panel(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda fn: fn
+
+from rich import box
+from rich.console import Group
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.table import Table
+from rich.text import Text
+
+from utilities import (
+    TIER_COLOR,
+    TIER_SHORT,
+    G,
+    R,
+    Y,
+    DIM,
+)
+from formatters import (
+    exp_bar,
+    sign,
+    next_run_str,
+)
+
+from ._helpers import _error_panel
+
+
+@register_panel(
+    "market",
+    endpoint_deps=["mkt", "sentiment"],
+    optional=False,
+    description="Market",
+)
+def panel_market_full(mkt, sentiment=None):
+    """Market regime + internals combined."""
+    err_panel = _error_panel("market", mkt, "MARKET", border="blue")
+    if err_panel:
+        return err_panel
+    tier = mkt.get("tier", "unknown")
+    tc = TIER_COLOR.get(tier, "dim")
+    lbl = TIER_SHORT.get(tier, "LOADING")
+    exp = mkt.get("pct")
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+    bar = exp_bar(exp or 0, w=10)
+    vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
+    vc = (
+        DIM
+        if mkt.get("vix") is None
+        else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
+    )
+    dist = str(mkt.get("dist") or "--")
+    stage = str(mkt.get("stage") or "--")
+    spy = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
+    trend_s = (mkt.get("trend") or "").upper()
+    halts = mkt.get("halts") or []
+    halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
+    hc = Y if halts else DIM
+
+    upvol = mkt.get("upvol")
+    adr = mkt.get("adr")
+    nh = mkt.get("nh")
+    nl = mkt.get("nl")
+    pcr = mkt.get("pcr")
+    bmom = mkt.get("bmom")
+    fed = mkt.get("fed")
+
+    uvc = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
+    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
+    nhnl = (nh - nl) if (nh is not None and nl is not None) else None
+    nhnl_c = (
+        (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R))
+        if nhnl is not None
+        else DIM
+    )
+
+    spy_raw = mkt.get("spy")
+    spy_chg = mkt.get("spy_chg")
+    spy_chg_s = (
+        f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
+        if spy_chg is not None
+        else ""
+    )
+    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
+    lines = [
+        f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
+        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
+        + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend_s else "")
+        + (f"  {spy_s}" if spy_s else ""),
+    ]
+    if upvol is not None:
+        adr_s = (
+            f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
+            if adr is not None
+            else ""
+        )
+        nhnl_s = (
+            f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
+            if nhnl is not None
+            else ""
+        )
+        lines.append(
+            f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{str(nh or '--')}[/] [dim]Lows:[/][{R}]{str(nl or '--')}[/]{nhnl_s}"
+        )
+    ycs = mkt.get("ycs")
+    bmom_pcr = []
+    if pcr is not None:
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+    else:
+        bmom_pcr.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
+    if bmom is not None:
+        bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
+        bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
+    if ycs is not None:
+        yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+        bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
+    if bmom_pcr:
+        lines.append("  ".join(bmom_pcr))
+    halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"
+    if fed and str(fed).lower() not in ("unknown", "n/a", "none", ""):
+        halt_fed += f"  [dim]Fed Environment:[/][white]{fed[:20]}[/]"
+    lines.append(halt_fed)
+
+    # Fear & Greed
+    if sentiment and not sentiment.get("_error"):
+        fg_v = sentiment.get("fg") or 0
+        fg_lbl = (sentiment.get("label") or "")[:16]
+        fg_c = sentiment.get("color", "dim")
+        fg_bar = int(fg_v / 100 * 8)
+        fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
+        lines.append(
+            f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
+        )
+
+    txt = Text.from_markup("\n".join(lines))
+    return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
+
+
+@register_panel(
+    "market_expanded",
+    endpoint_deps=["mkt", "sentiment"],
+    optional=False,
+    description="Market Expanded",
+)
+def panel_market_expanded(mkt, sentiment=None):
+    """Full-screen market internals — regime, breadth, sentiment, macro."""
+    rows = [
+        Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
+        Rule(style="dim"),
+    ]
+    err_panel = _error_panel("market", mkt, "MARKET - EXPANDED", border="blue")
+    if err_panel:
+        return err_panel
+
+    tier = mkt.get("tier", "unknown")
+    tc = TIER_COLOR.get(tier, "dim")
+    lbl = TIER_SHORT.get(tier, "LOADING")
+    exp = mkt.get("pct")
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+    bar = exp_bar(exp or 0, w=14)
+    vix = mkt.get("vix")
+    vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
+    vix_s = f"{vix:.1f}" if vix is not None else "--"
+    rows.append(Text.from_markup(
+        f"[{tc}][bold]{lbl}[/]  [dim]Exposure:[/][{tc}]{exp_s}[/]  {bar}  [dim]VIX:[/][{vc}]{vix_s}[/]"
+    ))
+    rows.append(Rule(style="dim"))
+
+    spy_raw = mkt.get("spy")
+    spy_chg = mkt.get("spy_chg")
+    stage = str(mkt.get("stage") or "--")
+    trend = (mkt.get("trend") or "").upper() or "--"
+    dist = mkt.get("dist")
+    _fed_raw = mkt.get("fed")
+    fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+    ycs = mkt.get("ycs")
+    upvol = mkt.get("upvol")
+    adr = mkt.get("adr")
+    nh = mkt.get("nh")
+    nl = mkt.get("nl")
+    pcr = mkt.get("pcr")
+    bmom = mkt.get("bmom")
+    halts = mkt.get("halts") or []
+
+    spy_s = f"${float(spy_raw):.2f}" if spy_raw else "--"
+    spy_chg_c = G if (spy_chg or 0) >= 0 else R
+    spy_chg_s = f"{sign(spy_chg)}{spy_chg:.2f}%" if spy_chg is not None else "--"
+    dist_c = R if (dist or 0) >= 5 else (Y if (dist or 0) >= 3 else G)
+    dist_s = f"{dist} days" if dist is not None else "--"
+    yc_c = G if (ycs or 0) >= 0.5 else (Y if (ycs or 0) >= 0 else R)
+    yc_s = f"{ycs:+.3f}" if ycs is not None else "--"
+    uvc = DIM if upvol is None else (G if upvol >= 60 else (Y if upvol >= 50 else R))
+    upvol_s = f"{upvol:.1f}%" if upvol is not None else "--"
+    adr_s = f"{adr:.2f}" if adr is not None else "--"
+    nh_s = str(nh) if nh is not None else "--"
+    nl_s = str(nl) if nl is not None else "--"
+    nhnl = (nh - nl) if (nh is not None and nl is not None) else None
+    nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
+    nhnl_s = f"{sign(nhnl)}{nhnl}" if nhnl is not None else "--"
+    bmc = DIM if bmom is None else (G if bmom >= 0.5 else (Y if bmom >= 0 else R))
+    bmom_s = f"{bmom:.3f}" if bmom is not None else "--"
+    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
+    pcr_s = f"{pcr:.3f}" if pcr is not None else "⚠ N/A"
+
+    grid = Table.grid(padding=(0, 4), expand=True)
+    grid.add_column("left", ratio=1)
+    grid.add_column("right", ratio=1)
+
+    left = [
+        Text.from_markup("[dim bold]PRICE & REGIME[/]"),
+        Text.from_markup(f"  [dim]SPY Price:[/]       [white]{spy_s}[/]"),
+        Text.from_markup(f"  [dim]SPY Change:[/]      [{spy_chg_c}]{spy_chg_s}[/]"),
+        Text.from_markup(f"  [dim]VIX Level:[/]       [{vc}]{vix_s}[/]"),
+        Text.from_markup(f"  [dim]Market Stage:[/]    [white]{stage}[/]"),
+        Text.from_markup(f"  [dim]Market Trend:[/]    [white]{trend}[/]"),
+        Text.from_markup(f"  [dim]Distribution:[/]    [{dist_c}]{dist_s}[/]"),
+        Text(""),
+        Text.from_markup("[dim bold]MACRO & FED[/]"),
+        Text.from_markup(f"  [dim]Yield Curve:[/]     [{yc_c}]{yc_s}[/]"),
+        Text.from_markup(f"  [dim]Fed Environment:[/] [white]{fed[:28]}[/]"),
+    ]
+
+    right = [
+        Text.from_markup("[dim bold]BREADTH & INTERNALS[/]"),
+        Text.from_markup(f"  [dim]Up Volume:[/]       [{uvc}]{upvol_s}[/]"),
+        Text.from_markup(f"  [dim]Adv/Dec Ratio:[/]   [white]{adr_s}[/]"),
+        Text.from_markup(f"  [dim]New Highs:[/]       [{G}]{nh_s}[/]"),
+        Text.from_markup(f"  [dim]New Lows:[/]        [{R}]{nl_s}[/]"),
+        Text.from_markup(f"  [dim]NH-NL Net:[/]       [{nhnl_c}]{nhnl_s}[/]"),
+        Text.from_markup(f"  [dim]Breadth Momentum:[/][{bmc}]{bmom_s}[/]"),
+        Text(""),
+        Text.from_markup("[dim bold]OPTIONS & SENTIMENT[/]"),
+        Text.from_markup(f"  [dim]Put/Call Ratio:[/]  [{pcr_c}]{pcr_s}[/]"),
+        Text(""),
+    ]
+
+    for left_item, right_item in zip(left, right):
+        grid.add_row(left_item, right_item)
+    rows.append(grid)
+
+    if sentiment and not sentiment.get("_error"):
+        rows.append(Rule(style="dim"))
+        fg_v = sentiment.get("fg") or 0
+        fg_lbl = (sentiment.get("label") or "")[:22]
+        fg_c = sentiment.get("color", "dim")
+        fg_bar_f = int(fg_v / 100 * 24)
+        fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
+        rows.append(Text.from_markup(
+            f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"
+        ))
+
+    rows.append(Rule(style="dim"))
+    hc = Y if halts else G
+    halt_s = "  |  ".join(str(h)[:35] for h in halts[:3]) if halts else "none"
+    rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
+
+    return Panel(
+        Group(*rows),
+        title="[bold blue]MARKET - EXPANDED[/]  [dim][m] return[/]",
+        border_style="blue",
+        padding=(0, 1),
+    )
+
+
+@register_panel(
+    "header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header"
+)
+def panel_header_market(
+    mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"
+):
+    """Compact market header - fits alongside exposure factors + monkey in the top row."""
+    source_color = "cyan" if data_source == "LOCAL" else "dim"
+    rows = [
+        Text.from_markup(
+            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]"
+        )
+    ]
+    if mkt and not mkt.get("_error"):
+        tier = mkt.get("tier", "unknown")
+        tc = TIER_COLOR.get(tier, "dim")
+        lbl = TIER_SHORT.get(tier, "LOADING")
+        exp = mkt.get("pct")
+        exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+        bar = exp_bar(exp or 0, w=8)
+        vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
+        vc = (
+            DIM
+            if mkt.get("vix") is None
+            else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
+        )
+        dist = str(mkt.get("dist") or "--")
+        stage = str(mkt.get("stage") or "--")
+        trend_raw = (mkt.get("trend") or "").upper()
+        trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
+        spy_raw = mkt.get("spy")
+        spy_chg = mkt.get("spy_chg")
+        spy_chg_s = (
+            f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
+            if spy_chg is not None
+            else ""
+        )
+        spy_s = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
+        rows.append(
+            Text.from_markup(
+                f"[{tc}][bold]{lbl}[/]  [dim]Exp:[/][{tc}]{exp_s}[/]{bar}  "
+                f"VIX:[{vc}]{vix}[/]  [dim]Dist. Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
+            )
+        )
+        upvol = mkt.get("upvol")
+        nh = mkt.get("nh")
+        nl = mkt.get("nl")
+        adr = mkt.get("adr")
+        if upvol is not None:
+            uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
+            nhnl = (nh - nl) if (nh is not None and nl is not None) else None
+            nhnl_c = (
+                (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R))
+                if nhnl is not None
+                else DIM
+            )
+            adr_s = (
+                f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
+                if adr is not None
+                else ""
+            )
+            nhnl_s = (
+                f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
+                if nhnl is not None
+                else "[dim]New Hi-Lo: --[/]"
+            )
+            rows.append(
+                Text.from_markup(
+                    f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
+                    f"[dim]New High:[/][{G}]{str(nh or '--')}[/] [dim]New Low:[/][{R}]{str(nl or '--')}[/]  "
+                    f"{nhnl_s}"
+                )
+            )
+        pcr = mkt.get("pcr")
+        bmom = mkt.get("bmom")
+        ycs = mkt.get("ycs")
+        fed = mkt.get("fed")
+        _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
+        parts4 = []
+        if pcr is not None:
+            pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
+            parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+        else:
+            parts4.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
+        if bmom is not None:
+            bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
+            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
+        else:
+            parts4.append(f"[dim]Breadth Mom:[/][dim]--[/]")
+        if ycs is not None:
+            yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+            parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
+        if parts4:
+            rows.append(Text.from_markup("  ".join(parts4)))
+        halts = mkt.get("halts") or []
+        halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
+        hc_col = Y if halts else DIM
+        line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
+        if _fed_ok:
+            line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
+        if sentiment and not sentiment.get("_error"):
+            fg_v = sentiment.get("fg") or 0
+            fg_lbl = (sentiment.get("label") or "")[:14]
+            fg_c = sentiment.get("color", "dim")
+            fg_bar = int(fg_v / 100 * 6)
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
+            line5 += f"  [dim]Fear/Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
+        rows.append(Text.from_markup(line5))
+        if cfg:
+            mode = cfg.get("mode", "?")
+            mc2 = G if "LIVE" in str(mode) else Y
+            en_s = "ENABLED" if cfg.get("enabled", True) else "DISABLED"
+            ec = G if cfg.get("enabled", True) else R
+            min_score = cfg.get("min_score")
+            max_n = cfg.get("max_pos_n")
+            max_sec = cfg.get("max_sec_n")
+            base_risk = cfg.get("base_risk")
+            t1r = cfg.get("t1_r")
+            parts6 = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
+            if min_score:
+                parts6.append(f"[dim]score≥[/][white]{float(min_score):.0f}[/]")
+            if max_n:
+                parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
+            if max_sec:
+                parts6.append(f"[dim]sec≤[/][white]{max_sec}[/]")
+            if base_risk:
+                parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
+            if t1r:
+                parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
+            parts6.append(f"[dim]next run:[/][white]{next_run_str()}[/]")
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup("  ".join(parts6)))
+    else:
+        rows.append(Text("no market data", style="dim"))
+    return Panel(
+        Group(*rows), title="[bold blue]MARKET[/]  [dim][m] expand[/]", border_style="blue", padding=(0, 1)
+    )
+
+
+
+__all__ = [
+    "panel_market_full",
+    "panel_market_expanded",
+    "panel_header_market",
+]
