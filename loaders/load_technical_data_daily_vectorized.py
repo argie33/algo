@@ -313,7 +313,7 @@ class VectorizedTechnicalLoader:
 
         # Filter to only new data if incremental
         if since_date:
-            df = df[df["date"].dt.date > since_date]
+            df = df[df["date"].dt.date >= since_date]
 
         # Prepare columns for insertion
         columns = [
