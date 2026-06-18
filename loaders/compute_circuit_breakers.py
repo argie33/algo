@@ -91,236 +91,202 @@ def compute_circuit_breaker_metrics(cur, today: date = None):
 
 def _compute_drawdown(cur) -> float:
     """Calculate portfolio drawdown from peak."""
-    try:
-        cur.execute("""
-            SELECT MAX(total_portfolio_value) AS peak,
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1) AS current
-            FROM algo_portfolio_snapshots
-        """)
-        row = cur.fetchone()
-        if not row:
-            return 0.0
-        peak = safe_float(row[0])
-        current = safe_float(row[1])
-        if peak <= 0:
-            return 0.0
-        dd = (peak - current) / peak * 100
-        return round(dd, 2)
-    except Exception as e:
-        logger.warning(f"Failed to compute drawdown: {e}")
-        return 0.0
+    cur.execute("""
+        SELECT MAX(total_portfolio_value) AS peak,
+               (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1) AS current
+        FROM algo_portfolio_snapshots
+    """)
+    row = cur.fetchone()
+    if not row or row[0] is None or row[1] is None:
+        raise ValueError("Portfolio snapshot data unavailable for drawdown calculation")
+    peak = safe_float(row[0])
+    current = safe_float(row[1])
+    if peak <= 0:
+        raise ValueError(f"Invalid peak portfolio value: {peak}")
+    dd = (peak - current) / peak * 100
+    return round(dd, 2)
 
 
 def _compute_daily_loss(cur, today: date) -> float:
     """Calculate today's loss %."""
-    try:
-        cur.execute(
-            """
-            SELECT daily_return_pct FROM algo_portfolio_snapshots
-            WHERE snapshot_date = %s
-        """,
-            (today,),
-        )
-        row = cur.fetchone()
-        if not row:
-            return 0.0
-        daily = safe_float(row[0])
-        # Return absolute value of loss (if negative) or 0
-        loss = abs(min(0, daily))
-        return round(loss, 2)
-    except Exception as e:
-        logger.warning(f"Failed to compute daily loss: {e}")
-        return 0.0
+    cur.execute(
+        """
+        SELECT daily_return_pct FROM algo_portfolio_snapshots
+        WHERE snapshot_date = %s
+    """,
+        (today,),
+    )
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        raise ValueError(f"Portfolio snapshot unavailable for {today}")
+    daily = safe_float(row[0])
+    loss = abs(min(0, daily))
+    return round(loss, 2)
 
 
 def _compute_consecutive_losses(cur) -> int:
     """Calculate consecutive losing trades from last 10 closed trades."""
-    try:
-        cur.execute("""
-            SELECT profit_loss_pct FROM algo_trades
-            WHERE status = 'closed' AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC, trade_id DESC
-            LIMIT 10
-        """)
-        rows = cur.fetchall()
-        streak = 0
-        for row in rows:
-            pnl = safe_float(row[0])
-            if pnl < 0:
-                streak += 1
-            else:
-                break
-        return streak
-    except Exception as e:
-        logger.warning(f"Failed to compute consecutive losses: {e}")
-        return 0
+    cur.execute("""
+        SELECT profit_loss_pct FROM algo_trades
+        WHERE status = 'closed' AND exit_date IS NOT NULL
+        ORDER BY exit_date DESC, trade_id DESC
+        LIMIT 10
+    """)
+    rows = cur.fetchall()
+    if not rows:
+        raise ValueError("No closed trades available for consecutive loss calculation")
+    streak = 0
+    for row in rows:
+        pnl = safe_float(row[0])
+        if pnl < 0:
+            streak += 1
+        else:
+            break
+    return streak
 
 
 def _compute_vix_level(cur) -> Optional[float]:
-    """Get latest VIX level from market_health_daily."""
-    try:
-        cur.execute("""
-            SELECT vix_level FROM market_health_daily
-            WHERE vix_level IS NOT NULL
-            ORDER BY date DESC LIMIT 1
-        """)
-        row = cur.fetchone()
-        if not row:
-            return None
-        vix = safe_float(row[0])
-        return round(vix, 1)
-    except Exception as e:
-        logger.warning(f"Failed to compute VIX level: {e}")
+    """Get latest VIX level from market_health_daily. Returns None if not available."""
+    cur.execute("""
+        SELECT vix_level FROM market_health_daily
+        WHERE vix_level IS NOT NULL
+        ORDER BY date DESC LIMIT 1
+    """)
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        logger.warning("VIX level not available in market_health_daily")
         return None
+    vix = safe_float(row[0])
+    return round(vix, 1)
 
 
 def _compute_weekly_loss(cur, today: date) -> float:
     """Calculate 7-day portfolio loss %."""
-    try:
-        # Get portfolio value from 7 days ago
-        cur.execute(
-            """
-            SELECT total_portfolio_value FROM algo_portfolio_snapshots
-            WHERE snapshot_date >= %s
-            ORDER BY snapshot_date ASC
-            LIMIT 1
-        """,
-            (today - timedelta(days=7),),
-        )
-        week_start = cur.fetchone()
+    cur.execute(
+        """
+        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        WHERE snapshot_date >= %s
+        ORDER BY snapshot_date ASC
+        LIMIT 1
+    """,
+        (today - timedelta(days=7),),
+    )
+    week_start = cur.fetchone()
 
-        # Get latest portfolio value
-        cur.execute("""
-            SELECT total_portfolio_value FROM algo_portfolio_snapshots
-            ORDER BY snapshot_date DESC LIMIT 1
-        """)
-        week_end = cur.fetchone()
+    cur.execute("""
+        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+    """)
+    week_end = cur.fetchone()
 
-        if not week_start or not week_end:
-            return 0.0
+    if not week_start or not week_end or week_start[0] is None or week_end[0] is None:
+        raise ValueError("Insufficient portfolio snapshot data for 7-day loss calculation")
 
-        sv = safe_float(week_start[0])
-        ev = safe_float(week_end[0])
-        if sv <= 0:
-            return 0.0
+    sv = safe_float(week_start[0])
+    ev = safe_float(week_end[0])
+    if sv <= 0:
+        raise ValueError(f"Invalid portfolio value for 7-day calculation: {sv}")
 
-        weekly_ret = (ev - sv) / sv * 100
-        # Return absolute value of loss (if negative) or 0
-        loss = abs(min(0, weekly_ret))
-        return round(loss, 2)
-    except Exception as e:
-        logger.warning(f"Failed to compute weekly loss: {e}")
-        return 0.0
+    weekly_ret = (ev - sv) / sv * 100
+    loss = abs(min(0, weekly_ret))
+    return round(loss, 2)
 
 
 def _compute_market_stage(cur) -> int:
-    """Get latest market stage from market_health_daily."""
-    try:
-        cur.execute("""
-            SELECT market_stage FROM market_health_daily
-            WHERE market_stage IS NOT NULL
-            ORDER BY date DESC LIMIT 1
-        """)
-        row = cur.fetchone()
-        if not row:
-            return 0
-        stage = safe_int(row[0])
-        return stage
-    except Exception as e:
-        logger.warning(f"Failed to compute market stage: {e}")
+    """Get latest market stage from market_health_daily. Returns 0 if not available."""
+    cur.execute("""
+        SELECT market_stage FROM market_health_daily
+        WHERE market_stage IS NOT NULL
+        ORDER BY date DESC LIMIT 1
+    """)
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        logger.warning("Market stage not available in market_health_daily")
         return 0
+    stage = safe_int(row[0])
+    return stage
 
 
 def _compute_open_risk(cur) -> float:
     """Calculate total open risk % of portfolio."""
-    try:
-        # Calculate risk from open positions
-        cur.execute("""
-            SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
-            FROM algo_positions p
-            JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
-            WHERE LOWER(p.status) = 'open'
-        """)
-        risk_row = cur.fetchone()
-        total_risk = safe_float(risk_row[0]) if risk_row else 0.0
+    cur.execute("""
+        SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
+        FROM algo_positions p
+        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+        WHERE LOWER(p.status) = 'open'
+    """)
+    risk_row = cur.fetchone()
+    if not risk_row:
+        raise ValueError("Cannot calculate open risk: positions/trades query failed")
+    total_risk = safe_float(risk_row[0])
 
-        # Get portfolio value
-        cur.execute("""
-            SELECT total_portfolio_value FROM algo_portfolio_snapshots
-            ORDER BY snapshot_date DESC LIMIT 1
-        """)
-        port_row = cur.fetchone()
-        port_val = safe_float(port_row[0]) if port_row else 1.0
+    cur.execute("""
+        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+    """)
+    port_row = cur.fetchone()
+    if not port_row or port_row[0] is None:
+        raise ValueError("Portfolio value unavailable for risk calculation")
+    port_val = safe_float(port_row[0])
 
-        if port_val <= 0:
-            return 0.0
+    if port_val <= 0:
+        raise ValueError(f"Invalid portfolio value for risk calculation: {port_val}")
 
-        risk_pct = total_risk / port_val * 100
-        return round(risk_pct, 2)
-    except Exception as e:
-        logger.warning(f"Failed to compute open risk: {e}")
-        return 0.0
+    risk_pct = total_risk / port_val * 100
+    return round(risk_pct, 2)
 
 
 def _compute_spy_change(cur, today: date) -> float:
     """Calculate SPY prior-day change %."""
-    try:
-        cur.execute(
-            """
-            SELECT close FROM price_daily
-            WHERE symbol = 'SPY' AND date <= %s
-            ORDER BY date DESC LIMIT 2
-        """,
-            (today,),
-        )
-        prices = cur.fetchall()
+    cur.execute(
+        """
+        SELECT close FROM price_daily
+        WHERE symbol = 'SPY' AND date <= %s
+        ORDER BY date DESC LIMIT 2
+    """,
+        (today,),
+    )
+    prices = cur.fetchall()
 
-        if len(prices) < 2:
-            return 0.0
+    if len(prices) < 2:
+        raise ValueError(f"Insufficient SPY price data for {today}: got {len(prices)} prices, need 2")
 
-        latest = safe_float(prices[0][0])
-        prior = safe_float(prices[1][0])
+    latest = safe_float(prices[0][0])
+    prior = safe_float(prices[1][0])
 
-        if latest <= 0 or prior <= 0:
-            return 0.0
+    if latest <= 0 or prior <= 0:
+        raise ValueError(f"Invalid SPY prices for {today}: latest={latest}, prior={prior}")
 
-        change = (latest - prior) / prior * 100
-        return round(change, 2)
-    except Exception as e:
-        logger.warning(f"Failed to compute SPY change: {e}")
-        return 0.0
+    change = (latest - prior) / prior * 100
+    return round(change, 2)
 
 
 def _compute_win_rate(cur) -> float:
     """Calculate win rate from last 30 closed trades."""
-    try:
-        cur.execute("""
-            SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
-                   COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses
-            FROM (
-                SELECT profit_loss_pct
-                FROM algo_trades
-                WHERE status = 'closed' AND exit_date IS NOT NULL
-                ORDER BY exit_date DESC LIMIT 30
-            ) recent_trades
-        """)
-        row = cur.fetchone()
-        if not row:
-            return 0.0
+    cur.execute("""
+        SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
+               COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses
+        FROM (
+            SELECT profit_loss_pct
+            FROM algo_trades
+            WHERE status = 'closed' AND exit_date IS NOT NULL
+            ORDER BY exit_date DESC LIMIT 30
+        ) recent_trades
+    """)
+    row = cur.fetchone()
+    if not row:
+        raise ValueError("Win rate query failed")
 
-        wins = safe_int(row[0])
-        losses = safe_int(row[1])
-        decisive = wins + losses
+    wins = safe_int(row[0])
+    losses = safe_int(row[1])
+    decisive = wins + losses
 
-        if decisive == 0:
-            return 0.0
+    if decisive == 0:
+        raise ValueError("No closed trades available for win rate calculation")
 
-        win_rate = wins / decisive * 100
-        return round(win_rate, 1)
-    except Exception as e:
-        logger.warning(f"Failed to compute win rate: {e}")
-        return 0.0
+    win_rate = wins / decisive * 100
+    return round(win_rate, 1)
 
 
 def _check_any_triggered(metrics: dict) -> bool:

@@ -106,7 +106,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         rows = self._fetch_price_daily(symbol, start, end)
         if not rows or len(rows) < 50:
-            return []
+            raise ValueError(f"Insufficient price data for {symbol}: {len(rows) if rows else 0} rows, need >= 50")
 
         results = self._compute_trend_criteria(symbol, rows)
         if since is not None:
@@ -116,24 +116,23 @@ class TrendCriteriaLoader(OptimalLoader):
         return results
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT date, close, volume FROM price_daily "
-                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                    (symbol, start, end),
-                )
-                return [
-                    {
-                        "date": r[0].isoformat() if r[0] else None,
-                        "close": float(r[1]) if r[1] is not None else None,
-                        "volume": int(r[2]) if r[2] is not None else None,
-                    }
-                    for r in cur.fetchall()
-                ]
-        except Exception as e:
-            logger.error(f"Failed to fetch price data for {symbol}: {e}")
-            return []
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT date, close, volume FROM price_daily "
+                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                (symbol, start, end),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                raise ValueError(f"No price data found for {symbol} from {start} to {end}")
+            return [
+                {
+                    "date": r[0].isoformat() if r[0] else None,
+                    "close": float(r[1]) if r[1] is not None else None,
+                    "volume": int(r[2]) if r[2] is not None else None,
+                }
+                for r in rows
+            ]
 
     def _compute_trend_criteria(self, symbol: str, rows: List[dict]) -> List[dict]:
         df = pd.DataFrame(rows)

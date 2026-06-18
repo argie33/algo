@@ -592,6 +592,35 @@ cat response.json
 curl https://<api-gateway-endpoint>/api/health
 ```
 
+## Fail-Fast Pattern (Critical for Financial Systems)
+
+**Core principle:** In financial systems, failing fast is safer than graceful degradation.
+
+**Rule:** When data is missing or a calculation fails, raise an exception immediately with context. DO NOT silently return defaults (0, None, [], {}, False).
+
+**Why:** Silent failures hide data quality issues until they compound into cascading errors:
+- Missing portfolio value silently defaults to $100k → positions sized wrong
+- Missing circuit breaker metrics silently default to 0 → risk checks don't trigger
+- Missing price data silently returns [] → exit signals never fire
+
+**Implementation:**
+- Circuit breaker metrics (`compute_circuit_breakers.py`): All functions raise ValueError on data unavailability
+- Position sizing (`position_sizer.py`): All multiplier/data functions raise RuntimeError on missing data
+- Exit logic (`exit_engine.py`): Exit calculation functions raise ValueError on insufficient data
+- Data loaders (`load_*.py`): Raise ValueError instead of returning empty collections
+
+**Pattern exceptions (OK to return None):**
+- VIX level: Optional, returns None if not yet calculated (logs WARNING)
+- Market stage: Optional, returns 0 if not available (logs WARNING)
+- Only for fields explicitly marked OPTIONAL in docstring
+
+**When adding new functions:**
+- If data is REQUIRED for calculation: Raise exception if unavailable
+- If data is OPTIONAL: Log WARNING and return None (document in docstring)
+- If calculation FAILS: Raise exception with clear context (what failed, why, what to check)
+
+See code comments in refactored files for examples.
+
 ## Troubleshooting
 
 **"Error: The security token included in the request is invalid" when running loaders/scripts:**

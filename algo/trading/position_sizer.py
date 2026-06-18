@@ -240,69 +240,70 @@ class PositionSizer:
     def get_market_exposure_multiplier(self):
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
 
-        B13: Fail-closed — if query fails, assume conservative exposure.
+        Fail-fast — if data unavailable, raises exception. Position sizing requires
+        current market exposure to avoid over-committing during risk-off periods.
         """
-        try:
+        def fetch_exposure(cur):
+            cur.execute(
+                "SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
+            return float(row[0]) / 100.0
 
-            def fetch_exposure(cur):
-                cur.execute(
-                    "SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
-                )
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    return float(row[0]) / 100.0
-                return None
-
-            result = self._with_cursor(fetch_exposure)
-            if result is not None:
-                return result
-        except Exception as e:
-            logger.warning(f"Could not fetch market exposure: {e}")
-        return 0.5
+        result = self._with_cursor(fetch_exposure)
+        if result is not None:
+            return result
+        raise RuntimeError("Could not fetch market exposure from database. Cannot calculate safe position size.")
 
     def get_vix_caution_multiplier(self):
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
+        Fail-fast — if data unavailable, raises exception.
         """
-        try:
-
-            def fetch_vix(cur):
-                cur.execute(
-                    "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
-                )
-                row = cur.fetchone()
-                if not row or row[0] is None:
-                    return 1.0
-                vix = float(row[0])
-                caution_threshold = float(
-                    self.config.get("vix_caution_threshold", 25.0)
-                )
-                max_threshold = float(self.config.get("vix_max_threshold", 35.0))
-                if vix > caution_threshold and vix <= max_threshold:
-                    return float(self.config.get("vix_caution_risk_reduction", 0.75))
-                return 1.0
-
-            return self._with_cursor(fetch_vix) or 1.0
-        except Exception as vix_e:
-            logger.debug(f"VIX multiplier calculation failed: {vix_e}")
+        def fetch_vix(cur):
+            cur.execute(
+                "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                raise ValueError("VIX level unavailable from market_health_daily. Cannot adjust position size for volatility.")
+            vix = float(row[0])
+            caution_threshold = float(
+                self.config.get("vix_caution_threshold", 25.0)
+            )
+            max_threshold = float(self.config.get("vix_max_threshold", 35.0))
+            if vix > caution_threshold and vix <= max_threshold:
+                return float(self.config.get("vix_caution_risk_reduction", 0.75))
             return 1.0
+
+        result = self._with_cursor(fetch_vix)
+        if result is not None:
+            return result
+        raise RuntimeError("Could not fetch VIX from database. Cannot calculate safe position size.")
 
     def get_phase_size_multiplier(self):
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
 
     def get_position_size_multiplier_from_regime(self, signal_date=None):
-        """Get position size multiplier from current market regime (mockable for tests)."""
-        regime_mult = 1.0
+        """Get position size multiplier from current market regime.
+
+        Fail-fast — if regime cannot be determined, raises exception. Position sizing
+        must account for current market regime to avoid inappropriate sizing.
+        """
         try:
             from algo.orchestration import RegimeManager
 
             regime_mgr = RegimeManager()
             regime_mult = regime_mgr.get_position_size_multiplier(signal_date)
+            if regime_mult is None:
+                raise ValueError("Regime multiplier is None")
+            return regime_mult
         except Exception as e:
-            logger.debug(f"Could not load regime multiplier: {e}. Using 1.0.")
-        return regime_mult
+            raise RuntimeError(f"Could not load regime multiplier required for position sizing: {e}") from e
 
     def get_active_positions_value(self):
         """Get sum of active position values.
@@ -335,54 +336,47 @@ class PositionSizer:
     def get_position_count(self):
         """Get count of active positions (Issue #26: Now checks capital, not just count).
 
-        B13: Fail-closed — on error, assume max positions to prevent over-trading.
+        Fail-fast — if data unavailable, raises exception. Cannot size positions
+        without knowing how many are already open.
         """
-        try:
+        def fetch_position_count(cur):
+            cur.execute("""
+                SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'
+            """)
+            result = cur.fetchone()
+            if result is None:
+                raise ValueError("Position count query returned None")
+            return result[0]
 
-            def fetch_position_count(cur):
-                cur.execute("""
-                    SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'
-                """)
-                result = cur.fetchone()
-                return result[0] if result else 0
-
-            result = self._with_cursor(fetch_position_count)
-            if result is not None:
-                return result
-            return 0
-        except Exception as e:
-            logger.error(f"WARNING: Could not fetch position count: {e}")
-            return int(self.config.get("max_positions", 15))
+        result = self._with_cursor(fetch_position_count)
+        if result is not None:
+            return result
+        raise RuntimeError("Could not fetch position count from database. Cannot calculate safe position size.")
 
     def get_active_positions_capital_pct(self):
         """Issue #26: Get total capital invested as % of portfolio.
 
         Returns capital-based position limit, not just count-based.
+        Fail-fast — if data unavailable, raises exception.
         """
-        try:
-            portfolio_value = self.get_portfolio_value()
-            if portfolio_value <= 0:
-                return 0
+        portfolio_value = self.get_portfolio_value()
+        if portfolio_value <= 0:
+            raise ValueError(f"Invalid portfolio value for capital calculation: {portfolio_value}")
 
-            def fetch_capital_pct(cur):
-                cur.execute("""
-                    SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
-                """)
-                result = cur.fetchone()
-                total_value = (
-                    float(result[0])
-                    if result is not None and result[0] is not None
-                    else 0
-                )
-                return (
-                    (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
-                )
+        def fetch_capital_pct(cur):
+            cur.execute("""
+                SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
+            """)
+            result = cur.fetchone()
+            if result is None:
+                raise ValueError("Position capital query returned None")
+            total_value = float(result[0]) if result[0] is not None else 0
+            return (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
 
-            result = self._with_cursor(fetch_capital_pct)
-            return result if result is not None else 0
-        except Exception as calc_e:
-            logger.debug(f"Failed to calculate short exposure: {calc_e}")
-            return 0
+        result = self._with_cursor(fetch_capital_pct)
+        if result is not None:
+            return result
+        raise RuntimeError("Could not fetch capital percentage from database. Cannot calculate safe position size.")
 
     def calculate_position_size(
         self,

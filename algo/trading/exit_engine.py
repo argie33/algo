@@ -635,35 +635,30 @@ class ExitEngine:
 
     def _rs_line_breaking(self, cur, symbol, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
-        try:
-            cur.execute(
-                """
-                WITH ratio AS (
-                    SELECT s.date,
-                           s.close::numeric / NULLIF(spy.close, 0) AS rs
-                    FROM price_daily s
-                    JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
-                    WHERE s.symbol = %s AND s.date <= %s
-                    ORDER BY s.date DESC LIMIT 60
-                ),
-                ranked AS (
-                    SELECT rs, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn FROM ratio
-                )
-                SELECT
-                    (SELECT rs FROM ranked WHERE rn = 1) AS cur,
-                    (SELECT AVG(rs) FROM ranked WHERE rn BETWEEN 2 AND 51) AS rs_50dma
-                """,
-                (symbol, current_date),
+        cur.execute(
+            """
+            WITH ratio AS (
+                SELECT s.date,
+                       s.close::numeric / NULLIF(spy.close, 0) AS rs
+                FROM price_daily s
+                JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
+                WHERE s.symbol = %s AND s.date <= %s
+                ORDER BY s.date DESC LIMIT 60
+            ),
+            ranked AS (
+                SELECT rs, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn FROM ratio
             )
-            row = cur.fetchone()
-            if not row or row[0] is None or row[1] is None:
-                return False
-            cur_rs, rs_50 = float(row[0]), float(row[1])
-            # Break if current RS is < 50-day RS-line MA (deteriorating)
-            return cur_rs < rs_50 * 0.99
-        except Exception as e:
-            logger.error(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
-            return False
+            SELECT
+                (SELECT rs FROM ranked WHERE rn = 1) AS cur,
+                (SELECT AVG(rs) FROM ranked WHERE rn BETWEEN 2 AND 51) AS rs_50dma
+            """,
+            (symbol, current_date),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None or row[1] is None:
+            raise ValueError(f"Insufficient RS data for {symbol} to calculate RS line break")
+        cur_rs, rs_50 = float(row[0]), float(row[1])
+        return cur_rs < rs_50 * 0.99
 
     def _eight_week_rule_active(
         self,
@@ -678,102 +673,93 @@ class ExitEngine:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
         if days_held < window_days:
             return False
-        try:
-            cur.execute(
-                """
-                SELECT MAX(close) FROM price_daily
-                WHERE symbol = %s
-                  AND date >= %s::date - MAKE_INTERVAL(days => %s)
-                  AND date <= %s::date - MAKE_INTERVAL(days => %s)
-                """,
-                (
-                    symbol,
-                    current_date,
-                    days_held,
-                    current_date,
-                    max(0, days_held - window_days),
-                ),
-            )
-            row = cur.fetchone()
-            if not row or not row[0]:
-                return False
-            max_close_in_window = float(row[0])
-            if entry_price <= 0:
-                return False
-            gain_pct = (max_close_in_window - entry_price) / entry_price * 100.0
-            return cast(bool, gain_pct >= threshold_pct)
-        except Exception as e:
-            logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
-            return False
+        cur.execute(
+            """
+            SELECT MAX(close) FROM price_daily
+            WHERE symbol = %s
+              AND date >= %s::date - MAKE_INTERVAL(days => %s)
+              AND date <= %s::date - MAKE_INTERVAL(days => %s)
+            """,
+            (
+                symbol,
+                current_date,
+                days_held,
+                current_date,
+                max(0, days_held - window_days),
+            ),
+        )
+        row = cur.fetchone()
+        if not row or not row[0]:
+            raise ValueError(f"No price data for {symbol} in 8-week window")
+        max_close_in_window = float(row[0])
+        if entry_price <= 0:
+            raise ValueError(f"Invalid entry price for {symbol}: {entry_price}")
+        gain_pct = (max_close_in_window - entry_price) / entry_price * 100.0
+        return cast(bool, gain_pct >= threshold_pct)
 
     def _chandelier_or_ema_stop(
         self, cur, symbol, current_date, days_held
     ) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
-        try:
-            switch_days = int(self.config.get("switch_to_21ema_after_days", 10))
-            if days_held >= switch_days:
-                # 21-EMA trail
-                cur.execute(
-                    """
-                    WITH d AS (
-                        SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                        FROM price_daily WHERE symbol = %s AND date <= %s
-                        ORDER BY date DESC LIMIT 30
-                    )
-                    SELECT close FROM d ORDER BY rn DESC
-                    """,
-                    (symbol, current_date),
+        switch_days = int(self.config.get("switch_to_21ema_after_days", 10))
+        if days_held >= switch_days:
+            cur.execute(
+                """
+                WITH d AS (
+                    SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT 30
                 )
-                rows = cur.fetchall()
-                if len(rows) < 21:
-                    return None
-                # ORDER BY rn DESC puts oldest row first (rn=30 → rn=1)
-                # so closes is already oldest→newest; no reversal needed
-                closes = [float(r[0]) for r in rows]
-                k = 2.0 / 22.0
-                ema = closes[0]
-                for c in closes[1:]:
-                    ema = c * k + ema * (1 - k)
-                return round(ema * 0.99, 2)
-            else:
-                # Chandelier 3×ATR from highest high since entry
-                cur.execute(
-                    """
-                    WITH d AS (
-                        SELECT pd.high, td.atr,
-                               ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
-                        FROM price_daily pd
-                        LEFT JOIN technical_data_daily td ON td.symbol = pd.symbol AND td.date = pd.date
-                        WHERE pd.symbol = %s AND pd.date <= %s
-                        ORDER BY pd.date DESC LIMIT %s
-                    )
-                    SELECT MAX(high) AS hh,
-                           (SELECT atr FROM d WHERE rn = 1) AS cur_atr
-                    FROM d
-                    """,
-                    (symbol, current_date, max(days_held, 5)),
+                SELECT close FROM d ORDER BY rn DESC
+                """,
+                (symbol, current_date),
+            )
+            rows = cur.fetchall()
+            if len(rows) < 21:
+                raise ValueError(f"Insufficient price data for {symbol} to calculate 21-EMA stop")
+            closes = [float(r[0]) for r in rows]
+            k = 2.0 / 22.0
+            ema = closes[0]
+            for c in closes[1:]:
+                ema = c * k + ema * (1 - k)
+            return round(ema * 0.99, 2)
+        else:
+            cur.execute(
+                """
+                WITH d AS (
+                    SELECT pd.high, td.atr,
+                           ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
+                    FROM price_daily pd
+                    LEFT JOIN technical_data_daily td ON td.symbol = pd.symbol AND td.date = pd.date
+                    WHERE pd.symbol = %s AND pd.date <= %s
+                    ORDER BY pd.date DESC LIMIT %s
                 )
-                row = cur.fetchone()
-                if not row or not row[0] or not row[1]:
-                    return None
-                hh = float(row[0])
-                atr = float(row[1])
-                mult = float(self.config.get("chandelier_atr_mult", 3.0))
-                return round(hh - (mult * atr), 2)
-        except Exception as e:
-            logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
-            return None
+                SELECT MAX(high) AS hh,
+                       (SELECT atr FROM d WHERE rn = 1) AS cur_atr
+                FROM d
+                """,
+                (symbol, current_date, max(days_held, 5)),
+            )
+            row = cur.fetchone()
+            if not row or not row[0] or not row[1]:
+                raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
+            hh = float(row[0])
+            atr = float(row[1])
+            mult = float(self.config.get("chandelier_atr_mult", 3.0))
+            return round(hh - (mult * atr), 2)
 
     def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:
-        """Return full TD state dict (for both 9 and 13 detection)."""
-        try:
-            sc = SignalComputer()
-            return sc.td_sequential(symbol, current_date)
-        except Exception as e:
-            logger.error(f"Warning: _get_td_state({symbol}) failed: {e}")
-            return {}
+        """Return full TD state dict (for both 9 and 13 detection).
+
+        Fail-fast — if TD Sequential cannot be computed, raises exception.
+        TD Sequential is a required exit signal for positions.
+        """
+        sc = SignalComputer()
+        td_state = sc.td_sequential(symbol, current_date)
+        if not td_state:
+            raise ValueError(f"TD Sequential calculation failed for {symbol}")
+        return td_state
 
     def _is_minervini_break(self, cur, symbol, current_date, cur_price) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
@@ -809,59 +795,51 @@ class ExitEngine:
 
     def _check_volume_spike(self, cur, symbol, current_date, volume_multiplier) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
-        try:
-            cur.execute(
-                """
-                SELECT pd.volume,
-                       (SELECT AVG(volume) FROM price_daily p
-                        WHERE p.symbol = pd.symbol
-                          AND p.date <= pd.date
-                          AND p.date > pd.date - INTERVAL '50 days') AS avg_vol_50
-                FROM price_daily pd
-                WHERE pd.symbol = %s AND pd.date = %s
-                """,
-                (symbol, current_date),
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None or row[1] is None:
-                return False
-            today_vol = float(row[0])
-            avg_vol = float(row[1])
-            return cast(bool, today_vol >= avg_vol * volume_multiplier)
-        except Exception as e:
-            logger.warning(f"Warning: _check_volume_spike({symbol}) failed: {e}")
-            return False
+        cur.execute(
+            """
+            SELECT pd.volume,
+                   (SELECT AVG(volume) FROM price_daily p
+                    WHERE p.symbol = pd.symbol
+                      AND p.date <= pd.date
+                      AND p.date > pd.date - INTERVAL '50 days') AS avg_vol_50
+            FROM price_daily pd
+            WHERE pd.symbol = %s AND pd.date = %s
+            """,
+            (symbol, current_date),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None or row[1] is None:
+            raise ValueError(f"Volume data unavailable for {symbol} on {current_date}")
+        today_vol = float(row[0])
+        avg_vol = float(row[1])
+        return cast(bool, today_vol >= avg_vol * volume_multiplier)
 
     def _compute_gain_last_n_days(
         self, cur, symbol, current_date, n_days
     ) -> Optional[float]:
         """Compute % gain over the last N days (from close N days ago to current close)."""
-        try:
-            cur.execute(
-                """
-                WITH prices AS (
-                    SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                    FROM price_daily
-                    WHERE symbol = %s AND date <= %s
-                    ORDER BY date DESC LIMIT %s
-                )
-                SELECT
-                    (SELECT close FROM prices WHERE rn = 1) AS current_close,
-                    (SELECT close FROM prices WHERE rn = %s) AS close_n_days_ago
-                """,
-                (symbol, current_date, n_days + 1, n_days + 1),
+        cur.execute(
+            """
+            WITH prices AS (
+                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                ORDER BY date DESC LIMIT %s
             )
-            row = cur.fetchone()
-            if not row or row[0] is None or row[1] is None:
-                return None
-            current = float(row[0])
-            prior = float(row[1])
-            if prior <= 0:
-                return None
-            return ((current - prior) / prior) * 100.0
-        except Exception as e:
-            logger.warning(f"Warning: _compute_gain_last_n_days({symbol}) failed: {e}")
-            return None
+            SELECT
+                (SELECT close FROM prices WHERE rn = 1) AS current_close,
+                (SELECT close FROM prices WHERE rn = %s) AS close_n_days_ago
+            """,
+            (symbol, current_date, n_days + 1, n_days + 1),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None or row[1] is None:
+            raise ValueError(f"Insufficient {n_days}-day price data for {symbol}")
+        current = float(row[0])
+        prior = float(row[1])
+        if prior <= 0:
+            raise ValueError(f"Invalid price data for {symbol}: prior close = {prior}")
+        return ((current - prior) / prior) * 100.0
 
 
 if __name__ == "__main__":

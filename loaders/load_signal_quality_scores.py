@@ -407,23 +407,43 @@ class SignalQualityScoresLoader(OptimalLoader):
                 macd_signal = row.get("macd_signal")
 
                 if signal_type == "BUY":
-                    if rsi and 40 < float(rsi) < 80:
-                        volume_confirmation_score += 10
+                    if rsi is not None and not pd.isna(rsi):
+                        try:
+                            rsi_val = float(rsi)
+                            if 40 < rsi_val < 80:
+                                volume_confirmation_score += 10
+                        except (ValueError, TypeError):
+                            pass
                     if (
                         macd is not None
                         and macd_signal is not None
-                        and float(macd) > float(macd_signal)
+                        and not pd.isna(macd)
+                        and not pd.isna(macd_signal)
                     ):
-                        volume_confirmation_score += 10
+                        try:
+                            if float(macd) > float(macd_signal):
+                                volume_confirmation_score += 10
+                        except (ValueError, TypeError):
+                            pass
                 elif signal_type == "SELL":
-                    if rsi and 20 < float(rsi) < 60:
-                        volume_confirmation_score += 10
+                    if rsi is not None and not pd.isna(rsi):
+                        try:
+                            rsi_val = float(rsi)
+                            if 20 < rsi_val < 60:
+                                volume_confirmation_score += 10
+                        except (ValueError, TypeError):
+                            pass
                     if (
                         macd is not None
                         and macd_signal is not None
-                        and float(macd) < float(macd_signal)
+                        and not pd.isna(macd)
+                        and not pd.isna(macd_signal)
                     ):
-                        volume_confirmation_score += 10
+                        try:
+                            if float(macd) < float(macd_signal):
+                                volume_confirmation_score += 10
+                        except (ValueError, TypeError):
+                            pass
 
                 # Trend template score (0-25): minervini score and stage
                 trend_template_score = 0
@@ -431,17 +451,27 @@ class SignalQualityScoresLoader(OptimalLoader):
                 weinstein_stage = row.get("weinstein_stage")
 
                 if signal_type == "BUY":
-                    if minervini and float(minervini) >= 3:
-                        trend_template_score += 15
-                    elif minervini and float(minervini) >= 2:
-                        trend_template_score += 10
-                    elif minervini:
-                        trend_template_score += 5
+                    if minervini is not None and not pd.isna(minervini):
+                        try:
+                            m_val = float(minervini)
+                            if m_val >= 3:
+                                trend_template_score += 15
+                            elif m_val >= 2:
+                                trend_template_score += 10
+                            else:
+                                trend_template_score += 5
+                        except (ValueError, TypeError):
+                            pass
 
-                    if weinstein_stage and int(weinstein_stage) in [2, 3]:
-                        trend_template_score += 10
-                    elif weinstein_stage:
-                        trend_template_score += 3
+                    if weinstein_stage is not None and not pd.isna(weinstein_stage):
+                        try:
+                            stage_val = int(weinstein_stage)
+                            if stage_val in [2, 3]:
+                                trend_template_score += 10
+                            else:
+                                trend_template_score += 3
+                        except (ValueError, TypeError):
+                            pass
 
                 trend_template_score = min(25, trend_template_score)
 
@@ -449,19 +479,24 @@ class SignalQualityScoresLoader(OptimalLoader):
                 distance_from_high_score = 0
                 pct_from_high = row.get("percent_from_52w_high")
                 if pct_from_high is not None:
-                    pct = float(pct_from_high)
-                    if pct >= -5:  # Within 5% of 52w high
-                        distance_from_high_score = 15
-                    elif pct >= -10:
-                        distance_from_high_score = 12
-                    elif pct >= -20:
-                        distance_from_high_score = 8
-                    elif pct >= -30:
-                        distance_from_high_score = 4
+                    try:
+                        pct = float(pct_from_high)
+                        # Check for NaN and skip if found
+                        if not pd.isna(pct):
+                            if pct >= -5:  # Within 5% of 52w high
+                                distance_from_high_score = 15
+                            elif pct >= -10:
+                                distance_from_high_score = 12
+                            elif pct >= -20:
+                                distance_from_high_score = 8
+                            elif pct >= -30:
+                                distance_from_high_score = 4
+                    except (ValueError, TypeError):
+                        pass
 
                 # Institutional ownership score (0-10)
                 institutional_ownership_score = 0
-                if institutional_ownership is not None:
+                if institutional_ownership is not None and not pd.isna(institutional_ownership):
                     if institutional_ownership >= 60:
                         institutional_ownership_score = 10
                     elif institutional_ownership >= 40:
@@ -473,28 +508,34 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Market stage score (0-10): Weinstein stage 2 and 3 are best
                 market_stage_score = 0
-                if weinstein_stage:
-                    stage = int(weinstein_stage)
-                    if stage in [2, 3]:
-                        market_stage_score = 10
-                    elif stage in [1, 4]:
-                        market_stage_score = 5
-                    else:
-                        market_stage_score = 2
+                if weinstein_stage is not None and not pd.isna(weinstein_stage):
+                    try:
+                        stage = int(weinstein_stage)
+                        if stage in [2, 3]:
+                            market_stage_score = 10
+                        elif stage in [1, 4]:
+                            market_stage_score = 5
+                        else:
+                            market_stage_score = 2
+                    except (ValueError, TypeError):
+                        pass
 
                 # VCP pattern score (0-10)
                 vcp_pattern_score = 0
                 vcp_strength = row.get("vcp_strength")
-                if vcp_strength is not None:
-                    strength = int(vcp_strength)
-                    if strength >= 8:
-                        vcp_pattern_score = 10
-                    elif strength >= 6:
-                        vcp_pattern_score = 8
-                    elif strength >= 4:
-                        vcp_pattern_score = 5
-                    else:
-                        vcp_pattern_score = 2
+                if vcp_strength is not None and not pd.isna(vcp_strength):
+                    try:
+                        strength = int(vcp_strength)
+                        if strength >= 8:
+                            vcp_pattern_score = 10
+                        elif strength >= 6:
+                            vcp_pattern_score = 8
+                        elif strength >= 4:
+                            vcp_pattern_score = 5
+                        else:
+                            vcp_pattern_score = 2
+                    except (ValueError, TypeError):
+                        pass
 
                 # Distribution days score (placeholder - would need distribution_days table)
                 distribution_days_score = 5

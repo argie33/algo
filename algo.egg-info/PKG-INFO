@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: algo
+Version: 0.1.0
+Summary: Stock Analytics Platform
+Requires-Python: >=3.10
+Requires-Dist: psycopg2-binary==2.9.9
+Requires-Dist: yfinance==1.4.1
+Requires-Dist: requests==2.33.0
+Requires-Dist: pandas==2.1.4
+Requires-Dist: scipy==1.13.0
+Requires-Dist: boto3==1.34.0
+Requires-Dist: Flask==3.1.3
+Requires-Dist: Flask-CORS==6.0.0
+Requires-Dist: Werkzeug==3.1.6
+Requires-Dist: urllib3==2.7.0
+Requires-Dist: xlrd==2.0.1
+Requires-Dist: openpyxl==3.1.0
+Requires-Dist: rich==13.9.4
