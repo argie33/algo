@@ -222,8 +222,10 @@ class SwingTraderScoresLoader(OptimalLoader):
 
                 return all_scores if all_scores else None
         except Exception as e:
-            logger.warning(f"Swing score computation error for {symbol}: {e}")
-            return None
+            raise RuntimeError(
+                f"[SWING_SCORES] Failed to compute swing trader scores for {symbol}: {e}. "
+                "Swing trading signal generation requires complete score computation."
+            )
 
     def _load_config_val(self, key: str, default):
         """Load a config value from AlgoConfig, with fallback to default."""
@@ -233,8 +235,10 @@ class SwingTraderScoresLoader(OptimalLoader):
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:
-            logger.debug(f"_load_config_val({key}) failed: {e}")
-            return default
+            raise RuntimeError(
+                f"[CONFIG] Failed to load config value '{key}': {e}. "
+                "Swing scoring requires authoritative config parameters."
+            )
 
     def _compute_swing_score(self, row) -> dict | None:
         """Compute swing trader score with 7-component breakdown.
@@ -422,8 +426,10 @@ class SwingTraderScoresLoader(OptimalLoader):
                 ),
             }
         except Exception as e:
-            logger.warning(f"Score computation failed for {symbol}: {e}")
-            return None
+            raise RuntimeError(
+                f"[SWING_SCORE] Failed to compute swing score for {symbol}: {e}. "
+                "Score computation is authoritative for swing trading signals."
+            )
 
     def transform(self, rows):
         """Rows are clean."""

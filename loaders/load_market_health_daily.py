@@ -597,9 +597,14 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                                 val = None
                         try:
                             f = float(val)
-                            return None if f != f else round(f, 4)
-                        except (TypeError, ValueError):
-                            return None
+                            if f != f:  # NaN check
+                                return None
+                            return round(f, 4)
+                        except (TypeError, ValueError) as e:
+                            raise RuntimeError(
+                                f"[PRICE_EXTRACTION] Failed to parse {col} value '{val}' as float for {sym} on {d}: {e}. "
+                                "Data integrity issue in yfinance response."
+                            )
 
                     close = _v("Close")
                     if close is None:
@@ -654,8 +659,10 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         logger.info(f"Upserted {len(records)} VIX family price rows into price_daily")
         return len(records)
     except Exception as e:
-        logger.error(f"VIX family price write failed: {e}")
-        return 0
+        raise RuntimeError(
+            f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
+            "Market health daily depends on VIX/index price data availability."
+        )
 
 
 def main():
@@ -688,8 +695,12 @@ def main():
     except Exception as e:
         logger.error(f"Market health daily load failed: {e}")
         tracker.failed(error_message=str(e))
-        return 1
+        raise RuntimeError(f"Market health daily loader failed: {e}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except RuntimeError as e:
+        logger.error(str(e))
+        sys.exit(1)

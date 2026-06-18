@@ -379,8 +379,10 @@ class SignalsDailyLoader(OptimalLoader):
                     )
                 return rows
         except Exception as e:
-            logger.error(f"Failed to fetch signal data for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "
+                "Cannot generate signals without complete technical data."
+            )
 
     def _generate_signals(self, symbol: str, rows: list[dict]) -> list[dict]:
         """Generate buy/sell signals matching Pine Script pivot-breakout logic.
@@ -729,8 +731,7 @@ def main():
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1
     except Exception as e:
-        logger.error(f"Failed to get symbols: {e}")
-        return 1
+        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.")
 
     logger.info(
         f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}"
@@ -826,10 +827,10 @@ def main():
                 f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
             )
     except Exception as dep_err:
-        logger.error(
-            f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}"
+        raise RuntimeError(
+            f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}. "
+            "Buy/sell signals require technical data availability."
         )
-        return 1
 
     loader = SignalsDailyLoader()
     try:
@@ -850,9 +851,13 @@ def main():
 
         return 0
     except Exception as e:
-        logger.error(f"Daily signals load failed: {e}")
-        return 1
+        raise RuntimeError(f"Daily signals load failed: {e}")
 
 
 if __name__ == "__main__":
+    try:
+        main()
+    except RuntimeError as e:
+        logger.error(str(e))
+        sys.exit(1)
     sys.exit(main())

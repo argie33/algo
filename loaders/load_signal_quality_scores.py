@@ -254,8 +254,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     for r in cur.fetchall()
                 ]
         except Exception as e:
-            logger.error(f"Failed to fetch buy/sell signals for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[SIGNALS] Failed to fetch buy/sell signals for {symbol}: {e}. "
+                "Signal quality assessment requires valid signal data."
+            )
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -277,8 +279,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     for r in cur.fetchall()
                 ]
         except Exception as e:
-            logger.error(f"Failed to fetch technical data for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[TECHNICAL] Failed to fetch technical data for {symbol}: {e}. "
+                "Signal quality requires technical analysis data."
+            )
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -300,8 +304,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     for r in cur.fetchall()
                 ]
         except Exception as e:
-            logger.error(f"Failed to fetch trend data for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[TREND] Failed to fetch trend data for {symbol}: {e}. "
+                "Signal quality assessment requires trend analysis."
+            )
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -321,8 +327,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     for r in cur.fetchall()
                 ]
         except Exception as e:
-            logger.debug(f"Failed to fetch VCP patterns for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[VCP] Failed to fetch VCP patterns for {symbol}: {e}. "
+                "VCP pattern recognition is authoritative for trend confirmation."
+            )
 
     def _fetch_positioning_data(self, symbol: str) -> dict:
         from utils.db.context import DatabaseContext
@@ -609,8 +617,10 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             return results
         except Exception as e:
-            logger.warning(f"Error computing quality scores for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[QUALITY] Failed to compute signal quality scores for {symbol}: {e}. "
+                "Quality assessment is authoritative for signal reliability."
+            )
 
 
 def main():
@@ -664,8 +674,7 @@ def main():
 
         return 0
     except Exception as e:
-        logger.error(f"Signal quality scores load failed: {e}")
-        return 1
+        raise RuntimeError(f"Signal quality scores load failed: {e}")
 
 
 def _sync_scores_to_buy_sell():
@@ -691,4 +700,8 @@ def _sync_scores_to_buy_sell():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except RuntimeError as e:
+        logger.error(str(e))
+        sys.exit(1)

@@ -32,12 +32,18 @@ class AnalystRatingsLoader(OptimalLoader):
         """Fetch analyst upgrades/downgrades from yfinance."""
         try:
             from utils.external.yfinance import get_ticker
-        except ImportError:
-            return None
+        except ImportError as e:
+            raise RuntimeError(
+                f"[ANALYST] Failed to import yfinance module: {e}. "
+                "Cannot fetch analyst rating data without yfinance."
+            )
 
         ticker = get_ticker(symbol)
         if not ticker:
-            return None
+            raise RuntimeError(
+                f"[ANALYST] Failed to fetch ticker data for {symbol}. "
+                "Cannot fetch analyst ratings without valid ticker."
+            )
 
         try:
             upgrades_downgrades = ticker.upgrades_downgrades

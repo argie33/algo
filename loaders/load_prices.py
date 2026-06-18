@@ -1145,11 +1145,10 @@ class PriceLoader(OptimalLoader):
                 # batch=1 means we've already reduced batch size to minimum. If it still gets rate limited,
                 # the API is severely degraded and further retries won't help.
                 if batch_size == 1 and self._rate_limit_errors >= 2:
-                    logger.critical(
+                    raise RuntimeError(
                         f"[BATCH=1 RATE LIMIT ABORT] Batch=1 with {self._rate_limit_errors} rate limit errors. "
-                        "yfinance API appears down. Failing immediately to prevent timeout cascade."
+                        "yfinance API appears down. Cannot proceed with price fetching."
                     )
-                    return {s: None for s in symbols}
 
                 # ISSUE #6 CRITICAL: Abort if batch=20 or smaller in EOD pipeline with multiple rate limit errors
                 # Prevents infinite retry loop at very small batch sizes
@@ -1158,11 +1157,10 @@ class PriceLoader(OptimalLoader):
                     and batch_size <= 20
                     and self._rate_limit_errors >= 3
                 ):
-                    logger.critical(
+                    raise RuntimeError(
                         f"[BATCH FETCH ABORT] Batch={batch_size} with {self._rate_limit_errors} rate limit errors. "
-                        "yfinance severely degraded. Failing to prevent timeout cascade."
+                        "yfinance severely degraded. Cannot proceed with price fetching."
                     )
-                    return {s: None for s in symbols}
 
                 # CREATIVE FIX #4: Only reduce batch size if request pacing didn't help
                 # Retry with same batch size first using increased request interval
@@ -1324,10 +1322,10 @@ class PriceLoader(OptimalLoader):
                         )
                         time.sleep(wait_time)
                         continue
-                    logger.warning(
-                        f"[{symbol}] Rate limited after {max_retries} attempts, giving up"
+                    raise RuntimeError(
+                        f"[{symbol}] Rate limited after {max_retries} attempts. "
+                        "Cannot fetch price data when API is rate limited."
                     )
-                    return None
                 # Network/timeout errors - retry with backoff + jitter
                 if any(
                     x in error_str
@@ -1345,22 +1343,25 @@ class PriceLoader(OptimalLoader):
                         )
                         time.sleep(wait_time)
                         continue
-                    logger.warning(
-                        f"[{symbol}] Transient error after {max_retries} attempts: {e}"
+                    raise RuntimeError(
+                        f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
+                        "Cannot fetch price data after exhausting retries."
                     )
-                    return None
-                # Auth errors - log but don't crash
+                # Auth errors - must fail fast
                 if (
                     "403" in error_str
                     or "401" in error_str
                     or "unauthorized" in error_str
                 ):
-                    logger.warning(f"[{symbol}] Auth error: {e}")
-                    return None
+                    raise RuntimeError(
+                        f"[{symbol}] Authentication error accessing price data: {e}. "
+                        "Cannot proceed without valid credentials."
+                    )
                 # Other errors - log and re-raise
                 logger.error(f"[{symbol}] Unexpected error: {e}")
                 raise
-        return None
+        # Should not reach here, but if we do, raise error
+        raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
     def transform(self, rows):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
@@ -1467,8 +1468,11 @@ class PriceLoader(OptimalLoader):
             return False
         try:
             return cast(bool, row["high"] >= row["low"] and row["close"] > 0 and row["open"] > 0)
-        except (KeyError, TypeError):
-            return False
+        except (KeyError, TypeError) as e:
+            raise RuntimeError(
+                f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "
+                "Price data integrity check is mandatory."
+            )
 
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
@@ -2205,10 +2209,10 @@ def main():
                 duration_seconds=round(time.time() - start_time, 2),
             )
         except Exception as log_err:
-            logger.critical(
-                f"[MAIN] Could not log loader failure to audit trail: {log_err}"
+            raise RuntimeError(
+                f"[MAIN] Could not log environment loading failure to audit trail: {log_err}. "
+                "Audit trail integrity is mandatory for Phase 7 reconciliation."
             )
-        return 1
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
     intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
@@ -2336,10 +2340,10 @@ def main():
                 duration_seconds=round(time.time() - start_time, 2),
             )
         except Exception as log_err:
-            logger.critical(
-                f"[MAIN] Could not log loader failure to audit trail: {log_err}"
+            raise RuntimeError(
+                f"[MAIN] Could not log symbols loading failure to audit trail: {log_err}. "
+                "Audit trail integrity is mandatory for Phase 7 reconciliation."
             )
-        return 1
 
     # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.
     # stock_symbols excludes ETFs, so these never appear via get_active_symbols().
@@ -2454,18 +2458,10 @@ def main():
 
                         loader.close()
                     except Exception as e:
-                        logger.error(
-                            f"[MAIN] Loader failed for {asset_class}/{interval}: {e}",
-                            exc_info=True,
+                        raise RuntimeError(
+                            f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
+                            "Cannot proceed with price loading if an interval fails."
                         )
-                        try:
-                            _invalidate_phase1_cache()
-                        except RuntimeError as cache_err:
-                            logger.critical(
-                                f"[MAIN] Cache invalidation failed on loader error: {cache_err}"
-                            )
-                        fail_count += 1
-                        return 1
     except Exception as timeout_err:
         logger.critical(f"[MAIN] Loader execution timeout exceeded: {timeout_err}")
         try:
@@ -2484,10 +2480,10 @@ def main():
                 duration_seconds=duration_seconds,
             )
         except Exception as log_err:
-            logger.critical(
-                f"[MAIN] Could not log loader failure to audit trail: {log_err}"
+            raise RuntimeError(
+                f"[MAIN] Could not log timeout failure to audit trail: {log_err}. "
+                "Audit trail integrity is mandatory for Phase 7 reconciliation."
             )
-        return 1
 
     logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
 
@@ -2510,10 +2506,10 @@ def main():
                 duration_seconds=duration_seconds,
             )
         except Exception as log_err:
-            logger.critical(
-                f"[MAIN] Could not log loader failure to audit trail: {log_err}"
+            raise RuntimeError(
+                f"[MAIN] Could not log multi-interval failure to audit trail: {log_err}. "
+                "Audit trail integrity is mandatory for Phase 7 reconciliation."
             )
-        return 1
 
     try:
         log_loader_execution(
@@ -2524,10 +2520,10 @@ def main():
             duration_seconds=duration_seconds,
         )
     except Exception as log_err:
-        logger.critical(
-            f"[MAIN] Could not log loader completion to audit trail: {log_err}"
+        raise RuntimeError(
+            f"[MAIN] Could not log loader completion to audit trail: {log_err}. "
+            "Audit trail integrity is mandatory for Phase 7 reconciliation."
         )
-        return 1
     if _lock_conn:
         try:
             _lock_conn.close()
@@ -2537,4 +2533,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        result = main()
+        sys.exit(result if result is not None else 0)
+    except RuntimeError as e:
+        logger.error(str(e))
+        sys.exit(1)
