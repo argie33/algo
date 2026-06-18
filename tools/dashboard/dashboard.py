@@ -858,7 +858,10 @@ def main():
     args = pa.parse_args()
 
     if args.legend:
-        CONSOLE.print(__doc__)
+        try:
+            CONSOLE.print(__doc__)
+        except Exception as e:
+            sys.stderr.write(f"Failed to display legend: {type(e).__name__}: {e}\n")
         return
 
     if args.local:
@@ -875,22 +878,34 @@ def main():
             aws_url, pool_id, client_id = _fetch_terraform_credentials()
 
         if not aws_url:
-            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
-            CONSOLE.print("")
-            CONSOLE.print("[bold cyan]To automate setup:[/]")
-            CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
-            CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[bold cyan]Or manually:[/]")
-            CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
-            CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
-            CONSOLE.print("")
-            CONSOLE.print(
-                "[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]"
-            )
-            CONSOLE.print(
-                "[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]"
-            )
+            try:
+                CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
+                CONSOLE.print("")
+                CONSOLE.print("[bold cyan]To automate setup:[/]")
+                CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
+                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+                CONSOLE.print("")
+                CONSOLE.print("[bold cyan]Or manually:[/]")
+                CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
+                CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
+                CONSOLE.print("")
+                CONSOLE.print(
+                    "[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]"
+                )
+                CONSOLE.print(
+                    "[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]"
+                )
+            except Exception as e:
+                sys.stderr.write(
+                    f"ERROR: Dashboard credentials not found\n"
+                    f"To automate setup:\n"
+                    f"  Run: scripts/setup-local-dev.ps1\n"
+                    f"Or manually:\n"
+                    f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
+                    f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
+                    f"  After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh\n"
+                    f"\n(Failed to display full message: {type(e).__name__})\n"
+                )
             sys.exit(1)
 
         set_api_url(aws_url)
