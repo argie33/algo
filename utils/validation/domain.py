@@ -17,14 +17,15 @@ VALIDATORS:
 """
 
 import logging
-from typing import Dict, Any
 from datetime import date
+from typing import Any, Dict
 
-from utils.validation import (
-    Validator,
-    ValidationResult,
+from .framework import (
     PhaseValidator,
+    ValidationResult,
+    Validator,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ class AlpacaOrderValidator(Validator):
                         f"{context}: filled_avg_price must be non-negative, got {price_float}"
                     )
                 else:
-                    cleaned["filled_avg_price"] = price_float
+                    cleaned["filled_avg_price"] = price_float  # type: ignore[assignment]
             except (ValueError, TypeError):
                 all_errors.append(
                     f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
@@ -115,11 +116,11 @@ class AlpacaOrderValidator(Validator):
 
         cleaned["order_class"] = order_class
         if data.get("cancel_reason"):
-            cleaned["rejection_reason"] = data.get("cancel_reason")
+            cleaned["rejection_reason"] = data.get("cancel_reason")  # type: ignore[assignment]
         elif data.get("failed_reason"):
-            cleaned["rejection_reason"] = data.get("failed_reason")
+            cleaned["rejection_reason"] = data.get("failed_reason")  # type: ignore[assignment]
         elif data.get("reason"):
-            cleaned["rejection_reason"] = data.get("reason")
+            cleaned["rejection_reason"] = data.get("reason")  # type: ignore[assignment]
 
         return ValidationResult(
             is_valid=len(all_errors) == 0,
@@ -163,7 +164,7 @@ class AlpacaOrderStatusValidator(Validator):
                         f"{context}: filled_qty must be non-negative, got {val}"
                     )
                 else:
-                    cleaned["filled_qty"] = val
+                    cleaned["filled_qty"] = val  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: filled_qty not integer: {filled_qty!r}")
 
@@ -171,13 +172,13 @@ class AlpacaOrderStatusValidator(Validator):
         filled_avg_price = data.get("filled_avg_price")
         if filled_avg_price is not None:
             try:
-                val = float(filled_avg_price)
+                val = float(filled_avg_price)  # type: ignore
                 if val < 0:
                     all_errors.append(
                         f"{context}: filled_avg_price must be non-negative, got {val}"
                     )
                 else:
-                    cleaned["filled_avg_price"] = val
+                    cleaned["filled_avg_price"] = val  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(
                     f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
@@ -191,7 +192,7 @@ class AlpacaOrderStatusValidator(Validator):
                 if val < 0:
                     all_errors.append(f"{context}: qty must be non-negative, got {val}")
                 else:
-                    cleaned["qty"] = val
+                    cleaned["qty"] = val  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: qty not integer: {qty!r}")
 
@@ -231,7 +232,7 @@ class AlpacaAccountValidator(Validator):
         portfolio_value = data.get("portfolio_value")
         if portfolio_value is not None:
             try:
-                cleaned["portfolio_value"] = float(portfolio_value)
+                cleaned["portfolio_value"] = float(portfolio_value)  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(
                     f"{context}: portfolio_value not numeric: {portfolio_value!r}"
@@ -241,7 +242,7 @@ class AlpacaAccountValidator(Validator):
         cash = data.get("cash")
         if cash is not None:
             try:
-                cleaned["cash"] = float(cash)
+                cleaned["cash"] = float(cash)  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: cash not numeric: {cash!r}")
 
@@ -286,7 +287,7 @@ class AlpacaPositionValidator(Validator):
         qty = data.get("qty")
         if qty is not None:
             try:
-                cleaned["qty"] = int(qty)
+                cleaned["qty"] = int(qty)  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: qty not integer: {qty!r}")
 
@@ -300,7 +301,7 @@ class AlpacaPositionValidator(Validator):
                         f"{context}: price must be non-negative, got {val}"
                     )
                 else:
-                    cleaned["current_price"] = val
+                    cleaned["current_price"] = val  # type: ignore
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: price not numeric: {current_price!r}")
 
@@ -455,7 +456,7 @@ class TableDataValidator(Validator):
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
-        cleaned = {}
+        cleaned: dict[str, Any] = {}
 
         for col_name, col_type in self.schema.items():
             if col_name not in data:

@@ -530,7 +530,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         )
                         live.update(layout)
                     except Exception as e:
+                        import traceback
                         logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
                         live.update(
                             Panel(
                                 Text.from_markup(
@@ -592,7 +594,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         )
                         live.update(layout)
                     except Exception as e:
+                        import traceback
                         logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
                         live.update(
                             Panel(
                                 Text.from_markup(

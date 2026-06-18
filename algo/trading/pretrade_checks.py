@@ -11,8 +11,10 @@ Validates:
 """
 
 import logging
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

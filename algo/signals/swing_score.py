@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import json
-from utils.db import DatabaseContext
 import logging
 from datetime import date
-from typing import Dict, Tuple, Any, Optional
+from typing import Any, Dict, Optional, Tuple, cast
+
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -433,7 +435,7 @@ class SwingTraderScore:
                 )
                 row = cur.fetchone()
                 if row and row[0]:
-                    return (row[0] - eval_date).days
+                    return cast(int, (row[0] - eval_date).days)
             return None
         except Exception as e:
             logger.debug(f"earnings check failed for {symbol}: {e}")

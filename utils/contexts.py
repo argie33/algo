@@ -10,8 +10,9 @@ Provides:
 
 import logging
 import time
-from typing import Optional
 from contextlib import contextmanager
+from typing import Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +210,7 @@ def TimeoutContext(
     try:
         if hasattr(signal, "SIGALRM"):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout_sec)
+            signal.alarm(timeout_sec)  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         # Windows or already set
         pass
@@ -220,7 +221,7 @@ def TimeoutContext(
         # Cancel alarm
         try:
             if hasattr(signal, "SIGALRM"):
-                signal.alarm(0)
+                signal.alarm(0)  # type: ignore[attr-defined]
                 if old_handler:
                     signal.signal(signal.SIGALRM, old_handler)
         except (AttributeError, ValueError):

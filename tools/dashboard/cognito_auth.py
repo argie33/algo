@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, cast
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
@@ -39,7 +39,7 @@ class CognitoAuth:
             if len(parts) != 3:
                 return None
             payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
-            return payload.get("exp")
+            return cast(float, payload.get("exp"))
         except Exception:
             return None
 
@@ -153,7 +153,7 @@ def _get_aws_cfn_output(key: str) -> Optional[str]:
                 outputs = response["Stacks"][0].get("Outputs", [])
                 for output in outputs:
                     if output["OutputKey"] == key:
-                        return output["OutputValue"]
+                        return cast(str, output["OutputValue"])
     except Exception as e:
         logger.debug(f"Failed to get CFN output: {e}")
     return None

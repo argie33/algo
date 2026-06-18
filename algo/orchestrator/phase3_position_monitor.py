@@ -8,6 +8,7 @@ from typing import Any, Callable
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,8 +36,8 @@ def run(
         PhaseResult with status 'ok', data containing position recommendations
     """
     try:
-        from algo.monitoring import PositionMonitor
         from algo.infrastructure import MarketEventHandler
+        from algo.monitoring import PositionMonitor
 
         monitor = PositionMonitor(config)
 

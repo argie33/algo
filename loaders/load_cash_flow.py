@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
+
 """
 Cash Flow Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -8,18 +9,20 @@ Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financi
 or --period CLI flag for manual runs.
 """
 
-import logging
 import argparse
+import logging
+
 
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import Optional
-from utils.loaders.helpers import get_active_symbols
-from utils.external.sec_edgar import SecEdgarClient
 
-from utils.optimal_loader import OptimalLoader
+from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 _PERIOD_CONFIG = {
     "annual": {

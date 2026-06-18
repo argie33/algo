@@ -11,25 +11,25 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
-from config.credential_manager import get_alpaca_credentials
-from config.alpaca_config import get_alpaca_base_url
-from algo.infrastructure import get_api_timeout
-
-import os
 import json
-from utils.db import DatabaseContext
+import logging
+import os
+import time
 import uuid
 from datetime import datetime, timezone
-import requests
-import time
-from decimal import Decimal, ROUND_HALF_UP
-import logging
-from typing import Dict, Any, Optional
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Dict, Optional, cast
 
-from utils.trading import TradeStatus, PositionStatus
-from utils.validation import AlpacaResponseValidator
-from utils.db import OptimisticLockRetry
+import requests
+
+from algo.infrastructure import get_api_timeout
 from algo.reporting import TradeNotificationService, notify
+from config.alpaca_config import get_alpaca_base_url
+from config.credential_manager import get_alpaca_credentials
+from utils.db import DatabaseContext, OptimisticLockRetry
+from utils.trading import PositionStatus, TradeStatus
+from utils.validation import AlpacaResponseValidator
+
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
@@ -1371,7 +1371,7 @@ class TradeExecutor:
             return None
 
         try:
-            return self._with_cursor(_get_snapshot)
+            return cast(Optional[float], self._with_cursor(_get_snapshot))
         except Exception as e:
             logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
 
@@ -1600,7 +1600,7 @@ class TradeExecutor:
                     return None
 
                 if validation["status"] == "filled":
-                    return validation["filled_avg_price"]
+                    return cast(float, validation["filled_avg_price"])
         except Exception as e:
             logger.warning(f"[GET_ORDER_PRICE] {alpaca_order_id}: Request failed: {e}")
         return None
@@ -1689,7 +1689,7 @@ class TradeExecutor:
                         if attempt < max_retries - 1:
                             time.sleep(2**attempt)
                         continue
-                    return data.get("status")
+                    return cast(Optional[Dict[str, Any]], data.get("status"))
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt  # 1s, 2s, 4s

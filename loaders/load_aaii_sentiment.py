@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """AAII Sentiment Survey Loader - Investor Sentiment Indicators (Market-wide data)."""
 
-import sys
 import logging
-from datetime import date
-from typing import Optional, List
-import requests
-from io import BytesIO
-import pandas as pd
-import zipfile
 import socket
+import sys
+import zipfile
+from datetime import date
+from io import BytesIO
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.url_validator import validate_url
-from utils.infrastructure.timeout import ExecutionTimeout
+import pandas as pd
+import requests
+
 from config.api_endpoints import get_aaii_sentiment_url
+from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

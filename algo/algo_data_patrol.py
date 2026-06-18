@@ -7,16 +7,19 @@ Implementation lives in: algo/monitoring/data_patrol/ (modular architecture)
 import sys
 from pathlib import Path
 
+
 root = Path(__file__).parent.parent
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
 # Import and run the main module directly (avoids runpy import issues with relative imports)
-from algo.monitoring.data_patrol import DataPatrol
-from utils.infrastructure.timeout import ExecutionTimeout
 import argparse
 import json
 import logging
+
+from algo.monitoring.data_patrol import DataPatrol
+from utils.infrastructure.timeout import ExecutionTimeout
+
 
 logging.basicConfig(
     level=logging.INFO,

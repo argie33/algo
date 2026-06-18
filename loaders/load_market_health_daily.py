@@ -14,10 +14,12 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 import pandas as pd
+
+from loaders.technical_indicators import compute_moving_averages
+from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.db.context import DatabaseContext
-from loaders.technical_indicators import compute_moving_averages
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +31,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str = "SPY", since: Optional[date] = None):
         """Fetch SPY price data and compute market health metrics."""
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
@@ -175,7 +178,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             elif len(result) > 0:
                 logger.info(f"[VIX] Fetched {len(result)} valid days, rejected {rejected_count} low values")
             else:
-                logger.warning(f"[VIX] No data returned by yfinance")
+                logger.warning("[VIX] No data returned by yfinance")
 
             return result
         except Exception as e:

@@ -27,14 +27,16 @@ Signal source priority:
 
 import logging
 import time
-from datetime import date as _date, timedelta
-from typing import Callable, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date as _date
+from datetime import timedelta
+from typing import Callable, Dict, List, Optional, Tuple
 
-from utils.db.context import DatabaseContext
-from algo.risk import LiquidityChecks
 from algo.orchestrator.phase_result import PhaseResult
+from algo.risk import LiquidityChecks
 from config.thresholds import ThresholdConfig
+from utils.db.context import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,6 @@ _BUYSELL_LOOKBACK_DAYS = 3  # Calendar days; covers 2 trading days including wee
 
 def _check_market_regime(run_date: _date) -> Dict:
     """Return current market regime from market_exposure_daily."""
-    import os
 
     try:
         with DatabaseContext("read") as cur:
@@ -318,7 +319,6 @@ def run(
     phase1_degraded: bool = False,
     config=None,
 ) -> PhaseResult:
-    import os
 
     if config is None:
         raise ValueError(
@@ -367,7 +367,7 @@ def run(
         logger.warning(f"[PHASE 5] {reason}")
         log_phase_result_fn(5, "signal_generation", "halt", reason)
         return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
-    
+
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).

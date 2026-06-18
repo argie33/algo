@@ -41,6 +41,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+
 # Global trace ID (set once at orchestrator start)
 _trace_id: Optional[str] = None
 

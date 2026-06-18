@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Base check class for data patrol checks."""
 
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
 import logging
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 
 if TYPE_CHECKING:
     from .config import PatrolConfig

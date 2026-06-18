@@ -49,10 +49,14 @@ PATTERNS:
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
-from utils.validation import ValidatorRegistry, get_global_registry
-from utils.validation import create_default_registry
+from utils.validation import (
+    ValidatorRegistry,
+    create_default_registry,
+    get_global_registry,
+)
+
 
 logger = logging.getLogger(__name__)
 

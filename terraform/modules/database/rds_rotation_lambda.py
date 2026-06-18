@@ -17,7 +17,7 @@ import secrets
 import string
 import boto3
 import psycopg2
-from typing import Dict, Any
+from typing import Dict, Any, cast
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -31,7 +31,7 @@ def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> Dict[str, Any]
         response = secrets_client.get_secret_value(
             SecretId=secret_id, VersionStage=stage
         )
-        return json.loads(response["SecretString"])
+        return cast(Dict[str, Any], json.loads(response["SecretString"]))
     except Exception as e:
         logger.error(f"Failed to get secret {secret_id}: {e}")
         raise
@@ -46,7 +46,7 @@ def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
             SecretString=json.dumps(secret_value),
             VersionStages=["AWSPENDING"],
         )
-        return response["VersionId"]
+        return cast(str, response["VersionId"])
     except Exception as e:
         logger.error(f"Failed to put secret {secret_id}: {e}")
         raise

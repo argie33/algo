@@ -8,19 +8,21 @@ Period determined by LOADER_PERIOD env var (financials_annual_balance / financia
 or --period CLI flag for manual runs.
 """
 
+import argparse
 import logging
 import sys
-import argparse
+
 
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import Optional
-from utils.loaders.helpers import get_active_symbols
-from utils.external.sec_edgar import SecEdgarClient
 
-from utils.optimal_loader import OptimalLoader
+from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 _PERIOD_CONFIG = {
     "annual": {

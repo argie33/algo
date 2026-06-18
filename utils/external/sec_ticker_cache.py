@@ -10,9 +10,10 @@ import logging
 import random
 import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 import requests
+
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class TickerCache:
                     f,
                 )
             logger.debug(
-                f"Saved ticker cache to file ({len(self._ticker_cache)} symbols)"
+                f"Saved ticker cache to file ({len(self._ticker_cache or {})} symbols)"
             )
         except Exception as e:
             logger.debug(f"Could not save ticker cache file: {e}")
@@ -90,7 +91,7 @@ class TickerCache:
         for attempt in range(max_retries):
             try:
                 if self._rate_limiter:
-                    self._rate_limiter.wait()
+                    cast(object, self._rate_limiter).wait()  # type: ignore
                 resp = self._session.get(TICKER_URL, timeout=self._timeout)
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:

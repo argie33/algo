@@ -7,7 +7,7 @@ It supports both AlgoConfig instances and plain dicts for maximum flexibility du
 the transition to dependency injection.
 """
 
-from typing import Protocol, Any, Union, runtime_checkable
+from typing import Any, Protocol, Union, runtime_checkable
 
 
 @runtime_checkable

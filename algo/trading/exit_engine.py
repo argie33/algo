@@ -21,22 +21,27 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
-import requests
-from utils.db import DatabaseContext
 from datetime import datetime, timezone
+
+import requests
+
+from utils.db import DatabaseContext
+
 
 try:
     from trade_performance_auditor import TradePerformanceAuditor
 except ImportError:
     TradePerformanceAuditor = None
-from algo.trading import TradeExecutor
-from algo.signals import SignalComputer
-from utils.trading import TradeStatus, PositionStatus
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional, cast
+
+from algo.infrastructure import get_alpaca_timeout
+from algo.signals import SignalComputer
+from algo.trading import TradeExecutor
 from config.alpaca_config import get_alpaca_data_url
 from config.credential_manager import get_alpaca_credentials
-from algo.infrastructure import get_alpaca_timeout
+from utils.trading import PositionStatus, TradeStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -696,7 +701,7 @@ class ExitEngine:
             if entry_price <= 0:
                 return False
             gain_pct = (max_close_in_window - entry_price) / entry_price * 100.0
-            return gain_pct >= threshold_pct
+            return cast(bool, gain_pct >= threshold_pct)
         except Exception as e:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
@@ -822,14 +827,14 @@ class ExitEngine:
                 return False
             today_vol = float(row[0])
             avg_vol = float(row[1])
-            return today_vol >= avg_vol * volume_multiplier
+            return cast(bool, today_vol >= avg_vol * volume_multiplier)
         except Exception as e:
             logger.warning(f"Warning: _check_volume_spike({symbol}) failed: {e}")
             return False
 
     def _compute_gain_last_n_days(
         self, cur, symbol, current_date, n_days
-    ) -> float | None:
+    ) -> Optional[float]:
         """Compute % gain over the last N days (from close N days ago to current close)."""
         try:
             cur.execute(

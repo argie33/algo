@@ -28,7 +28,7 @@ Migration status:
 import logging
 import requests
 import os
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +111,12 @@ def _unwrap_api_response(response: Dict) -> Dict:
         Unwrapped payload (contents of the 'data' field) ready for use by callers
     """
     if not isinstance(response, dict):
-        return response
+        return cast(Dict, response)
 
     # Extract the data field (all endpoints wrap payloads in 'data' via _wrap_response in api_router)
     # This is the only field that contains actual application data; everything else is metadata
     if "data" in response:
-        return response["data"]
+        return cast(Dict, response["data"])
 
     # Fallback for error responses that have no 'data' field
     # Remove only metadata markers (statusCode, headers) and return rest
@@ -148,12 +148,12 @@ class DashboardDataAPI:
         }
 
     @staticmethod
-    def get_positions() -> List[Dict]:
+    def get_positions() -> Dict[str, Any]:
         """Get open positions via /api/algo/positions."""
         resp = api_call("/api/algo/positions")
         if "_error" in resp:
             logger.error(f"get_positions failed: {resp['_error']}")
-            return {"_error": resp["_error"]}
+            return resp
         items = resp.get("items", [])
         if not isinstance(items, list):
             error_msg = f"get_positions: expected list, got {type(items).__name__}"
@@ -164,7 +164,7 @@ class DashboardDataAPI:
             logger.warning(
                 f"get_positions: filtered {len(items) - len(valid_items)} non-dict items"
             )
-        return valid_items
+        return resp
 
     @staticmethod
     def get_performance() -> Dict[str, Any]:
@@ -176,13 +176,13 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_trades(limit: int = 100) -> List[Dict]:
+    def get_trades(limit: int = 100) -> Dict[str, Any]:
         """Get recent trades via /api/algo/trades."""
         resp = api_call("/api/algo/trades", params={"limit": limit})
         if "_error" in resp:
             logger.error(f"get_trades failed: {resp['_error']}")
             return resp
-        return resp.get("items", [])
+        return resp
 
     @staticmethod
     def get_signals() -> Dict[str, Any]:
@@ -212,13 +212,13 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_notifications(limit: int = 10) -> List[Dict]:
+    def get_notifications(limit: int = 10) -> Dict[str, Any]:
         """Get recent notifications via /api/algo/notifications."""
         resp = api_call("/api/algo/notifications", params={"limit": limit})
         if "_error" in resp:
             logger.error(f"get_notifications failed: {resp['_error']}")
             return resp
-        return resp.get("items", []) if isinstance(resp, dict) else []
+        return resp
 
     @staticmethod
     def get_last_run() -> Dict[str, Any]:

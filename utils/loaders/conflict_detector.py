@@ -8,8 +8,10 @@ Monitors:
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ class LoaderConflictDetector:
     def __init__(self):
         self.table_name = "data_loader_status"
 
-    def check_concurrent_loaders(self) -> Dict[str, any]:
+    def check_concurrent_loaders(self) -> Dict[str, Any]:
         """Check for concurrent loader runs that might conflict.
 
         Returns:
@@ -90,7 +92,7 @@ class LoaderConflictDetector:
                         )
 
                 # Check 2: Detect concurrent runs of SAME table (shouldn't happen)
-                table_counts = {}
+                table_counts: Dict[str, int] = {}
                 for loader in running_loaders:
                     name = loader["table_name"]
                     table_counts[name] = table_counts.get(name, 0) + 1
@@ -125,7 +127,7 @@ class LoaderConflictDetector:
                 "error": str(e),
             }
 
-    def check_intraday_pipeline_readiness(self) -> Dict[str, any]:
+    def check_intraday_pipeline_readiness(self) -> Dict[str, Any]:
         """Check if intraday pipelines can safely run without conflicts.
 
         Specifically validates the afternoon (12:50 PM) and pre-close (2:50 PM) windows.

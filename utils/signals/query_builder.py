@@ -8,7 +8,7 @@ SUPPLEMENTARY: signal_quality_scores, company_profile — enrichment
 CONTEXT: algo_performance_daily, algo_portfolio_snapshots — strategy performance
 """
 
-from typing import List, Any
+from typing import Any, List, Optional
 
 
 class SignalQueryBuilder:
@@ -65,7 +65,7 @@ class SignalQueryBuilder:
         self.context_sources.extend(sources)
         return self
 
-    def add_filter(self, clause: str, params: List[Any] = None) -> 'SignalQueryBuilder':
+    def add_filter(self, clause: str, params: Optional[List[Any]] = None) -> 'SignalQueryBuilder':
         """Add WHERE clause filter."""
         self.filters.append((clause, params or []))
         return self

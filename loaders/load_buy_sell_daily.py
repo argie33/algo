@@ -5,19 +5,21 @@ Generates daily trading signals from technical indicators and quality scores.
 Populates the buy_sell_daily table.
 """
 
-import sys
 import argparse
 import logging
-import psycopg2.sql
+import sys
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from utils.db.sql_safety import assert_safe_table
-from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.optimal_loader import OptimalLoader
+import psycopg2.sql
+
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ class SignalsDailyLoader(OptimalLoader):
         and cache in _batch_context.
         """
         from datetime import datetime, timezone
+
         from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
@@ -95,8 +98,9 @@ class SignalsDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing and re-verifying trading day for each symbol.

@@ -5,10 +5,11 @@ import traceback
 from datetime import date as _date
 from typing import Any, Callable, Dict, List, Optional
 
-from utils.trading.status import PositionStatus
-from utils.db.context import DatabaseContext
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+from utils.db.context import DatabaseContext
+from utils.trading.status import PositionStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,8 @@ def run(
     # to reduce risk. Blocking exits compounds losses.
     # New entries are blocked by Phase 2/6 — exits are always executed.
     try:
-        from algo.trading.executor import TradeExecutor
         from algo.trading import ExitEngine
+        from algo.trading.executor import TradeExecutor
 
         # Detect Phase 3 crash: if position monitor errored, _position_recs is []
         # but we may have real open positions. Log a critical alert so we know.

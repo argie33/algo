@@ -14,16 +14,19 @@ Metrics computed:
 - CB9: Win rate (last 30 trades)
 """
 
+import logging
+from datetime import date, timedelta
+from datetime import datetime as dt
+from typing import Optional
+
 import psycopg2
 import psycopg2.extras
-from datetime import date, timedelta, datetime as dt
-import logging
 
 # Add parent directory to path for imports
-
 from utils.db.context import DatabaseContext
-from utils.validation import safe_float, safe_int
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.validation import safe_float, safe_int
+
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +157,7 @@ def _compute_consecutive_losses(cur) -> int:
         return 0
 
 
-def _compute_vix_level(cur) -> float:
+def _compute_vix_level(cur) -> Optional[float]:
     """Get latest VIX level from market_health_daily."""
     try:
         cur.execute("""

@@ -17,8 +17,9 @@ Usage:
 """
 
 import logging
-from datetime import datetime, date, timezone
-from typing import Optional, Tuple, Dict, Any, List
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple, cast
+
 
 logger = logging.getLogger(__name__)
 ET_ZONE = "America/New_York"
@@ -274,7 +275,7 @@ def get_max_age_minutes(table_name: str) -> Optional[int]:
     """
     rule = get_freshness_rule(table_name)
     if rule:
-        return rule["max_age_days"] * 24 * 60
+        return cast(int, rule["max_age_days"] * 24 * 60)
     return None
 
 

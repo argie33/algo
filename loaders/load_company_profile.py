@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Company Profile Loader - populate from yfinance with sector/industry enrichment."""
 
-import sys
 import logging
+import sys
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.loaders.helpers import get_active_symbols
 from utils.external.yfinance import get_ticker
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

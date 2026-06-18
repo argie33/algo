@@ -7,20 +7,21 @@ Required by Phase 1 data freshness check as tier-2 gate for filtering.
 Run: python3 load_signal_quality_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import sys
 import argparse
+import logging
+import sys
 from datetime import date, timedelta
 from typing import List, Optional
 
 import pandas as pd
 
-import logging
-from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
 from utils.validation import safe_parse_date
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,9 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         Caches end_date and buy_sell_daily signal count to avoid per-symbol computation.
         """
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
         try:
@@ -79,8 +81,9 @@ class SignalQualityScoresLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing trading day verification for each symbol.

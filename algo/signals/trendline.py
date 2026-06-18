@@ -8,10 +8,12 @@ Support line = two recent lows with an uptrend angle.
 HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 """
 
-from utils.db import DatabaseContext
+import logging
 from datetime import date, timedelta
 from typing import Dict, Optional
-import logging
+
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

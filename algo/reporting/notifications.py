@@ -2,13 +2,14 @@
 """Trade & Risk Notifications - Alert on entries, exits, rejections, and risk events."""
 
 import json
-import os
 import logging
+import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List
+from typing import Any, Dict, List, Optional, cast
 
 from algo.reporting import AlertManager
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class TradeNotificationService:
                 """,
                     (cutoff,),
                 )
-                return cur.fetchall()
+                return cast(List[Dict[Any, Any]], cur.fetchall())
         except Exception as e:
             logger.error(f"[NOTIF] Failed to fetch events: {e}")
             return []

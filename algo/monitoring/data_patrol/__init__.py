@@ -4,27 +4,29 @@
 This module coordinates multiple data quality checks and logs results.
 """
 
-import socket
-import json
-import time
-import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
 import argparse
+import json
+import logging
+import socket
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 from utils.db import DatabaseContext
 from utils.infrastructure.timeout import ExecutionTimeout
-from .config import PatrolConfig, INFO, WARN, ERROR, CRIT
-from .logger import PatrolLogger
+
 from .base import CheckResult
 from .checks import (
-    StalenessChecker,
-    QualityChecker,
-    PriceSanityChecker,
     AlignmentChecker,
     CoverageChecker,
+    PriceSanityChecker,
+    QualityChecker,
     SpecializedChecker,
+    StalenessChecker,
 )
+from .config import CRIT, ERROR, INFO, WARN, PatrolConfig
+from .logger import PatrolLogger
+
 
 logger = logging.getLogger(__name__)
 

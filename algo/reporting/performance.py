@@ -13,13 +13,14 @@ Metrics computed:
 """
 
 import json
-from datetime import datetime, date, timezone
-from typing import Optional, Dict, Any
-from pathlib import Path
 import logging
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from utils.db import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
+
 
 logger = logging.getLogger(__name__)
 

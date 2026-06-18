@@ -28,14 +28,14 @@ Usage:
     --dry-run            Print results without writing to DB
 """
 
-import sys
 import argparse
-import json
 import logging
-from collections import defaultdict
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+import sys
+from datetime import date, timedelta
+from typing import Dict, List, Optional
+
 from utils.db.context import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

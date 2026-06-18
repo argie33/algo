@@ -14,8 +14,8 @@ Usage in loader scripts:
     from utils import ...
 """
 
-import sys
 import socket
+import sys
 from pathlib import Path
 
 

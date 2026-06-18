@@ -9,7 +9,9 @@ Works with OptimalLoader and PooledConnectionManager to reduce connection churn.
 
 import contextvars
 from typing import Optional
+
 import psycopg2
+
 
 # Context variable holding the current thread's pooled connection
 # Set by OptimalLoader at startup, used by DatabaseContext operations

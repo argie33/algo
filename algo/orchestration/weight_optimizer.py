@@ -3,6 +3,7 @@ from __future__ import (
     annotations,
 )  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
 
+
 """
 Dynamic Weight Optimizer — Adapts swing score component weights based on realized IC.
 
@@ -12,7 +13,8 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
+
 
 try:
     import numpy as np
@@ -22,10 +24,11 @@ except ImportError:
 try:
     from scipy.optimize import minimize
 except ImportError:
-    minimize = None  # type: ignore[assignment]
+    minimize = None
 
-from utils.db import DatabaseContext
 from algo.signals.attribution import SignalAttributionEngine
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

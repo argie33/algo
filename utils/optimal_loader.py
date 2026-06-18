@@ -6,13 +6,14 @@ import time
 import uuid
 from abc import ABC
 from datetime import date, datetime, timedelta, timezone
-from typing import Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, cast
 
 import psycopg2
 import psycopg2.sql
 
-from utils.db.sql_safety import assert_safe_table
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
+
 
 # Configure root logger so INFO+ messages appear in CloudWatch (via stdout).
 # Without this, Python's lastResort handler only emits WARNING+ to stderr with no timestamp.
@@ -56,7 +57,7 @@ class OptimalLoader(ABC):
         self._watermark = None
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
-        self._schema_cols_cache: Optional[List[str]] = (
+        self._schema_cols_cache: Optional[set[str]] = (
             None  # cached column list for _bulk_insert
         )
         self._constraint_checked = False  # track if we've verified/fixed constraint
@@ -74,16 +75,16 @@ class OptimalLoader(ABC):
             "duration_sec": 0.0,
             "source_distribution": {},
         }
-        self._heartbeat_thread = None
+        self._heartbeat_thread: Optional[threading.Thread] = None
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
         self._heartbeat_interval = (
             60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         )
-        self._execution_start_time = (
+        self._execution_start_time: Optional[datetime] = (
             None  # Track execution start for execution history logging
         )
-        self._batch_context = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
+        self._batch_context: Optional[Dict[str, Any]] = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -147,7 +148,10 @@ class OptimalLoader(ABC):
         try:
             # Use a fresh connection (bypassing the long-running pooled connection)
             # to avoid statement timeout from long-running transaction state.
-            from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+            from utils.db.pooled_context_var import (
+                get_pooled_connection,
+                set_pooled_connection,
+            )
             saved_conn = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -237,8 +241,9 @@ class OptimalLoader(ABC):
         Pool saturation = active_connections > 80% of max_db_connections (500).
         """
         try:
-            import boto3
             from datetime import datetime, timedelta
+
+            import boto3
 
             cloudwatch = boto3.client("cloudwatch")
             os.getenv("AWS_REGION", "us-east-1")
@@ -337,7 +342,7 @@ class OptimalLoader(ABC):
         values = [
             r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)
         ]
-        return max(values) if values else None
+        return max(values) if values else None  # type: ignore[type-var]
 
     # ---- Lazy infrastructure ----
 
@@ -638,7 +643,7 @@ class OptimalLoader(ABC):
                     on_conflict,
                 )
             )
-            inserted = cur.rowcount
+            inserted = cast(int, cur.rowcount)
 
             cur.execute(
                 psycopg2.sql.SQL("DROP TABLE {}").format(
@@ -676,19 +681,19 @@ class OptimalLoader(ABC):
             )
         else:
             previous = wm_store.get(symbol) if wm_store else None
-            previous_date = self._parse_watermark_date(previous)
+            previous_date = self._parse_watermark_date(previous)  # type: ignore[assignment]
 
         rows = self.fetch_incremental(symbol, previous_date)
         if not rows:
             logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
-            self._stats["symbols_skipped_by_watermark"] += 1
+            self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
             return 0
         logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows")
-        self._stats["rows_fetched"] += len(rows)
+        self._stats["rows_fetched"] += len(rows)  # type: ignore
         if self.router and self.router.last_source:
             src = self.router.last_source
-            self._stats["source_distribution"][src] = (
-                self._stats["source_distribution"].get(src, 0) + 1
+            self._stats["source_distribution"][src] = (  # type: ignore
+                self._stats["source_distribution"].get(src, 0) + 1  # type: ignore
             )
 
         rows = self.transform(rows)
@@ -708,14 +713,14 @@ class OptimalLoader(ABC):
             logger.warning(
                 f"Quality check: Dropped {dropped_count} row(s) due to validation failure"
             )
-        self._stats["rows_quality_dropped"] += dropped_count
+        self._stats["rows_quality_dropped"] += dropped_count  # type: ignore
 
         # Bloom dedup (cheap pre-filter)
         dedup = self._get_dedup()
         if dedup and self.primary_key:
             before_dedup = len(rows)
             rows = self._dedup_filter(dedup, rows)
-            self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
+            self._stats["rows_dedup_skipped"] += before_dedup - len(rows)  # type: ignore
 
         if not rows:
             return 0
@@ -739,7 +744,7 @@ class OptimalLoader(ABC):
                 key = ":".join(str(row.get(c, "")) for c in self.primary_key)
                 dedup.add(key)
 
-        self._stats["rows_inserted"] += inserted
+        self._stats["rows_inserted"] += inserted  # type: ignore
         return inserted
 
     def _dedup_filter(self, dedup, rows: List[dict]) -> List[dict]:
@@ -856,7 +861,10 @@ class OptimalLoader(ABC):
                     )
                     # Update our status to FAILED so Phase 1 detects it
                     try:
-                        from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                        from utils.db.pooled_context_var import (
+                            get_pooled_connection,
+                            set_pooled_connection,
+                        )
                         _saved = get_pooled_connection()
                         set_pooled_connection(None)
                         try:
@@ -900,12 +908,15 @@ class OptimalLoader(ABC):
             return
 
         execution_end = datetime.now(timezone.utc)
-        execution_start = datetime.fromtimestamp(
+        execution_start = datetime.fromtimestamp(  # type: ignore[arg-type]
             self._execution_start_time, tz=timezone.utc
         )
 
         try:
-            from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+            from utils.db.pooled_context_var import (
+                get_pooled_connection,
+                set_pooled_connection,
+            )
             _saved_hist = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -1002,7 +1013,7 @@ class OptimalLoader(ABC):
 
             # Capture execution start time early to track all execution attempts
             start = time.time()
-            self._execution_start_time = start
+            self._execution_start_time = start  # type: ignore[assignment]
 
             # ISSUE #5 FIX: Check upstream completeness before proceeding
             symbols = list(symbols)
@@ -1101,13 +1112,13 @@ class OptimalLoader(ABC):
                     total_rows = result[0] if result else 0
                     latest_date = result[1] if result else None
                     if hasattr(latest_date, "date"):
-                        latest_date = latest_date.date()
+                        latest_date = latest_date.date()  # type: ignore[union-attr]
 
                 # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
                 symbols_expected = len(symbols) if symbols else 1
                 symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
                 completion_pct = (
-                    (symbols_successfully_loaded / symbols_expected * 100)
+                    (symbols_successfully_loaded / symbols_expected * 100)  # type: ignore
                     if symbols_expected > 0
                     else 100.0
                 )
@@ -1124,7 +1135,10 @@ class OptimalLoader(ABC):
 
                 # Use a fresh connection for the final status write to avoid
                 # statement timeout from the long-running pooled connection state.
-                from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                from utils.db.pooled_context_var import (
+                    get_pooled_connection,
+                    set_pooled_connection,
+                )
                 _saved_conn = get_pooled_connection()
                 set_pooled_connection(None)
                 try:
@@ -1313,7 +1327,7 @@ class OptimalLoader(ABC):
             self._update_loader_status("RUNNING")
 
             start = time.time()
-            self._execution_start_time = start  # Track for execution history logging
+            self._execution_start_time = start  # type: ignore[assignment]  # Track for execution history logging
             logger.info("[%s] Starting global load", self.table_name)
 
             # Get current watermark from DB so fetch_global can do incremental loads
@@ -1358,7 +1372,10 @@ class OptimalLoader(ABC):
             # Update data_loader_status using a fresh connection to avoid statement
             # timeout from the long-running pooled connection state.
             try:
-                from utils.db.pooled_context_var import set_pooled_connection, get_pooled_connection
+                from utils.db.pooled_context_var import (
+                    get_pooled_connection,
+                    set_pooled_connection,
+                )
                 _saved_conn_global = get_pooled_connection()
                 set_pooled_connection(None)
                 try:
@@ -1373,7 +1390,7 @@ class OptimalLoader(ABC):
                         total_rows = result[0] if result else 0
                         latest_date = result[1] if result else None
                         if hasattr(latest_date, "date"):
-                            latest_date = latest_date.date()
+                            latest_date = latest_date.date()  # type: ignore[union-attr]
                     with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                         cur.execute("SET statement_timeout = 0")
                         cur.execute(
@@ -1513,7 +1530,7 @@ class OptimalLoader(ABC):
     def _safe_load_symbol(self, symbol: str) -> None:
         try:
             self.load_symbol(symbol)
-            self._stats["symbols_processed"] += 1
+            self._stats["symbols_processed"] += 1  # type: ignore
         except Exception as e:
-            self._stats["symbols_failed"] += 1
+            self._stats["symbols_failed"] += 1  # type: ignore
             logger.error("[%s] %s failed: %s", self.table_name, symbol, e)

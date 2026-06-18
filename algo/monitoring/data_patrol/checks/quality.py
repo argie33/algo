@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Data quality checks - NULL anomalies, OHLC sanity, zero values, volume sanity."""
 
-from typing import List, cast
 import logging
+from typing import List, cast
+
 from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
+from ..config import CRIT, ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

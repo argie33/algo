@@ -9,10 +9,11 @@ by compromising environment variables or poisoning DNS responses.
 SECURITY: Always pin expected domains and protocols. Reject redirects to unexpected hosts.
 """
 
-from urllib.parse import urlparse
-from typing import List, Optional
 import ipaddress
 import logging
+from typing import List, Optional
+from urllib.parse import urlparse
+
 
 logger = logging.getLogger(__name__)
 

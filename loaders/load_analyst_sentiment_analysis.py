@@ -35,16 +35,17 @@ Run:
 """
 
 import argparse
-import sys
 import logging
+import sys
+
 
 logger = logging.getLogger(__name__)
-from utils.loaders.helpers import get_active_symbols
 from datetime import date
 from typing import Optional
 
-from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
 
 
 class AnalystSentimentLoader(OptimalLoader):

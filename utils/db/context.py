@@ -12,10 +12,12 @@ THE RIGHT WAY: All database access goes through this context manager.
 
 import logging
 from typing import Optional
+
 from psycopg2.extras import DictCursor
 
 from utils.db.connection import get_db_connection
 from utils.db.pooled_context_var import get_pooled_connection
+
 
 logger = logging.getLogger(__name__)
 __all__ = ["DatabaseContext"]
@@ -162,7 +164,9 @@ class DatabaseContext:
     def _get_loader_correlation_id() -> Optional[str]:
         """Auto-retrieve correlation_id from context (loaders only)."""
         try:
-            from utils.infrastructure import get_correlation_id  # type: ignore[attr-defined]
+            from utils.infrastructure import (
+                get_correlation_id,  # type: ignore[attr-defined]
+            )
 
             cid = get_correlation_id()
             return cid if cid else None

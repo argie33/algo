@@ -15,16 +15,17 @@ Final composite score is weighted average of all factors.
 Run: python3 loaders/load_stock_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import sys
 import argparse
-from datetime import date, datetime, timezone
-from typing import Optional, Dict
 import logging
+import sys
+from datetime import date, datetime, timezone
+from typing import Dict, Optional
 
-from utils.loaders.helpers import get_active_symbols
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

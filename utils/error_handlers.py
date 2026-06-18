@@ -6,7 +6,7 @@ Provides helpers for error logging, sanitization, and context extraction.
 
 import logging
 import re
-from typing import Tuple, Dict, Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import psycopg2
 import psycopg2.errors
@@ -15,7 +15,15 @@ from utils.exceptions import (
     BaseAPIException,
 )
 
+
 logger = logging.getLogger(__name__)
+
+# Check if psycopg2 is available
+try:
+    import psycopg2.extensions
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
 
 
 def classify_exception(e: Exception) -> Tuple[int, str, str]:
@@ -145,7 +153,7 @@ def extract_error_context(e: Exception) -> Dict[str, Any]:
     Returns:
         Dict with extracted context (may be empty if not applicable)
     """
-    context = {}
+    context: Dict[str, Any] = {}
 
     # Extract from psycopg2 exceptions
     if HAS_PSYCOPG2 and isinstance(e, psycopg2.extensions.Diagnostic):
@@ -189,8 +197,8 @@ def retry_with_backoff(
     Raises:
         Exception: Last exception if all retries fail
     """
-    import time
     import random
+    import time
 
     last_error = None
     current_backoff = initial_backoff_sec

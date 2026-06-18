@@ -11,6 +11,7 @@ import logging
 from datetime import date as _date
 from typing import Any, Dict
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,7 +169,7 @@ class SignalOptionsMixin:
             implied_move = current_iv * (days_to_exp / 365.0) ** 0.5 * 100
 
             # Get base depth from technical analysis
-            base_type = self.classify_base_type(symbol, eval_date)  # type: ignore[attr-defined]
+            base_type = self.classify_base_type(symbol, eval_date)
             base_depth = float(base_type.get("depth_pct", 0)) if base_type else 0
 
             underpriced = implied_move < base_depth

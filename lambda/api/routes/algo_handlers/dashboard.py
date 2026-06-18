@@ -258,27 +258,15 @@ def _get_algo_status(cur) -> Dict:
                 ),
                 "open_positions": safe_int(snap["position_count"]),
             }
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(
-            f"[STATUS] Portfolio snapshot table missing: {type(e).__name__}: {e}"
-        )
-        return error_response(
-            503, "service_unavailable", "Portfolio data unavailable - table missing"
-        )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(
-            f"[STATUS] Portfolio snapshot query failed: {type(e).__name__}: {e}"
-        )
-        return error_response(
-            503, "service_unavailable", "Database error while fetching portfolio"
-        )
-    except Exception as e:
-        logger.error(
-            f"[STATUS] Unexpected error fetching portfolio: {type(e).__name__}: {e}"
-        )
-        return error_response(
-            500, "internal_error", "Failed to fetch portfolio snapshot"
-        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
+        return error_response(code, error_type, message)
 
     freshness = check_data_freshness(
         cur, "algo_audit_log", "created_at", warning_days=1
@@ -448,29 +436,15 @@ def _get_circuit_breakers(cur) -> Dict:
                         else 0
                     ),
                 }
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(
-                f"Circuit breaker metrics table missing: {type(e).__name__}: {e}"
-            )
-            return error_response(
-                503, "service_unavailable", "Circuit breaker metrics table missing"
-            )
-        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.error(
-                f"Circuit breaker metrics query failed: {type(e).__name__}: {e}"
-            )
-            return error_response(
-                503,
-                "service_unavailable",
-                "Database error fetching circuit breaker metrics",
-            )
-        except Exception as e:
-            logger.error(
-                f"Unexpected error fetching circuit breaker metrics: {type(e).__name__}: {e}"
-            )
-            return error_response(
-                500, "internal_error", "Failed to fetch circuit breaker metrics"
-            )
+        except (
+            psycopg2.errors.UndefinedTable,
+            psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError,
+            psycopg2.DatabaseError,
+            Exception,
+        ) as e:
+            code, error_type, message = handle_db_error(e, "fetch circuit breaker metrics")
+            return error_response(code, error_type, message)
 
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
@@ -793,34 +767,15 @@ def _get_circuit_breakers(cur) -> Dict:
                 "data_freshness": freshness,
             },
         )
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(
-            f"Data unavailable (circuit breakers): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch circuit breakers"},
-            exc_info=True,
-        )
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except psycopg2.OperationalError as e:
-        logger.error(
-            f"Database connection error (circuit breakers): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch circuit breakers"},
-            exc_info=True,
-        )
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except psycopg2.DatabaseError as e:
-        logger.error(
-            f"Database error (circuit breakers): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch circuit breakers"},
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Database query failed")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error (circuit breakers): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch circuit breakers"},
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Failed to fetch circuit breakers")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch circuit breakers")
+        return error_response(code, error_type, message)
 
 
 

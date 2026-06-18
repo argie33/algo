@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Value Metrics Loader - PE, PB, PS, dividend yield from yfinance."""
 
-import sys
 import argparse
 import logging
-from datetime import date, datetime, timezone
-from typing import Optional, List
+import sys
 import time
+from datetime import date, datetime, timezone
+from typing import List, Optional
 
 from utils.external.yfinance import get_ticker
-from utils.optimal_loader import OptimalLoader
-from utils.loaders.helpers import get_active_symbols
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+
 
 setup_imports()
 

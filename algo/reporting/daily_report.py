@@ -2,9 +2,10 @@
 
 import logging
 from datetime import date as _date
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

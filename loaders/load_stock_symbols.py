@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Stock Symbols Loader - Load all tradable symbols from NASDAQ/NYSE."""
 
+import csv
 import logging
-import sys
-import socket
-from datetime import date
-from typing import Optional, List
 import os
 import re
-import csv
+import socket
+import sys
+from datetime import date
+from typing import List, Optional
+
 import requests
 
-from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

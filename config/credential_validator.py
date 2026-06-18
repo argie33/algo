@@ -9,10 +9,11 @@ This module should be imported early in the application lifecycle
 (e.g., in __main__.py or at the top of algo_config.py).
 """
 
+import logging
 import os
 import sys
-import logging
 from typing import List, Tuple
+
 
 logger = logging.getLogger(__name__)
 

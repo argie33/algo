@@ -15,6 +15,7 @@ Usage:
 
 from datetime import time
 
+
 # US equity market timing (Eastern Time)
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 30

@@ -8,13 +8,14 @@ Rate limiting: All yfinance requests from this process share a global throttle
 the shared NAT gateway IP used by all ECS tasks.
 """
 
-import time
-import threading
 import logging
-from typing import Optional
-import requests
+import threading
+import time
+from typing import Optional, cast
 
+import requests
 import yfinance as yf
+
 
 logger = logging.getLogger(__name__)
 
@@ -189,4 +190,4 @@ class YFinanceWrapper:
 
 def get_ticker(symbol: str) -> Optional[object]:
     """Convenience function to get yfinance ticker with retry logic."""
-    return YFinanceWrapper.get_ticker(symbol)
+    return cast(Optional[object], YFinanceWrapper.get_ticker(symbol))

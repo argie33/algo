@@ -10,9 +10,11 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 """
 
 import logging
-from typing import Optional
+from typing import Optional, cast
+
 from utils.db.context import DatabaseContext
-from utils.db.query_cache import QueryCache, CacheStrategy
+from utils.db.query_cache import CacheStrategy, QueryCache
+
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +124,8 @@ class SignalBase:
             context=f"RS percentile {eval_date} {lookback}d",
             allow_stale=True,  # Return stale data if DB is down
         )
-        return percentile_dict.get(symbol)
+        result = percentile_dict.get(symbol)
+        return cast(Optional[float], result)
 
     def _period_return(self, cur, symbol, end_date, lookback_days):
         """Compute simple return over a lookback period."""

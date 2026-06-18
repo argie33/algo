@@ -5,14 +5,15 @@ Replaces filesystem locks (Issue #8) with DynamoDB conditional writes
 for correct Fargate/ECS distributed locking.
 """
 
+import logging
 import os
 import time
 import uuid
-import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
 import boto3
+
 
 logger = logging.getLogger(__name__)
 

@@ -3,40 +3,43 @@
 import sys
 from pathlib import Path
 
+
 # Add project root (parent of parent of parent since we're in algo/orchestration)
 _project_root = Path(__file__).parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from utils.infrastructure import (
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-    ORCHESTRATOR_RUN_TIMES_TUPLE,
-    ORCHESTRATOR_KILL_BUFFER_MINUTES,
-)
-from utils.infrastructure import EASTERN_TZ
-
+import json
+import logging
 import os
 import time
-import json
+from datetime import date as _date
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional, Union, cast
+
 import psycopg2
 import psycopg2.extensions
 import psycopg2.sql
-from datetime import datetime, date as _date, timedelta, timezone
-from typing import Dict, Any, Optional, Union
-from algo.reporting import AlertManager
+
 from algo.infrastructure import MarketCalendar
-from utils.db import assert_safe_table
-from utils.db import DatabaseContext
+from algo.reporting import AlertManager
+from utils.db import DatabaseContext, assert_safe_table
+from utils.infrastructure import (
+    EASTERN_TZ,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    ORCHESTRATOR_KILL_BUFFER_MINUTES,
+    ORCHESTRATOR_RUN_TIMES_TUPLE,
+)
 from utils.logging import get_tracker
-import logging
+
+
 try:
     from monitoring.metrics_context import (
         TimeBlock,
         log_metrics_summary,
     )
 except ImportError:
-    from contextlib import contextmanager
 
     class TimeBlock:  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
@@ -46,7 +49,7 @@ except ImportError:
         def __exit__(self, *args):
             return False
 
-    def log_metrics_summary():  # type: ignore[no-redef]
+    def log_metrics_summary() -> None:  # type: ignore
         pass
 
 logger = logging.getLogger(__name__)
@@ -136,7 +139,7 @@ class Orchestrator:
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
 
         """
-        
+
         try:
             import boto3
 
@@ -399,7 +402,7 @@ class Orchestrator:
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
         try:
-            from algo.monitoring import get_pool_status, check_stuck_connections
+            from algo.monitoring import check_stuck_connections, get_pool_status
 
             status = get_pool_status()
             logger.debug(
@@ -447,7 +450,8 @@ class Orchestrator:
                             row[0] if row is not None and row[0] is not None else None
                         )
                         if latest_date:
-                            from datetime import datetime as dt, date as date_type
+                            from datetime import date as date_type
+                            from datetime import datetime as dt
 
                             if isinstance(latest_date, date_type) and not isinstance(
                                 latest_date, datetime
@@ -1118,12 +1122,12 @@ class Orchestrator:
                     logger.debug("[PREFLIGHT] Validating required tables")
                     if not self._validate_required_tables(cur):
                         logger.error("[HALT] Required tables missing — cannot proceed")
-                        return self._final_report()
+                        return cast(Dict[str, Any], self._final_report())
 
                     logger.info("[OK] All pre-flight checks passed")
             except TimeoutError as e:
                 logger.error(f"  [HALT] Pre-flight database timeout (pool exhausted?): {e}")
-                report = self._final_report()
+                report = cast(Dict[str, Any], self._final_report())
                 report["skipped"] = True
                 report["reason"] = "database_timeout"
                 return report
@@ -1131,7 +1135,7 @@ class Orchestrator:
                 logger.error(f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}", exc_info=True)
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
-                report = self._final_report()
+                report = cast(Dict[str, Any], self._final_report())
                 if "connection" in str(e).lower() or "database" in str(e).lower() or "pool" in str(e).lower():
                     report["skipped"] = True
                     report["reason"] = "database_unavailable"
@@ -1143,7 +1147,7 @@ class Orchestrator:
                 logger.error(
                     "Check CloudWatch alarms for database availability. Returning skipped status."
                 )
-                report = self._final_report()
+                report = cast(Dict[str, Any], self._final_report())
                 report["skipped"] = True
                 report["reason"] = "database_unavailable"
                 return report
@@ -1185,7 +1189,7 @@ class Orchestrator:
                             1, "data_freshness", "halt", phase1_result.error or ""
                         )
                         self.phase_7_reconcile()
-                        return self._final_report()
+                        return cast(Dict[str, Any], self._final_report())
                 phase_1_elapsed = time.time() - phase_1_start
                 logger.info(
                     f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1196,7 +1200,7 @@ class Orchestrator:
                 )
                 self.log_phase_result(1, "data_freshness", "error", str(e))
                 self.phase_7_reconcile()
-                return self._final_report()
+                return cast(Dict[str, Any], self._final_report())
 
             phase_2_start = time.time()
             logger.info(
@@ -1217,7 +1221,7 @@ class Orchestrator:
                 self.phase_3b_exposure_policy()
                 self.phase_4_exit_execution()
                 self.phase_7_reconcile()
-                return self._final_report()
+                return cast(Dict[str, Any], self._final_report())
 
             # Phase 3: Position Monitor
             phase_3_start = time.time()
@@ -1264,7 +1268,7 @@ class Orchestrator:
                             "HALT: Phase 4 (Exit Execution) returned False — running Phase 7 for snapshot then stopping."
                         )
                         self.phase_7_reconcile()
-                        return self._final_report()
+                        return cast(Dict[str, Any], self._final_report())
                 phase_4_elapsed = time.time() - phase_4_start
                 logger.info(
                     f"[PHASE 4] Completed in {phase_4_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1292,7 +1296,7 @@ class Orchestrator:
                         # needs on its next invocation. Skipping Phase 7 here causes a deadlock
                         # where Phase 5 always halts (no snapshot) and Phase 7 never creates one.
                         self.phase_7_reconcile()
-                        return self._final_report()
+                        return cast(Dict[str, Any], self._final_report())
                 phase_5_elapsed = time.time() - phase_5_start
                 logger.info(
                     f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1319,7 +1323,7 @@ class Orchestrator:
                         )
                         # Phase 7 must still run — portfolio snapshot required for circuit breakers next invocation.
                         self.phase_7_reconcile()
-                        return self._final_report()
+                        return cast(Dict[str, Any], self._final_report())
                 phase_6_elapsed = time.time() - phase_6_start
                 logger.info(
                     f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1373,7 +1377,7 @@ class Orchestrator:
             except Exception as e:
                 logger.debug(f"Could not emit pipeline timing metrics: {e}")
 
-            return self._final_report()
+            return cast(Dict[str, Any], self._final_report())
         finally:
             self._release_run_lock()
 

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import logging
+from datetime import date as _date
+
+from algo.signals import SignalComputer
 from utils.db import DatabaseContext
 from utils.signals import GradeClassifier
-from datetime import date as _date
-from algo.signals import SignalComputer
+
 
 logger = logging.getLogger(__name__)
 

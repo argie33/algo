@@ -2,9 +2,11 @@
 
 """Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
 
-from typing import Dict, Any, Optional
 import logging
+from typing import Any, Dict, Optional
+
 from utils.db.context import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

@@ -11,8 +11,10 @@ CRITICAL ISSUE #5 FIX: Validates column types, not just existence.
 """
 
 import logging
-import psycopg2.sql
 from typing import Dict, List, Optional, Tuple
+
+import psycopg2.sql
+
 
 logger = logging.getLogger(__name__)
 

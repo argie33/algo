@@ -11,7 +11,8 @@ This module is kept for backwards compatibility only. All new code should use:
 """
 
 import logging
-from typing import Optional, Any
+from typing import Any, Optional, cast
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def get_staleness_threshold_days() -> int:
     try:
         from algo.infrastructure import get_config
 
-        return get_config().get("max_data_staleness_days", 3)
+        return cast(int, get_config().get("max_data_staleness_days", 3))
     except Exception:
         return 3
 

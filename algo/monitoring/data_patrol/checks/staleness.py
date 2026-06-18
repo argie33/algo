@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Data staleness check - ensures data is fresh within expected windows."""
 
-from typing import List, cast
-from datetime import datetime, date as _date, timezone
 import logging
+from datetime import date as _date
+from datetime import datetime
+from typing import List, cast
+
+from utils.db import assert_safe_column, assert_safe_table, safe_select_count
+
 from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
-from utils.db import assert_safe_table, assert_safe_column, safe_select_count
+from ..config import CRIT, ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

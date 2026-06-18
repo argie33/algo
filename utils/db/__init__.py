@@ -12,13 +12,14 @@ from .pooled_connection_manager import (
 )
 from .pooled_context import PooledDatabaseContext
 from .pooled_context_var import (
-    set_pooled_connection,
     get_pooled_connection,
     has_pooled_connection,
+    set_pooled_connection,
 )
 from .query_cache import QueryCache
 from .retry import OptimisticLockRetry
-from .sql_safety import assert_safe_table, assert_safe_column, safe_select_count
+from .sql_safety import assert_safe_column, assert_safe_table, safe_select_count
+
 
 __all__ = [
     "DatabaseContext",

@@ -6,13 +6,15 @@ Centralized configuration from database. Changes take effect immediately without
 Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any
+import time
+from typing import Any, cast
+
 from config.credential_validator import assert_credentials
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -907,7 +909,7 @@ def get_api_timeout() -> int:
     env_val = os.getenv("API_TIMEOUT")
     if env_val:
         return int(env_val)
-    return get_config().get("api_request_timeout_seconds", 5)
+    return cast(int, get_config().get("api_request_timeout_seconds", 5))
 
 
 def get_db_timeout() -> int:
@@ -918,7 +920,7 @@ def get_db_timeout() -> int:
     env_val = os.getenv("DB_TIMEOUT_SECONDS")
     if env_val:
         return int(env_val)
-    return get_config().get("db_connection_timeout_seconds", 15)
+    return cast(int, get_config().get("db_connection_timeout_seconds", 15))
 
 
 def get_market_data_timeout() -> int:

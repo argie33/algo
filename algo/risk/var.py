@@ -17,9 +17,11 @@ Alerts:
 """
 
 import logging
-from datetime import datetime, date, timezone
-from typing import List, Optional, Dict, Any
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

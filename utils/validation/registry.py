@@ -51,15 +51,17 @@ DO NOT:
 
 import logging
 from typing import Any, Callable, Dict, Optional
+
 from utils.infrastructure import (
     safe_float,
     safe_float_strict,
     safe_int,
     safe_int_strict,
+    safe_json_loads,
     safe_parse_date,
     safe_parse_datetime_et,
-    safe_json_loads,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ def validate_record(
         schema = {'price': 'float', 'volume': 'int', 'date': 'date'}
         validated = validate_record(row, schema, context=f"{symbol} historical data")
     """
-    validated = {}
+    validated: dict[str, Any] = {}
     for field_name, field_type in schema.items():
         if field_name not in record:
             logger.warning(f"Missing field {field_name} in record {context}")

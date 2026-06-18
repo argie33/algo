@@ -15,14 +15,15 @@ Grade thresholds:
 Runs after swing_trader_scores is loaded (end of day pipeline).
 """
 
-import sys
 import logging
+import sys
 from datetime import date, datetime
-from typing import Optional, List
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ

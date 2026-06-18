@@ -8,8 +8,9 @@ and compute Mansfield RS on-demand using price returns. Falls back to on-the-fly
 computation if trend_template_data is stale.
 """
 
-from typing import Dict, Any
 import logging
+from typing import Any, Dict
+
 
 logger = logging.getLogger(__name__)
 

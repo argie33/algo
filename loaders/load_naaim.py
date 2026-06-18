@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """NAAIM Exposure Index Loader - Fund Manager Positioning (Market-wide)."""
 
-import sys
 import logging
+import sys
 from datetime import date
-from typing import Optional, List
-import requests
+from typing import List, Optional
+
 import pandas as pd
+import requests
 
 from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+
 
 setup_imports()
 

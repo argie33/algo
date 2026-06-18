@@ -29,14 +29,16 @@ USAGE:
   tracker.end_run(success=True)
 """
 
-import logging
-import os
-import uuid
 import hashlib
 import json
-from datetime import datetime, date as _date
-from typing import Dict, List, Optional, Any
+import logging
+import uuid
+from datetime import date as _date
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +214,7 @@ class DataProvenanceTracker:
             f"({duration_seconds:.1f}s, {len(self.ticks_recorded)} ticks)"
         )
 
-    def get_run_replay_data(self, run_id: str) -> Dict[str, Any]:
+    def get_run_replay_data(self, run_id: str) -> Optional[Dict[str, Any]]:
         """
         Get all data and metadata for a specific loader run.
         Use this to replay a date's trades with exact data that was used.

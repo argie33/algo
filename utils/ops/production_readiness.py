@@ -13,7 +13,8 @@ Validates all critical systems are configured correctly:
 import logging
 import os
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +30,9 @@ class ProductionReadinessCheck:
     def check_database_connectivity(self) -> bool:
         """Verify database is accessible and schema exists with correct column data types."""
         try:
+            from loaders.schema_definitions import TABLE_SCHEMAS
             from utils.db import DatabaseContext
             from utils.validation import validate_table_schema
-            from loaders.schema_definitions import TABLE_SCHEMAS
 
             with DatabaseContext("read") as cur:
                 # Validate critical tables exist with correct column types
@@ -194,7 +195,7 @@ class ProductionReadinessCheck:
                     self.checks_failed.append("Cognito user pool not found")
                     return False
 
-            except Exception as e:
+            except Exception:
                 self.checks_warnings.append(
                     "Cannot validate Cognito with API (may lack IAM permissions), "
                     f"but config exists: {client_id}"
@@ -296,7 +297,7 @@ class ProductionReadinessCheck:
             )
             return False
 
-    def run_all_checks(self) -> Dict[str, any]:
+    def run_all_checks(self) -> Dict[str, Any]:
         """Run all production readiness checks."""
         logger.info("=" * 70)
         logger.info("PRODUCTION READINESS CHECK")

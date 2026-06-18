@@ -10,7 +10,7 @@ import threading
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from zoneinfo import ZoneInfo
 
 import requests
@@ -126,11 +126,15 @@ def get_api_url() -> str:
 
 
 # HTTP session with connection pooling (reuse TCP connections across 25+ parallel fetchers)
+try:
+    from urllib3.util.retry import Retry
+except ImportError:
+    from requests.packages.urllib3.util.retry import Retry  # type: ignore
 _http_session = requests.Session()
 _http_adapter = requests.adapters.HTTPAdapter(
     pool_connections=16,
     pool_maxsize=16,
-    max_retries=requests.packages.urllib3.util.retry.Retry(
+    max_retries=Retry(
         total=0, backoff_factor=0  # Retries handled by api_call() instead
     ),
 )
@@ -210,7 +214,7 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
             cache_response(endpoint, data)
             _record_api_success()
-            return data
+            return cast(Dict[Any, Any], data)
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
                 backoff = min(

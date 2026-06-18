@@ -10,7 +10,9 @@ Monitors critical SLA windows:
 
 import logging
 from datetime import datetime
+from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,7 @@ class SLAMonitor:
     ]
 
     @classmethod
-    def get_current_sla_window(cls) -> dict:
+    def get_current_sla_window(cls) -> Optional[Dict[str, Any]]:
         """Get current SLA window if in one, None otherwise.
 
         Returns:
@@ -69,7 +71,7 @@ class SLAMonitor:
 
                 elapsed_sec = (now - start_dt).total_seconds()
                 elapsed_min = elapsed_sec / 60
-                budget * 60
+                budget_sec = budget * 60
                 remaining_min = budget - elapsed_min
                 percent = (elapsed_min / budget) * 100
 
@@ -87,7 +89,7 @@ class SLAMonitor:
         return None
 
     @classmethod
-    def log_sla_status(cls, operation_name: str, elapsed_sec: float = None) -> dict:
+    def log_sla_status(cls, operation_name: str, elapsed_sec: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """Log current SLA status. Returns SLA info or None if not in window.
 
         Args:

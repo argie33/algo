@@ -13,19 +13,22 @@ Use:
 Run: python3 loaders/load_swing_trader_scores_vectorized.py [--today]
 """
 
-import sys
 import argparse
 import logging
 import os
-import time
+import sys
 import threading
+import time
 from datetime import date, datetime, timedelta
+from typing import Optional
 from zoneinfo import ZoneInfo
+
 import pandas as pd
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +193,12 @@ class VectorizedSwingScoresLoader:
         signal_scores: pd.DataFrame,
         technical_data: pd.DataFrame,
         trend_data: pd.DataFrame,
+        end_date: Optional[date] = None,
     ) -> pd.DataFrame:
         """Compute swing scores for ALL symbols at once (vectorized)."""
+        if end_date is None:
+            from datetime import date as _date
+            end_date = _date.today()
 
         results = []
 
@@ -326,7 +333,7 @@ class VectorizedSwingScoresLoader:
             return 0
 
 
-def _update_swing_loader_status(status: str, error_message: str = None):
+def _update_swing_loader_status(status: str, error_message: Optional[str] = None):
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Market Sentiment Loader - Aggregate sentiment score from AAII, NAAIM, CNN Fear/Greed."""
 
-import sys
 import logging
+import sys
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

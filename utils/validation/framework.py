@@ -11,13 +11,14 @@ All validation is fail-closed with explicit error logging and context tracking.
 No silent defaults—missing data returns None, conversions are logged.
 """
 
-import logging
 import json
+import logging
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type
 from dataclasses import dataclass, field
-from datetime import datetime, date, timezone
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional, Type
+
 
 logger = logging.getLogger(__name__)
 

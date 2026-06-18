@@ -15,10 +15,13 @@ Architecture:
 """
 
 import logging
-import numpy as np
 from datetime import date as _date
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

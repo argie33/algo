@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Fear & Greed Index Loader - Market Sentiment Indicators (Market-wide)."""
 
-import sys
 import logging
-from datetime import date
-from typing import Optional, List
-import requests
 import socket
+import sys
+from datetime import date
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.url_validator import validate_url
+import requests
+
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

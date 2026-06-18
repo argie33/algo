@@ -54,15 +54,70 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
+exclude = [
+    "^lambda/",
+    "^migrations/",
+    "^tests/",
+]
 
 [[tool.mypy.overrides]]
 module = [
     "tests.*",
-    "migrations.*",
     "tools.dashboard.data_validation",
     "utils.loaders.helpers",
+    "tools.dashboard.*",
 ]
 ignore_errors = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "C90", "UP", "B", "C4", "PIE", "T10", "LOG", "RUF", "A"]
+ignore = ["E203", "E501", "C901"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"migrations/*" = ["E402", "F401"]
+"tests/*" = ["E402", "F401", "S101"]
+"scripts/*" = ["E402"]
+"load*.py" = ["E402", "F401"]
+"conftest.py" = ["E402"]
+"*_lambda.py" = ["E402"]
+"dev_server.py" = ["E402"]
+"api_proxy_server.py" = ["E402"]
+"panels.py" = ["E402"]
+"tools/dashboard/*.py" = ["E402", "C901"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.isort]
+known-first-party = ["algo", "utils", "loaders", "lambda", "config", "tools", "monitoring"]
+known-third-party = ["numpy", "pandas", "scipy", "boto3", "flask", "requests", "psycopg2"]
+lines-after-imports = 2
+
+[tool.pylint.messages_control]
+disable = [
+    "line-too-long",
+    "missing-docstring",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-statements",
+    "too-many-branches",
+    "duplicate-code",
+    "too-few-public-methods",
+    "inconsistent-return-statements",
+    "fixme",
+]
+
+[tool.pylint.variables]
+ignored-argument-names = "_.*|^dummy_.*|^test_.*"
+
+[tool.pylint.design]
+max-attributes = 10
+max-locals = 20
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

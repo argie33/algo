@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 from rich.panel import Panel
 from rich.text import Text
@@ -138,7 +138,7 @@ def _fmt_phases_halted(phases_halted) -> str:
     return ", ".join(names[:3])
 
 
-def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Panel:
+def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Optional[Panel]:
     """Create a panel showing granular error info for failed data sources."""
     if not data:
         return Panel(

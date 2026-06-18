@@ -10,9 +10,12 @@ Tracks:
 """
 
 import logging
-from datetime import datetime, date as _date, timezone
-from typing import Dict, Any, Optional
+from datetime import date as _date
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

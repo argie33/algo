@@ -8,6 +8,7 @@ from typing import Any, Callable
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
+
 logger = logging.getLogger(__name__)
 
 

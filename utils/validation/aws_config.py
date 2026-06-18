@@ -16,8 +16,9 @@ Validates:
 
 import logging
 import os
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Dict
+
 
 logger = logging.getLogger(__name__)
 

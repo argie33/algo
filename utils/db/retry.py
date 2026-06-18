@@ -7,9 +7,10 @@ with exponential backoff. Used for optimistic locking retries when
 concurrent updates modify records between read and update.
 """
 
-import time
 import logging
-from typing import Callable, TypeVar, Optional
+import time
+from typing import Callable, Optional, TypeVar
+
 
 logger = logging.getLogger(__name__)
 

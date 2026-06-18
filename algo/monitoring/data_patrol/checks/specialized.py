@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Specialized data checks - earnings, fundamentals, derivatives, sentiment."""
 
-from typing import List
-from datetime import date as _date, datetime, timezone
 import logging
-from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
+from datetime import date as _date
+from datetime import datetime, timezone
+from typing import List
+
 from utils.db import assert_safe_table
+
+from ..base import BaseCheck, CheckResult
+from ..config import ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

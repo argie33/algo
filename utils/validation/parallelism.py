@@ -8,7 +8,8 @@ Validates that loader parallelism auto-scaling correctly adapts to:
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ParallelismValidator:
     def __init__(self):
         pass
 
-    def validate_stock_prices_loader(self) -> Dict[str, any]:
+    def validate_stock_prices_loader(self) -> Dict[str, Any]:
         """Validate stock_prices_daily loader handles 5000+ symbols.
 
         Key constraints:
@@ -99,7 +100,7 @@ class ParallelismValidator:
                 "issues_found": [f"Loader initialization failed: {e}"],
             }
 
-    def validate_technical_data_loader(self) -> Dict[str, any]:
+    def validate_technical_data_loader(self) -> Dict[str, Any]:
         """Validate technical_data_daily loader with 5000+ symbols.
 
         Constraints:
@@ -154,7 +155,7 @@ class ParallelismValidator:
                 "issues_found": [f"Loader initialization failed: {e}"],
             }
 
-    def validate_swing_scores_loader(self) -> Dict[str, any]:
+    def validate_swing_scores_loader(self) -> Dict[str, Any]:
         """Validate swing_trader_scores_vectorized for 5000+ symbols.
 
         Constraints:
@@ -198,7 +199,7 @@ class ParallelismValidator:
                 "issues_found": [f"Loader initialization failed: {e}"],
             }
 
-    def validate_all_loaders(self) -> Dict[str, any]:
+    def validate_all_loaders(self) -> Dict[str, Any]:
         """Run all validation tests.
 
         Returns:

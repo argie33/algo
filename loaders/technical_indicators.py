@@ -5,9 +5,10 @@ Eliminates duplication: signal loaders, metric loaders, and filters all use
 the same indicator calculations from a single source.
 """
 
+from typing import Dict, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Tuple, Dict
 
 
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:

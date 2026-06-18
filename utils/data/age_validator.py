@@ -8,9 +8,11 @@ Uses rules from utils/validation/freshness_config.py as ground truth.
 
 import logging
 from datetime import date, datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional, cast
+
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
+
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +153,7 @@ class DataAgeValidator:
     ) -> bool:
         """Quick boolean check: is table data fresh?"""
         result = DataAgeValidator.check(table_name, date_column, current_date)
-        return result["is_fresh"]
+        return cast(bool, result["is_fresh"])
 
     @staticmethod
     def check_multiple(

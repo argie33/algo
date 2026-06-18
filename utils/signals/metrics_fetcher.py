@@ -16,10 +16,12 @@ Now both use this unified interface to ensure:
 """
 
 import logging
+import math
+from typing import Any, Dict, List, Optional
+
 import psycopg2
 import psycopg2.extras
-import math
-from typing import Dict, List, Optional, Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +129,7 @@ class AlgoMetricsFetcher:
                 if t.get("exit_r_multiple") is not None
             ]
             holding_days = [
-                float(t.get("holding_days"))
+                float(t["holding_days"]) if t.get("holding_days") is not None else 0.0
                 for t in trades
                 if t.get("holding_days") is not None
             ]

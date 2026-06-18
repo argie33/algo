@@ -12,6 +12,7 @@ Run: python3 loaders/enrich_buy_sell_daily_technical.py [--since YYYY-MM-DD] [--
 import sys
 from pathlib import Path
 
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
@@ -20,6 +21,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from utils.db.context import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

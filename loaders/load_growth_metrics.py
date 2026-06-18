@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
+
 """
 Growth Metrics Loader - Computes multi-year growth metrics from annual financials.
 
@@ -13,12 +14,13 @@ import logging
 from datetime import date
 from typing import Optional
 
+
 logger = logging.getLogger(__name__)
 
-from utils.loaders.helpers import get_active_symbols
 from utils.db.context import DatabaseContext
-from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
 
 
 class GrowthMetricsLoader(OptimalLoader):

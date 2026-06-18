@@ -29,16 +29,17 @@ import logging
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import date
-from utils.infrastructure import EASTERN_TZ
 from typing import Any, Callable, Deque, Dict, List, Optional
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-import functools
-
-from algo.infrastructure import retry, YFINANCE_LIMITER, RateLimiter
 import yfinance as yf
+
+from algo.infrastructure import RateLimiter, retry
+from utils.infrastructure import EASTERN_TZ
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
             with ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(fn)
                 return future.result(timeout=timeout_sec)
-        except FuturesTimeoutError as e:
+        except FuturesTimeoutError:
             if attempt < retries - 1:
                 logger.warning(
                     f"Timeout (attempt {attempt + 1}/{retries}), retrying..."
@@ -394,7 +395,7 @@ class DataSourceRouter:
             )
 
             # Parse the batch result into per-symbol rows
-            results = {sym: [] for sym in symbols}
+            results: dict[str, list[dict[str, Any]]] = {sym: [] for sym in symbols}
 
             for idx, row in hist.iterrows():
                 for i, symbol in enumerate(symbols):

@@ -23,17 +23,19 @@ import logging
 import random
 import time
 from typing import Callable, Tuple, Type
+
 from algo.infrastructure.constants import (
-    RETRY_BASE_DELAY_SEC,
-    RETRY_MAX_DELAY_SEC,
-    RETRY_BACKOFF_MULTIPLIER,
-    RETRY_JITTER_MIN_FACTOR,
-    RETRY_JITTER_MAX_FACTOR,
-    YFINANCE_RATE_LIMIT_CPM,
     ALPACA_DATA_RATE_LIMIT_CPM,
     ALPHA_VANTAGE_RATE_LIMIT_CPM,
     DEFAULT_RATE_LIMIT_CPM,
+    RETRY_BACKOFF_MULTIPLIER,
+    RETRY_BASE_DELAY_SEC,
+    RETRY_JITTER_MAX_FACTOR,
+    RETRY_JITTER_MIN_FACTOR,
+    RETRY_MAX_DELAY_SEC,
+    YFINANCE_RATE_LIMIT_CPM,
 )
+
 
 logger = logging.getLogger(__name__)
 

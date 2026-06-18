@@ -11,8 +11,9 @@ Ensures trading prices, quantities, and positions meet strict integrity requirem
 
 import logging
 import math
-from typing import Optional, Tuple
 from decimal import Decimal, InvalidOperation
+from typing import Any, Optional, Tuple
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class FinancialDataValidator:
 
     @staticmethod
     def validate_price(
-        price: any, context: str = "", allow_zero: bool = False
+        price: Any, context: str = "", allow_zero: bool = False
     ) -> Tuple[bool, Optional[float], str]:
         """Validate a price value (entry, exit, stop loss, etc).
 
@@ -78,7 +79,7 @@ class FinancialDataValidator:
 
     @staticmethod
     def validate_quantity(
-        qty: any, context: str = ""
+        qty: Any, context: str = ""
     ) -> Tuple[bool, Optional[int], str]:
         """Validate position/order quantity (must be positive integer).
 
@@ -226,7 +227,7 @@ class FinancialDataValidator:
 
 # Convenience function for common validation pattern
 def validate_trade_entry_prices(
-    symbol: str, entry_price: any, stop_loss_price: any
+    symbol: str, entry_price: Any, stop_loss_price: Any
 ) -> Tuple[bool, Optional[float], Optional[float], str]:
     """Validate entry and stop loss prices for a trade entry.
 
@@ -246,7 +247,7 @@ def validate_trade_entry_prices(
         return False, None, None, err2
 
     valid, err3 = FinancialDataValidator.validate_stop_loss(
-        entry_f, stop_f, context=f"trade entry for {symbol}"
+        entry_f or 0.0, stop_f or 0.0, context=f"trade entry for {symbol}"
     )
     if not valid:
         return False, None, None, err3

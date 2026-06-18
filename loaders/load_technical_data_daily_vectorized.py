@@ -13,31 +13,33 @@ Performance: 5000 symbols in 15-25 minutes vs 60-90 minutes with per-symbol appr
 Run: python3 loaders/load_technical_data_daily_vectorized.py [--limit 100]
 """
 
-import sys
 import argparse
 import logging
 import os
-import time
+import sys
 import threading
+import time
 from datetime import date, datetime, timedelta
 from io import StringIO
-from typing import Optional
+from typing import Optional, cast
 from zoneinfo import ZoneInfo
+
 import pandas as pd
 from pandas.tseries.offsets import CustomBusinessDay
 
+from loaders.technical_indicators import (
+    compute_adx,
+    compute_atr,
+    compute_bollinger_bands,
+    compute_macd,
+    compute_moving_averages,
+    compute_rsi,
+    compute_volume_ma,
+)
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
-from loaders.technical_indicators import (
-    compute_rsi,
-    compute_macd,
-    compute_moving_averages,
-    compute_atr,
-    compute_bollinger_bands,
-    compute_volume_ma,
-    compute_adx,
-)
+
 
 logger = logging.getLogger(__name__)
 
@@ -391,7 +393,7 @@ class VectorizedTechnicalLoader:
                 csv_buffer = StringIO(csv_string)
                 cur.copy_expert(sql, csv_buffer)
 
-                inserted = cur.rowcount
+                inserted = cast(int, cur.rowcount)
                 logger.info(f"Bulk inserted {inserted} technical indicator rows")
                 return inserted
 

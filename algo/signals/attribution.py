@@ -12,6 +12,7 @@ import logging
 from datetime import date as _date
 from typing import Any, Dict, List, Optional, Tuple
 
+
 try:
     import numpy as np
 except ImportError:
@@ -20,9 +21,10 @@ except ImportError:
 try:
     from scipy import stats
 except ImportError:
-    stats = None  # type: ignore[assignment]
+    stats = None
 
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

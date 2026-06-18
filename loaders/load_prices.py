@@ -19,21 +19,23 @@ import sys
 import threading
 import time
 import uuid
-import psycopg2.sql
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, cast
 
-from utils.db.sql_safety import assert_safe_table
-from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
+import psycopg2.sql
+
+from monitoring.metrics_context import TimeBlock
 from utils.data.provenance import DataProvenanceTracker
 from utils.data.tick_validator import validate_price_tick
 from utils.data.watermark import WatermarkManager
-from utils.loaders.helpers import get_active_symbols
+from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.correlation import set_correlation_id
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism
-from monitoring.metrics_context import TimeBlock
+from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -84,10 +86,10 @@ class PriceLoader(OptimalLoader):
         self.run_id = None
 
         # ISSUE #FULLFIX: Per-symbol retry tracking (prevents cascade failures)
-        self._failed_symbols = {}  # {symbol: failure_count}
+        self._failed_symbols: dict[str, int] = {}  # {symbol: failure_count}
         self._failed_symbols_lock = threading.Lock()
         self._max_per_symbol_failures = 5
-        self._symbols_failed_final = set()
+        self._symbols_failed_final: set[str] = set()
 
         # ISSUE #3 FIX: Improved token bucket with per-thread fairness and anti-starvation
         # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
@@ -95,9 +97,9 @@ class PriceLoader(OptimalLoader):
         # Refill: 160 tokens per 60s = 2.67 tokens/sec (conservative to stay under limit)
         # With 6 parallel threads: each thread should get ~27 tokens/sec refill rate
         # Thread fairness: use condition variable to wake waiting threads fairly
-        self._rate_limit_tokens = 300  # Increased initial burst for 6 parallel threads
-        self._rate_limit_max_tokens = 300  # Cap to prevent unlimited accumulation
-        self._rate_limit_last_refill = time.time()
+        self._rate_limit_tokens: float = 300  # Increased initial burst for 6 parallel threads
+        self._rate_limit_max_tokens: float = 300  # Cap to prevent unlimited accumulation
+        self._rate_limit_last_refill: float = time.time()
         self._rate_limit_refill_rate = (
             160 / 60
         )  # 160 tokens per 60 seconds = 2.67 per second
@@ -109,7 +111,7 @@ class PriceLoader(OptimalLoader):
         # CREATIVE FIX #1: Predictive rate limiting with adaptive request pacing
         # Instead of reactive circuit breaker that fails after 180-480s, we prevent rate limits proactively
         # Monitor actual API latency and adjust request rate to stay under 160 req/min limit
-        self._request_latency_samples = []  # List of (timestamp, latency_sec) tuples
+        self._request_latency_samples: list[tuple[float, float]] = []  # List of (timestamp, latency_sec) tuples
         self._latency_window_sec = 60  # Collect samples over 60s window
         self._min_request_interval = (
             0.1  # Minimum time between requests (0.1s = 10 req/sec max)
@@ -117,20 +119,20 @@ class PriceLoader(OptimalLoader):
         self._adaptive_request_interval = (
             0.375  # Start at 160 req/min = 0.375s between requests
         )
-        self._last_request_time = None
+        self._last_request_time: Optional[float] = None
 
         # CREATIVE FIX #2: Smart batch sizing based on API responsiveness
         # Tracks which batch sizes cause rate limiting for this specific API instance
-        self._batch_size_performance = (
+        self._batch_size_performance: dict[int, list[int]] = (
             {}
-        )  # {batch_size: (success_count, failure_count)}
+        )  # {batch_size: [success_count, failure_count]}
 
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
         # EOD pipeline (4:05-5:30 PM, 85 min): Use aggressive threshold (180s) to fail fast
         # Morning prep (3:30-9:30 AM, 6h): Use generous threshold (480s) for recovery time
         self._rate_limit_errors = 0
-        self._rate_limit_error_start_time = None
+        self._rate_limit_error_start_time: Optional[float] = None
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         # Load from centralized config (config/thresholds.py)
         try:
@@ -157,7 +159,7 @@ class PriceLoader(OptimalLoader):
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
         self._market_close_timeout_count = 0
-        self._last_market_close_timeout_time = None
+        self._last_market_close_timeout_time: Optional[float] = None
 
         # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
         # Track root cause of failures to apply appropriate fixes:
@@ -208,8 +210,8 @@ class PriceLoader(OptimalLoader):
         silent data corruption or runtime failures.
         """
         from loaders.schema_definitions import TABLE_SCHEMAS
-        from utils.validation.schema import validate_table_schema
         from utils.db.context import DatabaseContext
+        from utils.validation.schema import validate_table_schema
 
         if self.table_name not in TABLE_SCHEMAS:
             logger.warning(
@@ -267,8 +269,8 @@ class PriceLoader(OptimalLoader):
         """
         # Find batch size with best success rate
         if self._batch_size_performance:
-            best_size = None
-            best_rate = -1
+            best_size: Optional[int] = None
+            best_rate: float = -1
             for size, (successes, failures) in self._batch_size_performance.items():
                 total = successes + failures
                 if total >= 2:  # Need at least 2 trials to consider
@@ -384,7 +386,7 @@ class PriceLoader(OptimalLoader):
             ]
         return retry_symbols
 
-    def _check_market_close_data_available(self, max_wait_sec: int = None) -> bool:
+    def _check_market_close_data_available(self, max_wait_sec: Optional[int] = None) -> bool:
         """Check if SPY close data is available (market close data freshness check).
 
         EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-15 minutes after market close (4 PM ET).
@@ -469,6 +471,7 @@ class PriceLoader(OptimalLoader):
             logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
 
         from datetime import datetime
+
         from algo.infrastructure import MarketCalendar
 
         # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
@@ -537,7 +540,7 @@ class PriceLoader(OptimalLoader):
                         from algo.reporting import MetricsPublisher
 
                         metrics = MetricsPublisher()
-                        metrics.put_metric(
+                        metrics.put_metric(  # type: ignore
                             "MarketCloseDataAvailable",
                             1,
                             unit="Count",
@@ -631,7 +634,7 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             metrics = MetricsPublisher()
-            metrics.put_metric(
+            metrics.put_metric(  # type: ignore
                 "MarketCloseDataAvailable",
                 0,
                 unit="Count",
@@ -898,8 +901,8 @@ class PriceLoader(OptimalLoader):
         CRITICAL: Prevents infinite batch reduction + timeout cascade by tracking elapsed time.
         If batch=1 and elapsed > threshold, fail immediately rather than waiting indefinitely.
         """
-        import time
         import random
+        import time
 
         # ISSUE #6 FIX: Prevent infinite batch reduction and Step Function timeout
         # Track elapsed time to detect when we're spending too long on rate limiting
@@ -984,7 +987,7 @@ class PriceLoader(OptimalLoader):
                     from algo.reporting import MetricsPublisher
 
                     m = MetricsPublisher()
-                    m.put_metric(
+                    m.put_metric(  # type: ignore
                         "BatchFetchMinimumSizeReached",
                         1,
                         unit="Count",
@@ -1136,7 +1139,7 @@ class PriceLoader(OptimalLoader):
                     from algo.reporting import MetricsPublisher
 
                     metrics = MetricsPublisher()
-                    metrics.add_metric(
+                    metrics.add_metric(  # type: ignore
                         "RateLimitErrors",
                         1,
                         unit="Count",
@@ -1309,8 +1312,8 @@ class PriceLoader(OptimalLoader):
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
-        import time
         import random
+        import time
 
         for attempt in range(max_retries):
             try:
@@ -1477,7 +1480,7 @@ class PriceLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         try:
-            return row["high"] >= row["low"] and row["close"] > 0 and row["open"] > 0
+            return cast(bool, row["high"] >= row["low"] and row["close"] > 0 and row["open"] > 0)
         except (KeyError, TypeError):
             return False
 
@@ -1505,7 +1508,7 @@ class PriceLoader(OptimalLoader):
             self.tracker.end_run(success=success)
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
-    def run(
+    def run(  # type: ignore
         self, symbols: list, parallelism: int = 1, backfill_days: Optional[int] = None
     ) -> dict:
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
@@ -1680,7 +1683,7 @@ class PriceLoader(OptimalLoader):
                         from algo.reporting import MetricsPublisher
 
                         m = MetricsPublisher()
-                        m.put_metric(
+                        m.put_metric(  # type: ignore
                             "LoaderTimeoutAlert",
                             1,
                             unit="Count",
@@ -1754,7 +1757,7 @@ class PriceLoader(OptimalLoader):
                         from algo.reporting import MetricsPublisher
 
                         m = MetricsPublisher()
-                        m.put_metric(
+                        m.put_metric(  # type: ignore
                             "RateLimitCircuitBreaker",
                             1,
                             unit="Count",
@@ -1830,7 +1833,7 @@ class PriceLoader(OptimalLoader):
                             "interval": self.interval,
                         },
                     )
-                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
+                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:  # type: ignore
                         m.put_metric(
                             "RateLimitErrorDuration",
                             self._stats["rate_limit_error_duration_sec"],
@@ -1860,7 +1863,7 @@ class PriceLoader(OptimalLoader):
             symbols_expected = len(symbols) if symbols else 1
             symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
             completion_pct = (
-                (symbols_successfully_loaded / symbols_expected * 100)
+                (symbols_successfully_loaded / symbols_expected * 100)  # type: ignore
                 if symbols_expected > 0
                 else 100.0
             )
@@ -1907,6 +1910,7 @@ class PriceLoader(OptimalLoader):
             # Ensures Phase 1 detects updated loader status immediately, not after cache TTL
             try:
                 import os
+
                 import boto3
 
                 # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
@@ -1986,7 +1990,7 @@ class PriceLoader(OptimalLoader):
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
             previous_dates = [self._parse_watermark_date(w) for w in watermarks]
             previous_date = (
-                min(d for d in previous_dates if d) if any(previous_dates) else None
+                min(d for d in previous_dates if d) if any(previous_dates) else None  # type: ignore[assignment]
             )
 
         # Batch fetch all symbols at once
@@ -1999,8 +2003,8 @@ class PriceLoader(OptimalLoader):
                 logger.debug(
                     f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping"
                 )
-                self._stats["symbols_skipped_by_watermark"] += 1
-                self._stats[
+                self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
+                self._stats[  # type: ignore
                     "symbols_processed"
                 ] += 1  # Count as processed (no new data needed, not a failure)
                 continue
@@ -2008,18 +2012,18 @@ class PriceLoader(OptimalLoader):
             logger.debug(
                 f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch"
             )
-            self._stats["rows_fetched"] += len(rows)
+            self._stats["rows_fetched"] += len(rows)  # type: ignore
 
             if self.router and self.router.last_source:
                 src = self.router.last_source
-                self._stats["source_distribution"][src] = (
-                    self._stats["source_distribution"].get(src, 0) + 1
+                self._stats["source_distribution"][src] = (  # type: ignore
+                    self._stats["source_distribution"].get(src, 0) + 1  # type: ignore
                 )
 
             rows = self.transform(rows)
             before_quality = len(rows)
             rows = [r for r in rows if self._validate_row(r)]
-            self._stats["rows_quality_dropped"] += before_quality - len(rows)
+            self._stats["rows_quality_dropped"] += before_quality - len(rows)  # type: ignore
 
             # Bloom dedup (cheap pre-filter)
             # SKIP for price_daily: EOD price data is immutable, dedup not needed
@@ -2031,7 +2035,7 @@ class PriceLoader(OptimalLoader):
                 self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
 
             if not rows:
-                self._stats["symbols_processed"] += 1
+                self._stats["symbols_processed"] += 1  # type: ignore
                 continue
 
             # Calculate new watermark BEFORE insert
@@ -2054,8 +2058,8 @@ class PriceLoader(OptimalLoader):
                     key = ":".join(str(row.get(c, "")) for c in self.primary_key)
                     dedup.add(key)
 
-            self._stats["rows_inserted"] += inserted
-            self._stats["symbols_processed"] += 1
+            self._stats["rows_inserted"] += inserted  # type: ignore
+            self._stats["symbols_processed"] += 1  # type: ignore
 
 
 def _invalidate_phase1_cache():
@@ -2072,6 +2076,7 @@ def _invalidate_phase1_cache():
     3. If both fail, raise RuntimeError to halt loader immediately
     """
     from datetime import datetime
+
     import boto3
 
     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)

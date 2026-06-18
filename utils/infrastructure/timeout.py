@@ -11,12 +11,13 @@ Usage:
         loader.run(symbols, parallelism=8)
 """
 
+import logging
 import os
 import signal
-import logging
 import sys
 import threading
 from contextlib import contextmanager
+
 
 logger = logging.getLogger(__name__)
 

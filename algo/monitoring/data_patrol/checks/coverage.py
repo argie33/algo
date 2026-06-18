@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Coverage and loader contract checks."""
 
-from typing import List
 import logging
-from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
+from typing import List
+
 from utils.db import assert_safe_table, safe_select_count
+
+from ..base import BaseCheck, CheckResult
+from ..config import ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

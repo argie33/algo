@@ -2,9 +2,11 @@
 
 """Momentum and breakout signal methods — TD Sequential, power trend, pocket pivot, distribution."""
 
-from typing import Dict, Any
 import logging
+from typing import Any, Dict
+
 from utils.db.context import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

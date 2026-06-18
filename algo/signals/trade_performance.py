@@ -9,18 +9,20 @@ computes per-trade attribution, persists to signal_trade_performance.
 Enables Information Coefficient (IC) calculation per component.
 """
 
-import logging
 import json
-from datetime import date as _date, timedelta
-from typing import Dict, Any, List, Tuple
+import logging
+from datetime import date as _date
+from datetime import timedelta
+from typing import Any, Dict, List, Tuple
 
 from utils.db import DatabaseContext
+
 
 try:
     from scipy.stats import pearsonr
 except ImportError:
 
-    def pearsonr(x, y):  # type: ignore[misc]
+    def pearsonr(x, y):
         return (float("nan"), float("nan"))
 
 

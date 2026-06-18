@@ -15,8 +15,10 @@ import logging
 import threading
 import time
 from typing import Optional
+
 import psycopg2
 import psycopg2.pool
+
 
 logger = logging.getLogger(__name__)
 

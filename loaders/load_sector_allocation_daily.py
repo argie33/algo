@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Sector Allocation Daily Loader - Pre-compute sector exposures and aggregations."""
 
-import sys
 import logging
+import sys
 from datetime import date, datetime, timezone
-from typing import Optional, List
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.infrastructure.timezone import EASTERN_TZ
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+
 
 setup_imports()
 

@@ -16,8 +16,9 @@ Purpose:
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
 
-import sys
 import logging
+import sys
+
 
 # Configure logging
 logging.basicConfig(

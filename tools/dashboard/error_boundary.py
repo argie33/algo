@@ -4,7 +4,7 @@ Ensures all panels gracefully handle missing or error data, preventing silent fa
 and making error state visible to operators.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from rich.panel import Panel
 from rich.text import Text
 from .utilities import R, Y, DIM
@@ -32,7 +32,7 @@ def get_error_message(data: Any) -> Optional[str]:
     if is_data_stale(data):
         return f"[yellow]⚠ STALE[/]: {data.get('_error', 'Data too old')}"
     if "_error" in data:
-        return data.get("_error", "Unknown error")
+        return cast(str, data.get("_error", "Unknown error"))
     return None
 
 
@@ -54,7 +54,7 @@ def safe_list(data: Any) -> List:
     Returns error dict on error, items list otherwise.
     """
     if has_error(data):
-        return data
+        return cast(List, data)
     if isinstance(data, dict):
         return (
             data.get("items", [])

@@ -7,31 +7,32 @@ Required by Phase 1 data freshness check.
 Run: python3 load_technical_data_daily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import sys
 import argparse
 import logging
-import psycopg2.sql
+import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 import pandas as pd
+import psycopg2.sql
 from pandas.tseries.offsets import CustomBusinessDay
 
-from utils.db.sql_safety import assert_safe_table
-from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.optimal_loader import OptimalLoader
-from utils.db.context import DatabaseContext
-from utils.loaders.config import get_default_parallelism
 from loaders.technical_indicators import (
-    compute_rsi,
-    compute_macd,
-    compute_moving_averages,
+    compute_adx,
     compute_atr,
     compute_bollinger_bands,
+    compute_macd,
+    compute_moving_averages,
+    compute_rsi,
     compute_volume_ma,
-    compute_adx,
 )
+from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,9 @@ class TechnicalDataDailyLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
@@ -353,8 +355,9 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
 def main():
     import time
-    from utils.db.context import DatabaseContext
     from datetime import datetime
+
+    from utils.db.context import DatabaseContext
 
     start_time = time.time()
     parser = argparse.ArgumentParser(description="Load technical indicators")

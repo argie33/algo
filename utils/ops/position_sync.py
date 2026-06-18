@@ -21,8 +21,10 @@ This is a READ-ONLY diagnostic tool. It reports issues but doesn't auto-fix.
 
 import logging
 from datetime import datetime, timezone
+from typing import Any, Dict
+
 from utils.db import DatabaseContext
-from typing import Dict, Any
+
 
 logger = logging.getLogger(__name__)
 

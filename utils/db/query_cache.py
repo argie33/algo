@@ -46,9 +46,10 @@ All cache operations should track hit rates. Low hit rates indicate:
 
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Tuple, Generic, TypeVar
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, Generic, Optional, Tuple, TypeVar
+
 
 logger = logging.getLogger(__name__)
 

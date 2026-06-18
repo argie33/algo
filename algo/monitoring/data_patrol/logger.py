@@ -3,8 +3,10 @@
 
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from .base import CheckResult
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,7 @@ class PatrolLogger:
         """Update DynamoDB with patrol completion status."""
         import os
         import time
+
         import boto3
 
         try:

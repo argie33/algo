@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
-from utils.db import DatabaseContext
-from datetime import date
 import logging
+from datetime import date
 from typing import Dict, Optional
+
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

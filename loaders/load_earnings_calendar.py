@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Earnings Calendar Loader - Fetches upcoming earnings dates."""
 
-import sys
 import argparse
 import logging
+import sys
 from datetime import date
 from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
-from utils.loaders.helpers import get_active_symbols
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,9 @@ class EarningsCalendarLoader(OptimalLoader):
     ) -> Optional[List[dict]]:
         """Fetch earnings dates from yfinance for a symbol."""
         try:
-            from utils.external.yfinance import get_ticker
             import pandas as pd
+
+            from utils.external.yfinance import get_ticker
 
             ticker = get_ticker(symbol)
             if not ticker:

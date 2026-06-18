@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Russell 2000 Constituents Loader - Mark Russell 2000 membership (Market-wide)."""
 
-import sys
-import socket
 import logging
+import socket
+import sys
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
+
 import requests
 
-from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +40,9 @@ class Russell2000ConstituentsLoader(OptimalLoader):
 
             for url in urls:
                 try:
-                    import pandas as pd
                     from io import StringIO
+
+                    import pandas as pd
 
                     try:
                         response = requests.get(url, headers=headers, timeout=15)

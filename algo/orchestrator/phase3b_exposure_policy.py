@@ -7,6 +7,7 @@ from typing import Any, Callable
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +36,7 @@ def run(
         # Load cached market exposure from EOD pipeline (4:05 PM is sole source of truth)
         # All orchestrator runs use the cached value — no recomputation.
         # This ensures single source of truth and prevents divergence between EOD and evening runs.
-        from algo.risk import MarketExposure, ExposurePolicy
+        from algo.risk import ExposurePolicy, MarketExposure
 
         me = MarketExposure()
         # Always use cached exposure (computed once per day at 4:05 PM EOD pipeline)

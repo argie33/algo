@@ -13,7 +13,8 @@ import functools
 import logging
 import threading
 import time
-from typing import Optional, Callable, Type
+from typing import Callable, Optional, Type
+
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ def external_api_handler(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            from utils.error_handlers import retry_with_backoff, make_error_response
+            from utils.error_handlers import make_error_response, retry_with_backoff
 
             def execute_with_timeout():
                 return func(*args, **kwargs)
@@ -213,8 +214,9 @@ def timeout_handler(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            from utils.error_handlers import make_error_response
             import signal
+
+            from utils.error_handlers import make_error_response
 
             def timeout_signal_handler(signum, frame):
                 raise TimeoutError(f"{operation_name} exceeded {timeout_sec}s timeout")
@@ -378,14 +380,14 @@ def rate_limit_handler(
     """
     import threading
 
-    request_times = []
+    request_times: list[float] = []
     lock = threading.Lock()
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            from utils.exceptions import RateLimitedError
             from utils.error_handlers import make_error_response
+            from utils.exceptions import RateLimitedError
 
             nonlocal request_times
 
@@ -451,8 +453,8 @@ def circuit_breaker(
                         last_failure_time
                         and now - last_failure_time < recovery_timeout_sec
                     ):
-                        from utils.exceptions import ServiceUnavailableError
                         from utils.error_handlers import make_error_response
+                        from utils.exceptions import ServiceUnavailableError
 
                         error = ServiceUnavailableError(
                             f"Circuit breaker open for {operation_name}",

@@ -19,10 +19,12 @@ When defensive_lead_score >= 60, the market exposure model reduces the
 composite score by 5-10 points (handled in algo_market_exposure.py).
 """
 
-import logging
 import json
-from utils.db import DatabaseContext
+import logging
 from datetime import date as _date
+
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

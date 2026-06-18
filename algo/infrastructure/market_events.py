@@ -10,20 +10,22 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
-from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timezone
+from typing import Any, Dict, Optional
+
+import requests
+
 from algo.infrastructure import (
     get_api_timeout,
     get_market_data_timeout,
 )
+from config.alpaca_config import get_alpaca_base_url
+from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 
-import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, date, timezone
-from typing import Optional, Dict, Any
-import logging
 
 logger = logging.getLogger(__name__)
 

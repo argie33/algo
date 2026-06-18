@@ -22,9 +22,10 @@ Does NOT support:
 import json as _json
 import logging
 import os
-import time
 import threading
-from typing import Dict, Optional, Any, Tuple
+import time
+from typing import Any, Dict, Optional, Tuple, cast
+
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class CredentialManager:
             cached_value, timestamp = self._cache[secret_name]
             age = time.time() - timestamp
             if age < CREDENTIAL_CACHE_TTL_SECONDS:
-                return cached_value
+                return cast(str, cached_value)
             else:
                 # Cache expired, remove it and fetch fresh
                 del self._cache[secret_name]
@@ -196,7 +197,7 @@ class CredentialManager:
         if _DB_CREDS_CACHE_KEY in self._cache:
             cached_value: Dict[str, Any]
             timestamp: float
-            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]  # type: ignore[misc]
+            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]
             age = time.time() - timestamp
             if age < CREDENTIAL_CACHE_TTL_SECONDS:
                 return cached_value

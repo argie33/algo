@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Price sanity checks - extreme moves, corporate actions, sequence continuity."""
 
-from typing import List
 import logging
+from typing import List
+
 from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
+from ..config import ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

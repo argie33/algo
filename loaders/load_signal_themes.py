@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Signal Themes Loader - Identify thematic groups among high-scoring signals."""
 
-import sys
 import logging
+import sys
 from datetime import date
-from typing import Optional, List
+from typing import List, Optional
 
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+
 
 setup_imports()
 

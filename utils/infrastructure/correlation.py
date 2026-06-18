@@ -20,8 +20,9 @@ Usage:
 
 import contextvars
 import uuid
-from typing import Optional
 from contextlib import contextmanager
+from typing import Optional
+
 
 # Thread-safe context variable for correlation_id
 _correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(

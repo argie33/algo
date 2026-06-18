@@ -11,8 +11,10 @@ Logs orchestrator runs to orchestrator_execution_log table so you can:
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Union
+from typing import Any, Dict, Optional, Union
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

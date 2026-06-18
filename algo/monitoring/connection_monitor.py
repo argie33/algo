@@ -7,9 +7,10 @@ basic connection timeout for stuck connections.
 """
 
 import logging
-import time
 import threading
-from typing import Optional, Dict, Any
+import time
+from typing import Any, Dict, Optional
+
 
 logger = logging.getLogger(__name__)
 

@@ -3,33 +3,38 @@
 import sys
 from pathlib import Path
 
+
 # Ensure project root is in path before importing modules that need it
 _project_root = Path(__file__).parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-import os
-import time
 import json
 import logging
+import os
+import time
+from datetime import date as _date
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional, Union
+
 import psycopg2
 import psycopg2.extensions
 import psycopg2.sql
-from datetime import datetime, date as _date, timedelta, timezone
-from typing import Dict, Any, Optional, Union
 
+from algo.infrastructure import MarketCalendar
+from algo.reporting import AlertManager
+from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.market_timing import (
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
-    ORCHESTRATOR_RUN_TIMES_TUPLE,
     ORCHESTRATOR_KILL_BUFFER_MINUTES,
+    ORCHESTRATOR_RUN_TIMES_TUPLE,
 )
 from utils.infrastructure.timezone import EASTERN_TZ
-from algo.reporting import AlertManager
-from algo.infrastructure import MarketCalendar
-from utils.db.sql_safety import assert_safe_table
-from utils.db.context import DatabaseContext
 from utils.logging.execution_tracker import get_tracker
+
+
 try:
     from monitoring.metrics_context import (
         TimeBlock,
@@ -233,7 +238,7 @@ class Orchestrator:
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
         try:
-            from algo.monitoring import get_pool_status, check_stuck_connections
+            from algo.monitoring import check_stuck_connections, get_pool_status
 
             status = get_pool_status()
             logger.debug(
@@ -280,7 +285,8 @@ class Orchestrator:
                             row[0] if row is not None and row[0] is not None else None
                         )
                         if latest_date:
-                            from datetime import datetime as dt, date as date_type
+                            from datetime import date as date_type
+                            from datetime import datetime as dt
 
                             if isinstance(latest_date, date_type) and not isinstance(
                                 latest_date, datetime

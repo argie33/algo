@@ -10,17 +10,20 @@ Configuration via environment variables:
   ALERT_WEBHOOK_URL: optional Slack/Teams/custom webhook
 """
 
-import os
 import json
-import smtplib
-import requests
-from datetime import datetime, timezone
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import logging
+import os
 import re
+import smtplib
+from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from urllib.parse import urlparse
+
+import requests
+
 from algo.infrastructure import get_webhook_timeout
+
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,10 @@ Provides:
 
 import logging
 from datetime import date, timedelta
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
+
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

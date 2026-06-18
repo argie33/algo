@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Data alignment checks - cross-table validation, signal alignment, coverage."""
 
-from typing import List
 import logging
-from ..base import BaseCheck, CheckResult
-from ..config import INFO, WARN, ERROR, CRIT
+from typing import List
+
 from utils.db import assert_safe_table
+
+from ..base import BaseCheck, CheckResult
+from ..config import ERROR, INFO, WARN
+
 
 logger = logging.getLogger(__name__)
 

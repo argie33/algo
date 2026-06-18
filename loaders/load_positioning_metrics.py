@@ -10,15 +10,16 @@ Fetches:
 Requires: active symbols list.
 """
 
-import sys
 import argparse
 import logging
+import sys
 from datetime import date, datetime, timezone
-from typing import Optional, Dict
+from typing import Dict, Optional
 
+from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.loaders.config import get_default_parallelism
+
 
 logger = logging.getLogger(__name__)
 

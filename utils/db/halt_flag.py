@@ -17,13 +17,15 @@ RESILIENCE:
 - Both fail: Conservatively assume halt is set (fail-closed for safety)
 """
 
-import os
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
+
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+
 
 logger = logging.getLogger(__name__)
 

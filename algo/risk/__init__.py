@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 from .circuit_breaker import CircuitBreaker
-from .market_exposure import MarketExposure
-from .liquidity_checks import LiquidityChecks
 from .earnings_blackout import EarningsBlackout
-from .var import ValueAtRisk
 from .exposure_policy import ExposurePolicy
+from .liquidity_checks import LiquidityChecks
+from .market_exposure import MarketExposure
+from .var import ValueAtRisk
+
 
 __all__ = [
     "CircuitBreaker",

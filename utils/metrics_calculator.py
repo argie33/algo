@@ -17,7 +17,8 @@ All metrics are defined with:
 
 import logging
 import statistics
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional, cast
+
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class MetricsCalculator:
             if std_ret <= 0:
                 return None
             sharpe = (mean_ret / std_ret) * (252**0.5)
-            return round(sharpe, 3)
+            return cast(float, round(sharpe, 3))
         except (ValueError, ZeroDivisionError, TypeError):
             return None
 
@@ -138,7 +139,7 @@ class MetricsCalculator:
             if downside_std <= 0:
                 return None
             sortino = (mean_ret / downside_std) * (252**0.5)
-            return round(sortino, 3)
+            return cast(float, round(sortino, 3))
         except (ValueError, ZeroDivisionError, TypeError):
             return None
 

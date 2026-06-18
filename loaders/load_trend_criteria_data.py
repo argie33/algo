@@ -7,20 +7,21 @@ Required by Phase 1 data freshness check.
 Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
 
-import sys
 import argparse
+import logging
+import sys
 from datetime import date, timedelta
 from typing import List, Optional
 
 import pandas as pd
 
-import logging
-from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.optimal_loader import OptimalLoader
-from utils.db.context import DatabaseContext
-from utils.loaders.config import get_default_parallelism
 from loaders.technical_indicators import compute_moving_averages
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,9 @@ class TrendCriteriaLoader(OptimalLoader):
 
     def _prepare_batch_context(self) -> None:
         """Cache max price date once per run (avoids one SELECT per symbol)."""
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
@@ -63,8 +65,9 @@ class TrendCriteriaLoader(OptimalLoader):
         # Use end date cached at batch start (avoids per-symbol SELECT on price_daily)
         end = (self._batch_context or {}).get("end_date")
         if end is None:
-            from algo.infrastructure import MarketCalendar
             from datetime import datetime, timezone
+
+            from algo.infrastructure import MarketCalendar
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()

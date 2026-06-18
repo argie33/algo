@@ -10,17 +10,18 @@ Computes:
 Requires: price_daily table populated with at least 252 days of data.
 """
 
-import sys
 import argparse
 import logging
 import math
+import sys
 from datetime import date, datetime, timezone
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
-from utils.loaders.helpers import get_active_symbols
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

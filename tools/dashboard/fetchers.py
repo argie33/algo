@@ -1539,7 +1539,7 @@ def load_all() -> dict:
             for f in pending_futures:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
-                    k = cast(str, k_opt)
+                    k = k_opt
                     meta = FETCHER_METADATA.get(k, {})
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     desc = meta.get("desc", "")
@@ -1576,7 +1576,7 @@ def load_all() -> dict:
             for f in pending_futures:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
-                    k = cast(str, k_opt)
+                    k = k_opt
                     meta = FETCHER_METADATA.get(k, {})
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     desc = meta.get("desc", "")

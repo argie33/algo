@@ -19,15 +19,18 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
-from config.credential_manager import get_credential_manager, get_alpaca_credentials
-from config.alpaca_config import get_alpaca_base_url
-from utils.db import DatabaseContext
 import json
-from decimal import Decimal, ROUND_HALF_UP
+import logging
+from datetime import date as _date
+from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 
 import requests
-from datetime import datetime, timedelta, date as _date, timezone
-import logging
+
+from config.alpaca_config import get_alpaca_base_url
+from config.credential_manager import get_alpaca_credentials, get_credential_manager
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -873,9 +876,10 @@ class PositionMonitor:
         Fails open on error so check failures don't silently block trading.
         """
         try:
+            import requests
+
             from config.alpaca_config import get_alpaca_base_url
             from config.credential_manager import get_alpaca_credentials
-            import requests
 
             creds = get_alpaca_credentials()
             base_url = get_alpaca_base_url()

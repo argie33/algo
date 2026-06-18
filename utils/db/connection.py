@@ -6,13 +6,14 @@ Centralizes all psycopg2.connect() calls to a single source.
 Handles retries, pooling, proper credential fallback, and connection tracking.
 """
 
+import logging
+import sys
+import threading
+from pathlib import Path
+
 import psycopg2
 import psycopg2.pool
-import logging
-import os
-import sys
-from pathlib import Path
-import threading
+
 
 # Add project root to path for imports to work in both local dev and Lambda
 # In Lambda: /var/task is already in path, credential_manager is in /var/task/config/
@@ -24,6 +25,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from config.credential_manager import get_db_config
+
 
 logger = logging.getLogger(__name__)
 

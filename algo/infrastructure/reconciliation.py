@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
-from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
-from utils.db import DatabaseContext
-
 import logging
 import statistics
-from datetime import datetime, timezone, timedelta, date as _date_type
-from utils.trading import TradeStatus, PositionStatus
+from datetime import date as _date_type
+from datetime import datetime, timedelta, timezone
+
 from algo.reporting import notify
+from config.alpaca_config import get_alpaca_base_url
+from config.credential_manager import get_credential_manager
+from utils.db import DatabaseContext
+from utils.trading import PositionStatus, TradeStatus
+
 
 logger = logging.getLogger(__name__)
 

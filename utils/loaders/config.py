@@ -15,7 +15,8 @@ import logging
 import os
 import threading
 import time
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional, cast
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class LoaderConfigManager:
     # Class-level cache (shared across all instances)
     _cache: Dict[str, Dict[str, Any]] = {}
     _cache_lock = threading.Lock()
-    _cache_timestamp = 0
+    _cache_timestamp: float = 0.0
     _cache_ttl_seconds = 300  # 5-minute cache TTL
 
     # Per-loader parallelism constraints: (min, max) to prevent rate limiting or RDS exhaustion
@@ -60,8 +61,8 @@ class LoaderConfigManager:
             "LOADER_CONFIG_TABLE",
             f"{os.getenv('PROJECT_NAME', 'algo')}-loader-config-{os.getenv('ENVIRONMENT', 'dev')}",
         )
-        self._dynamodb_available = None
-        self._rds_connection_cache = None
+        self._dynamodb_available: Optional[bool] = None
+        self._rds_connection_cache: Optional[int] = None
         self._rds_connection_cache_time = 0
         self._rds_cache_ttl = 30  # Cache RDS metrics for 30 seconds
 
@@ -97,8 +98,9 @@ class LoaderConfigManager:
             return self._rds_connection_cache
 
         try:
-            import boto3
             from datetime import datetime, timedelta
+
+            import boto3
 
             cloudwatch = boto3.client(
                 "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
@@ -313,14 +315,14 @@ class LoaderConfigManager:
         # Check in-memory cache first
         cached = self._get_cache(loader_name)
         if cached is not None:
-            return cached["enabled"]
+            return cast(bool, cached["enabled"])
 
         # Try DynamoDB if available
         if self._check_dynamodb_available():
             config = self._get_from_dynamodb(loader_name)
             if config is not None:
                 self._set_cache(loader_name, config)
-                return config["enabled"]
+                return cast(bool, config["enabled"])
 
         # Default to enabled
         return True

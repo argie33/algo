@@ -7,8 +7,9 @@ from datetime import date as _date
 from typing import Any, Callable, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
-from utils.trading.recorder import TradeRecorder
 from utils.db.context import DatabaseContext
+from utils.trading.recorder import TradeRecorder
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,10 @@ def run(
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
-        from algo.signals.trade_performance import SignalTradePerformancePopulator
-        from algo.signals.attribution import SignalAttributionEngine
         from algo.orchestration import WeightOptimizer
         from algo.reporting import DailyFinanceReport
+        from algo.signals.attribution import SignalAttributionEngine
+        from algo.signals.trade_performance import SignalTradePerformancePopulator
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)

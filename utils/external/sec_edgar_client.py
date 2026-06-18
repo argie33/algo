@@ -5,18 +5,18 @@ Handles SEC EDGAR XBRL API calls with rate limiting and retry logic.
 Uses TickerCache for ticker-to-CIK conversion.
 """
 
-import json
 import logging
 import os
 import random
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import requests
 
-from utils.external.sec_ticker_cache import TickerCache
 from utils.external import sec_statements
+from utils.external.sec_ticker_cache import TickerCache
+
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ class SecEdgarClient:
             # Other HTTP errors
             try:
                 resp.raise_for_status()
-                return resp.json()
+                return cast(Dict[str, Any], resp.json())
             except requests.HTTPError as e:
                 raise RuntimeError(f"SEC API error for {url}: {e}") from e
 

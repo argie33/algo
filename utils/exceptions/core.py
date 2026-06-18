@@ -1,8 +1,8 @@
 """Core exception hierarchy with standard HTTP status codes and error types."""
 
-import uuid
 import os
-from typing import Dict, Any, Optional
+import uuid
+from typing import Any, Dict, Optional
 
 
 class BaseAPIException(Exception):

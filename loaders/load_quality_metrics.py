@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
+
 """
 Quality Metrics Loader - Optimal Pattern (Refactored)
 
@@ -15,16 +16,16 @@ Computes fundamental quality metrics from annual financials:
 Requires: annual_income_statement, annual_balance_sheet populated
 """
 
-import logging
-
 import argparse
+import logging
 from datetime import date
 from typing import Optional
 
-from utils.loaders.helpers import get_active_symbols
 from utils.db.context import DatabaseContext
-from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

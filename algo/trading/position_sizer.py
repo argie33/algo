@@ -10,12 +10,13 @@ Rules:
 - Max positions: 12 concurrent
 """
 
-from algo.infrastructure import get_alpaca_timeout
+import logging
 import os
 from datetime import date as _date
+
+from algo.infrastructure import get_alpaca_timeout
 from utils.db.context import DatabaseContext
 
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +95,9 @@ class PositionSizer:
 
     def _fetch_live_alpaca_equity(self):
         """Fetch live portfolio equity from Alpaca with retries. Returns None on failure."""
-        import requests
         import time
+
+        import requests
 
         try:
             from config.credential_manager import get_credential_manager as _get_cm

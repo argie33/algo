@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """FRED Economic Data Loader — Market-wide macroeconomic indicators."""
 
-import sys
 import logging
+import socket
+import sys
+import time
 from datetime import date, timedelta
 from typing import List, Optional
-import requests
-import time
-import socket
 
-from utils.optimal_loader import OptimalLoader
-from utils.loaders.helpers import get_api_key
+import requests
+
 from config.api_endpoints import get_fred_url
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.loaders.helpers import get_api_key
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

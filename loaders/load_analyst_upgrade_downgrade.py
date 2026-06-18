@@ -11,8 +11,9 @@ Run:
 """
 
 import argparse
-import sys
 import logging
+import sys
+
 
 logger = logging.getLogger(__name__)
 from datetime import date

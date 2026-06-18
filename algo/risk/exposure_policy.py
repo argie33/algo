@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import logging
 import math
 from datetime import date as _date
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from utils.db import DatabaseContext
-import logging
+
 
 logger = logging.getLogger(__name__)
 

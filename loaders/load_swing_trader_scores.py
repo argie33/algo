@@ -19,22 +19,24 @@ Run:
     python3 loaders/load_swing_trader_scores.py [--parallelism 8]
 """
 
-import sys
-import logging
 import argparse
+import logging
+import sys
+
 
 logger = logging.getLogger(__name__)
-import psycopg2.sql
-from utils.loaders.helpers import get_active_symbols
-from utils.infrastructure.timezone import EASTERN_TZ
-from datetime import date, timedelta, timezone
-from typing import List, Optional, Dict
 import json
+from datetime import date, timedelta, timezone
+from typing import Dict, List, Optional
 
-from utils.db.sql_safety import assert_safe_table
-from utils.optimal_loader import OptimalLoader
+import psycopg2.sql
+
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
+from utils.loaders.helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
 from utils.signals.grade_classifier import GradeClassifier
 
 
@@ -48,8 +50,9 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         Caches end_date and signal_quality_scores max date to avoid per-symbol computation.
         """
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
 
@@ -89,8 +92,9 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         Validates all 3 source tables before computing scores.
         """
-        from algo.infrastructure import MarketCalendar
         from datetime import datetime, timezone
+
+        from algo.infrastructure import MarketCalendar
 
         try:
             # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
@@ -485,8 +489,9 @@ class SwingTraderScoresLoader(OptimalLoader):
 
 def main():
     import time
-    from utils.db.context import DatabaseContext
     from datetime import datetime
+
+    from utils.db.context import DatabaseContext
 
     start_time = time.time()
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")

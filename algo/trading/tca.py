@@ -14,11 +14,12 @@ Alerts if slippage exceeds thresholds:
 This is what institutional traders use to validate their edge isn't eroded by fees/slippage.
 """
 
+import logging
 from datetime import date
 from typing import Optional
-import logging
 
 from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 

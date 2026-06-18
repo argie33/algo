@@ -6,9 +6,9 @@ Data Operations Integration - Unified API for freshness, validation, caching
 import logging
 from typing import Any, Callable, Dict, Optional
 
-from utils.validation import check_freshness, is_fresh
-from utils.validation import validate_record
 from utils.db import get_or_create_cache
+from utils.validation import check_freshness, is_fresh, validate_record
+
 
 logger = logging.getLogger(__name__)
 

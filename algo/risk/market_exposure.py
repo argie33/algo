@@ -58,9 +58,12 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 
 import json
 import logging
-from psycopg2 import sql as pgsql
-from utils.db import DatabaseContext
 from datetime import date as _date
+
+from psycopg2 import sql as pgsql
+
+from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -895,8 +898,9 @@ class MarketExposure:
         if rows and rows[-1]:
             latest_date = rows[-1].get("date")
             if latest_date:
-                from algo.infrastructure import MarketCalendar
                 from datetime import timedelta
+
+                from algo.infrastructure import MarketCalendar
 
                 expected_date = eval_date - timedelta(days=1)
                 while expected_date > eval_date - timedelta(days=10):

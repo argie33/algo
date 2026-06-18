@@ -18,16 +18,17 @@ Metrics computed:
 - Best/worst streaks
 """
 
+import logging
+from datetime import date
+
 import psycopg2
 import psycopg2.extras
-from datetime import date
-import logging
 
 # Add parent directory to path for imports
-
 from utils.db.context import DatabaseContext
-from utils.validation import safe_float
 from utils.metrics_calculator import MetricsCalculator
+from utils.validation import safe_float
+
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +78,21 @@ def compute_performance_metrics(cur, metric_date: date = None):
         holding_days_list = [safe_float(t["holding_days"]) for t in trades if t["holding_days"]]
 
         # Basic counts
-        total_trades = len(pnl_dollars)
-        winning = sum(1 for p in pnl_dollars if p > 0)
-        losing = sum(1 for p in pnl_dollars if p < 0)
-        breakeven = sum(1 for p in pnl_dollars if p == 0)
+        total_trades: int = len(pnl_dollars)
+        winning: int = sum(1 for p in pnl_dollars if p > 0)
+        losing: int = sum(1 for p in pnl_dollars if p < 0)
+        breakeven: int = sum(1 for p in pnl_dollars if p == 0)
 
         # Win rate
-        decisive = winning + losing
-        win_rate = (winning / decisive * 100) if decisive > 0 else 0.0
+        decisive: int = winning + losing
+        win_rate: float = (winning / decisive * 100) if decisive > 0 else 0.0
 
         # P&L metrics
-        wins_sum = sum(p for p in pnl_dollars if p > 0)
-        losses_sum = abs(sum(p for p in pnl_dollars if p < 0))
-        profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
-        total_pnl_dollars = sum(pnl_dollars)
-        total_pnl_pct = sum(pnl_pcts)
+        wins_sum: float = sum(p for p in pnl_dollars if p > 0)
+        losses_sum: float = abs(sum(p for p in pnl_dollars if p < 0))
+        profit_factor: float = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
+        total_pnl_dollars: float = sum(pnl_dollars)
+        total_pnl_pct: float = sum(pnl_pcts)
 
         metrics["total_trades"] = total_trades
         metrics["winning_trades"] = winning

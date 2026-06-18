@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 
+
 """
 Earnings History Loader - Optimal Pattern.
 
@@ -11,17 +12,18 @@ Run:
     python3 loadearningshistory.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
+import argparse
 import logging
 
-import argparse
 from utils.loaders.helpers import get_active_symbols
+
 
 logger = logging.getLogger(__name__)
 from datetime import date
 from typing import Optional
 
-from utils.optimal_loader import OptimalLoader
 from utils.loaders.config import get_default_parallelism
+from utils.optimal_loader import OptimalLoader
 
 
 class EarningsHistoryLoader(OptimalLoader):
@@ -32,8 +34,9 @@ class EarningsHistoryLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch earnings history from yfinance earnings_dates."""
         try:
-            from utils.external.yfinance import get_ticker
             from datetime import datetime
+
+            from utils.external.yfinance import get_ticker
 
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
             ticker = get_ticker(yf_symbol)

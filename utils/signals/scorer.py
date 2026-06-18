@@ -9,8 +9,9 @@ Prevents different modules from implementing the same scoring logic multiple way
 """
 
 import logging
-from typing import Dict, Any, Tuple
 from datetime import date
+from typing import Any, Dict, Tuple
+
 
 logger = logging.getLogger(__name__)
 

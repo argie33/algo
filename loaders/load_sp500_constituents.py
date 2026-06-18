@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """S&P 500 Constituents Loader - Mark S&P 500 membership (Market-wide)."""
 
-import sys
-import socket
 import logging
+import socket
+import sys
 from datetime import date
-from typing import Optional, List
+from io import StringIO
+from typing import List, Optional
+
 import pandas as pd
 import requests
-from io import StringIO
 
-from utils.optimal_loader import OptimalLoader
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.optimal_loader import OptimalLoader
+
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Patrol configuration management - loads thresholds from algo_config table."""
 
-from typing import Dict, Any, Union, Optional
 import logging
+from typing import Any, Dict, Optional, Union, cast
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class PatrolConfig:
     def get(self, key: str, default: Optional[Union[int, float, str]] = None) -> Optional[Union[int, float, str]]:
         """Get config value with fallback to default."""
         if key in self._config_cache:
-            return self._config_cache[key]
+            return cast(Union[int, float, str], self._config_cache[key])
         return default
 
     def get_staleness_windows(self) -> Dict[str, Any]:

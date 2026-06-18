@@ -14,7 +14,8 @@ to prevent DoS attacks and protect expensive operations.
 import logging
 import os
 from time import time
-from typing import Dict, Tuple, Optional, cast
+from typing import Dict, Optional, Tuple, cast
+
 
 logger = logging.getLogger(__name__)
 
