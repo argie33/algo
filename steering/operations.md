@@ -1,151 +1,20 @@
-# Operational Runbook & Monitoring Guide
+# Operations & Monitoring Guide
 
-**Purpose:** Procedures for monitoring system health, diagnosing failures, and executing recovery steps.
+## Health Status
 
----
+**Quick check:** `curl https://api.example.com/api/health` → shows status (healthy/degraded/unhealthy), database latency, loader freshness.
 
-## Quick Start: System Health Status
+**Alerts (SNS email):** API Lambda errors (5+ in 5 min), Algo Lambda errors (any), RDS CPU >80%/memory <256MB/connections >80, critical loader failure, data staleness >24h. Response SLA: 15 min.
 
-Everything you need to know in one place:
+**Health monitor Lambda:** Runs every 6h, checks loaders ran in 26h, data <24h old, database responsive. Metrics: `Algo/HealthMonitor/LoaderHealth`, `Algo/HealthMonitor/DataFreshness`.
 
-```bash
-# Check system health instantly
-curl https://api.example.com/api/health
+**Frontend errors:** CloudWatch `/aws/frontend/algo-trading-dashboard` (format: {environment}/{userId}/{sessionId}). Search: `[level = ERROR] AND [environment = production]` or `[statusCode = 500] OR [statusCode = 503]`.
 
-# Output shows:
-# - Database connectivity + latency
-# - Last successful loader run
-# - Data freshness (all <24h old?)
-# - Any stale or failed loaders
-# - Overall status: healthy/degraded/unhealthy
-```
+## Daily Operations
 
-**HTTP Codes:**
-- `200 healthy` → All systems working, data fresh
-- `200 degraded` → Some loaders failing or data slightly stale, but system running
-- `503 unhealthy` → Critical component down or data very stale (>24h)
+**Before market open:** (1) Check health (`curl https://api.example.com/api/health` → status=healthy), (2) Check overnight loaders (price_daily, sector_ranking @ 4 AM ET), (3) Check overnight errors (CloudWatch logs), (4) Verify yesterday's trades executed (`/api/algo/trades`).
 
----
-
-## Monitoring Architecture
-
-### Layer 1: Real-Time Alerts (SNS Email)
-
-**What triggers alerts:**
-- API Lambda errors (5+ in 5 min)
-- Algo Lambda errors (any error)
-- API Gateway 5xx errors (5+ in 5 min)
-- RDS CPU >80%, memory <256MB, connections >80
-- Any critical loader failure
-- Data staleness >24h
-
-**What you get:** Email to `alert_email_to` (configured in Terraform)
-
-**Response SLA:** 15 minutes (during business hours)
-
----
-
-### Layer 2: Hourly Health Check (Lambda)
-
-**Lambda Function:** `algo-health-monitor` (runs every 6 hours)
-
-**Checks:**
-1. All critical loaders ran in last 26 hours
-2. All critical data tables have fresh data (<24h old)
-3. Database is responsive
-4. No cascading failures
-
-**Output:**
-- CloudWatch metric `Algo/HealthMonitor/LoaderHealth` (0=healthy, 1=degraded, 2=unhealthy)
-- CloudWatch metric `Algo/HealthMonitor/DataFreshness` (0=healthy, 1=degraded, 2=unhealthy)
-- SNS alert if status changes to degraded/unhealthy
-
-**View results:** CloudWatch → Log Groups → `/aws/lambda/algo-health-monitor`
-
----
-
-### Layer 3: On-Demand Health Check (API)
-
-**Endpoint:** `GET /api/health` (public, no auth required)
-
-**What it shows:** JSON object with health status, database latency, loader execution times, data freshness, and active alerts.
-
-**Use when:** You want to verify system is healthy before running trades
-
----
-
-### Layer 4: Frontend Error Tracking (CloudWatch Logs)
-
-**Log Group:** `/aws/frontend/algo-trading-dashboard`
-
-**What gets logged:**
-- React component errors (rendering, lifecycle)
-- API call failures (with response status, endpoint, message)
-- Network errors
-- Uncaught promise rejections
-- Browser console errors
-
-**Log Stream Format:** `{environment}/{userId}/{sessionId}`
-
-**Search for errors:**
-```
-# Find all errors from production
-[level = ERROR] AND [environment = production]
-
-# Find all API 500 errors
-[statusCode = 500] OR [statusCode = 503]
-
-# Find errors for specific user
-[userId = "user@example.com"]
-```
-
-**Respond to:** Check browser console first, then CloudWatch logs to understand context
-
----
-
-## Daily Operations Checklist
-
-### Start of Day (Before Market Open)
-
-1. **Check health status**
-   ```bash
-   curl https://api.example.com/api/health
-   ```
-   Should show `"status": "healthy"`
-
-2. **Check overnight loaders ran**
-   - price_daily (runs at 4 AM ET)
-   - sector_ranking (runs at 4 AM ET)
-   Should be in `last_load_time` from API
-
-3. **Check for overnight errors**
-   - CloudWatch Logs: `/aws/frontend/algo-trading-dashboard`
-   - CloudWatch Logs: `/aws/lambda/algo-api-dev`
-   - Look for errors after market close yesterday through now
-
-4. **Verify recent trades**
-   - Check `/api/algo/trades` to see if yesterday's trades executed
-   - If no trades, check `/api/algo/preview` to verify signals ran
-
----
-
-### During Market Hours
-
-1. **Every 2 hours:** Quick health check
-   ```bash
-   curl https://api.example.com/api/health | jq .status
-   ```
-
-2. **If any error notifications arrive:**
-   - Read email alert first (it tells you what to look for)
-   - Check relevant CloudWatch logs (endpoint in email)
-   - Check API health status
-   - Contact support if unclear
-
-3. **If dashboard is slow:**
-   - Check RDS CPU (CloudWatch → Metrics → AWS/RDS)
-   - Check API Lambda duration (CloudWatch → Metrics → AWS/Lambda)
-   - If API >10s, restart the Lambda (redeploy or manual restart)
+**During market hours:** Every 2h quick health check. On errors: read alert email, check CloudWatch logs, check health status. If dashboard slow: check RDS CPU and API Lambda duration (CloudWatch metrics).
 
 ---
 

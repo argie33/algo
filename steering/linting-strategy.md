@@ -1,83 +1,20 @@
-# Python Linting Strategy: Data-Driven Best Practice
+# Python Linting Strategy
 
-**Date:** 2026-06-17  
-**Methodology:** 6-phase empirical verification on actual codebase  
-**Status:** Ready for implementation  
+## Recommended Stack
 
----
+**Primary:** Ruff (replaces flake8 + isort + formatting) + Mypy (type checking, merge-blocking for core).
+**Optional (CI-only, non-blocking):** Pylint (semantic depth).
+**Deprecate:** flake8, pydocstyle.
 
-## EXECUTIVE SUMMARY
+## Tool Coverage
 
-Based on comprehensive verification of your codebase, the recommended linting strategy is:
+**Ruff:** 375 violations (F401: 230 unused imports, E402: 123 imports not at top, F841: 20 unused vars).
+**Mypy:** 56 type errors (real bugs: incompatible types, unused-ignore comments to clean).
+**Pylint:** 6,125 messages (too noisy; Ruff + Mypy cover 80%+ of actionable issues).
 
-**Primary Stack:**
-- **Ruff** — unified linter (replaces flake8 + isort + formatting checks)
-- **Mypy** — type checking (merge-blocking for core modules)
+## Performance
 
-**Optional (CI-only):**
-- **Pylint** — semantic analysis (non-blocking, informational)
-
-**Tools to Deprecate:**
-- ❌ flake8 (replaced by ruff)
-- ❌ pydocstyle as separate tool (use Ruff D-codes instead)
-
----
-
-## PHASE 1: BASELINE COVERAGE ANALYSIS
-
-### What Each Tool Actually Catches
-
-**Ruff baseline: 375 violations** (on checked modules, excluding migrations/tests)
-- F401: 230 unused imports → **cleanup needed**
-- E402: 123 imports not at top → **expected in loaders/scripts**
-- F841: 20 unused variables → **refactoring opportunity**
-
-**Mypy baseline: 56 type errors** (core modules)
-- unused-ignore: 11 errors → **cleanup type: ignore comments**
-- Incompatible types (operator, index, attr-defined): 45 errors → **real type bugs**
-
-**Pylint baseline: 6,125 messages** (too noisy for enforcement)
-- W1203: 1,735 logging issues → **not critical**
-- C0301: 881 line-too-long → **duplicate of ruff E501**
-- W0718: 799 broad exceptions → **important for robustness**
-- E1101: 167 undefined attributes → **duplicate of mypy attr-defined**
-
-### Key Finding
-
-Ruff and Mypy cover **80%+ of actionable issues**. Pylint is primarily **semantic depth** and **duplicate checking**. Industry standard: use Ruff + Mypy + Pylint-CI-only (non-blocking).
-
----
-
-## PHASE 2: RULE VERIFICATION
-
-Tested each rule category to confirm they work as documented:
-
-| Rule | Tool | Test | Result |
-|------|------|------|--------|
-| Undefined names | Ruff F821 | `x = undefined_var` | ✓ DETECTS |
-| Unused imports | Ruff F401 | `import os` | ✓ DETECTS |
-| Type errors | Mypy | `def foo(x: int) -> str: return x` | ✓ DETECTS |
-| Long lines | Ruff E501 | 106+ character line | ✓ DETECTS |
-| Import ordering | Ruff I | Misordered imports | ✓ DETECTS |
-| Imports not at top | Ruff E402 | `x = 1; import os` | ✓ DETECTS |
-
-**Verification Result:** All critical rules work as expected. Ready for enforcement.
-
----
-
-## PHASE 3: ENFORCEMENT VERIFICATION
-
-### Performance Test Results
-
-```
-Ruff check (algo/ + loaders/):     0.26 seconds   [FAST]
-Mypy check (algo/ + loaders/):     1.20 seconds   [FAST]
-Combined (pre-commit time):        ~2-3 seconds   [ACCEPTABLE]
-```
-
-**Verdict:** Both tools are fast enough for pre-commit hooks. No performance concerns.
-
-### Enforcement Points Verified
+Ruff: 0.26s, Mypy: 1.20s, combined: ~2-3s (acceptable for pre-commit).
 
 ✓ Ruff can block commits (catches F821, F401, E402)  
 ✓ Mypy can block commits (catches type errors)  

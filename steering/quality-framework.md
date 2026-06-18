@@ -1,82 +1,24 @@
-# Code Quality Framework — Complete Alignment
+# Code Quality & Testing Standards
 
-## Executive Summary
+## Three-Layer Assurance System
 
-This document summarizes the **complete code quality framework** that has been established to ensure consistent standards across the entire project.
+**Layer 1: Local Development** — Pre-commit hook blocks commits with errors (mypy, imports). Run manually: `./scripts/check-quality.sh`. Duration: ~60 sec.
 
-**Status: ✅ IMPLEMENTED AND OPERATIONAL**
+**Layer 2: Pull Request Gates** — ci-fast-gates.yml (~90 sec: security, lint, tests), quality-gates.yml (~10 min: coverage, full tests). Both auto-run, must pass before merge.
 
----
+**Layer 3: Production Monitoring** — CloudWatch error rates, type coverage trending, test coverage goals tracked quarterly.
 
-## The Three-Layer Quality Assurance System
+## Type Safety (Mypy)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 1: LOCAL DEVELOPMENT (Developer's Machine)           │
-├─────────────────────────────────────────────────────────────┤
-│  • Pre-commit hook: Blocks commits with errors              │
-│  • Manual checks: ./scripts/check-quality.sh                │
-│  • IDE integration: mypy, flake8 support                    │
-│  Duration: ~60 seconds per commit                           │
-└─────────────────────────────────────────────────────────────┘
-                          ↓↓↓
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 2: PULL REQUEST GATES (GitHub Actions)              │
-├─────────────────────────────────────────────────────────────┤
-│  • ci-fast-gates.yml: ~90 seconds (security, lint, tests)   │
-│  • quality-gates.yml: ~10 minutes (coverage, full tests)    │
-│  • Both run automatically on every commit                   │
-│  Must pass before merge to main                             │
-└─────────────────────────────────────────────────────────────┘
-                          ↓↓↓
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 3: PRODUCTION MONITORING (Ongoing)                   │
-├─────────────────────────────────────────────────────────────┤
-│  • CloudWatch logs monitor error rates                      │
-│  • Type coverage trending in CI reports                     │
-│  • Test coverage goals tracked quarterly                    │
-│  • Security scanning in dependency updates                  │
-└─────────────────────────────────────────────────────────────┘
-```
+**Local:** `python -m mypy algo/ loaders/ lambda/ --ignore-missing-imports`
 
----
+**CI (BLOCKING for core modules):** algo/, loaders/, lambda/. Config: `pyproject.toml [tool.mypy]`
 
-## What's Being Checked
+## Test Coverage
 
-### 1. Type Safety (mypy)
+**Local:** `pytest tests/ --cov=algo --cov=loaders --cov-report=html`
 
-**Local:**
-```bash
-python -m mypy algo/ loaders/ lambda/ --ignore-missing-imports
-```
-
-**CI — Strict Mode (BLOCKING):**
-- `algo/` → Core orchestration
-- `loaders/` → Data pipelines
-- `lambda/` → AWS handlers
-
-**Configuration:** `pyproject.toml` `[tool.mypy]`
-
-**Philosophy:** Type errors in production code are not acceptable
-
----
-
-### 2. Test Coverage
-
-**Local:**
-```bash
-pytest tests/ --cov=algo --cov=loaders --cov-report=html
-```
-
-**CI Coverage Targets:**
-
-| Module | Target | Current | Blocking |
-|--------|--------|---------|----------|
-| algo/ | 80% | 45-60% | Non-blocking (tracking) |
-| loaders/ | 70% | 30-50% | Non-blocking (tracking) |
-| lambda/ | 60% | 20-40% | Non-blocking (tracking) |
-
-**Configuration:** `pyproject.toml` `[tool.coverage.run]`
+**Targets (non-blocking, tracked):** algo/ 80%, loaders/ 70%, lambda/ 60%.
 
 **Philosophy:** Coverage is a guide to test completeness, not the goal itself
 

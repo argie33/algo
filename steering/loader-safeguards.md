@@ -1,102 +1,16 @@
-# Loader Safeguards: Preventing Indefinite Execution and Resource Waste
+# Loader Safeguards: Preventing Hung Loaders
 
-## Overview
-
-Loaders must not run indefinitely. This system enforces hard timeouts, automatic task termination, and alerting to prevent hung loaders from consuming infrastructure resources.
-
-Key principle: Step Functions timeout alone does not guarantee ECS task termination—additional safeguards are required.
+Loaders must not run indefinitely. Step Functions timeout alone does NOT kill ECS tasks—additional safeguards required.
 
 ## Safeguards
 
-### 1. **Hard Timeout on Step Functions**
+**1. Hard Timeout (Step Functions):** Configured in terraform/modules/pipeline/main.tf: stock_prices_daily 6h, swing_trader_scores 2h, technical_data_daily 2h, market_health_daily 20 min.
 
-Configured in `terraform/modules/pipeline/main.tf`:
-- **stock_prices_daily**: 6h timeout (expected: 60-90 min)
-- **swing_trader_scores**: 2h timeout (expected: 30+ min)
-- **technical_data_daily**: 2h timeout (expected: varies)
-- **market_health_daily**: 20 min timeout (expected: 20 min)
+**2. Timeout Guardian Lambda:** Runs every 5 min, checks RUNNING loaders, compares runtime against MAX_DURATION (price: 4h, technical/score: 2h, others: 1h). Kills ECS task if exceeded, updates DB status to TIMEOUT.
 
-**Problem with timeouts:** Step Functions timeout aborts the state machine but may NOT kill the underlying ECS task. The task can keep running even after the state machine abort.
+**3. Database Constraint:** data_loader_status CHECK that RUNNING status < 24h. Prevents status updates if violated (acceptable—we'd want to know).
 
-### 2. **ECS Task Hard Timeout**
-
-Add timeout to ECS task definition:
-
-```json
-{
-  "containerDefinitions": [{
-    "image": "...",
-    "containerPort": 8080,
-    "stopTimeout": 60,  // Seconds to wait after SIGTERM before SIGKILL
-    "essential": true
-  }],
-  "name": "loader-task",
-  "requiresCompatibilities": ["FARGATE"]
-}
-```
-
-**Also add:** Runtime limit in ECS capacity provider or Step Functions integration:
-- Kill ECS task after hard timeout (Step Functions timeout + 5 min)
-
-### 3. **Timeout Guardian Lambda**
-
-Implemented in `lambda/loader_timeout_guardian.py`.
-
-**Implementation:**
-- Runs every 5 minutes via EventBridge
-- Checks all loaders in RUNNING state
-- Compares runtime against MAX_DURATION (loader-specific):
-  - Price loaders: 4 hours
-  - Technical/score loaders: 2 hours
-  - Others: 1 hour
-- **Kills ECS task** if exceeded
-- Updates database status to TIMEOUT + error message
-- Fires CloudWatch alarm metric
-
-**Why this is needed:** Step Functions timeout alone doesn't guarantee ECS task termination.
-
-**Deployment:** 
-```bash
-# Add to terraform/modules/pipeline/main.tf
-resource "aws_lambda_function" "timeout_guardian" {
-  filename = "lambda_timeout_guardian.zip"
-  function_name = "algo-loader-timeout-guardian-${var.environment}"
-  role = aws_iam_role.timeout_guardian.arn
-  timeout = 60
-  environment {
-    variables = {
-      DB_HOST = var.db_host
-      DB_NAME = var.db_name
-      # ... other DB vars
-    }
-  }
-}
-
-resource "aws_scheduler_schedule" "guardian_check" {
-  name = "algo-loader-timeout-guardian"
-  schedule_expression = "rate(5 minutes)"
-  target {
-    arn = aws_lambda_function.timeout_guardian.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-  }
-}
-```
-
-### 4. **Database Constraint: Prevent RUNNING > 24h**
-
-Add check constraint to `data_loader_status`:
-
-```sql
-ALTER TABLE data_loader_status
-ADD CONSTRAINT max_running_duration CHECK (
-  EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - execution_started)) < 86400  -- 24 hours
-  OR status != 'RUNNING'
-);
-```
-
-**Trade-off:** This will prevent INSERTs/UPDATEs that violate the constraint. May cause loader status updates to fail if they exceed 24h (acceptable - we'd want to know).
-
-### 5. **CloudWatch Alarms: Alert on Hung Loaders**
+**4. CloudWatch Alarms:** Alert if no loader execution in 25+ hours or ECS task exit non-zero (dead-letter queue monitoring).
 
 Configure alarms:
 
