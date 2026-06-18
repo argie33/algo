@@ -574,7 +574,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         done.set()
 
     try:
-        bg_thread = threading.Thread(target=bg, daemon=True)
+        bg_thread = threading.Thread(target=bg, daemon=False)
         bg_thread.start()
 
         frame = 0
@@ -613,9 +613,11 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             except KeyboardInterrupt:
                 pass
     finally:
-        if bg_thread and bg_thread.is_alive():
+        if bg_thread:
             done.set()
-            bg_thread.join(timeout=5)
+            bg_thread.join(timeout=10)
+            if bg_thread.is_alive():
+                print("⚠️  Background thread did not exit within timeout", file=sys.stderr)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -645,7 +647,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 loading[0] = False
 
     try:
-        reload_thread = threading.Thread(target=reload, daemon=True)
+        reload_thread = threading.Thread(target=reload, daemon=False)
         reload_thread.start()
         active_threads.append(reload_thread)
 
@@ -695,7 +697,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         should_retry_load = recovery.should_retry_data_load()
 
                         if should_reload or should_retry_load:
-                            reload_thread = threading.Thread(target=reload, daemon=True)
+                            reload_thread = threading.Thread(target=reload, daemon=False)
                             reload_thread.start()
                             active_threads.append(reload_thread)
                     time.sleep(0.125)
@@ -704,8 +706,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     finally:
         shutdown.set()
         for thread in active_threads:
-            if thread and thread.is_alive():
-                thread.join(timeout=5)
+            if thread:
+                thread.join(timeout=10)
+                if thread.is_alive():
+                    print("⚠️  Thread still running after 10s timeout in watch mode", file=sys.stderr)
 
 
 def main():
