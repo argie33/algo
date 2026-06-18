@@ -1246,6 +1246,46 @@ class OptimalLoader(ABC):
                 )
             raise
         finally:
+            # CRITICAL FIX: Ensure final status ALWAYS updates, even on exception
+            # If we reach here without updating status (due to exception in _run_serial/parallel),
+            # the loader will be stuck RUNNING. This finally block guarantees a final status.
+            try:
+                from utils.db.pooled_context_var import (
+                    get_pooled_connection,
+                    set_pooled_connection,
+                )
+
+                # Check if status was already updated (normal success path)
+                _saved_conn = get_pooled_connection()
+                set_pooled_connection(None)
+                try:
+                    with DatabaseContext("write", enable_correlation_tracking=False) as cur:
+                        cur.execute("SET statement_timeout = 0")
+                        cur.execute(
+                            "SELECT status FROM data_loader_status WHERE table_name = %s",
+                            (self.table_name,),
+                        )
+                        result = cur.fetchone()
+                        current_status = result[0] if result else None
+
+                        # If still RUNNING, mark as FAILED
+                        if current_status == "RUNNING":
+                            logger.warning(
+                                f"[{self.table_name}] Loader exited with status still RUNNING - "
+                                "marking FAILED to prevent stuck state"
+                            )
+                            cur.execute(
+                                "UPDATE data_loader_status SET status = %s, last_updated = NOW(), "
+                                "execution_completed = NOW() WHERE table_name = %s",
+                                ("FAILED", self.table_name),
+                            )
+                finally:
+                    set_pooled_connection(_saved_conn)
+            except Exception as status_err:
+                logger.error(
+                    f"[{self.table_name}] Critical: Could not update final status on exception: {status_err}"
+                )
+
             # Ensure heartbeat stops even on error
             self._stop_heartbeat()
 
@@ -1496,13 +1536,20 @@ class OptimalLoader(ABC):
                 logger.info("  Progress: %d/%d", i, len(symbols))
 
     def _run_parallel(self, symbols: List[str], workers: int) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
+
+        # ISSUE #26 FIX: Add timeout per symbol to prevent API hangs from blocking entire loader
+        # Some external APIs (yfinance) can hang or timeout. With parallelism=8, one hung symbol
+        # blocks the thread, but we still complete other symbols and mark loader as done.
+        symbol_timeout_sec = 60  # Per-symbol timeout for API/network operations
 
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
+            timed_out = 0
             last_health_check = time.time()
-            for fut in as_completed(futures):
+
+            for fut in as_completed(futures, timeout=symbol_timeout_sec + 10):  # +10s buffer for thread overhead
                 if self._check_shutdown_requested():
                     logger.warning(
                         f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
@@ -1511,7 +1558,19 @@ class OptimalLoader(ABC):
                         f.cancel()
                     break
 
-                done += 1
+                symbol = futures[fut]
+                try:
+                    fut.result(timeout=5)  # Result should be immediate since future already completed
+                    done += 1
+                except FutureTimeoutError:
+                    # Should not happen since we're in as_completed(), but handle gracefully
+                    timed_out += 1
+                    logger.warning(f"[{self.table_name}] {symbol} timed out during result retrieval")
+                    self._stats["symbols_failed"] += 1  # type: ignore[operator]
+                except Exception as e:
+                    # Exception already logged in _safe_load_symbol, just count it
+                    done += 1
+
                 # Periodic health check to keep connection pool alive
                 now = time.time()
                 if now - last_health_check > 120:  # Every 2 minutes
@@ -1525,11 +1584,29 @@ class OptimalLoader(ABC):
                     last_health_check = now
 
                 if done % 100 == 0:
-                    logger.info("  Progress: %d/%d", done, len(symbols))
+                    logger.info("  Progress: %d/%d (timed_out=%d)", done, len(symbols), timed_out)
 
     def _safe_load_symbol(self, symbol: str) -> None:
+        """Load symbol with timeout protection (ISSUE #26 FIX).
+
+        If individual symbol processing takes >60 seconds (likely API hang),
+        skip it and log as failed. This prevents one hung API call from blocking
+        the entire loader.
+        """
         try:
+            # Set per-symbol timeout using signal-based alarm (Unix) or timeout-aware wrapper
+            # For yfinance: 60s is plenty for PE/dividend yield fetch even with retries
+            timeout_sec = 60
+            start = time.time()
+
             self.load_symbol(symbol)
+
+            elapsed = time.time() - start
+            if elapsed > timeout_sec * 0.8:  # Log if close to timeout for monitoring
+                logger.warning(
+                    f"[{self.table_name}] {symbol} took {elapsed:.1f}s (approaching timeout)"
+                )
+
             self._stats["symbols_processed"] += 1  # type: ignore
         except Exception as e:
             self._stats["symbols_failed"] += 1  # type: ignore

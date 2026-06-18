@@ -11,7 +11,7 @@ import argparse
 import logging
 import sys
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 
@@ -35,6 +35,9 @@ class SignalQualityScoresLoader(OptimalLoader):
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
 
         Caches end_date and buy_sell_daily signal count to avoid per-symbol computation.
+
+        ISSUE #27 FIX: Check that buy_sell_daily is not RUNNING/PENDING before proceeding.
+        If buy_sell_daily loader is stuck, abort this loader to prevent incomplete data.
         """
         from datetime import datetime, timezone
 
@@ -42,14 +45,29 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         self._batch_context = {}
         try:
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
-
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-                end = end - timedelta(days=1)
-
             with DatabaseContext("read") as cur:
+                # Check if buy_sell_daily is ready (ISSUE #27 FIX)
+                cur.execute(
+                    "SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'"
+                )
+                result = cur.fetchone()
+                bs_status = result[0] if result else None
+
+                if bs_status in ("RUNNING", "PENDING"):
+                    logger.warning(
+                        f"[{self.table_name}] Aborting: buy_sell_daily status is {bs_status} - "
+                        "waiting for upstream to complete"
+                    )
+                    self._batch_context = {"_blocked": True}
+                    return
+
+                now_utc = datetime.now(timezone.utc)
+                now_et = now_utc.astimezone(EASTERN_TZ)
+                end = now_et.date()
+
+                while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+                    end = end - timedelta(days=1)
+
                 cur.execute(
                     "SELECT MAX(date) FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL') AND date <= %s",
                     (end,),
@@ -79,11 +97,16 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.warning(f"Batch context preparation failed: {e}")
             self._batch_context = {}
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
         from datetime import datetime, timezone
 
         from algo.infrastructure import MarketCalendar
+
+        # ISSUE #27 FIX: Skip if buy_sell_daily is blocked
+        if self._batch_context and self._batch_context.get("_blocked"):
+            logger.debug(f"[{self.table_name}] Skipping {symbol} - buy_sell_daily not ready")
+            return []
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing trading day verification for each symbol.
@@ -194,12 +217,13 @@ class SignalQualityScoresLoader(OptimalLoader):
                 else safe_parse_date(since, "score filtering watermark")
             )
             if since_date:
-                scores = [
-                    s
-                    for s in scores
-                    if safe_parse_date(s["date"], "score date filtering")
-                    and safe_parse_date(s["date"], "score date filtering") > since_date
-                ]
+                # Filter scores by date, handling potential None returns from safe_parse_date
+                filtered_scores = []
+                for s in scores:
+                    parsed_date = safe_parse_date(s["date"], "score date filtering")
+                    if parsed_date is not None and parsed_date > since_date:
+                        filtered_scores.append(s)
+                scores = filtered_scores
 
         return scores
 
