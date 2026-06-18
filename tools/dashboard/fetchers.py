@@ -732,13 +732,23 @@ def fetch_positions(c):
 
 
 def fetch_recent_trades(c):
-    """AWS-only trades data (no local fallback). Returns closed trades only — open positions are in the positions panel."""
+    """AWS-only trades data (no local fallback). Returns closed trades only — open positions are in the positions panel.
+
+    Note: 503 means no closed trades yet (algo just started) — treat as no data, not an error.
+    """
     try:
         data = api_call(
             _get_endpoint_path("trades"),
             params={"limit": 30, "status": "closed"},
         )
         if data.get("_error"):
+            # 503 means no trades data yet (algo just started or no closed trades) — not a true error
+            if "503" in str(data.get("_error", "")):
+                return {
+                    "_no_data": True,
+                    "items": [],
+                    "timestamp": datetime.now(timezone.utc),
+                }
             return {
                 "_error": data.get("_error"),
                 "items": [],
