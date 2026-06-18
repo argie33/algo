@@ -1569,32 +1569,37 @@ class PriceLoader(OptimalLoader):
                         "[MARKET_CLOSE] Today is not a trading day, skipping market close check"
                     )
                 else:
-                    # ISSUE #23 FIX: Use ultra-short timeout (10s) for non-blocking check
-                    # If this quick check fails, we'll still proceed - Phase 1 will detect stale data
+                    # Market close data must be available for daily prices to be current.
+                    # Failing to verify this allows stale data to flow downstream.
                     try:
                         market_close_available = (
                             self._check_market_close_data_available(max_wait_sec=10)
                         )
-                        if market_close_available:
-                            logger.debug(
-                                "[MARKET_CLOSE] ✓ Quick check passed: Market close data likely available"
+                        if not market_close_available:
+                            error_msg = (
+                                "[MARKET_CLOSE] Quick check indicates market close data is NOT available. "
+                                "Cannot load prices without verifying data is current. "
+                                "Check yfinance/data source availability."
                             )
-                        else:
-                            logger.warning(
-                                "[MARKET_CLOSE] ⚠️  Quick check timed out, but proceeding optimistically. Phase 1 will validate data staleness."
-                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
+                        logger.debug(
+                            "[MARKET_CLOSE] ✓ Quick check passed: Market close data available"
+                        )
                     except Exception as quick_check_err:
-                        logger.warning(
-                            f"[MARKET_CLOSE] Quick check failed ({quick_check_err}), proceeding anyway. Phase 1 will validate."
+                        error_msg = (
+                            f"[MARKET_CLOSE] Could not verify market close data availability: {quick_check_err}. "
+                            "Cannot load prices without this verification. Aborting."
                         )
-                        market_close_available = (
-                            True  # Optimistic - proceed and let Phase 1 detect issues
-                        )
+                        logger.critical(error_msg)
+                        raise RuntimeError(error_msg)
             except Exception as e:
-                logger.warning(
-                    f"[MARKET_CLOSE] Could not perform market close check: {e}, proceeding anyway"
+                error_msg = (
+                    f"[MARKET_CLOSE] Could not perform market close check: {e}. "
+                    "Cannot load prices without verifying data is current. Aborting."
                 )
-                market_close_available = True  # Optimistic - proceed
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)

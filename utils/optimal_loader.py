@@ -824,29 +824,14 @@ class OptimalLoader(ABC):
                 )
                 result = cur.fetchone()
                 if not result:
-                    # No status record — check if the table has recent data as fallback.
-                    # technical_data_daily sometimes fails to write its final status due to
-                    # statement timeouts, but the data itself is present and valid.
-                    try:
-                        cur.execute(
-                            psycopg2.sql.SQL(
-                                "SELECT COUNT(DISTINCT symbol) FROM {} "
-                                "WHERE date >= CURRENT_DATE - INTERVAL '3 days'"
-                            ).format(psycopg2.sql.Identifier(upstream_table)),
-                        )
-                        count_row = cur.fetchone()
-                        recent_count = count_row[0] if count_row else 0
-                    except Exception:
-                        recent_count = 0
-                    if recent_count > 100:
-                        logger.warning(
-                            f"[UPSTREAM] {self.table_name}: {upstream_table} has no status record "
-                            f"but contains {recent_count} symbols with data in last 3 days — proceeding"
-                        )
-                        return True
-                    logger.error(
+                    # No status record — cannot verify completeness.
+                    # Loader must write a status record, even if it fails.
+                    # Accepting data without completeness verification risks silent data loss.
+                    logger.critical(
                         f"[UPSTREAM] {self.table_name} requires {upstream_table}, but {upstream_table} "
-                        "has no status and no recent data. Aborting to prevent silent data loss."
+                        "has no completion status record. Cannot verify if upstream is >95% complete. "
+                        "Aborting to prevent incomplete data from flowing downstream. "
+                        "Upstream loader must record status in data_loader_status."
                     )
                     return False
 
@@ -888,10 +873,11 @@ class OptimalLoader(ABC):
                 return True
 
         except Exception as e:
-            logger.warning(
-                f"[UPSTREAM] Could not check upstream completeness: {e}, proceeding anyway"
+            logger.critical(
+                f"[UPSTREAM] Could not check upstream completeness: {e}. "
+                "Cannot proceed without verifying upstream is complete."
             )
-            return True  # Don't abort if we can't check
+            raise RuntimeError(f"Upstream completeness check failed: {e}")
 
     def _log_execution_history(self, status: str, error_message: str | None = None):
         """Log loader execution to database for auditing.
