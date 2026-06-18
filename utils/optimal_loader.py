@@ -376,7 +376,7 @@ class OptimalLoader(ABC):
 
             self._watermark = WatermarkStore()
         except Exception as e:
-            logger.warning("Watermark unavailable (%s) - running full refresh", e)
+            logger.warning(f"Watermark unavailable ({e}) - running full refresh")
             self._watermark = False
         return self._watermark if self._watermark else None
 
@@ -1092,7 +1092,7 @@ class OptimalLoader(ABC):
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, self._stats)
             except Exception as e:
-                logger.debug("metrics unavailable: %s", e)
+                logger.debug(f"metrics unavailable: {e}")
 
             try:
                 with DatabaseContext("read") as cur:
@@ -1369,7 +1369,7 @@ class OptimalLoader(ABC):
 
             start = time.time()
             self._execution_start_time = start  # type: ignore[assignment]  # Track for execution history logging
-            logger.info("[%s] Starting global load", self.table_name)
+            logger.info(f"[{self.table_name}] Starting global load")
 
             # Get current watermark from DB so fetch_global can do incremental loads
             since = None
@@ -1396,7 +1396,7 @@ class OptimalLoader(ABC):
 
             rows = self.fetch_global(since)
             if not rows:
-                logger.info("[%s] fetch_global returned no rows", self.table_name)
+                logger.info(f"[{self.table_name}] fetch_global returned no rows")
                 return 0
 
             rows = self.transform(rows)
@@ -1534,7 +1534,7 @@ class OptimalLoader(ABC):
 
             self._safe_load_symbol(symbol)
             if i % 100 == 0:
-                logger.info("  Progress: %d/%d", i, len(symbols))
+                logger.info(f"  Progress: {i}/{len(symbols)}")
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1584,7 +1584,7 @@ class OptimalLoader(ABC):
                     last_health_check = now
 
                 if done % 100 == 0:
-                    logger.info("  Progress: %d/%d (timed_out=%d)", done, len(symbols), timed_out)
+                    logger.info(f"  Progress: {done}/{len(symbols)} (timed_out={timed_out})")
 
     def _safe_load_symbol(self, symbol: str) -> None:
         """Load symbol with timeout protection (ISSUE #26 FIX).
@@ -1610,4 +1610,4 @@ class OptimalLoader(ABC):
             self._stats["symbols_processed"] += 1  # type: ignore
         except Exception as e:
             self._stats["symbols_failed"] += 1  # type: ignore
-            logger.error("[%s] %s failed: %s", self.table_name, symbol, e)
+            logger.error(f"[{self.table_name}] {symbol} failed: {e}")

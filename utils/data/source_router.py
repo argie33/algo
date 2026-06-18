@@ -154,7 +154,7 @@ class DataSourceRouter:
         for i, (name, fn) in enumerate(sources):
             health = self._get_health(name)
             if health.is_paused:
-                logger.debug("Skipping paused source '%s' for %s", name, request_desc)
+                logger.debug(f"Skipping paused source '{name}' for {request_desc}")
                 continue
             try:
                 result = fn()
@@ -164,7 +164,7 @@ class DataSourceRouter:
                     continue
                 health.record(True)
                 self.last_source = name
-                logger.debug("Source '%s' served %s", name, request_desc)
+                logger.debug(f"Source '{name}' served {request_desc}")
                 return result
             except Exception as e:
                 health.record(False, str(e))
@@ -179,7 +179,7 @@ class DataSourceRouter:
                         next_source,
                     )
                 else:
-                    logger.debug("Source '%s' failed for %s: %s", name, request_desc, e)
+                    logger.debug(f"Source '{name}' failed for {request_desc}: {e}")
                 continue
         if last_exc:
             logger.warning(
@@ -527,7 +527,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            logger.warning("yfinance balance_sheet timeout for %s", symbol)
+            logger.warning(f"yfinance balance_sheet timeout for {symbol}")
             return None
 
     def _yf_income(self, symbol: str, period: str):
@@ -550,7 +550,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            logger.warning("yfinance income_stmt timeout for %s", symbol)
+            logger.warning(f"yfinance income_stmt timeout for {symbol}")
             return None
 
     def _yf_cash_flow(self, symbol: str, period: str):
@@ -571,7 +571,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            logger.warning("yfinance cashflow timeout for %s", symbol)
+            logger.warning(f"yfinance cashflow timeout for {symbol}")
             return None
 
     # ============== EARNINGS ==============
@@ -618,7 +618,7 @@ class DataSourceRouter:
                 return result
             return result.to_dict(orient="index")
         except TimeoutError:
-            logger.warning("yfinance earnings_dates timeout for %s", symbol)
+            logger.warning(f"yfinance earnings_dates timeout for {symbol}")
             return None
 
     def _sec_eps(self, symbol: str):
@@ -649,7 +649,7 @@ class DataSourceRouter:
                 return None
             return df
         except TimeoutError:
-            logger.warning("yfinance eps_revisions timeout for %s", symbol)
+            logger.warning(f"yfinance eps_revisions timeout for {symbol}")
             return None
 
     def fetch_eps_trend(self, symbol: str):
@@ -675,7 +675,7 @@ class DataSourceRouter:
                 return None
             return df
         except TimeoutError:
-            logger.warning("yfinance eps_trend timeout for %s", symbol)
+            logger.warning(f"yfinance eps_trend timeout for {symbol}")
             return None
 
     # ============== MARKET CLOSE DATA CHECK ==============

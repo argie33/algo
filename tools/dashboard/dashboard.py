@@ -55,6 +55,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from .error_boundary import error_summary_panel
+from .error_recovery import RenderRecovery
 from .fetchers import load_all
 from .formatters import mkt_hours_str
 from .panel_registry import get_panel_registry as _get_panel_registry
@@ -181,7 +182,7 @@ def _fetch_terraform_credentials():
                 os.path.join(candidate, "main.tf")
             ):
                 tf_dir = candidate
-                logger.debug("Found terraform directory at %s", tf_dir)
+                logger.debug(f"Found terraform directory at {tf_dir}")
                 break
 
         if not tf_dir:
@@ -251,13 +252,13 @@ def _fetch_terraform_credentials():
             return (None, None, None)
 
         if result.returncode != 0:
-            logger.warning("Terraform output failed: %s", result.stderr[:100])
+            logger.warning(f"Terraform output failed: {result.stderr[:100]}")
             return (None, None, None)
 
         try:
             outputs = json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse terraform outputs: %s", e)
+            logger.error(f"Failed to parse terraform outputs: {e}")
             return (None, None, None)
 
         # Validate outputs are present and non-empty
@@ -290,12 +291,12 @@ def _fetch_terraform_credentials():
                 bool(pool_id),
                 bool(client_id),
             )
-            logger.debug("Available outputs: %s", list(outputs.keys()))
+            logger.debug(f"Available outputs: {list(outputs.keys())}")
             return (None, None, None)
 
         # Validate API URL format
         if not api_url.startswith(("http://", "https://")):
-            logger.error("Invalid API URL format from terraform: %s", api_url[:50])
+            logger.error(f"Invalid API URL format from terraform: {api_url[:50]}")
             return (None, None, None)
 
         logger.info("Successfully fetched credentials from Terraform")
@@ -328,15 +329,20 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     return panel_status
 
 
-def _handle_render_error(e: Exception) -> Panel:
-    """Create an error panel for render failures."""
+def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
+    """Create an error panel for render failures with recovery info."""
     import traceback
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
+
+    error_line = f"{type(e).__name__}: {str(e)[:80]}"
+    if recovery_status:
+        content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+    else:
+        content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]"
+
     return Panel(
-        Text.from_markup(
-            f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"
-        ),
+        Text.from_markup(content),
         title="[bold red]ERROR[/]",
         border_style="red",
     )
@@ -573,6 +579,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
         frame = 0
         view_mode = ["normal"]
+        recovery = RenderRecovery()
         key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
@@ -587,18 +594,21 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     if not done.is_set():
                         live.update(loading_layout(frame, data_source=data_source))
                     else:
-                        try:
-                            layout = render_dashboard(
-                                result[0],
+                        def render_fn(data):
+                            return render_dashboard(
+                                data,
                                 compact=compact,
                                 elapsed=elapsed[0],
                                 frame=frame,
                                 view_mode=view_mode[0],
                                 data_source=data_source,
                             )
+
+                        try:
+                            layout, recovery_status = recovery.render_with_recovery(result[0], render_fn)
                             live.update(layout)
                         except Exception as e:
-                            live.update(_handle_render_error(e))
+                            live.update(_handle_render_error(e, recovery.state.get_recovery_status()))
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass
@@ -640,6 +650,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         active_threads.append(reload_thread)
 
         view_mode = ["normal"]
+        recovery = RenderRecovery()
         key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
@@ -660,9 +671,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                     if current_result is None:
                         live.update(loading_layout(frame[0], data_source=data_source))
                     else:
-                        try:
-                            layout = render_dashboard(
-                                current_result,
+                        def render_fn(data):
+                            return render_dashboard(
+                                data,
                                 compact=compact,
                                 elapsed=current_elapsed,
                                 frame=frame[0],
@@ -672,11 +683,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 view_mode=view_mode[0],
                                 data_source=data_source,
                             )
+
+                        try:
+                            layout, recovery_status = recovery.render_with_recovery(current_result, render_fn)
                             live.update(layout)
                         except Exception as e:
-                            live.update(_handle_render_error(e))
+                            live.update(_handle_render_error(e, recovery.state.get_recovery_status()))
 
-                        if not is_loading and (time.monotonic() - current_last_load) >= interval:
+                        # Trigger data reload on interval or on transient errors
+                        should_reload = not is_loading and (time.monotonic() - current_last_load) >= interval
+                        should_retry_load = recovery.should_retry_data_load()
+
+                        if should_reload or should_retry_load:
                             reload_thread = threading.Thread(target=reload, daemon=True)
                             reload_thread.start()
                             active_threads.append(reload_thread)

@@ -1307,7 +1307,7 @@ class Orchestrator:
 
         except Exception as e:
             # Never let metrics publishing interrupt trading results
-            logger.error("CloudWatch metric publish failed: %s", e)
+            logger.error(f"CloudWatch metric publish failed: {e}")
 
         return result
 

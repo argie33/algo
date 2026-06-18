@@ -27,7 +27,7 @@ class MetricsPublisher:
 
                 self._client = boto3.client("cloudwatch", region_name=REGION)
             except Exception as e:
-                logger.warning("CloudWatch client unavailable: %s", e)
+                logger.warning(f"CloudWatch client unavailable: {e}")
                 return None
         return self._client
 
@@ -72,7 +72,7 @@ class MetricsPublisher:
             return
         try:
             cw.put_metric_data(Namespace=NAMESPACE, MetricData=self._batch)
-            logger.debug("metrics.flushed count=%d", len(self._batch))
+            logger.debug(f"metrics.flushed count={len(self._batch)}")
         except Exception as e:
             # Log error but don't fail—metrics are non-critical
             if "not authorized" in str(e) or "AccessDenied" in str(e):

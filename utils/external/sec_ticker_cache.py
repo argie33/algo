@@ -135,7 +135,7 @@ class TickerCache:
                 self._ticker_cache = mapping
                 self._ticker_cache_time = time.time()
                 self._save_ticker_cache_to_file()
-                logger.info("SEC ticker cache refreshed: %d symbols", len(mapping))
+                logger.info(f"SEC ticker cache refreshed: {len(mapping)} symbols")
                 return mapping
             except requests.HTTPError as e:
                 if resp.status_code not in (429, 403):

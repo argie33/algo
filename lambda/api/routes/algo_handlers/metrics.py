@@ -1,58 +1,37 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
+import math
+from datetime import datetime, timedelta, timezone
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
     db_route_handler,
-    check_data_freshness,
-    safe_json_serialize,
+    error_response,
+    handle_db_error,
+    json_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    success_response,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
-    safe_float,
-    safe_float_strict,
-    safe_int,
-    safe_int_strict,
     APIResponseValidator,
+    safe_float,
+    safe_int,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
+
 
 logger = logging.getLogger(__name__)
 
 
 
 @db_route_handler("get algo metrics")
-def _get_algo_metrics(cur) -> Dict:
+def _get_algo_metrics(cur) -> dict:
     """Get daily algo metrics (total actions, entries, exits)."""
     try:
         cur.execute("""
@@ -82,14 +61,20 @@ def _get_algo_metrics(cur) -> Dict:
                 "avg_signal_score": safe_float(data.get("avg_signal_score")),
             }
         )
-    except Exception as e:
-        logger.error(f"Metrics fetch error: {type(e).__name__}: {e}")
-        return error_response(503, "service_unavailable", "Metrics unavailable")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch algo metrics")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("calculate performance")
-def _get_algo_performance(cur) -> Dict:
+def _get_algo_performance(cur) -> dict:
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
     Queries latest row from algo_performance_metrics table (computed daily by
@@ -294,7 +279,7 @@ def _get_algo_performance(cur) -> Dict:
                     for r in snap_rows[-10:]
                 ]
         except Exception as eq_err:
-            logger.warning("Could not fetch equity sparkline data for performance: %s", eq_err)
+            logger.warning(f"Could not fetch equity sparkline data for performance: {eq_err}")
 
         response_data = {
             "total_trades": total_trades,
@@ -357,20 +342,15 @@ def _get_algo_performance(cur) -> Dict:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-    ):
-        raise  # Let @db_route_handler return proper 503/504
-    except Exception as e:
-        logger.error(
-            f"Failed to fetch performance metrics: {type(e).__name__}: {e}\n  Operation: Query pre-computed algo_performance_metrics\n  Endpoint: GET /api/algo/performance"
-        )
-        return error_response(
-            500, "internal_error", "Failed to fetch performance metrics"
-        )
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch performance metrics")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get algo portfolio")
-def _get_algo_portfolio(cur) -> Dict:
+def _get_algo_portfolio(cur) -> dict:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown."""
     try:
         cur.execute("""
@@ -442,7 +422,7 @@ def _get_algo_portfolio(cur) -> Dict:
 
 
 @db_route_handler("get daily return histogram")
-def _get_daily_return_histogram(cur) -> Dict:
+def _get_daily_return_histogram(cur) -> dict:
     """Return histogram of daily portfolio returns with stats."""
     cur.execute("""
         SELECT daily_return_pct
@@ -474,7 +454,7 @@ def _get_daily_return_histogram(cur) -> Dict:
         mid += bucket_width
 
     for ret in returns:
-        bucket_mid = round((ret / bucket_width)) * bucket_width
+        bucket_mid = round(ret / bucket_width) * bucket_width
         if bucket_mid in buckets_dict:
             buckets_dict[bucket_mid] += 1
 
@@ -497,7 +477,7 @@ def _get_daily_return_histogram(cur) -> Dict:
 
 
 @db_route_handler("get holding period distribution")
-def _get_holding_period_distribution(cur) -> Dict:
+def _get_holding_period_distribution(cur) -> dict:
     """Return distribution of position holding periods in days."""
     cur.execute("""
         SELECT CASE
@@ -554,7 +534,7 @@ def _get_holding_period_distribution(cur) -> Dict:
 
 
 @db_route_handler("get performance analytics")
-def _get_performance_analytics(cur) -> Dict:
+def _get_performance_analytics(cur) -> dict:
     """Get performance analytics data."""
     _null_response = {
         "rolling_sharpe_252d": None,
@@ -598,20 +578,18 @@ def _get_performance_analytics(cur) -> Dict:
         except Exception:
             pass
         return success_response(_null_response)
-    except Exception as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except Exception:
             pass
-        logger.error(f"Performance analytics fetch error: {type(e).__name__}: {e}")
-        return error_response(
-            503, "service_unavailable", "Performance analytics unavailable"
-        )
+        code, error_type, message = handle_db_error(e, "fetch performance analytics")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get performance metrics endpoint")
-def _get_performance_metrics_endpoint(cur) -> Dict:
+def _get_performance_metrics_endpoint(cur) -> dict:
     """Return latest performance metrics."""
     cur.execute("""
         SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
@@ -644,7 +622,7 @@ def _get_performance_metrics_endpoint(cur) -> Dict:
 
 
 @db_route_handler("get portfolio summary")
-def _get_portfolio_summary(cur) -> Dict:
+def _get_portfolio_summary(cur) -> dict:
     """Return portfolio summary with current value and allocation."""
     cur.execute("""
         SELECT total_portfolio_value, total_cash, total_equity, position_count, daily_return_pct
@@ -691,7 +669,7 @@ def _get_portfolio_summary(cur) -> Dict:
     )
 
 @db_route_handler("get risk metrics")
-def _get_risk_metrics(cur) -> Dict:
+def _get_risk_metrics(cur) -> dict:
     """Get portfolio risk metrics."""
     _null_response = {
         "report_date": None,
@@ -731,18 +709,18 @@ def _get_risk_metrics(cur) -> Dict:
         except Exception:
             pass
         return success_response(_null_response)
-    except Exception as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
         except Exception:
             pass
-        logger.error(f"Risk metrics fetch error: {type(e).__name__}: {e}")
-        return error_response(503, "service_unavailable", "Risk metrics unavailable")
+        code, error_type, message = handle_db_error(e, "fetch risk metrics")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get stage distribution")
-def _get_stage_distribution(cur) -> Dict:
+def _get_stage_distribution(cur) -> dict:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
         SELECT
@@ -775,7 +753,7 @@ def _get_stage_distribution(cur) -> Dict:
 
 
 @db_route_handler("get trade distribution")
-def _get_trade_distribution(cur) -> Dict:
+def _get_trade_distribution(cur) -> dict:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""
         SELECT exit_r_multiple

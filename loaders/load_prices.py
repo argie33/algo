@@ -1844,7 +1844,7 @@ class PriceLoader(OptimalLoader):
                             },
                         )
         except Exception as e:
-            logger.debug("metrics unavailable: %s", e)
+            logger.debug(f"metrics unavailable: {e}")
 
         try:
 

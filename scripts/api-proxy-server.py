@@ -44,13 +44,10 @@ try:
 
     _handler = lambda_function.lambda_handler
     logger.info(
-        "Lambda handler loaded — DB_HOST=%s DB_PORT=%s DB_NAME=%s",
-        os.environ["DB_HOST"],
-        os.environ["DB_PORT"],
-        os.environ["DB_NAME"],
+        f"Lambda handler loaded — DB_HOST={os.environ['DB_HOST']} DB_PORT={os.environ['DB_PORT']} DB_NAME={os.environ['DB_NAME']}"
     )
 except Exception as _err:
-    logger.error("Failed to import lambda_function: %s", _err, exc_info=True)
+    logger.error(f"Failed to import lambda_function: {_err}", exc_info=True)
     _handler = None
 
 
@@ -130,7 +127,7 @@ class _APIHandler(BaseHTTPRequestHandler):
         try:
             result = _handler(event, _MockContext())
         except Exception as exc:
-            logger.error("Handler raised: %s", exc, exc_info=True)
+            logger.error(f"Handler raised: {exc}", exc_info=True)
             result = {"statusCode": 500, "body": json.dumps({"error": str(exc)})}
 
         status = result.get("statusCode", 200)
@@ -179,13 +176,13 @@ class _APIHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         status = args[1] if len(args) >= 2 else "?"
-        logger.info("%s %s -> %s", self.command, self.path, status)
+        logger.info(f"{self.command} {self.path} -> {status}")
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("LOCAL_API_PORT", "3001"))
     httpd = HTTPServer(("127.0.0.1", port), _APIHandler)
-    logger.info("Local API server on http://localhost:%d", port)
+    logger.info(f"Local API server on http://localhost:{port}")
     logger.info(
         "Requests routed through lambda_function.lambda_handler → local PostgreSQL"
     )
