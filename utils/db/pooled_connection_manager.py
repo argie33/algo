@@ -14,7 +14,6 @@ With 50 loaders: 250-500 creates/releases per cycle → 50 creates/releases per 
 import logging
 import threading
 import time
-from typing import Optional
 
 import psycopg2
 import psycopg2.pool
@@ -45,7 +44,7 @@ class PoolSemaphore:
         self._lock = threading.Lock()
 
     def acquire(
-        self, loader_name: str = "unknown", timeout: Optional[int] = None
+        self, loader_name: str = "unknown", timeout: int | None = None
     ) -> bool:
         """Try to acquire a slot from the pool.
 
@@ -131,10 +130,10 @@ class PooledConnectionManager:
         self.loader_name = loader_name
         self.timeout_sec = timeout_sec
         self._conn = None
-        self._acquired_at: Optional[float] = None
+        self._acquired_at: float | None = None
         self._lock = threading.Lock()
 
-    def acquire(self) -> Optional[psycopg2.extensions.connection]:
+    def acquire(self) -> psycopg2.extensions.connection | None:
         """Acquire a connection from the pool for this loader.
 
         Implements backpressure:
@@ -228,14 +227,16 @@ class PooledConnectionManager:
                     )
                     try:
                         self._conn.close()
-                    except Exception:
-                        pass
+                    except Exception as close_err:
+                        raise RuntimeError(
+                            f"[{self.loader_name}] Failed to close connection after putconn failure: {close_err}"
+                        ) from close_err
             finally:
                 self._conn = None
                 self._acquired_at = None
                 _pool_semaphore.release(self.loader_name)
 
-    def get_connection(self) -> Optional[psycopg2.extensions.connection]:
+    def get_connection(self) -> psycopg2.extensions.connection | None:
         """Get the currently-held connection (if any).
 
         Returns:

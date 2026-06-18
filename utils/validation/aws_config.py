@@ -17,7 +17,6 @@ Validates:
 import logging
 import os
 from datetime import date, datetime
-from typing import Dict
 
 
 logger = logging.getLogger(__name__)
@@ -265,7 +264,7 @@ class AWSProductionConfigValidator:
                 "Cannot verify error fallback utilities."
             ) from e
 
-    def run_all_validations(self) -> Dict[str, any]:
+    def run_all_validations(self) -> dict[str, any]:
         """Run all configuration validations."""
         logger.info("=" * 70)
         logger.info("AWS PRODUCTION CONFIGURATION VALIDATION")

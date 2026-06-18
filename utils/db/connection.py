@@ -24,7 +24,7 @@ project_root = str(
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from config.credential_manager import get_db_config
+from config.credential_manager import get_db_config  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -206,8 +206,8 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                 logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
                 try:
                     pool.putconn(conn, close=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
                 continue
 
             return TrackedConnection(conn, pool=pool)

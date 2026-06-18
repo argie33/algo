@@ -877,8 +877,10 @@ class OptimalLoader(ABC):
                                 )
                         finally:
                             set_pooled_connection(_saved)
-                    except Exception:
-                        pass
+                    except Exception as handler_err:
+                        raise RuntimeError(
+                            f"[{self.table_name}] Failure handler itself failed: {handler_err}"
+                        ) from handler_err
                     return False
 
                 logger.info(
