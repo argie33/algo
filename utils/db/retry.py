@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Database Operation Retry Helper
 
@@ -19,7 +19,7 @@ T = TypeVar("T")
 def _get_retry_delay(attempt: int, base_delay_ms: int = 100, max_delay_ms: int = 5000) -> float:
     delay_ms = base_delay_ms * (2**attempt)
     delay_ms = min(delay_ms, max_delay_ms)
-    return delay_ms / 1000.0
+    return float(delay_ms / 1000.0)
 
 
 class OptimisticLockRetry:

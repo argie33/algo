@@ -1,4 +1,4 @@
-﻿"""Pydantic models for API request bodies - single source of truth for request validation."""
+"""Pydantic models for API request bodies - single source of truth for request validation."""
 
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
