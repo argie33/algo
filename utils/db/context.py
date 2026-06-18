@@ -36,6 +36,12 @@ class _CorrelationIdCursor:
 
     def execute(self, query: str, args=None):
         """Execute with correlation_id comment appended."""
+        # For psycopg2.sql objects with arguments, don't convert to string
+        # (breaks parameter binding). Just pass the object directly.
+        if hasattr(query, "as_string") and args is not None:
+            return self.cursor.execute(query, args)
+
+        # For string queries or parameterless SQL objects, append comment
         query_str = (
             query.as_string(self.cursor)
             if hasattr(query, "as_string")
