@@ -2458,6 +2458,16 @@ def main():
 
                         loader.close()
                     except Exception as e:
+                        logger.error(
+                            f"[MAIN] Loader failed for {asset_class}/{interval}: {e}",
+                            exc_info=True,
+                        )
+                        try:
+                            _invalidate_phase1_cache()
+                        except RuntimeError as cache_err:
+                            logger.critical(
+                                f"[MAIN] Cache invalidation failed on loader error: {cache_err}"
+                            )
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
