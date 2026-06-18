@@ -120,7 +120,7 @@ class Orchestrator:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT 1")
             return True
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
             logger.error(f"  [ERROR] Database connectivity check failed: {e}")
             return False
 
@@ -169,8 +169,8 @@ class Orchestrator:
                 {"action": "manual_intervention_required"},
             )
         except Exception as alert_err:
-            logger.warning(
-                f"Could not send halt flag unavailability alert: {alert_err}"
+            logger.error(
+                f"Could not send halt flag unavailability alert (trading halted): {alert_err}"
             )
 
         # Emit metric for monitoring
@@ -179,8 +179,8 @@ class Orchestrator:
 
             MetricsPublisher().add_metric("HaltFlagCheckFailure", 1, unit="Count")
         except Exception as metric_err:
-            logger.warning(
-                f"Could not emit halt flag check failure metric: {metric_err}"
+            logger.debug(
+                f"Could not emit halt flag check failure metric (non-critical): {metric_err}"
             )
 
         # Return True (halt condition) to fail-closed
@@ -207,7 +207,7 @@ class Orchestrator:
                     {"reason": reason},
                 )
             except Exception as alert_err:
-                logger.warning(f"Could not send halt flag set alert: {alert_err}")
+                logger.error(f"Could not send halt flag set alert: {alert_err}")
 
         return success
 
@@ -247,7 +247,7 @@ class Orchestrator:
                     f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections"
                 )
                 check_stuck_connections()
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             logger.debug(f"Could not check connection pool health: {e}")
 
     def _health_check_diagnostics(self) -> None:

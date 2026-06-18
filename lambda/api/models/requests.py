@@ -4,6 +4,23 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 import re
 
+SYMBOL_PATTERN = r"^[A-Z0-9\-\^]{1,10}$"
+EMAIL_PATTERN = re.compile(
+    r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
+)
+XSS_PATTERNS = [
+    r"<script",
+    r"<iframe",
+    r"<embed",
+    r"<object",
+    r"<img[\s/]",
+    r"<svg\s+[^>]*on",
+    r"javascript:",
+    r"vbscript:",
+    r"data:text/html",
+    r"on\w+[\s/]*=",
+]
+
 
 class TradePreviewRequest(BaseModel):
     """Request model for POST /api/algo/preview - Calculate position preview before trade entry."""
@@ -51,11 +68,7 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        # Same pattern used in contact.py for consistency
-        email_pattern = re.compile(
-            r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
-        )
-        if not email_pattern.match(v):
+        if not EMAIL_PATTERN.match(v):
             raise ValueError("Invalid email format")
         return v
 
@@ -84,20 +97,7 @@ class ContactSubmissionRequest(BaseModel):
             return v
 
         field_name = info.field_name
-        xss_patterns = [
-            r"<script",
-            r"<iframe",
-            r"<embed",
-            r"<object",
-            r"<img[\s/]",
-            r"<svg\s+[^>]*on",
-            r"javascript:",
-            r"vbscript:",
-            r"data:text/html",
-            r"on\w+[\s/]*=",
-        ]
-
-        for pattern in xss_patterns:
+        for pattern in XSS_PATTERNS:
             if re.search(pattern, v, re.IGNORECASE):
                 raise ValueError(f"{field_name} contains invalid content")
 
@@ -141,7 +141,7 @@ class PreTradeImpactRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
+        if not re.match(SYMBOL_PATTERN, v.upper()):
             raise ValueError(
                 "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
             )
@@ -169,7 +169,7 @@ class ManualTradeRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
+        if not re.match(SYMBOL_PATTERN, v.upper()):
             raise ValueError(
                 "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
             )

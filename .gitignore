@@ -85,6 +85,11 @@ playwright-report/
 test_results.json
 aws_test_results.json
 
+# Type checking caches
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
 # IDE
 .vscode/
 .idea/
@@ -105,9 +110,15 @@ venv*/
 
 # Screenshots (local dev / review only — not source code)
 screenshots/
+*.screenshot.png
+*.screenshot.jpg
+*.screenshot.webp
 webapp/frontend/screenshots/*.png
 webapp/frontend/screenshots/*.jpg
 webapp/frontend/screenshots/*.webp
+webapp/frontend/screenshot-*.png
+webapp/frontend/screenshot-*.jpg
+webapp/frontend/screenshot-*.webp
 
 # Runtime artifacts (local-only)
 .algo_orchestrator.lock
@@ -144,6 +155,8 @@ override.tf.json
 tfplan
 *.tfplan
 terraform/plan_output.txt
+terraform/errored.tfstate
+terraform/lambda_api.zip
 
 # Serverless Framework
 .serverless/

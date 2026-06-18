@@ -52,6 +52,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         from datetime import datetime, timezone
 
         self._batch_context = {}
+
         try:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
@@ -83,7 +84,6 @@ class SwingTraderScoresLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Batch context preparation failed: {e}")
             self._batch_context = {}
-
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute swing trader scores with 7-component breakdown.
 
@@ -180,9 +180,9 @@ class SwingTraderScoresLoader(OptimalLoader):
                     SELECT
                         sqs.symbol,
                         sqs.date,
-                        COALESCE(sqs.composite_sqs, 0) AS composite_sqs,
-                        COALESCE(td.minervini_trend_score, 0) AS minervini_score,
-                        COALESCE(td.weinstein_stage, 0) AS weinstein_stage,
+                        sqs.composite_sqs,
+                        td.minervini_trend_score,
+                        td.weinstein_stage,
                         tdd.rsi,
                         tdd.roc_20d,
                         tdd.mansfield_rs
@@ -263,8 +263,10 @@ class SwingTraderScoresLoader(OptimalLoader):
                 trend = 50.0
             elif stage == 3:
                 trend = 25.0
-            else:
+            elif stage is not None:
                 trend = 0.0
+            else:
+                trend = None
 
             # Momentum: RSI in the 40-70 sweet spot (below 40 = weak, above 70 = extended)
             rsi_f = float(rsi) if rsi is not None else 50.0
@@ -281,40 +283,77 @@ class SwingTraderScoresLoader(OptimalLoader):
             volume = max(0.0, min(100.0, 50.0 + roc * 2.5))
 
             # Fundamentals: use overall composite as best available proxy
-            fundamentals = composite
+            fundamentals: float | None = composite
 
             # Sector: Mansfield RS if available (positive RS = sector leadership)
+            sector: float | None = None
             if mansfield_rs is not None:
                 rs = float(mansfield_rs)
                 # Mansfield RS: 0 = at par, positive = outperforming, negative = underperforming
                 sector = max(0.0, min(100.0, 50.0 + rs * 5.0))
             else:
-                sector = composite  # fallback
+                # Fallback to composite if available
+                sector = composite
 
             # Multi-timeframe: blend of trend + momentum (confirming at multiple scales)
-            multi_tf = trend * 0.6 + momentum * 0.4
+            trend_val = trend if trend is not None else 0.0
+            momentum_val = momentum if momentum is not None else 0.0
+            multi_tf_val = trend_val * 0.6 + momentum_val * 0.4
+            # Only report multi_tf if at least one component is available
+            multi_tf = multi_tf_val if (trend is not None or momentum is not None) else None
 
-            # Compute weighted score (0-100) matching SwingTraderScore weights:
-            # setup=25, trend=20, momentum=20, volume=12, fundamentals=10, sector=8, multi_tf=5
+            # Compute weighted score with normalized weights for missing components.
+            # Base weights: setup=25, trend=20, momentum=20, volume=12, fundamentals=10, sector=8, multi_tf=5
+            base_weights = {
+                "setup": 25,
+                "trend": 20,
+                "momentum": 20,
+                "volume": 12,
+                "fundamentals": 10,
+                "sector": 8,
+                "multi_tf": 5,
+            }
+
+            # Track which components are available (not None)
+            available = {
+                "setup": setup is not None,
+                "trend": trend is not None,
+                "momentum": momentum is not None,
+                "volume": True,  # volume always computed (defaults to 50 if roc is None)
+                "fundamentals": fundamentals is not None,
+                "sector": sector is not None,
+                "multi_tf": multi_tf is not None,
+            }
+
+            # Normalize weights: redistribute missing component weights to available components
+            available_weight_sum = sum(w for k, w in base_weights.items() if available[k])
+            normalized_weights = {}
+            for key, weight in base_weights.items():
+                if available[key] and available_weight_sum > 0:
+                    normalized_weights[key] = weight / available_weight_sum * 100
+                else:
+                    normalized_weights[key] = 0
+
+            # Compute weighted score using only non-None components
             weighted_score = (
-                (setup / 100.0) * 25
-                + (trend / 100.0) * 20
-                + (momentum / 100.0) * 20
-                + (volume / 100.0) * 12
-                + (fundamentals / 100.0) * 10
-                + (sector / 100.0) * 8
-                + (multi_tf / 100.0) * 5
+                ((setup or 0) / 100.0) * normalized_weights["setup"]
+                + ((trend or 0) / 100.0) * normalized_weights["trend"]
+                + ((momentum or 0) / 100.0) * normalized_weights["momentum"]
+                + ((volume or 0) / 100.0) * normalized_weights["volume"]
+                + ((fundamentals or 0) / 100.0) * normalized_weights["fundamentals"]
+                + ((sector or 0) / 100.0) * normalized_weights["sector"]
+                + ((multi_tf or 0) / 100.0) * normalized_weights["multi_tf"]
             )
 
             grade = GradeClassifier.classify_swing_score(weighted_score)
 
-            pass_gates = composite >= 75
+            pass_gates = composite is not None and composite >= 75
             fail_reason = (
                 None
                 if pass_gates
                 else (
                     "Low composite score"
-                    if composite < 45
+                    if composite is None or composite < 45
                     else "Below quality threshold"
                 )
             )
@@ -326,44 +365,44 @@ class SwingTraderScoresLoader(OptimalLoader):
                 "components": json.dumps(
                     {
                         "grade": grade,
-                        "composite_sqs": round(composite, 1),
+                        "composite_sqs": round(composite, 1) if composite is not None else None,
                         "pass_gates": pass_gates,
                         "fail_reason": fail_reason,
                         # Raw 0-100 scores — used by SwingCandidates.jsx component bars
-                        "setup": round(setup, 1),
-                        "trend": round(trend, 1),
-                        "momentum": round(momentum, 1),
+                        "setup": round(setup, 1) if setup is not None else None,
+                        "trend": round(trend, 1) if trend is not None else None,
+                        "momentum": round(momentum, 1) if momentum is not None else None,
                         "volume": round(volume, 1),
-                        "fundamentals": round(fundamentals, 1),
-                        "sector": round(sector, 1),
-                        "multi_tf": round(multi_tf, 1),
+                        "fundamentals": round(fundamentals, 1) if fundamentals is not None else None,
+                        "sector": round(sector, 1) if sector is not None else None,
+                        "multi_tf": round(multi_tf, 1) if multi_tf is not None else None,
                         # Weighted pts breakdown — used by algo_filter_pipeline.py
                         "setup_quality": {
-                            "pts": round((setup / 100.0) * 25, 1),
+                            "pts": round((setup or 0) / 100.0 * 25, 1),
                             "max": 25,
                         },
                         "trend_quality": {
-                            "pts": round((trend / 100.0) * 20, 1),
+                            "pts": round((trend or 0) / 100.0 * 20, 1),
                             "max": 20,
                         },
                         "momentum_rs": {
-                            "pts": round((momentum / 100.0) * 20, 1),
+                            "pts": round((momentum or 0) / 100.0 * 20, 1),
                             "max": 20,
                         },
                         "volume_quality": {
-                            "pts": round((volume / 100.0) * 12, 1),
+                            "pts": round((volume or 0) / 100.0 * 12, 1),
                             "max": 12,
                         },
                         "fundamentals_quality": {
-                            "pts": round((fundamentals / 100.0) * 10, 1),
+                            "pts": round((fundamentals or 0) / 100.0 * 10, 1),
                             "max": 10,
                         },
                         "sector_industry": {
-                            "pts": round((sector / 100.0) * 8, 1),
+                            "pts": round((sector or 0) / 100.0 * 8, 1),
                             "max": 8,
                         },
                         "multi_timeframe": {
-                            "pts": round((multi_tf / 100.0) * 5, 1),
+                            "pts": round((multi_tf or 0) / 100.0 * 5, 1),
                             "max": 5,
                         },
                     }

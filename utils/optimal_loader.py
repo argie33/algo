@@ -761,6 +761,21 @@ class OptimalLoader(ABC):
         except (ValueError, TypeError):
             return None
 
+    def _read_symbol_watermark(self, symbol: str) -> Optional[date]:
+        """Read per-symbol watermark from table. Returns None if not found or on error."""
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT MAX({self.watermark_field}) FROM {assert_safe_table(self.table_name)} WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return self._parse_watermark_date(row[0])
+        except Exception as e:
+            logger.debug(f"Could not read watermark for {symbol}: {e}")
+        return None
+
     # ---- Top-level orchestration ----
 
     def _check_upstream_completeness(self, expected_symbols: int) -> bool:

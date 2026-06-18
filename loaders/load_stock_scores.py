@@ -77,18 +77,15 @@ class StockScoresLoader(OptimalLoader):
 
             # Count data completeness: only non-None scores count as "real data"
             # (ignores empty rows with all NULLs which return None from scoring functions)
-            real_scores = [
-                s
-                for s in [
-                    quality_score,
-                    growth_score,
-                    value_score,
-                    positioning_score,
-                    stability_score,
-                    momentum_score,
-                ]
-                if s is not None
+            all_scores = [
+                quality_score,
+                growth_score,
+                value_score,
+                positioning_score,
+                stability_score,
+                momentum_score,
             ]
+            real_scores = [s for s in all_scores if s is not None]
             data_count = len(real_scores)
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
@@ -118,18 +115,6 @@ class StockScoresLoader(OptimalLoader):
                 "momentum": 0.08,
             }
 
-            real_scores = [
-                s
-                for s in [
-                    quality_score,
-                    growth_score,
-                    value_score,
-                    positioning_score,
-                    stability_score,
-                    momentum_score,
-                ]
-                if s is not None
-            ]
             if not real_scores:
                 return None  # No real data at all
 
@@ -373,18 +358,18 @@ class StockScoresLoader(OptimalLoader):
             scores.append(min(100, max(0, (roe / 40) * 100)))
 
         # ROA: higher is better (target 5%+, cap at 20%)
-        if metrics.get("roa") and metrics["roa"] > 0:
-            roa = min(metrics["roa"], 20)
+        if metrics.get("roa") is not None:
+            roa = min(max(0, metrics["roa"]), 20)
             scores.append(min(100, (roa / 20) * 100))
 
         # Net margin: higher is better (target 10%+, cap at 30%)
-        if metrics.get("net_margin") and metrics["net_margin"] > 0:
-            nm = min(metrics["net_margin"], 30)
+        if metrics.get("net_margin") is not None:
+            nm = min(max(0, metrics["net_margin"]), 30)
             scores.append(min(100, (nm / 30) * 100))
 
         # Operating margin: higher is better (target 10%+, cap at 30%)
-        if metrics.get("operating_margin") and metrics["operating_margin"] > 0:
-            om = min(metrics["operating_margin"], 30)
+        if metrics.get("operating_margin") is not None:
+            om = min(max(0, metrics["operating_margin"]), 30)
             scores.append(min(100, (om / 30) * 100))
 
         # Debt-to-equity: lower is better (target <1.0)
@@ -394,8 +379,8 @@ class StockScoresLoader(OptimalLoader):
             scores.append(min(100, score))
 
         # Current ratio: above 1.5 is good, above 2.0 is excellent
-        if metrics.get("current_ratio") and metrics["current_ratio"] > 0:
-            cr = metrics["current_ratio"]
+        if metrics.get("current_ratio") is not None:
+            cr = max(0, metrics["current_ratio"])
             if cr >= 2.0:
                 scores.append(100)
             elif cr >= 1.5:
@@ -572,8 +557,8 @@ class StockScoresLoader(OptimalLoader):
 
         # 12-month (252-day) annualized volatility: lower is better
         # Swing traders can tolerate moderate volatility; penalty starts above 25%
-        if metrics.get("volatility_252d") and metrics["volatility_252d"] > 0:
-            vol = metrics["volatility_252d"]
+        if metrics.get("volatility_252d") is not None:
+            vol = max(0, metrics["volatility_252d"])
             if vol <= 0.15:
                 vol_score = 100
             elif vol <= 0.30:
@@ -586,8 +571,8 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.50
 
         # 60-day volatility: recent stability proxy (higher weight than 12m for swing traders)
-        if metrics.get("volatility_60d") and metrics["volatility_60d"] > 0:
-            vol60 = metrics["volatility_60d"]
+        if metrics.get("volatility_60d") is not None:
+            vol60 = max(0, metrics["volatility_60d"])
             if vol60 <= 0.15:
                 v60_score = 100
             elif vol60 <= 0.30:
@@ -600,8 +585,8 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.25
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading
-        if metrics.get("beta") and metrics["beta"] > 0:
-            beta = metrics["beta"]
+        if metrics.get("beta") is not None:
+            beta = max(0, metrics["beta"])
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
             weighted_sum += beta_score * 0.15
