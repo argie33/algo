@@ -7,9 +7,28 @@ Validates that:
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+
+# =====================================================================
+# External API Rate Limits
+# =====================================================================
+
+YFINANCE_REQUESTS_PER_MINUTE = 160
+YFINANCE_BATCH_SIZE_MAX = 200
+YFINANCE_SAFE_MARGIN = 0.8
+
+FRED_REQUESTS_PER_SECOND = 5
+
+# Validation thresholds
+MAX_VALIDATION_DURATION_SECONDS = 300  # 5 minutes
+CIRCUIT_BREAK_THRESHOLD_SECONDS = 180  # Min threshold for circuit breaker
+CIRCUIT_BREAK_RECOMMENDED_SECONDS = 300  # Recommended minimum
+
+# Default parameters
+DEFAULT_SYMBOL_COUNT = 5000
+DEFAULT_HEALTH_CHECK_TICKER = "SPY"
 
 
 class RateLimitValidator:
@@ -18,19 +37,19 @@ class RateLimitValidator:
     def __init__(self):
         # Rate limit specifications
         self.yfinance_limit = {
-            "requests_per_minute": 160,
-            "batch_size_max": 200,  # symbols per batch
-            "safe_margin": 0.8,  # Use only 80% of limit
+            "requests_per_minute": YFINANCE_REQUESTS_PER_MINUTE,
+            "batch_size_max": YFINANCE_BATCH_SIZE_MAX,
+            "safe_margin": YFINANCE_SAFE_MARGIN,
         }
 
         self.fred_limit = {
-            "requests_per_second": 5,
+            "requests_per_second": FRED_REQUESTS_PER_SECOND,
             "single_endpoint": True,
         }
 
     def estimate_yfinance_calls_needed(
-        self, symbol_count: int = 5000
-    ) -> Dict[str, any]:
+        self, symbol_count: int = DEFAULT_SYMBOL_COUNT
+    ) -> Dict[str, Any]:
         """Estimate how many yfinance API calls needed for full dataset.
 
         For 5000 symbols:
@@ -66,9 +85,9 @@ class RateLimitValidator:
                 f"limit is {rpm_limit} req/min"
             )
 
-        if estimated_sec > 300:  # 5 minutes
+        if estimated_sec > MAX_VALIDATION_DURATION_SECONDS:
             issues.append(
-                f"Estimated time {estimated_sec:.0f}s exceeds 5-minute window - "
+                f"Estimated time {estimated_sec:.0f}s exceeds {MAX_VALIDATION_DURATION_SECONDS}-second window - "
                 "consider reducing symbol count or increasing batch size"
             )
 
@@ -83,7 +102,7 @@ class RateLimitValidator:
             "issues": issues,
         }
 
-    def check_api_health(self) -> Dict[str, any]:
+    def check_api_health(self) -> Dict[str, Any]:
         """Quick health check for critical APIs.
 
         Returns:
@@ -94,8 +113,8 @@ class RateLimitValidator:
                 'issues': [str]
             }
         """
-        issues = []
-        health = {
+        issues: list[str] = []
+        health: Dict[str, Any] = {
             "yfinance_available": False,
             "fred_available": False,
         }
@@ -104,8 +123,8 @@ class RateLimitValidator:
         try:
             import yfinance
 
-            # Quick test: try to fetch SPY info (lightweight)
-            ticker = yfinance.Ticker("SPY")
+            # Quick test: try to fetch ticker info (lightweight)
+            ticker = yfinance.Ticker(DEFAULT_HEALTH_CHECK_TICKER)
             info = ticker.info
             if info and "currentPrice" in info:
                 health["yfinance_available"] = True
@@ -134,7 +153,7 @@ class RateLimitValidator:
 
         return health
 
-    def validate_rate_limit_handling(self) -> Dict[str, any]:
+    def validate_rate_limit_handling(self) -> Dict[str, Any]:
         """Validate that loaders handle rate limiting gracefully.
 
         Returns:
@@ -157,11 +176,13 @@ class RateLimitValidator:
                 issues.append("Rate limiter not initialized")
 
             # Check 2: Circuit breaker threshold appropriate
-            threshold = getattr(loader, "_rate_limit_circuit_break_threshold", 180)
-            if threshold < 180:
+            threshold = getattr(
+                loader, "_rate_limit_circuit_break_threshold", CIRCUIT_BREAK_THRESHOLD_SECONDS
+            )
+            if threshold < CIRCUIT_BREAK_THRESHOLD_SECONDS:
                 recommendations.append(
                     f"Rate limit circuit break threshold {threshold}s may be too aggressive - "
-                    "recommend 300+ for recovery time"
+                    f"recommend {CIRCUIT_BREAK_RECOMMENDED_SECONDS}+ for recovery time"
                 )
 
             # Check 3: Exponential backoff configured
