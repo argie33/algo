@@ -46,6 +46,9 @@ class SignalsDailyLoader(OptimalLoader):
 
         Instead of querying these 10,506 times (once per symbol), query them once
         and cache in _batch_context.
+
+        BUGFIX: Use the most recent date with actual price_daily data, not the market calendar date.
+        Market calendar can say a date is a trading day but data hasn't been loaded yet.
         """
         from datetime import datetime, timezone
 
@@ -61,6 +64,18 @@ class SignalsDailyLoader(OptimalLoader):
                 end = end - timedelta(days=1)
 
             with DatabaseContext("read") as cur:
+                # Use the most recent date with price_daily data, not just the market calendar date
+                cur.execute(
+                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                    (end,),
+                )
+                price_max_date_row = cur.fetchone()
+                price_max_date = price_max_date_row[0] if price_max_date_row and price_max_date_row[0] else None
+
+                # If there's no price data on the calculated end date, use the most recent available
+                if price_max_date:
+                    end = price_max_date
+
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                     (end,),
@@ -122,20 +137,42 @@ class SignalsDailyLoader(OptimalLoader):
                 end = end - timedelta(days=1)
 
         # On ECS restart the in-memory watermark is empty, so since=None.
-        # Use cached global watermark from batch context (computed once for all symbols).
-        # This avoids per-symbol database queries and prevents 10k+ duplicate reads.
+        # Read symbol-specific watermark from buy_sell_daily table to avoid regenerating signals.
+        # BUGFIX: Use per-symbol watermark, not global watermark. Different symbols generate signals
+        # on different schedules - some may have max_date=2026-06-03, others 2026-06-17.
+        # Using global watermark caused symbols like AAPL to be skipped even when behind.
         if since is None:
-            watermark_date = (
-                self._batch_context.get("watermark_date")
-                if self._batch_context
-                else None
-            )
-            if watermark_date:
-                since = (
-                    watermark_date
-                    if isinstance(watermark_date, date)
-                    else date.fromisoformat(str(watermark_date))
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        max_date = row[0]
+                        # Handle different date types from database
+                        if isinstance(max_date, date) and not isinstance(max_date, datetime):
+                            since = max_date
+                        elif isinstance(max_date, datetime):
+                            since = max_date.date()
+                        else:
+                            # Try string conversion as fallback
+                            since = date.fromisoformat(str(max_date).split(' ')[0])
+            except Exception as e:
+                logger.debug(f"Could not read buy_sell_daily watermark for {symbol}: {e}")
+                # Fallback to global watermark if query fails
+                watermark_date = (
+                    self._batch_context.get("watermark_date")
+                    if self._batch_context
+                    else None
                 )
+                if watermark_date:
+                    since = (
+                        watermark_date
+                        if isinstance(watermark_date, date)
+                        else date.fromisoformat(str(watermark_date))
+                    )
 
         if since is None:
             start = end - timedelta(days=30)
@@ -254,7 +291,13 @@ class SignalsDailyLoader(OptimalLoader):
 
         # Filter to incremental range if needed
         if since is not None:
-            signals = [s for s in signals if s["date"] > since]
+            from utils.validation import safe_parse_date
+            filtered_signals = []
+            for s in signals:
+                signal_date = safe_parse_date(s["date"], "signal filtering")
+                if signal_date and signal_date > since:
+                    filtered_signals.append(s)
+            signals = filtered_signals
 
         return signals
 

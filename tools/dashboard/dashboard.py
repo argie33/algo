@@ -194,34 +194,53 @@ def _fetch_terraform_credentials():
             subprocess.run(
                 ["terraform", "--version"], capture_output=True, timeout=5, check=True
             )
-        except (FileNotFoundError, subprocess.CalledProcessError):
+        except FileNotFoundError:
             logger.warning(
-                "Terraform not available - use launcher script or set env vars manually"
+                "Terraform not installed - use launcher script or set env vars manually"
+            )
+            return (None, None, None)
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "Terraform check timed out (running but slow) - use launcher script or set env vars manually"
+            )
+            return (None, None, None)
+        except subprocess.CalledProcessError as e:
+            logger.warning(
+                "Terraform version check failed (code %d) - may be misconfigured",
+                e.returncode,
             )
             return (None, None, None)
 
         # Initialize if needed
         if not os.path.exists(os.path.join(tf_dir, ".terraform")):
             logger.debug("Initializing Terraform...")
-            result = subprocess.run(
-                ["terraform", "init", "-backend=true"],
-                cwd=tf_dir,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode != 0:
-                logger.warning("Terraform init failed - may need manual setup")
+            try:
+                result = subprocess.run(
+                    ["terraform", "init", "-backend=true"],
+                    cwd=tf_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    logger.warning("Terraform init failed - may need manual setup")
+                    return (None, None, None)
+            except subprocess.TimeoutExpired:
+                logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
                 return (None, None, None)
 
         # Fetch outputs
-        result = subprocess.run(
-            ["terraform", "output", "-json"],
-            cwd=tf_dir,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                ["terraform", "output", "-json"],
+                cwd=tf_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
+            return (None, None, None)
 
         if result.returncode != 0:
             logger.warning("Terraform output failed: %s", result.stderr[:100])
