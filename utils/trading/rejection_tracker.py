@@ -19,8 +19,10 @@ class RejectionTracker:
             with DatabaseContext("write") as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(
+                f"Database operation failed: {e}. "
+                "Cannot proceed without rejection tracking database."
+            ) from e
 
     def __init__(self):
         pass
@@ -185,7 +187,7 @@ class RejectionTracker:
         """Get top rejection reasons for a specific tier."""
 
         def _get_reasons(cur):
-            col_name = f"tier_{tier}_reason"
+            col_name = f"tier_{tier}_reason"  # noqa: F841
             cur.execute(
                 """
                 SELECT
@@ -217,8 +219,10 @@ class RejectionTracker:
         try:
             return self._with_cursor(_get_reasons) or []
         except Exception as e:
-            logger.error(f"Failed to get rejection reasons for tier {tier}: {e}")
-            return []
+            raise RuntimeError(
+                f"Failed to get rejection reasons for tier {tier}: {e}. "
+                "Cannot proceed without rejection analysis."
+            ) from e
 
     def get_signals_by_rejection_status(self, eval_date: date):
         """Get summary of signals by whether they were rejected and at which tier."""
@@ -255,5 +259,7 @@ class RejectionTracker:
         try:
             return self._with_cursor(_get_status) or {}
         except Exception as e:
-            logger.error(f"Failed to get rejection summary: {e}")
-            return {}
+            raise RuntimeError(
+                f"Failed to get rejection summary: {e}. "
+                "Cannot proceed without rejection status tracking."
+            ) from e
