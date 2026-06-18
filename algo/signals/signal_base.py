@@ -36,8 +36,7 @@ class SignalBase:
             with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def clear_cache(self):
         """Clear RS percentile cache to prevent stale data."""

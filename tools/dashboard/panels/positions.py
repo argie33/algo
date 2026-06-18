@@ -1,7 +1,7 @@
 """Position panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +21,17 @@ from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
-
+from ..formatters import (
+    fmt_age,
+    fmt_money_short,
+    sign,
+)
 from ..utilities import (
-    normalize_positions_data,
     G,
     R,
     Y,
-    DIM,
+    normalize_positions_data,
 )
-from ..formatters import (
-    fmt_money,
-    fmt_money_short,
-    sign,
-    fmt_age,
-)
-
-from ._helpers import _error_panel
 
 
 @register_panel(

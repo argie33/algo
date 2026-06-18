@@ -1,8 +1,7 @@
 """Economic indicators and calendar panel functions."""
 
-import json
 import logging
-from datetime import datetime, timedelta
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,6 @@ except ImportError as e:
             return args[0]
         return lambda fn: fn
 
-from rich import box
 from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
@@ -26,12 +24,7 @@ from ..utilities import (
     G,
     R,
     Y,
-    DIM,
 )
-from ..formatters import (
-    fmt_age,
-)
-
 from ._helpers import _error_panel
 
 

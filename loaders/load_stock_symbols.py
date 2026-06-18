@@ -134,8 +134,7 @@ class StockSymbolsLoader(OptimalLoader):
             return rows if rows else None
 
         except Exception as e:
-            logger.error(f"Failed to fetch symbols: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _upsert_etf_symbols(self, etf_rows: List[dict]) -> None:
         """Replace ETF symbols in etf_symbols table to keep it in sync with source data.

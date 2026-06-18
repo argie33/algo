@@ -2,13 +2,15 @@
 """Monitor algo orchestrator execution - query RDS and Alpaca for results."""
 
 import json
-import os
-import psycopg2
 import logging
+import os
 import sys
-from datetime import datetime, date, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+import psycopg2
 from psycopg2.extras import RealDictCursor
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -26,8 +28,7 @@ def get_rds_credentials():
 
         return get_db_credentials()
     except Exception as e:
-        logger.error(f"Failed to get RDS credentials: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def query_rds_signals(credentials):

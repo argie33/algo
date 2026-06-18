@@ -652,8 +652,7 @@ class Orchestrator:
             return True
 
         except Exception as e:
-            logger.error(f"[TABLE-CHECK] Error validating tables: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     # ---------- Logging helpers ----------
 

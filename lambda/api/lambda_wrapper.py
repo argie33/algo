@@ -35,8 +35,7 @@ class LambdaAPIClient:
             try:
                 self.client = boto3.client("lambda", region_name=self.region)
             except Exception as e:
-                logger.warning(f"Could not create Lambda client: {e}")
-                return None
+            raise RuntimeError(f"Operation failed: {e}") from e
         return self.client
 
     def invoke(

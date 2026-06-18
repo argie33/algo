@@ -4,17 +4,18 @@
 import sys
 from pathlib import Path
 
+
 # Add project root to path
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
 from utils.rate_limiting import (
-    check_admin_rate_limit,
     ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
     PUBLIC_RATE_LIMITS,
     _admin_rate_limits,
     _public_rate_limits,
+    check_admin_rate_limit,
+    check_public_rate_limit,
 )
 
 

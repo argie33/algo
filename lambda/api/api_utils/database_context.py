@@ -24,14 +24,16 @@ Why separate behavior?
 This file re-exports utils.DatabaseContext with API-appropriate defaults.
 """
 
-from typing import Optional
-from psycopg2.extras import DictCursor
-
 # Import the unified implementation from utils
 import sys
+from typing import Optional
+
+from psycopg2.extras import DictCursor
+
 
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
+
 
 __all__ = ["DatabaseContext"]
 

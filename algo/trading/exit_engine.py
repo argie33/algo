@@ -536,8 +536,7 @@ class ExitEngine:
             logger.debug(f"Alpaca quote API timeout for {symbol}")
             return None
         except Exception as e:
-            logger.debug(f"Failed to fetch Alpaca quote for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_recent_prices(
         self, cur, symbol, current_date

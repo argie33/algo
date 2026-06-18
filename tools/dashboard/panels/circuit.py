@@ -1,7 +1,7 @@
 """Circuit breaker status panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +21,14 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..formatters import (
+    hbar,
+)
 from ..utilities import (
     G,
     R,
     Y,
-    DIM,
 )
-from ..formatters import (
-    hbar,
-)
-
 from ._helpers import _error_panel
 
 

@@ -18,15 +18,18 @@ require fresh upstream data to run successfully.
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from pathlib import Path
 from typing import Dict, Optional
+from zoneinfo import ZoneInfo
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
 import logging
+
+import pytest
+
 
 logger = logging.getLogger(__name__)
 EASTERN_TZ = ZoneInfo("America/New_York")
@@ -59,8 +62,7 @@ class TestCriticalLoaderDailyExecution:
                     return dict(zip(cols, row))
                 return None
         except Exception as e:
-            logger.warning(f"Could not fetch loader status for {table_name}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def test_loader_status_table_structure(self):
         """Verify data_loader_status table has required columns for watermark tracking."""

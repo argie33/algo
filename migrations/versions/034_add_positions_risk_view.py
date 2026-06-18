@@ -7,6 +7,7 @@ Allows API layer to be a pure display layer (not calculation engine).
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add positions with risk materialized view"
 
 

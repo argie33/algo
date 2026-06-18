@@ -76,8 +76,7 @@ class WatermarkManager:
                         return _date.fromisoformat(watermark_str)
                 return None
         except Exception as e:
-            logger.error(f"Error getting watermark: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def advance_watermark(
         self,
@@ -187,8 +186,7 @@ class WatermarkManager:
                 return True
 
         except Exception as e:
-            logger.error(f"Error advancing watermark: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def record_error(
         self,

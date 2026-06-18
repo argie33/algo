@@ -81,8 +81,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.warning(f"MarketEventHandler: check_single_stock_halt error: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_market_circuit_breaker(self) -> Optional[Dict[str, Any]]:
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
@@ -111,8 +110,7 @@ class MarketEventHandler:
                     if resp.status_code == 200:
                         return resp.json().get("quote", {}).get("ap")
                 except Exception as e:
-                    logger.debug(f"Failed to fetch SPY quotes: {e}")
-                return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
             def fetch_bars():
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
@@ -123,8 +121,7 @@ class MarketEventHandler:
                     if resp.status_code == 200:
                         return resp.json().get("bar", {}).get("o")
                 except Exception as e:
-                    logger.debug(f"Failed to fetch SPY bars: {e}")
-                return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
             with ThreadPoolExecutor(max_workers=2) as executor:
                 quote_future = executor.submit(fetch_quotes)
@@ -165,10 +162,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.warning(
-                f"MarketEventHandler: check_market_circuit_breaker error: {e}"
-            )
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_early_close(self, check_date: Optional[date] = None) -> bool:
         """Check if market closes early today (3 hours early = 13:00 ET instead of 16:00).
@@ -218,8 +212,7 @@ class MarketEventHandler:
             return False
 
         except Exception as e:
-            logger.warning(f"MarketEventHandler: check_early_close error: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_after_hours_window(self, check_time: Optional[datetime] = None) -> bool:
         """Check if we're in after-hours window (after 15:45 ET or early close at 13:00).
@@ -385,8 +378,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.warning(f"MarketEventHandler: check_delisting error: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def run_pre_market_checks(self) -> Dict[str, Any]:
         """Run all pre-market checks at start of trading day (concurrent execution).

@@ -1,108 +1,99 @@
 """Route: algo - Refactored dispatcher with modular handlers."""
 
-import psycopg2
-import psycopg2.errors
-from typing import Dict
 import logging
 import re
-import os
+from typing import Dict
 
+import psycopg2
+import psycopg2.errors
 from routes.utils import (
     error_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
     handle_db_error,
+    json_response,
+    safe_days,
+    safe_limit,
+    safe_offset,
 )
 
 from utils.rate_limiting import (
-    check_admin_rate_limit,
     ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
     PUBLIC_RATE_LIMITS,
+    check_admin_rate_limit,
+    check_public_rate_limit,
 )
 from utils.validation import safe_float_strict
-
-# Import handler functions from modular packages
-from .algo_handlers.dashboard import (
-    _get_algo_status,
-    _get_algo_trades,
-    _get_algo_positions,
-    _get_equity_curve,
-    _get_circuit_breakers,
-    _get_dashboard_signals,
-)
-
-from .algo_handlers.metrics import (
-    _get_algo_performance,
-    _get_algo_metrics,
-    _get_risk_metrics,
-    _get_performance_analytics,
-    _get_daily_return_histogram,
-    _get_trade_distribution,
-    _get_holding_period_distribution,
-    _get_stage_distribution,
-    _get_performance_metrics_endpoint,
-    _get_portfolio_summary,
-    _get_algo_portfolio,
-)
-
-from .algo_handlers.sector import (
-    _get_sector_rotation,
-    _get_sector_breadth,
-    _get_sector_position_warnings,
-    _get_sector_stage2,
-    _get_algo_evaluate,
-)
-
-from .algo_handlers.signals import (
-    _get_swing_scores,
-    _get_swing_scores_history,
-    _get_rejection_funnel,
-    _get_rejection_reason_description,
-    _calculate_trade_preview,
-    _calculate_pre_trade_impact,
-)
-
-from .algo_handlers.market import (
-    _get_markets,
-    _get_market,
-    _get_market_factors,
-    _get_data_status,
-    _get_data_quality,
-    _get_market_sentiment,
-    _get_trend_criteria,
-)
 
 from .algo_handlers.config import (
     _get_algo_config,
     _get_algo_config_key,
-    _update_algo_config_key,
     _reset_algo_config_key,
-    _categorize_config_key,
+    _update_algo_config_key,
 )
 
-from .algo_handlers.orchestration import (
-    _get_orchestrator_execution_recent,
-    _get_orchestrator_execution_failed,
-    _get_orchestrator_execution_details,
-    _get_orchestrator_execution_patterns,
-    _get_orchestrator_execution_stats,
+# Import handler functions from modular packages
+from .algo_handlers.dashboard import (
+    _get_algo_positions,
+    _get_algo_status,
+    _get_algo_trades,
+    _get_circuit_breakers,
+    _get_dashboard_signals,
+    _get_equity_curve,
 )
-
+from .algo_handlers.external import (
+    _get_economic_calendar,
+    _get_sentiment,
+)
+from .algo_handlers.market import (
+    _get_data_quality,
+    _get_data_status,
+    _get_market,
+    _get_market_factors,
+    _get_market_sentiment,
+    _get_markets,
+    _get_trend_criteria,
+)
+from .algo_handlers.metrics import (
+    _get_algo_metrics,
+    _get_algo_performance,
+    _get_algo_portfolio,
+    _get_daily_return_histogram,
+    _get_holding_period_distribution,
+    _get_performance_analytics,
+    _get_performance_metrics_endpoint,
+    _get_portfolio_summary,
+    _get_risk_metrics,
+    _get_stage_distribution,
+    _get_trade_distribution,
+)
 from .algo_handlers.monitoring import (
-    _trigger_data_patrol,
-    _get_patrol_log,
     _get_algo_audit_log,
     _get_last_run,
     _get_notifications,
+    _get_patrol_log,
+    _trigger_data_patrol,
+)
+from .algo_handlers.orchestration import (
+    _get_orchestrator_execution_details,
+    _get_orchestrator_execution_failed,
+    _get_orchestrator_execution_patterns,
+    _get_orchestrator_execution_recent,
+    _get_orchestrator_execution_stats,
+)
+from .algo_handlers.sector import (
+    _get_algo_evaluate,
+    _get_sector_breadth,
+    _get_sector_position_warnings,
+    _get_sector_rotation,
+    _get_sector_stage2,
+)
+from .algo_handlers.signals import (
+    _calculate_pre_trade_impact,
+    _calculate_trade_preview,
+    _get_rejection_funnel,
+    _get_swing_scores,
+    _get_swing_scores_history,
 )
 
-from .algo_handlers.external import (
-    _get_sentiment,
-    _get_economic_calendar,
-)
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,11 @@ Tests that the admin/trader permission system correctly validates
 user group membership from JWT claims.
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
+
 
 # Add lambda/api to path so routes can be imported
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))

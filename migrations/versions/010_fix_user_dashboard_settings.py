@@ -18,6 +18,7 @@ so there are no valid rows to preserve.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"
 
 

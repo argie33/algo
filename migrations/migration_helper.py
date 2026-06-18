@@ -8,6 +8,7 @@ Migration files should import from this module instead of doing their own sys.pa
 import sys
 from pathlib import Path
 
+
 # Set up path so migrations can import from utils and other root packages
 _migration_root = Path(__file__).parent.parent
 if str(_migration_root) not in sys.path:
@@ -15,5 +16,6 @@ if str(_migration_root) not in sys.path:
 
 # Common imports that migrations typically need
 from utils.db.context import DatabaseContext
+
 
 __all__ = ["DatabaseContext"]

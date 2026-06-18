@@ -122,10 +122,7 @@ def get_user_alpaca_credentials(
 
                 return get_alpaca_credentials(user_id=None)
             except Exception as fallback_err:
-                logger.error(
-                    f"[ALPACA] Fallback to shared credentials also failed: {fallback_err}"
-                )
-                return None
+            raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
         return None
 
 
@@ -173,10 +170,7 @@ def validate_user_resource_access(
         result = cur.fetchone()
         return result is not None
     except Exception as e:
-        logger.error(
-            f"[ACCESS] Error validating access to {resource_type} {resource_id}: {e}"
-        )
-        return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def require_user_resource_access(

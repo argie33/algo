@@ -9,8 +9,10 @@ but this provides a safety net for different test execution contexts.
 
 import sys
 from pathlib import Path
+from typing import Any, Dict
+
 import pytest
-from typing import Dict, Any
+
 
 # Ensure project root is in sys.path for imports to work
 _test_dir = Path(__file__).parent
@@ -31,10 +33,11 @@ from tests.test_helpers.config_fixtures import (
     correction_config,
     crisis_config,
     minimal_config,
-    strict_risk_config,
     relaxed_risk_config,
     sandbox_config,
+    strict_risk_config,
 )
+
 
 # ============================================================================
 # Pytest Fixtures for Dependency Injection Testing

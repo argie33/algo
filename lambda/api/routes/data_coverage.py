@@ -13,19 +13,23 @@ For use in dashboard and automated monitoring.
 """
 
 import logging
+from datetime import date as _date
+from datetime import datetime
+from typing import Any, Dict
+
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
-from datetime import datetime, date as _date
-from typing import Dict, Any
 from routes.utils import (
     error_response,
     execute_with_timeout,
-    success_response,
-    json_response,
     handle_db_error,
+    json_response,
+    success_response,
 )
+
 from utils.db.sql_safety import assert_safe_table
+
 
 logger = logging.getLogger(__name__)
 

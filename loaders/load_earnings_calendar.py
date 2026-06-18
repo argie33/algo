@@ -70,8 +70,7 @@ class EarningsCalendarLoader(OptimalLoader):
 
             return results if results else None
         except Exception as e:
-            logger.debug(f"yfinance fetch failed for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

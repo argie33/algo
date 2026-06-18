@@ -2,7 +2,9 @@
 
 import logging
 from typing import Dict
+
 from openapi_spec import generate_openapi_spec
+
 
 logger = logging.getLogger(__name__)
 

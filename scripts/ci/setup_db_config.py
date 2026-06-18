@@ -9,6 +9,7 @@ import json
 import os
 import sys
 
+
 secret_str = os.environ.get("SECRET", "{}")
 try:
     secret = json.loads(secret_str)

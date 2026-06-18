@@ -28,11 +28,11 @@ Panels self-register with their dependencies:
 """
 
 import logging
-from typing import Dict, List, Callable, Any, Optional, Tuple
-from dataclasses import dataclass
-
-import sys
 import os
+import sys
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -8,12 +8,14 @@ Verifies that the new unified DataAgeValidator:
 3. Works across API routes, orchestrator, circuit breaker
 """
 
-import pytest
 from datetime import date, timedelta
+
+import pytest
+
 from utils.validation.freshness_config import (
+    FRESHNESS_RULES,
     get_freshness_rule,
     is_critical_table,
-    FRESHNESS_RULES,
 )
 
 

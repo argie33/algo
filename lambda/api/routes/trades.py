@@ -1,26 +1,28 @@
 """Route: trades"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict, Optional
 import logging
 import os
 import uuid
 from datetime import date
+from typing import Dict, Optional
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
+from models.requests import ManualTradeRequest
 from pydantic import ValidationError
 from routes.utils import (
+    check_data_freshness,
     error_response,
-    list_response,
+    handle_db_error,
     json_response,
+    list_response,
+    safe_json_serialize,
     safe_limit,
     safe_offset,
-    handle_db_error,
-    check_data_freshness,
-    safe_json_serialize,
 )
-from models.requests import ManualTradeRequest
+
 
 logger = logging.getLogger(__name__)
 

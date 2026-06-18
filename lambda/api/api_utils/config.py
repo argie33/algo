@@ -4,9 +4,10 @@ All parameters are read from environment variables at Lambda cold start,
 with sensible defaults for development and production environments.
 """
 
-import os
 import logging
+import os
 import threading
+
 
 logger = logging.getLogger(__name__)
 

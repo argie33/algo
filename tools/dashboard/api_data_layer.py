@@ -26,9 +26,11 @@ Migration status:
 """
 
 import logging
-import requests
 import os
-from typing import Dict, List, Optional, Any, cast
+from typing import Any, Dict, Optional, cast
+
+import requests
+
 
 logger = logging.getLogger(__name__)
 

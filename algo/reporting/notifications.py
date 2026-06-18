@@ -65,8 +65,7 @@ Target 1:     ${target_1:.2f}
 Time:         {event["created_at"].strftime("%H:%M:%S")}
 """
         except Exception as e:
-            logger.error(f"[NOTIF] Format failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _format_trade_exit_alert(self, event: Dict) -> Optional[str]:
         """Format trade exit notification."""
@@ -91,8 +90,7 @@ Reason:       {exit_reason}
 Time:         {event["created_at"].strftime("%H:%M:%S")}
 """
         except Exception as e:
-            logger.error(f"[NOTIF] Format failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _should_notify(self, action_type: str, status: str) -> bool:
         """Determine if event warrants notification."""

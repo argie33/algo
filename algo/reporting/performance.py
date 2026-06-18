@@ -80,8 +80,7 @@ class LivePerformance:
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except Exception as e:
-            logger.error(f"[PERFORMANCE_SHARPE] Failed: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def win_rate(self, lookback_trades: int = 50) -> Optional[Dict[str, float]]:
         """Compute win rate and average R-multiple from closed trades.
@@ -159,8 +158,7 @@ class LivePerformance:
                 "avg_loss_r": round(avg_loss_r, 3),
             }
         except Exception as e:
-            logger.error(f"Performance: win_rate failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def expectancy(self, lookback_trades: int = 50) -> Optional[float]:
         """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
@@ -184,8 +182,7 @@ class LivePerformance:
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return round(expectancy, 4)
         except Exception as e:
-            logger.error(f"Performance: expectancy failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def max_drawdown(self) -> Optional[float]:
         """Compute maximum drawdown from peak portfolio value.
@@ -208,8 +205,7 @@ class LivePerformance:
             values = [float(row[1]) for row in rows]
             return MetricsCalculator.calculate_max_drawdown(values)
         except Exception as e:
-            logger.error(f"Performance: max_drawdown failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def rolling_sortino(self, lookback_days: int = 252) -> Optional[float]:
         """Annualized Sortino ratio — penalizes only downside volatility.
@@ -240,8 +236,7 @@ class LivePerformance:
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except Exception as e:
-            logger.error(f"Performance: rolling_sortino failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def calmar_ratio(self, lookback_days: int = 252) -> Optional[float]:
         """Calmar ratio = annualized return / abs(max drawdown).
@@ -266,8 +261,7 @@ class LivePerformance:
             values = [float(r[0]) for r in rows]
             return MetricsCalculator.calculate_calmar_ratio(values)
         except Exception as e:
-            logger.error(f"Performance: calmar_ratio failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
         """Compare live metrics to backtest reference metrics.
@@ -320,8 +314,7 @@ class LivePerformance:
                 "backtest_max_dd": backtest_metrics.get("max_drawdown_pct"),
             }
         except Exception as e:
-            logger.error(f"Performance: backtest_vs_live_comparison failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def generate_daily_report(
         self, report_date: Optional[date] = None

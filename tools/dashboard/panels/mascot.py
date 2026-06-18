@@ -1,7 +1,7 @@
 """Mascot animation and loading layout functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +21,12 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..utilities import (
-    MASCOT_W,
-    MASCOT_FRAMES,
-    MASCOT_COLORS,
     LOAD_SEQ,
+    MASCOT_COLORS,
+    MASCOT_FRAMES,
+    MASCOT_W,
 )
 
-from ._helpers import _error_panel
 
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 MASCOT_H = 8

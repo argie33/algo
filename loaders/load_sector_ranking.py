@@ -131,8 +131,7 @@ class SectorRankingLoader(OptimalLoader):
                 return valid_rows
 
         except Exception as e:
-            logger.error(f"Failed to compute sector rankings: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

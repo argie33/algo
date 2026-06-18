@@ -44,8 +44,7 @@ class PositionMonitor:
             with DatabaseContext(mode) as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def __init__(self, config):
         self.config = config
@@ -606,10 +605,7 @@ class PositionMonitor:
                 return None
             return days
         except Exception as e:
-            logger.warning(
-                f"  [WARN] Could not compute days_to_earnings for {symbol}: {e}"
-            )
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_market_dist_days(self, current_date, cur):
         cur.execute(
@@ -952,8 +948,7 @@ class PositionMonitor:
                 }
             return None
         except Exception as e:
-            logger.debug(f"[MARGIN] get_margin_usage skipped: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_open_positions(self):
         """Get list of open positions for halt checking and monitoring.

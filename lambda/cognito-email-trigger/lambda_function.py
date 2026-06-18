@@ -11,10 +11,12 @@ Events:
 - CustomMessage_ResendCode: User requests resend of confirmation code
 """
 
-import boto3
 import logging
 import threading
 from typing import Any
+
+import boto3
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

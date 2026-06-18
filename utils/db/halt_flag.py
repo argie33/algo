@@ -191,8 +191,7 @@ class HaltFlagManager:
             return True, reason
 
         except Exception as e:
-            logger.warning(f"[HALT_FLAG] DynamoDB read error: {e}")
-            return None, None
+            raise RuntimeError(f"Operation failed: {e}") from e, None
 
     def _check_halt_flag_rds(self) -> Tuple[Optional[bool], Optional[str]]:
         """Check halt flag in RDS. Returns (halt_flag, reason) or (None, None) on error."""
@@ -246,8 +245,7 @@ class HaltFlagManager:
                 return True, reason
 
         except Exception as e:
-            logger.warning(f"[HALT_FLAG] RDS read error: {e}")
-            return None, None
+            raise RuntimeError(f"Operation failed: {e}") from e, None
 
     def set_halt_flag(self, reason: str = "") -> bool:
         """Set halt flag in both DynamoDB and RDS. Returns True if set successfully."""
@@ -266,8 +264,9 @@ class HaltFlagManager:
             existing, _ = self.check_halt_flag()
             if existing:
                 halt_data["halt_count"] = 2  # Escalation
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
 
         success_dynamodb = self._set_halt_flag_dynamodb(halt_data, now_utc)
         success_rds = self._set_halt_flag_rds(halt_data, now_et)
@@ -335,8 +334,7 @@ class HaltFlagManager:
             logger.debug(f"[HALT_FLAG] Set in RDS: {halt_data['reason']}")
             return True
         except Exception as e:
-            logger.warning(f"[HALT_FLAG] Failed to set in RDS: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def clear_halt_flag(self, reason: str = "") -> bool:
         """Clear halt flag in both DynamoDB and RDS. Returns True if cleared successfully."""
@@ -394,8 +392,7 @@ class HaltFlagManager:
             logger.debug("[HALT_FLAG] Cleared in RDS")
             return True
         except Exception as e:
-            logger.warning(f"[HALT_FLAG] Failed to clear in RDS: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 # Singleton instance

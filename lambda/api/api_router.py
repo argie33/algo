@@ -1,12 +1,13 @@
 """API Router - dispatcher."""
 
+import json
 import logging
 import os
-import json
 import threading
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
+
 
 logger = logging.getLogger(__name__)
 

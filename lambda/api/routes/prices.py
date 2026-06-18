@@ -1,21 +1,23 @@
 """Route: prices"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
-    error_response,
-    list_response,
-    json_response,
-    handle_db_error,
-    safe_limit,
     check_data_freshness,
+    error_response,
     execute_with_timeout,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_json_serialize,
+    safe_limit,
 )
+
 
 logger = logging.getLogger(__name__)
 

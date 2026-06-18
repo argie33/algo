@@ -104,8 +104,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
                 "phases_errored": row[10],
             }
     except Exception as e:
-        logger.error(f"Error querying run {run_id}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:

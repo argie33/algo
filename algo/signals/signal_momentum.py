@@ -20,8 +20,7 @@ class SignalMomentumMixin:
             with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
         def _fetch_data(cur):

@@ -25,19 +25,20 @@ Success criteria:
   6. Full pipeline completes in <450 minutes (morning prep window)
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime, timedelta
 import logging
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from algo.algo_orchestrator import Orchestrator
+from algo.infrastructure import MarketCalendar, get_config
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
-from algo.algo_orchestrator import Orchestrator
-from algo.infrastructure import MarketCalendar
-from algo.infrastructure import get_config
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
@@ -102,8 +103,7 @@ class EndToEndIntegrationTest:
             return self._print_summary()
 
         except Exception as e:
-            logger.error(f"Integration test failed with exception: {e}", exc_info=True)
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_preconditions(self) -> bool:
         """Verify preconditions for full integration test."""
@@ -393,8 +393,7 @@ class EndToEndIntegrationTest:
             return all(checks.values())
 
         except Exception as e:
-            logger.error(f"  ✗ Issues #3-10 verification failed: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _verify_issue_13_health_endpoint(self) -> bool:
         """

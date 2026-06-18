@@ -5,12 +5,13 @@ Runs the Lambda function locally on port 3001 for frontend development.
 Usage: python dev_server.py
 """
 
-import sys
-import os
 import json
 import logging
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+import os
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
+
 
 os.environ["ENVIRONMENT"] = "development"
 
@@ -39,8 +40,9 @@ def _load_db_credentials():
 
     # Try to load from Secrets Manager first (requires AWS credentials)
     try:
-        import boto3
         import json
+
+        import boto3
 
         sm = boto3.client("secretsmanager")
         secret_arn = os.getenv("DB_SECRET_ARN", "algo/database")
@@ -131,6 +133,7 @@ sys.path.insert(1, lambda_dir)
 sys.path.insert(2, api_dir)
 
 import lambda_function
+
 
 log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dev_server.log")
 

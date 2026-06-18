@@ -10,6 +10,7 @@ display trade analysis and performance metrics.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add mfe_pct and mae_pct columns to algo_trades table"
 
 

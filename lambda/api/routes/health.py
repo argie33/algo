@@ -1,18 +1,19 @@
 """Route: health - Health check endpoints (basic, detailed, pipeline)"""
 
-from typing import Dict
 import logging
 from datetime import datetime, timezone
+from typing import Dict
+
+# Import get_config from lambda/api/api_utils/config.py
+from api_utils.config import get_config
 from routes.utils import (
-    success_response,
     error_response,
     execute_with_timeout,
     handle_db_error,
     safe_json_serialize,
+    success_response,
 )
 
-# Import get_config from lambda/api/api_utils/config.py
-from api_utils.config import get_config
 
 # C-4 FIX: Import route status for health endpoint
 try:
@@ -173,6 +174,7 @@ def _handle_cognito(cur) -> Dict:
     - cognito_user_pool_id: User pool ID from config
     """
     import os
+
     import boto3
 
     try:

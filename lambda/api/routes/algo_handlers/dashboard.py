@@ -1,51 +1,32 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
+from datetime import date, datetime, timedelta, timezone
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
-    db_route_handler,
     check_data_freshness,
-    safe_json_serialize,
+    db_route_handler,
+    error_response,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    safe_json_serialize,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
-    safe_float,
-    safe_float_strict,
-    safe_int,
-    safe_int_strict,
     APIResponseValidator,
+    safe_float,
+    safe_int,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
+
 
 logger = logging.getLogger(__name__)
 

@@ -8,10 +8,11 @@ Provides safe wrappers for common validation patterns:
 - Risk parameters
 """
 
-import re
 import logging
-from typing import Optional, Union
+import re
 from decimal import Decimal, InvalidOperation
+from typing import Optional, Union
+
 
 logger = logging.getLogger(__name__)
 

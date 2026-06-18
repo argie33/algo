@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Integration tests for algo modules."""
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -23,8 +25,8 @@ class TestIntegration:
     def test_live_data_pipeline(self):
         """Test pipeline structure for live market data."""
         try:
-            from algo.trading import TradeExecutor
             from algo.risk import CircuitBreaker
+            from algo.trading import TradeExecutor
 
             assert TradeExecutor is not None
             assert CircuitBreaker is not None

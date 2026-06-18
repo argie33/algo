@@ -42,8 +42,7 @@ class DynamoDBHealthCheck:
             return True
 
         except Exception as e:
-            logger.error(f"[DynamoDB] Connectivity check FAILED: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_halt_flag_status(self) -> Dict[str, Any]:
         """Get current halt flag state from DynamoDB.

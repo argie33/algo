@@ -27,8 +27,7 @@ class MetricsPublisher:
 
                 self._client = boto3.client("cloudwatch", region_name=REGION)
             except Exception as e:
-                logger.warning(f"CloudWatch client unavailable: {e}")
-                return None
+            raise RuntimeError(f"Operation failed: {e}") from e
         return self._client
 
     def _emit(

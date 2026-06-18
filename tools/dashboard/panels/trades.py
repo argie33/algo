@@ -1,8 +1,8 @@
 """Recent trades and expanded trades panel functions."""
 
-import json
 import logging
 from typing import Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,26 +17,22 @@ except ImportError as e:
 
 from rich import box
 from rich.console import Group
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..formatters import (
+    fmt_age,
+    sign,
+)
 from ..utilities import (
+    CY,
+    DIM,
     G,
     R,
     Y,
-    CY,
-    DIM,
 )
-from ..formatters import (
-    fmt_age,
-    fmt_money,
-    sign,
-)
-
-from ._helpers import _error_panel
 
 
 def _extract_items(data: Any) -> list:

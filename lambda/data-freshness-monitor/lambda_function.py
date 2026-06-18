@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import boto3
 import psycopg2
 
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -161,8 +162,7 @@ def _set_halt_flag_dynamodb(reason: str) -> bool:
         logger.info(f"[FRESHNESS] Set DynamoDB halt flag: {reason}")
         return True
     except Exception as e:
-        logger.error(f"[FRESHNESS] Could not set DynamoDB halt flag: {e}")
-        return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def lambda_handler(event, context):

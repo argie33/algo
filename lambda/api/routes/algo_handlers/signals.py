@@ -96,8 +96,9 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
             for sr in cur.fetchall():
                 if sr["sector"]:
                     sector_exposure[sr["sector"]] = safe_float(sr["sector_value"]) or 0.0
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
 
         current_sector_dollars = sector_exposure.get(sector, 0.0) if sector else 0.0
         projected_sector_dollars = current_sector_dollars + actual_dollars

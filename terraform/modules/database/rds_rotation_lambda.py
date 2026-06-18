@@ -15,9 +15,11 @@ import json
 import logging
 import secrets
 import string
+from typing import Any, Dict, cast
+
 import boto3
 import psycopg2
-from typing import Dict, Any, cast
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

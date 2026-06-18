@@ -10,6 +10,7 @@ Safe to re-run on an already-populated table.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = (
     "Re-seed algo_config table â€” idempotent, preserves existing custom values"
 )

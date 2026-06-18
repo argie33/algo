@@ -15,6 +15,7 @@ so we open our own connection outside the runner's transaction context.
 
 import os
 
+
 DESCRIPTION = "Add date-leading indexes on price_daily, buy_sell_daily, technical_data_daily, market_health_daily"
 
 _INDEXES = [

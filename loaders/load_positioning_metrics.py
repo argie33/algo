@@ -45,8 +45,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 return [metrics]
             return None
         except Exception as e:
-            logger.debug(f"Positioning metrics error for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict | None:
@@ -123,8 +122,7 @@ class PositioningMetricsLoader(OptimalLoader):
             return None
 
         except Exception as e:
-            logger.debug(f"Could not fetch positioning metrics for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def transform(self, rows):
         """Rows are clean."""

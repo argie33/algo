@@ -5,13 +5,14 @@ from tests.test_helpers.config_fixtures import (
     bull_market_config,
     correction_config,
     crisis_config,
+    merge_configs,
     minimal_config,
-    strict_risk_config,
     relaxed_risk_config,
     sandbox_config,
-    merge_configs,
+    strict_risk_config,
     validate_config,
 )
+
 
 __all__ = [
     "BASE_CONFIG",

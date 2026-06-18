@@ -1,7 +1,7 @@
 """Portfolio performance and analysis panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,33 +14,27 @@ except ImportError as e:
             return args[0]
         return lambda fn: fn
 
-from rich import box
 from rich.console import Group
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
-
-from ..utilities import (
-    normalize_positions_data,
-    G,
-    R,
-    Y,
-    DIM,
-)
 from ..formatters import (
     fmt_age,
     fmt_money,
     fmt_money_short,
-    hbar,
     mini_bar,
     sign,
     sparkline,
 )
-
+from ..utilities import (
+    G,
+    R,
+    Y,
+    normalize_positions_data,
+)
 from ._helpers import _error_panel
 
 

@@ -1,7 +1,7 @@
 """Portfolio exposure and risk factor panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,26 +16,22 @@ except ImportError as e:
 
 from rich import box
 from rich.console import Group
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
-from ..utilities import (
-    G,
-    R,
-    Y,
-    DIM,
-    TIER_COLOR,
-)
 from ..formatters import (
-    hbar,
     mini_bar,
     tier_from_pct,
 )
-
+from ..utilities import (
+    TIER_COLOR,
+    G,
+    R,
+    Y,
+)
 from ._helpers import _error_panel
 
 

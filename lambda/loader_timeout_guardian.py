@@ -11,11 +11,13 @@ MAX DURATIONS (HARD LIMITS):
 - Other loaders: 1 hour
 """
 
-import boto3
 import logging
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
+
+import boto3
 import psycopg2
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -170,5 +172,4 @@ def kill_loader_task(loader_name):
         return False
 
     except Exception as e:
-        logger.error(f"Failed to kill task for {loader_name}: {e}")
-        return False
+            raise RuntimeError(f"Operation failed: {e}") from e

@@ -60,8 +60,7 @@ class GrowthMetricsLoader(OptimalLoader):
                 return None
 
         except Exception as e:
-            logger.debug(f"Error computing growth metrics for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def _compute_metrics(symbol: str, latest: tuple, all_years: list) -> Optional[dict]:

@@ -8,6 +8,7 @@ to scope trade history and position data to authenticated users.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = (
     "Add cognito_sub column to algo_trades and algo_positions for user isolation"
 )

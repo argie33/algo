@@ -7,8 +7,9 @@ Each fixture represents a realistic market condition (bull, correction, crisis, 
 so tests can verify behavior across different trading regimes without mocking get_config().
 """
 
-from typing import Dict, Any
 from copy import deepcopy
+from typing import Any, Dict
+
 
 # Base configuration with all required keys
 BASE_CONFIG: Dict[str, Any] = {

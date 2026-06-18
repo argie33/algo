@@ -123,8 +123,7 @@ class GradeDistributionDailyLoader(OptimalLoader):
                 return [result] if result else None
 
         except Exception as e:
-            logger.error(f"Failed to compute grade distribution: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

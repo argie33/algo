@@ -3,18 +3,19 @@
 import json
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 from rich.panel import Panel
 from rich.text import Text
 
 from ..utilities import (
+    CY,
+    DIM,
     PHASE_NAMES,
     G,
     R,
     Y,
-    CY,
-    DIM,
 )
 
 

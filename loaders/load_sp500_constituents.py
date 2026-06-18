@@ -69,8 +69,7 @@ class SP500ConstituentsLoader(OptimalLoader):
             ]
 
         except Exception as e:
-            logger.error(f"Failed to fetch S&P 500 list: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

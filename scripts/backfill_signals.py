@@ -2,6 +2,7 @@
 """Backfill buy_sell_daily signals for June 15-17 by copying from June 12."""
 from utils.db.context import DatabaseContext
 
+
 with DatabaseContext('write') as cur:
     # Get all rows from June 12
     cur.execute("SELECT * FROM buy_sell_daily WHERE date = '2026-06-12'")
@@ -32,7 +33,7 @@ with DatabaseContext('write') as cur:
                     ON CONFLICT DO NOTHING
                 """, values_list)
                 inserted += 1
-            except Exception as e:
+            except Exception:
                 pass  # Silently skip conflicts
 
         print(f"Inserted {inserted} rows for {target_date_str}")

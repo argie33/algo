@@ -1,7 +1,7 @@
 """Sector analysis panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,6 @@ except ImportError as e:
             return args[0]
         return lambda fn: fn
 
-from rich import box
 from rich.console import Group
 from rich.panel import Panel
 from rich.rule import Rule
@@ -23,20 +22,13 @@ from rich.text import Text
 
 from ..data_validation import safe_float
 from ..utilities import (
-    compute_sector_agg,
-    normalize_positions_data,
+    CY,
     G,
     R,
     Y,
-    CY,
-    DIM,
+    compute_sector_agg,
+    normalize_positions_data,
 )
-from ..formatters import (
-    hbar,
-    mini_bar,
-)
-
-from ._helpers import _error_panel
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):

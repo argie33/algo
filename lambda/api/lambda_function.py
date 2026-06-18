@@ -563,8 +563,7 @@ def _get_cognito_jwks():
             _JWKS_CACHE_TIME = now
             return _JWKS_CACHE
         except Exception as e:
-            logger.error(f"Failed to fetch Cognito JWKS: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def validate_bearer_token(token: str | None) -> tuple:
@@ -931,8 +930,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         from config.credential_manager import clear_expired_credentials
 
         clear_expired_credentials()
-    except Exception:
-        pass  # If we can't clear expired creds, continue anyway (non-fatal)
+    except Exception as e:
+
+        raise RuntimeError(f"Unexpected error: {e}") from e  # If we can't clear expired creds, continue anyway (non-fatal)
 
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get("rawPath", event.get("path", "/"))

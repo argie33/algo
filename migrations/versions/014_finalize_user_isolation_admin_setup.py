@@ -9,6 +9,7 @@ This migration verifies preconditions and documents the setup process.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
 
 

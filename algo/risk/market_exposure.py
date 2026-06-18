@@ -94,8 +94,7 @@ class MarketExposure:
             with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def try_load_cached(self, eval_date=None):
         """Load cached market exposure for today. Returns dict or None if not cached."""
@@ -150,8 +149,7 @@ class MarketExposure:
         try:
             return self._with_cursor(fetch_cached)
         except Exception as e:
-            logger.debug(f"Could not load cached exposure: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def compute(self, eval_date=None, force_recompute=False):
         """Compute full market exposure score. Returns dict.

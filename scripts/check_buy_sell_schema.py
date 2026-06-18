@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from utils.db.context import DatabaseContext
 
+
 with DatabaseContext('read') as cur:
     # Get table structure
     cur.execute("""

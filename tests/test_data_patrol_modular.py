@@ -4,22 +4,23 @@
 import sys
 from pathlib import Path
 
+
 # Setup imports
 root = Path(__file__).parent.parent
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
 from algo.monitoring.data_patrol import DataPatrol
-from algo.monitoring.data_patrol.config import PatrolConfig, INFO, WARN, ERROR, CRIT
 from algo.monitoring.data_patrol.base import BaseCheck, CheckResult
 from algo.monitoring.data_patrol.checks import (
-    StalenessChecker,
-    QualityChecker,
-    PriceSanityChecker,
     AlignmentChecker,
     CoverageChecker,
+    PriceSanityChecker,
+    QualityChecker,
     SpecializedChecker,
+    StalenessChecker,
 )
+from algo.monitoring.data_patrol.config import CRIT, ERROR, INFO, WARN, PatrolConfig
 
 
 def test_imports():

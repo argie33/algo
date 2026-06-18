@@ -116,8 +116,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
                 return results if results else None
 
         except Exception as e:
-            logger.error(f"Failed to compute R-ladder distribution: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _calculate_r_multiple(
         self, entry: float, stop: Optional[float], target: Optional[float]

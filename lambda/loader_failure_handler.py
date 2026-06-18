@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import json
-import os
 import logging
+import os
 from datetime import datetime, timezone
+
 import boto3
+
 
 cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")

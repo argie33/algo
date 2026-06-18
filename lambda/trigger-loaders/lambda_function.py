@@ -7,10 +7,12 @@ Invoked by: API /api/algo/trigger-loader endpoint or CloudWatch alarm
 """
 
 import json
-import boto3
-import os
 import logging
+import os
 from datetime import datetime
+
+import boto3
+
 
 ecs = boto3.client("ecs")
 logger = logging.getLogger()

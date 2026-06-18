@@ -5,6 +5,8 @@ Run: python tools/diagnose_data.py
 """
 
 import logging
+
+
 logging.basicConfig(level=logging.INFO)
 
 print("\n" + "="*80)
@@ -32,7 +34,7 @@ try:
                 "SELECT date, vix_level FROM market_health_daily ORDER BY date DESC LIMIT 10"
             )
             rows = cur.fetchall()
-            print(f"\nLast 10 rows (date, vix_level):")
+            print("\nLast 10 rows (date, vix_level):")
             for date_val, vix in rows:
                 print(f"  {date_val}: {vix}")
 
@@ -68,7 +70,7 @@ try:
                 "SELECT report_date, top_5_concentration, var_pct_95, cvar_pct_95, portfolio_beta FROM algo_risk_daily ORDER BY report_date DESC LIMIT 10"
             )
             rows = cur.fetchall()
-            print(f"\nLast 10 rows:")
+            print("\nLast 10 rows:")
             for report_date, conc5, var95, cvar95, beta in rows:
                 print(f"  {report_date}: conc5={conc5}, var95={var95}, cvar95={cvar95}, beta={beta}")
 
@@ -104,7 +106,7 @@ try:
                 "SELECT symbol, quantity, current_price, avg_entry_price, position_value FROM algo_positions WHERE status = 'open' LIMIT 10"
             )
             rows = cur.fetchall()
-            print(f"\nFirst 10 positions:")
+            print("\nFirst 10 positions:")
             for symbol, qty, cur_price, entry_price, pos_val in rows:
                 print(f"  {symbol}: qty={qty}, cur_price={cur_price}, entry_price={entry_price}, pos_val={pos_val}")
 
@@ -138,7 +140,7 @@ try:
                 "SELECT snapshot_date, total_portfolio_value, total_cash FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 5"
             )
             rows = cur.fetchall()
-            print(f"\nLast 5 snapshots:")
+            print("\nLast 5 snapshots:")
             for date_val, port_val, cash in rows:
                 print(f"  {date_val}: portfolio=${port_val}, cash=${cash}")
         else:

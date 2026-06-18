@@ -831,8 +831,7 @@ class AlgoConfig:
             logger.error(f"Error: Invalid config value for {key}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Error setting config {key}: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for compatibility with code expecting dict."""
@@ -854,8 +853,7 @@ class AlgoConfig:
             logger.info(f"[OK] Initialized {len(self.DEFAULTS)} config defaults")
             return True
         except Exception as e:
-            logger.error(f"Error initializing defaults: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def reload(self):
         """Reload configuration from database."""

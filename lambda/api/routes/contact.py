@@ -1,24 +1,25 @@
 """Route: contact"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-from typing import Dict, Optional
 import logging
-import re
 import os
+import re
 from datetime import datetime, timezone
+from time import time
+from typing import Dict, Optional
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+from models.requests import ContactSubmissionRequest
 from pydantic import ValidationError
 from routes.utils import (
     error_response,
+    execute_with_timeout,
+    handle_db_error,
     json_response,
     list_response,
     safe_limit,
-    handle_db_error,
-    execute_with_timeout,
 )
-from models.requests import ContactSubmissionRequest
-from time import time
 
 
 def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
@@ -53,9 +54,10 @@ def _is_contact_spam(email: str) -> bool:
     Requires CONTACT_RATE_LIMIT_TABLE env var. If not set, configuration error is logged
     and request is rejected to prevent unprotected spam risk.
     """
-    import boto3
-    import os
     import hashlib
+    import os
+
+    import boto3
     from botocore.exceptions import ClientError
 
     now = int(time())

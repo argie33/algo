@@ -5,9 +5,11 @@ Unit tests for exit engine intraday pricing fix.
 Verifies that stop loss checking uses real-time quotes instead of stale daily closes.
 """
 
-import pytest
 from datetime import date as _date
 from unittest.mock import Mock, patch
+
+import pytest
+
 from algo.trading.exit_engine import ExitEngine
 
 

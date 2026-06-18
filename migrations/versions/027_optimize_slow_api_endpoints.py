@@ -16,6 +16,7 @@ This migration:
 
 import os
 
+
 DESCRIPTION = "Optimize slow API endpoints: add indexes and refactor queries"
 
 _INDEXES = [

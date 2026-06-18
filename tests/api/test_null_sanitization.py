@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Test null sanitization in API responses (Issue #14 fix)."""
 
-import sys
 import json
+import sys
 from pathlib import Path
+
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from routes.utils import json_response, list_response, success_response
+
 from utils.validation import APIResponseValidator
-from routes.utils import success_response, json_response, list_response
 
 
 def test_sanitize_nested_dict_with_nulls():

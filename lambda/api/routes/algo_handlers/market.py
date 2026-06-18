@@ -188,8 +188,9 @@ def _get_data_status(cur) -> dict:
                 r = cur.fetchone()
                 if r:
                     algo_rows.append({"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]})
-            except Exception:
-                pass
+            except Exception as e:
+
+                raise RuntimeError(f"Unexpected error: {e}") from e
 
         rows = loader_rows + algo_rows
 

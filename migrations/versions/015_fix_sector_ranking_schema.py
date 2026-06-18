@@ -15,6 +15,7 @@ This migration:
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"
 
 

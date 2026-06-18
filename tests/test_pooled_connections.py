@@ -6,18 +6,19 @@ to ensure connection reuse reduces pool churn from 5-10 creates/closes per loade
 to 1 create/1 release per loader.
 """
 
-import unittest
 import threading
 import time
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+
 import psycopg2.pool
 
 # Import the components we're testing
-from utils.db.pooled_connection_manager import PoolSemaphore, PooledConnectionManager
+from utils.db.pooled_connection_manager import PooledConnectionManager, PoolSemaphore
 from utils.db.pooled_context_var import (
-    set_pooled_connection,
     get_pooled_connection,
     has_pooled_connection,
+    set_pooled_connection,
 )
 
 
@@ -250,8 +251,8 @@ class TestConnectionChurnReduction(unittest.TestCase):
         mock_get_pooled_ctx.return_value = mock_conn
 
         # Simulate loader pattern: acquire once, use multiple times
-        from utils.db.pooled_connection_manager import PooledConnectionManager
         from utils.db import DatabaseContext
+        from utils.db.pooled_connection_manager import PooledConnectionManager
 
         manager = PooledConnectionManager("test_loader")
         set_pooled_connection(manager.acquire())

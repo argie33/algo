@@ -78,8 +78,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch Russell 2000: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

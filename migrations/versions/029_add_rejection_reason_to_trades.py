@@ -3,6 +3,7 @@
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add rejection_reason column to algo_trades"
 
 

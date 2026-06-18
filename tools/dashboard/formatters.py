@@ -1,19 +1,21 @@
 """Formatting and utility functions for dashboard display."""
 
-from datetime import date as _date, datetime, timedelta, timezone
 import time
+from datetime import date as _date
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .utilities import (
-    TIER_COLOR,
-    SPARKLINE_CHARS,
+    CY,
+    DIM,
     ET,
+    SPARKLINE_CHARS,
+    TIER_COLOR,
     G,
     R,
     Y,
-    CY,
-    DIM,
 )
+
 
 _schedule_cache: dict[str, Any] = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300

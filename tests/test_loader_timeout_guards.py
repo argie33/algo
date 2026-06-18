@@ -4,8 +4,8 @@ Test to verify that all critical loaders have proper timeout guards in place.
 Tests that ExecutionTimeout and socket-level timeouts are configured.
 """
 
-import sys
 import os
+import sys
 
 
 def check_loader_has_timeout_guard(loader_file_path: str) -> tuple[bool, str]:

@@ -1,7 +1,7 @@
 """Market regime, internals, breadth, sentiment panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,28 +14,25 @@ except ImportError as e:
             return args[0]
         return lambda fn: fn
 
-from rich import box
 from rich.console import Group
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..formatters import (
+    exp_bar,
+    next_run_str,
+    sign,
+)
 from ..utilities import (
+    DIM,
     TIER_COLOR,
     TIER_SHORT,
     G,
     R,
     Y,
-    DIM,
 )
-from ..formatters import (
-    exp_bar,
-    sign,
-    next_run_str,
-)
-
 from ._helpers import _error_panel
 
 
@@ -120,7 +117,7 @@ def panel_market_full(mkt, sentiment=None):
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
     else:
-        bmom_pcr.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
+        bmom_pcr.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
@@ -358,12 +355,12 @@ def panel_header_market(
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
         else:
-            parts4.append(f"[dim]Put/Call:[/][yellow]⚠ N/A[/]")
+            parts4.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
             parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
         else:
-            parts4.append(f"[dim]Breadth Mom:[/][dim]--[/]")
+            parts4.append("[dim]Breadth Mom:[/][dim]--[/]")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")

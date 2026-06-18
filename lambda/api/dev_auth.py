@@ -8,9 +8,10 @@ Dev mode allows testing without Cognito JWT tokens.
 In production, this code path is unreachable because COGNITO_USER_POOL_ID is always set.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Tuple
+import os
+from typing import Dict, Optional, Tuple
+
 
 logger = logging.getLogger(__name__)
 

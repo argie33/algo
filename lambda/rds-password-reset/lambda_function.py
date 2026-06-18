@@ -4,12 +4,14 @@ SECURITY: Requires NEW_PASSWORD env var. Does NOT accept hardcoded password gues
 """
 
 import json
+import logging
+import os
+
+import boto3
 import psycopg2
 import psycopg2.sql
-import os
-import logging
-import boto3
 from botocore.exceptions import ClientError
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

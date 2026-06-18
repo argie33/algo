@@ -137,8 +137,7 @@ def _get_price_on_date(symbol: str, target_date: date) -> Optional[float]:
             row = cur.fetchone()
             return float(row[0]) if row and row[0] is not None else None
     except Exception as e:
-        logger.debug(f"Failed to get price for {symbol} on {target_date}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def _get_prices_batch(symbols: List[str], target_date: date) -> Dict[str, float]:
@@ -515,8 +514,7 @@ def save_results(results: Dict) -> Optional[int]:
         return run_id
 
     except Exception as e:
-        logger.error(f"[BACKTEST] Failed to save results: {e}", exc_info=True)
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

@@ -1,7 +1,7 @@
 """Signal analysis panel functions."""
 
-import json
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,32 +16,28 @@ except ImportError as e:
 
 from rich import box
 from rich.console import Group
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..formatters import (
+    fmt_age,
+)
 from ..utilities import (
-    G,
-    R,
-    Y,
     CY,
     DIM,
     SPARKLINE_CHARS,
+    G,
+    R,
+    Y,
 )
-from ..formatters import (
-    hbar,
-    sparkline,
-    fmt_age,
-)
-
 from ._helpers import (
+    _build_buy_sig_map,
+    _composite_score_color,
     _error_panel,
     _score_cell,
-    _build_buy_sig_map,
     _swing_cell,
-    _composite_score_color,
 )
 
 

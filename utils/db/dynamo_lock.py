@@ -155,5 +155,4 @@ class DynamoDBLockManager:
             return False
 
         except Exception as e:
-            logger.error(f"[LOCK] Error releasing lock: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e

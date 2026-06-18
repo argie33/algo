@@ -115,8 +115,7 @@ class NAAIMExposureLoader(OptimalLoader):
             return rows if rows else None
 
         except Exception as e:
-            logger.error(f"Failed to fetch NAAIM data: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

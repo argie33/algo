@@ -9,6 +9,7 @@ blocking all reads/writes during trade execution. Moving to a one-time migration
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add idempotency_key column to algo_trades table"
 
 

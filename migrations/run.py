@@ -11,13 +11,15 @@ Usage:
 Credentials can be provided via environment variables or stdin JSON (--credentials-from-stdin).
 """
 
+import json
+import logging
 import os
 import sys
-import logging
-import json
 from pathlib import Path
 from typing import List, Tuple
+
 import psycopg2
+
 
 # Set up logging
 logging.basicConfig(
@@ -328,8 +330,7 @@ class MigrationRunner:
             logger.info(f"✓ Rolled back migration: {version}")
             return True
         except Exception as e:
-            logger.error(f"Failed to rollback {version}: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def show_status(self):
         """Display migration status."""

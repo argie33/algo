@@ -176,8 +176,7 @@ class CredentialManager:
             return secret_value if secret_value else None
 
         except Exception as e:
-            logger.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_db_credentials(self) -> Dict[str, Any]:
         """Get database connection credentials as a dict.

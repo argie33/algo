@@ -308,8 +308,7 @@ class SignalsDailyLoader(OptimalLoader):
                     age_days = (today_et - max_date).days
                     return age_days
         except Exception as e:
-            logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""

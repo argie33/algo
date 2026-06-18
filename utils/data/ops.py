@@ -23,8 +23,7 @@ def load_with_freshness(
     try:
         data, last_updated = fetch_fn()
     except Exception as e:
-        logger.error(f"Failed to fetch {data_type} {context}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     if data is None:
         return None
@@ -55,8 +54,7 @@ def get_or_cache(
             allow_stale=allow_stale,
         )
     except Exception as e:
-        logger.error(f"Cache operation failed: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def validate_and_log(

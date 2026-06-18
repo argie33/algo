@@ -8,15 +8,17 @@ This test verifies:
 4. Handler uses _check_admin_access to enforce permissions
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from routes.algo import _check_admin_access
 import api_router
+from routes.algo import _check_admin_access
 
 
 class TestJWTFlowIntegration:
@@ -102,8 +104,9 @@ class TestJWTFlowIntegration:
 
     def test_handler_receives_claims(self):
         """Verify handler.handle() receives jwt_claims parameter."""
-        from routes import algo
         import inspect
+
+        from routes import algo
 
         sig = inspect.signature(algo.handle)
         params = list(sig.parameters.keys())

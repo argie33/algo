@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Unit tests for CircuitBreaker module."""
 
-import pytest
-from unittest.mock import Mock, patch
 import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+
 
 # Add algo directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

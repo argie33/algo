@@ -20,6 +20,7 @@ SOLUTION:
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add missing target and risk columns to algo_positions table"
 
 

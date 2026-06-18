@@ -121,9 +121,7 @@ class LoaderConfigManager:
                 self._rds_connection_cache_time = now
                 return self._rds_connection_cache
         except Exception as e:
-            logger.debug(f"Could not fetch RDS connection count: {e}")
-
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _compute_adaptive_parallelism(
         self, loader_name: str, base_parallelism: int
@@ -222,10 +220,7 @@ class LoaderConfigManager:
                 }
             return None
         except Exception as e:
-            logger.warning(
-                f"Failed to fetch config for {loader_name} from DynamoDB: {e}"
-            )
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_parallelism(self, loader_name: str) -> int:
         """

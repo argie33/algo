@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test SEC Edgar refactored modules to diagnose data loading issues."""
 
-import sys
 import logging
+import sys
+
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -12,8 +13,8 @@ print("=" * 60)
 print("TEST 1: Import refactored modules")
 print("=" * 60)
 try:
-    from utils.external.sec_edgar import SecEdgarClient
     from utils.external import sec_statements
+    from utils.external.sec_edgar import SecEdgarClient
     print("[OK] Imports successful")
 except ImportError as e:
     print(f"[FAIL] Import failed: {e}")

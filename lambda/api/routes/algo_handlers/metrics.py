@@ -242,8 +242,9 @@ def _get_algo_performance(cur) -> dict:
             if wr is not None and avg_wr is not None and avg_lr is not None:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
 
         # Equity curve values from portfolio snapshots for sparkline and recent returns strip
         equity_vals: list = []
@@ -575,14 +576,16 @@ def _get_performance_analytics(cur) -> dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
         return success_response(_null_response)
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
         code, error_type, message = handle_db_error(e, "fetch performance analytics")
         return error_response(code, error_type, message)
 
@@ -706,14 +709,16 @@ def _get_risk_metrics(cur) -> dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
         return success_response(_null_response)
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
-        except Exception:
-            pass
+        except Exception as e:
+
+            raise RuntimeError(f"Unexpected error: {e}") from e
         code, error_type, message = handle_db_error(e, "fetch risk metrics")
         return error_response(code, error_type, message)
 

@@ -1,21 +1,23 @@
 """Route: signals"""
 
-import re
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict, Optional
 import logging
+import re
+from typing import Dict, Optional
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
-    error_response,
-    list_response,
-    safe_limit,
-    handle_db_error,
     check_data_freshness,
-    safe_json_serialize,
     db_route_handler,
+    error_response,
+    handle_db_error,
+    list_response,
+    safe_json_serialize,
+    safe_limit,
 )
+
 
 logger = logging.getLogger(__name__)
 

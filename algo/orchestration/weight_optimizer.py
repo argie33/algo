@@ -133,8 +133,7 @@ class WeightOptimizer:
             return optimal
 
         except Exception as e:
-            logger.error(f"Optimization failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _solve_weights(self, ic_array: np.ndarray) -> Optional[Dict[str, int]]:
         """
@@ -196,8 +195,7 @@ class WeightOptimizer:
             return result_dict
 
         except Exception as e:
-            logger.error(f"Weight optimization failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _equal_weights(self) -> Dict[str, int]:
         """Return equal weights (7 components → ~14.3% each)."""

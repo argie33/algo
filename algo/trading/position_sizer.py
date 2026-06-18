@@ -33,8 +33,7 @@ class PositionSizer:
             with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -118,10 +117,7 @@ class PositionSizer:
 
                 base = get_alpaca_base_url()
             except Exception as cfg_e:
-                logger.error(
-                    f"APCA_API_BASE_URL not set and unable to load from unified config: {cfg_e}"
-                )
-                return None
+            raise RuntimeError(f"Operation failed: {cfg_e}") from cfg_e
         if not key or not secret:
             return None
 
@@ -170,8 +166,7 @@ class PositionSizer:
                 )
                 return None
             except Exception as e:
-                logger.debug(f"Portfolio value retrieval failed: {e}")
-                return None
+            raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
     def get_current_drawdown(self):

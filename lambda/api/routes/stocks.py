@@ -1,22 +1,24 @@
 """Route: stocks"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-from typing import Dict
 import logging
 import re
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
 from routes.utils import (
+    check_data_freshness,
     error_response,
-    list_response,
+    execute_with_timeout,
+    handle_db_error,
     json_response,
+    list_response,
+    safe_json_serialize,
     safe_limit,
     safe_offset,
-    handle_db_error,
-    check_data_freshness,
-    execute_with_timeout,
-    safe_json_serialize,
 )
+
 
 logger = logging.getLogger(__name__)
 

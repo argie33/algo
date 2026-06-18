@@ -93,8 +93,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
                 return results if results else None
 
         except Exception as e:
-            logger.error(f"Failed to compute sector allocations: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

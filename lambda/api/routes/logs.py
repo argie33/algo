@@ -28,8 +28,10 @@ Body: {
 import json
 import logging
 from typing import Dict
-from routes.utils import success_response, error_response
+
 import boto3
+from routes.utils import error_response, success_response
+
 
 logger = logging.getLogger(__name__)
 

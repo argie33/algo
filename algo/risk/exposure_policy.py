@@ -142,8 +142,7 @@ class ExposurePolicy:
                     "tier": tier,
                 }
         except Exception as e:
-            logger.error(f"Failed to get active tier: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def review_existing_positions(self, eval_date=None):
         """Apply tier policy to all open positions.

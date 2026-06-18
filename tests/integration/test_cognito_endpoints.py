@@ -4,10 +4,12 @@
 Tests that protected endpoints return 403 for non-admin users and 200 for admin users.
 """
 
-import pytest
 import sys
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -178,10 +180,10 @@ class TestPublicEndpointAccess:
         """Public health endpoint should allow unauthenticated access."""
         # /api/health does not require authentication
         # Even without JWT claims, health endpoint should work
-        from routes import health
-
         # Mock a minimal cursor
         import unittest.mock as mock
+
+        from routes import health
 
         cursor = mock.Mock()
         cursor.fetchone.return_value = ("ok",)

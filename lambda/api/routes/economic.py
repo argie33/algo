@@ -1,20 +1,22 @@
 """Route: economic"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
-    error_response,
-    list_response,
-    json_response,
     check_data_freshness,
+    error_response,
     execute_with_timeout,
-    safe_json_serialize,
     handle_db_error,
+    json_response,
+    list_response,
+    safe_json_serialize,
 )
+
 
 logger = logging.getLogger(__name__)
 

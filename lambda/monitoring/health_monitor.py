@@ -12,11 +12,14 @@ Triggered by: EventBridge rule (6-hour interval)
 import json
 import logging
 import os
-import psycopg2
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
+
 import boto3
+import psycopg2
+
 from utils.db.sql_safety import assert_safe_table
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

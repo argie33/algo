@@ -74,8 +74,7 @@ class QualityMetricsLoader(OptimalLoader):
                 return None
 
         except Exception as e:
-            logger.debug(f"Error computing quality metrics for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def _compute_metrics(

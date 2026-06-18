@@ -8,6 +8,7 @@ from the initial schema, causing 500 errors on contact form submissions.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add phone column to contact_submissions table"
 
 

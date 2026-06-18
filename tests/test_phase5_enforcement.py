@@ -7,9 +7,10 @@ instead of silently falling back to stock_scores-only signals.
 """
 
 import sys
-from pathlib import Path
 from datetime import date
-from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

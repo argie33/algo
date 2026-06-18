@@ -173,8 +173,7 @@ def _get_aws_cfn_output(key: str) -> str | None:
                     if output["OutputKey"] == key:
                         return cast(str, output["OutputValue"])
     except Exception as e:
-        logger.debug(f"Failed to get CFN output: {e}")
-    return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def get_cognito_auth(

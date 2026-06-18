@@ -7,6 +7,7 @@ Eliminates multiple calculations in /pre-trade-impact endpoint.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add pre-trade impact calculation function"
 
 

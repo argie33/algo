@@ -9,11 +9,13 @@ Captures success/failure status and error details to data_loader_status table.
 """
 
 import json
-import os
-import boto3
 import logging
+import os
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
+
+import boto3
+
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())

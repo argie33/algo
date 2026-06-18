@@ -1,6 +1,8 @@
-import boto3
-import os
 import logging
+import os
+
+import boto3
+
 
 logger = logging.getLogger()
 dynamodb = boto3.resource("dynamodb")
@@ -14,8 +16,7 @@ def is_revoked(jti: str) -> bool:
         response = token_blocklist_table.get_item(Key={"jti": jti})
         return "Item" in response
     except Exception as e:
-        logger.warning(f"Blocklist lookup failed for {jti}: {e}")
-        return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def revoke_token(jti: str, exp: int):

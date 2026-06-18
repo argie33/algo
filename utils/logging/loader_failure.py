@@ -153,10 +153,7 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
             }
 
     except Exception as e:
-        logger.warning(
-            f"[FAILURE_TRACKING] Could not calculate failure trends for {loader_name}: {e}"
-        )
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:

@@ -1,17 +1,19 @@
 """Route: settings — user preferences stored per authenticated Cognito user."""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
 import json
 import logging
 from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
 from routes.utils import (
     error_response,
-    json_response,
-    handle_db_error,
     execute_with_timeout,
+    handle_db_error,
+    json_response,
 )
+
 
 logger = logging.getLogger(__name__)
 

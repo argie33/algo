@@ -7,14 +7,16 @@ Verifies that all error responses follow the standardized format:
 This ensures consistent error handling across the API and frontend.
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from routes.utils import error_response, json_response, success_response, list_response
+from routes.utils import error_response, json_response, list_response, success_response
 
 
 class TestErrorResponseFormat:

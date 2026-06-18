@@ -4,8 +4,9 @@
 Run: python diagnose_metrics.py
 """
 
-import sys
 import os
+import sys
+
 
 # Support both direct execution and module import
 if __name__ == "__main__" and __package__ is None:
@@ -13,9 +14,10 @@ if __name__ == "__main__" and __package__ is None:
     if _dashboard_dir not in sys.path:
         sys.path.insert(0, _dashboard_dir)
 
-from utilities import api_call, logger
 import logging
-import json
+
+from utilities import api_call
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -59,7 +61,7 @@ try:
         print(f"top_5_concentration value: {conc5}")
         print(f"top_5_concentration type: {type(conc5)}")
 
-        print(f"\nAll risk metrics:")
+        print("\nAll risk metrics:")
         for key in ["var_pct_95", "cvar_pct_95", "stressed_var_pct", "portfolio_beta", "top_5_concentration", "report_date"]:
             val = risk_data.get(key)
             print(f"  {key}: {val} (type: {type(val).__name__})")
@@ -88,7 +90,7 @@ try:
         if items:
             # Check first position for required fields
             first = items[0]
-            print(f"\nFirst position example:")
+            print("\nFirst position example:")
             print(f"  symbol: {first.get('symbol')}")
             print(f"  quantity: {first.get('quantity')}")
             print(f"  current_price: {first.get('current_price')} (type: {type(first.get('current_price')).__name__})")

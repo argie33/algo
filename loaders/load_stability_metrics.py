@@ -47,8 +47,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 return [metrics]
             return None
         except Exception as e:
-            logger.debug(f"Stability metrics error for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _compute_stability_metrics(self, symbol: str) -> dict | None:
         """Compute volatility from price_daily and beta from yfinance."""
@@ -126,8 +125,7 @@ class StabilityMetricsLoader(OptimalLoader):
             }
 
         except Exception as e:
-            logger.debug(f"Stability metrics computation failed for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:
@@ -163,8 +161,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 return None
             return beta
         except Exception as e:
-            logger.debug(f"Could not read beta for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def transform(self, rows):
         """Rows are clean."""

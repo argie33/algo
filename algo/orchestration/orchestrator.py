@@ -120,8 +120,7 @@ class Orchestrator:
                 cur.execute("SELECT 1")
             return True
         except Exception as e:
-            logger.error(f"  [ERROR] Database connectivity check failed: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_halt_flag(self) -> bool:
         """Check for halt flag in DynamoDB. Returns True if halt was requested.
@@ -360,8 +359,7 @@ class Orchestrator:
                 )
             return True
         except Exception as e:
-            logger.error(f"[ERROR] Failed to set halt flag: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _clear_halt_flag(self, reason: str = "") -> bool:
         """Clear halt flag in DynamoDB. Returns True if successfully cleared.
@@ -396,8 +394,7 @@ class Orchestrator:
             )
             return True
         except Exception as e:
-            logger.error(f"[ERROR] Failed to clear halt flag: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
@@ -814,8 +811,7 @@ class Orchestrator:
             return True
 
         except Exception as e:
-            logger.error(f"[TABLE-CHECK] Error validating tables: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     # ---------- Logging helpers ----------
 

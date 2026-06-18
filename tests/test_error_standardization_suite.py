@@ -12,21 +12,24 @@ Tests:
 """
 
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
+
 
 # Add repo to path
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from utils.error_handlers import classify_exception, sanitize_error_message
 from utils.exceptions import (
     DatabaseConnectionError,
     DatabaseQueryTimeout,
+    ExternalAPIError,
     InputValidationError,
     RateLimitedError,
-    ExternalAPIError,
 )
-from utils.error_handlers import classify_exception, sanitize_error_message
+
 
 # ============================================================================
 # TEST SUITE: Exception Hierarchy
@@ -196,8 +199,8 @@ class TestImportAvailability:
         """Should be able to import exception hierarchy."""
         from utils.exceptions import (
             DatabaseError,
-            ValidationError,
             ExternalAPIError,
+            ValidationError,
         )
 
         assert DatabaseError is not None
@@ -208,9 +211,9 @@ class TestImportAvailability:
         """Should be able to import error handlers."""
         from utils.error_handlers import (
             classify_exception,
-            sanitize_error_message,
-            retry_with_backoff,
             make_error_response,
+            retry_with_backoff,
+            sanitize_error_message,
         )
 
         assert callable(classify_exception)
@@ -223,8 +226,8 @@ class TestImportAvailability:
         from utils.decorators import (
             db_route_handler,
             external_api_handler,
-            validation_handler,
             transactional,
+            validation_handler,
         )
 
         assert callable(db_route_handler)

@@ -1,20 +1,22 @@
 """Route: scores"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
+    check_data_freshness,
     error_response,
+    execute_with_timeout,
+    handle_db_error,
     list_response,
     safe_limit,
     safe_offset,
-    check_data_freshness,
-    execute_with_timeout,
-    handle_db_error,
 )
+
 
 logger = logging.getLogger(__name__)
 

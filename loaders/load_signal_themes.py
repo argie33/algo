@@ -76,8 +76,7 @@ class SignalThemesLoader(OptimalLoader):
                     for r in rows
                 ]
         except Exception as e:
-            logger.error(f"Error fetching signal themes: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

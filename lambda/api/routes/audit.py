@@ -1,21 +1,23 @@
 """Route: audit"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict, Optional
 import logging
 import os
+from typing import Dict, Optional
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
+    check_data_freshness,
     error_response,
+    handle_db_error,
     list_response,
+    safe_json_serialize,
     safe_limit,
     safe_offset,
-    handle_db_error,
-    check_data_freshness,
-    safe_json_serialize,
 )
+
 
 logger = logging.getLogger(__name__)
 

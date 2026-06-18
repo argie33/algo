@@ -17,8 +17,8 @@ UPDATE PROTOCOL:
 4. Test contract validation with contract_validator.py
 """
 
-from typing import Dict, List, Any, Optional, cast
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, cast
 
 
 @dataclass

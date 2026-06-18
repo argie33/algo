@@ -203,8 +203,9 @@ class DatabaseContext:
                         "SET application_name = %s",
                         (f"algo_loader[{self.correlation_id}]",),
                     )
-                except Exception:
-                    pass  # Non-critical; continue without session-level tracking
+                except Exception as e:
+
+                    raise RuntimeError(f"Unexpected error: {e}") from e  # Non-critical; continue without session-level tracking
 
             # Wrap cursor to auto-inject correlation_id into SQL comments (loaders only)
             if self.correlation_id:

@@ -1,22 +1,24 @@
 """Route: market"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Dict
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from routes.utils import (
-    error_response,
-    list_response,
-    json_response,
-    handle_db_error,
-    db_route_handler,
     check_data_freshness,
+    db_route_handler,
+    error_response,
     execute_with_timeout,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_json_serialize,
 )
+
 
 logger = logging.getLogger(__name__)
 

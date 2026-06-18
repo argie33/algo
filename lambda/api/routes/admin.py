@@ -1,30 +1,31 @@
 """Route: admin"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
 import os
-import boto3
 from datetime import datetime, timedelta, timezone
+from typing import Dict
+
+import boto3
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
+from models.requests import VerifyUserEmailRequest
 from pydantic import ValidationError
 from routes.utils import (
-    error_response,
-    json_response,
-    handle_db_error,
-    db_route_handler,
     check_data_freshness,
-    safe_json_serialize,
+    db_route_handler,
+    error_response,
+    handle_db_error,
+    json_response,
     normalize_to_utc_datetime,
+    safe_json_serialize,
 )
 
 # setup_imports is imported by parent module (lambda_function or api_router),
 # so utils is already available in sys.path
+from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 
-from utils.rate_limiting import check_admin_rate_limit, ADMIN_RATE_LIMITS
-from models.requests import VerifyUserEmailRequest
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +264,7 @@ def _get_system_health(cur) -> Dict:
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
         Exception,
-    ) as e:
+    ):
         health_data["components"]["database"] = "error"
         health_data["status"] = "degraded"
 

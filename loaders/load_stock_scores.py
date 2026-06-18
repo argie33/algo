@@ -185,8 +185,7 @@ class StockScoresLoader(OptimalLoader):
             }
 
         except Exception as e:
-            logger.warning(f"Stock score computation failed for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_quality_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch quality metrics for symbol."""
@@ -207,8 +206,7 @@ class StockScoresLoader(OptimalLoader):
                     "quick_ratio": float(row[6]) if row[6] else None,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_growth_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch growth metrics for symbol."""
@@ -228,8 +226,7 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_5y": float(row[5]) if row[5] else None,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_value_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch value metrics for symbol."""
@@ -249,8 +246,7 @@ class StockScoresLoader(OptimalLoader):
                     "fcf_yield": float(row[5]) if row[5] else None,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_positioning_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch positioning metrics for symbol."""
@@ -267,8 +263,7 @@ class StockScoresLoader(OptimalLoader):
                     "short_interest": float(row[2]) if row[2] else None,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_stability_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch stability metrics for symbol."""
@@ -287,8 +282,7 @@ class StockScoresLoader(OptimalLoader):
                     "debt_to_assets": float(row[4]) if row[4] else None,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_momentum_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
@@ -348,8 +342,7 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_12m": momentum_12m,
                 }
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _score_quality(self, metrics: dict | None) -> float | None:
         """Score quality metrics on 0-100 scale. Returns None if no real data."""

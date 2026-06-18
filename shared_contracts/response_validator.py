@@ -5,9 +5,10 @@ This prevents schema drift and catches breaking changes early.
 """
 
 import logging
-from typing import Dict, Any, Tuple, Optional, cast, List
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
+
 
 logger = logging.getLogger(__name__)
 

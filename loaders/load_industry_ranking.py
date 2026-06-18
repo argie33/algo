@@ -115,8 +115,7 @@ class IndustryRankingLoader(OptimalLoader):
                 ]
 
         except Exception as e:
-            logger.error(f"Failed to compute industry rankings: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

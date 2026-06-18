@@ -10,9 +10,10 @@ Tests for:
 - Response sanitization
 """
 
-import pytest
 import os
 from unittest.mock import patch
+
+import pytest
 
 
 # Test API authentication and authorization

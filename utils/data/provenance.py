@@ -274,8 +274,7 @@ class DataProvenanceTracker:
                     "errors": errors,
                 }
         except Exception as e:
-            logger.error(f"Failed to retrieve replay data for run {run_id}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _insert_loader_run(
         self,

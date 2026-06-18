@@ -1,14 +1,16 @@
 """Shared route utilities."""
 
-import setup_imports  # noqa: F401
-import psycopg2.errors
-import psycopg2
 import logging
 import time
+from datetime import date, datetime, timezone
 from functools import wraps
-from datetime import datetime, date, timezone
+
+import psycopg2
+import psycopg2.errors
+import setup_imports  # noqa: F401
 
 from utils.validation import APIResponseValidator
+
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +169,9 @@ def error_response(code, typ, msg):
         from utils.error_handlers import sanitize_error_message
 
         msg = sanitize_error_message(msg)
-    except Exception:
-        pass
+    except Exception as e:
+
+        raise RuntimeError(f"Unexpected error: {e}") from e
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
@@ -449,8 +452,8 @@ def safe_json_serialize(obj):
     Returns:
         Object with all non-JSON-serializable values converted
     """
+    from datetime import date, datetime
     from decimal import Decimal
-    from datetime import datetime, date
     from uuid import UUID
 
     if isinstance(obj, dict):

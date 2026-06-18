@@ -10,8 +10,9 @@ Validates that:
 5. Orchestrators use the latest scores available
 """
 
-import sys
 import os
+import sys
+
 
 # Add project root to path
 project_root = str(os.path.dirname(__file__).rsplit("/", 1)[0])

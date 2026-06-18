@@ -211,8 +211,7 @@ class DataAgeValidator:
             mgr = WatermarkManager(loader_name, table_name, granularity=granularity)
             return mgr.get_current_watermark(symbol=symbol)
         except Exception as e:
-            logger.error(f"Could not get watermark for {loader_name}/{table_name}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def record_loader_watermark(
@@ -232,8 +231,7 @@ class DataAgeValidator:
                 new_watermark, symbol=symbol, rows_loaded=rows_loaded
             )
         except Exception as e:
-            logger.error(f"Could not record watermark: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 # Backwards compatibility wrappers

@@ -10,6 +10,7 @@ Schema changes:
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"
 
 

@@ -10,6 +10,7 @@ ON CONFLICT DO NOTHING keeps any manually-set DB value.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = (
     "Seed rs_slope_gate_enabled and volume_decay_gate_enabled into algo_config"
 )

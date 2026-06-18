@@ -8,21 +8,23 @@ Tests that Pydantic models correctly validate:
 """
 
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
+
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 
-from pydantic import ValidationError
 from models.requests import (
-    TradePreviewRequest,
-    PreTradeImpactRequest,
     ContactSubmissionRequest,
-    VerifyUserEmailRequest,
     ManualTradeRequest,
+    PreTradeImpactRequest,
+    TradePreviewRequest,
+    VerifyUserEmailRequest,
 )
+from pydantic import ValidationError
 
 
 class TestTradePreviewRequest:

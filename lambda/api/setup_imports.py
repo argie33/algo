@@ -8,6 +8,7 @@ All Lambda API modules should import this at the module level to ensure proper i
 import sys
 from pathlib import Path
 
+
 # Determine the project root based on this file's location
 # File location: /lambda/api/setup_imports.py
 # Project root: /

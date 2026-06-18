@@ -84,8 +84,7 @@ class StaleSignalCircuitBreaker:
                 return True, msg
 
         except Exception as e:
-            logger.error(f"Circuit breaker check failed: {e}")
-            return False, f"Circuit breaker check failed: {e}"
+            raise RuntimeError(f"Operation failed: {e}") from e, f"Circuit breaker check failed: {e}"
 
     @staticmethod
     def assert_signals_fresh() -> None:

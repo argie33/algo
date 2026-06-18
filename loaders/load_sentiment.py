@@ -80,8 +80,7 @@ class SentimentLoader(OptimalLoader):
                 ]
 
         except Exception as e:
-            logger.error(f"Failed to fetch sentiment: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

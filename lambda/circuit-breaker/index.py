@@ -16,14 +16,16 @@ Resets:
 """
 
 import json
+import logging
 import os
 import sys
 import time
-import boto3
-import logging
-import psycopg2
 from datetime import datetime, timezone
 from pathlib import Path
+
+import boto3
+import psycopg2
+
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))

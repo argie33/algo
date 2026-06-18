@@ -40,8 +40,7 @@ class SwingTraderScore:
             with DatabaseContext(mode) as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _load_config_weights(self, cur) -> Dict[str, int]:
         """Load swing score component weights from config table if available."""
@@ -438,8 +437,7 @@ class SwingTraderScore:
                     return cast(int, (row[0] - eval_date).days)
             return None
         except Exception as e:
-            logger.debug(f"earnings check failed for {symbol}: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _load_config_val(self, key: str, default):
         """Load a config value from AlgoConfig, with fallback to default."""

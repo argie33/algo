@@ -86,8 +86,7 @@ class ValueAtRisk:
                 }
 
         except Exception as e:
-            logger.error(f"historical_var error: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def cvar(
         self, confidence: float = 0.95, lookback_days: int = 252
@@ -147,8 +146,7 @@ class ValueAtRisk:
                 }
 
         except Exception as e:
-            logger.error(f"CVaR calculation error: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def stressed_var(self, confidence: float = 0.99) -> Optional[Dict[str, Any]]:
         """Compute stressed VaR using worst 12-month rolling window.
@@ -206,8 +204,7 @@ class ValueAtRisk:
                 }
 
         except Exception as e:
-            logger.error(f"Stressed VaR calculation error: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def beta_exposure(self) -> Optional[Dict[str, Any]]:
         """Compute portfolio beta exposure vs. S&P 500.
@@ -337,8 +334,7 @@ class ValueAtRisk:
                 }
 
         except Exception as e:
-            logger.error(f"Beta exposure calculation error: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def concentration_report(self) -> Optional[Dict[str, Any]]:
         """Generate concentration report: top holdings, sectors, industries.
@@ -468,8 +464,7 @@ class ValueAtRisk:
                 }
 
         except Exception as e:
-            logger.error(f"Concentration report error: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def generate_daily_risk_report(
         self, report_date: Optional[date] = None

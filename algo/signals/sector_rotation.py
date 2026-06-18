@@ -184,8 +184,7 @@ class SectorRotationDetector:
             self._persist(eval_date, result)
             return result
         except Exception as e:
-            logger.error(f"Sector rotation compute failed: {e}", exc_info=True)
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _exposure_penalty(self, lead_score, weeks):
         """Recommend market exposure reduction in pts based on signal severity."""

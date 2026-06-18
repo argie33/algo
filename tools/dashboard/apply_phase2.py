@@ -6,6 +6,7 @@ Replaces 9 critical fetch_* functions with API-only versions.
 
 import re
 
+
 # Read the migration script to extract the replacement functions
 with open("API_MIGRATION_SCRIPT.py", "r", encoding="utf-8") as f:
     migration_code = f.read()

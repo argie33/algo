@@ -7,11 +7,12 @@ Supports both scheduled execution (EventBridge) and manual invocation (test-and-
 """
 
 import json
+import logging
 import os
 import sys
-import logging
-from pathlib import Path
 from datetime import date as _date
+from pathlib import Path
+
 
 # Setup logging
 logger = logging.getLogger()
@@ -160,6 +161,7 @@ def lambda_handler(event, context):
         if not dry_run:
             try:
                 import json as _json
+
                 from config.credential_manager import get_secret
 
                 secret_str = get_secret("algo/orchestrator", default="{}")

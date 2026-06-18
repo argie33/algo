@@ -149,8 +149,7 @@ class OrchestratorExecutionTracker:
             logger.info(f"[EXECUTION_LOG] Saved run {self.run_id}: {overall_status}")
             return True
         except Exception as e:
-            logger.error(f"[EXECUTION_LOG] Failed to save run {self.run_id}: {e}")
-            return False
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 # Global instance (accessible from orchestrator)

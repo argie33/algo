@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from utils.db.context import DatabaseContext
 
+
 with DatabaseContext('read') as cur:
     cur.execute("SELECT COUNT(*), MAX(date) FROM buy_sell_daily")
     row = cur.fetchone()

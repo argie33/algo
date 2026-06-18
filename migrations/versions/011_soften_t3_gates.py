@@ -17,6 +17,7 @@ overwrites them to 'false' only if they are still at the default 'true' value.
 
 from migrations.migration_helper import DatabaseContext
 
+
 DESCRIPTION = "Soften T3 RS-slope and volume-decay gates from hard-reject to warn-only"
 
 

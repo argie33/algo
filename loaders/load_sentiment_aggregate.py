@@ -72,8 +72,7 @@ class SentimentAggregateLoader(OptimalLoader):
                 ]
 
         except Exception as e:
-            logger.error(f"Sentiment aggregation failed: {e}")
-            return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

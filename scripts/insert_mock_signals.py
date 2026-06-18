@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Insert synthetic buy_sell_daily signals for June 15-17 to unblock Phase 5."""
+from datetime import date
+
 from utils.db.context import DatabaseContext
-from datetime import date, timedelta
+
 
 with DatabaseContext('write') as cur:
     # Get some recent buy_sell_daily data as template

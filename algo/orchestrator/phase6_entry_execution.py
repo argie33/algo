@@ -62,8 +62,7 @@ def _compute_true_atr(
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
-        logger.warning(f"Could not compute ATR for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
@@ -83,8 +82,7 @@ def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
-        logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
@@ -98,8 +96,7 @@ def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
             row = cur.fetchone()
             return float(row[0]) if row is not None and row[0] is not None else None
     except Exception as e:
-        logger.warning(f"Could not get close for {symbol}: {e}")
-        return None
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def run(

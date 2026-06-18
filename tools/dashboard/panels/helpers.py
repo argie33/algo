@@ -2,24 +2,21 @@
 
 import json
 import logging
-from typing import Any, List, Tuple, Optional
+from typing import Any, List, Optional, Tuple
 
 from rich.panel import Panel
 from rich.text import Text
 
-from ..panel_registry import register_panel
 from ..utilities import (
-    MASCOT_W,
-    MASCOT_FRAMES,
-    MASCOT_COLORS,
+    CY,
+    DIM,
     LOAD_SEQ,
     PHASE_NAMES,
     G,
     R,
     Y,
-    CY,
-    DIM,
 )
+
 
 logger = logging.getLogger(__name__)
 
