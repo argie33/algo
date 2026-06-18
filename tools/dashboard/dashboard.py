@@ -13,27 +13,14 @@ Modes:
   Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
+import argparse
 import json
 import os
 import subprocess
 import sys
-import traceback
-
-
-# Support both direct execution and module import
-# If run directly (python dashboard.py), add repo root to sys.path before any imports
-if __name__ == "__main__" and __package__ is None:
-    _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
-    _repo_root = os.path.dirname(
-        os.path.dirname(_dashboard_dir)
-    )  # Go up two levels: dashboard -> tools -> repo_root
-    if _repo_root not in sys.path:
-        sys.path.insert(0, _repo_root)
-    __package__ = "tools.dashboard"
-
-import argparse
 import threading
 import time
+import traceback
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -78,13 +65,13 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from .cognito_auth import get_cognito_auth, save_tokens
-from .error_boundary import error_summary_panel
-from .error_recovery import RenderRecovery
-from .fetchers import load_all
-from .formatters import mkt_hours_str
-from .panel_registry import get_panel_registry as _get_panel_registry
-from .panels import (
+from tools.dashboard.cognito_auth import get_cognito_auth, save_tokens
+from tools.dashboard.error_boundary import error_summary_panel
+from tools.dashboard.error_recovery import RenderRecovery
+from tools.dashboard.fetchers import load_all
+from tools.dashboard.formatters import mkt_hours_str
+from tools.dashboard.panel_registry import get_panel_registry as _get_panel_registry
+from tools.dashboard.panels import (
     _expanded_layout,
     _extract_items,
     loading_layout,
@@ -110,7 +97,14 @@ from .panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
-from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
+from tools.dashboard.utilities import (
+    CONSOLE,
+    ET,
+    MASCOT_W,
+    logger,
+    set_api_url,
+    set_cognito_auth,
+)
 
 
 class _LoadState:
@@ -174,15 +168,32 @@ class _RenderWrapper:
         )
 
 
-try:
-    PANEL_REGISTRY = _get_panel_registry()
-    _REGISTRY_AVAILABLE = True
-except Exception as e:
-    logger.error(
-        f"Failed to initialize panel registry: {type(e).__name__}: {e}", exc_info=True
-    )
+if os.environ.get("SKIP_PANEL_REGISTRY"):
+    logger.info("Panel registry disabled via SKIP_PANEL_REGISTRY")
     _REGISTRY_AVAILABLE = False
     PANEL_REGISTRY = None
+else:
+    try:
+        PANEL_REGISTRY = _get_panel_registry()
+        _REGISTRY_AVAILABLE = True
+    except ImportError as e:
+        logger.error(
+            f"Panel registry import failed: {e}\n"
+            "  This usually means a required dependency is missing.\n"
+            "  Try: pip install -r requirements.txt"
+        )
+        sys.exit(1)
+    except Exception as e:
+        logger.error(
+            f"Unexpected error initializing panel registry: {type(e).__name__}: {e}",
+            exc_info=True,
+        )
+        logger.error(
+            "Please file a bug report with the traceback above. "
+            "To run without panel validation:\n"
+            "  SKIP_PANEL_REGISTRY=1 python -m tools.dashboard.dashboard"
+        )
+        sys.exit(1)
 
 
 def _validate_watch_interval(value):
@@ -363,7 +374,8 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             return (None, None, None)
 
         if result.returncode != 0:
-            logger.warning(f"Terraform output failed: {result.stderr[:100]}")
+            error_output = result.stderr.strip() if result.stderr else "(no error output)"
+            logger.warning(f"Terraform output failed: {error_output[:100]}")
             return (None, None, None)
 
         try:
@@ -746,9 +758,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             done.set()
             bg_thread.join(timeout=10)
             if bg_thread.is_alive():
-                print(
-                    "âš ï¸  Background thread did not exit within timeout", file=sys.stderr
-                )
+                logger.warning("Background thread did not exit within timeout")
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -785,6 +795,8 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         view_mode = "normal"
         recovery = RenderRecovery()
         key_map = KEY_MAP
+        render_wrapper = _RenderWrapper(compact, data_source)
+        render_wrapper.watch_interval = interval
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -817,23 +829,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         else:
                             live.update(loading_layout(state.frame, data_source=data_source))
                     else:
-
-                        def render_fn(data):
-                            return render_dashboard(
-                                data,
-                                compact=compact,
-                                elapsed=current_elapsed,
-                                frame=state.frame,
-                                watch_interval=interval,
-                                last_load_time=current_last_load,
-                                refreshing=is_loading,
-                                view_mode=view_mode,
-                                data_source=data_source,
-                            )
-
+                        render_wrapper.elapsed = current_elapsed
+                        render_wrapper.frame = state.frame
+                        render_wrapper.last_load_time = current_last_load
+                        render_wrapper.refreshing = is_loading
+                        render_wrapper.view_mode = view_mode
                         try:
                             layout, recovery_status = recovery.render_with_recovery(
-                                current_result, render_fn
+                                current_result, render_wrapper
                             )
                             live.update(layout)
                         except Exception as e:
@@ -875,10 +878,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             if thread:
                 thread.join(timeout=10)
                 if thread.is_alive():
-                    print(
-                        "âš ï¸  Thread still running after 10s timeout in watch mode",
-                        file=sys.stderr,
-                    )
+                    logger.warning("Thread still running after 10s timeout in watch mode")
 
 
 def main():
