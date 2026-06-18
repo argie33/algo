@@ -5,27 +5,27 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Optional, cast
 
 from .data_validation import (
-    safe_int,
-    safe_float,
-    safe_json_parse,
-    safe_bool,
-    safe_float_strict,
-    safe_int_strict,
     StrictValidationError,
+    safe_bool,
+    safe_float,
+    safe_float_strict,
+    safe_int,
+    safe_int_strict,
+    safe_json_parse,
 )
 from .utilities import (
-    api_call,
-    logger,
-    record_data_quality_issue,
+    API_MAX_BACKOFF,
+    CY,
     G,
     R,
     Y,
-    CY,
-    API_MAX_BACKOFF,
+    api_call,
+    logger,
+    record_data_quality_issue,
 )
+
 
 # Fetcher metadata: endpoint and description for better error context
 FETCHER_METADATA = {
@@ -98,7 +98,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: Optional[dict] = None) -> str:
+def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:
@@ -265,7 +265,7 @@ def fetch_market(c):
                 vix = None  # VIX = 0 is bad data; loader now rejects values <= 5
             spy = safe_float(current.get("spy_close"), default=None)
         except StrictValidationError as e:
-            error_msg = f"Critical market data missing: {str(e)}"
+            error_msg = f"Critical market data missing: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue(
                 "market", "critical_field", "missing_or_invalid", str(e)
@@ -360,7 +360,7 @@ def _validate_required_fields(data_dict, required_fields, source_name):
 
 def _check_data_freshness(
     timestamp_str: str, max_age_seconds: int = 3600, source_name: str = "data"
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Check if data timestamp is within acceptable age threshold.
 
     Args:
@@ -479,7 +479,7 @@ def fetch_portfolio(c):
             tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
             pc = safe_int_strict(port["open_positions"], "portfolio.open_positions")
         except StrictValidationError as e:
-            error_msg = f"Portfolio data conversion failed: {str(e)}"
+            error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue(
                 "portfolio", "type_conversion", "conversion_failed", str(e)
@@ -637,7 +637,7 @@ def fetch_perf(c):
             w = safe_int_strict(perf["winning_trades"], "perf.winning_trades")
             losing = safe_int_strict(perf["losing_trades"], "perf.losing_trades")
         except StrictValidationError as e:
-            error_msg = f"Performance data conversion failed: {str(e)}"
+            error_msg = f"Performance data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue(
                 "per", "type_conversion", "conversion_failed", str(e)
@@ -1012,7 +1012,6 @@ def fetch_economic_pulse(c):
             spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
             credit = d.get("credit", {}) if isinstance(d, dict) else {}
             credit_latest = credit.get("currentSpreads", {}) if isinstance(credit, dict) else {}
-            be_latest = (d.get("breakevens", {}) or {}).get("current", {}) if isinstance(d, dict) else {}
             t10 = safe_float(curve.get("10Y"), default=None)
             t2 = safe_float(curve.get("2Y"), default=None)
             t3m = safe_float(curve.get("3M"), default=None)
@@ -1461,11 +1460,11 @@ def load_all() -> dict:
     _data_status_cache.clear()
 
     out: dict = {}
-    MAX_RETRIES = 3
-    BATCH_TIMEOUT = 200
+    max_retries = 3
+    batch_timeout = 200
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
-    CRITICAL_FETCHERS = {
+    critical_fetchers = {
         "run",
         "cfg",
         "mkt",
@@ -1477,7 +1476,7 @@ def load_all() -> dict:
         "health",
         "cb",
     }
-    OPTIONAL_FETCHERS = {
+    optional_fetchers = {
         "srank",
         "activity",
         "eco",
@@ -1498,17 +1497,17 @@ def load_all() -> dict:
 
     def one(name, fn):
         """Execute fetcher with exponential backoff retry on API errors."""
-        for attempt in range(MAX_RETRIES + 1):
+        for attempt in range(max_retries + 1):
             try:
                 return name, fn(None)
             except Exception as e:
-                if attempt < MAX_RETRIES:
+                if attempt < max_retries:
                     base_backoff = (2**attempt) + random.random() * (2**attempt)
                     backoff = min(base_backoff, API_MAX_BACKOFF)
                     meta = FETCHER_METADATA.get(name, {})
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     logger.warning(
-                        f"Fetcher {name} ({endpoint}) retry {attempt+1}/{MAX_RETRIES} (backoff {backoff:.1f}s): {type(e).__name__}"
+                        f"Fetcher {name} ({endpoint}) retry {attempt+1}/{max_retries} (backoff {backoff:.1f}s): {type(e).__name__}"
                     )
                     time.sleep(backoff)
                     continue
@@ -1517,13 +1516,14 @@ def load_all() -> dict:
                 return name, {"_error": error_msg}
 
     # Execute critical fetchers first (max 10 concurrent to reduce RDS load)
+    critical_start_time = time.monotonic()
     with ThreadPoolExecutor(max_workers=10) as pool:
-        critical_items = {k: v for k, v in FETCHERS.items() if k in CRITICAL_FETCHERS}
+        critical_items = {k: v for k, v in FETCHERS.items() if k in critical_fetchers}
         futures = {pool.submit(one, k, v): k for k, v in critical_items.items()}
         pending_futures = set(futures.keys())
 
         try:
-            for f in as_completed(futures, timeout=BATCH_TIMEOUT):
+            for f in as_completed(futures, timeout=batch_timeout):
                 try:
                     n, d = f.result()
                     out[n] = d
@@ -1535,7 +1535,7 @@ def load_all() -> dict:
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
-            logger.error(f"load_all critical timeout after {BATCH_TIMEOUT}s")
+            logger.error(f"load_all critical timeout after {batch_timeout}s")
             for f in pending_futures:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
@@ -1545,15 +1545,18 @@ def load_all() -> dict:
                     desc = meta.get("desc", "")
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
                     timeout_msg = (
-                        f"Fetcher {k} ({context}) timed out (exceeded {BATCH_TIMEOUT}s)"
+                        f"Fetcher {k} ({context}) timed out (exceeded {batch_timeout}s)"
                     )
                     logger.warning(timeout_msg)
                     out[k] = {"_error": timeout_msg}
 
     # Execute optional fetchers with reduced concurrency
-    optional_timeout = BATCH_TIMEOUT - len(out) * 5
+    # Calculate remaining time based on actual elapsed time, not number of fetchers
+    critical_elapsed = time.monotonic() - critical_start_time
+    remaining_time = max(60, batch_timeout - critical_elapsed)
+    optional_timeout = remaining_time
     with ThreadPoolExecutor(max_workers=6) as pool:
-        optional_items = {k: v for k, v in FETCHERS.items() if k in OPTIONAL_FETCHERS}
+        optional_items = {k: v for k, v in FETCHERS.items() if k in optional_fetchers}
         futures = {pool.submit(one, k, v): k for k, v in optional_items.items()}
         pending_futures = set(futures.keys())
 

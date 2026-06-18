@@ -322,6 +322,23 @@ def render_dashboard(
     view_mode: str = "normal",
     data_source: str = "AWS",
 ) -> Layout:
+    valid_modes = {
+        "normal",
+        "circuit",
+        "exposure",
+        "market",
+        "positions",
+        "signals",
+        "health",
+        "sectors",
+        "trades",
+        "economic",
+        "portfolio",
+    }
+    if view_mode not in valid_modes:
+        logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
+        view_mode = "normal"
+
     run = data.get("run") or {}
     cfg = data.get("cfg") or {}
     mkt = data.get("mkt") or {}
@@ -511,6 +528,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     result: list = [None]
     elapsed: list = [0.0]
     done = threading.Event()
+    bg_thread = None
 
     def bg():
         t0 = time.monotonic()
@@ -518,39 +536,45 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         elapsed[0] = time.monotonic() - t0
         done.set()
 
-    threading.Thread(target=bg, daemon=True).start()
+    try:
+        bg_thread = threading.Thread(target=bg, daemon=True)
+        bg_thread.start()
 
-    frame = 0
-    view_mode = ["normal"]
-    key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
-    with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
-        try:
-            while True:
-                key = _keypress()
-                if key == "q":
-                    break
-                if key in key_map:
-                    target = key_map[key]
-                    view_mode[0] = "normal" if view_mode[0] == target else target
-                frame += 1
-                if not done.is_set():
-                    live.update(loading_layout(frame, data_source=data_source))
-                else:
-                    try:
-                        layout = render_dashboard(
-                            result[0],
-                            compact=compact,
-                            elapsed=elapsed[0],
-                            frame=frame,
-                            view_mode=view_mode[0],
-                            data_source=data_source,
-                        )
-                        live.update(layout)
-                    except Exception as e:
-                        live.update(_handle_render_error(e))
-                time.sleep(0.125)
-        except KeyboardInterrupt:
-            pass
+        frame = 0
+        view_mode = ["normal"]
+        key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+        with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
+            try:
+                while True:
+                    key = _keypress()
+                    if key == "q":
+                        break
+                    if key in key_map:
+                        target = key_map[key]
+                        view_mode[0] = "normal" if view_mode[0] == target else target
+                    frame += 1
+                    if not done.is_set():
+                        live.update(loading_layout(frame, data_source=data_source))
+                    else:
+                        try:
+                            layout = render_dashboard(
+                                result[0],
+                                compact=compact,
+                                elapsed=elapsed[0],
+                                frame=frame,
+                                view_mode=view_mode[0],
+                                data_source=data_source,
+                            )
+                            live.update(layout)
+                        except Exception as e:
+                            live.update(_handle_render_error(e))
+                    time.sleep(0.125)
+            except KeyboardInterrupt:
+                pass
+    finally:
+        if bg_thread and bg_thread.is_alive():
+            done.set()
+            bg_thread.join(timeout=5)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -561,6 +585,8 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     last_load: list = [0.0]
     frame: list = [0]
     state_lock = threading.Lock()
+    active_threads: list = []
+    shutdown = threading.Event()
 
     def reload():
         try:
@@ -577,50 +603,60 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             with state_lock:
                 loading[0] = False
 
-    threading.Thread(target=reload, daemon=True).start()
+    try:
+        reload_thread = threading.Thread(target=reload, daemon=True)
+        reload_thread.start()
+        active_threads.append(reload_thread)
 
-    view_mode = ["normal"]
-    key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
-    with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
-        try:
-            while True:
-                key = _keypress()
-                if key == "q":
-                    break
-                if key in key_map:
-                    target = key_map[key]
-                    view_mode[0] = "normal" if view_mode[0] == target else target
-                frame[0] += 1
-                with state_lock:
-                    is_loading = loading[0]
-                    current_last_load = last_load[0]
-                    current_result = result[0]
-                    current_elapsed = elapsed[0]
+        view_mode = ["normal"]
+        key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+        with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
+            try:
+                while True:
+                    key = _keypress()
+                    if key == "q":
+                        break
+                    if key in key_map:
+                        target = key_map[key]
+                        view_mode[0] = "normal" if view_mode[0] == target else target
+                    frame[0] += 1
+                    with state_lock:
+                        is_loading = loading[0]
+                        current_last_load = last_load[0]
+                        current_result = result[0]
+                        current_elapsed = elapsed[0]
 
-                if current_result is None:
-                    live.update(loading_layout(frame[0], data_source=data_source))
-                else:
-                    try:
-                        layout = render_dashboard(
-                            current_result,
-                            compact=compact,
-                            elapsed=current_elapsed,
-                            frame=frame[0],
-                            watch_interval=interval,
-                            last_load_time=current_last_load,
-                            refreshing=is_loading,
-                            view_mode=view_mode[0],
-                            data_source=data_source,
-                        )
-                        live.update(layout)
-                    except Exception as e:
-                        live.update(_handle_render_error(e))
+                    if current_result is None:
+                        live.update(loading_layout(frame[0], data_source=data_source))
+                    else:
+                        try:
+                            layout = render_dashboard(
+                                current_result,
+                                compact=compact,
+                                elapsed=current_elapsed,
+                                frame=frame[0],
+                                watch_interval=interval,
+                                last_load_time=current_last_load,
+                                refreshing=is_loading,
+                                view_mode=view_mode[0],
+                                data_source=data_source,
+                            )
+                            live.update(layout)
+                        except Exception as e:
+                            live.update(_handle_render_error(e))
 
-                    if not is_loading and (time.monotonic() - current_last_load) >= interval:
-                        threading.Thread(target=reload, daemon=True).start()
-                time.sleep(0.125)
-        except KeyboardInterrupt:
-            pass
+                        if not is_loading and (time.monotonic() - current_last_load) >= interval:
+                            reload_thread = threading.Thread(target=reload, daemon=True)
+                            reload_thread.start()
+                            active_threads.append(reload_thread)
+                    time.sleep(0.125)
+            except KeyboardInterrupt:
+                pass
+    finally:
+        shutdown.set()
+        for thread in active_threads:
+            if thread and thread.is_alive():
+                thread.join(timeout=5)
 
 
 def main():
