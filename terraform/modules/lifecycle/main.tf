@@ -9,13 +9,62 @@
 
 # ============================================================
 # CloudWatch Log Group Retention Policies
-# NOTE: CloudWatch log groups are already created in AWS and managed outside of Terraform.
-# They exist from previous deployments and don't need to be managed by Terraform.
-# Terraform would try to recreate them, causing "ResourceAlreadyExistsException" errors.
-# These logs are retained by CloudWatch retention policies configured during initial setup.
+# Note: Log groups are auto-created by AWS services (Lambda, ECS, RDS, etc.)
+# Terraform uses data sources to reference existing groups and manages retention only.
 # ============================================================
-# All CloudWatch log group resources have been removed.
-# They are no longer managed by this Terraform module.
+
+# Retain logs for operational log groups (7 days = balance between debugging & cost)
+locals {
+  log_groups_with_retention = [
+    "/aws/batch/job",
+    "/aws/lambda/algo-cognito-email-trigger-dev",
+    "/aws/lambda/algo-data-freshness-monitor-dev",
+    "/aws/lambda/algo-db-init-dev",
+    "/aws/lambda/algo-loader-failure-handler-dev",
+    "/aws/rds/instance/algo-db/postgresql",
+    "/aws/rds/proxy/algo-proxy",
+    "/aws/rds/proxy/algo-rds-proxy-dev",
+    "/aws/ssm/sessions",
+    "/aws/vpc/flowlogs/algo-dev",
+    "/ecs/algo-aaiidata-loader",
+    "/ecs/algo-algo-orchestrator",
+    "/ecs/algo-algo_metrics_daily-loader",
+    "/ecs/algo-analyst_sentiment-loader",
+    "/ecs/algo-analyst_upgrades_downgrades-loader",
+    "/ecs/algo-buy_sell_daily-loader",
+    "/ecs/algo-calendar-loader",
+    "/ecs/algo-company_profile-loader",
+    "/ecs/algo-compute_circuit_breakers-loader",
+    "/ecs/algo-compute_performance_metrics-loader",
+    "/ecs/algo-continuous-monitor",
+    "/ecs/algo-data-patrol",
+    "/ecs/algo-earnings_calendar-loader",
+    "/ecs/algo-earnings_history-loader",
+    "/ecs/algo-earnings_revisions-loader",
+    "/ecs/algo-earnings_surprise-loader",
+    "/ecs/algo-econ_data-loader",
+    "/ecs/algo-economic_calendar-loader",
+    "/ecs/algo-economic_metrics_daily-loader",
+    "/ecs/algo-eod_bulk_refresh-loader",
+    "/ecs/algo-etf_prices_daily-loader",
+    "/ecs/algo-etf_prices_monthly-loader",
+    "/ecs/algo-etf_prices_weekly-loader",
+    "/ecs/algo-feargreed-loader",
+    "/ecs/algo-financials_annual_balance-loader",
+  ]
+}
+
+resource "aws_cloudwatch_log_group" "existing_with_retention" {
+  for_each = toset(local.log_groups_with_retention)
+
+  name              = each.value
+  retention_in_days = 7
+  skip_destroy      = true
+
+  lifecycle {
+    ignore_changes = [name, tags]
+  }
+}
 
 # ============================================================
 # Task Definition Version Cleanup
