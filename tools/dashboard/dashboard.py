@@ -342,7 +342,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             return (None, None, None)
 
         # Validate API URL format
-        if not api_url.startswith(("http://", "https://")):
+        if not _validate_api_url(api_url):
             logger.error(f"Invalid API URL format from terraform: {api_url[:50]}")
             return (None, None, None)
 
@@ -674,11 +674,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             )
                             live.update(layout)
                         except Exception as e:
-                            live.update(
-                                _handle_render_error(
-                                    e, recovery.state.get_recovery_status()
-                                )
+                            error_panel = _handle_render_error(
+                                e, recovery.state.get_recovery_status()
                             )
+                            try:
+                                live.update(error_panel)
+                            except Exception as panel_error:
+                                logger.error(
+                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                )
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass
@@ -748,12 +752,16 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
                     if current_result is None:
                         if current_error:
-                            live.update(
-                                _handle_render_error(
-                                    RuntimeError(current_error),
-                                    recovery.state.get_recovery_status(),
-                                )
+                            error_panel = _handle_render_error(
+                                RuntimeError(current_error),
+                                recovery.state.get_recovery_status(),
                             )
+                            try:
+                                live.update(error_panel)
+                            except Exception as panel_error:
+                                logger.error(
+                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                )
                         else:
                             live.update(loading_layout(frame[0], data_source=data_source))
                     else:
@@ -777,11 +785,15 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             )
                             live.update(layout)
                         except Exception as e:
-                            live.update(
-                                _handle_render_error(
-                                    e, recovery.state.get_recovery_status()
-                                )
+                            error_panel = _handle_render_error(
+                                e, recovery.state.get_recovery_status()
                             )
+                            try:
+                                live.update(error_panel)
+                            except Exception as panel_error:
+                                logger.error(
+                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                )
 
                         # Trigger data reload on interval or on transient errors
                         should_reload = (
