@@ -5,20 +5,19 @@ import json
 import logging
 import os
 import random
-import sys
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, cast
+from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import requests
 import requests.exceptions
+from rich.console import Console
 
 from .data_validation import safe_float
 
-from rich.console import Console
 
 # ── globals ───────────────────────────────────────────────────────────────────
 ET = ZoneInfo("America/New_York")
@@ -26,11 +25,11 @@ CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
 
 # Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
 _data_status_lock = threading.Lock()
-_data_status_cache: Dict[str, Any] = {}
+_data_status_cache: dict[str, Any] = {}
 
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
-_sector_agg_cache: Dict[str, Any] = {}
+_sector_agg_cache: dict[str, Any] = {}
 
 G = "bright_green"
 R = "bright_red"
@@ -158,7 +157,7 @@ def set_cognito_auth(auth):
         _cognito_auth = auth
 
 
-def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
 
     Returns dict with 'data' key on success, '_error' on failure.
@@ -214,7 +213,7 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
             cache_response(endpoint, data)
             _record_api_success()
-            return cast(Dict[Any, Any], data)
+            return cast(dict[Any, Any], data)
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
                 backoff = min(
@@ -287,7 +286,7 @@ def compute_sector_agg(pos, port):
     Compute sector aggregation with caching to avoid recomputation on every 30-sec refresh.
     Only recomputes when positions data changes (via content hash, not object identity).
 
-    E5 optimization: Sector aggregation from 100+ positions was O(n) × 2,880 times/day.
+    E5 optimization: Sector aggregation from 100+ positions was O(n) x 2,880 times/day.
     Now computes only when positions change (typically 2-5 times/day).
 
     Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
@@ -339,7 +338,10 @@ def compute_sector_agg(pos, port):
     total_secs = len(sorted_secs)
 
     with _sector_cache_lock:
-        if len(_sector_agg_cache) >= _sector_cache_maxsize:
+        if (
+            len(_sector_agg_cache) >= _sector_cache_maxsize
+            and pos_hash not in _sector_agg_cache
+        ):
             _sector_agg_cache.popitem(last=False)
 
         _sector_agg_cache[pos_hash] = {
@@ -399,20 +401,20 @@ def validate_data_freshness(
     return True
 
 
-_response_cache: Dict[str, Dict[str, Any]] = {}
+_response_cache: dict[str, dict[str, Any]] = {}
 _response_cache_lock = threading.Lock()
 
 _circuit_breaker_state = "closed"
 _circuit_breaker_failures = 0
 _circuit_breaker_lock = threading.Lock()
-_circuit_breaker_reset_time: Optional[float] = None
+_circuit_breaker_reset_time: float | None = None
 CIRCUIT_BREAKER_THRESHOLD = 3
 CIRCUIT_BREAKER_RESET_SECONDS = 60
 
 
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
-    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time  # noqa: F824
+    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
     with _circuit_breaker_lock:
         if _circuit_breaker_state != "open":
             return False
@@ -463,7 +465,7 @@ def cache_response(endpoint: str, data: dict) -> None:
         }
 
 
-def get_cached_response(endpoint: str) -> Optional[dict]:
+def get_cached_response(endpoint: str) -> dict | None:
     """Get cached response if available, mark as stale if > 30 minutes old."""
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
@@ -485,7 +487,7 @@ def get_cached_response(endpoint: str) -> Optional[dict]:
 
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
 
-_data_quality_issues: List[Dict[str, Any]] = []
+_data_quality_issues: list[dict[str, Any]] = []
 _data_quality_lock = threading.Lock()
 
 
@@ -517,7 +519,7 @@ def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any =
     )
 
 
-def get_data_quality_report(max_age_minutes: int = 30) -> List[Dict[str, Any]]:
+def get_data_quality_report(max_age_minutes: int = 30) -> list[dict[str, Any]]:
     """Get data quality issues from the last N minutes.
 
     Returns:
