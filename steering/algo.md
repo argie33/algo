@@ -1,6 +1,6 @@
-# Stock Analytics Platform: Algo
+# Algo Trading System
 
-Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. Up to 15 concurrent positions. Reconciles with Alpaca daily.
+Live trading system: Minervini trend-following + fundamental quality filters. Up to 15 concurrent positions, reconciles with Alpaca daily.
 
 ## System Map
 
@@ -27,72 +27,25 @@ See `steering/rate-limiting-strategy.md` for complete rate limiting strategy. Qu
 
 ## API Error Handling
 
-All database errors return proper HTTP status codes with error details instead of masking failures with empty data objects:
-- **503 Service Unavailable:** Database unreachable or schema missing (tables not created yet)
-- **504 Gateway Timeout:** Query exceeded timeout (more than 15 seconds)
-- **500 Internal Error:** Unexpected errors
-- Never return 200 OK with empty data
-
-**Implementation:**
-- `db_route_handler` decorator in `lambda/api/routes/utils.py` always returns error responses, never graceful degradation
-- Removed `default_error_response` parameter from all endpoints (was masking errors with success_response)
-- Fixed `/api/sentiment` endpoint that was returning `{}` on missing data
-- Improved error logging (changed warning→error) for optional data fetches
-
-**Frontend Implications:**
-- Must now handle 503/504/500 errors as actual errors, not check for empty data
-- Display error alerts instead of blank charts when 503 returned
-- Retry logic recommended for 503/504 (transient errors)
-
-**Affected Endpoints:**
-- Daily return histogram, trade distribution, holding period distribution, stage distribution
-- Algo portfolio, risk metrics, performance analytics, sentiment
-- Economic calendar
-
-**Verification:**
-```bash
-# Test: Empty table → 503 error (not empty {}), clear error message
-curl https://api.example.com/api/algo/sentiment
-# Returns: {"statusCode":503,"errorType":"no_data","message":"Sentiment data not available","_error":"..."}
-```
+All endpoints return HTTP error codes (503/504/500) with details, never 200 OK with empty data. `db_route_handler` decorator enforces this. Frontend must handle 503/504/500 as actual errors.
 
 ## Credentials & Secrets
 
-**Sources (priority order):** Environment variables → Terraform outputs (S3 remote) → AWS Secrets Manager (`algo/*` secrets).
+**Local setup:** `scripts/setup-local-dev.ps1` (fetches credentials from Secrets Manager).  
+**If expired:** `scripts/refresh-aws-credentials.ps1`  
+**Rules:** Rotate quarterly (first Monday), immediately if leaked. No `.env` files. GitHub Actions uses AWS OIDC.
+**Locations:** `algo/dashboard-config`, `algo/database`, `algo/alpaca` (paper trading), `algo/fred`
 
-**Local Setup:**
-```powershell
-scripts/setup-local-dev.ps1  # Fetch credentials, configure dashboard + frontend, enable 24h credential cache
-# Then: scripts/run-dashboard.ps1, npm run dev (webapp/frontend), or api-proxy-server.py
-```
+## Terraform Outputs
 
-**Credential Locations:**
-- Dashboard API: `algo/dashboard-config`
-- Database: `algo/database`
-- Trading (Alpaca): `algo/alpaca` (paper trading via ALPACA_PAPER_TRADING=true)
-- Economic data (FRED): `algo/fred`
-
-**Rules:** Rotate quarterly (first Monday). Rotate immediately if leaked. Never commit `.env` files. GitHub Actions uses AWS OIDC (no static keys).
-
-**If credentials expire:** `scripts/refresh-aws-credentials.ps1` (fetches fresh from Secrets Manager via OIDC)
-
-## Terraform Outputs: Version Control & Freshness
-
-Outputs are tracked in git (`.terraform-outputs.json`) with timestamp for traceability. FRESH if < 24 hours old.
-
-**Scripts:** `verify-terraform-outputs.ps1` (check freshness), `sync-terraform-outputs.ps1` (manual sync), `get-cached-terraform-outputs.ps1` (load cache or live fallback).
-
-CI/CD automatically saves outputs to git after `terraform apply`. If stale, scripts fetch from live AWS.
+Tracked in `.terraform-outputs.json` with timestamp. Fresh if <24h old. Auto-saved by CI/CD post-apply. Scripts: `verify-terraform-outputs.ps1`, `sync-terraform-outputs.ps1`
 
 ## Deployment
 
-**Frontend Build:** Reads API URL + Cognito config at build time. Injects cache-bust parameter to `index.html` (prevents stale config.js). Four-layer cache invalidation (S3 headers + CloudFront + browser fetch + parameter).
-
-**Production:** `git push main` → deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations + saves outputs to git)
-
-**Staging:** `git push staging` → deploy-staging.yml (dry-run, separate Lambda, shared RDS)
-
-**Database:** Schema applied exclusively by GitHub Actions workflow, NOT by Terraform (avoids race conditions and state drift).
+**Frontend:** Injects cache-bust + 4-layer cache invalidation (S3 headers, CloudFront, browser, parameters).  
+**Production:** `git push main` → deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations).  
+**Staging:** `git push staging` → deploy-staging.yml (dry-run, separate Lambda, shared RDS).  
+**Database schema:** Applied by GitHub Actions (avoids race conditions, not Terraform).
 
 ## Lambda Ownership: Source of Truth
 
@@ -242,18 +195,11 @@ unzip -l terraform/lambda_api.zip | head -30
 
 **Dashboards auto-refresh every 5 minutes. View real-time to diagnose slow pipelines.**
 
-**Manual Monitoring Checklist (SLA Validation):**
+**Monitoring Checklist:**
 
-*Morning Preparation Pipeline (2:00 AM - 9:30 AM ET):*
-1. At 2:30 AM: Monitor stock_prices_daily load time — should complete by 4:00 AM (~2h window)
-2. At 7:00 AM: Confirm market_health_daily + swing_trader_scores loaded (separate fast path, ~10-30 min total)
-3. At 9:00 AM: Verify Phase 1 passes (if not, halt flag triggers and orchestrator skips Phase 5/6)
-4. If morning prep >90 min: Check CloudWatch for yfinance rate limiting (adaptive batching may have reduced batch_size)
+Morning (2:00-9:30 AM ET): (1) stock_prices_daily completes by 4:00 AM, (2) market_health + swing_scores ~30 min, (3) Phase 1 passes by 9:00 AM. If >90 min, check yfinance rate limiting (CloudWatch logs).
 
-*EOD Pipeline (4:05 PM - 6:00 PM ET):*
-1. At 4:15 PM: stock_prices_daily should complete by 5:15 PM (1h limit for EOD SLA)
-2. At 5:00 PM: Verify Phase 1 passes (circuit breakers computed, Phase 2+ scheduled)
-3. If EOD >85 min: Investigate yfinance lag or RDS slow queries (disk queue depth)
+EOD (4:05-6:00 PM ET): (1) stock_prices_daily by 5:15 PM, (2) Phase 1 passes by 5:30 PM. If >85 min, check yfinance lag or RDS Performance Insights.
 
 **Alerting:** SNS topic `algo-loader-alerts-dev` receives alarms. Configure email subscription in Terraform variables.
 
@@ -359,21 +305,11 @@ Pipeline:
 
 ## Infrastructure Constraints
 
-**RDS (db.t4g.small, 2GB RAM):**
-- ~100 concurrent connections max (safety threshold: 350)
-- statement_timeout: 15 minutes (supports batch loaders with 5000+ symbols)
-- work_mem: 16MB per sort operation
-- effective_cache_size: 768MB (75% of RAM)
-
-**Lambda API (256 MB, 25s timeout, 1 provisioned concurrency):** Warm container, prevents VPC cold-start. Deployed at `algo-api-dev`. Environment: 3 layers (API deps + psycopg2 + shared dependencies). Credentials: RDS via Secrets Manager, Alpaca/FRED via algo-secrets-dev. VPC-enabled with 2 private subnets for database access. CORS: Allows CloudFront domain, localhost:3000, localhost:5173.
-
-**Lambda Orchestrator (512 MB, 600s timeout):** Pre-warmed at 9:25 AM (5 min before market open)
-
-**CloudFront Domain:** Stored in AWS Secrets Manager (algo/cloudfront-domain), fetched at Lambda cold-start
-
-**Trading Mode:** `alpaca_paper_trading = true` (paper mode via paper-api.alpaca.markets). To switch to live: (1) GitHub Actions → update-credentials.yml → set trading_mode=live, (2) Change terraform.tfvars to alpaca_paper_trading=false, (3) Push
-
-**Environment Naming:** `environment = "dev"` (all AWS resources named `-dev`). Change to `prod` if staging provisioned in same account.
+**RDS:** db.t4g.small (2GB), ~100 concurrent max, statement_timeout 15 min, work_mem 16MB, effective_cache_size 768MB.  
+**Lambda API:** 256 MB, 25s timeout, provisioned concurrency=1. VPC with RDS Secrets Manager.  
+**Lambda Orchestrator:** 512 MB, 600s timeout. Pre-warmed 9:25 AM ET.  
+**Trading mode:** Paper (alpaca_paper_trading=true). Switch via terraform.tfvars.  
+**Environment:** dev (all resources named -dev).
 
 ## Data Integrity & Resilience
 
@@ -488,15 +424,7 @@ All trading parameters in `algo_config` table (configurable without deploy). Inf
 
 ## API Response Format
 
-All responses include `statusCode` root field:
-
-```json
-{ "statusCode": 200, "data": { ... } }
-{ "statusCode": 200, "items": [...], "total": 100, "limit": 50, "offset": 0 }
-{ "statusCode": 404, "errorType": "not_found", "message": "..." }
-```
-
-Response helpers: `success_response(data)`, `list_response(items, total, ...)` in `lambda/api/routes/utils.py`
+All responses include `statusCode` root field. Helpers: `success_response(data)`, `list_response(items, total, ...)` in `lambda/api/routes/utils.py`
 
 ## GitHub Actions Workflows
 
@@ -550,47 +478,10 @@ Response helpers: `success_response(data)`, `list_response(items, total, ...)` i
 
 ## Lambda API Configuration
 
-**Lambda Function Configuration:**
-- Function name: `algo-api-dev`
-- Runtime: Python 3.12
-- Memory: 256 MB
-- Timeout: 25 seconds (API Gateway hard limit: 29s)
-- Provisioned concurrency: 1 (keeps one container warm, prevents cold-start 502 errors)
-- Reserved concurrency: 50 (supports 26 concurrent dashboard calls from MarketsHealth + headroom)
-- VPC: Enabled with 2 private subnets for RDS access
-- Layers: API dependencies + psycopg2 + shared (numpy/pandas/scipy)
-
-**Secrets Manager Configuration (VPC Cold-Start):** Increased timeouts to handle VPC cold-start latency: Secrets Manager connect timeout 10s (was 2s), read timeout 15s (was 3s). This prevents 503 "Database connection failed" errors on first invocation.
-
-**Environment Configuration:**
-- DB_HOST: RDS Proxy endpoint (`algo-rds-proxy-dev.proxy-...rds.amazonaws.com`)
-- DB_SECRET_ARN: Fetched from Secrets Manager at cold-start
-- CLOUDFRONT_DOMAIN: Set dynamically at deployment (e.g., `https://d2u93...cloudfront.net`)
-- COGNITO_USER_POOL_ID: Set from deployed Cognito user pool
-- ALGO_SECRETS_ARN: Alpaca API keys from Secrets Manager
-
-**Health Check:**
-- Endpoint: `/api/health` (no auth required)
-- Returns: `statusCode: 200` with system health snapshot (RDS connections, data freshness, import status)
-- Example response: `{"status": "healthy" | "degraded" | "critical", "rds_connection_pool": {...}, "freshness": {...}}`
-
-**Database Connectivity:**
-- RDS Proxy acts as connection pool manager
-- Expected connections during active requests: 20-30 (from 48-96 loader connections via proxy)
-- Timeout errors: Check RDS Performance Insights for slow queries (7-day free tier)
-- Connection refusal: Check security group ingress rules (must allow port 5432 from Lambda SG)
-
-**Testing Lambda API:**
-```bash
-# Direct invocation (for debugging)
-aws lambda invoke --function-name algo-api-dev \
-  --payload '{"httpMethod":"GET","path":"/api/health"}' \
-  --log-type Tail response.json
-cat response.json
-
-# Via API Gateway (production path)
-curl https://<api-gateway-endpoint>/api/health
-```
+**Function:** `algo-api-dev` (Python 3.12, 256 MB, 25s timeout, provisioned concurrency=1, reserved=50)
+- VPC: 2 private subnets, Secrets Manager connect timeout 10s
+- Layers: API deps + psycopg2 + shared (numpy/pandas/scipy)
+- Health endpoint: `/api/health` (no auth, returns health status + RDS pool state)
 
 ## Fail-Fast Pattern (Critical for Financial Systems)
 
