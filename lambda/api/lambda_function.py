@@ -4,14 +4,23 @@ Routes requests to extracted handler modules via api_router.
 Deployment: Fixed Secrets Manager secret name for password sync.
 """
 
-import os
 import json
 import logging
+import os
 import threading
-from typing import Dict, Any, Optional
+from typing import Any
+
 
 # Set up imports for Lambda API - ensures routes, api_utils, utils, and other packages are importable
-import setup_imports  # noqa: F401
+# setup_imports only available in Lambda runtime; during local testing, continue anyway
+try:
+    import setup_imports  # noqa: F401
+except ModuleNotFoundError as setup_err:
+    if "AWS_LAMBDA_FUNCTION_NAME" in os.environ:
+        # In Lambda, setup_imports is required
+        raise RuntimeError(f"Lambda runtime setup failed: {setup_err}") from setup_err
+    # In local testing, skip the import
+
 
 IMPORT_ERROR = None
 ENV_VALIDATION_ERROR = None
@@ -29,9 +38,10 @@ _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()  # Protects CloudFront domain cache
 try:
     import base64
     from datetime import datetime, timedelta, timezone
+
+    import api_router
     import jwt
     import requests
-    import api_router
     from api_utils.database_context import DatabaseContext
 except Exception as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
@@ -60,6 +70,7 @@ def fetch_cloudfront_domain_from_secrets():
 
         try:
             import json
+
             from config.credential_manager import get_secret
 
             try:
@@ -272,12 +283,15 @@ def test_db_connection():
         except Exception as qe:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.error(f"[DB_TEST_FAILED] Failed to close connection after query error: {close_err}")
+                raise RuntimeError(
+                    f"Cold start database test failed to clean up: {close_err}"
+                ) from close_err
             raise qe
     except Exception as e:
         error_msg = (
-            f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}. "
+            f"Database connection test failed at cold start: {type(e).__name__}: {e!s}. "
             "Verify RDS Proxy is running and network connectivity is available."
         )
         logger.error(f"[DB_TEST_FAILED] {error_msg}")
@@ -346,15 +360,15 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple:
         return True, value
 
 
-def parse_query_params(event: Dict) -> Dict:
+def parse_query_params(event: dict) -> dict:
     """Parse query parameters from API Gateway v1 or v2 events."""
     params = {}
     # Try v1 format first (REST API)
-    if "queryStringParameters" in event and event["queryStringParameters"]:
+    if event.get("queryStringParameters"):
         for k, v in event["queryStringParameters"].items():
             params[k] = [v] if v else []
     # If no v1 params, try v2 format (HTTP API with rawQueryString)
-    elif "rawQueryString" in event and event["rawQueryString"]:
+    elif event.get("rawQueryString"):
         for param in event["rawQueryString"].split("&"):
             if "=" in param:
                 k, v = param.split("=", 1)
@@ -406,7 +420,7 @@ def _build_allowed_origins() -> set:
         return origins
 
 
-def get_cors_headers(event: Dict) -> Dict[str, str]:
+def get_cors_headers(event: dict) -> dict[str, str]:
     """Get CORS headers based on request origin (strict whitelist only).
 
     SECURITY FIX: Explicitly whitelists origins from FRONTEND_URL and ALLOWED_ORIGINS.
@@ -451,7 +465,7 @@ def get_json_content_type() -> str:
     return "application/json; charset=utf-8"
 
 
-def get_security_headers() -> Dict[str, str]:
+def get_security_headers() -> dict[str, str]:
     """Return security headers for all responses."""
     return {
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
@@ -464,7 +478,7 @@ def get_security_headers() -> Dict[str, str]:
     }
 
 
-def get_cache_headers(cache_type: str = "no-cache") -> Dict[str, str]:
+def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
     """Return cache control headers based on content type.
 
     Args:
@@ -498,7 +512,7 @@ def get_cache_headers(cache_type: str = "no-cache") -> Dict[str, str]:
         return {"Cache-Control": "no-cache"}
 
 
-def get_bearer_token(event: Dict) -> Optional[str]:
+def get_bearer_token(event: dict) -> str | None:
     """Extract Bearer token from Authorization header."""
     headers = event.get("headers", {})
     auth_header = headers.get("Authorization") or headers.get("authorization") or ""
@@ -553,7 +567,7 @@ def _get_cognito_jwks():
             return None
 
 
-def validate_bearer_token(token: Optional[str]) -> tuple:
+def validate_bearer_token(token: str | None) -> tuple:
     """Validate JWT token: format, signature, expiration, audience.
 
     Returns: (is_valid: bool, claims: dict or None, error: str or None)
@@ -668,9 +682,9 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         return (False, None, "Token expired")
     except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token: {e}")
-        return (False, None, f"Token invalid: {str(e)}")
+        return (False, None, f"Token invalid: {e!s}")
     except json.JSONDecodeError as e:
-        return (False, None, f"Invalid token format: {str(e)}")
+        return (False, None, f"Invalid token format: {e!s}")
     except Exception as e:
         logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
@@ -709,7 +723,7 @@ def categorize_error(e: Exception) -> str:
     return "unknown_error"
 
 
-def get_client_ip(event: Dict) -> str:
+def get_client_ip(event: dict) -> str:
     """Extract client IP for audit logging.
 
     Uses API Gateway's requestContext.identity.sourceIp as the authoritative source —
@@ -734,10 +748,10 @@ def get_client_ip(event: Dict) -> str:
 
 
 def log_api_request(
-    event: Dict,
+    event: dict,
     status_code: int,
-    user_id: Optional[str] = None,
-    error_msg: Optional[str] = None,
+    user_id: str | None = None,
+    error_msg: str | None = None,
 ):
     """Log API request for audit trail (security incident investigation).
 
@@ -765,18 +779,18 @@ def log_api_request(
 
         logger.info(json.dumps(audit_log))
     except Exception as e:
-        logger.error(f"Failed to log API request: {str(e)}")
+        logger.error(f"Failed to log API request: {e!s}")
 
 
-def require_auth(event: Dict, path: str) -> tuple:
+def require_auth(event: dict, path: str) -> tuple:
     """
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
-    PUBLIC_PREFIXES = {
-        
+    PUBLIC_PREFIXES = {  # noqa: N806
+
             "/api/health",  # Basic health check (no auth required for uptime monitoring)
             # /api/health/detailed and /api/health/pipeline intentionally require authentication
             # (they expose DB table names, loader names, row counts, freshness ages).
@@ -909,7 +923,7 @@ if not IMPORT_ERROR:
     _build_allowed_origins()
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     # Credential cache uses 5-minute TTL to balance freshness with API costs
     # No need to clear on every invocation — expired entries are automatically skipped
@@ -1238,7 +1252,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        error_msg = f"{type(e).__name__}: {str(e)}"
+        error_msg = f"{type(e).__name__}: {e!s}"
         logger.error(f"[UNHANDLED_ERROR] {error_msg}", exc_info=True)
         cors_headers = get_cors_headers(event)
         msg = "An unexpected error occurred"
