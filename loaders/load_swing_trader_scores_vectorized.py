@@ -409,7 +409,7 @@ def main():
     # Start heartbeat thread for hung task detection
     stop_heartbeat = threading.Event()
     heartbeat_thread = threading.Thread(
-        target=_swing_heartbeat_worker, args=(stop_heartbeat,), daemon=True
+        target=_swing_heartbeat_worker, args=(stop_heartbeat,), daemon=False
     )
     heartbeat_thread.start()
 
@@ -475,9 +475,13 @@ def main():
         _update_swing_loader_status("FAILED", f"Unexpected error: {str(e)}")
         return 1
     finally:
-        # Stop heartbeat thread
+        # Stop heartbeat thread and wait for clean shutdown
         stop_heartbeat.set()
-        heartbeat_thread.join(timeout=5)
+        heartbeat_thread.join(timeout=15)
+        if heartbeat_thread.is_alive():
+            logger.error("Heartbeat thread still running after 15s timeout — may be hung in database operation")
+            # Non-daemon threads will block process exit until they finish
+            # This log entry flags the issue for monitoring/alerts
 
 
 if __name__ == "__main__":
