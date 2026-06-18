@@ -13,15 +13,20 @@ Modes:
   Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
+import json
 import os
+import subprocess
 import sys
+import traceback
 
 
 # Support both direct execution and module import
 # If run directly (python dashboard.py), add repo root to sys.path before any imports
 if __name__ == "__main__" and __package__ is None:
     _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
-    _repo_root = os.path.dirname(os.path.dirname(_dashboard_dir))  # Go up two levels: dashboard -> tools -> repo_root
+    _repo_root = os.path.dirname(
+        os.path.dirname(_dashboard_dir)
+    )  # Go up two levels: dashboard -> tools -> repo_root
     if _repo_root not in sys.path:
         sys.path.insert(0, _repo_root)
     __package__ = "tools.dashboard"
@@ -47,6 +52,7 @@ except ImportError:
         return ""
 
 
+import boto3
 from rich.console import Group
 from rich.layout import Layout
 from rich.live import Live
@@ -54,6 +60,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
+from .cognito_auth import get_cognito_auth, save_tokens
 from .error_boundary import error_summary_panel
 from .error_recovery import RenderRecovery
 from .fetchers import load_all
@@ -92,7 +99,9 @@ try:
     PANEL_REGISTRY = _get_panel_registry()
     _REGISTRY_AVAILABLE = True
 except Exception as e:
-    logger.error(f"Failed to initialize panel registry: {type(e).__name__}: {e}", exc_info=True)
+    logger.error(
+        f"Failed to initialize panel registry: {type(e).__name__}: {e}", exc_info=True
+    )
     _REGISTRY_AVAILABLE = False
     PANEL_REGISTRY = None
 
@@ -116,12 +125,8 @@ def _validate_watch_interval(value):
         )
 
 
-def _fetch_secrets_manager_credentials():
+def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
     """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-    import json
-    import os
-
-    import boto3
 
     try:
         # Ensure AWS_PROFILE is set
@@ -154,11 +159,8 @@ def _fetch_secrets_manager_credentials():
         return (None, None, None)
 
 
-def _fetch_terraform_credentials():
+def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
     """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-    import json
-    import os
-    import subprocess
 
     try:
         # Ensure AWS_PROFILE is set for Terraform
@@ -318,7 +320,9 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     """
     if not _REGISTRY_AVAILABLE or not PANEL_REGISTRY:
         if not _REGISTRY_AVAILABLE:
-            logger.warning("Panel registry unavailable - check startup logs for initialization error")
+            logger.warning(
+                "Panel registry unavailable - check startup logs for initialization error"
+            )
         return {}
 
     panel_status = {}
@@ -331,13 +335,14 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
 
 def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
     """Create an error panel for render failures with recovery info."""
-    import traceback
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
     error_line = f"{type(e).__name__}: {str(e)[:80]}"
     if recovery_status:
-        content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+        content = (
+            f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+        )
     else:
         content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]"
 
@@ -383,7 +388,9 @@ def render_dashboard(
     perf = data.get("perf") or {}
     pos = data.get("pos") or {}
     sig = data.get("sig") or {}
-    hlth = data.get("health") or {}  # keep raw dict; ready_to_trade/critical_stale available to panels
+    hlth = (
+        data.get("health") or {}
+    )  # keep raw dict; ready_to_trade/critical_stale available to panels
     cb = data.get("cb") or {}
     rec = data.get("trades") or {}
     srank = _extract_items(data.get("srank") or {})
@@ -479,7 +486,9 @@ def render_dashboard(
     )
 
     outer["r3"].split_row(
-        Layout(panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"),
+        Layout(
+            panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"
+        ),
         Layout(
             panel_sector_compact(srank, pos, port, sec_rot, irank),
             ratio=2,
@@ -523,7 +532,9 @@ def render_dashboard(
         )
 
     if view_mode == "signals":
-        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
+        return _expanded_layout(
+            *_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores)
+        )
 
     if view_mode == "health":
         return _expanded_layout(
@@ -554,7 +565,9 @@ def render_dashboard(
     if view_mode == "portfolio":
         return _expanded_layout(
             *_exp_top,
-            panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
+            panel_portfolio_perf_expanded(
+                port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos
+            ),
         )
 
     return outer
@@ -580,7 +593,18 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         frame = 0
         view_mode = ["normal"]
         recovery = RenderRecovery()
-        key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+        key_map = {
+            "p": "positions",
+            "s": "signals",
+            "h": "health",
+            "r": "sectors",
+            "t": "trades",
+            "e": "economic",
+            "f": "portfolio",
+            "b": "circuit",
+            "x": "exposure",
+            "m": "market",
+        }
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -594,6 +618,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     if not done.is_set():
                         live.update(loading_layout(frame, data_source=data_source))
                     else:
+
                         def render_fn(data):
                             return render_dashboard(
                                 data,
@@ -605,10 +630,16 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             )
 
                         try:
-                            layout, recovery_status = recovery.render_with_recovery(result[0], render_fn)
+                            layout, recovery_status = recovery.render_with_recovery(
+                                result[0], render_fn
+                            )
                             live.update(layout)
                         except Exception as e:
-                            live.update(_handle_render_error(e, recovery.state.get_recovery_status()))
+                            live.update(
+                                _handle_render_error(
+                                    e, recovery.state.get_recovery_status()
+                                )
+                            )
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass
@@ -617,7 +648,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             done.set()
             bg_thread.join(timeout=10)
             if bg_thread.is_alive():
-                print("⚠️  Background thread did not exit within timeout", file=sys.stderr)
+                print(
+                    "⚠️  Background thread did not exit within timeout", file=sys.stderr
+                )
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -653,7 +686,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
         view_mode = ["normal"]
         recovery = RenderRecovery()
-        key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+        key_map = {
+            "p": "positions",
+            "s": "signals",
+            "h": "health",
+            "r": "sectors",
+            "t": "trades",
+            "e": "economic",
+            "f": "portfolio",
+            "b": "circuit",
+            "x": "exposure",
+            "m": "market",
+        }
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -673,6 +717,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                     if current_result is None:
                         live.update(loading_layout(frame[0], data_source=data_source))
                     else:
+
                         def render_fn(data):
                             return render_dashboard(
                                 data,
@@ -687,17 +732,28 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             )
 
                         try:
-                            layout, recovery_status = recovery.render_with_recovery(current_result, render_fn)
+                            layout, recovery_status = recovery.render_with_recovery(
+                                current_result, render_fn
+                            )
                             live.update(layout)
                         except Exception as e:
-                            live.update(_handle_render_error(e, recovery.state.get_recovery_status()))
+                            live.update(
+                                _handle_render_error(
+                                    e, recovery.state.get_recovery_status()
+                                )
+                            )
 
                         # Trigger data reload on interval or on transient errors
-                        should_reload = not is_loading and (time.monotonic() - current_last_load) >= interval
+                        should_reload = (
+                            not is_loading
+                            and (time.monotonic() - current_last_load) >= interval
+                        )
                         should_retry_load = recovery.should_retry_data_load()
 
                         if should_reload or should_retry_load:
-                            reload_thread = threading.Thread(target=reload, daemon=False)
+                            reload_thread = threading.Thread(
+                                target=reload, daemon=False
+                            )
                             reload_thread.start()
                             active_threads.append(reload_thread)
                     time.sleep(0.125)
@@ -709,7 +765,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             if thread:
                 thread.join(timeout=10)
                 if thread.is_alive():
-                    print("⚠️  Thread still running after 10s timeout in watch mode", file=sys.stderr)
+                    print(
+                        "⚠️  Thread still running after 10s timeout in watch mode",
+                        file=sys.stderr,
+                    )
 
 
 def main():
@@ -755,7 +814,6 @@ def main():
         data_source = "LOCAL"
     else:
         # AWS mode: fetch credentials from multiple sources (Secrets Manager → Terraform → Error)
-        import os
 
         logger.info("AWS mode: Fetching dashboard credentials...")
         aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
@@ -791,7 +849,6 @@ def main():
         data_source = "AWS"
 
         # Cognito authentication - dynamic with fallback
-        from .cognito_auth import get_cognito_auth, save_tokens
 
         auth = get_cognito_auth(require_auth=True)
         if auth and auth.is_authenticated():
