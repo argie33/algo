@@ -205,7 +205,7 @@ class VectorizedTechnicalLoader:
                 symbol_df["roc_252d"] = symbol_df["close"].pct_change(252) * 100
 
                 # Clamp ROC
-                _DECIMAL84_MAX = 9999.9999
+                decimal84_max = 9999.9999
                 for col in [
                     "roc",
                     "roc_10d",
@@ -216,14 +216,14 @@ class VectorizedTechnicalLoader:
                 ]:
                     before = symbol_df[col].copy()
                     symbol_df[col] = symbol_df[col].clip(
-                        -_DECIMAL84_MAX, _DECIMAL84_MAX
+                        -decimal84_max, decimal84_max
                     )
                     capped_count = (
-                        (before.abs() > _DECIMAL84_MAX) & (symbol_df[col].notna())
+                        (before.abs() > decimal84_max) & (symbol_df[col].notna())
                     ).sum()
                     if capped_count > 0:
                         logger.warning(
-                            f"{symbol}: {capped_count} {col} values capped to +/{_DECIMAL84_MAX} (extreme market conditions)"
+                            f"{symbol}: {capped_count} {col} values capped to +/{decimal84_max} (extreme market conditions)"
                         )
 
                 # Moving averages
@@ -365,6 +365,12 @@ class VectorizedTechnicalLoader:
         # Format data
         df["date"] = df["date"].dt.date.astype(str)
 
+        # Convert volume_ma_50 to integer (database expects bigint, not float)
+        if "volume_ma_50" in df.columns:
+            df["volume_ma_50"] = df["volume_ma_50"].apply(
+                lambda x: int(round(x)) if pd.notna(x) else None
+            )
+
         # Handle NaN -> None conversion
         for col in df.columns:
             if col not in ("symbol", "date"):
@@ -483,7 +489,7 @@ def main():
     # Start heartbeat thread for hung task detection
     stop_heartbeat = threading.Event()
     heartbeat_thread = threading.Thread(
-        target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=True
+        target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=False
     )
     heartbeat_thread.start()
 
@@ -561,9 +567,13 @@ def main():
         _update_tech_loader_status("FAILED", f"Unexpected error: {str(e)}")
         return 1
     finally:
-        # Stop heartbeat thread
+        # Stop heartbeat thread and wait for clean shutdown
         stop_heartbeat.set()
-        heartbeat_thread.join(timeout=5)
+        heartbeat_thread.join(timeout=15)
+        if heartbeat_thread.is_alive():
+            logger.error("Heartbeat thread still running after 15s timeout — may be hung in database operation")
+            # Non-daemon threads will block process exit until they finish
+            # This log entry flags the issue for monitoring/alerts
 
 
 if __name__ == "__main__":
