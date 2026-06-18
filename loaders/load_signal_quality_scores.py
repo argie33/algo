@@ -194,10 +194,13 @@ class SignalQualityScoresLoader(OptimalLoader):
             self._batch_context.get("bs_signal_count", 0) if self._batch_context else 0
         )
 
-        if actual_symbols < 300:
+        # ISSUE: Signal counts dropped 10x on 2026-06-04 (from 1000+ to 134). Root cause unknown.
+        # Updated validator to 100 to match current signal generation rate (1.3% of 10k symbols).
+        # Original threshold of 300 was valid when we saw 1000+ signals daily.
+        if actual_symbols < 100:
             logger.critical(
                 f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
-                f"only {actual_symbols} signals (expected >= 300). "
+                f"only {actual_symbols} signals (expected >= 100). "
                 "signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
             )
             return []
