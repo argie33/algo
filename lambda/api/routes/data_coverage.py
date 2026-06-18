@@ -23,6 +23,7 @@ from routes.utils import (
     execute_with_timeout,
     success_response,
     json_response,
+    handle_db_error,
 )
 from utils.db.sql_safety import assert_safe_table
 
@@ -416,21 +417,12 @@ def handle(
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
         return json_response(200, summary)
-    except psycopg2.errors.QueryCanceled as e:
-        logger.error(f"[DATA_COVERAGE] Query timeout: {type(e).__name__}: {e}")
-        return error_response(504, "timeout", "Data coverage query exceeded timeout")
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
-        logger.error(
-            f"[DATA_COVERAGE] Database error: {type(e).__name__}: {e}", exc_info=True
-        )
-        return error_response(500, "data_coverage_error", "Data coverage check failed")
-    except Exception as e:
-        logger.error(
-            f"[DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}", exc_info=True
-        )
-        return error_response(500, "data_coverage_error", "Data coverage check failed")
+        code, error_type, message = handle_db_error(e, "handle data coverage")
+        return error_response(code, error_type, message)

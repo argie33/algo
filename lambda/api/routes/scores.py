@@ -13,6 +13,7 @@ from routes.utils import (
     safe_offset,
     check_data_freshness,
     execute_with_timeout,
+    handle_db_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,15 +73,15 @@ def handle(
             )
         else:
             return error_response(404, "not_found", f"No scores handler for {path}")
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(f"Scores data unavailable: {e}")
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Scores DB error: {e}")
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except Exception as e:
-        logger.error(f"Scores handler error: {e}", exc_info=True)
-        return error_response(500, "internal_error", "Scores handler failed")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "handle scores")
+        return error_response(code, error_type, message)
 
 
 def _get_stock_scores(
@@ -314,12 +315,12 @@ def _get_stock_scores(
         )
 
         return list_response(items, data_freshness=freshness)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(f"Stock scores data unavailable: {e}")
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Stock scores DB error: {e}")
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except Exception as e:
-        logger.error(f"Stock scores query failed: {e}", exc_info=True)
-        return error_response(500, "internal_error", "Failed to fetch stock scores")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "handle scores")
+        return error_response(code, error_type, message)

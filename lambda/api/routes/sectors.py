@@ -421,9 +421,7 @@ def handle(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
-        code, error_type, message = handle_db_error(e, "sectors route")
+        code, error_type, message = handle_db_error(e, "handle sectors")
         return error_response(code, error_type, message)
-    except Exception as e:
-        logger.error(f"Sectors route error: {type(e).__name__}: {e}")
-        return error_response(500, "internal_error", "Failed to fetch sector data")
