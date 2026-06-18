@@ -220,8 +220,10 @@ def _compute_advanced_metrics(cur, metric_date: date):
         return sharpe, sortino, max_drawdown / 100.0, cagr, calmar
 
     except Exception as e:
-        logger.warning(f"Failed to compute advanced metrics: {e}")
-        return 0.0, 0.0, 0.0, 0.0, 0.0
+        raise RuntimeError(
+            f"[PERFORMANCE_METRICS] Failed to compute metrics: {e}. "
+            "Cannot report zeros—requires authoritative data."
+        )
 
 
 def _compute_streaks(pnl_dollars):

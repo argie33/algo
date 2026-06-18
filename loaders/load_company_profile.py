@@ -50,8 +50,10 @@ class CompanyProfileLoader(OptimalLoader):
                 }
             ]
         except Exception as e:
-            logger.debug(f"Could not fetch yfinance data for {symbol}: {e}")
-            return None
+            raise RuntimeError(
+                f"[COMPANY_PROFILE] Failed to fetch profile for {symbol}: {e}. "
+                "Cannot proceed without sector/industry data."
+            )
 
 
 def main():

@@ -113,9 +113,10 @@ class AnalystSentimentLoader(OptimalLoader):
 
             return results if results else None
         except Exception as e:
-            logger.warning(f"Exception: {e}")
-            # Any error - skip this symbol gracefully
-            return None
+            raise RuntimeError(
+                f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {self.symbol}: {e}. "
+                "Cannot generate signals without sentiment data."
+            )
 
     def transform(self, rows):
         return rows

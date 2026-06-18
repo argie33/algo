@@ -180,8 +180,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                 return [result] if result else None
 
         except Exception as e:
-            logger.error(f"Failed to compute economic metrics: {e}")
-            return None
+            raise RuntimeError(
+                f"[ECONOMIC_METRICS] Failed to compute daily metrics: {e}. "
+                "Cannot proceed without macro indicators."
+            )
 
 
 def main():

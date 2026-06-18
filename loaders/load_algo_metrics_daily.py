@@ -62,8 +62,10 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                 ]
 
         except Exception as e:
-            logger.error(f"Failed to compute daily metrics: {e}")
-            return None
+            raise RuntimeError(
+                f"[ALGO_METRICS] Failed to compute daily metrics: {e}. "
+                "Cannot proceed without performance tracking."
+            )
 
 
 def main():

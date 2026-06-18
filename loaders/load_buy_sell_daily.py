@@ -251,8 +251,10 @@ class SignalsDailyLoader(OptimalLoader):
                     # Do NOT return [] — allow signals to be generated even without complete technical data
                     # The enrichment script will populate technical columns afterward
         except Exception as e:
-            logger.warning(f"{symbol}: Technical data check failed: {e}")
-            return []
+            raise RuntimeError(
+                f"[BUY_SELL_DAILY] Failed to validate data for {symbol}: {e}. "
+                "Cannot generate signals without validation."
+            )
 
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)

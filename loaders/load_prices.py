@@ -135,16 +135,11 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_error_start_time: Optional[float] = None
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         # Load from centralized config (config/thresholds.py)
-        try:
-            from config.thresholds import ThresholdConfig
+        from config.thresholds import ThresholdConfig
 
-            self._rate_limit_circuit_break_threshold = (
-                ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
-            )
-        except Exception:
-            self._rate_limit_circuit_break_threshold = (
-                180 if self._is_eod_pipeline else 480
-            )
+        self._rate_limit_circuit_break_threshold = (
+            ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
+        )
 
         # Granular failure tracking for partial batch credit
         # Instead of counting entire batch as 1 failure, track success ratio
