@@ -114,8 +114,10 @@ class SignalsDailyLoader(OptimalLoader):
                 f"tech_coverage={tech_coverage_symbols}"
             )
         except Exception as e:
-            logger.warning(f"Batch context preparation failed: {e}")
-            self._batch_context = {}
+            raise RuntimeError(
+                f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
+                "Cannot proceed without shared batch data (end_date, price/tech coverage)."
+            )
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Generate signals from technical data."""
@@ -160,19 +162,10 @@ class SignalsDailyLoader(OptimalLoader):
                             # Try string conversion as fallback
                             since = date.fromisoformat(str(max_date).split(' ')[0])
             except Exception as e:
-                logger.debug(f"Could not read buy_sell_daily watermark for {symbol}: {e}")
-                # Fallback to global watermark if query fails
-                watermark_date = (
-                    self._batch_context.get("watermark_date")
-                    if self._batch_context
-                    else None
+                raise RuntimeError(
+                    f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
+                    "Cannot determine incremental load point for buy/sell signal computation."
                 )
-                if watermark_date:
-                    since = (
-                        watermark_date
-                        if isinstance(watermark_date, date)
-                        else date.fromisoformat(str(watermark_date))
-                    )
 
         if since is None:
             start = end - timedelta(days=30)
@@ -195,28 +188,11 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = cur.fetchone()[0]
 
                 if tech_count == 0:
-                    # Fallback: Use most recent technical data available (safe for signal generation)
-                    # Signal generation doesn't require exact date match - closest recent data is valid
-                    cur.execute(
-                        "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
-                        (symbol, end),
+                    raise RuntimeError(
+                        f"[BUY_SELL_DAILY] Technical data missing for {symbol} on {end}. "
+                        "Cannot generate buy/sell signals without current technical indicators. "
+                        "Verify technical_data_daily loader completed successfully."
                     )
-                    fallback_date = cur.fetchone()[0]
-                    if fallback_date:
-                        days_back = (end - fallback_date).days
-                        logger.debug(
-                            f"{symbol}: Using technical data from {fallback_date} ({days_back} days back) for signal generation"
-                        )
-                        end = fallback_date
-                    else:
-                        # Technical data is missing entirely - log rejection
-                        self._log_rejection_if_available(
-                            symbol, end, "technical_data_missing"
-                        )
-                        logger.warning(
-                            f"{symbol}: Technical data missing for {end} - signals cannot be generated"
-                        )
-                        return []
 
                 # Validate upstream loader completeness before generating signals.
                 # buy_sell_daily depends on price_daily and technical_data_daily.

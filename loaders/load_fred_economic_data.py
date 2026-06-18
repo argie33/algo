@@ -169,12 +169,16 @@ class FredEconomicDataLoader(OptimalLoader):
                                     "value": float(val_str),
                                 }
                             )
-                        except (ValueError, KeyError) as e:
-                            logger.debug(
-                                f"{series_id} [{obs.get('date')}]: Observation skipped — parsing error "
-                                f"(value={val_str}, error={e})"
+                        except KeyError as e:
+                            raise RuntimeError(
+                                f"[FRED] Missing required field in observation for {series_id}: {e}. "
+                                "FRED API response format may have changed or data is corrupted."
                             )
-                            continue
+                        except ValueError as e:
+                            raise RuntimeError(
+                                f"[FRED] Failed to parse value for {series_id} [{obs.get('date')}]: {e}. "
+                                "Value string: '{val_str}'. Cannot parse economic data."
+                            )
 
                     logger.info(
                         f"  {series_id}: SUCCESS ({len([r for r in all_rows if r['series_id'] == series_id])} rows)"

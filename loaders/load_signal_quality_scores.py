@@ -99,8 +99,10 @@ class SignalQualityScoresLoader(OptimalLoader):
             }
             logger.debug(f"Batch context: end={end}, bs_signals={actual_symbols}")
         except Exception as e:
-            logger.warning(f"Batch context preparation failed: {e}")
-            self._batch_context = {}
+            raise RuntimeError(
+                f"[BATCH_CONTEXT] Failed to prepare batch context for signal_quality_scores: {e}. "
+                "Cannot proceed without end_date and signal availability verification."
+            )
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""

@@ -28,25 +28,33 @@ class ThresholdConfig:
 
     @staticmethod
     def _get_config_value(key: str, default):
-        """Load a config value from AlgoConfig, with fallback to default.
+        """Load a config value from AlgoConfig.
 
         Args:
             key: Configuration key in algo_config.DEFAULTS
-            default: Default value if config load fails
+            default: Default value (only used if key not present in config)
 
         Returns:
             Config value or default
+
+        Raises:
+            RuntimeError: If config cannot be loaded. Configuration is authoritative.
         """
         try:
             from algo.infrastructure import get_config
 
             val = get_config().get(key)
-            return val if val is not None else default
-        except Exception as e:
-            logger.debug(
-                f"_get_config_value({key}) failed: {e} — using default {default}"
+            if val is not None:
+                return val
+            logger.warning(
+                f"Config key '{key}' not found in infrastructure config. Using default: {default}"
             )
             return default
+        except Exception as e:
+            raise RuntimeError(
+                f"[CONFIG] Failed to load configuration: {e}. "
+                "Cannot proceed without authoritative config values. Check infrastructure config availability."
+            )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SIGNAL STRENGTH THRESHOLDS (0-100 scale)

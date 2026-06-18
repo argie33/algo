@@ -91,8 +91,11 @@ class SwingTraderScoresLoader(OptimalLoader):
             }
             logger.debug(f"Batch context: end={end}")
         except Exception as e:
-            logger.warning(f"Batch context preparation failed: {e}")
-            self._batch_context = {}
+            raise RuntimeError(
+                f"[BATCH_CONTEXT] Failed to prepare batch context for swing_trader_scores: {e}. "
+                "Cannot proceed without end_date and data coverage verification."
+            )
+
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute swing trader scores with 7-component breakdown.
 

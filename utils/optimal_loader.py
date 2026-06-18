@@ -191,8 +191,9 @@ class OptimalLoader(ABC):
             finally:
                 set_pooled_connection(saved_conn)
         except Exception as e:
-            logger.warning(
-                f"[{self.table_name}] Failed to update status to {status}: {e}"
+            raise RuntimeError(
+                f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}. "
+                "Loader completion cannot be recorded. This affects orchestration and data consistency."
             )
 
     def _validate_runtime_config(self) -> None:
@@ -391,8 +392,10 @@ class OptimalLoader(ABC):
 
             self._watermark = WatermarkStore()
         except Exception as e:
-            logger.warning(f"Watermark unavailable ({e}) - running full refresh")
-            self._watermark = False
+            raise RuntimeError(
+                f"[WATERMARK] Failed to initialize watermark store: {e}. "
+                "Cannot determine which symbols need incremental update."
+            )
         return self._watermark if self._watermark else None
 
     def _prepare_batch_context(self) -> None:

@@ -69,7 +69,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                                 else date.fromisoformat(str(row[0]))
                             )
             except Exception as e:
-                logger.warning(f"Could not read market_health_daily watermark: {e}")
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Failed to read watermark from market_health_daily: {e}. "
+                    "Cannot determine incremental load point."
+                )
 
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -182,8 +185,10 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             return result
         except Exception as e:
-            logger.error(f"[VIX DATA ISSUE] yfinance exception: {type(e).__name__}: {e}")
-            return {}
+            raise RuntimeError(
+                f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
+                "VIX data is authoritative for market health computation."
+            )
 
     def _fetch_put_call_ratio(self, eval_date: date) -> Optional[float]:
         """Compute put/call ratio from SPY options chain volume via yfinance.
@@ -211,8 +216,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             try:
                 expirations = _throttled_yf_request(lambda: ticker.options)
             except Exception as e:
-                logger.warning(f"Put/call: ticker.options failed: {e}")
-                return None
+                raise RuntimeError(
+                    f"[PUT_CALL] Failed to fetch option expirations from yfinance: {e}. "
+                    "Cannot compute put/call ratio for market health."
+                )
 
             if not expirations:
                 logger.warning("Put/call: no option expirations returned by yfinance (ticker.options empty)")
@@ -232,8 +239,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     continue
 
             if chain_errors == min(4, len(expirations)):
-                logger.warning("Put/call: all option chain fetches failed — no data available")
-                return None
+                raise RuntimeError(
+                    "Put/call: all option chain fetches failed — cannot compute market health without this data."
+                )
 
             if total_calls > 0:
                 ratio = round(total_puts / total_calls, 3)
@@ -242,14 +250,17 @@ class MarketHealthDailyLoader(OptimalLoader):
                     f"(puts={total_puts:.0f}, calls={total_calls:.0f}, chain_errors={chain_errors})"
                 )
                 return ratio
-            logger.warning(
-                f"Put/call: zero calls volume across {len(expirations[:4])} expirations "
-                f"(puts={total_puts:.0f}) — returning None"
+            raise RuntimeError(
+                f"Put/call: zero calls volume across {len(expirations[:4])} expirations. "
+                "Cannot compute market health without valid put/call data."
             )
-            return None
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(f"Put/call ratio fetch failed: {e}")
-            return None
+            raise RuntimeError(
+                f"[PUT_CALL] Failed to compute put/call ratio: {e}. "
+                "This metric is authoritative for market health."
+            )
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
         """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""
@@ -267,8 +278,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 logger.info(f"Fetched yield curve data: {len(result)} days")
             return result
         except Exception as e:
-            logger.warning(f"Yield curve fetch failed: {e}")
-            return {}
+            raise RuntimeError(
+                f"[YIELD_CURVE] Failed to fetch yield curve data from economic_metrics_daily: {e}. "
+                "Cannot compute market health without yield curve slope data."
+            )
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
@@ -304,7 +317,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                                 "new_lows_count": int(r[3]),
                             }
                     except Exception as e:
-                        logger.warning(f"Could not fetch cached breadth data: {e}")
+                        raise RuntimeError(
+                            f"[BREADTH] Failed to fetch cached breadth data: {e}. "
+                            "Cannot verify previously computed market breadth metrics."
+                        )
 
                 # Now compute breadth data only for recent dates (more efficient).
                 # 90s timeout: this query joins 365-day price history for 5000+ symbols.
@@ -360,8 +376,10 @@ class MarketHealthDailyLoader(OptimalLoader):
 
                 return result
         except Exception as e:
-            logger.error(f"Failed to fetch breadth data: {e}")
-            return {}
+            raise RuntimeError(
+                f"[BREADTH] Failed to compute breadth data: {e}. "
+                "Advance/decline ratio and new highs/lows are authoritative for market health."
+            )
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         try:
@@ -383,8 +401,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                     for r in cur.fetchall()
                 ]
         except Exception as e:
-            logger.error(f"Failed to fetch price data for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"[PRICE_DATA] Failed to fetch price data for {symbol}: {e}. "
+                "Cannot compute market health without SPY price data."
+            )
 
     def _compute_market_health(self, rows: List[dict]) -> List[dict]:
         if not rows:
