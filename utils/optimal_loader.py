@@ -908,7 +908,7 @@ class OptimalLoader(ABC):
             return
 
         execution_end = datetime.now(timezone.utc)
-        execution_start = datetime.fromtimestamp(  # type: ignore[arg-type]
+        execution_start = datetime.fromtimestamp(  # type: ignore
             self._execution_start_time, tz=timezone.utc
         )
 

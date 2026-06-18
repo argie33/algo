@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 ValidatorFunc = Callable[[Any, str], Optional[Any]]
 
 # Global validation registry - documents all validators in one place
-VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {
+VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {  # type: ignore
     "float": safe_float,
     "float_strict": safe_float_strict,
     "int": safe_int,
@@ -122,7 +122,7 @@ def validate_record(
             continue
 
         field_context = f"{context}, field={field_name}"
-        validated[field_name] = validator(value, context=field_context)
+        validated[field_name] = validator(value, context=field_context)  # type: ignore[call-arg]
 
     return validated
 
