@@ -105,8 +105,10 @@ class TradeRecorder:
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to record entry for {symbol}: {e}", exc_info=True)
-            return False
+            raise RuntimeError(
+                f"Failed to record entry for {symbol}: {e}. "
+                "Cannot proceed without recording trade entry."
+            ) from e
 
     def record_exit(
         self,
@@ -218,8 +220,10 @@ class TradeRecorder:
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to record exit for {symbol}: {e}", exc_info=True)
-            return False
+            raise RuntimeError(
+                f"Failed to record exit for {symbol}: {e}. "
+                "Cannot proceed without recording trade exit."
+            ) from e
 
     def update_position_price(self, symbol: str, current_price: float) -> bool:
         """Update current price for open position (for unrealized P&L tracking).
@@ -245,8 +249,10 @@ class TradeRecorder:
                 return True
 
         except Exception as e:
-            logger.error(f"Failed to update price for {symbol}: {e}", exc_info=True)
-            return False
+            raise RuntimeError(
+                f"Failed to update price for {symbol}: {e}. "
+                "Cannot proceed without updating position price."
+            ) from e
 
     def get_open_positions(self) -> list:
         """Get all currently open positions.
@@ -278,5 +284,7 @@ class TradeRecorder:
                 ]
 
         except Exception as e:
-            logger.error(f"Failed to get open positions: {e}", exc_info=True)
-            return []
+            raise RuntimeError(
+                f"Failed to get open positions: {e}. "
+                "Cannot proceed without accurate position tracking."
+            ) from e
