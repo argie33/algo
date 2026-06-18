@@ -102,38 +102,90 @@ pytest tests/unit/test_position_sizer.py -v
 - Test failures block CI
 - Skipped tests (`@pytest.mark.skip`) are visible but non-blocking
 
-## Code Formatting & Linting
+## Code Linting & Type Checking (Ruff + Mypy)
 
-### Tools
+**Status:** Implemented 2026-06-17, data-driven best-practice strategy
 
-| Tool | Purpose | Fixable | Blocking |
-|------|---------|---------|----------|
-| Black | Code formatting | ✅ Yes | Non-blocking |
-| isort | Import ordering | ✅ Yes | Non-blocking |
-| flake8 | Linting | ✅ Partial | Non-blocking |
-| mypy | Type checking | ✅ Partial | ✅ Yes (strict) |
+### Primary Tools
 
-### Local Development
+| Tool | Purpose | Speed | Blocking | Enforcement |
+|------|---------|-------|----------|-------------|
+| **Ruff** | Unified linter (replaces flake8 + isort) | 0.26s | ✅ Yes | Pre-commit + CI |
+| **Mypy** | Type checking | 1.20s | ✅ Yes | Pre-commit + CI |
+| Pylint | Semantic analysis | Slow | ❌ No | CI-only (informational) |
+
+### Ruff (Linting)
+
+Detects: undefined names, unused imports, import ordering, line length, naming conventions, complexity
 
 ```bash
-# Format code with Black
-black algo/ loaders/ lambda/ tests/
+# Check code
+ruff check algo/ loaders/
 
-# Sort imports with isort
-isort algo/ loaders/ lambda/ tests/
+# Auto-fix style issues
+ruff check --fix
 
-# Check linting
-flake8 algo/ loaders/ --max-line-length=120 --ignore=E501,W503
+# Check specific rule
+ruff check --select F821  # Undefined names only
+```
 
-# Fix imports in-place
-isort --force-single-line-imports algo/
+**Enforcement:**
+- Pre-commit: blocks F, E, W, I, N, T10, LOG codes
+- CI: all rules
+- Timing: <1 second (very fast)
+
+### Mypy (Type Checking)
+
+Detects: type mismatches, incompatible signatures, attribute errors
+
+```bash
+# Type check
+mypy algo/ loaders/ --ignore-missing-imports
+
+# Type check one file
+mypy algo/orchestration/orchestrator.py --pretty
+```
+
+**Enforcement:**
+- Pre-commit: core modules only (orchestration, trading, risk, loaders)
+- CI: full repo with per-module strictness
+- Timing: 1-2 seconds (acceptable for CI)
+
+### Pylint (Semantic Analysis, CI-only)
+
+Detects: broad exceptions, unused arguments, code duplication, complexity
+
+```bash
+# Semantic analysis (optional, slow)
+pylint algo/ --exit-zero
+```
+
+**Enforcement:**
+- CI quality-gates only (non-blocking, informational)
+- Does not run locally by default
+
+### Local Development Workflow
+
+```bash
+# 1. Check for issues
+ruff check <file>
+
+# 2. Auto-fix what you can
+ruff check --fix
+
+# 3. Type check
+mypy <file> --ignore-missing-imports
+
+# 4. Commit (pre-commit hook runs both tools)
+git commit
 ```
 
 ### CI/CD Behavior
 
-- **Black/isort/flake8**: Reported in CI but non-blocking (informational)
-- **mypy strict**: Blocking for core modules
-- PR comments show style violations for reference
+- **Ruff**: Blocks merge if violations found
+- **Mypy**: Blocks merge if type errors in core modules
+- **Pylint**: Reported in PR comments (non-blocking)
+- Pre-commit hook timing: ~2-3 seconds total
 
 ## Pre-Commit Hook
 
