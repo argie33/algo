@@ -664,25 +664,14 @@ class PriceLoader(OptimalLoader):
             else "yfinance API lag/unavailability"
         )
 
-        # Fallback threshold: allow fallback (non-fatal) for up to 40 min, then fail (fatal)
-        # EOD has 85-min window, so 40 min fallback buffer leaves room for retry
-        fallback_threshold = 2400 if self._is_eod_pipeline else 3600
-        if elapsed < fallback_threshold:
-            logger.warning(
-                f"[{self._correlation_id}] [MARKET_CLOSE] ⚠️  Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
-                f"Root cause: {root_cause}. Allowing FALLBACK: Loader will proceed with historical data (prior day) instead of halting. "
-                f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
-            )
-            return False
-        else:
-            error_msg = (
-                f"Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
-                f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
-                "Cannot load prices without market close data. Aborting to avoid stale price data. "
-                "Phase 1 will trigger failsafe when data becomes available. "
-                "Check yfinance API status and RDS connection pool health. "
-                f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
-            )
+        error_msg = (
+            f"Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
+            f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
+            "Cannot load prices without market close data. Aborting to avoid stale price data. "
+            "Phase 1 will trigger failsafe when data becomes available. "
+            "Check yfinance API status and RDS connection pool health. "
+            f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
+        )
         logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] ✗ {error_msg}")
         raise RuntimeError(error_msg)
 
@@ -1603,7 +1592,7 @@ class PriceLoader(OptimalLoader):
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)
-        TASK_TIMEOUT_SEC = 25200
+        task_timeout_sec = 25200
         try:
             from config.thresholds import ThresholdConfig
 
@@ -1612,8 +1601,8 @@ class PriceLoader(OptimalLoader):
             )
         except Exception:
             emergency_multiplier = 0.5
-        EMERGENCY_MODE_THRESHOLD = TASK_TIMEOUT_SEC * emergency_multiplier
-        COMPLETION_THRESHOLD_PCT = 0.10  # 10% complete
+        emergency_mode_threshold = task_timeout_sec * emergency_multiplier
+        completion_threshold_pct = 0.10  # 10% complete
         emergency_mode_enabled = False
 
         # Split into batches
@@ -1679,9 +1668,9 @@ class PriceLoader(OptimalLoader):
 
                 # TIMEOUT GUARDRAIL: Check if ETA exceeds task timeout
                 total_estimated_sec = elapsed + estimated_remaining_sec
-                if total_estimated_sec > TASK_TIMEOUT_SEC:
+                if total_estimated_sec > task_timeout_sec:
                     logger.error(
-                        f"[TIMEOUT_ALERT] ETA ({total_estimated_sec:.0f}s) exceeds task timeout ({TASK_TIMEOUT_SEC}s). "
+                        f"[TIMEOUT_ALERT] ETA ({total_estimated_sec:.0f}s) exceeds task timeout ({task_timeout_sec}s). "
                         f"Currently at {completion_pct*100:.1f}% completion. Triggering emergency mode."
                     )
                     try:
@@ -1720,13 +1709,13 @@ class PriceLoader(OptimalLoader):
 
                 # EARLY WARNING: At 50% of timeout, ensure we're at least 10% complete
                 if (
-                    elapsed > EMERGENCY_MODE_THRESHOLD
-                    and completion_pct < COMPLETION_THRESHOLD_PCT
+                    elapsed > emergency_mode_threshold
+                    and completion_pct < completion_threshold_pct
                     and not emergency_mode_enabled
                 ):
                     logger.error(
                         f"[TIMEOUT_WARNING] At {elapsed/60:.1f}min, only {completion_pct*100:.1f}% complete "
-                        f"(need {COMPLETION_THRESHOLD_PCT*100:.1f}% by {EMERGENCY_MODE_THRESHOLD/60:.1f}min). "
+                        f"(need {completion_threshold_pct*100:.1f}% by {emergency_mode_threshold/60:.1f}min). "
                         "Will timeout if pace doesn't improve."
                     )
 
@@ -2360,12 +2349,12 @@ def main():
     # SPY is required by: load_technical_data_daily (Mansfield RS), load_seasonality,
     #   load_market_health_daily breadth check, and algo_market_exposure yield-curve factor.
     # GLD/TLT are used by the correlation matrix endpoint and macro regime logic.
-    ESSENTIAL_STOCK_PRICE_DAILY = ["SPY", "QQQ", "IWM", "DIA", "GLD", "TLT"]
+    essential_stock_price_daily = ["SPY", "QQQ", "IWM", "DIA", "GLD", "TLT"]
 
     # Sector ETFs: required by load_sector_performance (YTD returns), SectorHeatMap,
     # and the prices route /api/prices/history/{etf} called by the frontend.
     # These land in etf_price_daily (the prices route falls back to this table).
-    ESSENTIAL_ETF_SYMBOLS = [
+    essential_etf_symbols = [
         "SPY",
         "QQQ",
         "IWM",
@@ -2422,17 +2411,17 @@ def main():
                         # dict.fromkeys preserves insertion order and deduplicates.
                         if asset_class == "stock":
                             run_symbols = list(
-                                dict.fromkeys(symbols + ESSENTIAL_STOCK_PRICE_DAILY)
+                                dict.fromkeys(symbols + essential_stock_price_daily)
                             )
                             logger.info(
-                                f"[MAIN] stock symbols: {len(symbols)} from DB + {len(ESSENTIAL_STOCK_PRICE_DAILY)} essential ETFs = {len(run_symbols)} total"
+                                f"[MAIN] stock symbols: {len(symbols)} from DB + {len(essential_stock_price_daily)} essential ETFs = {len(run_symbols)} total"
                             )
                         else:  # etf
                             # ETF tables (etf_price_daily/weekly/monthly) should only contain ETF symbols,
                             # not the 5000+ non-ETF stocks. Loading all non-ETF stocks into ETF tables
                             # was doubling the data load (~600 extra batches), causing the ECS task to
                             # time out before completing stock price updates for L-Z symbols.
-                            run_symbols = list(dict.fromkeys(ESSENTIAL_ETF_SYMBOLS))
+                            run_symbols = list(dict.fromkeys(essential_etf_symbols))
                             logger.info(
                                 f"[MAIN] etf symbols: {len(run_symbols)} essential ETFs only (sector, index, macro ETFs)"
                             )
