@@ -376,13 +376,19 @@ class VectorizedTechnicalLoader:
             if col not in ("symbol", "date"):
                 df[col] = df[col].where(pd.notna(df[col]), None)
 
-        # Bulk insert via COPY
+        # Bulk insert via COPY (with DELETE to handle updates)
         try:
             with DatabaseContext("write") as cur:
-                # Build COPY command
                 insert_df = df[columns]
 
-                # Use psycopg2.sql for safety
+                # Delete existing rows for symbols being loaded (allows re-compute)
+                symbols_to_load = insert_df["symbol"].unique().tolist()
+                placeholders = ",".join(["%s"] * len(symbols_to_load))
+                delete_sql = f"DELETE FROM technical_data_daily WHERE symbol IN ({placeholders})"
+                cur.execute(delete_sql, symbols_to_load)
+                logger.info(f"Deleted {cur.rowcount} stale rows for {len(symbols_to_load)} symbols")
+
+                # Build COPY command
                 import psycopg2.sql
 
                 sql = psycopg2.sql.SQL(
