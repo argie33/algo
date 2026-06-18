@@ -462,10 +462,10 @@ def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
     error_line = f"{type(e).__name__}: {str(e)[:80]}"
     if recovery_status:
         content = (
-            f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+            f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
         )
     else:
-        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]"
+        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -736,7 +736,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         render_wrapper.frame = frame
                         render_wrapper.view_mode = view_mode
                         try:
-                            layout, recovery_status = recovery.render_with_recovery(
+                            layout, _recovery_status = recovery.render_with_recovery(
                                 state.result, render_wrapper
                             )
                             live.update(layout)
@@ -835,7 +835,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         render_wrapper.refreshing = is_loading
                         render_wrapper.view_mode = view_mode
                         try:
-                            layout, recovery_status = recovery.render_with_recovery(
+                            layout, _recovery_status = recovery.render_with_recovery(
                                 current_result, render_wrapper
                             )
                             live.update(layout)
@@ -926,7 +926,7 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
-        # AWS mode: fetch credentials from multiple sources (Secrets Manager â†’ Terraform â†’ Error)
+        # AWS mode: fetch credentials from multiple sources (Secrets Manager -> Terraform -> Error)
 
         logger.info("AWS mode: Fetching dashboard credentials...")
         aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
@@ -973,14 +973,20 @@ def main():
         data_source = "AWS"
 
         # Cognito authentication - dynamic with fallback
-
         auth = get_cognito_auth(require_auth=True)
-        if auth and auth.is_authenticated():
+        if auth is None:
+            logger.error(
+                "[AUTH] Authentication required but failed - no credentials available. "
+                "Set COGNITO_USERNAME + COGNITO_PASSWORD or run in interactive mode."
+            )
+            sys.exit(1)
+
+        if auth.is_authenticated():
             set_cognito_auth(auth)
             save_tokens(auth)
-        elif auth:
+        else:
             logger.warning(
-                "[AUTH] Running with limited permissions - Cognito not available"
+                "[AUTH] Running with limited permissions - Cognito not fully authenticated"
             )
             set_cognito_auth(auth)  # Still set it, will fail on protected endpoints
 
