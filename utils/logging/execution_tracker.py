@@ -87,8 +87,11 @@ class OrchestratorExecutionTracker:
 
         try:
             self._ensure_table_exists()
-        except Exception:
-            pass  # Non-critical; proceed and let INSERT fail with clearer error if needed
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to ensure execution tracking table exists: {e}. "
+                "Cannot proceed with execution logging."
+            ) from e
 
         try:
             completed_at = datetime.now(timezone.utc)
