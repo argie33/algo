@@ -83,9 +83,9 @@ def test_phase5_fails_without_buysell_signals():
     assert "EOD pipeline" in result.error, "Error message should mention EOD pipeline"
     assert "phase_name" not in str(result.data), "Should not produce qualified trades"
 
-    print("\n✓ PASS: Phase 5 correctly fails when buy_sell_daily is unavailable")
-    print("✓ PASS: No silent fallback to stock_scores")
-    print("✓ PASS: Clear error message about EOD pipeline\n")
+    print("\n[OK] Phase 5 correctly fails when buy_sell_daily is unavailable")
+    print("[OK] No silent fallback to stock_scores")
+    print("[OK] Clear error message about EOD pipeline\n")
 
 
 def test_phase5_works_with_buysell_signals():
@@ -138,10 +138,12 @@ def test_phase5_works_with_buysell_signals():
                         'Semiconductors',  # industry
                         184.0,   # buylevel
                         180.0,   # stoplevel
-                        8.5,     # strength (volume_surge_pct)
+                        8.5,     # strength (signal_strength)
                         12.0,    # volume_surge_pct
                         'breakout',  # market_stage
                         test_date,  # signal_date
+                        75.0,    # swing_score (from sts.score via COALESCE)
+                        None,    # swing_components (from sts.components)
                     )
                 ]
 
@@ -180,8 +182,8 @@ def test_phase5_works_with_buysell_signals():
     assert result.data.get('signal_source') == 'buysell_breakout', \
         f"Expected signal_source 'buysell_breakout', got {result.data.get('signal_source')}"
 
-    print("\n✓ PASS: Phase 5 uses buy_sell_daily signals when available")
-    print("✓ PASS: Signal source is 'buysell_breakout' (not 'stock_scores_fallback')\n")
+    print("\n[OK] Phase 5 uses buy_sell_daily signals when available")
+    print("[OK] Signal source is 'buysell_breakout' (not 'stock_scores_fallback')\n")
 
 
 def main():

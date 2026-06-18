@@ -52,76 +52,42 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-# Handle both direct execution and package import
-try:
-    from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-    from .fetchers import load_all
-    from .error_boundary import error_summary_panel
-    from .panels import (
-        _extract_items,
-        mascot_compact,
-        loading_layout,
-        _expanded_layout,
-        panel_header_market,
-        panel_market_expanded,
-        panel_exposure_compact,
-        panel_circuit,
-        panel_circuit_expanded,
-        panel_exposure_expanded,
-        panel_algo_health,
-        panel_portfolio,
-        panel_performance_spark,
-        panel_economic_pulse,
-        panel_signals_compact,
-        panel_sector_compact,
-        panel_positions,
-        panel_recent_trades,
-        panel_signals_expanded,
-        panel_algo_health_expanded,
-        panel_sectors_expanded,
-        panel_trades_expanded,
-        panel_economic_expanded,
-        panel_portfolio_perf_expanded,
-    )
-    from .formatters import mkt_hours_str
-    from .panel_registry import get_panel_registry as _get_panel_registry
-except ImportError:
-    from dashboard.utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-    from dashboard.fetchers import load_all
-    from dashboard.error_boundary import error_summary_panel
-    from dashboard.panels import (
-        _extract_items,
-        mascot_compact,
-        loading_layout,
-        _expanded_layout,
-        panel_header_market,
-        panel_market_expanded,
-        panel_exposure_compact,
-        panel_circuit,
-        panel_circuit_expanded,
-        panel_exposure_expanded,
-        panel_algo_health,
-        panel_portfolio,
-        panel_performance_spark,
-        panel_economic_pulse,
-        panel_signals_compact,
-        panel_sector_compact,
-        panel_positions,
-        panel_recent_trades,
-        panel_signals_expanded,
-        panel_algo_health_expanded,
-        panel_sectors_expanded,
-        panel_trades_expanded,
-        panel_economic_expanded,
-        panel_portfolio_perf_expanded,
-    )
-    from dashboard.formatters import mkt_hours_str
-    from dashboard.panel_registry import get_panel_registry as _get_panel_registry
+from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
+from .fetchers import load_all
+from .error_boundary import error_summary_panel
+from .panels import (
+    _extract_items,
+    mascot_compact,
+    loading_layout,
+    _expanded_layout,
+    panel_header_market,
+    panel_market_expanded,
+    panel_exposure_compact,
+    panel_circuit,
+    panel_circuit_expanded,
+    panel_exposure_expanded,
+    panel_algo_health,
+    panel_portfolio,
+    panel_performance_spark,
+    panel_economic_pulse,
+    panel_signals_compact,
+    panel_sector_compact,
+    panel_positions,
+    panel_recent_trades,
+    panel_signals_expanded,
+    panel_algo_health_expanded,
+    panel_sectors_expanded,
+    panel_trades_expanded,
+    panel_economic_expanded,
+    panel_portfolio_perf_expanded,
+)
+from .formatters import mkt_hours_str
+from .panel_registry import get_panel_registry as _get_panel_registry
 
 try:
     PANEL_REGISTRY = _get_panel_registry()
     _REGISTRY_AVAILABLE = True
-except ImportError:
+except Exception:
     _REGISTRY_AVAILABLE = False
     PANEL_REGISTRY = None
 

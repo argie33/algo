@@ -56,7 +56,7 @@ class VectorizedTechnicalLoader:
             since_date: Only process data after this date (for incremental loads)
 
         Returns:
-            Dict with {symbols_processed, rows_inserted, duration_sec}
+            Dict with {symbols_processed, rows_inserted, duration_sec, latest_date}
         """
         start_time = time.time()
 
@@ -74,7 +74,7 @@ class VectorizedTechnicalLoader:
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)
             if not all_prices:
                 logger.warning("No price data found")
-                return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0}
+                return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0, "latest_date": None}
 
             logger.info(
                 f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols"
@@ -86,15 +86,21 @@ class VectorizedTechnicalLoader:
 
             inserted = self._bulk_insert(indicators_df, since_date)
 
+            # Get the latest date in the computed indicators
+            latest_date = None
+            if len(indicators_df) > 0:
+                latest_date = indicators_df['date'].max()
+
             duration = time.time() - start_time
             logger.info(
-                f"VectorizedTechnicalLoader completed: {inserted} rows in {duration:.1f}s"
+                f"VectorizedTechnicalLoader completed: {inserted} rows in {duration:.1f}s, latest_date={latest_date}"
             )
 
             return {
                 "symbols_processed": len(symbols),
                 "rows_inserted": inserted,
                 "duration_sec": round(duration, 2),
+                "latest_date": latest_date,
             }
 
         except Exception as e:
@@ -104,6 +110,7 @@ class VectorizedTechnicalLoader:
                 "rows_inserted": 0,
                 "duration_sec": 0,
                 "error": str(e),
+                "latest_date": None,
             }
 
     def _fetch_all_prices(
@@ -393,7 +400,7 @@ class VectorizedTechnicalLoader:
             return 0
 
 
-def _update_tech_loader_status(status: str, error_message: Optional[str] = None) -> None:
+def _update_tech_loader_status(status: str, error_message: Optional[str] = None, latest_date: Optional[date] = None) -> None:
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
@@ -415,14 +422,24 @@ def _update_tech_loader_status(status: str, error_message: Optional[str] = None)
                     ("technical_data_daily", status),
                 )
         else:
-            cur.execute(
-                """
-                UPDATE data_loader_status
-                SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
-                WHERE table_name = %s
-            """,
-                (status, error_message, "technical_data_daily"),
-            )
+            if latest_date:
+                cur.execute(
+                    """
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s, latest_date = %s
+                    WHERE table_name = %s
+                """,
+                    (status, error_message, latest_date, "technical_data_daily"),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE data_loader_status
+                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
+                    WHERE table_name = %s
+                """,
+                    (status, error_message, "technical_data_daily"),
+                )
 
 
 def _tech_heartbeat_worker(stop_event):
@@ -500,7 +517,7 @@ def main():
 
         # Update status to COMPLETED or FAILED based on result
         if result.get("rows_inserted", 0) > 0 or result.get("error") is None:
-            _update_tech_loader_status("COMPLETED")
+            _update_tech_loader_status("COMPLETED", latest_date=result.get("latest_date"))
             final_status = "completed"
         else:
             _update_tech_loader_status("FAILED", result.get("error", "Unknown error"))

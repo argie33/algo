@@ -1,32 +1,21 @@
 """Formatting and utility functions for dashboard display."""
 
 from datetime import date as _date, datetime, timedelta, timezone
-
-try:
-    from .utilities import (
-        TIER_COLOR,
-        SPARKLINE_CHARS,
-        ET,
-        G,
-        R,
-        Y,
-        CY,
-        DIM,
-    )
-except ImportError:
-    from utilities import (
-        TIER_COLOR,
-        SPARKLINE_CHARS,
-        ET,
-        G,
-        R,
-        Y,
-        CY,
-        DIM,
-    )
 import time
+from typing import Any
 
-_schedule_cache = {"result": None, "timestamp": 0}
+from .utilities import (
+    TIER_COLOR,
+    SPARKLINE_CHARS,
+    ET,
+    G,
+    R,
+    Y,
+    CY,
+    DIM,
+)
+
+_schedule_cache: dict[str, Any] = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300
 
 
@@ -206,10 +195,7 @@ def next_run_str() -> str:
         return _schedule_cache["result"]
 
     try:
-        try:
-            from .utilities import api_call
-        except ImportError:
-            from utilities import api_call
+        from .utilities import api_call
 
         resp = api_call("/api/algo/schedule")
         if not resp.get("_error") and "schedule" in resp:

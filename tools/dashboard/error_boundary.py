@@ -7,10 +7,7 @@ and making error state visible to operators.
 from typing import Any, Dict, List, Optional
 from rich.panel import Panel
 from rich.text import Text
-try:
-    from .utilities import R, Y, DIM
-except ImportError:
-    from utilities import R, Y, DIM
+from .utilities import R, Y, DIM
 
 
 def has_error(data: Any) -> bool:
@@ -81,7 +78,7 @@ def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
     for key, data in data_dict.items():
         if not has_error(data):
             continue
-        error_msg = get_error_message(data)
+        error_msg = get_error_message(data) or "Unknown error"
         # Truncate long error messages (keep endpoint/type visible)
         if len(error_msg) > 80:
             error_msg = error_msg[:77] + "..."

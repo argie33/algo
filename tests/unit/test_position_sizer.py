@@ -56,8 +56,8 @@ class TestPositionSizerBasic:
             return operation(mock_cur)
 
         with patch.object(position_sizer, "_with_cursor", side_effect=mock_cursor_op):
-            drawdown = position_sizer.get_current_drawdown()
-            assert drawdown == 0.0
+            with pytest.raises(RuntimeError, match="No portfolio snapshots found"):
+                position_sizer.get_current_drawdown()
 
     def test_get_current_drawdown_with_snapshots(self, position_sizer):
         """Test drawdown calculation with portfolio snapshots."""

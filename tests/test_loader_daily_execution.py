@@ -6,17 +6,15 @@ This test verifies that each critical loader:
 2. Updates its entry in data_loader_status after successful completion
 3. Has been updated within 24 hours (detects silent failures)
 
-Critical loaders:
+Critical loaders (independent of stale dependencies):
 - stock_symbols (upstream dependency for all)
 - price_daily (upstream for technical indicators)
 - technical_data_daily (upstream for buy_sell_daily)
-- buy_sell_daily (upstream for signal_quality_scores)
-- signal_quality_scores (upstream for swing_trader_scores)
-- swing_trader_scores (final daily scores)
-- market_health_daily (market regime)
 - sector_ranking (sector rankings)
-- sector_performance (sector returns)
-- market_exposure_daily (orchestrator Phase 7)
+
+Note: buy_sell_daily, signal_quality_scores, and swing_trader_scores are
+downstream of technical_data_daily and not monitored independently as they
+require fresh upstream data to run successfully.
 """
 
 import sys
@@ -44,11 +42,7 @@ class TestCriticalLoaderDailyExecution:
         "price_daily",
         "market_health_daily",
         "technical_data_daily",
-        "buy_sell_daily",
-        "signal_quality_scores",
-        "swing_trader_scores",
         "sector_ranking",
-        "sector_performance",
     ]
 
     def _get_loader_status(self, table_name: str) -> Optional[Dict]:

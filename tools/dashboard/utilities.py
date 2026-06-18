@@ -16,14 +16,7 @@ from zoneinfo import ZoneInfo
 import requests
 import requests.exceptions
 
-try:
-    from .data_validation import (
-        safe_float,
-    )
-except ImportError:
-    from data_validation import (
-        safe_float,
-    )
+from .data_validation import safe_float
 
 from rich.console import Console
 
