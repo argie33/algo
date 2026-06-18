@@ -19,13 +19,16 @@ Run:
     python3 loaders/load_swing_trader_scores.py [--parallelism 8]
 """
 
-import argparse
-import logging
 import sys
 
+from loaders.loader_helper import setup_imports
 
-logger = logging.getLogger(__name__)
+
+setup_imports()
+
+import argparse
 import json
+import logging
 from datetime import date, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -33,6 +36,9 @@ import psycopg2.sql
 
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
+
+
+logger = logging.getLogger(__name__)
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
@@ -87,7 +93,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Batch context preparation failed: {e}")
             self._batch_context = {}
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute swing trader scores with 7-component breakdown.
 
         Validates all 3 source tables before computing scores.
@@ -227,7 +233,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             logger.debug(f"_load_config_val({key}) failed: {e}")
             return default
 
-    def _compute_swing_score(self, row) -> Optional[Dict]:
+    def _compute_swing_score(self, row) -> dict | None:
         """Compute swing trader score with 7-component breakdown.
 
         Input columns: symbol, date, composite_sqs, minervini_score, weinstein_stage,
@@ -433,7 +439,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
     def _validate_source_dependencies(
         self, symbol: str, end_date: date
-    ) -> Optional[List[str]]:
+    ) -> list[str] | None:
         """Validate all 3 source tables have data for THIS SYMBOL on end_date.
 
         Per-symbol check only — no batch coverage check. Reason: batch coverage

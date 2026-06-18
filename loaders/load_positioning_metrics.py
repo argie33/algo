@@ -10,9 +10,15 @@ Fetches:
 Requires: active symbols list.
 """
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
-import sys
 from datetime import date, datetime, timezone
 from typing import Dict, Optional
 
@@ -31,7 +37,7 @@ class PositioningMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch positioning metrics for this symbol."""
         try:
             metrics = self._fetch_positioning_metrics(symbol)
@@ -43,7 +49,7 @@ class PositioningMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _fetch_positioning_metrics(symbol: str) -> Optional[Dict]:
+    def _fetch_positioning_metrics(symbol: str) -> dict | None:
         """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper."""
         from utils.external.yfinance import get_ticker
 

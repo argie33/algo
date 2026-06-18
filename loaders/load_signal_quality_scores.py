@@ -7,9 +7,15 @@ Required by Phase 1 data freshness check as tier-2 gate for filtering.
 Run: python3 load_signal_quality_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
-import sys
 from datetime import date, timedelta
 from typing import List
 
@@ -229,7 +235,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
     def _fetch_buy_sell_signals(
         self, symbol: str, start: date, end: date
-    ) -> List[dict]:
+    ) -> list[dict]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -245,7 +251,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.error(f"Failed to fetch buy/sell signals for {symbol}: {e}")
             return []
 
-    def _fetch_technical_data(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
 
         try:
@@ -268,7 +274,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.error(f"Failed to fetch technical data for {symbol}: {e}")
             return []
 
-    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
 
         try:
@@ -293,10 +299,10 @@ class SignalQualityScoresLoader(OptimalLoader):
     def _compute_quality_scores(
         self,
         symbol: str,
-        buy_sell_rows: List[dict],
-        technical_rows: List[dict],
-        trend_rows: List[dict],
-    ) -> List[dict]:
+        buy_sell_rows: list[dict],
+        technical_rows: list[dict],
+        trend_rows: list[dict],
+    ) -> list[dict]:
         if not buy_sell_rows:
             return []
 

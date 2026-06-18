@@ -15,9 +15,15 @@ Final composite score is weighted average of all factors.
 Run: python3 loaders/load_stock_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
-import sys
 from datetime import date, datetime, timezone
 from typing import Dict, Optional
 
@@ -37,7 +43,7 @@ class StockScoresLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field: str = ""  # No date watermark, we compute all at once
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute stock scores for this symbol."""
         try:
             score_result = self._compute_stock_score(symbol)
@@ -48,7 +54,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Stock score computation error for {symbol}: {e}")
             return []
 
-    def _compute_stock_score(self, symbol: str) -> Optional[Dict]:
+    def _compute_stock_score(self, symbol: str) -> dict | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
         Only returns a score if stock has sufficient real data (>=50% completeness).
@@ -182,7 +188,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Stock score computation failed for {symbol}: {e}")
             return None
 
-    def _get_quality_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_quality_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch quality metrics for symbol."""
         try:
             cur.execute(
@@ -204,7 +210,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _get_growth_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_growth_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch growth metrics for symbol."""
         try:
             cur.execute(
@@ -225,7 +231,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _get_value_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_value_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch value metrics for symbol."""
         try:
             cur.execute(
@@ -246,7 +252,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _get_positioning_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_positioning_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch positioning metrics for symbol."""
         try:
             cur.execute(
@@ -264,7 +270,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _get_stability_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_stability_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch stability metrics for symbol."""
         try:
             cur.execute(
@@ -284,7 +290,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _get_momentum_metrics(self, cur, symbol: str) -> Optional[Dict]:
+    def _get_momentum_metrics(self, cur, symbol: str) -> dict | None:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
@@ -345,7 +351,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"Failed to fetch metrics for {symbol}: {e}")
         return None
 
-    def _score_quality(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_quality(self, metrics: dict | None) -> float | None:
         """Score quality metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
             return None
@@ -393,7 +399,7 @@ class StockScoresLoader(OptimalLoader):
 
         return sum(scores) / len(scores) if scores else None
 
-    def _score_growth(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_growth(self, metrics: dict | None) -> float | None:
         """Score growth metrics on 0-100 scale. Returns None if no real data.
 
         Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
@@ -446,7 +452,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_value(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_value(self, metrics: dict | None) -> float | None:
         """Score value metrics on 0-100 scale. Returns None if no real data.
 
         Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
@@ -502,7 +508,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_positioning(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_positioning(self, metrics: dict | None) -> float | None:
         """Score positioning metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
             return None
@@ -544,7 +550,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_stability(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_stability(self, metrics: dict | None) -> float | None:
         """Score stability metrics on 0-100 scale. Returns None if no real data.
 
         Uses 12-month volatility (primary), beta vs market (secondary),
@@ -602,7 +608,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_momentum(self, metrics: Optional[Dict]) -> Optional[float]:
+    def _score_momentum(self, metrics: dict | None) -> float | None:
         """Score momentum metrics on 0-100 scale. Returns None if no real data.
 
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
@@ -613,7 +619,7 @@ class StockScoresLoader(OptimalLoader):
             return None
 
         # Named weights â€" recent timeframes matter more for swing trading
-        WEIGHTS = {
+        weights = {
             "momentum_1m": 0.30,
             "momentum_3m": 0.30,
             "momentum_6m": 0.25,
@@ -622,7 +628,7 @@ class StockScoresLoader(OptimalLoader):
 
         weighted_sum = 0.0
         total_weight = 0.0
-        for key, w in WEIGHTS.items():
+        for key, w in weights.items():
             if metrics.get(key) is not None:
                 weighted_sum += self._pct_to_score(metrics[key]) * w
                 total_weight += w

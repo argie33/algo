@@ -5,9 +5,15 @@ Generates daily trading signals from technical indicators and quality scores.
 Populates the buy_sell_daily table.
 """
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
-import sys
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -96,7 +102,7 @@ class SignalsDailyLoader(OptimalLoader):
             logger.warning(f"Batch context preparation failed: {e}")
             self._batch_context = {}
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Generate signals from technical data."""
         from datetime import datetime, timezone
 
@@ -254,7 +260,7 @@ class SignalsDailyLoader(OptimalLoader):
 
     def _calculate_data_source_age_days(
         self, symbol: str, source_table: str
-    ) -> Optional[int]:
+    ) -> int | None:
         """Calculate age of most recent data in source table (in days).
 
         Returns:
@@ -301,7 +307,7 @@ class SignalsDailyLoader(OptimalLoader):
                 f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
             )
 
-    def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict]:
         """Fetch technical and price data needed for signal generation."""
         try:
             with DatabaseContext("read") as cur:
@@ -355,7 +361,7 @@ class SignalsDailyLoader(OptimalLoader):
             logger.error(f"Failed to fetch signal data for {symbol}: {e}")
             return []
 
-    def _generate_signals(self, symbol: str, rows: List[dict]) -> List[dict]:
+    def _generate_signals(self, symbol: str, rows: list[dict]) -> list[dict]:
         """Generate buy/sell signals matching Pine Script pivot-breakout logic.
 
         BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)
@@ -484,20 +490,20 @@ class SignalsDailyLoader(OptimalLoader):
                 # Compute volume surge: compare to 20-bar average volume
                 vol_surge = None
                 volume_surge_capped = False
-                _DECIMAL84_MAX = 9999.9999
+                decimal84_max = 9999.9999
                 if volume is not None and i >= 5:
                     recent_vols = [
                         rows[j].get("volume")
                         for j in range(max(0, i - 20), i)
-                        if rows[j].get("volume")
+                        if rows[j].get("volume") is not None
                     ]
                     if recent_vols:
-                        avg_vol = sum(recent_vols) / len(recent_vols)
+                        avg_vol = sum(recent_vols) / len(recent_vols)  # type: ignore[arg-type]
                         if avg_vol > 0:
                             raw_surge = (volume / avg_vol - 1) * 100
-                            if raw_surge > _DECIMAL84_MAX:
+                            if raw_surge > decimal84_max:
                                 volume_surge_capped = True
-                            vol_surge = round(min(raw_surge, _DECIMAL84_MAX), 2)
+                            vol_surge = round(min(raw_surge, decimal84_max), 2)
 
                 # Compute 50-bar average volume
                 avg_vol_50d = None
@@ -505,10 +511,10 @@ class SignalsDailyLoader(OptimalLoader):
                     vols_50 = [
                         rows[j].get("volume")
                         for j in range(max(0, i - 50), i)
-                        if rows[j].get("volume")
+                        if rows[j].get("volume") is not None
                     ]
                     if vols_50:
-                        avg_vol_50d = int(sum(vols_50) / len(vols_50))
+                        avg_vol_50d = int(sum(vols_50) / len(vols_50))  # type: ignore[arg-type]
 
                 # Determine market stage from moving averages
                 market_stage = None
@@ -659,7 +665,7 @@ class SignalsDailyLoader(OptimalLoader):
             "strength",
         }
     )
-    _DECIMAL84_MAX = 9999.9999
+    decimal84_max = 9999.9999
 
     def transform(self, rows):
         """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks."""
@@ -670,14 +676,14 @@ class SignalsDailyLoader(OptimalLoader):
                 if (
                     v is not None
                     and isinstance(v, (int, float))
-                    and abs(v) > self._DECIMAL84_MAX
+                    and abs(v) > self.decimal84_max
                 ):
                     capped_cols.append(col)
-                    row[col] = self._DECIMAL84_MAX if v > 0 else -self._DECIMAL84_MAX
+                    row[col] = self.decimal84_max if v > 0 else -self.decimal84_max
             if capped_cols:
                 row["_metrics_capped_at_db_limit"] = capped_cols
                 logger.warning(
-                    f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self._DECIMAL84_MAX}: {capped_cols}"
+                    f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
         return rows
 

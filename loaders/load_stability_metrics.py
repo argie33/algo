@@ -10,10 +10,16 @@ Computes:
 Requires: price_daily table populated with at least 252 days of data.
 """
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
 import math
-import sys
 from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
@@ -33,7 +39,7 @@ class StabilityMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute stability metrics for this symbol."""
         try:
             metrics = self._compute_stability_metrics(symbol)
@@ -44,7 +50,7 @@ class StabilityMetricsLoader(OptimalLoader):
             logger.debug(f"Stability metrics error for {symbol}: {e}")
             return None
 
-    def _compute_stability_metrics(self, symbol: str) -> Optional[Dict]:
+    def _compute_stability_metrics(self, symbol: str) -> dict | None:
         """Compute volatility from price_daily and beta from yfinance."""
         try:
             with DatabaseContext("read") as cur:
@@ -124,7 +130,7 @@ class StabilityMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _calculate_volatility(returns: List[float]) -> Optional[float]:
+    def _calculate_volatility(returns: list[float]) -> float | None:
         """Calculate annualized volatility from returns."""
         if not returns or len(returns) < 2:
             return None
@@ -137,7 +143,7 @@ class StabilityMetricsLoader(OptimalLoader):
         return daily_std * math.sqrt(252)
 
     @staticmethod
-    def _get_beta_yfinance(symbol: str) -> Optional[float]:
+    def _get_beta_yfinance(symbol: str) -> float | None:
         """Fetch beta from yfinance via the rate-limiting wrapper."""
         from utils.external.yfinance import get_ticker
 

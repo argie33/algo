@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Value Metrics Loader - PE, PB, PS, dividend yield from yfinance."""
 
+import sys
+
+from loaders.loader_helper import setup_imports
+
+
+setup_imports()
+
 import argparse
 import logging
-import sys
 import time
 from datetime import date, datetime, timezone
 from typing import List, Optional
@@ -16,11 +22,6 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-from loaders.loader_helper import setup_imports
-
-
-setup_imports()
-
 
 class ValueMetricsLoader(OptimalLoader):
     """Load value metrics (PE, PB, PS, etc) from yfinance."""
@@ -30,8 +31,8 @@ class ValueMetricsLoader(OptimalLoader):
     watermark_field = "updated_at"
 
     def fetch_incremental(
-        self, symbol: str, since: Optional[date]
-    ) -> Optional[List[dict]]:
+        self, symbol: str, since: date | None
+    ) -> list[dict] | None:
         """Fetch value metrics from yfinance for a symbol."""
         for attempt in range(3):
             try:
