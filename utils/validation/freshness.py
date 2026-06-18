@@ -17,7 +17,7 @@ from typing import Any, Optional, cast
 logger = logging.getLogger(__name__)
 
 # Re-export from new unified validator for backwards compatibility
-from utils.data.age_validator import check_freshness
+from utils.data.age_validator import check_freshness  # noqa: E402
 
 
 def get_staleness_threshold_days() -> int:
@@ -31,8 +31,11 @@ def get_staleness_threshold_days() -> int:
         from algo.infrastructure import get_config
 
         return cast(int, get_config().get("max_data_staleness_days", 3))
-    except Exception:
-        return 3
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to read max_data_staleness_days config: {e}. "
+            "Cannot proceed without knowing freshness threshold."
+        ) from e
 
 
 def assert_fresh(
