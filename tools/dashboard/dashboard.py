@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Algo Ops Terminal Dashboard
 
 Usage:
@@ -35,6 +35,7 @@ import argparse
 import threading
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 try:
@@ -95,6 +96,20 @@ from .panels import (
 from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
 
 
+KEY_MAP = {
+    "p": "positions",
+    "s": "signals",
+    "h": "health",
+    "r": "sectors",
+    "t": "trades",
+    "e": "economic",
+    "f": "portfolio",
+    "b": "circuit",
+    "x": "exposure",
+    "m": "market",
+}
+
+
 try:
     PANEL_REGISTRY = _get_panel_registry()
     _REGISTRY_AVAILABLE = True
@@ -123,6 +138,36 @@ def _validate_watch_interval(value):
         raise argparse.ArgumentTypeError(
             f"Watch interval must be an integer (got {value})"
         )
+
+
+def _validate_api_url(url: str) -> bool:
+    """Validate API URL format using urllib.parse.
+
+    Returns True if URL is valid, False otherwise.
+    Allows both http:// and https://, including localhost for local development.
+    """
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+
+        # Must have http or https scheme
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        # Must have a hostname (netloc contains host:port)
+        if not parsed.netloc:
+            return False
+
+        # Validate hostname is not empty after parsing
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        return True
+    except Exception:
+        return False
 
 
 def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
@@ -341,10 +386,10 @@ def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
     error_line = f"{type(e).__name__}: {str(e)[:80]}"
     if recovery_status:
         content = (
-            f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+            f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
         )
     else:
-        content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]"
+        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -417,10 +462,10 @@ def render_dashboard(
 
     refresh_s = ""
     if refreshing:
-        refresh_s = "  [cyan]↻[/]"
+        refresh_s = "  [cyan]â†»[/]"
     elif watch_interval is not None and last_load_time is not None:
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
-        refresh_s = f"  [dim]↻{secs}s[/]"
+        refresh_s = f"  [dim]â†»{secs}s[/]"
 
     hdr_panel = panel_header_market(
         mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source
@@ -598,18 +643,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         frame = 0
         view_mode = ["normal"]
         recovery = RenderRecovery()
-        key_map = {
-            "p": "positions",
-            "s": "signals",
-            "h": "health",
-            "r": "sectors",
-            "t": "trades",
-            "e": "economic",
-            "f": "portfolio",
-            "b": "circuit",
-            "x": "exposure",
-            "m": "market",
-        }
+        key_map = KEY_MAP
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -654,7 +688,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             bg_thread.join(timeout=10)
             if bg_thread.is_alive():
                 print(
-                    "⚠️  Background thread did not exit within timeout", file=sys.stderr
+                    "âš ï¸  Background thread did not exit within timeout", file=sys.stderr
                 )
 
 
@@ -694,18 +728,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
         view_mode = ["normal"]
         recovery = RenderRecovery()
-        key_map = {
-            "p": "positions",
-            "s": "signals",
-            "h": "health",
-            "r": "sectors",
-            "t": "trades",
-            "e": "economic",
-            "f": "portfolio",
-            "b": "circuit",
-            "x": "exposure",
-            "m": "market",
-        }
+        key_map = KEY_MAP
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -783,7 +806,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 thread.join(timeout=10)
                 if thread.is_alive():
                     print(
-                        "⚠️  Thread still running after 10s timeout in watch mode",
+                        "âš ï¸  Thread still running after 10s timeout in watch mode",
                         file=sys.stderr,
                     )
 
@@ -830,7 +853,7 @@ def main():
         set_api_url("http://localhost:3001")
         data_source = "LOCAL"
     else:
-        # AWS mode: fetch credentials from multiple sources (Secrets Manager → Terraform → Error)
+        # AWS mode: fetch credentials from multiple sources (Secrets Manager â†’ Terraform â†’ Error)
 
         logger.info("AWS mode: Fetching dashboard credentials...")
         aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
