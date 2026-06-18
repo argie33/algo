@@ -17,12 +17,13 @@ import sys
 import os
 
 # Support both direct execution and module import
-# If run directly (python dashboard.py), add repo root to sys.path
+# If run directly (python dashboard.py), add repo root to sys.path before any imports
 if __name__ == "__main__" and __package__ is None:
     _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
     _repo_root = os.path.dirname(os.path.dirname(_dashboard_dir))  # Go up two levels: dashboard -> tools -> repo_root
     if _repo_root not in sys.path:
         sys.path.insert(0, _repo_root)
+    __package__ = "tools.dashboard"
 
 import argparse
 import threading
@@ -52,71 +53,37 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-# Use absolute imports for runnable script compatibility
-if __package__:
-    from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-    from .fetchers import load_all
-    from .error_boundary import error_summary_panel
-    from .panels import (
-        _extract_items,
-        mascot_compact,
-        loading_layout,
-        _expanded_layout,
-        panel_header_market,
-        panel_market_expanded,
-        panel_exposure_compact,
-        panel_circuit,
-        panel_circuit_expanded,
-        panel_exposure_expanded,
-        panel_algo_health,
-        panel_portfolio,
-        panel_performance_spark,
-        panel_economic_pulse,
-        panel_signals_compact,
-        panel_sector_compact,
-        panel_positions,
-        panel_recent_trades,
-        panel_signals_expanded,
-        panel_algo_health_expanded,
-        panel_sectors_expanded,
-        panel_trades_expanded,
-        panel_economic_expanded,
-        panel_portfolio_perf_expanded,
-    )
-    from .formatters import mkt_hours_str
-    from .panel_registry import get_panel_registry as _get_panel_registry
-else:
-    from tools.dashboard.utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-    from tools.dashboard.fetchers import load_all
-    from tools.dashboard.error_boundary import error_summary_panel
-    from tools.dashboard.panels import (
-        _extract_items,
-        mascot_compact,
-        loading_layout,
-        _expanded_layout,
-        panel_header_market,
-        panel_market_expanded,
-        panel_exposure_compact,
-        panel_circuit,
-        panel_circuit_expanded,
-        panel_exposure_expanded,
-        panel_algo_health,
-        panel_portfolio,
-        panel_performance_spark,
-        panel_economic_pulse,
-        panel_signals_compact,
-        panel_sector_compact,
-        panel_positions,
-        panel_recent_trades,
-        panel_signals_expanded,
-        panel_algo_health_expanded,
-        panel_sectors_expanded,
-        panel_trades_expanded,
-        panel_economic_expanded,
-        panel_portfolio_perf_expanded,
-    )
-    from tools.dashboard.formatters import mkt_hours_str
-    from tools.dashboard.panel_registry import get_panel_registry as _get_panel_registry
+from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
+from .fetchers import load_all
+from .error_boundary import error_summary_panel
+from .panels import (
+    _extract_items,
+    mascot_compact,
+    loading_layout,
+    _expanded_layout,
+    panel_header_market,
+    panel_market_expanded,
+    panel_exposure_compact,
+    panel_circuit,
+    panel_circuit_expanded,
+    panel_exposure_expanded,
+    panel_algo_health,
+    panel_portfolio,
+    panel_performance_spark,
+    panel_economic_pulse,
+    panel_signals_compact,
+    panel_sector_compact,
+    panel_positions,
+    panel_recent_trades,
+    panel_signals_expanded,
+    panel_algo_health_expanded,
+    panel_sectors_expanded,
+    panel_trades_expanded,
+    panel_economic_expanded,
+    panel_portfolio_perf_expanded,
+)
+from .formatters import mkt_hours_str
+from .panel_registry import get_panel_registry as _get_panel_registry
 
 try:
     PANEL_REGISTRY = _get_panel_registry()
