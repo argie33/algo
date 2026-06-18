@@ -8,16 +8,19 @@ Provides helper functions to:
 """
 
 import logging
-import psycopg2.sql
-from typing import Optional, Dict, Any
 from functools import wraps
+from typing import Any
+
+import psycopg2.sql
 from routes.utils import error_response
-from utils.db.sql_safety import assert_safe_table, assert_safe_column
+
+from utils.db.sql_safety import assert_safe_column, assert_safe_table
+
 
 logger = logging.getLogger(__name__)
 
 
-def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
+def get_user_id(jwt_claims: dict[str, Any] | None) -> str | None:
     """Extract user ID (Cognito sub) from JWT claims.
 
     Args:
@@ -35,7 +38,7 @@ def get_user_id(jwt_claims: Optional[Dict[str, Any]]) -> Optional[str]:
     return user_id
 
 
-def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
+def require_user(jwt_claims: dict[str, Any] | None) -> str:
     """Require user to be authenticated, return user ID.
 
     Args:
@@ -53,7 +56,7 @@ def require_user(jwt_claims: Optional[Dict[str, Any]]) -> str:
     return user_id
 
 
-def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, dict]:
+def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, dict]:
     """Add user scoping WHERE clause to SQL query.
 
     For queries that select from tables with cognito_sub column, automatically
@@ -90,7 +93,7 @@ def scope_query(sql: str, user_id: str, table_alias: str = None) -> tuple[str, d
 
 def get_user_alpaca_credentials(
     cur, user_id: str, default_to_shared: bool = True
-) -> Optional[Dict[str, str]]:
+) -> dict[str, str] | None:
     """Get Alpaca credentials for a specific user.
 
     Attempts to fetch user-scoped Alpaca credentials. Falls back to shared
@@ -170,7 +173,7 @@ def validate_user_resource_access(
         result = cur.fetchone()
         return result is not None
     except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def require_user_resource_access(
