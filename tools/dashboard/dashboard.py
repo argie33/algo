@@ -113,6 +113,26 @@ from .panels import (
 from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
 
 
+class _LoadState:
+    """Thread-safe state container for data loading and display."""
+
+    def __init__(self):
+        self.result = None
+        self.elapsed = 0.0
+
+
+class _WatchState:
+    """Thread-safe state container for watch mode with frame tracking."""
+
+    def __init__(self):
+        self.result = None
+        self.elapsed = 0.0
+        self.loading = True
+        self.last_load = 0.0
+        self.frame = 0
+        self.error = None
+
+
 KEY_MAP = {
     "p": "positions",
     "s": "signals",
@@ -125,6 +145,33 @@ KEY_MAP = {
     "x": "exposure",
     "m": "market",
 }
+
+
+class _RenderWrapper:
+    """Callable wrapper for render_dashboard to avoid recreating closures on every frame."""
+
+    def __init__(self, compact: bool, data_source: str = "AWS"):
+        self.compact = compact
+        self.data_source = data_source
+        self.elapsed = 0.0
+        self.frame = 0
+        self.view_mode = "normal"
+        self.watch_interval = None
+        self.last_load_time = None
+        self.refreshing = False
+
+    def __call__(self, data: dict) -> Layout:
+        return render_dashboard(
+            data,
+            compact=self.compact,
+            elapsed=self.elapsed,
+            frame=self.frame,
+            watch_interval=self.watch_interval,
+            last_load_time=self.last_load_time,
+            refreshing=self.refreshing,
+            view_mode=self.view_mode,
+            data_source=self.data_source,
+        )
 
 
 try:
@@ -637,17 +684,15 @@ def render_dashboard(
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single Live session: mascot stays in upper right through loading and live view."""
-    result: list = [None]
-    elapsed: list = [0.0]
+    state = _LoadState()
     done = threading.Event()
     bg_thread = None
 
     def bg():
-        nonlocal result, elapsed
         try:
             t0 = time.monotonic()
-            result[0] = load_all()
-            elapsed[0] = time.monotonic() - t0
+            state.result = load_all()
+            state.elapsed = time.monotonic() - t0
         except Exception as e:
             logger.error(f"Background load error: {type(e).__name__}: {e}")
         finally:
@@ -658,9 +703,10 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         bg_thread.start()
 
         frame = 0
-        view_mode = ["normal"]
+        view_mode = "normal"
         recovery = RenderRecovery()
         key_map = KEY_MAP
+        render_wrapper = _RenderWrapper(compact, data_source)
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
                 while True:
@@ -669,25 +715,17 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         break
                     if key in key_map:
                         target = key_map[key]
-                        view_mode[0] = "normal" if view_mode[0] == target else target
+                        view_mode = "normal" if view_mode == target else target
                     frame += 1
                     if not done.is_set():
                         live.update(loading_layout(frame, data_source=data_source))
                     else:
-
-                        def render_fn(data):
-                            return render_dashboard(
-                                data,
-                                compact=compact,
-                                elapsed=elapsed[0],
-                                frame=frame,
-                                view_mode=view_mode[0],
-                                data_source=data_source,
-                            )
-
+                        render_wrapper.elapsed = state.elapsed
+                        render_wrapper.frame = frame
+                        render_wrapper.view_mode = view_mode
                         try:
                             layout, recovery_status = recovery.render_with_recovery(
-                                result[0], render_fn
+                                state.result, render_wrapper
                             )
                             live.update(layout)
                         except Exception as e:
@@ -715,12 +753,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode: auto-refresh data every `interval` seconds, mascot dances continuously."""
-    result: list = [None]
-    elapsed: list = [0.0]
-    loading: list = [True]
-    last_load: list = [0.0]
-    frame: list = [0]
-    error: list = [None]
+    state = _WatchState()
     state_lock = threading.Lock()
     active_threads: list = []
     shutdown = threading.Event()
@@ -728,28 +761,28 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     def reload():
         try:
             with state_lock:
-                loading[0] = True
-                error[0] = None
+                state.loading = True
+                state.error = None
             t0 = time.monotonic()
             new_result = load_all()
             new_elapsed = time.monotonic() - t0
             with state_lock:
-                result[0] = new_result
-                elapsed[0] = new_elapsed
-                last_load[0] = time.monotonic()
-                loading[0] = False
+                state.result = new_result
+                state.elapsed = new_elapsed
+                state.last_load = time.monotonic()
+                state.loading = False
         except Exception as e:
             logger.error(f"Reload thread error: {type(e).__name__}: {e}")
             with state_lock:
-                loading[0] = False
-                error[0] = f"{type(e).__name__}: {e}"
+                state.loading = False
+                state.error = f"{type(e).__name__}: {e}"
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)
         reload_thread.start()
         active_threads.append(reload_thread)
 
-        view_mode = ["normal"]
+        view_mode = "normal"
         recovery = RenderRecovery()
         key_map = KEY_MAP
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
@@ -760,14 +793,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         break
                     if key in key_map:
                         target = key_map[key]
-                        view_mode[0] = "normal" if view_mode[0] == target else target
-                    frame[0] += 1
+                        view_mode = "normal" if view_mode == target else target
+                    state.frame += 1
                     with state_lock:
-                        is_loading = loading[0]
-                        current_last_load = last_load[0]
-                        current_result = result[0]
-                        current_elapsed = elapsed[0]
-                        current_error = error[0]
+                        is_loading = state.loading
+                        current_last_load = state.last_load
+                        current_result = state.result
+                        current_elapsed = state.elapsed
+                        current_error = state.error
 
                     if current_result is None:
                         if current_error:
@@ -782,7 +815,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                     f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
                                 )
                         else:
-                            live.update(loading_layout(frame[0], data_source=data_source))
+                            live.update(loading_layout(state.frame, data_source=data_source))
                     else:
 
                         def render_fn(data):
@@ -790,11 +823,11 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 data,
                                 compact=compact,
                                 elapsed=current_elapsed,
-                                frame=frame[0],
+                                frame=state.frame,
                                 watch_interval=interval,
                                 last_load_time=current_last_load,
                                 refreshing=is_loading,
-                                view_mode=view_mode[0],
+                                view_mode=view_mode,
                                 data_source=data_source,
                             )
 
@@ -819,7 +852,13 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             not is_loading
                             and (time.monotonic() - current_last_load) >= interval
                         )
-                        should_retry_load = recovery.should_retry_data_load()
+                        try:
+                            should_retry_load = recovery.should_retry_data_load()
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to check recovery retry status: {type(e).__name__}: {e}"
+                            )
+                            should_retry_load = False
 
                         if should_reload or should_retry_load:
                             reload_thread = threading.Thread(
@@ -880,7 +919,7 @@ def main():
         try:
             CONSOLE.print(__doc__)
         except Exception as e:
-            sys.stderr.write(f"Failed to display legend: {type(e).__name__}: {e}\n")
+            logger.error(f"Failed to display legend: {type(e).__name__}: {e}")
         return
 
     if args.local:
@@ -915,10 +954,9 @@ def main():
                     "[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]"
                 )
             except Exception as e:
-                sys.stderr.write(
-                    f"ERROR: Dashboard credentials not found\n"
-                    f"To automate setup:\n"
-                    f"  Run: scripts/setup-local-dev.ps1\n"
+                logger.error(
+                    f"Dashboard credentials not found. "
+                    f"To automate setup, run: scripts/setup-local-dev.ps1"
                     f"Or manually:\n"
                     f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
                     f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
