@@ -90,7 +90,8 @@ from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_a
 try:
     PANEL_REGISTRY = _get_panel_registry()
     _REGISTRY_AVAILABLE = True
-except Exception:
+except Exception as e:
+    logger.error(f"Failed to initialize panel registry: {type(e).__name__}: {e}", exc_info=True)
     _REGISTRY_AVAILABLE = False
     PANEL_REGISTRY = None
 
@@ -311,8 +312,12 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
 
     Uses panel registry to check if each panel has its required endpoints.
     Returns dict of {panel_name: can_render}.
+
+    Returns empty dict if registry failed to initialize (see startup logs for details).
     """
     if not _REGISTRY_AVAILABLE or not PANEL_REGISTRY:
+        if not _REGISTRY_AVAILABLE:
+            logger.warning("Panel registry unavailable - check startup logs for initialization error")
         return {}
 
     panel_status = {}
