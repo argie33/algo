@@ -33,6 +33,7 @@ from ..utilities import (
 from ..formatters import (
     hbar,
     sparkline,
+    fmt_age,
 )
 
 from ._helpers import (

@@ -33,6 +33,7 @@ from ..formatters import (
     fmt_money,
     fmt_money_short,
     sign,
+    fmt_age,
 )
 
 from ._helpers import _error_panel
