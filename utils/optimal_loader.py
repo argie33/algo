@@ -236,11 +236,15 @@ class OptimalLoader(ABC):
         except Exception as e:
             logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
-    def _get_rds_connection_count(self) -> int | None:
+    def _get_rds_connection_count(self) -> int:
         """Get current RDS active connection count from CloudWatch metrics.
 
         Returns:
-            Current active connections or None if unavailable.
+            Current active connections.
+
+        Raises:
+            RuntimeError: If CloudWatch query fails or no data available.
+            Infrastructure visibility is critical—cannot silently proceed without verification.
 
         This helps determine if RDS Proxy pool is approaching saturation.
         Pool saturation = active_connections > 80% of max_db_connections (500).
@@ -267,20 +271,27 @@ class OptimalLoader(ABC):
                 # Get the most recent data point
                 latest = max(response["Datapoints"], key=lambda x: x["Timestamp"])
                 return int(latest["Average"])
+            else:
+                raise RuntimeError(
+                    f"[{self.table_name}] CloudWatch returned no data points for RDS connection count. "
+                    "Cannot verify if connection pool is saturated."
+                )
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(
-                f"[{self.table_name}] Could not fetch RDS connection count from CloudWatch: {e}. "
-                "Cannot verify if connection pool is saturated. Proceeding with requested parallelism. "
-                "Check CloudWatch metrics and RDS connection pool health."
+            raise RuntimeError(
+                f"[{self.table_name}] Failed to fetch RDS connection count from CloudWatch: {e}. "
+                "Infrastructure visibility loss—must resolve CloudWatch connectivity before proceeding."
             )
-
-        return None
 
     def _should_reduce_parallelism(self, parallelism: int) -> tuple:
         """Check if RDS connection pool is saturated and reduce parallelism if needed.
 
         Returns:
             (adjusted_parallelism, was_reduced): boolean tuple indicating if adjustment happened
+
+        Raises:
+            RuntimeError: If CloudWatch query fails. Pool saturation verification is authoritative.
 
         Logic:
         - If RDS active connections > 400 (80% of 500 max): reduce parallelism by 50%
@@ -290,34 +301,28 @@ class OptimalLoader(ABC):
         if parallelism <= 1:
             return parallelism, False
 
-        try:
-            conn_count = self._get_rds_connection_count()
-            if conn_count is None:
-                # CloudWatch unavailable, proceed with requested parallelism
-                return parallelism, False
+        conn_count = self._get_rds_connection_count()
 
-            max_db_connections = 500  # RDS max_connections parameter
-            saturation_high = max_db_connections * 0.90  # 450
-            saturation_medium = max_db_connections * 0.80  # 400
+        max_db_connections = 500  # RDS max_connections parameter
+        saturation_high = max_db_connections * 0.90  # 450
+        saturation_medium = max_db_connections * 0.80  # 400
 
-            if conn_count > saturation_high:
-                # Extreme saturation: go serial to minimize connection overhead
+        if conn_count > saturation_high:
+            # Extreme saturation: go serial to minimize connection overhead
+            logger.warning(
+                f"[{self.table_name}] RDS connection pool saturation HIGH ({conn_count}/{max_db_connections}). "
+                f"Reducing parallelism {parallelism}→1 (serial mode)"
+            )
+            return 1, True
+        elif conn_count > saturation_medium:
+            # Moderate saturation: reduce parallelism by 50%
+            adjusted = max(1, parallelism // 2)
+            if adjusted < parallelism:
                 logger.warning(
-                    f"[{self.table_name}] RDS connection pool saturation HIGH ({conn_count}/{max_db_connections}). "
-                    f"Reducing parallelism {parallelism}→1 (serial mode)"
+                    f"[{self.table_name}] RDS connection pool saturation MEDIUM ({conn_count}/{max_db_connections}). "
+                    f"Reducing parallelism {parallelism}→{adjusted}"
                 )
-                return 1, True
-            elif conn_count > saturation_medium:
-                # Moderate saturation: reduce parallelism by 50%
-                adjusted = max(1, parallelism // 2)
-                if adjusted < parallelism:
-                    logger.warning(
-                        f"[{self.table_name}] RDS connection pool saturation MEDIUM ({conn_count}/{max_db_connections}). "
-                        f"Reducing parallelism {parallelism}→{adjusted}"
-                    )
-                return adjusted, adjusted < parallelism
-        except Exception as e:
-            logger.debug(f"Parallelism adjustment check failed: {e}")
+            return adjusted, adjusted < parallelism
 
         return parallelism, False
 
