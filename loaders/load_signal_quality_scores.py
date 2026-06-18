@@ -17,7 +17,6 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, timedelta
-from typing import List
 
 import pandas as pd
 
@@ -211,9 +210,11 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         technical_rows = self._fetch_technical_data(symbol, start, end)
         trend_rows = self._fetch_trend_data(symbol, start, end)
+        vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
+        positioning_data = self._fetch_positioning_data(symbol)
 
         scores = self._compute_quality_scores(
-            symbol, buy_sell_rows, technical_rows, trend_rows
+            symbol, buy_sell_rows, technical_rows, trend_rows, vcp_rows, positioning_data
         )
         if not scores:
             return []
@@ -283,7 +284,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT date, minervini_trend_score, weinstein_stage FROM trend_template_data "
+                    "SELECT date, minervini_trend_score, weinstein_stage, percent_from_52w_high FROM trend_template_data "
                     "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
                     (symbol, start, end),
                 )
@@ -292,6 +293,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                         "date": r[0].isoformat(),
                         "minervini_score": float(r[1]) if r[1] is not None else None,
                         "weinstein_stage": r[2],
+                        "percent_from_52w_high": float(r[3]) if r[3] is not None else None,
                     }
                     for r in cur.fetchall()
                 ]
@@ -299,17 +301,59 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.error(f"Failed to fetch trend data for {symbol}: {e}")
             return []
 
+    def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict]:
+        from utils.db.context import DatabaseContext
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT date, vcp_strength FROM vcp_patterns "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [
+                    {
+                        "date": r[0].isoformat(),
+                        "vcp_strength": r[1],
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.debug(f"Failed to fetch VCP patterns for {symbol}: {e}")
+            return []
+
+    def _fetch_positioning_data(self, symbol: str) -> dict:
+        from utils.db.context import DatabaseContext
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT institutional_ownership FROM positioning_metrics WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return {"institutional_ownership": float(row[0])}
+        except Exception as e:
+            logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
+        return {}
+
     def _compute_quality_scores(
         self,
         symbol: str,
         buy_sell_rows: list[dict],
         technical_rows: list[dict],
         trend_rows: list[dict],
+        vcp_rows: list[dict] | None = None,
+        positioning_data: dict | None = None,
     ) -> list[dict]:
         if not buy_sell_rows:
             return []
 
         try:
+            vcp_rows = vcp_rows or []
+            positioning_data = positioning_data or {}
+
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:
                 return []
@@ -323,6 +367,10 @@ class SignalQualityScoresLoader(OptimalLoader):
             if not trend_df.empty:
                 trend_df["date"] = pd.to_datetime(trend_df["date"])
 
+            vcp_df = pd.DataFrame(vcp_rows) if vcp_rows else pd.DataFrame()
+            if not vcp_df.empty:
+                vcp_df["date"] = pd.to_datetime(vcp_df["date"])
+
             # Track max dates from each source for staleness computation
             max_bs_date = bs_df["date"].max() if not bs_df.empty else None
             max_tech_date = tech_df["date"].max() if not tech_df.empty else None
@@ -334,49 +382,139 @@ class SignalQualityScoresLoader(OptimalLoader):
                 merged = merged.merge(tech_df, on="date", how="left")
             if not trend_df.empty:
                 merged = merged.merge(trend_df, on="date", how="left")
+            if not vcp_df.empty:
+                merged = merged.merge(vcp_df, on="date", how="left")
+
+            institutional_ownership = positioning_data.get("institutional_ownership")
 
             results = []
             for _, row in merged.iterrows():
-                score = 40
                 signal_type = row.get("signal_type")
                 if not signal_type:
                     continue
 
+                # Base quality score (40-60): signal existence + trend alignment
+                base_quality_score = 40
                 if signal_type == "BUY":
-                    rsi = row.get("rsi")
-                    macd = row.get("macd")
-                    macd_signal = row.get("macd_signal")
-                    minervini = row.get("minervini_score", 0)
+                    base_quality_score = 50
+                elif signal_type == "SELL":
+                    base_quality_score = 45
 
+                # Volume confirmation score (0-20): based on MACD/RSI
+                volume_confirmation_score = 0
+                rsi = row.get("rsi")
+                macd = row.get("macd")
+                macd_signal = row.get("macd_signal")
+
+                if signal_type == "BUY":
                     if rsi and 40 < float(rsi) < 80:
-                        score += 10
+                        volume_confirmation_score += 10
                     if (
                         macd is not None
                         and macd_signal is not None
                         and float(macd) > float(macd_signal)
                     ):
-                        score += 10
-                    if minervini and float(minervini) >= 3:
-                        score += 15
-
-                    score = min(100, score)
-
+                        volume_confirmation_score += 10
                 elif signal_type == "SELL":
-                    rsi = row.get("rsi")
-                    macd = row.get("macd")
-                    macd_signal = row.get("macd_signal")
-
                     if rsi and 20 < float(rsi) < 60:
-                        score += 10
+                        volume_confirmation_score += 10
                     if (
                         macd is not None
                         and macd_signal is not None
                         and float(macd) < float(macd_signal)
                     ):
-                        score += 10
-                    # Note: minervini_score is for uptrends (BUY), not applicable to SELL
+                        volume_confirmation_score += 10
 
-                    score = min(100, score)
+                # Trend template score (0-25): minervini score and stage
+                trend_template_score = 0
+                minervini = row.get("minervini_score")
+                weinstein_stage = row.get("weinstein_stage")
+
+                if signal_type == "BUY":
+                    if minervini and float(minervini) >= 3:
+                        trend_template_score += 15
+                    elif minervini and float(minervini) >= 2:
+                        trend_template_score += 10
+                    elif minervini:
+                        trend_template_score += 5
+
+                    if weinstein_stage and int(weinstein_stage) in [2, 3]:
+                        trend_template_score += 10
+                    elif weinstein_stage:
+                        trend_template_score += 3
+
+                trend_template_score = min(25, trend_template_score)
+
+                # Distance from high score (0-15): closer to 52w high = better
+                distance_from_high_score = 0
+                pct_from_high = row.get("percent_from_52w_high")
+                if pct_from_high is not None:
+                    pct = float(pct_from_high)
+                    if pct >= -5:  # Within 5% of 52w high
+                        distance_from_high_score = 15
+                    elif pct >= -10:
+                        distance_from_high_score = 12
+                    elif pct >= -20:
+                        distance_from_high_score = 8
+                    elif pct >= -30:
+                        distance_from_high_score = 4
+
+                # Institutional ownership score (0-10)
+                institutional_ownership_score = 0
+                if institutional_ownership is not None:
+                    if institutional_ownership >= 60:
+                        institutional_ownership_score = 10
+                    elif institutional_ownership >= 40:
+                        institutional_ownership_score = 8
+                    elif institutional_ownership >= 20:
+                        institutional_ownership_score = 5
+                    else:
+                        institutional_ownership_score = 2
+
+                # Market stage score (0-10): Weinstein stage 2 and 3 are best
+                market_stage_score = 0
+                if weinstein_stage:
+                    stage = int(weinstein_stage)
+                    if stage in [2, 3]:
+                        market_stage_score = 10
+                    elif stage in [1, 4]:
+                        market_stage_score = 5
+                    else:
+                        market_stage_score = 2
+
+                # VCP pattern score (0-10)
+                vcp_pattern_score = 0
+                vcp_strength = row.get("vcp_strength")
+                if vcp_strength is not None:
+                    strength = int(vcp_strength)
+                    if strength >= 8:
+                        vcp_pattern_score = 10
+                    elif strength >= 6:
+                        vcp_pattern_score = 8
+                    elif strength >= 4:
+                        vcp_pattern_score = 5
+                    else:
+                        vcp_pattern_score = 2
+
+                # Distribution days score (placeholder - would need distribution_days table)
+                distribution_days_score = 5
+
+                # Earnings proximity score (placeholder - would need earnings calendar)
+                earnings_proximity_score = 3
+
+                # Composite score
+                composite_sqs = (
+                    base_quality_score
+                    + volume_confirmation_score
+                    + trend_template_score
+                    + distance_from_high_score
+                    + institutional_ownership_score
+                    + market_stage_score
+                    + vcp_pattern_score
+                    + distribution_days_score
+                    + earnings_proximity_score
+                )
+                composite_sqs = min(100, int(composite_sqs))
 
                 date_val = row.get("date")
                 if date_val is not None:
@@ -408,7 +546,18 @@ class SignalQualityScoresLoader(OptimalLoader):
                         {
                             "symbol": symbol,
                             "date": date_str,
-                            "composite_sqs": int(score),
+                            "base_quality_score": int(base_quality_score),
+                            "volume_confirmation_score": int(volume_confirmation_score),
+                            "trend_template_score": int(trend_template_score),
+                            "distance_from_high_score": int(distance_from_high_score),
+                            "institutional_ownership_score": int(
+                                institutional_ownership_score
+                            ),
+                            "market_stage_score": int(market_stage_score),
+                            "vcp_pattern_score": int(vcp_pattern_score),
+                            "distribution_days_score": int(distribution_days_score),
+                            "earnings_proximity_score": int(earnings_proximity_score),
+                            "composite_sqs": composite_sqs,
                             "buy_sell_daily_age_days": bs_age,
                             "technical_data_age_days": tech_age,
                             "trend_template_age_days": trend_age,
