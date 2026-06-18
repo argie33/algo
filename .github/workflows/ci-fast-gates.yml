@@ -154,15 +154,50 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
       - name: Install dependencies
-        run: pip install -q black isort flake8 mypy
+        run: |
+          pip install -q -r requirements.txt
+          pip install -q black isort flake8 mypy
+
+      - name: Validate all Python files can be imported (catches broken imports)
+        run: |
+          echo "🔍 Checking that all Python files are importable..."
+          python << 'PYEOF'
+          import sys, os, importlib.util
+          sys.path.insert(0, '.')
+
+          errors = []
+          for root, dirs, files in os.walk('.'):
+              # Skip excluded directories
+              dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'venv']]
+
+              for file in files:
+                  if file.endswith('.py') and not file.startswith('test_'):
+                      filepath = os.path.join(root, file)
+                      module_path = filepath[2:-3].replace(os.sep, '.')  # Convert path to module name
+
+                      try:
+                          importlib.import_module(module_path)
+                      except (ImportError, ModuleNotFoundError, SyntaxError, NameError) as e:
+                          errors.append(f"{filepath}: {type(e).__name__}: {e}")
+
+          if errors:
+              print("❌ BROKEN IMPORTS DETECTED:")
+              for err in errors:
+                  print(f"  {err}")
+              sys.exit(1)
+          else:
+              print("✅ All Python files are importable")
+          PYEOF
       - name: Black format check
-        run: black --check algo/ tests/ 2>/dev/null || true
+        run: black --check algo/ tests/ tools/ 2>/dev/null || true
       - name: isort import check
-        run: isort --check-only algo/ tests/ 2>/dev/null || true
+        run: isort --check-only algo/ tests/ tools/ 2>/dev/null || true
       - name: Flake8 lint
-        run: flake8 algo/ tests/ --max-line-length=120 --ignore=E501,W503 || true
+        run: flake8 algo/ tests/ tools/ --max-line-length=120 --ignore=E501,W503 || true
       - name: MyPy type check
-        run: mypy algo/ --ignore-missing-imports --show-error-codes
+        run: |
+          mypy algo/ --ignore-missing-imports --show-error-codes
+          mypy tools/ --ignore-missing-imports --show-error-codes
 
   unit-tests:
     runs-on: ubuntu-latest

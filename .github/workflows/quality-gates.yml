@@ -38,6 +38,9 @@ jobs:
 
           echo "🔍 Checking lambda/"
           mypy lambda/ --ignore-missing-imports --show-error-codes --pretty
+
+          echo "🔍 Checking tools/ (terminal/utility tools)"
+          mypy tools/ --ignore-missing-imports --show-error-codes --pretty
         continue-on-error: false
 
       - name: Type check tests and utils (non-strict)
