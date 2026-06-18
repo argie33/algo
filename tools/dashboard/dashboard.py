@@ -48,8 +48,25 @@ try:
         return ""
 
 except ImportError:
+    import select
+    import termios
+    import tty
 
     def _keypress() -> str:
+        # Non-Windows implementation using select/termios for Unix-like systems
+        # Use select with timeout=0 to check if input is available without blocking
+        if select.select([sys.stdin], [], [], 0)[0]:
+            try:
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    ch = sys.stdin.read(1).lower()
+                    return ch if ch else ""
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except Exception:
+                return ""
         return ""
 
 
@@ -714,9 +731,11 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 loading[0] = True
                 error[0] = None
             t0 = time.monotonic()
-            result[0] = load_all()
-            elapsed[0] = time.monotonic() - t0
+            new_result = load_all()
+            new_elapsed = time.monotonic() - t0
             with state_lock:
+                result[0] = new_result
+                elapsed[0] = new_elapsed
                 last_load[0] = time.monotonic()
                 loading[0] = False
         except Exception as e:
