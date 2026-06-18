@@ -128,11 +128,13 @@ class OptimalLoader(ABC):
                                 (self.table_name, "RUNNING"),
                             )
                 except Exception as e:
-                    logger.error(
+                    error_msg = (
                         f"[{self.table_name}] Heartbeat update failed: {e}. "
-                        "Phase 1 hung task detection may fail for this loader. "
+                        "Phase 1 hung task detection cannot run without a live heartbeat. "
                         "Check database connectivity."
                     )
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg)
 
         self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
         self._heartbeat_thread.start()

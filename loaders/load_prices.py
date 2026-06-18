@@ -457,11 +457,13 @@ class PriceLoader(OptimalLoader):
                         )
                         config_used = "default (key missing)"
             except Exception as config_err:
-                logger.warning(
-                    f"[MARKET_CLOSE] Could not read config ({config_err}), using default timeout: {default_timeout_sec}s"
+                error_msg = (
+                    f"[MARKET_CLOSE] Could not read market close timeout config. "
+                    f"Configuration is non-optional: {config_err}. "
+                    f"Check database connectivity and algo_config table."
                 )
-                max_wait_sec = default_timeout_sec
-                config_used = "default (read error)"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
             logger.info(
                 f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s ({max_wait_sec/60:.0f} min) "
