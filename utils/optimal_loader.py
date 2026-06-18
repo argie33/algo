@@ -82,8 +82,8 @@ class OptimalLoader(ABC):
         self._heartbeat_interval = (
             60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         )
-        self._execution_start_time: datetime | None = (
-            None  # Track execution start for execution history logging
+        self._execution_start_time: float | None = (
+            None  # Track execution start time as Unix timestamp for execution history logging
         )
         self._batch_context: dict[str, Any] | None = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
         self._setup_signal_handlers()
@@ -128,7 +128,11 @@ class OptimalLoader(ABC):
                                 (self.table_name, "RUNNING"),
                             )
                 except Exception as e:
-                    logger.debug(f"Heartbeat update failed: {e}")
+                    logger.error(
+                        f"[{self.table_name}] Heartbeat update failed: {e}. "
+                        "Phase 1 hung task detection may fail for this loader. "
+                        "Check database connectivity."
+                    )
 
         self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
         self._heartbeat_thread.start()
@@ -264,7 +268,11 @@ class OptimalLoader(ABC):
                 latest = max(response["Datapoints"], key=lambda x: x["Timestamp"])
                 return int(latest["Average"])
         except Exception as e:
-            logger.debug(f"Could not fetch RDS connection count: {e}")
+            logger.warning(
+                f"[{self.table_name}] Could not fetch RDS connection count from CloudWatch: {e}. "
+                "Cannot verify if connection pool is saturated. Proceeding with requested parallelism. "
+                "Check CloudWatch metrics and RDS connection pool health."
+            )
 
         return None
 
@@ -779,7 +787,11 @@ class OptimalLoader(ABC):
                 if row and row[0]:
                     return self._parse_watermark_date(row[0])
         except Exception as e:
-            logger.debug(f"Could not read watermark for {symbol}: {e}")
+            logger.warning(
+                f"[{self.table_name}] Could not read watermark for {symbol}: {e}. "
+                "Will proceed with full refresh instead of incremental load. "
+                "Check database connectivity and query performance."
+            )
         return None
 
     # ---- Top-level orchestration ----
@@ -895,7 +907,7 @@ class OptimalLoader(ABC):
             return
 
         execution_end = datetime.now(timezone.utc)
-        execution_start = datetime.fromtimestamp(  # type: ignore
+        execution_start = datetime.fromtimestamp(
             self._execution_start_time, tz=timezone.utc
         )
 
@@ -1000,7 +1012,7 @@ class OptimalLoader(ABC):
 
             # Capture execution start time early to track all execution attempts
             start = time.time()
-            self._execution_start_time = start  # type: ignore[assignment]
+            self._execution_start_time = start
 
             # ISSUE #5 FIX: Check upstream completeness before proceeding
             symbols = list(symbols)
@@ -1010,8 +1022,13 @@ class OptimalLoader(ABC):
                 self._prepare_batch_context()
                 logger.debug(f"[{self.table_name}] Batch context prepared")
             except Exception as e:
-                logger.warning(f"[{self.table_name}] Batch context prep failed: {e}")
-                self._batch_context = {}
+                error_msg = (
+                    f"[{self.table_name}] Batch context preparation failed: {e}. "
+                    "Cannot proceed without pre-loaded shared data—would cause N+1 queries and connection pool exhaustion. "
+                    "Check database connectivity and query performance."
+                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
             if not self._check_upstream_completeness(len(symbols)):
                 # Upstream incomplete — abort this load to prevent silent data loss
@@ -1354,7 +1371,7 @@ class OptimalLoader(ABC):
             self._update_loader_status("RUNNING")
 
             start = time.time()
-            self._execution_start_time = start  # type: ignore[assignment]  # Track for execution history logging
+            self._execution_start_time = start  # Track for execution history logging
             logger.info(f"[{self.table_name}] Starting global load")
 
             # Get current watermark from DB so fetch_global can do incremental loads
