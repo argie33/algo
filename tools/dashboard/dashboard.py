@@ -168,20 +168,23 @@ class _RenderWrapper:
         )
 
 
+_REGISTRY_SKIPPED = False
+_REGISTRY_FAILED = False
+PANEL_REGISTRY = None
+
 if os.environ.get("SKIP_PANEL_REGISTRY"):
     logger.info("Panel registry disabled via SKIP_PANEL_REGISTRY")
-    _REGISTRY_AVAILABLE = False
-    PANEL_REGISTRY = None
+    _REGISTRY_SKIPPED = True
 else:
     try:
         PANEL_REGISTRY = _get_panel_registry()
-        _REGISTRY_AVAILABLE = True
     except ImportError as e:
         logger.error(
             f"Panel registry import failed: {e}\n"
             "  This usually means a required dependency is missing.\n"
             "  Try: pip install -r requirements.txt"
         )
+        _REGISTRY_FAILED = True
         sys.exit(1)
     except Exception as e:
         logger.error(
@@ -193,6 +196,7 @@ else:
             "To run without panel validation:\n"
             "  SKIP_PANEL_REGISTRY=1 python -m tools.dashboard.dashboard"
         )
+        _REGISTRY_FAILED = True
         sys.exit(1)
 
 
@@ -437,10 +441,14 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     Uses panel registry to check if each panel has its required endpoints.
     Returns dict of {panel_name: can_render}.
 
-    Returns empty dict if registry failed to initialize (see startup logs for details).
+    Returns empty dict if registry was skipped or failed to initialize (see startup logs for details).
     """
-    if not _REGISTRY_AVAILABLE or not PANEL_REGISTRY:
-        if not _REGISTRY_AVAILABLE:
+    if not PANEL_REGISTRY:
+        if _REGISTRY_FAILED:
+            logger.warning(
+                "Panel registry failed to initialize - check startup logs for details"
+            )
+        elif not _REGISTRY_SKIPPED:
             logger.warning(
                 "Panel registry unavailable - check startup logs for initialization error"
             )
@@ -806,8 +814,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                     if key in key_map:
                         target = key_map[key]
                         view_mode = "normal" if view_mode == target else target
-                    state.frame += 1
                     with state_lock:
+                        state.frame += 1
+                        current_frame = state.frame
                         is_loading = state.loading
                         current_last_load = state.last_load
                         current_result = state.result
@@ -827,10 +836,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                     f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
                                 )
                         else:
-                            live.update(loading_layout(state.frame, data_source=data_source))
+                            live.update(loading_layout(current_frame, data_source=data_source))
                     else:
                         render_wrapper.elapsed = current_elapsed
-                        render_wrapper.frame = state.frame
+                        render_wrapper.frame = current_frame
                         render_wrapper.last_load_time = current_last_load
                         render_wrapper.refreshing = is_loading
                         render_wrapper.view_mode = view_mode
@@ -998,3 +1007,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
