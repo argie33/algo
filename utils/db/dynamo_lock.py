@@ -10,7 +10,6 @@ import os
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
 
 import boto3
 
@@ -22,7 +21,7 @@ class DynamoDBLockManager:
     """Distributed lock manager using DynamoDB conditional writes."""
 
     def __init__(
-        self, table_name: Optional[str] = None, lock_duration_seconds: int = 600
+        self, table_name: str | None = None, lock_duration_seconds: int = 600
     ):
         """Initialize lock manager.
 
@@ -75,7 +74,7 @@ class DynamoDBLockManager:
                 ).isoformat()
 
                 # Conditional write: only succeed if item doesn't exist OR is expired
-                response = self.table.update_item(
+                self.table.update_item(
                     Key={"lock_key": lock_key},
                     UpdateExpression="SET #lock_id = :lock_id, #acquired_at = :acquired_at, #expires_at = :expires_at",
                     ExpressionAttributeNames={
@@ -115,10 +114,11 @@ class DynamoDBLockManager:
                     self.is_available = False
                     return False
                 else:
-                    logger.critical(
-                        f"[LOCK] Error acquiring lock: {e} — refusing to proceed without lock."
+                    # Re-raise non-permission errors so optimal_loader can handle them
+                    logger.debug(
+                        f"[LOCK] Error acquiring lock: {e} — re-raising for caller to handle"
                     )
-                    return False
+                    raise
 
         logger.error(f"[LOCK] Failed to acquire {lock_key} after {timeout_seconds}s")
         return False
