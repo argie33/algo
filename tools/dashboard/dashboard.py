@@ -581,10 +581,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     bg_thread = None
 
     def bg():
-        t0 = time.monotonic()
-        result[0] = load_all()
-        elapsed[0] = time.monotonic() - t0
-        done.set()
+        nonlocal result, elapsed
+        try:
+            t0 = time.monotonic()
+            result[0] = load_all()
+            elapsed[0] = time.monotonic() - t0
+        except Exception as e:
+            logger.error(f"Background load error: {type(e).__name__}: {e}")
+        finally:
+            done.set()
 
     try:
         bg_thread = threading.Thread(target=bg, daemon=False)
@@ -660,6 +665,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     loading: list = [True]
     last_load: list = [0.0]
     frame: list = [0]
+    error: list = [None]
     state_lock = threading.Lock()
     active_threads: list = []
     shutdown = threading.Event()
@@ -668,6 +674,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         try:
             with state_lock:
                 loading[0] = True
+                error[0] = None
             t0 = time.monotonic()
             result[0] = load_all()
             elapsed[0] = time.monotonic() - t0
@@ -678,6 +685,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             logger.error(f"Reload thread error: {type(e).__name__}: {e}")
             with state_lock:
                 loading[0] = False
+                error[0] = f"{type(e).__name__}: {e}"
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)
@@ -713,9 +721,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         current_last_load = last_load[0]
                         current_result = result[0]
                         current_elapsed = elapsed[0]
+                        current_error = error[0]
 
                     if current_result is None:
-                        live.update(loading_layout(frame[0], data_source=data_source))
+                        if current_error:
+                            live.update(
+                                _handle_render_error(
+                                    RuntimeError(current_error),
+                                    recovery.state.get_recovery_status(),
+                                )
+                            )
+                        else:
+                            live.update(loading_layout(frame[0], data_source=data_source))
                     else:
 
                         def render_fn(data):
