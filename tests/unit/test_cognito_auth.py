@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Unit tests for Cognito auth header generation and validation.
+
+Tests that:
+- Authorization headers are properly formatted
+- Expired tokens are not returned
+- Failed token refresh is handled gracefully
+- Token format is validated before returning
+"""
+
+import base64
+import json
+import sys
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from tools.dashboard.cognito_auth import CognitoAuth
+
+
+class TestAuthorizationHeaderValidation:
+    """Test authorization header generation and validation."""
+
+    def test_no_token_returns_empty_header(self):
+        """Should return empty dict when no access token exists."""
+        auth = CognitoAuth("pool-123", "client-456")
+        assert auth.get_authorization_header() == {}
+
+    def test_valid_token_returns_bearer_header(self):
+        """Should return Bearer token when token is valid and not expired."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # Create a mock JWT token (not expired)
+        future_exp = int(time.time()) + 3600
+        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.token_expires_at = future_exp
+
+        header = auth.get_authorization_header()
+        assert "Authorization" in header
+        assert header["Authorization"].startswith("Bearer ")
+        assert auth.access_token in header["Authorization"]
+
+    def test_expired_token_with_no_refresh_returns_empty(self):
+        """Should return empty dict when token is expired and no refresh token."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # Create an expired token
+        past_exp = int(time.time()) - 3600
+        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.token_expires_at = past_exp
+        auth.refresh_token = None
+
+        header = auth.get_authorization_header()
+        assert header == {}
+
+    def test_expired_token_with_failed_refresh_returns_empty(self):
+        """Should return empty dict when token refresh fails."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # Create an expired token
+        past_exp = int(time.time()) - 3600
+        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.token_expires_at = past_exp
+        auth.refresh_token = "refresh-token-123"
+
+        # Mock refresh_access_token to return False (failure)
+        with patch.object(auth, "refresh_access_token", return_value=False):
+            header = auth.get_authorization_header()
+            # Should NOT return the expired token
+            assert header == {}
+
+    def test_expired_token_with_successful_refresh_returns_new_token(self):
+        """Should return new token when refresh succeeds."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # Create an expired token
+        past_exp = int(time.time()) - 3600
+        old_token = f"old_header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = old_token
+        auth.token_expires_at = past_exp
+        auth.refresh_token = "refresh-token-123"
+
+        # New token after refresh
+        future_exp = int(time.time()) + 3600
+        new_token = f"new_header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.signature"
+
+        def mock_refresh(self):
+            self.access_token = new_token
+            self.token_expires_at = future_exp
+            return True
+
+        with patch.object(CognitoAuth, "refresh_access_token", mock_refresh):
+            header = auth.get_authorization_header()
+            # Should return the new refreshed token, not the old expired one
+            assert "Authorization" in header
+            assert new_token in header["Authorization"]
+            assert old_token not in header["Authorization"]
+
+    def test_malformed_token_returns_empty_header(self):
+        """Should return empty dict when token is not a valid JWT."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # Malformed token (not 3 dot-separated parts)
+        auth.access_token = "not-a-valid-jwt"
+        auth.token_expires_at = int(time.time()) + 3600
+
+        header = auth.get_authorization_header()
+        assert header == {}
+
+    def test_jwt_with_missing_parts_rejected(self):
+        """Should reject JWT with missing parts."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # JWT with only 2 parts
+        auth.access_token = "header.payload"
+        auth.token_expires_at = int(time.time()) + 3600
+
+        header = auth.get_authorization_header()
+        assert header == {}
+
+    def test_jwt_with_empty_parts_rejected(self):
+        """Should reject JWT with empty parts."""
+        auth = CognitoAuth("pool-123", "client-456")
+        # JWT with empty part
+        auth.access_token = "header..signature"
+        auth.token_expires_at = int(time.time()) + 3600
+
+        header = auth.get_authorization_header()
+        assert header == {}
+
+    def test_jwt_format_validation(self):
+        """Test _is_valid_jwt method."""
+        auth = CognitoAuth("pool-123", "client-456")
+
+        # Valid JWT format
+        assert auth._is_valid_jwt("header.payload.signature") is True
+
+        # Invalid formats
+        assert auth._is_valid_jwt("not-a-jwt") is False
+        assert auth._is_valid_jwt("header.payload") is False
+        assert auth._is_valid_jwt("header..signature") is False
+        assert auth._is_valid_jwt("") is False
+        assert auth._is_valid_jwt("...") is False
+
+
+class TestTokenExpiryBuffer:
+    """Test token expiry buffer (5 minute buffer before actual expiry)."""
+
+    def test_token_expiry_5min_buffer(self):
+        """Token should be considered expired 5 minutes before actual expiry."""
+        auth = CognitoAuth("pool-123", "client-456")
+        now = time.time()
+        # Token expires in 4 minutes (240 seconds) - should be considered expired
+        auth.token_expires_at = now + 240
+        assert auth.is_token_expired() is True
+
+        # Token expires in 6 minutes (360 seconds) - should NOT be considered expired
+        auth.token_expires_at = now + 360
+        assert auth.is_token_expired() is False
+
+    def test_expired_token_refresh_on_header_call(self):
+        """Should attempt refresh when getting header with token about to expire."""
+        auth = CognitoAuth("pool-123", "client-456")
+        now = time.time()
+        # Token expires in 4 minutes (within 5-minute buffer)
+        auth.token_expires_at = now + 240
+        auth.refresh_token = "refresh-token-123"
+
+        future_exp = now + 3600
+        new_token = f"new.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.sig"
+        auth.access_token = "old-token"
+
+        refresh_called = []
+
+        def mock_refresh(self):
+            refresh_called.append(True)
+            self.access_token = new_token
+            self.token_expires_at = future_exp
+            return True
+
+        with patch.object(CognitoAuth, "refresh_access_token", mock_refresh):
+            header = auth.get_authorization_header()
+            # Should have called refresh because token is about to expire
+            assert len(refresh_called) > 0
+            assert "Authorization" in header
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

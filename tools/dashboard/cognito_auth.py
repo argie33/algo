@@ -8,10 +8,12 @@ import logging
 import os
 import sys
 import time
-from typing import Optional, Dict, Tuple, cast
 from datetime import datetime
+from typing import cast
+
 import boto3
 from botocore.exceptions import ClientError
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +26,13 @@ class CognitoAuth:
         self.client_id = client_id
         self.region = region
         self.cognito_client = boto3.client("cognito-idp", region_name=region)
-        self.access_token: Optional[str] = None
-        self.id_token: Optional[str] = None
-        self.refresh_token: Optional[str] = None
-        self.token_expires_at: Optional[float] = None
-        self.username: Optional[str] = None
+        self.access_token: str | None = None
+        self.id_token: str | None = None
+        self.refresh_token: str | None = None
+        self.token_expires_at: float | None = None
+        self.username: str | None = None
 
-    def _parse_jwt_expiry(self, token: str) -> Optional[float]:
+    def _parse_jwt_expiry(self, token: str) -> float | None:
         """Parse JWT expiry time. Returns Unix timestamp or None if invalid."""
         try:
             import base64
@@ -99,24 +101,42 @@ class CognitoAuth:
         buffer = 300  # 5 minute buffer
         return now > (self.token_expires_at - buffer)
 
-    def get_authorization_header(self) -> Dict[str, str]:
-        """Get Authorization header, refreshing if needed."""
+    def get_authorization_header(self) -> dict[str, str]:
+        """Get Authorization header, refreshing if needed. Validates token format before returning."""
         if not self.access_token:
             return {}
-        if self.is_token_expired() and self.refresh_token:
-            self.refresh_access_token()
+
+        if self.is_token_expired():
+            if not self.refresh_token:
+                return {}  # No refresh token to use
+            if not self.refresh_access_token():
+                return {}  # Refresh failed, don't send expired token
+
+        # Validate token format (must be a valid JWT with 3 parts separated by dots)
+        if self.access_token and not self._is_valid_jwt(self.access_token):
+            logger.error("Authorization header validation failed: token is not a valid JWT")
+            return {}
+
         return (
             {"Authorization": f"Bearer {self.access_token}"}
             if self.access_token
             else {}
         )
 
+    def _is_valid_jwt(self, token: str) -> bool:
+        """Check if token has valid JWT format (three dot-separated parts)."""
+        try:
+            parts = token.split(".")
+            return len(parts) == 3 and all(part for part in parts)
+        except Exception:
+            return False
+
     def is_authenticated(self) -> bool:
         """Check if user has valid credentials."""
         return bool(self.access_token) and not self.is_token_expired()
 
 
-def _get_or_create_test_user() -> Tuple[str, str]:
+def _get_or_create_test_user() -> tuple[str, str]:
     """Try to get test user credentials from various sources."""
     # Try environment variables
     username = os.environ.get("COGNITO_TEST_USER_EMAIL")
@@ -128,19 +148,17 @@ def _get_or_create_test_user() -> Tuple[str, str]:
     token_file = os.path.expanduser("~/.algo/cognito_credentials.json")
     if os.path.exists(token_file):
         try:
-            with open(token_file, "r") as f:
+            with open(token_file) as f:
                 creds = json.load(f)
                 return creds.get("username", ""), creds.get("password", "")
         except Exception as cred_err:
-            import logging
-
-            logging.debug(f"Could not load cached credentials: {cred_err}")
+            logger.debug(f"Could not load cached credentials: {cred_err}")
 
     # Return empty defaults (user will be prompted for real values)
     return "", ""
 
 
-def _get_aws_cfn_output(key: str) -> Optional[str]:
+def _get_aws_cfn_output(key: str) -> str | None:
     """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
     try:
         cfn_client = boto3.client("cloudformation", region_name="us-east-1")
@@ -161,7 +179,7 @@ def _get_aws_cfn_output(key: str) -> Optional[str]:
 
 def get_cognito_auth(
     require_auth: bool = True, interactive: bool = True
-) -> Optional[CognitoAuth]:
+) -> CognitoAuth | None:
     """
     Dynamically get authenticated Cognito instance.
 
@@ -212,7 +230,7 @@ def get_cognito_auth(
                 )
                 os.remove(token_file)
             else:
-                with open(token_file, "r") as f:
+                with open(token_file) as f:
                     tokens = json.load(f)
                     auth.access_token = tokens.get("access_token")
                     auth.refresh_token = tokens.get("refresh_token")
