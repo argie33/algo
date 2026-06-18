@@ -15,6 +15,7 @@ from routes.utils import (
     check_data_freshness,
     execute_with_timeout,
     safe_json_serialize,
+    handle_db_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,32 +57,19 @@ def handle(
         # /api/industries  →  full ranked list
         return _industry_list(cur, params)
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
         logger.error(
-            f"Industries query failed - schema error: {type(e).__name__}: {e}",
+            f"Industries query failed - {type(e).__name__}: {e}",
             extra={"operation": "get industries"},
         )
-        return error_response(
-            503,
-            "schema_error",
-            "Database schema mismatch - please check RDS migrations",
-        )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(
-            f"Industries query failed - database error: {type(e).__name__}: {e}",
-            extra={"operation": "get industries"},
-        )
-        return error_response(
-            503, "connection_error", "Database connection failed - please retry"
-        )
-    except Exception as e:
-        logger.error(
-            f"Industries query failed: {type(e).__name__}: {e}",
-            extra={"operation": "get industries"},
-        )
-        return error_response(
-            500, "internal_error", f"Failed to fetch industries: {type(e).__name__}"
-        )
+        code, error_type, message = handle_db_error(e, "get industries")
+        return error_response(code, error_type, message)
 
 
 def _industry_list(cur, params):

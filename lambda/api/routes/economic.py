@@ -13,6 +13,7 @@ from routes.utils import (
     check_data_freshness,
     execute_with_timeout,
     safe_json_serialize,
+    handle_db_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,11 +52,16 @@ def handle(
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError,
+                psycopg2.DatabaseError,
+                Exception,
             ) as e:
-                logger.warning(f"VIX table not available: {str(e)}")
-                return error_response(
-                    503, "schema_mismatch", "VIX data not yet available"
+                logger.error(
+                    f"VIX endpoint error - {type(e).__name__}: {e}",
+                    extra={"operation": "get VIX data"},
                 )
+                code, error_type, message = handle_db_error(e, "get VIX data")
+                return error_response(code, error_type, message)
         elif path == "/api/economic/leading-indicators":
             return _get_leading_indicators(cur)
         elif path == "/api/economic/indicators":
@@ -105,46 +111,37 @@ def handle(
                     data_freshness=freshness,
                 )
             except (
-                psycopg2.errors.UndefinedColumn,
                 psycopg2.errors.UndefinedTable,
+                psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError,
+                psycopg2.DatabaseError,
+                Exception,
             ) as e:
-                logger.warning(f"Economic calendar table not available: {str(e)}")
-                return error_response(
-                    503, "schema_mismatch", "Economic calendar data not yet available"
+                logger.error(
+                    f"Economic calendar endpoint error - {type(e).__name__}: {e}",
+                    extra={"operation": "get economic calendar"},
                 )
+                code, error_type, message = handle_db_error(e, "get economic calendar")
+                return error_response(code, error_type, message)
         elif path == "/api/economic":
             # Combine all economic data
             return _get_leading_indicators(cur)
         return error_response(404, "not_found", f"No economic handler for {path}")
-    except psycopg2.errors.QueryCanceled as e:
-        logger.error(f"Query timeout in economic route {path}: {e}")
-        return error_response(504, "timeout", "Economic data query exceeded timeout")
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Schema error in economic route {path}: {str(e)}")
-        return error_response(
-            503, "schema_mismatch", "Economic data schema not yet available"
+    except (
+        psycopg2.errors.QueryCanceled,
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        TimeoutError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"Economic route error in {path} - {type(e).__name__}: {e}",
+            extra={"operation": "get economic data"},
         )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Database error in economic route {path}: {str(e)}")
-        return error_response(
-            503,
-            "service_unavailable",
-            "Database temporarily unavailable. Using cached data.",
-        )
-    except TimeoutError as e:
-        logger.warning(f"Timeout in economic route {path}: {str(e)}")
-        return error_response(
-            504,
-            "gateway_timeout",
-            "Request took too long. Partial or cached data may be returned.",
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error in economic route {path}: {str(e)}")
-        return error_response(
-            500,
-            "internal_error",
-            "An unexpected error occurred while fetching economic data.",
-        )
+        code, error_type, message = handle_db_error(e, "get economic data")
+        return error_response(code, error_type, message)
 
 
 def _get_leading_indicators(cur) -> Dict:
@@ -339,25 +336,19 @@ def _get_leading_indicators(cur) -> Dict:
 
         return json_response(200, {"indicators": indicators})
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Schema not available for leading indicators: {str(e)}")
-        return error_response(
-            503,
-            "schema_mismatch",
-            "Database schema not yet available. Please try again after migrations complete.",
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"Leading indicators error - {type(e).__name__}: {e}",
+            extra={"operation": "get leading indicators"},
         )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Database error in leading indicators: {str(e)}")
-        return error_response(
-            503, "service_unavailable", "Database temporarily unavailable."
-        )
-    except Exception as e:
-        logger.error(f"Error fetching leading indicators: {str(e)}")
-        return error_response(
-            500,
-            "internal_error",
-            "An unexpected error occurred while fetching economic indicators.",
-        )
+        code, error_type, message = handle_db_error(e, "get leading indicators")
+        return error_response(code, error_type, message)
 
 
 def _get_yield_curve_full(cur) -> Dict:
@@ -491,27 +482,16 @@ def _get_yield_curve_full(cur) -> Dict:
             },
         )
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Schema not available for yield curve: {e}")
-        return error_response(
-            503,
-            "schema_mismatch",
-            "Database schema not yet available. Please try again after migrations complete.",
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"Yield curve error - {type(e).__name__}: {e}",
+            extra={"operation": "get yield curve"},
         )
-    except psycopg2.OperationalError as e:
-        logger.error(f"Database connection error: {e}")
-        return error_response(
-            503, "connection_error", "Database temporarily unavailable."
-        )
-    except psycopg2.DatabaseError as e:
-        logger.error(f"Database error: {e}")
-        return error_response(
-            503, "query_error", "Database error while fetching yield curve."
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error in yield curve: {e}")
-        return error_response(
-            500,
-            "internal_error",
-            "An unexpected error occurred while processing your request",
-        )
+        code, error_type, message = handle_db_error(e, "get yield curve")
+        return error_response(code, error_type, message)

@@ -15,6 +15,7 @@ from routes.utils import (
     check_data_freshness,
     execute_with_timeout,
     safe_json_serialize,
+    handle_db_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -417,25 +418,19 @@ def handle(
                 )
             return error_response(503, "no_data", "Sentiment data not available")
         return error_response(404, "not_found", f"No sentiment handler for {path}")
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Schema not available for sentiment {path}: {str(e)}")
-        return error_response(
-            503,
-            "schema_mismatch",
-            "Database schema not yet available. Please try again after migrations complete.",
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"Sentiment route error in {path} - {type(e).__name__}: {e}",
+            extra={"operation": "get sentiment data"},
         )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Database error in sentiment {path}: {str(e)}")
-        return error_response(
-            503, "service_unavailable", "Database temporarily unavailable."
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error in sentiment {path}: {str(e)}")
-        return error_response(
-            500,
-            "internal_error",
-            "An unexpected error occurred while fetching sentiment data.",
-        )
+        code, error_type, message = handle_db_error(e, "get sentiment data")
+        return error_response(code, error_type, message)
 
 
 def _get_vix_data(cur) -> Dict:
@@ -466,18 +461,16 @@ def _get_vix_data(cur) -> Dict:
         return json_response(
             200, {"latest": latest, "history": history, "signal": signal}
         )
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Schema not available for VIX data: {str(e)}")
-        return error_response(503, "schema_mismatch", "VIX data not yet available")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(f"Database error in VIX data: {str(e)}")
-        return error_response(
-            503, "service_unavailable", "Database temporarily unavailable."
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"VIX data error - {type(e).__name__}: {e}",
+            extra={"operation": "get VIX data"},
         )
-    except Exception as e:
-        logger.error(f"Unexpected error in VIX data: {str(e)}")
-        return error_response(
-            500,
-            "internal_error",
-            "An unexpected error occurred while fetching VIX data.",
-        )
+        code, error_type, message = handle_db_error(e, "get VIX data")
+        return error_response(code, error_type, message)
