@@ -717,6 +717,26 @@ def main():
             "This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
         )
 
+    # Check upstream loader status (ISSUE #28 FIX: dependency validation)
+    try:
+        with DatabaseContext("read") as cur:
+            # Verify stock_prices_daily is not stuck RUNNING/PENDING
+            cur.execute(
+                "SELECT status FROM data_loader_status WHERE table_name = 'stock_prices_daily'"
+            )
+            result = cur.fetchone()
+            prices_status = result[0] if result else None
+            if prices_status in ("RUNNING", "PENDING"):
+                logger.warning(
+                    f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily is {prices_status} - "
+                    "waiting for price data to be available"
+                )
+                return 0  # Exit cleanly, will retry on next pipeline run
+    except Exception as status_err:
+        logger.warning(
+            f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}"
+        )
+
     # ISSUE #7: Validate dependency — technical_data_daily must be fresh and have good coverage
     try:
         with DatabaseContext("read") as cur:

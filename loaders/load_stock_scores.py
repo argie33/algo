@@ -697,6 +697,28 @@ def main():
             f"Filtering out {excluded_count} ETFs from {len(all_symbols)} total symbols"
         )
 
+        # Check upstream dependencies (ISSUE #28 FIX: dependency validation)
+        dependencies = [
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics",
+        ]
+        with DatabaseContext("read") as cur:
+            for dep in dependencies:
+                cur.execute(
+                    "SELECT status FROM data_loader_status WHERE table_name = %s",
+                    (dep,),
+                )
+                result = cur.fetchone()
+                dep_status = result[0] if result else None
+
+                if dep_status in ("RUNNING", "PENDING"):
+                    logger.warning(
+                        f"[SKIP] Aborting stock_scores: upstream {dep} is {dep_status} - "
+                        "waiting for completion"
+                    )
+                    return 0  # Exit cleanly, will retry on next pipeline run
+
         loader = StockScoresLoader()
         stats = loader.run(symbols, parallelism=args.parallelism)
         logger.info("Stock scores load completed")
