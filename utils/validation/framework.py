@@ -95,13 +95,15 @@ class TypeValidator(Validator):
             )
 
         if self.expected_type in ("float", "numeric"):
-            cleaned, err = self._validate_float(data, context)
-            if err:
-                errors.append(err)
+            try:
+                cleaned = self._validate_float(data, context)
+            except ValueError as e:
+                errors.append(str(e))
         elif self.expected_type in ("int", "integer"):
-            cleaned, err = self._validate_int(data, context)
-            if err:
-                errors.append(err)
+            try:
+                cleaned = self._validate_int(data, context)
+            except ValueError as e:
+                errors.append(str(e))
         elif self.expected_type in ("str", "text", "string", "varchar"):
             if not isinstance(data, str):
                 errors.append(f"{context}: expected string, got {type(data).__name__}")
@@ -118,27 +120,27 @@ class TypeValidator(Validator):
             validator_name=self.name,
         )
 
-    def _validate_float(self, data: Any, context: str) -> tuple:
+    def _validate_float(self, data: Any, context: str) -> float:
         try:
             val = float(data)
             if self.min_val is not None and val < self.min_val:
-                return None, f"{context}: {val} < min {self.min_val}"
+                raise ValueError(f"{context}: {val} < min {self.min_val}")
             if self.max_val is not None and val > self.max_val:
-                return None, f"{context}: {val} > max {self.max_val}"
-            return val, None
-        except (ValueError, TypeError):
-            return None, f"{context}: cannot convert {data!r} to float"
+                raise ValueError(f"{context}: {val} > max {self.max_val}")
+            return val
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"{context}: cannot convert {data!r} to float") from e
 
-    def _validate_int(self, data: Any, context: str) -> tuple:
+    def _validate_int(self, data: Any, context: str) -> int:
         try:
             val = int(data)
             if self.min_val is not None and val < self.min_val:
-                return None, f"{context}: {val} < min {self.min_val}"
+                raise ValueError(f"{context}: {val} < min {self.min_val}")
             if self.max_val is not None and val > self.max_val:
-                return None, f"{context}: {val} > max {self.max_val}"
-            return val, None
-        except (ValueError, TypeError):
-            return None, f"{context}: cannot convert {data!r} to int"
+                raise ValueError(f"{context}: {val} > max {self.max_val}")
+            return val
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"{context}: cannot convert {data!r} to int") from e
 
 
 class EnumValidator(Validator):
@@ -291,7 +293,7 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         return default
 
 
-def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
+def safe_float_strict(value: Any, context: str = "") -> float:
     """Convert value to float in strict mode, raising on failure.
 
     Args:
@@ -299,25 +301,26 @@ def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
         context: Context string for logging
 
     Returns:
-        Float value or None if conversion fails
+        Float value
 
     Raises:
-        ValueError: If conversion fails and strict mode is enabled
+        ValueError: If value is None, bool, or conversion fails
     """
     if value is None:
-        return None
+        raise ValueError(f"{context}: cannot convert None to float")
 
     if isinstance(value, bool):
-        return None
+        raise ValueError(f"{context}: cannot convert bool to float")
 
     try:
         f = float(value)
-        if math.isnan(f) or math.isinf(f):
-            logger.warning(f"Invalid float value {value!r} {context}")
-            return None
+        if math.isnan(f):
+            raise ValueError(f"{context}: NaN value rejected")
+        if math.isinf(f):
+            raise ValueError(f"{context}: Infinity value rejected")
         return f
-    except (ValueError, TypeError):
-        return None
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"{context}: cannot convert {value!r} to float") from e
 
 
 def safe_int(value: Any, default: int = 0, context: str = "") -> int:
@@ -344,7 +347,7 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
-def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
+def safe_int_strict(value: Any, context: str = "") -> int:
     """Convert value to int in strict mode.
 
     Args:
@@ -352,19 +355,21 @@ def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
         context: Context string for logging
 
     Returns:
-        Int value or None if conversion fails
+        Int value
+
+    Raises:
+        ValueError: If value is None, bool, or conversion fails
     """
     if value is None:
-        return None
+        raise ValueError(f"{context}: cannot convert None to int")
 
     if isinstance(value, bool):
-        return None
+        raise ValueError(f"{context}: cannot convert bool to int")
 
     try:
         return int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
-        return None
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"{context}: cannot convert {value!r} to int") from e
 
 
 def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
@@ -405,13 +410,16 @@ def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     return None
 
 
-def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
+def safe_parse_datetime_et(value: Any, context: str = "") -> datetime:
     """Parse datetime string with timezone awareness (ET).
 
-    Returns timezone-aware datetime in ET, or None if parsing fails.
+    Returns timezone-aware datetime in ET.
+
+    Raises:
+        ValueError: If value is None or parsing fails
     """
     if value is None:
-        return None
+        raise ValueError(f"{context}: cannot parse None as datetime")
 
     if isinstance(value, datetime):
         if value.tzinfo is None:
@@ -424,11 +432,10 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
             if dt.tzinfo is None:
                 return dt.replace(tzinfo=EASTERN_TZ)
             return dt
-        except (ValueError, TypeError):
-            logger.warning(f"Failed to parse datetime {value!r} {context}")
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"{context}: cannot parse datetime {value!r}") from e
 
-    return None
+    raise ValueError(f"{context}: cannot parse {type(value).__name__} as datetime")
 
 
 def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> Any:

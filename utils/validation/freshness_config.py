@@ -201,8 +201,8 @@ def is_table_fresh(
 
             latest_dt = dt.fromisoformat(latest_date)
             latest_date_only = latest_dt.date()
-        except (ValueError, AttributeError):
-            return False, None, f"{table_name}: invalid date format {latest_date}"
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"{table_name}: invalid date format {latest_date}") from e
     elif isinstance(latest_date, datetime):
         latest_date_only = latest_date.date()
     elif isinstance(latest_date, date):
@@ -297,23 +297,26 @@ def is_critical_table(table_name: str) -> bool:
 # ============================================================================
 
 
-def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
+def minutes_since(timestamp: Optional[Any]) -> float:
     """Calculate minutes elapsed since a timestamp.
 
     Args:
         timestamp: datetime, date, or ISO string
 
     Returns:
-        Minutes elapsed, or None if timestamp is None/invalid
+        Minutes elapsed
+
+    Raises:
+        ValueError: If timestamp is None or format is invalid
     """
     if timestamp is None:
-        return None
+        raise ValueError("Cannot parse None as timestamp")
 
     if isinstance(timestamp, str):
         try:
             timestamp = datetime.fromisoformat(timestamp)
-        except (ValueError, AttributeError):
-            return None
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Invalid timestamp format: {timestamp}") from e
 
     if isinstance(timestamp, datetime):
         if timestamp.tzinfo is None:
@@ -326,7 +329,7 @@ def minutes_since(timestamp: Optional[Any]) -> Optional[float]:
         elapsed = datetime.now(timezone.utc) - timestamp_dt
         return elapsed.total_seconds() / 60
 
-    return None
+    raise ValueError(f"Cannot parse {type(timestamp).__name__} as timestamp")
 
 
 # ============================================================================

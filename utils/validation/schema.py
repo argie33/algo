@@ -110,7 +110,7 @@ def validate_table_schema(
         return len(errors) == 0, errors
 
     except Exception as e:
-        return False, [f"Schema validation for '{table_name}' failed: {e}"]
+        raise RuntimeError(f"Schema validation for '{table_name}' failed: {e}") from e
 
 
 def _types_compatible(actual: str, expected: str) -> bool:
