@@ -43,16 +43,21 @@ class FinancialDataValidator:
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
             return False, None, msg
 
-        try:
-            # Handle Decimal
-            if isinstance(price, Decimal):
+        # Handle Decimal and convert to float
+        if isinstance(price, Decimal):
+            try:
                 price = float(price)
-            else:
+            except (ValueError, TypeError, InvalidOperation) as e:
+                msg = f"Price (Decimal) not convertible: {price!r} {context} ({e})"
+                logger.error(f"[FINANCIAL_VALIDATION] {msg}")
+                return False, None, msg
+        else:
+            try:
                 price = float(price)
-        except (ValueError, TypeError, InvalidOperation) as e:
-            msg = f"Price not numeric: {price!r} {context} ({e})"
-            logger.error(f"[FINANCIAL_VALIDATION] {msg}")
-            return False, None, msg
+            except (ValueError, TypeError) as e:
+                msg = f"Price not numeric: {price!r} {context} ({e})"
+                logger.error(f"[FINANCIAL_VALIDATION] {msg}")
+                return False, None, msg
 
         # Check for NaN and Infinity
         if math.isnan(price):
@@ -97,10 +102,14 @@ class FinancialDataValidator:
 
         try:
             qty_int = int(float(qty))  # Convert float to int (rounds down)
-        except (ValueError, TypeError) as e:
-            msg = f"Quantity not numeric: {qty!r} {context} ({e})"
+        except (ValueError, TypeError, OverflowError) as e:
+            msg = f"Quantity not numeric or overflow: {qty!r} {context} ({e})"
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
             return False, None, msg
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error in quantity validation: {e}. Cannot proceed."
+            ) from e
 
         if qty_int <= 0:
             msg = f"Quantity must be positive: {qty_int} {context}"
@@ -182,10 +191,15 @@ class FinancialDataValidator:
         try:
             pnl_dollars = (exit_price - entry) * qty
             pnl_pct = (exit_price - entry) / entry * 100.0
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError) as e:
             msg = f"P&L calculation failed {context}: {e}"
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
             return False, None, None, msg
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error in P&L calculation: {e}. "
+                "Precondition checks failed; entry={entry}, exit={exit_price}, qty={qty}"
+            ) from e
 
         return True, pnl_dollars, pnl_pct, ""
 

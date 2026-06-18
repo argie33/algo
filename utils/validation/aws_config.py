@@ -125,10 +125,10 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(
-                f"Cannot validate circuit breaker thresholds: {str(e)[:80]}"
-            )
-            return False
+            raise RuntimeError(
+                f"Cannot validate circuit breaker thresholds: {e}. "
+                "Cannot proceed without verifying circuit breaker config."
+            ) from e
 
     def validate_data_patrol_config(self) -> bool:
         """Validate data patrol thresholds for production data volume."""
@@ -148,10 +148,10 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(
-                f"Data patrol configuration issue: {str(e)[:80]}"
-            )
-            return False
+            raise RuntimeError(
+                f"Data patrol configuration issue: {e}. "
+                "Cannot proceed without data patrol configured."
+            ) from e
 
     def validate_market_calendar(self) -> bool:
         """Validate market calendar has current holidays/early closes."""
@@ -169,8 +169,9 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(f"Market calendar issue: {str(e)[:80]}")
-            return False
+            raise RuntimeError(
+                f"Market calendar issue: {e}. Cannot proceed without valid market calendar."
+            ) from e
 
     def validate_loader_status_tracking(self) -> bool:
         """Validate loader status table is being used."""
@@ -197,8 +198,9 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(f"Loader status tracking issue: {str(e)[:80]}")
-            return False
+            raise RuntimeError(
+                f"Loader status tracking issue: {e}. Cannot verify loader status table configured."
+            ) from e
 
     def validate_cloudwatch_readiness(self) -> bool:
         """Validate CloudWatch is configured for monitoring."""
@@ -215,11 +217,10 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(
-                f"CloudWatch may not be configured: {str(e)[:80]} "
-                "(Note: Not critical if running locally, required for AWS)"
-            )
-            return False
+            raise RuntimeError(
+                f"CloudWatch configuration check failed: {e}. "
+                "Cannot validate CloudWatch readiness."
+            ) from e
 
     def validate_dynamodb_setup(self) -> bool:
         """Validate DynamoDB is set up for state management."""
@@ -238,8 +239,9 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            self.checks_warnings.append(f"DynamoDB setup issue: {str(e)[:80]}")
-            return False
+            raise RuntimeError(
+                f"DynamoDB setup validation failed: {e}. Cannot verify DynamoDB configured."
+            ) from e
 
     def validate_error_fallback_monitoring(self) -> bool:
         """Validate error fallback monitoring is enabled."""
@@ -258,10 +260,10 @@ class AWSProductionConfigValidator:
                 return False
 
         except Exception as e:
-            self.checks_warnings.append(
-                f"Error fallback monitoring issue: {str(e)[:80]}"
-            )
-            return False
+            raise RuntimeError(
+                f"Error fallback monitoring validation failed: {e}. "
+                "Cannot verify error fallback utilities."
+            ) from e
 
     def run_all_validations(self) -> Dict[str, any]:
         """Run all configuration validations."""
