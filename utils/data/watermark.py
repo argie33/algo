@@ -254,7 +254,7 @@ class WatermarkManager:
                         ),
                     )
         except Exception as e:
-            logger.error(f"Failed to record error: {e}")
+            raise RuntimeError(f"Failed to record error for watermark: {e}") from e
 
     def get_status(self) -> Dict[str, Any]:
         """Get status of all watermarks for this loader."""
@@ -269,5 +269,4 @@ class WatermarkManager:
                 return {"loader": self.loader_name, "watermarks": rows}
 
         except Exception as e:
-            logger.error(f"Error getting watermark status: {e}")
-            return {"error": str(e)}
+            raise RuntimeError(f"Error getting watermark status: {e}") from e

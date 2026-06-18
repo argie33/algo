@@ -89,4 +89,4 @@ class PooledDatabaseContext:
                 if not self.connection.autocommit:
                     self.connection.rollback()
             except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e  # Don't suppress exceptions
+                raise RuntimeError(f"Operation failed: {e}") from e

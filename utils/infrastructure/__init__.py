@@ -3,6 +3,9 @@
 from .api_endpoints import (
     get_alpaca_data_url,
 )
+from .correlation import (
+    get_correlation_id,
+)
 from .conversion import (
     safe_float,
     safe_float_strict,
@@ -39,4 +42,5 @@ __all__ = [
     "ORCHESTRATOR_RUN_TIMES_TUPLE",
     "ORCHESTRATOR_KILL_BUFFER_MINUTES",
     "get_alpaca_data_url",
+    "get_correlation_id",
 ]

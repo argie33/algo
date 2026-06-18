@@ -1387,12 +1387,15 @@ class PriceLoader(OptimalLoader):
                 row_date = datetime.fromisoformat(row_date_str).date()
                 if not MarketCalendar.is_trading_day(row_date):
                     if self.tracker:
-                        self.tracker.record_error(
-                            symbol=symbol,
-                            error_type="NON_TRADING_DAY",
-                            error_message="Data for non-trading day (weekend/holiday)",
-                            resolution="rejected",
-                        )
+                        try:
+                            self.tracker.record_error(
+                                symbol=symbol,
+                                error_type="NON_TRADING_DAY",
+                                error_message="Data for non-trading day (weekend/holiday)",
+                                resolution="rejected",
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not record error for {symbol}: {e}")
                     non_trading_filtered += 1
                     logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
                     continue
@@ -1416,12 +1419,15 @@ class PriceLoader(OptimalLoader):
 
             if not is_valid:
                 if self.tracker:
-                    self.tracker.record_error(
-                        symbol=symbol,
-                        error_type="DATA_INVALID",
-                        error_message=", ".join(errors),
-                        resolution="skipped",
-                    )
+                    try:
+                        self.tracker.record_error(
+                            symbol=symbol,
+                            error_type="DATA_INVALID",
+                            error_message=", ".join(errors),
+                            resolution="skipped",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Could not record error for {symbol}: {e}")
                 logger.warning(f"[{symbol}] {row.get('date')}: {errors[0]}")
                 continue
 

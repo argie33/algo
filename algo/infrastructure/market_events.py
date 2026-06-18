@@ -13,7 +13,7 @@ Implements fail-safe protocols that override strategy logic.
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -45,7 +45,7 @@ class MarketEventHandler:
             self.alpaca_key = None
             self.alpaca_secret = None
 
-    def check_single_stock_halt(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def check_single_stock_halt(self, symbol: str) -> dict[str, Any] | None:
         """Check if symbol is currently halted from trading.
 
         Returns:
@@ -83,7 +83,7 @@ class MarketEventHandler:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def check_market_circuit_breaker(self) -> Optional[Dict[str, Any]]:
+    def check_market_circuit_breaker(self) -> dict[str, Any] | None:
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
 
         Circuit breaker levels:
@@ -110,7 +110,7 @@ class MarketEventHandler:
                     if resp.status_code == 200:
                         return resp.json().get("quote", {}).get("ap")
                 except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                    raise RuntimeError(f"Operation failed: {e}") from e
 
             def fetch_bars():
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
@@ -121,7 +121,7 @@ class MarketEventHandler:
                     if resp.status_code == 200:
                         return resp.json().get("bar", {}).get("o")
                 except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                    raise RuntimeError(f"Operation failed: {e}") from e
 
             with ThreadPoolExecutor(max_workers=2) as executor:
                 quote_future = executor.submit(fetch_quotes)
@@ -164,7 +164,7 @@ class MarketEventHandler:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def check_early_close(self, check_date: Optional[date] = None) -> bool:
+    def check_early_close(self, check_date: date | None = None) -> bool:
         """Check if market closes early today (3 hours early = 13:00 ET instead of 16:00).
 
         Known early close dates: day after Thanksgiving, Christmas Eve
@@ -214,7 +214,7 @@ class MarketEventHandler:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def check_after_hours_window(self, check_time: Optional[datetime] = None) -> bool:
+    def check_after_hours_window(self, check_time: datetime | None = None) -> bool:
         """Check if we're in after-hours window (after 15:45 ET or early close at 13:00).
 
         No new entries allowed after 15:45 ET on normal days or 13:00 ET on early close days.
@@ -246,7 +246,7 @@ class MarketEventHandler:
 
         return False
 
-    def handle_single_stock_halt(self, symbol: str) -> Dict[str, Any]:
+    def handle_single_stock_halt(self, symbol: str) -> dict[str, Any]:
         """Handle single-stock halt: cancel pending orders, log event.
 
         Args:
@@ -295,7 +295,7 @@ class MarketEventHandler:
             logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
             return {"action": "ERROR", "message": str(e)}
 
-    def handle_market_circuit_breaker(self, level: int) -> Dict[str, Any]:
+    def handle_market_circuit_breaker(self, level: int) -> dict[str, Any]:
         """Handle market circuit breaker: halt entries, tighten stops, or close positions.
 
         Args:
@@ -347,7 +347,7 @@ class MarketEventHandler:
             )
             return {"action": "ERROR", "message": str(e)}
 
-    def check_delisting(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def check_delisting(self, symbol: str) -> dict[str, Any] | None:
         """Check if symbol is delisted or about to be delisted.
 
         Returns:
@@ -380,7 +380,7 @@ class MarketEventHandler:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def run_pre_market_checks(self) -> Dict[str, Any]:
+    def run_pre_market_checks(self) -> dict[str, Any]:
         """Run all pre-market checks at start of trading day (concurrent execution).
 
         Independent checks are executed in parallel using ThreadPoolExecutor to avoid
@@ -390,14 +390,14 @@ class MarketEventHandler:
         Returns:
             dict with all checks and any alerts
         """
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "checks": {},
             "alerts": [],
         }
 
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures: Dict[Any, str] = {
+            futures: dict[Any, str] = {
                 executor.submit(self.check_early_close): "early_close",
                 executor.submit(self.check_market_circuit_breaker): "circuit_breaker",
                 executor.submit(self.check_after_hours_window): "after_hours_window",

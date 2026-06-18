@@ -526,9 +526,8 @@ class DataSourceRouter:
             if df is None or df.empty:
                 return None
             return df.to_dict(orient="index")
-        except TimeoutError:
-            logger.warning(f"yfinance balance_sheet timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance balance_sheet timeout for {symbol}") from e
 
     def _yf_income(self, symbol: str, period: str):
         try:
@@ -549,9 +548,8 @@ class DataSourceRouter:
             if df is None or df.empty:
                 return None
             return df.to_dict(orient="index")
-        except TimeoutError:
-            logger.warning(f"yfinance income_stmt timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance income_stmt timeout for {symbol}") from e
 
     def _yf_cash_flow(self, symbol: str, period: str):
         try:
@@ -570,9 +568,8 @@ class DataSourceRouter:
             if df is None or df.empty:
                 return None
             return df.to_dict(orient="index")
-        except TimeoutError:
-            logger.warning(f"yfinance cashflow timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance cashflow timeout for {symbol}") from e
 
     # ============== EARNINGS ==============
 
@@ -617,9 +614,8 @@ class DataSourceRouter:
             if isinstance(result, dict):
                 return result
             return result.to_dict(orient="index")
-        except TimeoutError:
-            logger.warning(f"yfinance earnings_dates timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance earnings_dates timeout for {symbol}") from e
 
     def _sec_eps(self, symbol: str):
         return self._sec_client().get_quarterly_concept(
@@ -648,9 +644,8 @@ class DataSourceRouter:
             if df is None or df.empty:
                 return None
             return df
-        except TimeoutError:
-            logger.warning(f"yfinance eps_revisions timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance eps_revisions timeout for {symbol}") from e
 
     def fetch_eps_trend(self, symbol: str):
         """Fetch estimate trends (historical estimate changes). yfinance only (no fallback)."""
@@ -674,9 +669,8 @@ class DataSourceRouter:
             if df is None or df.empty:
                 return None
             return df
-        except TimeoutError:
-            logger.warning(f"yfinance eps_trend timeout for {symbol}")
-            return None
+        except TimeoutError as e:
+            raise TimeoutError(f"yfinance eps_trend timeout for {symbol}") from e
 
     # ============== MARKET CLOSE DATA CHECK ==============
 
@@ -738,16 +732,10 @@ class DataSourceRouter:
             )
             return False
 
-        except TimeoutError:
-            logger.debug(
-                f"[yfinance-fast-check] Timeout after {timeout_sec}s (data not yet available)"
-            )
-            return False
+        except TimeoutError as e:
+            raise TimeoutError(f"Market close data check timeout after {timeout_sec}s for {symbol}") from e
         except Exception as e:
-            logger.debug(
-                f"[yfinance-fast-check] Error checking {symbol}: {type(e).__name__}: {str(e)[:100]}"
-            )
-            return False
+            raise RuntimeError(f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}") from e
 
     # ============== HEALTH REPORT ==============
 

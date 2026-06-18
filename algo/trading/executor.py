@@ -1587,7 +1587,7 @@ class TradeExecutor:
                 try:
                     data = resp.json()
                 except Exception as parse_err:
-            raise RuntimeError(f"Operation failed: {parse_err}") from parse_err
+                    raise RuntimeError(f"Operation failed: {parse_err}") from parse_err
 
                 validation = validator.validate_order_status_response(data)
                 if not validation["valid"]:
@@ -1599,7 +1599,7 @@ class TradeExecutor:
                 if validation["status"] == "filled":
                     return cast(float, validation["filled_avg_price"])
         except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_order_filled_quantity(self, alpaca_order_id: str) -> Optional[float]:
         """Query Alpaca for actual filled quantity of an order.
@@ -1631,7 +1631,7 @@ class TradeExecutor:
                     try:
                         data = resp.json()
                     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                        raise RuntimeError(f"Operation failed: {e}") from e
                     filled_qty = data.get("filled_qty")
                     if filled_qty is not None:
                         return int(filled_qty)

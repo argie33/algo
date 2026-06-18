@@ -33,7 +33,7 @@ class PositionSizer:
             with DatabaseContext("read") as cur:
                 return operation(cur)
         except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -117,7 +117,7 @@ class PositionSizer:
 
                 base = get_alpaca_base_url()
             except Exception as cfg_e:
-            raise RuntimeError(f"Operation failed: {cfg_e}") from cfg_e
+                raise RuntimeError(f"Operation failed: {cfg_e}") from cfg_e
         if not key or not secret:
             return None
 
@@ -166,7 +166,7 @@ class PositionSizer:
                 )
                 return None
             except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
     def get_current_drawdown(self):
@@ -298,7 +298,7 @@ class PositionSizer:
                 raise ValueError("Regime multiplier is None")
             return regime_mult
         except Exception as e:
-            raise RuntimeError(f"Could not load regime multiplier required for position sizing: {e}") from e
+                raise RuntimeError(f"Could not load regime multiplier required for position sizing: {e}") from e
 
     def get_active_positions_value(self):
         """Get sum of active position values.
