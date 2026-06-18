@@ -24,6 +24,7 @@ from .utilities import (
     R,
     Y,
     CY,
+    API_MAX_BACKOFF,
 )
 
 # Fetcher metadata: endpoint and description for better error context
@@ -1454,8 +1455,6 @@ def load_all() -> dict:
     Issue 11 FIX: Timeout handling ensures orphaned fetchers are marked incomplete and not lost.
     Issue 12 FIX: API calls use retry logic with capped exponential backoff.
     """
-    from utilities import API_MAX_BACKOFF
-
     # Clear per-call cache so watch mode gets fresh health data on each refresh.
     # _get_data_status_cached() deduplicates concurrent fetches within one load_all()
     # call but must not persist across refresh cycles.
