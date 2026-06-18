@@ -89,16 +89,18 @@ class MetricsCalculator:
             - If returns list is empty, returns None
         """
         if not returns or len(returns) < min_observations:
-            return None
+            raise ValueError(
+                f"Insufficient data: need {min_observations} returns, got {len(returns) if returns else 0}"
+            )
         try:
             mean_ret = statistics.mean(returns)
             std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
             if std_ret <= 0:
-                return None
+                raise ValueError("Zero standard deviation: cannot calculate Sharpe ratio")
             sharpe = (mean_ret / std_ret) * (252**0.5)
             return cast(float, round(sharpe, 3))
-        except (ValueError, ZeroDivisionError, TypeError):
-            return None
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            raise ValueError(f"Sharpe ratio calculation failed: {e}") from e
 
     @staticmethod
     def calculate_sortino_ratio(
@@ -127,21 +129,23 @@ class MetricsCalculator:
             - If all returns are negative, downside_std ≈ full volatility
         """
         if not returns or len(returns) < min_observations:
-            return None
+            raise ValueError(
+                f"Insufficient data: need {min_observations} returns, got {len(returns) if returns else 0}"
+            )
         try:
             mean_ret = statistics.mean(returns)
             downside_rets = [r for r in returns if r < 0]
             if not downside_rets:
-                return None  # No downside to measure
+                raise ValueError("No downside returns: cannot calculate Sortino ratio")
             downside_std = (
                 statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
             )
             if downside_std <= 0:
-                return None
+                raise ValueError("Zero downside volatility: cannot calculate Sortino ratio")
             sortino = (mean_ret / downside_std) * (252**0.5)
             return cast(float, round(sortino, 3))
-        except (ValueError, ZeroDivisionError, TypeError):
-            return None
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            raise ValueError(f"Sortino ratio calculation failed: {e}") from e
 
     @staticmethod
     def calculate_max_drawdown(
@@ -167,7 +171,9 @@ class MetricsCalculator:
             - If portfolio always increases, returns 0 (no drawdown)
         """
         if not portfolio_values or len(portfolio_values) < 2:
-            return None
+            raise ValueError(
+                f"Insufficient data: need 2+ portfolio values, got {len(portfolio_values) if portfolio_values else 0}"
+            )
         try:
             peak = 0.0
             max_dd = 0.0
@@ -178,8 +184,8 @@ class MetricsCalculator:
                     dd = ((peak - value) / peak) * 100
                     max_dd = max(max_dd, dd)
             return round(max_dd, 2)
-        except (ValueError, TypeError, ZeroDivisionError):
-            return None
+        except (ValueError, TypeError, ZeroDivisionError) as e:
+            raise ValueError(f"Max drawdown calculation failed: {e}") from e
 
     @staticmethod
     def calculate_calmar_ratio(
@@ -212,25 +218,27 @@ class MetricsCalculator:
             - If only portfolio_values provided, returns is derived from endpoint values
         """
         if not portfolio_values or len(portfolio_values) < min_observations:
-            return None
+            raise ValueError(
+                f"Insufficient data: need {min_observations}+ values, got {len(portfolio_values) if portfolio_values else 0}"
+            )
 
         try:
             # Calculate max drawdown from portfolio values
             max_dd = MetricsCalculator.calculate_max_drawdown(portfolio_values)
             if max_dd is None or max_dd <= 0:
-                return None
+                raise ValueError("Cannot calculate Calmar ratio: max drawdown must be > 0")
 
             # Calculate total return from portfolio values
             start_val = portfolio_values[0]
             end_val = portfolio_values[-1]
             if start_val <= 0:
-                return None
+                raise ValueError("Cannot calculate Calmar ratio: start value must be > 0")
             total_return = ((end_val / start_val) - 1) * 100  # Convert to percentage
 
             calmar = total_return / max_dd
             return round(calmar, 3)
-        except (ValueError, TypeError, ZeroDivisionError):
-            return None
+        except (ValueError, TypeError, ZeroDivisionError) as e:
+            raise ValueError(f"Calmar ratio calculation failed: {e}") from e
 
     @staticmethod
     def calculate_profit_factor(
@@ -303,7 +311,10 @@ class MetricsCalculator:
             or avg_win_r_multiple is None
             or avg_loss_r_multiple is None
         ):
-            return None
+            raise ValueError(
+                "Cannot calculate expectancy: win_rate_pct, avg_win_r_multiple, "
+                "and avg_loss_r_multiple must all be provided"
+            )
 
         try:
             wr_decimal = float(win_rate_pct) / 100
@@ -311,8 +322,8 @@ class MetricsCalculator:
             avg_loss = abs(float(avg_loss_r_multiple))  # Always positive for formula
             exp = (wr_decimal * avg_win) - ((1 - wr_decimal) * avg_loss)
             return round(exp, 3)
-        except (ValueError, TypeError):
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Expectancy calculation failed: {e}") from e
 
     @staticmethod
     def calculate_avg_r_multiple(
@@ -337,15 +348,15 @@ class MetricsCalculator:
             - Mix of positive and negative values: returns mean
         """
         if not r_multiples:
-            return None
+            raise ValueError("Cannot calculate average R-multiple: no R-multiples provided")
         try:
             r_vals = [float(r) for r in r_multiples if r is not None]
             if not r_vals:
-                return None
+                raise ValueError("Cannot calculate average R-multiple: all R-multiples are None")
             avg = statistics.mean(r_vals)
             return round(avg, 3)
-        except (ValueError, TypeError):
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Average R-multiple calculation failed: {e}") from e
 
 
 class MetricsValidator:

@@ -183,31 +183,31 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if not returns:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
-        # Use MetricsCalculator for all metrics (no fallbacks — let None propagate)
-        sharpe = MetricsCalculator.calculate_sharpe_ratio(returns)
-        sortino = MetricsCalculator.calculate_sortino_ratio(returns)
-        max_drawdown = MetricsCalculator.calculate_max_drawdown(vals)
-        calmar = MetricsCalculator.calculate_calmar_ratio(vals)
+        # Calculate metrics with explicit error handling — no silent fallbacks to 0
+        sharpe = 0.0
+        sortino = 0.0
+        max_drawdown = 0.0
+        calmar = 0.0
 
-        # Log when metrics fail to compute and fall back to 0 (not mask silently)
-        if sharpe is None:
-            logger.warning(
-                f"Sharpe ratio failed to compute (need 5 returns, got {len(returns)})"
-            )
-            sharpe = 0.0
-        if sortino is None:
-            logger.warning(
-                f"Sortino ratio failed to compute (need downside risk, got {len(returns)} returns)"
-            )
-            sortino = 0.0
-        if max_drawdown is None:
-            logger.warning(
-                f"Max drawdown failed to compute (need 2 portfolio values, got {len(vals)})"
-            )
-            max_drawdown = 0.0
-        if calmar is None:
-            logger.warning("Calmar ratio failed to compute")
-            calmar = 0.0
+        try:
+            sharpe = MetricsCalculator.calculate_sharpe_ratio(returns)
+        except ValueError as e:
+            logger.warning(f"Sharpe ratio failed: {e}")
+
+        try:
+            sortino = MetricsCalculator.calculate_sortino_ratio(returns)
+        except ValueError as e:
+            logger.warning(f"Sortino ratio failed: {e}")
+
+        try:
+            max_drawdown = MetricsCalculator.calculate_max_drawdown(vals)
+        except ValueError as e:
+            logger.warning(f"Max drawdown failed: {e}")
+
+        try:
+            calmar = MetricsCalculator.calculate_calmar_ratio(vals)
+        except ValueError as e:
+            logger.warning(f"Calmar ratio failed: {e}")
 
         # CAGR calculation (not in MetricsCalculator, so keep custom implementation)
         start_val = vals[0]
