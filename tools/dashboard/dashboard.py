@@ -201,7 +201,8 @@ def _fetch_terraform_credentials():
             return (None, None, None)
         except subprocess.TimeoutExpired:
             logger.warning(
-                "Terraform check timed out (running but slow) - use launcher script or set env vars manually"
+                "Terraform check timed out (running but slow) - "
+                "use launcher script or set env vars manually"
             )
             return (None, None, None)
         except subprocess.CalledProcessError as e:
@@ -226,7 +227,10 @@ def _fetch_terraform_credentials():
                     logger.warning("Terraform init failed - may need manual setup")
                     return (None, None, None)
             except subprocess.TimeoutExpired:
-                logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
+                logger.warning(
+                    "Terraform init timed out (60s) - "
+                    "running but slow, may need manual setup"
+                )
                 return (None, None, None)
 
         # Fetch outputs
@@ -239,7 +243,10 @@ def _fetch_terraform_credentials():
                 timeout=30,
             )
         except subprocess.TimeoutExpired:
-            logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
+            logger.warning(
+                "Terraform output timed out (30s) - "
+                "running but slow, may need manual setup"
+            )
             return (None, None, None)
 
         if result.returncode != 0:
