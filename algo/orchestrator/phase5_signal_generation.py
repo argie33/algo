@@ -217,8 +217,10 @@ def _get_candidates_from_buysell(
         )
         return candidates
     except Exception as e:
-        logger.error(f"[PHASE 5] Error fetching buy_sell_daily candidates: {e}", exc_info=True)
-        return []
+        raise RuntimeError(
+            f"[PHASE 5] Failed to fetch buy_sell_daily candidates: {e}. "
+            "Cannot proceed with signal generation without candidate data."
+        ) from e
 
 
 def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
@@ -305,8 +307,10 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
         )
         return candidates
     except Exception as e:
-        logger.error(f"[PHASE 5] Error fetching candidates: {e}", exc_info=True)
-        return []
+        raise RuntimeError(
+            f"[PHASE 5] Failed to fetch candidates: {e}. "
+            "Cannot proceed with signal generation without candidate data."
+        ) from e
 
 
 def run(
