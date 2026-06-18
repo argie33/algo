@@ -41,6 +41,15 @@ from ._helpers import (
 )
 
 
+def _var_color(var95: float) -> str:
+    """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
+    if (var95 or 0) >= 4:
+        return R
+    if (var95 or 0) >= 2:
+        return Y
+    return "white"
+
+
 def panel_orch(run, cfg, risk=None):
     next_run = next_run_str()
     mode = cfg.get("mode", "?")
@@ -77,7 +86,7 @@ def panel_orch(run, cfg, risk=None):
             if (risk.get("beta") or 0) >= 1.2
             else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         )
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
+        var_c = _var_color(risk.get("var95", 0))
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
             if risk.get("svar") and float(risk.get("svar") or 0) > 0
@@ -995,7 +1004,7 @@ def panel_algo_health(
             if (risk.get("conc5") or 0) >= 35
             else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         )
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
+        var_c = _var_color(risk.get("var95", 0))
         risk_parts = [
             f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
             f"[dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
