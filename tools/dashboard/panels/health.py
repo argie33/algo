@@ -3,6 +3,7 @@
 import json
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -22,41 +23,19 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from ..data_validation import safe_float
-
+from ..formatters import (
+    fmt_age,
+    next_run_str,
+)
 from ..utilities import (
-    MASCOT_W,
-    MASCOT_FRAMES,
-    MASCOT_COLORS,
-    LOAD_SEQ,
+    CY,
+    DIM,
     PHASE_NAMES,
-    TIER_COLOR,
-    TIER_SHORT,
     G,
     R,
     Y,
-    CY,
-    DIM,
 )
-from ..formatters import (
-    fmt_age,
-    fmt_money,
-    fmt_money_short,
-    tier_from_pct,
-    hbar,
-    exp_bar,
-    mini_bar,
-    sign,
-    sparkline,
-    next_run_str,
-)
-
 from ._helpers import (
-    _error_panel,
-    _score_cell,
-    _build_buy_sig_map,
-    _swing_cell,
-    _composite_score_color,
     _best_halt_reason,
     _fmt_phases_halted,
 )
@@ -1148,7 +1127,7 @@ def panel_algo_health_expanded(
             st = r.get("st", "ok")
             ok = st == "ok"
             ic = G if ok else (Y if st == "empty" else R)
-            ii = "✓" if ok else ("−" if st == "empty" else "✗")
+            ii = "✓" if ok else ("-" if st == "empty" else "✗")
             rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
             row_count = r.get("row_count")
             rc_s = f"{row_count:,}" if row_count is not None else "--"
@@ -1163,7 +1142,7 @@ def panel_algo_health_expanded(
             )
         left_rows.append(all_tbl)
     else:
-        left_rows.append(Text("no data health info", style="dim"))
+        left_rows.append(Text("⚠ Data health unavailable — loaders may not have run yet. Check Phase 1 orchestrator status or monitor logs.", style="dim"))
 
     left_panel = Panel(
         Group(*left_rows),
@@ -1435,8 +1414,8 @@ def panel_algo_health_expanded(
 
 
 __all__ = [
-    "panel_orch",
-    "panel_status",
     "panel_algo_health",
     "panel_algo_health_expanded",
+    "panel_orch",
+    "panel_status",
 ]

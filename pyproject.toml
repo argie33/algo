@@ -88,7 +88,7 @@ ignore = ["E203", "E501", "C901", "B904"]
 "dev_server.py" = ["E402"]
 "api_proxy_server.py" = ["E402"]
 "panels.py" = ["E402"]
-"tools/dashboard/*.py" = ["E402", "C901"]
+"tools/dashboard/*.py" = ["E402", "C901", "N806", "E501"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 12
