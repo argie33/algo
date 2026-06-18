@@ -5,8 +5,9 @@ import threading
 import time
 import uuid
 from abc import ABC
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence, cast
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.sql
@@ -52,12 +53,12 @@ class OptimalLoader(ABC):
     )
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
-    def __init__(self, backfill_days: Optional[int] = None):
+    def __init__(self, backfill_days: int | None = None):
         self._dedup = None
         self._watermark = None
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
-        self._schema_cols_cache: Optional[set[str]] = (
+        self._schema_cols_cache: set[str] | None = (
             None  # cached column list for _bulk_insert
         )
         self._constraint_checked = False  # track if we've verified/fixed constraint
@@ -75,16 +76,16 @@ class OptimalLoader(ABC):
             "duration_sec": 0.0,
             "source_distribution": {},
         }
-        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_thread: threading.Thread | None = None
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
         self._heartbeat_interval = (
             60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         )
-        self._execution_start_time: Optional[datetime] = (
+        self._execution_start_time: datetime | None = (
             None  # Track execution start for execution history logging
         )
-        self._batch_context: Optional[Dict[str, Any]] = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
+        self._batch_context: dict[str, Any] | None = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -231,7 +232,7 @@ class OptimalLoader(ABC):
         except Exception as e:
             logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
-    def _get_rds_connection_count(self) -> Optional[int]:
+    def _get_rds_connection_count(self) -> int | None:
         """Get current RDS active connection count from CloudWatch metrics.
 
         Returns:
@@ -320,22 +321,22 @@ class OptimalLoader(ABC):
     # ---- Subclass interface ----
 
     def fetch_incremental(
-        self, symbol: str, since: Optional[date]
-    ) -> Optional[List[dict]]:
+        self, symbol: str, since: date | None
+    ) -> list[dict] | None:
         """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
         raise NotImplementedError(
             "Implement fetch_incremental (per-symbol) or fetch_global (market-wide)"
         )
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Return new rows for market-wide data (no symbol dimension). Override for global loaders."""
         return None
 
-    def transform(self, rows: List[dict]) -> List[dict]:
+    def transform(self, rows: list[dict]) -> list[dict]:
         """Override to apply domain-specific cleaning. Default = identity."""
         return rows
 
-    def watermark_from_rows(self, rows: List[dict]) -> Optional[date]:
+    def watermark_from_rows(self, rows: list[dict]) -> date | None:
         """Derive new watermark from inserted rows. Default = max(watermark_field)."""
         if not rows:
             return None
@@ -507,9 +508,9 @@ class OptimalLoader(ABC):
 
     def _bulk_insert(
         self,
-        rows: List[dict],
-        symbol: Optional[str] = None,
-        new_watermark: Optional[date] = None,
+        rows: list[dict],
+        symbol: str | None = None,
+        new_watermark: date | None = None,
         watermark_mgr=None,
     ) -> int:
         """Bulk insert rows and atomically update watermark if provided.
@@ -747,7 +748,7 @@ class OptimalLoader(ABC):
         self._stats["rows_inserted"] += inserted  # type: ignore
         return inserted
 
-    def _dedup_filter(self, dedup, rows: List[dict]) -> List[dict]:
+    def _dedup_filter(self, dedup, rows: list[dict]) -> list[dict]:
         keys = [":".join(str(r.get(c, "")) for c in self.primary_key) for r in rows]
         return [r for r, k in zip(rows, keys) if not dedup.exists(k)]
 
@@ -756,7 +757,7 @@ class OptimalLoader(ABC):
         return all(row.get(c) is not None for c in self.primary_key)
 
     @staticmethod
-    def _parse_watermark_date(value) -> Optional[date]:
+    def _parse_watermark_date(value) -> date | None:
         if value is None:
             return None
         if isinstance(value, date):
@@ -766,7 +767,7 @@ class OptimalLoader(ABC):
         except (ValueError, TypeError):
             return None
 
-    def _read_symbol_watermark(self, symbol: str) -> Optional[date]:
+    def _read_symbol_watermark(self, symbol: str) -> date | None:
         """Read per-symbol watermark from table. Returns None if not found or on error."""
         try:
             with DatabaseContext("read") as cur:
@@ -892,7 +893,7 @@ class OptimalLoader(ABC):
             )
             return True  # Don't abort if we can't check
 
-    def _log_execution_history(self, status: str, error_message: Optional[str] = None):
+    def _log_execution_history(self, status: str, error_message: str | None = None):
         """Log loader execution to database for auditing.
 
         Records execution metadata to loader_execution_history table.
@@ -952,7 +953,7 @@ class OptimalLoader(ABC):
         self,
         symbols: Iterable[str],
         parallelism: int = 1,
-        backfill_days: Optional[int] = None,
+        backfill_days: int | None = None,
     ) -> dict:
         """Execute load across symbols. Returns stats dict.
 
@@ -1514,7 +1515,7 @@ class OptimalLoader(ABC):
                 except Exception as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
-    def _run_serial(self, symbols: List[str]) -> None:
+    def _run_serial(self, symbols: list[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
             if self._check_shutdown_requested():
                 logger.warning(
@@ -1535,21 +1536,20 @@ class OptimalLoader(ABC):
             if i % 100 == 0:
                 logger.info("  Progress: %d/%d", i, len(symbols))
 
-    def _run_parallel(self, symbols: List[str], workers: int) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
+    def _run_parallel(self, symbols: list[str], workers: int) -> None:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import TimeoutError as FutureTimeoutError
 
-        # ISSUE #26 FIX: Add timeout per symbol to prevent API hangs from blocking entire loader
-        # Some external APIs (yfinance) can hang or timeout. With parallelism=8, one hung symbol
-        # blocks the thread, but we still complete other symbols and mark loader as done.
-        symbol_timeout_sec = 60  # Per-symbol timeout for API/network operations
-
+        # Per-symbol timeout is enforced in _safe_load_symbol (ISSUE #26 FIX).
+        # No global timeout on as_completed() — with 10K+ symbols and parallelism=8,
+        # even 1s per symbol would require >20 min runtime.
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
             timed_out = 0
             last_health_check = time.time()
 
-            for fut in as_completed(futures, timeout=symbol_timeout_sec + 10):  # +10s buffer for thread overhead
+            for fut in as_completed(futures):  # No global timeout; per-symbol timeout enforced in _safe_load_symbol
                 if self._check_shutdown_requested():
                     logger.warning(
                         f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
@@ -1567,7 +1567,7 @@ class OptimalLoader(ABC):
                     timed_out += 1
                     logger.warning(f"[{self.table_name}] {symbol} timed out during result retrieval")
                     self._stats["symbols_failed"] += 1  # type: ignore[operator]
-                except Exception as e:
+                except Exception:
                     # Exception already logged in _safe_load_symbol, just count it
                     done += 1
 

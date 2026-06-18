@@ -13,8 +13,9 @@ Modes:
   Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
-import sys
 import os
+import sys
+
 
 # Support both direct execution and module import
 # If run directly (python dashboard.py), add repo root to sys.path before any imports
@@ -29,7 +30,7 @@ import argparse
 import threading
 import time
 from datetime import datetime
-from typing import Optional
+
 
 try:
     import msvcrt
@@ -53,37 +54,38 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
-from .fetchers import load_all
 from .error_boundary import error_summary_panel
-from .panels import (
-    _extract_items,
-    mascot_compact,
-    loading_layout,
-    _expanded_layout,
-    panel_header_market,
-    panel_market_expanded,
-    panel_exposure_compact,
-    panel_circuit,
-    panel_circuit_expanded,
-    panel_exposure_expanded,
-    panel_algo_health,
-    panel_portfolio,
-    panel_performance_spark,
-    panel_economic_pulse,
-    panel_signals_compact,
-    panel_sector_compact,
-    panel_positions,
-    panel_recent_trades,
-    panel_signals_expanded,
-    panel_algo_health_expanded,
-    panel_sectors_expanded,
-    panel_trades_expanded,
-    panel_economic_expanded,
-    panel_portfolio_perf_expanded,
-)
+from .fetchers import load_all
 from .formatters import mkt_hours_str
 from .panel_registry import get_panel_registry as _get_panel_registry
+from .panels import (
+    _expanded_layout,
+    _extract_items,
+    loading_layout,
+    mascot_compact,
+    panel_algo_health,
+    panel_algo_health_expanded,
+    panel_circuit,
+    panel_circuit_expanded,
+    panel_economic_expanded,
+    panel_economic_pulse,
+    panel_exposure_compact,
+    panel_exposure_expanded,
+    panel_header_market,
+    panel_market_expanded,
+    panel_performance_spark,
+    panel_portfolio,
+    panel_portfolio_perf_expanded,
+    panel_positions,
+    panel_recent_trades,
+    panel_sector_compact,
+    panel_sectors_expanded,
+    panel_signals_compact,
+    panel_signals_expanded,
+    panel_trades_expanded,
+)
+from .utilities import CONSOLE, ET, MASCOT_W, logger, set_api_url, set_cognito_auth
+
 
 try:
     PANEL_REGISTRY = _get_panel_registry()
@@ -94,12 +96,12 @@ except Exception:
 
 
 def _validate_watch_interval(value):
-    """Validate watch interval is between 5 and 600 seconds."""
+    """Validate watch interval is between 10 and 600 seconds."""
     try:
         int_value = int(value)
-        if int_value < 5:
+        if int_value < 10:
             raise argparse.ArgumentTypeError(
-                f"Watch interval must be at least 5 seconds (got {int_value})"
+                f"Watch interval must be at least 10 seconds (got {int_value})"
             )
         if int_value > 600:
             raise argparse.ArgumentTypeError(
@@ -114,8 +116,9 @@ def _validate_watch_interval(value):
 
 def _fetch_secrets_manager_credentials():
     """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-    import os
     import json
+    import os
+
     import boto3
 
     try:
@@ -151,9 +154,9 @@ def _fetch_secrets_manager_credentials():
 
 def _fetch_terraform_credentials():
     """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-    import subprocess
     import json
     import os
+    import subprocess
 
     try:
         # Ensure AWS_PROFILE is set for Terraform
@@ -294,13 +297,27 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     return panel_status
 
 
+def _handle_render_error(e: Exception) -> Panel:
+    """Create an error panel for render failures."""
+    import traceback
+    logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return Panel(
+        Text.from_markup(
+            f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"
+        ),
+        title="[bold red]ERROR[/]",
+        border_style="red",
+    )
+
+
 def render_dashboard(
     data: dict,
     compact: bool = False,
     elapsed: float = 0.0,
     frame: int = 0,
-    watch_interval: Optional[int] = None,
-    last_load_time: Optional[float] = None,
+    watch_interval: int | None = None,
+    last_load_time: float | None = None,
     refreshing: bool = False,
     view_mode: str = "normal",
     data_source: str = "AWS",
@@ -310,7 +327,7 @@ def render_dashboard(
     mkt = data.get("mkt") or {}
     port = data.get("port") or {}
     perf = data.get("perf") or {}
-    pos = data.get("pos")
+    pos = data.get("pos") or {}
     sig = data.get("sig") or {}
     hlth = data.get("health") or {}  # keep raw dict; ready_to_trade/critical_stale available to panels
     cb = data.get("cb") or {}
@@ -505,15 +522,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     frame = 0
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+    key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
                 key = _keypress()
                 if key == "q":
                     break
-                if key in _KEY_MAP:
-                    target = _KEY_MAP[key]
+                if key in key_map:
+                    target = key_map[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame += 1
                 if not done.is_set():
@@ -530,18 +547,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         )
                         live.update(layout)
                     except Exception as e:
-                        import traceback
-                        logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
-                        logger.error(f"Traceback: {traceback.format_exc()}")
-                        live.update(
-                            Panel(
-                                Text.from_markup(
-                                    f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"
-                                ),
-                                title="[bold red]ERROR[/]",
-                                border_style="red",
-                            )
-                        )
+                        live.update(_handle_render_error(e))
                 time.sleep(0.125)
         except KeyboardInterrupt:
             pass
@@ -554,59 +560,63 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     loading: list = [True]
     last_load: list = [0.0]
     frame: list = [0]
+    state_lock = threading.Lock()
 
     def reload():
-        loading[0] = True
-        t0 = time.monotonic()
-        result[0] = load_all()
-        elapsed[0] = time.monotonic() - t0
-        last_load[0] = time.monotonic()
-        loading[0] = False
+        try:
+            with state_lock:
+                loading[0] = True
+            t0 = time.monotonic()
+            result[0] = load_all()
+            elapsed[0] = time.monotonic() - t0
+            with state_lock:
+                last_load[0] = time.monotonic()
+                loading[0] = False
+        except Exception as e:
+            logger.error(f"Reload thread error: {type(e).__name__}: {e}")
+            with state_lock:
+                loading[0] = False
 
     threading.Thread(target=reload, daemon=True).start()
 
     view_mode = ["normal"]
-    _KEY_MAP = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
+    key_map = {"p": "positions", "s": "signals", "h": "health", "r": "sectors", "t": "trades", "e": "economic", "f": "portfolio", "b": "circuit", "x": "exposure", "m": "market"}
     with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
         try:
             while True:
                 key = _keypress()
                 if key == "q":
                     break
-                if key in _KEY_MAP:
-                    target = _KEY_MAP[key]
+                if key in key_map:
+                    target = key_map[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame[0] += 1
-                if result[0] is None:
+                with state_lock:
+                    is_loading = loading[0]
+                    current_last_load = last_load[0]
+                    current_result = result[0]
+                    current_elapsed = elapsed[0]
+
+                if current_result is None:
                     live.update(loading_layout(frame[0], data_source=data_source))
                 else:
                     try:
                         layout = render_dashboard(
-                            result[0],
+                            current_result,
                             compact=compact,
-                            elapsed=elapsed[0],
+                            elapsed=current_elapsed,
                             frame=frame[0],
                             watch_interval=interval,
-                            last_load_time=last_load[0],
-                            refreshing=loading[0],
+                            last_load_time=current_last_load,
+                            refreshing=is_loading,
                             view_mode=view_mode[0],
                             data_source=data_source,
                         )
                         live.update(layout)
                     except Exception as e:
-                        import traceback
-                        logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
-                        logger.error(f"Traceback: {traceback.format_exc()}")
-                        live.update(
-                            Panel(
-                                Text.from_markup(
-                                    f"[bold red]⚠ Dashboard Render Error[/]\n[dim]{type(e).__name__}: {str(e)[:100]}[/]"
-                                ),
-                                title="[bold red]ERROR[/]",
-                                border_style="red",
-                            )
-                        )
-                    if not loading[0] and (time.monotonic() - last_load[0]) >= interval:
+                        live.update(_handle_render_error(e))
+
+                    if not is_loading and (time.monotonic() - current_last_load) >= interval:
                         threading.Thread(target=reload, daemon=True).start()
                 time.sleep(0.125)
         except KeyboardInterrupt:
@@ -692,7 +702,7 @@ def main():
         data_source = "AWS"
 
         # Cognito authentication - dynamic with fallback
-        from cognito_auth import get_cognito_auth, save_tokens
+        from .cognito_auth import get_cognito_auth, save_tokens
 
         auth = get_cognito_auth(require_auth=True)
         if auth and auth.is_authenticated():
@@ -705,7 +715,7 @@ def main():
             set_cognito_auth(auth)  # Still set it, will fail on protected endpoints
 
     if args.watch is not None:
-        run_watch(max(10, args.watch), args.compact, data_source)
+        run_watch(args.watch, args.compact, data_source)
     else:
         run_once(args.compact, data_source)
 
