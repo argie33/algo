@@ -551,8 +551,8 @@ def panel_status(
     )
     if valid_notifs:
         rows.append(Rule(style="dim"))
-        SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
-        _SHORT = {
+        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
+        short_names = {
             "trading halted by circuit": "Halted: CB",
             "circuit breaker": "CB fired",
             "position entered": "Entered",
@@ -561,10 +561,12 @@ def panel_status(
             "max drawdown": "MaxDD hit",
         }
         for n in valid_notifs[:4]:
-            sc = SEV_C.get(n.get("severity", "info"), DIM)
+            sc = sev_colors.get(n.get("severity", "info"), DIM)
             raw_t = n.get("title") or ""
             tl = raw_t.lower()
-            title = next((v for k, v in _SHORT.items() if k in tl), raw_t[:24])
+            title = next(
+                (v for k, v in short_names.items() if k in tl), raw_t[:24]
+            )
             age = fmt_age(n.get("created_at"))
             unread = "-" if not n.get("seen", True) else " "
             rows.append(
@@ -1016,8 +1018,8 @@ def panel_algo_health(
     valid_notifs = notifs_items if notifs_items and not notifs_error else []
     if valid_notifs:
         rows.append(Rule(style="dim"))
-        SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
-        _SHORT = {
+        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
+        short_names = {
             "trading halted by circuit": "Halted:CB",
             "circuit breaker": "CB fired",
             "position entered": "Entered",
@@ -1027,10 +1029,11 @@ def panel_algo_health(
         }
         notif_parts = []
         for n in valid_notifs[:5]:
-            sc = SEV_C.get(n.get("severity", "info"), DIM)
+            sc = sev_colors.get(n.get("severity", "info"), DIM)
             raw_t = n.get("title") or ""
             title = next(
-                (v for k, v in _SHORT.items() if k in raw_t.lower()), raw_t[:20]
+                (v for k, v in short_names.items() if k in raw_t.lower()),
+                raw_t[:20],
             )
             age = fmt_age(n.get("created_at"))
             unread = "-" if not n.get("seen", True) else "·"
@@ -1142,7 +1145,9 @@ def panel_algo_health_expanded(
             )
         left_rows.append(all_tbl)
     else:
-        left_rows.append(Text("⚠ Data health unavailable — loaders may not have run yet. Check Phase 1 orchestrator status or monitor logs.", style="dim"))
+        msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
+        msg += "Check Phase 1 orchestrator status or monitor logs."
+        left_rows.append(Text(msg, style="dim"))
 
     left_panel = Panel(
         Group(*left_rows),
@@ -1362,11 +1367,11 @@ def panel_algo_health_expanded(
     if valid_notifs:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
+        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
         for n in valid_notifs:
             if not isinstance(n, dict):
                 continue
-            sc = SEV_C.get(n.get("severity", "info"), DIM)
+            sc = sev_colors.get(n.get("severity", "info"), DIM)
             title = n.get("title") or ""
             age = fmt_age(n.get("created_at"))
             unread = "-" if not n.get("seen", True) else "."
