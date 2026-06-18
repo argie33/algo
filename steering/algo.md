@@ -72,56 +72,23 @@ unzip -l terraform/lambda_api.zip | head -30
 
 ## Data Architecture: Positions
 
-**Single Source of Truth:** `algo_positions` table
-- `algo_positions_with_risk`: MATERIALIZED VIEW — enriched with stops, targets, sector, swing_score, R-multiple, and risk metrics. Refreshed at end of Phase 7 via `REFRESH MATERIALIZED VIEW`. Dashboard queries this view.
-- `open_positions` view: filtered for OPEN/PARTIALLY_EXITED only
-- Legacy `positions` table DROPPED (was empty, replaced by algo_positions in Phase 3)
-
-**Positions view notes:**
-- `stop_loss_price` = `COALESCE(algo_positions.stop_loss_price, algo_positions.current_stop_price)` — current_stop_price is used because the executor and reconciliation write stops there; stop_loss_price mirrors it for consistency
-- `r_multiple` = `(current_price - entry) / (entry - stop)` — positive when profitable, negative when at a loss
-- Sector comes from `COALESCE(algo_trades.sector, company_profile.sector, 'Unknown')` — trades get sector at entry time from Phase 5 signal
+**Single source of truth:** `algo_trades` table (see `steering/data_model.md`).  
+**Views:** `algo_positions_with_risk` (materialized, refreshed Phase 7), `open_positions` (filtered for OPEN/PARTIALLY_EXITED).  
+**Notes:** stop_loss_price = COALESCE(stop_loss_price, current_stop_price); r_multiple = (price - entry) / (entry - stop); sector from trades or company_profile.
 
 
-## Data Architecture: Technical Indicators (Redundancy)
+## Data Architecture: Technical Indicators
 
-**Single Source of Truth:** `technical_data_daily` table (RSI, MACD, ATR, Bollinger Bands, Mansfield RS, etc.)
-- Computed TWICE per trading day: **morning prep + EOD pipeline** (vectorized loader: 15-25 min per run)
-- Phase 1 validates technical data freshness (< 2 trading days old) before signal generation
-- Phase 5 signal generation depends on fresh technical_data_daily for buy_sell_daily signals
-- Dual-computation eliminates single point of failure (was: EOD-only before 2026-06-16)
-
-**Resilience:** If EOD pipeline fails on day 1:
-- Day 1 morning pipeline still computes technical indicators (fresh at 2:00 AM) ✅
-- Phase 1 passes freshness checks using morning data (not stale)
-- Phase 5 signal generation uses previous day's buy_sell_daily signals (fallback) ✅
-- Next day: Morning pipeline recomputes technical data, fresh for trading ✓
+**Single source of truth:** `technical_data_daily` table (RSI, MACD, ATR, Bollinger Bands, Mansfield RS, etc.).  
+**Computed twice daily:** morning prep (2:15 AM) + EOD (4:05 PM) via vectorized loader (15-25 min).  
+**Resilience:** If EOD fails, morning pipeline recovers (data fresh for orchestrators). Phase 5 falls back to previous day's buy_sell_daily if needed.
 
 ## Data Architecture: Market Exposure
 
-**Single Source of Truth:** `market_exposure_daily` table computed daily (12 quantitative factors → market regime)
-- Computed TWICE per trading day: **morning prep (3:30 AM ET) + EOD (4:05 PM ET)**
-- All orchestrator runs use most recent computation (morning regime for 9:30 AM/1 PM/3 PM, EOD regime for 5:30 PM)
-- This dual-computation eliminates single point of failure (was: EOD-only)
-
-**Data flow (REDUNDANT):**
-1. Morning pipeline (2:15 AM ET) → market_health_daily + trend_template → **market_exposure_daily (3:30 AM)** → 9:30/1 PM/3 PM orchestrators
-2. EOD pipeline (4:05 PM ET) → market_health_daily + trend_template → **market_exposure_daily (4:30 PM)** → 5:30 PM orchestrator
-
-**Resilience:** If EOD pipeline fails on day 1:
-- Day 1: 9:30 AM orchestrator uses morning regime (computed 3:30 AM) ✅
-- Day 1: 5:30 PM orchestrator falls back to morning regime (graceful degradation, 9+ hours fresh) ✅
-- Day 2: 9:30 AM orchestrator has fresh morning regime again (not stale for entire week) ✅
-- Dashboard always shows regime from past 24 hours (at worst, 1 day old + fallback to caution)
-
-**Monitoring & Recovery:**
-- Monitor: `SELECT MAX(date), MAX(computed_at) FROM market_exposure_daily` (should show today's date with 2 recent timestamps: ~3:30 AM and ~4:30 PM)
-- Alert if: No computation in past 24 hours (both morning AND EOD failed)
-- Verify: Check CloudWatch logs `/ecs/algo-market_exposure_daily-loader` for errors (appears in both morning + EOD pipelines)
-- If morning fails: Fallback covers morning orchestrators (EOD will try again at 4:05 PM)
-- If EOD fails: Morning computation from next day covers all orchestrators (no week-long staleness)
-- Python import errors: Push to main to trigger CI/CD pipeline rebuild
-- Manual trigger morning pipeline: `aws stepfunctions start-execution --state-machine-arn <morning-pipeline-arn> --name manual-test-$(date +%s)`
+**Single source of truth:** `market_exposure_daily` table (12 quantitative factors → market regime).  
+**Computed twice daily:** morning (3:30 AM) + EOD (4:30 PM). Orchestrators use most recent: morning regime for 9:30/1/3 PM, EOD regime for 5:30 PM.  
+**Resilience:** If EOD fails, day's morning regime covers (graceful degradation). Day+1 morning recomputes fresh.  
+**Monitor:** `SELECT MAX(date), MAX(computed_at) FROM market_exposure_daily` (should show 2 recent timestamps). Alert if no computation in 24h (both pipelines failed).
 
 ## Schedule (Daily, Mon-Fri)
 
@@ -205,54 +172,11 @@ EOD (4:05-6:00 PM ET): (1) stock_prices_daily by 5:15 PM, (2) Phase 1 passes by 
 
 ## Pre-Computed Metrics
 
-**circuit_breaker_status table:** Daily snapshot of 9 circuit breaker metrics (portfolio drawdown, daily loss, consecutive losses, open risk, VIX, market stage, SPY change, win rate, trigger count)
-- Computed by: `loaders/compute_circuit_breakers.py` (EventBridge rule: 4:30 PM ET Mon-Fri)
-- Computation time: 2-5 seconds (pure SQL aggregation)
-- API response: `/api/algo/circuit-breakers` returns pre-computed data in 20-30ms (was 800ms on-the-fly)
+**circuit_breaker_status:** 9 metrics (drawdown, daily loss, consecutive losses, open risk, VIX, market stage, SPY change, win rate, trigger count). Computed by compute_circuit_breakers.py @ 4:30 PM ET (2-5 sec). API response: /api/algo/circuit-breakers (20-30ms, was 800ms).
 
-**algo_performance_metrics table:** Daily snapshot of 14 performance stats (win rate, profit factor, Sharpe, Sortino, max drawdown, avg holding days, CAGR, Calmar, streaks)
-- Computed by: `loaders/compute_performance_metrics.py` (EventBridge rule: 4:45 PM ET Mon-Fri)
-- Computation time: 10-15 seconds (bulk trade analysis + portfolio snapshots)
-- API response: `/api/algo/performance` returns pre-computed data in 20-30ms (was 1200ms on-the-fly)
+**algo_performance_metrics:** 14 stats (win rate, profit factor, Sharpe, Sortino, max drawdown, avg holding, CAGR, Calmar, streaks). Computed by compute_performance_metrics.py @ 4:45 PM ET (10-15 sec). API response: /api/algo/performance (20-30ms, was 1200ms).
 
-**Verification:** Pre-computation loaders run via EventBridge schedule rules (Terraform: `terraform/modules/loaders/main.tf:533-540`). To verify daily execution:
-
-1. **Check execution status (DynamoDB):**
-   - Query `algo-loader-status` table: look for `compute_circuit_breakers` and `compute_performance_metrics` with today's date
-   - Status: "SUCCESS" = loader completed; "FAILED" = check ECS task logs
-   - Run (from AWS CLI): `aws dynamodb query --table-name algo-loader-status-dev --key-condition-expression "loader_name = :name AND execution_date = :date" --expression-attribute-values '{ ":name": {"S": "compute_circuit_breakers"}, ":date": {"S": "'$(date +%Y-%m-%d)'"}}'` (substitute today's date)
-
-2. **Check table data (PostgreSQL):**
-   ```sql
-   SELECT MAX(check_date), COUNT(*) FROM circuit_breaker_status WHERE check_date >= CURRENT_DATE - 5;
-   SELECT MAX(metric_date), COUNT(*) FROM algo_performance_metrics WHERE metric_date >= CURRENT_DATE - 5;
-   ```
-   Both should show today's date. If missing: loaders likely failed or didn't trigger.
-
-3. **Check EventBridge rule status:**
-   - Rule names: `algo-compute_circuit_breakers-schedule`, `algo-compute_performance_metrics-schedule` (Terraform: `/terraform/modules/loaders/main.tf`)
-   - State: "ENABLED" in AWS EventBridge console
-   - If disabled: re-enable and investigate reason for disable
-
-4. **Check ECS task logs:**
-   - CloudWatch log groups: `/ecs/algo-compute_circuit_breakers-loader`, `/ecs/algo-compute_performance_metrics-loader`
-   - Look for "SUCCESS: 1 circuit breaker records computed" (circuit_breakers) or "SUCCESS: 1 performance metric records computed" (performance_metrics)
-   - If missing or error: loader crashed; check full log for DatabaseError, timeout, or connection pool issues
-
-5. **Manual trigger (testing only):**
-   ```bash
-   aws ecs run-task --cluster algo-cluster-dev --task-definition algo-compute_circuit_breakers-loader --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=DISABLED}"
-   ```
-
-**Alert conditions:** CloudWatch alarms configured for:
-- No loader execution in 25+ hours (checked hourly)
-- ECS task exit code non-zero (dead-letter queue monitoring)
-
-If alarms trigger:
-1. Check EventBridge rule state (enabled?)
-2. Check ECS task definition (LOADER_NAME env var matches loader filename)
-3. Check DynamoDB loader_locks table (orphaned lock from crash?)
-4. Manually run task above to diagnose error in logs
+**Verify:** Query DynamoDB `algo-loader-status` for today's date → check for SUCCESS status. Or check PostgreSQL: `SELECT MAX(check_date), COUNT(*) FROM circuit_breaker_status WHERE check_date >= CURRENT_DATE - 5`. EventBridge rules: `algo-compute_*-schedule` (must be ENABLED). ECS logs: `/ecs/algo-compute_*-loader` (look for SUCCESS message). Alert if no execution in 25+ hours or ECS exit non-zero.
 
 ## Data Freshness Configuration
 
@@ -269,39 +193,21 @@ If alarms trigger:
 
 ## Orchestrator Phases
 
-1. **Phase 1:** Data freshness check (FAIL-CLOSED) — halt if price_daily/market_health_daily/market_exposure_daily >1 trading day old; warns on trend_template_data/swing_trader_scores/stock_scores/sector_ranking/buy_sell_daily
-2. **Phase 2:** Circuit breakers (FAIL-CLOSED) — halt if any breaker triggered (drawdown ≥20%, daily loss ≥2%, consecutive losses ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%)
-3. **Phase 3:** Position monitor + market exposure policy
-4. **Phase 4:** Execute exits (always runs, unblocked by halt)
+1. **Phase 1:** Data freshness (FAIL-CLOSED) — halt if price/market_health/market_exposure >1 trading day old
+2. **Phase 2:** Circuit breakers (FAIL-CLOSED) — halt on: drawdown ≥20%, daily loss ≥2%, consecutive losses ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%
+3. **Phase 3:** Position monitor + exposure policy
+4. **Phase 4:** Execute exits (unblocked by halt)
 5. **Phase 5:** Signal generation (blocked by halt)
 6. **Phase 6:** Trade entries (blocked by halt)
-7. **Phase 7:** Reconciliation + reporting (always runs, unblocked by halt)
+7. **Phase 7:** Reconciliation + reporting (unblocked by halt)
 
 ## Signal Generation (Phase 5)
 
-**Primary: Pivot-breakout BUY signals filtered by quality ranking.** Combines buy_sell_daily technical breakout timing with stock_scores fundamental quality to generate high-conviction entries at key inflection points.
+Pivot-breakout BUY signals filtered by quality ranking. Pipeline: (1) Check halt + market regime + exposure gates, (2) Fetch buy_sell_daily BUY signals (primary) or stock_scores (fallback if no fresh breakouts), (3) Filter: close > SMA_50, not in bottom 40% of range, (4) Liquidity check top 10, (5) Rank by composite_score, (6) Return candidates.
 
-Pipeline:
-1. Check halt flag (set by Phase 1 on stale data)
-2. Market regime gate: halt if `market_exposure_daily.is_entry_allowed = false`
-3. Exposure policy gate: halt if `exposure_constraints.halt_new_entries = true` (from Phase 3b)
-4. **Primary path:** Fetch `buy_sell_daily` BUY signals within last 3 calendar days (covers 2 trading days, tolerant of weekends)
-   - Must have signal_type='BUY' (pivot high > recent swing high AND swing high > SMA_50)
-   - JOIN to `stock_scores` (composite_score >= 50)
-   - JOIN to current `price_daily` + SMA_50 + `company_profile` for sector/industry
-5. **Fallback:** If no buy_sell_daily BUY signals (e.g., morning runs before EOD loader runs at 4:05 PM ET), use stock_scores + price_daily without breakout gate
-6. Trend filter: skip if close < sma_50 (uptrend confirmation)
-7. Close quality gate: skip if close in bottom 40% of day's range (distribution signal)
-8. Liquidity check on top 10 candidates (parallelized)
-9. Return composite-score-ranked candidates to Phase 6
-
-**Signal source logic:**
-- `buysell_breakout`: buy_sell_daily BUY signals found (preferred, highest conviction)
-- `stock_scores_fallback`: no fresh buy_sell_daily BUY signals available (early morning before EOD pipeline)
-
-**Ranking:** composite_score from stock_scores (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%).
-
-**Position limits:** Max 8 sector, max 5 industry (configurable via algo_config table)
+**Signal sources:** `buysell_breakout` (preferred) or `stock_scores_fallback` (morning before EOD pipeline).
+**Ranking:** composite_score (quality 25%, growth 20%, value 20%, positioning 15%, stability 12%, momentum 8%).
+**Position limits:** Max 8 sector, max 5 industry (configurable).
 
 ## Infrastructure Constraints
 
@@ -313,96 +219,23 @@ Pipeline:
 
 ## Data Integrity & Resilience
 
-**Technical Data Enrichment Pipeline:**
-- `load_technical_data_daily_vectorized.py` (async, optimized for 5000+ symbols)
-- `enrich_buy_sell_daily_technical.py` (post-processing backfill for incomplete loads)
+Technical indicators (RSI, SMA_50, etc.) computed by load_technical_data_daily_vectorized.py. If incomplete (<70% coverage), enrich_buy_sell_daily_technical.py backfills NULL columns post-load. Execution order: (1) load_technical_data_daily_vectorized.py, (2) load_buy_sell_daily.py, (3) enrich_buy_sell_daily_technical.py (if needed).
 
-Technical indicators (RSI, SMA_50, SMA_200, EMA_21, ADX, ATR, Mansfield_RS) are computed daily by the vectorized loader and stored in `technical_data_daily`. When the loader completes with < 70% coverage (normal: 80-83%), `buy_sell_daily` signals may have NULL technical columns. The enrichment script automatically backfills these from `technical_data_daily` after the loader finishes.
+## Halt Flag Architecture
 
-**Execution order:**
-1. Morning/EOD pipeline: `load_technical_data_daily_vectorized.py` (2:15 AM, 4:05 PM ET)
-2. Subsequent: `load_buy_sell_daily.py` (same pipeline, expects tech data to be available)
-3. Backfill (if needed): `enrich_buy_sell_daily_technical.py` (manual or automated post-load)
+Dual-storage (DynamoDB + RDS) with circuit breaker fallback. Implementation: `utils/db/halt_flag.py` (HaltFlagManager). Write to both, read DynamoDB first, fallback to RDS if DynamoDB fails >3 times in 5 min. If both unavailable, fail-closed (assume halt). TTL: 24h (auto-expires at market open). Monitoring: `[HALT_FLAG]` log prefix, HaltFlagCheckFailure metric.
 
-This design tolerates incomplete upstream data and ensures signals always have technical data when available.
+## Known Limitations
 
-## Halt Flag Architecture (DynamoDB + RDS Redundancy)
-
-**Problem Solved:** Previously, halt flag was stored only in DynamoDB, creating a single point of failure. Any DynamoDB outage would halt all trading even if the underlying reason for the halt had cleared.
-
-**Solution (FIXED):** Dual-storage with intelligent fallback.
-
-**Storage Strategy:**
-- **Write:** Always write halt flag to both DynamoDB and RDS (`algo_runtime_state` table)
-- **Read:** Try DynamoDB first (fast), fall back to RDS if DynamoDB unavailable
-- **Circuit Breaker:** If DynamoDB fails >3 times in 5 minutes, skip DynamoDB reads and use RDS only (prevents cascade failure)
-
-**Implementation:**
-- Core logic: `utils/db/halt_flag.py` (HaltFlagManager class)
-- Database backing: `algo_runtime_state` table in RDS (added to schema.sql)
-- Orchestrator integration: `algo/algo_orchestrator.py` uses HaltFlagManager instead of direct DynamoDB calls
-- Failover: If both storages unavailable, fail-closed (conservatively assume halt for safety)
-
-**TTL & Cleanup:**
-- Halt flag records have `expires_at` field (24h TTL)
-- Can be manually cleaned up: `DELETE FROM algo_runtime_state WHERE expires_at < NOW()`
-- Auto-expires halt flag at market open of next trading day (via timestamp comparison in HaltFlagManager)
-
-**Monitoring:**
-- Log entries: `[HALT_FLAG]` prefix for all halt flag operations
-- Metric: `HaltFlagCheckFailure` emitted when both storages unavailable
-- CloudWatch alarm: Monitor for repeated HaltFlagCheckFailure metrics (indicates infrastructure issue)
-
-## Known Limitations & Mitigations
-
-**F-01 (Position monitoring pricing):** Position monitor uses daily closing prices from the database (price_daily table) for all price data. Real-time pricing fallback chains were removed as dead code.
-
-**F-02 (Halt flag redundancy):** Halt flag now uses dual-storage (DynamoDB + RDS) with circuit breaker pattern. Single storage failure no longer halts all trading. If both storages unavailable, fails closed for safety (conservative approach).
-
-**F-03 (Portfolio optimization):** numpy deployed to Lambda layer. Phase 7 executes weight optimization.
-
-**Analytics loader OOM risk:** company_profile, analyst_sentiment, etc. auto-killed if running >2 hours during pre-flight checks (prevents RDS OOM).
-
-**Morning prep completion:** Must finish before 9:30 AM. Currently completes in 5-5.5h (start 2:00 AM = 1-1.5h buffer). Monitor CloudWatch if approaching deadline.
+**Position monitoring pricing:** Uses daily closing prices (price_daily table).
+**Analytics loader OOM risk:** Auto-killed if >2h runtime (prevents RDS OOM).
+**Morning prep completion:** Completes in 5-5.5h (2 AM start = 1-1.5h buffer before 9:30 AM). Monitor CloudWatch if approaching deadline.
 
 ## Dashboard Setup
 
-### Browser Dashboard (Vite Dev Server)
+**Browser (Vite):** `scripts/setup-local-dev.ps1` (one-time, fetches credentials). Then: `cd webapp/frontend && npm run dev`. Public pages load immediately; protected pages redirect to /login. Vite proxy routes /api/* to AWS.
 
-**One-time PowerShell profile setup (run this, do not hardcode values):**
-```powershell
-# This fetches all credentials dynamically from Secrets Manager:
-scripts/setup-local-dev.ps1
-```
-
-The script writes `VITE_PROXY_TARGET`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, and other
-required vars to the PowerShell profile, sourced from `algo/dashboard-config` in Secrets Manager.
-
-**Run dev server:**
-```powershell
-cd webapp/frontend && npm run dev
-```
-
-Behavior:
-- Public pages (markets, economic, sectors, sentiment, scores, deep-value) load with AWS data immediately
-- Protected pages (algo-dashboard, portfolio, trades, admin) redirect to `/login`
-- Login with Cognito email (argeropolos@gmail.com) to access protected pages
-- Vite proxy transparently routes `/api/*` requests to AWS API Gateway (no CORS issues)
-
-### Terminal Dashboard (Python Tool)
-
-**Run (no additional setup required):**
-```powershell
-.\run-dashboard.ps1                    # Live view
-.\run-dashboard.ps1 -Watch 60          # Auto-refresh every 60s
-.\run-dashboard.ps1 -Legend            # Print legend/guide
-```
-
-Behavior:
-- Fetches API URL + Cognito credentials from Terraform outputs (or uses hardcoded fallback if local)
-- Prompts for Cognito login interactively
-- Displays real-time metrics from AWS
-- If AWS credentials expired, run: `scripts/refresh-aws-credentials.ps1`
+**Terminal:** `.\run-dashboard.ps1` (live view), `.\run-dashboard.ps1 -Watch 60` (auto-refresh), `.\run-dashboard.ps1 -Legend` (guide). Fetches credentials from Terraform outputs. If expired: `scripts/refresh-aws-credentials.ps1`.
 
 ## Key Files
 
@@ -483,70 +316,25 @@ All responses include `statusCode` root field. Helpers: `success_response(data)`
 - Layers: API deps + psycopg2 + shared (numpy/pandas/scipy)
 - Health endpoint: `/api/health` (no auth, returns health status + RDS pool state)
 
-## Fail-Fast Pattern (Critical for Financial Systems)
+## Fail-Fast Pattern
 
-**Core principle:** In financial systems, failing fast is safer than graceful degradation.
+Never silently return defaults (0, None, [], {}, False). Raise exception with context on missing/failed data. Silent failures compound into cascading errors.
 
-**Rule:** When data is missing or a calculation fails, raise an exception immediately with context. DO NOT silently return defaults (0, None, [], {}, False).
+**Rule:** REQUIRED data → raise exception. OPTIONAL data → log WARNING + return None (document in docstring).
 
-**Why:** Silent failures hide data quality issues until they compound into cascading errors:
-- Missing portfolio value silently defaults to $100k → positions sized wrong
-- Missing circuit breaker metrics silently default to 0 → risk checks don't trigger
-- Missing price data silently returns [] → exit signals never fire
-
-**Implementation:**
-- Circuit breaker metrics (`compute_circuit_breakers.py`): All functions raise ValueError on data unavailability
-- Position sizing (`position_sizer.py`): All multiplier/data functions raise RuntimeError on missing data
-- Exit logic (`exit_engine.py`): Exit calculation functions raise ValueError on insufficient data
-- Data loaders (`load_*.py`): Raise ValueError instead of returning empty collections
-
-**Pattern exceptions (OK to return None):**
-- VIX level: Optional, returns None if not yet calculated (logs WARNING)
-- Market stage: Optional, returns 0 if not available (logs WARNING)
-- Only for fields explicitly marked OPTIONAL in docstring
-
-**When adding new functions:**
-- If data is REQUIRED for calculation: Raise exception if unavailable
-- If data is OPTIONAL: Log WARNING and return None (document in docstring)
-- If calculation FAILS: Raise exception with clear context (what failed, why, what to check)
-
-See code comments in refactored files for examples.
+**Implementation:** Circuit breaker, position sizing, exit logic, data loaders all raise ValueError/RuntimeError on unavailability. See code comments for examples.
 
 ## Troubleshooting
 
-**"Error: The security token included in the request is invalid" when running loaders/scripts:**
-- Credentials may have expired (check: `scripts/credential-cache-status.ps1`)
-- Cache corrupted: Clear and refresh: `scripts/credential-cache-status.ps1 -Action Clear; scripts/refresh-aws-credentials.ps1`
-- AWS access revoked: Contact administrator or run `scripts/refresh-aws-credentials.ps1` to fetch new credentials from Secrets Manager
+**AWS credential error:** `scripts/refresh-aws-credentials.ps1` (fetches fresh from Secrets Manager).
 
-**Lambda returns 502 Bad Gateway (VPC cold-start timeout):**
-- Cause: VPC cold-start (15-40s) exceeds API Gateway timeout (29s). Provisioned concurrency should prevent this.
-- Check: Is provisioned concurrency enabled? `aws lambda get-provisioned-concurrency-config --function-name algo-api-dev`
-- Fix: Ensure terraform.tfvars has `api_lambda_provisioned_concurrency = 1`
-- Workaround: Client should retry with exponential backoff (retry after 2s)
+**Lambda 502 (VPC cold-start):** Provisioned concurrency should prevent. Check: `aws lambda get-provisioned-concurrency-config --function-name algo-api-dev`. Client should retry with backoff.
 
-**Lambda returns 5xx error (internal):**
-- Check Lambda logs: `aws logs tail /aws/lambda/algo-api-dev --follow`
-- Check database connectivity: Verify RDS Proxy is reachable from Lambda (security group rules)
-- Check credentials: Lambda environment variables include DB_SECRET_ARN (should be decrypted at runtime)
-- Check Lambda layer: Verify psycopg2 layer is deployed (`aws lambda get-function --function-name algo-api-dev`)
+**Lambda 5xx:** Check logs: `aws logs tail /aws/lambda/algo-api-dev --follow`. Verify RDS Proxy reachable (security groups), Lambda layer deployed (psycopg2).
 
-**Phase 1 halts on stale data:**
-- Check `DATA_FRESHNESS_MAX_HOURS` (may need increase for holidays)
-- Check morning prep pipeline completion: `scripts/orchestrator-history.py recent 1`
-- Check yfinance status: `curl https://query1.finance.yahoo.com/...`
+**Phase 1 halts (stale data):** Check DATA_FRESHNESS_MAX_HOURS in algo_config. Check morning prep: `scripts/orchestrator-history.py recent 1`. Check yfinance (CloudWatch logs for rate limiting).
 
-**API route failures:**
-- Check Lambda logs: `aws logs filter-log-events --log-group-name /aws/lambda/algo-api-dev --filter-pattern "FAILED"`
-- Syntax check: `python -m py_compile lambda/api/routes/algo.py`
+**RDS connections saturated:** Check CloudWatch DatabaseConnections (expect <30 morning, 20-30 EOD). Slow queries: RDS Performance Insights. Reduce parallelism: `scripts/update-loader-parallelism.py`.
 
-**RDS connection saturation:**
-- Check CloudWatch DatabaseConnections metric during EOD (4:05-5:30 PM ET)
-- Check for slow queries: RDS Performance Insights (7-day free)
-- Reduce loader parallelism if needed: `scripts/update-loader-parallelism.py`
-
-**Orchestrator lock timeout:**
-- Another instance still running
-- Check CloudWatch logs for "Lock acquisition failed"
-- Verify no ECS tasks stuck: `aws ecs list-tasks --cluster algo-cluster`
+**Orchestrator lock timeout:** Check: `aws ecs list-tasks --cluster algo-cluster` (no stuck tasks). Check CloudWatch for "Lock acquisition failed".
 
