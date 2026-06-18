@@ -1,51 +1,27 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
 import os
-from datetime import datetime, timedelta, date, timezone
+
 import boto3
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 from botocore.exceptions import ClientError
-from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
     db_route_handler,
-    check_data_freshness,
-    safe_json_serialize,
+    error_response,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    safe_json_serialize,
+    safe_limit,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
-from utils.validation import (
-    safe_float,
-    safe_float_strict,
-    safe_int,
-    safe_int_strict,
-    APIResponseValidator,
-)
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +30,7 @@ logger = logging.getLogger(__name__)
 @db_route_handler("get algo audit log")
 def _get_algo_audit_log(
     cur, limit: int = 100, offset: int = 0, action_type: str = None
-) -> Dict:
+) -> dict:
     """Return algo audit log entries with pagination."""
     if action_type:
         cur.execute(
@@ -100,7 +76,7 @@ def _get_algo_audit_log(
 # FIXED Issue #6: Orchestrator execution history endpoints
 
 @db_route_handler("get last run")
-def _get_last_run(cur) -> Dict:
+def _get_last_run(cur) -> dict:
     """Get the most recent orchestrator run with per-phase status."""
     cur.execute("""
         SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
@@ -150,7 +126,7 @@ def _get_last_run(cur) -> Dict:
 
 
 @db_route_handler("fetch notifications")
-def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dict:
+def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dict:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
         params = params or {}
@@ -215,7 +191,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
         Exception,
     ) as e:
         logger.error(
-            f"Failed to fetch notifications: {type(e).__name__}: {str(e)}\n  Operation: Query algo_notifications\n  Endpoint: GET /api/algo/notifications",
+            f"Failed to fetch notifications: {type(e).__name__}: {e!s}\n  Operation: Query algo_notifications\n  Endpoint: GET /api/algo/notifications",
             exc_info=True,
         )
         return error_response(500, "internal_error", "Failed to fetch notifications")
@@ -223,7 +199,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
 
 @db_route_handler("get patrol log")
-def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
+def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> dict:
     """Get data patrol findings with pagination."""
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
     row = cur.fetchone()
@@ -246,7 +222,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
 
 
 @db_route_handler("trigger data patrol")
-def _trigger_data_patrol() -> Dict:
+def _trigger_data_patrol() -> dict:
     """Trigger async data patrol ECS task."""
     try:
         ecs = boto3.client("ecs")
@@ -341,29 +317,15 @@ def _trigger_data_patrol() -> Dict:
             return error_response(
                 503, "service_unavailable", "Unable to trigger patrol service"
             )
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(
-            f"Data unavailable: {e}", extra={"operation": "trigger data patrol"}
-        )
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except psycopg2.OperationalError as e:
-        logger.error(
-            f"Database connection error: {e}",
-            extra={"operation": "trigger data patrol"},
-        )
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except psycopg2.DatabaseError as e:
-        logger.error(
-            f"Database error: {e}",
-            extra={"operation": "trigger data patrol", "error_type": type(e).__name__},
-        )
-        return error_response(500, "internal_error", "Database query failed")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error: {e}",
-            extra={"operation": "trigger data patrol", "error_type": type(e).__name__},
-        )
-        return error_response(500, "internal_error", "Failed to trigger data patrol")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "trigger data patrol")
+        return error_response(code, error_type, message)
 
 
 

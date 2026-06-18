@@ -1,59 +1,41 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
-import logging
-import re
 import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
+import logging
+from datetime import date, datetime, timedelta, timezone
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
     db_route_handler,
-    check_data_freshness,
-    safe_json_serialize,
-    safe_dict_convert,
+    error_response,
+    handle_db_error,
+    json_response,
     normalize_to_utc_datetime,
+    safe_dict_convert,
+    safe_json_serialize,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
     safe_float,
     safe_float_strict,
     safe_int,
     safe_int_strict,
-    APIResponseValidator,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
+
 from .signals import _TIER_CONFIG
-import math
+
 
 logger = logging.getLogger(__name__)
 
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur) -> Dict:
+def _get_data_quality(cur) -> dict:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
@@ -166,7 +148,7 @@ def _get_data_quality(cur) -> Dict:
 
 
 @db_route_handler("fetch data status")
-def _get_data_status(cur) -> Dict:
+def _get_data_status(cur) -> dict:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
     Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
@@ -302,39 +284,47 @@ def _get_data_status(cur) -> Dict:
                 "as_of": datetime.now(timezone.utc).isoformat(),
             },
         )
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(
-            f"Data unavailable (data status): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch data status"},
-            exc_info=True,
-        )
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except psycopg2.OperationalError as e:
-        logger.error(
-            f"Database connection error (data status): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch data status"},
-            exc_info=True,
-        )
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except psycopg2.DatabaseError as e:
-        logger.error(
-            f"Database error (data status): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch data status"},
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Database query failed")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error (data status): {type(e).__name__}: {str(e)}",
-            extra={"operation": "fetch data status"},
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Failed to fetch data status")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch data status")
+        return error_response(code, error_type, message)
 
+
+def _normalize_market_health(mh: dict) -> dict:
+    """Normalize market_health dict with safe defaults for all expected fields."""
+    return {
+        "market_trend": mh.get("market_trend"),
+        "market_stage": mh.get("market_stage"),
+        "vix_level": mh.get("vix_level"),
+        "up_volume_percent": mh.get("up_volume_percent"),
+        "advance_decline_ratio": mh.get("advance_decline_ratio"),
+        "new_highs_count": mh.get("new_highs_count"),
+        "new_lows_count": mh.get("new_lows_count"),
+        "breadth_momentum_10d": mh.get("breadth_momentum_10d"),
+        "put_call_ratio": mh.get("put_call_ratio"),
+        "yield_curve_slope": mh.get("yield_curve_slope"),
+        "fed_rate_environment": mh.get("fed_rate_environment"),
+        "spy_change_pct": mh.get("spy_change_pct"),
+    }
+
+
+def _normalize_exposure(exp: dict) -> dict:
+    """Normalize exposure dict with safe defaults for all expected fields."""
+    return {
+        "exposure_pct": exp.get("exposure_pct"),
+        "regime": exp.get("regime"),
+        "halt_reasons": exp.get("halt_reasons") or [],
+        "distribution_days": exp.get("distribution_days"),
+    }
 
 
 @db_route_handler("get market")
-def _get_market(cur) -> Dict:
+def _get_market(cur) -> dict:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -350,7 +340,8 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
-        market_health = safe_json_serialize(safe_dict_convert(mh)) if mh else {}
+        mh_raw = safe_json_serialize(safe_dict_convert(mh)) if mh else {}
+        market_health = _normalize_market_health(mh_raw)
 
         # Fetch exposure data and distribution days from market_exposure_daily
         cur.execute("""
@@ -359,10 +350,11 @@ def _get_market(cur) -> Dict:
             ORDER BY date DESC LIMIT 1
         """)
         exp = cur.fetchone()
-        exposure = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
+        exp_raw = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
+        exposure = _normalize_exposure(exp_raw)
 
         # Parse JSON strings from database (halt_reasons is stored as JSON text)
-        if exposure and exposure.get("halt_reasons"):
+        if exposure["halt_reasons"]:
             try:
                 exposure["halt_reasons"] = (
                     json.loads(exposure["halt_reasons"])
@@ -371,8 +363,6 @@ def _get_market(cur) -> Dict:
                 )
             except (json.JSONDecodeError, TypeError):
                 exposure["halt_reasons"] = []
-        else:
-            exposure["halt_reasons"] = []
 
         # Fetch SPY close price
         spy_close = None
@@ -388,57 +378,54 @@ def _get_market(cur) -> Dict:
         except Exception as e:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
-        # Combine all data in the format the dashboard expects
-        # Use safe_float_strict/safe_int_strict for optional numeric fields so the dashboard
-        # can distinguish between NULL (data not available) and 0 (actual zero value)
         data = {
-            "exposure_pct": safe_float(exposure.get("exposure_pct")),
-            "regime": exposure.get("regime"),
-            "halt_reasons": exposure.get("halt_reasons") or [],
+            "exposure_pct": safe_float(exposure["exposure_pct"]),
+            "regime": exposure["regime"],
+            "halt_reasons": exposure["halt_reasons"],
             "vix_level": safe_float_strict(
-                market_health.get("vix_level"), context="market_health.vix_level"
+                market_health["vix_level"], context="market_health.vix_level"
             ),
             "market_stage": safe_int_strict(
-                market_health.get("market_stage"), context="market_health.market_stage"
+                market_health["market_stage"], context="market_health.market_stage"
             ),
-            "market_trend": market_health.get("market_trend"),
+            "market_trend": market_health["market_trend"],
             "distribution_days_4w": safe_int_strict(
-                exposure.get("distribution_days"), context="exposure.distribution_days"
+                exposure["distribution_days"], context="exposure.distribution_days"
             ),
             "spy_close": spy_close,
             "spy_change_pct": safe_float_strict(
-                market_health.get("spy_change_pct"),
+                market_health["spy_change_pct"],
                 context="market_health.spy_change_pct",
             ),
             "up_volume_percent": safe_float_strict(
-                market_health.get("up_volume_percent"),
+                market_health["up_volume_percent"],
                 context="market_health.up_volume_percent",
             ),
             "advance_decline_ratio": safe_float_strict(
-                market_health.get("advance_decline_ratio"),
+                market_health["advance_decline_ratio"],
                 context="market_health.advance_decline_ratio",
             ),
             "new_highs_count": safe_int_strict(
-                market_health.get("new_highs_count"),
+                market_health["new_highs_count"],
                 context="market_health.new_highs_count",
             ),
             "new_lows_count": safe_int_strict(
-                market_health.get("new_lows_count"),
+                market_health["new_lows_count"],
                 context="market_health.new_lows_count",
             ),
             "put_call_ratio": safe_float_strict(
-                market_health.get("put_call_ratio"),
+                market_health["put_call_ratio"],
                 context="market_health.put_call_ratio",
             ),
             "breadth_momentum_10d": safe_float_strict(
-                market_health.get("breadth_momentum_10d"),
+                market_health["breadth_momentum_10d"],
                 context="market_health.breadth_momentum_10d",
             ),
             "yield_curve_slope": safe_float_strict(
-                market_health.get("yield_curve_slope"),
+                market_health["yield_curve_slope"],
                 context="market_health.yield_curve_slope",
             ),
-            "fed_rate_environment": market_health.get("fed_rate_environment"),
+            "fed_rate_environment": market_health["fed_rate_environment"],
         }
 
         return json_response(200, data)
@@ -457,7 +444,7 @@ def _get_market(cur) -> Dict:
 
 
 @db_route_handler("get market factors")
-def _get_market_factors(cur) -> Dict:
+def _get_market_factors(cur) -> dict:
     """Get market exposure factors for dashboard display."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -521,7 +508,7 @@ def _get_market_factors(cur) -> Dict:
 
 
 @db_route_handler("get market sentiment")
-def _get_market_sentiment(cur) -> Dict:
+def _get_market_sentiment(cur) -> dict:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""
@@ -572,7 +559,7 @@ def _get_market_sentiment(cur) -> Dict:
 
 
 @db_route_handler("get markets")
-def _get_markets(cur) -> Dict:
+def _get_markets(cur) -> dict:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
@@ -764,7 +751,7 @@ def _get_markets(cur) -> Dict:
 
 
 @db_route_handler("get trend criteria")
-def _get_trend_criteria(cur) -> Dict:
+def _get_trend_criteria(cur) -> dict:
     """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
         SELECT

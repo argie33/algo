@@ -1,58 +1,37 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
+from datetime import datetime, timedelta, timezone
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
     db_route_handler,
-    check_data_freshness,
-    safe_json_serialize,
+    error_response,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    safe_json_serialize,
+    success_response,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
     safe_float,
-    safe_float_strict,
     safe_int,
-    safe_int_strict,
-    APIResponseValidator,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
+
 
 logger = logging.getLogger(__name__)
 
 
 
 @db_route_handler("get algo evaluate")
-def _get_algo_evaluate(cur) -> Dict:
+def _get_algo_evaluate(cur) -> dict:
     """Get comprehensive signal evaluation with candidate analysis and constraints."""
     try:
         # Signal candidate metrics
@@ -210,7 +189,7 @@ def _get_algo_evaluate(cur) -> Dict:
 
 
 @db_route_handler("get sector breadth")
-def _get_sector_breadth(cur) -> Dict:
+def _get_sector_breadth(cur) -> dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
     Uses pre-computed sma_50/sma_200 from technical_data_daily (populated daily by vectorized loader).
@@ -267,35 +246,25 @@ def _get_sector_breadth(cur) -> Dict:
         return list_response(
             [safe_json_serialize(safe_dict_convert(b)) for b in breadth]
         )
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
             cur.execute("RELEASE SAVEPOINT sector_breadth_check")
         except Exception as sp_err:
             logger.debug(f"Failed to rollback sector_breadth_check savepoint: {sp_err}")
-        logger.error(
-            f"Sector breadth schema error: {type(e).__name__}: {str(e)}\n  Operation: Get sector breadth (table/column unavailable)\n  Endpoint: GET /api/algo/sector-breadth",
-            exc_info=True,
-        )
-        return error_response(
-            500, "internal_error", "Failed to fetch sector breadth due to schema issue"
-        )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
-            cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        except Exception as sp_err:
-            logger.debug(f"Failed to rollback sector_breadth_check savepoint: {sp_err}")
-        logger.error(
-            f"Sector breadth query failed: {type(e).__name__}: {str(e)}\n  Operation: Get sector breadth\n  Endpoint: GET /api/algo/sector-breadth\n  Query: SELECT with sector_breadth table and pct_above calculations",
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Failed to fetch sector breadth")
+        code, error_type, message = handle_db_error(e, "get sector breadth")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get sector position warnings")
-def _get_sector_position_warnings(cur) -> Dict:
+def _get_sector_position_warnings(cur) -> dict:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
 
     Returns list of sectors with position counts and concentration warnings.
@@ -355,35 +324,20 @@ def _get_sector_position_warnings(cur) -> Dict:
 
         return success_response({"warnings": warnings, "at_cap": at_cap})
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(
-            f"Sector position warnings data unavailable: {type(e).__name__}: {str(e)}"
-        )
-        return error_response(
-            503, "service_unavailable", f"Data unavailable: {type(e).__name__}"
-        )
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(
-            f"Sector position warnings query failed: {type(e).__name__}: {str(e)}"
-        )
-        return error_response(
-            503, "service_unavailable", f"Database unavailable: {type(e).__name__}"
-        )
-    except Exception as e:
-        logger.error(
-            f"Sector position warnings failed: {type(e).__name__}: {str(e)}",
-            exc_info=True,
-        )
-        return error_response(
-            500,
-            "internal_error",
-            f"Failed to fetch sector position warnings: {type(e).__name__}",
-        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get sector position warnings")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get sector rotation")
-def _get_sector_rotation(cur, days: int = 180) -> Dict:
+def _get_sector_rotation(cur, days: int = 180) -> dict:
     """Get sector rotation data: defensive vs cyclical relative strength."""
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     cur.execute(
@@ -471,7 +425,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
 
 
 @db_route_handler("get sector stage2")
-def _get_sector_stage2(cur) -> Dict:
+def _get_sector_stage2(cur) -> dict:
     """Get percentage of stocks in Stage 2 by sector."""
     try:
         cur.execute("""
@@ -505,18 +459,15 @@ def _get_sector_stage2(cur) -> Dict:
             """)
         rows = cur.fetchall()
         return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.warning(f"Sector stage2 data unavailable: {e}")
-        return error_response(503, "service_unavailable", "Data unavailable")
-    except psycopg2.OperationalError as e:
-        logger.error(f"Sector stage2 DB connection error: {e}")
-        return error_response(503, "service_unavailable", "Database unavailable")
-    except psycopg2.DatabaseError as e:
-        logger.error(f"Sector stage2 DB error: {e}")
-        return error_response(500, "internal_error", "Database query failed")
-    except Exception as e:
-        logger.error(f"Sector stage2 unexpected error: {e}")
-        return error_response(500, "internal_error", "Failed to fetch sector stage2")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get sector stage2")
+        return error_response(code, error_type, message)
 
 
 

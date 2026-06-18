@@ -1,57 +1,37 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
+from datetime import date, datetime, timedelta, timezone
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
+from models.requests import PreTradeImpactRequest, TradePreviewRequest
 from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
     db_route_handler,
-    check_data_freshness,
-    safe_json_serialize,
+    error_response,
+    handle_db_error,
+    json_response,
+    list_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    safe_json_serialize,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
     safe_float,
-    safe_float_strict,
     safe_int,
-    safe_int_strict,
-    APIResponseValidator,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
+
 
 logger = logging.getLogger(__name__)
 
 
 
-def _calculate_pre_trade_impact(cur, body: Dict) -> Dict:
+def _calculate_pre_trade_impact(cur, body: dict) -> dict:
     """Estimate portfolio impact before entering a trade.
 
     Input: { symbol, entry_price?, position_dollars?, position_pct? }
@@ -145,14 +125,20 @@ def _calculate_pre_trade_impact(cur, body: Dict) -> Dict:
             },
         })
 
-    except Exception as e:
-        logger.error(f"Pre-trade impact calculation failed: {type(e).__name__}: {e}", exc_info=True)
-        return error_response(500, "internal_error", "Impact calculation failed")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "calculate pre-trade impact")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("calculate trade preview")
-def _calculate_trade_preview(cur, body: Dict) -> Dict:
+def _calculate_trade_preview(cur, body: dict) -> dict:
     """Calculate position preview before trade entry.
 
     Input: { symbol, entry_price, stop_loss_price }
@@ -237,18 +223,20 @@ def _calculate_trade_preview(cur, body: Dict) -> Dict:
             },
         )
 
-    except Exception as e:
-        logger.error(
-            f"Trade preview calculation failed: {type(e).__name__}: {e}", exc_info=True
-        )
-        return error_response(
-            500, "internal_error", f"Preview calculation failed: {str(e)[:100]}"
-        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "calculate trade preview")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("fetch rejection funnel")
-def _get_rejection_funnel(cur) -> Dict:
+def _get_rejection_funnel(cur) -> dict:
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
         today = date.today()
@@ -509,7 +497,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 @db_route_handler("fetch swing scores")
 def _get_swing_scores(
     cur, limit: int = 100, min_score: float = None, symbol: str = None
-) -> Dict:
+) -> dict:
     """Get swing trade candidates with scoring."""
     try:
         # Use psycopg2.sql for safe SQL composition
@@ -553,7 +541,7 @@ def _get_swing_scores(
         Exception,
     ) as e:
         logger.error(
-            f"Failed to fetch swing scores: {type(e).__name__}: {str(e)}\n  Operation: Query algo_swing_scores\n  Endpoint: GET /api/algo/swing-scores",
+            f"Failed to fetch swing scores: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_scores\n  Endpoint: GET /api/algo/swing-scores",
             exc_info=True,
         )
         return error_response(500, "internal_error", "Failed to fetch swing scores")
@@ -561,7 +549,7 @@ def _get_swing_scores(
 
 
 @db_route_handler("fetch swing scores history")
-def _get_swing_scores_history(cur, days: int = 30) -> Dict:
+def _get_swing_scores_history(cur, days: int = 30) -> dict:
     """Get swing scores historical data."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -592,7 +580,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         Exception,
     ) as e:
         logger.error(
-            f"Failed to fetch swing scores history: {type(e).__name__}: {str(e)}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
+            f"Failed to fetch swing scores history: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
             exc_info=True,
         )
         return error_response(

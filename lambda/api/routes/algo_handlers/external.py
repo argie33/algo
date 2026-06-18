@@ -1,58 +1,35 @@
 """Route: algo"""
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.sql
-from typing import Dict
 import logging
-import re
-import json
-import os
-from datetime import datetime, timedelta, date, timezone
-import boto3
-from botocore.exceptions import ClientError
-from pydantic import ValidationError
+
+import psycopg2
+import psycopg2.errors
+import psycopg2.extras
+import psycopg2.sql
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
-    error_response,
-    success_response,
-    list_response,
-    json_response,
-    safe_limit,
-    safe_days,
-    safe_offset,
-    handle_db_error,
-    db_route_handler,
     check_data_freshness,
-    safe_json_serialize,
+    db_route_handler,
+    error_response,
+    handle_db_error,
+    list_response,
     safe_dict_convert,
-    normalize_to_utc_datetime,
+    safe_json_serialize,
+    success_response,
 )
 
-from utils.rate_limiting import (
-    check_admin_rate_limit,
-    ADMIN_RATE_LIMITS,
-    check_public_rate_limit,
-    PUBLIC_RATE_LIMITS,
-)
 from utils.validation import (
     safe_float,
-    safe_float_strict,
-    safe_int,
-    safe_int_strict,
-    APIResponseValidator,
 )
-from models.requests import TradePreviewRequest, PreTradeImpactRequest
-import math
+
 
 logger = logging.getLogger(__name__)
 
 
 
 @db_route_handler("get economic calendar")
-def _get_economic_calendar(cur) -> Dict:
+def _get_economic_calendar(cur) -> dict:
     """Get economic calendar data with freshness validation.
 
     Returns list of upcoming economic events. Includes data_freshness metadata
@@ -81,16 +58,20 @@ def _get_economic_calendar(cur) -> Dict:
             logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
 
         return list_response(events, total=len(events), data_freshness=freshness)
-    except Exception as e:
-        logger.error(f"Economic calendar fetch error: {type(e).__name__}: {e}")
-        return error_response(
-            503, "service_unavailable", "Economic calendar unavailable"
-        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get economic calendar")
+        return error_response(code, error_type, message)
 
 
 
 @db_route_handler("get sentiment")
-def _get_sentiment(cur) -> Dict:
+def _get_sentiment(cur) -> dict:
     """Get market sentiment data.
 
     Returns current market sentiment (fear/greed index). Returns 503 error
