@@ -776,22 +776,15 @@ class OptimalLoader(ABC):
             return None
 
     def _read_symbol_watermark(self, symbol: str) -> date | None:
-        """Read per-symbol watermark from table. Returns None if not found or on error."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    f"SELECT MAX({self.watermark_field}) FROM {assert_safe_table(self.table_name)} WHERE symbol = %s",
-                    (symbol,),
-                )
-                row = cur.fetchone()
-                if row and row[0]:
-                    return self._parse_watermark_date(row[0])
-        except Exception as e:
-            logger.warning(
-                f"[{self.table_name}] Could not read watermark for {symbol}: {e}. "
-                "Will proceed with full refresh instead of incremental load. "
-                "Check database connectivity and query performance."
+        """Read per-symbol watermark from table. Returns None if not found."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                f"SELECT MAX({self.watermark_field}) FROM {assert_safe_table(self.table_name)} WHERE symbol = %s",
+                (symbol,),
             )
+            row = cur.fetchone()
+            if row and row[0]:
+                return self._parse_watermark_date(row[0])
         return None
 
     # ---- Top-level orchestration ----
@@ -1375,26 +1368,18 @@ class OptimalLoader(ABC):
             logger.info(f"[{self.table_name}] Starting global load")
 
             # Get current watermark from DB so fetch_global can do incremental loads
-            since = None
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
-                            psycopg2.sql.Identifier(self.watermark_field),
-                            psycopg2.sql.Identifier(self.table_name),
-                        )
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
+                        psycopg2.sql.Identifier(self.watermark_field),
+                        psycopg2.sql.Identifier(self.table_name),
                     )
-                    row = cur.fetchone()
-                    since = (
-                        self._parse_watermark_date(row[0])
-                        if row is not None and row[0] is not None
-                        else None
-                    )
-            except Exception as e:
-                logger.warning(
-                    "[%s] Could not read watermark: %s — doing full refresh",
-                    self.table_name,
-                    e,
+                )
+                row = cur.fetchone()
+                since = (
+                    self._parse_watermark_date(row[0])
+                    if row is not None and row[0] is not None
+                    else None
                 )
 
             rows = self.fetch_global(since)
