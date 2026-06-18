@@ -67,6 +67,14 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_coverage_symbols = tech_row[0] if tech_row else 0
                 tech_max_date = tech_row[1] if tech_row else None
 
+                # ROOT CAUSE #5 FIX: Read global watermark once instead of per-symbol
+                # Prevents 10k+ duplicate queries (one per symbol in fetch_incremental)
+                cur.execute(
+                    "SELECT MAX(date) FROM buy_sell_daily",
+                )
+                watermark_row = cur.fetchone()
+                watermark_date = watermark_row[0] if watermark_row and watermark_row[0] else None
+
             today_et = now_et.date()
             tech_data_age = (today_et - tech_max_date).days if tech_max_date else None
 
@@ -75,6 +83,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "price_coverage_symbols": price_coverage_symbols,
                 "tech_coverage_symbols": tech_coverage_symbols,
                 "tech_data_age": tech_data_age,
+                "watermark_date": watermark_date,
             }
             logger.debug(
                 f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
@@ -103,24 +112,19 @@ class SignalsDailyLoader(OptimalLoader):
                 end = end - timedelta(days=1)
 
         # On ECS restart the in-memory watermark is empty, so since=None.
-        # Read the actual DB max date to avoid re-fetching old data and causing constraint violations.
+        # Use cached global watermark from batch context (computed once for all symbols).
+        # This avoids per-symbol database queries and prevents 10k+ duplicate reads.
         if since is None:
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
-                        (symbol,),
-                    )
-                    row = cur.fetchone()
-                    if row and row[0]:
-                        since = (
-                            row[0]
-                            if isinstance(row[0], date)
-                            else date.fromisoformat(str(row[0]))
-                        )
-            except Exception as e:
-                logger.warning(
-                    f"Could not read buy_sell_daily watermark for {symbol}: {e}"
+            watermark_date = (
+                self._batch_context.get("watermark_date")
+                if self._batch_context
+                else None
+            )
+            if watermark_date:
+                since = (
+                    watermark_date
+                    if isinstance(watermark_date, date)
+                    else date.fromisoformat(str(watermark_date))
                 )
 
         if since is None:
