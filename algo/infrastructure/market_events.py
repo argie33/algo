@@ -36,14 +36,9 @@ class MarketEventHandler:
     def __init__(self, config):
         self.config = config
         self.alpaca_base_url = get_alpaca_base_url()
-        try:
-            cm = get_credential_manager()
-            self.alpaca_key = cm.get_alpaca_credentials()["key"]
-            self.alpaca_secret = cm.get_alpaca_credentials()["secret"]
-        except Exception as e:
-            logger.warning(f"Alpaca credentials not available: {e}")
-            self.alpaca_key = None
-            self.alpaca_secret = None
+        cm = get_credential_manager()
+        self.alpaca_key = cm.get_alpaca_credentials()["key"]
+        self.alpaca_secret = cm.get_alpaca_credentials()["secret"]
 
     def check_single_stock_halt(self, symbol: str) -> dict[str, Any] | None:
         """Check if symbol is currently halted from trading.
