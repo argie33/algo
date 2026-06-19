@@ -131,7 +131,18 @@ class OptimalLoader(ABC):
         )
 
     def _setup_signal_handlers(self) -> None:
-        """Register SIGTERM handler for graceful shutdown on ECS task termination."""
+        """Register SIGTERM handler for graceful shutdown on ECS task termination.
+
+        Only set up in main thread (signal.signal() only works in main thread).
+        When running via Phase 1 failsafe retry in a thread pool, skip this.
+        """
+        import threading
+
+        if threading.current_thread() is not threading.main_thread():
+            logger.debug(
+                f"[{self.table_name}] Skipping signal handlers (not in main thread)"
+            )
+            return
 
         def handle_shutdown(signum, frame):
             with self._shutdown_lock:
