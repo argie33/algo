@@ -778,9 +778,14 @@ class DailyReconciliation:
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
         _pv_row = cur.fetchone()
-        _portfolio_value_for_pct = (
-            float(_pv_row[0]) if _pv_row is not None and _pv_row[0] is not None else 0.0
-        )
+        if _pv_row is None or _pv_row[0] is None:
+            raise ValueError("Portfolio snapshot missing — cannot calculate position_size_pct without current portfolio value")
+        try:
+            _portfolio_value_for_pct = float(_pv_row[0])
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Portfolio snapshot value not numeric: {_pv_row[0]} ({e})")
+        if _portfolio_value_for_pct <= 0:
+            raise ValueError("Portfolio value must be > 0 for position sizing calculations")
 
         alpaca_symbols = {}  # symbol -> qty for drift detection
         imported = 0
