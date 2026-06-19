@@ -157,7 +157,7 @@ class SwingTraderScore:
                 # Compute components (wrap each in error handling to prevent cascade failures)
                 try:
                     setup_pts, setup_detail = self._setup_component(symbol, eval_date)
-                except Exception as e:
+                except (ValueError, RuntimeError) as e:
                     logger.debug(f"Setup component failed for {symbol}: {e}")
                     setup_pts, setup_detail = 0, {"error": str(e)[:50]}
 
@@ -402,7 +402,12 @@ class SwingTraderScore:
                 logger.debug(f"Industry rank check failed: {e}")
 
         # Gate 7: Earnings proximity
-        days_to_earn = self._days_to_earnings(symbol, eval_date)
+        days_to_earn = None
+        try:
+            days_to_earn = self._days_to_earnings(symbol, eval_date)
+        except ValueError as e:
+            logger.debug(f"Earnings date unavailable for {symbol}: {e} — allowing trade")
+
         earnings_block = self._load_config_val("swing_days_to_earnings_block", 5)
         if days_to_earn is not None and 0 <= days_to_earn <= earnings_block:
             return {
@@ -423,7 +428,11 @@ class SwingTraderScore:
         }
 
     def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
-        """Days until next earnings from earnings_calendar. Returns None if unknown."""
+        """Days until next earnings from earnings_calendar.
+
+        Raises:
+            ValueError: If earnings calendar data is unavailable for the symbol
+        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -435,7 +444,9 @@ class SwingTraderScore:
                 row = cur.fetchone()
                 if row and row[0]:
                     return cast(int, (row[0] - eval_date).days)
-            return None
+            raise ValueError(
+                f"Earnings calendar data not available for {symbol} on {eval_date}"
+            )
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -629,7 +640,12 @@ class SwingTraderScore:
         Returns: (pts, detail_dict) where pts is 0-20 and detail contains breakdown
         """
         # RS percentile vs SPY (60-day)
-        rs_60 = self._signals._rs_percentile_vs_spy(cur, symbol, eval_date, lookback=60)
+        rs_60 = None
+        try:
+            rs_60 = self._signals._rs_percentile_vs_spy(cur, symbol, eval_date, lookback=60)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"RS percentile calculation failed for {symbol}: {e}")
+
         rs_pts = 0.0
         if rs_60 is not None:
             # Minervini bar: 70 = pass, 90 = sweet spot
@@ -644,9 +660,24 @@ class SwingTraderScore:
             else:
                 rs_pts = 0
 
-        r1 = self._signals._period_return(cur, symbol, eval_date, 21)
-        r3 = self._signals._period_return(cur, symbol, eval_date, 63)
-        r6 = self._signals._period_return(cur, symbol, eval_date, 126)
+        r1 = None
+        r3 = None
+        r6 = None
+        try:
+            r1 = self._signals._period_return(cur, symbol, eval_date, 21)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"1m return calculation failed for {symbol}: {e}")
+
+        try:
+            r3 = self._signals._period_return(cur, symbol, eval_date, 63)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"3m return calculation failed for {symbol}: {e}")
+
+        try:
+            r6 = self._signals._period_return(cur, symbol, eval_date, 126)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"6m return calculation failed for {symbol}: {e}")
+
         blend_pts = 0.0
         for ret, weight in [(r1, 3), (r3, 3), (r6, 2)]:
             if ret is None:

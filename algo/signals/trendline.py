@@ -63,10 +63,15 @@ class TrendlineSupport:
                 'confidence': float,        # 0-100 score
                 'reason': str,              # human readable
             }
+
+        Raises:
+            ValueError: If insufficient price history or no valid support line found
         """
         prices = self.get_price_history(symbol, eval_date, self.lookback_days)
         if len(prices) < 20:
-            return None
+            raise ValueError(
+                f"Insufficient price history for {symbol} on {eval_date} — need at least 20 days, got {len(prices)}"
+            )
 
         # Extract lows with dates
         lows = [(p[0], p[1]) for p in prices]  # (date, low)
@@ -79,7 +84,9 @@ class TrendlineSupport:
                     swing_lows.append(lows[i])
 
         if len(swing_lows) < 2:
-            return None
+            raise ValueError(
+                f"No valid support trendline for {symbol} on {eval_date} — need at least 2 swing lows, found {len(swing_lows)}"
+            )
 
         best_trendline = None
         best_confidence = 0
@@ -134,7 +141,9 @@ class TrendlineSupport:
                     }
 
         if not best_trendline:
-            return None
+            raise ValueError(
+                f"No valid support trendline for {symbol} on {eval_date} — no swing low pairs with acceptable angle/distance"
+            )
 
         best_trendline["reason"] = (
             f"Support line from {best_trendline['low_1_date']} (${best_trendline['low_1_price']:.2f}) "
@@ -159,14 +168,14 @@ class TrendlineSupport:
                 'reason': str,
             }
         """
-        trendline = self.find_support_line(symbol, eval_date)
-
-        if not trendline:
+        try:
+            trendline = self.find_support_line(symbol, eval_date)
+        except ValueError as e:
             return {
                 "near_trendline": False,
                 "trendline_support": None,
                 "distance_pct": None,
-                "reason": "No valid support trendline found",
+                "reason": str(e),
             }
 
         support_level = float(trendline["support_level"])

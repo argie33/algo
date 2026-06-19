@@ -44,7 +44,7 @@ class SignalBase:
 
     def _rs_percentile_vs_spy(
         self, cur, symbol: str, eval_date, lookback: int = 60
-    ) -> Optional[float]:
+    ) -> float:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 
@@ -54,6 +54,9 @@ class SignalBase:
         Batch-cached per (eval_date, lookback): first call computes the full universe
         in one query; subsequent calls within the same run are O(1) dict lookups.
         TTL = 1 hour; LRU evicts oldest entries when cache exceeds 1000 entries.
+
+        Raises:
+            ValueError: If symbol has insufficient price history for percentile calculation
         """
         cache_key = (str(eval_date), lookback)
 
@@ -124,10 +127,18 @@ class SignalBase:
             allow_stale=True,  # Return stale data if DB is down
         )
         result = percentile_dict.get(symbol)
-        return cast(Optional[float], result)
+        if result is None:
+            raise ValueError(
+                f"RS percentile not available for {symbol} on {eval_date} ({lookback}d lookback) — insufficient price history"
+            )
+        return float(result)
 
     def _period_return(self, cur, symbol, end_date, lookback_days):
-        """Compute simple return over a lookback period."""
+        """Compute simple return over a lookback period.
+
+        Raises:
+            ValueError: If price data is missing or invalid for the period
+        """
         cur.execute(
             """
             WITH bracket AS (
@@ -144,9 +155,13 @@ class SignalBase:
         )
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
-            return None
+            raise ValueError(
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+            )
         recent = float(row[0])
         oldest = float(row[1])
         if oldest <= 0:
-            return None
+            raise ValueError(
+                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
+            )
         return (recent - oldest) / oldest

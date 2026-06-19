@@ -248,8 +248,17 @@ class SignalTrendMixin:
         """
 
         def _compute_rs(cur):
-            stock_ret = self._period_return(cur, symbol, eval_date, lookback)
-            spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
+            stock_ret = None
+            spy_ret = None
+            try:
+                stock_ret = self._period_return(cur, symbol, eval_date, lookback)
+            except (ValueError, RuntimeError) as e:
+                logger.debug(f"Stock return calculation failed for {symbol}: {e}")
+
+            try:
+                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
+            except (ValueError, RuntimeError) as e:
+                logger.debug(f"SPY return calculation failed: {e}")
 
             if stock_ret is None or spy_ret is None or spy_ret == 0:
                 return {

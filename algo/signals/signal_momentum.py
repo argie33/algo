@@ -172,7 +172,14 @@ class SignalMomentumMixin:
         """
 
         def _compute(cur):
-            ret_21 = self._period_return(cur, symbol, eval_date, 21)
+            try:
+                ret_21 = self._period_return(cur, symbol, eval_date, 21)
+            except (ValueError, RuntimeError) as e:
+                logger.debug(f"Power trend calculation failed for {symbol}: {e}")
+                return {
+                    "power_trend": False,
+                    "return_21d": None,
+                }
             return {
                 "power_trend": ret_21 is not None and ret_21 >= 0.20,
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,

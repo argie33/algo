@@ -438,7 +438,12 @@ class PositionMonitor:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
         # 3e. Earnings proximity
-        days_to_earn = self._days_to_earnings(symbol, current_date, cur)
+        days_to_earn = None
+        try:
+            days_to_earn = self._days_to_earnings(symbol, current_date, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"Earnings date unavailable for {symbol}: {e}")
+
         if days_to_earn is not None and 0 <= days_to_earn <= 3:
             flags.append(f"EARNINGS_IN_{days_to_earn}D")
 
@@ -666,8 +671,18 @@ class PositionMonitor:
 
     def _check_relative_strength(self, symbol, current_date, cur):
         """20-day relative return vs SPY: weakening / neutral / strong."""
-        stock = self._period_return(symbol, current_date, 20, cur)
-        spy = self._period_return("SPY", current_date, 20, cur)
+        stock = None
+        spy = None
+        try:
+            stock = self._period_return(symbol, current_date, 20, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"Stock return failed for {symbol}: {e}")
+
+        try:
+            spy = self._period_return("SPY", current_date, 20, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"SPY return failed: {e}")
+
         if stock is None or spy is None:
             logger.warning(
                 f"RS data missing for {symbol}: stock={stock}, spy={spy} — treating as unknown, not weakening"
@@ -768,10 +783,13 @@ class PositionMonitor:
         return ((float(row[0]) - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol, current_date, cur):
-        """Get days until next earnings. Returns None if earnings data missing.
+        """Get days until next earnings. Returns None if earnings data unavailable (degraded mode).
 
         Primary: query earnings_calendar for accurate scheduled dates.
         Fallback: estimate from earnings_history quarterly cycle if calendar missing.
+
+        Raises:
+            ValueError: If no earnings data available through any method
         """
         try:
             # Primary: use earnings_calendar (populated by earnings loader)
@@ -792,13 +810,17 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                return None
+                raise ValueError(
+                    f"Earnings date not available for {symbol} on {current_date} — no calendar or history found"
+                )
             est = row[0] + timedelta(days=45)
             while est < current_date:
                 est += timedelta(days=90)
             days = (est - current_date).days
             if days < 0 or days > 200:
-                return None
+                raise ValueError(
+                    f"Estimated earnings date out of range for {symbol} (days={days})"
+                )
             return days
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -812,6 +834,11 @@ class PositionMonitor:
         return int(row[0]) if row and row[0] is not None else None
 
     def _period_return(self, symbol, end_date, lookback_days, cur):
+        """Compute simple return over a lookback period.
+
+        Raises:
+            ValueError: If price data is missing or invalid for the period
+        """
         cur.execute(
             """
             WITH bracket AS (
@@ -828,10 +855,14 @@ class PositionMonitor:
         )
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
-            return None
+            raise ValueError(
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+            )
         recent, oldest = float(row[0]), float(row[1])
         if oldest <= 0:
-            return None
+            raise ValueError(
+                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
+            )
         return (recent - oldest) / oldest
 
     def _persist_review(self, rec, cur):

@@ -109,7 +109,9 @@ class SectorRotationDetector:
             cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
 
             if not defensive or not cyclical:
-                return None
+                raise ValueError(
+                    f"Insufficient sector data for rotation analysis on {eval_date} — missing defensive or cyclical sectors"
+                )
 
             def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(
                 defensive

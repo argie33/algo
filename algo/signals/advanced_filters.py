@@ -147,23 +147,29 @@ class AdvancedFilters:
             # ===== HARD-FAIL gates (independent) =====
 
             # H1. Earnings proximity
-            days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
-            components["days_to_earnings"] = days_to_earnings
-            block_window = int(self.config.get("block_days_before_earnings", 5))
-            if days_to_earnings is None:
-                # No earnings calendar data — warn but don't block.
+            days_to_earnings = None
+            try:
+                days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
+            except ValueError as e:
+                # No earnings data available — warn but don't block.
                 # Pre-tier EarningsBlackout already catches known proximity windows.
                 # Blocking on unknown earnings would eliminate many valid setups.
-                logger.debug(
-                    f"  {symbol}: No earnings calendar data, skipping earnings gate"
-                )
-            elif 0 <= days_to_earnings <= block_window:
+                logger.debug(f"  {symbol}: {e} — skipping earnings gate")
+
+            components["days_to_earnings"] = days_to_earnings
+            block_window = int(self.config.get("block_days_before_earnings", 5))
+            if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
                 hard_fail = (
                     f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
                 )
 
             # H2. Over-extended
-            ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
+            ext_pct = None
+            try:
+                ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
+            except ValueError as e:
+                logger.debug(f"  {symbol}: Extension check failed: {e} — allowing trade")
+
             components["extension_pct"] = ext_pct
             max_extension = float(self.config.get("max_extension_above_50ma_pct", 15.0))
             if ext_pct is not None and ext_pct > max_extension:
@@ -173,7 +179,12 @@ class AdvancedFilters:
                 )
 
             # H4. Liquidity (institutional must)
-            avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
+            avg_dollar_vol = None
+            try:
+                avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
+            except ValueError as e:
+                logger.debug(f"  {symbol}: Liquidity check failed: {e} — allowing trade")
+
             components["avg_dollar_volume"] = avg_dollar_vol
             min_liq = float(self.config.get("min_avg_daily_dollar_volume", 500_000))
             if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
@@ -270,14 +281,19 @@ class AdvancedFilters:
     # ============= MOMENTUM =============
 
     def _mansfield_rs_score(self, symbol, signal_date, cur):
-        # Use proper percentile ranking instead of linear excess return
+        """Compute Mansfield-style RS percentile vs SPY.
+
+        Returns 0 score if RS calculation fails (degraded but not hard-failed).
+        """
         if self._signals is None:
             self._signals = SignalComputer()
 
-        rs_percentile = self._signals._rs_percentile_vs_spy(
-            cur, symbol, signal_date, lookback=60
-        )
-        if rs_percentile is None:
+        try:
+            rs_percentile = self._signals._rs_percentile_vs_spy(
+                cur, symbol, signal_date, lookback=60
+            )
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"RS percentile failed for {symbol}: {e}")
             return 0.0, None
 
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
@@ -333,8 +349,18 @@ class AdvancedFilters:
         +2 pts each if 5d return positive, 20d return positive,
         +1 pt if also a BUY signal on weekly timeframe (very strong combo).
         """
-        r5 = self._period_return(symbol, signal_date, 5, cur)
-        r20 = self._period_return(symbol, signal_date, 20, cur)
+        r5 = None
+        r20 = None
+        try:
+            r5 = self._period_return(symbol, signal_date, 5, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"5d return calculation failed for {symbol}: {e}")
+
+        try:
+            r20 = self._period_return(symbol, signal_date, 20, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"20d return calculation failed for {symbol}: {e}")
+
         if r5 is None or r20 is None:
             return 0.0
         score = 0.0
@@ -407,6 +433,11 @@ class AdvancedFilters:
         }
 
     def _period_return(self, symbol, end_date, lookback_days, cur):
+        """Compute simple return over a lookback period.
+
+        Raises:
+            ValueError: If price data is missing or invalid for the period
+        """
         cur.execute(
             """
             WITH bracket AS (
@@ -423,10 +454,16 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
-            return None
+            raise ValueError(
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+            )
         recent = float(row[0])
         oldest = float(row[1])
-        return (recent - oldest) / oldest if oldest > 0 else None
+        if oldest <= 0:
+            raise ValueError(
+                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
+            )
+        return (recent - oldest) / oldest
 
     # ============= QUALITY =============
 
@@ -580,13 +617,20 @@ class AdvancedFilters:
     # ============= RISK =============
 
     def _extension_pct(self, symbol, signal_date, entry_price, cur):
+        """Calculate entry price extension above 50-day SMA.
+
+        Raises:
+            ValueError: If 50-day SMA data is missing or invalid
+        """
         cur.execute(
             "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, signal_date),
         )
         row = cur.fetchone()
         if not row or not row[0] or float(row[0]) <= 0:
-            return None
+            raise ValueError(
+                f"50-day SMA not available for {symbol} on {signal_date}"
+            )
         sma_50 = float(row[0])
         return ((entry_price - sma_50) / sma_50) * 100.0
 
@@ -617,6 +661,11 @@ class AdvancedFilters:
         )
 
     def _avg_dollar_volume(self, symbol, signal_date, cur):
+        """Calculate average daily dollar volume (close * volume) over 50 days.
+
+        Raises:
+            ValueError: If price/volume data is missing for the period
+        """
         cur.execute(
             """
             SELECT AVG(close * volume) FROM price_daily
@@ -628,10 +677,17 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return None
+            raise ValueError(
+                f"Price/volume data missing for {symbol} on {signal_date} — cannot calculate average daily dollar volume"
+            )
         return float(row[0])
 
     def _estimate_days_to_earnings(self, symbol, signal_date, cur):
+        """Estimate days until next earnings. Tries calendar → estimates → quarterly estimate.
+
+        Raises:
+            ValueError: If no earnings data available through any method
+        """
         # First, try to get actual estimated earnings date from earnings_calendar or earnings_estimates
         cur.execute(
             """
@@ -670,7 +726,9 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or not row[0]:
-            return None
+            raise ValueError(
+                f"Earnings date not available for {symbol} on {signal_date} — no calendar, estimates, or history found"
+            )
 
         last_report = row[0] if isinstance(row[0], _date) else row[0].date()
 
