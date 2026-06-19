@@ -57,12 +57,18 @@ class AnalystSentimentLoader(OptimalLoader):
         """Fetch analyst recommendations from yfinance and aggregate into sentiment."""
         try:
             from utils.external.yfinance import get_ticker
-        except ImportError:
-            return None
+        except ImportError as e:
+            raise RuntimeError(
+                f"[ANALYST_SENTIMENT] Failed to import yfinance module: {e}. "
+                "Cannot fetch analyst sentiment without yfinance API."
+            ) from e
 
         ticker = get_ticker(symbol)
         if not ticker:
-            return None
+            raise RuntimeError(
+                f"[ANALYST_SENTIMENT] Failed to fetch ticker for {symbol}. "
+                "Cannot retrieve analyst sentiment without valid ticker."
+            )
 
         try:
             recs = ticker.recommendations
@@ -111,10 +117,15 @@ class AnalystSentimentLoader(OptimalLoader):
                     }
                 )
 
-            return results if results else None
+            if not results:
+                raise RuntimeError(
+                    f"[ANALYST_SENTIMENT] No analyst sentiment data found for {symbol}. "
+                    "Cannot load analyst sentiment without recommendations."
+                )
+            return results
         except Exception as e:
             raise RuntimeError(
-                f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {self.symbol}: {e}. "
+                f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {symbol}: {e}. "
                 "Cannot generate signals without sentiment data."
             )
 

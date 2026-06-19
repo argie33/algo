@@ -48,8 +48,10 @@ class AlgoMetricsDailyLoader(OptimalLoader):
 
                 row = cur.fetchone()
                 if not row:
-                    logger.info(f"No metrics available for {run_date}")
-                    return None
+                    raise RuntimeError(
+                        f"[ALGO_METRICS] No audit log data found for {run_date}. "
+                        "Cannot compute performance metrics without trade data."
+                    )
 
                 return [
                     {

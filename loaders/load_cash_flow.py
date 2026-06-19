@@ -106,15 +106,18 @@ class CashFlowLoader(OptimalLoader):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
             if not cik:
-                logger.warning("Symbol %s not found in SEC EDGAR (CIK resolution failed)", symbol)
-                return None
+                raise RuntimeError(
+                    f"[CASH_FLOW] CIK resolution failed for {symbol}. "
+                    "Cannot fetch cash flow data without SEC EDGAR CIK."
+                )
             logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
-                logger.warning("No %s cash flow data for %s (symbol=%s, cik=%s)",
-                               self.period, symbol, symbol, cik)
-                return None
+                raise RuntimeError(
+                    f"[CASH_FLOW] No {self.period} cash flow data found for {symbol} (CIK={cik}). "
+                    "Cannot load fundamentals without cash flow data."
+                )
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -124,7 +127,12 @@ class CashFlowLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            return filtered or None
+            if not filtered:
+                raise RuntimeError(
+                    f"[CASH_FLOW] No new cash flow data for {symbol} after watermark (since {since}). "
+                    "Cannot proceed with empty incremental load."
+                )
+            return filtered
         except Exception as e:
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. "

@@ -118,15 +118,18 @@ class BalanceSheetLoader(OptimalLoader):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
             if not cik:
-                logger.warning("Symbol %s not found in SEC EDGAR (CIK resolution failed)", symbol)
-                return None
+                raise RuntimeError(
+                    f"[BALANCE_SHEET] CIK resolution failed for {symbol}. "
+                    "Cannot fetch balance sheet data without SEC EDGAR CIK."
+                )
             logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
-                logger.warning("No %s balance sheet data for %s (symbol=%s, cik=%s)",
-                               self.period, symbol, symbol, cik)
-                return None
+                raise RuntimeError(
+                    f"[BALANCE_SHEET] No {self.period} balance sheet data found for {symbol} (CIK={cik}). "
+                    "Cannot load fundamentals without balance sheet data."
+                )
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -136,7 +139,12 @@ class BalanceSheetLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            return filtered or None
+            if not filtered:
+                raise RuntimeError(
+                    f"[BALANCE_SHEET] No new balance sheet data for {symbol} after watermark (since {since}). "
+                    "Cannot proceed with empty incremental load."
+                )
+            return filtered
         except Exception as e:
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "

@@ -33,7 +33,10 @@ class EarningsCalendarLoader(OptimalLoader):
 
             ticker = get_ticker(symbol)
             if not ticker:
-                return None
+                raise RuntimeError(
+                    f"[EARNINGS_CALENDAR] Failed to fetch ticker for {symbol}. "
+                    "Cannot retrieve earnings dates without valid ticker."
+                )
 
             results = []
             try:
@@ -68,7 +71,12 @@ class EarningsCalendarLoader(OptimalLoader):
             except Exception as e:
                 logger.debug(f"[{symbol}] ticker.calendar error: {e}")
 
-            return results if results else None
+            if not results:
+                raise RuntimeError(
+                    f"[EARNINGS_CALENDAR] No earnings date found for {symbol}. "
+                    "Cannot load earnings data without upcoming dates."
+                )
+            return results
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 

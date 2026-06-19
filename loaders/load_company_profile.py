@@ -28,7 +28,10 @@ class CompanyProfileLoader(OptimalLoader):
         """Fetch company info from yfinance for a symbol."""
         ticker = get_ticker(symbol)
         if not ticker:
-            return None
+            raise RuntimeError(
+                f"[COMPANY_PROFILE] Failed to fetch ticker for {symbol}. "
+                "Cannot retrieve company profile without valid ticker."
+            )
         try:
             info = ticker.info or {}
             market_cap = info.get("marketCap") or info.get("market_cap")

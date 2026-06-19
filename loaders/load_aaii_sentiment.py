@@ -34,14 +34,15 @@ class AAIISentimentLoader(OptimalLoader):
         socket.setdefaulttimeout(60.0)
 
         aaii_url = get_aaii_sentiment_url()
-        logging.info(f"Downloading AAII sentiment data from: {aaii_url}")
+        logger.info(f"Downloading AAII sentiment data from: {aaii_url}")
 
         # SECURITY FIX S-05: Validate AAII URL to prevent SSRF attacks
         is_valid, error_msg = validate_url(aaii_url, allowed_domains=["aaii.com"])
         if not is_valid:
-            # SECURITY FIX S-12: Don't log full URL (exposes infrastructure)
-            logger.error(f"SSRF prevention: Invalid AAII URL: {error_msg}")
-            return None
+            raise RuntimeError(
+                f"[AAII_SENTIMENT] SSRF validation failed for AAII URL: {error_msg}. "
+                "Cannot fetch sentiment data with invalid or unsafe URL."
+            )
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -52,7 +53,7 @@ class AAIISentimentLoader(OptimalLoader):
 
         for attempt in range(1, 6):  # 5 retries
             try:
-                logging.info(f"Download attempt {attempt}/5")
+                logger.info(f"Download attempt {attempt}/5")
                 response = requests.get(
                     aaii_url, headers=headers, allow_redirects=True, timeout=60
                 )
@@ -71,11 +72,11 @@ class AAIISentimentLoader(OptimalLoader):
 
                 content_type = response.headers.get("Content-Type", "")
                 if "html" in content_type.lower():
-                    logging.error("Server returned HTML instead of Excel")
+                    logger.error("Server returned HTML instead of Excel")
                     raise ValueError("Server returned HTML instead of Excel")
 
                 if len(response.content) < 1000:
-                    logging.error(f"Response too small ({len(response.content)} bytes)")
+                    logger.error(f"Response too small ({len(response.content)} bytes)")
                     raise ValueError(
                         f"Response too small ({len(response.content)} bytes)"
                     )
@@ -104,11 +105,11 @@ class AAIISentimentLoader(OptimalLoader):
                                 n.split("/")[0] + "/" for n in names if "/" in n
                             }
                             if not expected_dirs.issubset(actual_dirs):
-                                logging.warning(
+                                logger.warning(
                                     f"XLSX structure unusual but continuing: {actual_dirs}"
                                 )
                     except zipfile.BadZipFile:
-                        logging.warning(
+                        logger.warning(
                             "File looks like XLSX but ZIP parsing failed, attempting as XLS"
                         )
 
@@ -140,7 +141,7 @@ class AAIISentimentLoader(OptimalLoader):
                 df = df.dropna(subset=["Date"])
                 after_dropna = len(df)
                 if after_dropna < before_dropna:
-                    logging.warning(
+                    logger.warning(
                         f"Dropped {before_dropna - after_dropna} row(s) with missing/invalid Date "
                         f"— {after_dropna} rows remain"
                     )
@@ -149,7 +150,7 @@ class AAIISentimentLoader(OptimalLoader):
                 df.sort_values("Date", inplace=True)
                 df.reset_index(drop=True, inplace=True)
 
-                logging.info(f"Successfully downloaded {len(df)} records")
+                logger.info(f"Successfully downloaded {len(df)} records")
 
                 # Convert to list of dicts matching table schema
                 rows = []
@@ -175,20 +176,56 @@ class AAIISentimentLoader(OptimalLoader):
                         }
                     )
 
-                return rows if rows else None
+                if not rows:
+                    raise RuntimeError(
+                        "[AAII_SENTIMENT] No sentiment data parsed from AAII Excel file. "
+                        "Cannot load sentiment data without market-wide investor sentiment."
+                    )
+                return rows
 
-            except Exception as e:
-                logging.error(f"Download attempt {attempt} failed: {e}")
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                logger.warning(f"Download attempt {attempt} network error: {e}")
                 if attempt < 5:
                     import time
-
-                    wait_time = 3 * (2 ** (attempt - 1))  # 3s, 6s, 12s, 24s, 48s
-                    logging.info(f"Retrying in {wait_time}s...")
+                    wait_time = 3 * (2 ** (attempt - 1))
+                    logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise Exception(f"Failed after 5 attempts: {e}")
+                    raise RuntimeError(
+                        f"[AAII] Failed after 5 attempts: Cannot reach AAII server. {e}"
+                    ) from e
+            except (ValueError, OSError, zipfile.BadZipFile) as e:
+                logger.warning(f"Download attempt {attempt} data format error: {e}")
+                if attempt < 5:
+                    import time
+                    wait_time = 3 * (2 ** (attempt - 1))
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise RuntimeError(
+                        f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}"
+                    ) from e
+            except (KeyError, AttributeError, TypeError) as e:
+                raise RuntimeError(
+                    f"[AAII] Data format error parsing Excel: {e}. "
+                    "AAII file structure may have changed."
+                ) from e
+            except Exception as e:
+                logger.error(f"Download attempt {attempt} unexpected error: {e}")
+                if attempt < 5:
+                    import time
+                    wait_time = 3 * (2 ** (attempt - 1))
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise RuntimeError(
+                        f"[AAII] Unexpected error after 5 attempts: {e}"
+                    ) from e
 
-        return None
+        raise RuntimeError(
+            "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
+            "Cannot proceed without market-wide investor sentiment."
+        )
 
 
 def main():
