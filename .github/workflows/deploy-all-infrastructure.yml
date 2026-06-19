@@ -1,12 +1,12 @@
 name: Deploy All Infrastructure (Terraform)
 
 # Master deploy: runs terraform apply, then builds all application code in parallel.
-# Trigger: push to main (full stack), or manual dispatch for selective deploys.
+# IMPORTANT: Terraform apply is MANUAL ONLY (workflow_dispatch) to require review.
+# Use companion workflow: terraform-plan.yml (runs on PR, shows plan in comment)
+# Workflow: Plan on PR → Review → Merge → Manually trigger this deploy to apply
 # NOTE: This is the ONLY deployment workflow. All infrastructure uses Terraform (IaC).
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       skip_terraform:
