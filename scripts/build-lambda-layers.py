@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """Lambda Layer Builder - Builds Lambda layer ZIPs from Python dependencies and source code."""
 
-import argparse, logging, os, shutil, subprocess, sys, zipfile
+import argparse
+import logging
+import os
+import shutil
+import subprocess
+import sys
+import zipfile
 from pathlib import Path
-from typing import List
+from typing import ClassVar
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+
 class LambdaLayerBuilder:
-    LAYERS = {
+    LAYERS: ClassVar[dict] = {
         "shared_deps": {"requirements": "terraform/lambda-layer-requirements.txt", "source_dirs": []},
         "orchestrator": {"requirements": "lambda/algo_orchestrator/requirements.txt", "source_dirs": ["config", "algo", "utils", "monitoring"]},
         "api": {"requirements": "lambda/api/requirements.txt", "source_dirs": []},
@@ -41,7 +49,7 @@ class LambdaLayerBuilder:
             for source_dir in source_dirs:
                 src = self.repo_root / source_dir
                 if src.is_dir():
-                    dst = python_dir / "python" / source_dir
+                    dst = python_dir / source_dir
                     if dst.exists():
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
