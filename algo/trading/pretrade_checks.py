@@ -3,6 +3,7 @@
 Pre-Trade Checks - Hard stops before order execution.
 
 Validates:
+- Earnings blackout window (Issue #11 fix)
 - Account buying power
 - Margin requirements
 - Duplicate position prevention
@@ -12,8 +13,10 @@ Validates:
 """
 
 import logging
+from datetime import date as _date
 from typing import Any, Dict, Optional, Tuple
 
+from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 
 
@@ -66,6 +69,7 @@ class PreTradeChecks:
         position_value: float,
         portfolio_value: float,
         side: str = "BUY",
+        eval_date: Optional[_date] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Run all pre-trade validation checks.
@@ -75,12 +79,26 @@ class PreTradeChecks:
             position_value: Total position value (shares * price)
             portfolio_value: Current portfolio value
             side: 'BUY' or 'SELL'
+            eval_date: Date to evaluate for earnings blackout (default: today)
 
         Returns:
             (passed: bool, reason: str or None)
             - If passed: (True, None)
             - If failed: (False, "reason for failure")
         """
+        if eval_date is None:
+            eval_date = _date.today()
+
+        # Issue #11: Earnings blackout check (hard gate, must pass before any entry)
+        if side == "BUY":
+            try:
+                earnings_check = EarningsBlackout(config=self.config)
+                result = earnings_check.run(symbol, eval_date)
+                if not result.get("pass"):
+                    return (False, result.get("reason", "Failed earnings blackout check"))
+            except ValueError as e:
+                return (False, f"Earnings blackout check failed: {e}")
+
         max_position_pct = float(self.config.get("max_position_size_pct", 8.0)) / 100.0
         max_position_value = portfolio_value * max_position_pct
 

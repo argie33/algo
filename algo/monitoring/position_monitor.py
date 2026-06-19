@@ -454,14 +454,15 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity
-        days_to_earn = None
+        # 3e. Earnings proximity (explicit: fails if earnings data unavailable)
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
         except (ValueError, RuntimeError) as e:
-            logger.debug(f"Earnings date unavailable for {symbol}: {e}")
+            raise ValueError(
+                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e} — explicit halt"
+            ) from e
 
-        if days_to_earn is not None and 0 <= days_to_earn <= 3:
+        if 0 <= days_to_earn <= 3:
             flags.append(f"EARNINGS_IN_{days_to_earn}D")
 
         # 3f. Distribution-day stress
@@ -495,7 +496,7 @@ class PositionMonitor:
             urgent_exit = True
 
         # Special case: earnings within 1-2 days = always exit
-        if days_to_earn is not None and 0 <= days_to_earn <= 2:
+        if 0 <= days_to_earn <= 2:
             action = "EARLY_EXIT"
             action_reason = f"Earnings in {days_to_earn} day(s) — flatten before report"
             urgent_exit = True
@@ -825,13 +826,13 @@ class PositionMonitor:
         return ((float(row[0]) - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol, current_date, cur):
-        """Get days until next earnings. Returns None if earnings data unavailable (degraded mode).
+        """Get days until next earnings.
 
         Primary: query earnings_calendar for accurate scheduled dates.
         Fallback: estimate from earnings_history quarterly cycle if calendar missing.
 
         Raises:
-            ValueError: If no earnings data available through any method
+            ValueError: If no earnings data available through any method (explicit failure, no degraded mode)
         """
         try:
             # Primary: use earnings_calendar (populated by earnings loader)
