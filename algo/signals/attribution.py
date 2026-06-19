@@ -262,11 +262,9 @@ class SignalAttributionEngine:
 
                     # Determine regime at signal_date (entry)
                     try:
-                        signal_regime = (
-                            regime_mgr.get_current_regime(signal_date) or "unknown"
-                        )
+                        signal_regime = regime_mgr.get_current_regime(signal_date)
                         if signal_regime not in trades_by_regime:
-                            signal_regime = "caution"  # Default if unknown
+                            signal_regime = "caution"  # Default if regime not in mapping
                     except Exception as e:
                         logger.debug(
                             f"Could not determine regime for {signal_date}: {e}"

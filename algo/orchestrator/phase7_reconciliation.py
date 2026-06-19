@@ -211,9 +211,7 @@ def run(
         try:
             from algo.orchestration import RegimeManager as _RegimeManager
 
-            _current_regime = (
-                _RegimeManager().get_current_regime(run_date) or "confirmed_uptrend"
-            )
+            _current_regime = _RegimeManager().get_current_regime(run_date)
             optimizer = WeightOptimizer(config)
             opt_result = optimizer.apply(
                 run_date, regime=_current_regime, dry_run=False
