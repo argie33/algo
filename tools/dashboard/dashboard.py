@@ -249,13 +249,19 @@ def _validate_api_url(url: str) -> bool:
         return False
 
 
+def _ensure_aws_profile() -> None:
+    """Ensure AWS_PROFILE environment variable is set to algo-developer."""
+    if not os.environ.get("AWS_PROFILE"):
+        os.environ["AWS_PROFILE"] = "algo-developer"
+        logger.debug("Set AWS_PROFILE=algo-developer")
+
+
 def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
     """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
 
     try:
         # Ensure AWS_PROFILE is set
-        if not os.environ.get("AWS_PROFILE"):
-            os.environ["AWS_PROFILE"] = "algo-developer"
+        _ensure_aws_profile()
 
         # Try to fetch from Secrets Manager
         client = boto3.client("secretsmanager", region_name="us-east-1")
@@ -288,9 +294,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
 
     try:
         # Ensure AWS_PROFILE is set for Terraform
-        if not os.environ.get("AWS_PROFILE"):
-            os.environ["AWS_PROFILE"] = "algo-developer"
-            logger.debug("Set AWS_PROFILE=algo-developer")
+        _ensure_aws_profile()
 
         # Find terraform directory - try multiple paths
         possible_roots = [
@@ -352,7 +356,8 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
                     timeout=60,
                 )
                 if result.returncode != 0:
-                    logger.warning("Terraform init failed - may need manual setup")
+                    error_output = result.stderr.strip() if result.stderr else "(no error output)"
+                    logger.warning(f"Terraform init failed: {error_output[:200]} - may need manual setup")
                     return (None, None, None)
             except subprocess.TimeoutExpired:
                 logger.warning(
