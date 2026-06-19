@@ -102,6 +102,35 @@ Quick reference:
 - Enforce limit in route handler: `check_admin_rate_limit()` or `check_public_rate_limit()`
 - See `steering/rate-limiting-strategy.md` for endpoint list and rationale
 
+## Trading Safety Configuration
+
+**Critical thresholds** in `algo/infrastructure/config.py` DEFAULTS prevent the system from trading low-quality signals.
+Never set these to zero or disable them for "testing" — doing so will trade any stock regardless of quality, including during earnings surprises:
+
+**Entry Quality Thresholds (Hard Gates):**
+- `min_signal_quality_score`: 60 (0-100 scale) — rejects signals below this SQS
+- `min_swing_score`: 55.0 (default, regime manager may raise higher) — score gate for entry setup quality
+- `min_completeness_score`: 70 (%) — reject stocks with incomplete price/technical data
+- `min_volume_ma_50d`: 300,000 (shares) — liquidity gate
+- `min_avg_daily_dollar_volume`: 500,000 (dollars) — liquidity gate for position sizing
+
+**Earnings Risk Gates (Hard Gate):**
+- `earnings_blackout_days_before`: 7 (days) — block entries 7 days before earnings
+- `earnings_blackout_days_after`: 3 (days) — block entries 3 days after earnings
+- **Why:** Prevents gap risk from earnings surprises; critical for stop-loss validity
+
+**Entry Quality Gates (Warn-Only, Not Hard-Gates):**
+- `rs_slope_gate_enabled`: false (warn-only, not hard-gate)
+- `volume_decay_gate_enabled`: false (warn-only, not hard-gate)
+- **Why:** Consolidating bases naturally show flat RS-line and declining volume (institutional accumulation), which are legitimate Minervini setups. Hard-gating these would reject high-probability trades. Set to warn-only per migration-007.
+
+**If any threshold is zero or disabled unintentionally:**
+1. Check git log: `git log -- algo/infrastructure/config.py migrations/`
+2. Verify against migration-032 defaults (source of truth)
+3. Restore via: `python migrations/runner.py up 032` (or manually set in algo_config table)
+
+See `steering/algo.md` → **Entry Quality Gates** for detailed threshold rationale.
+
 ## Security Baseline
 
 All projects follow:
