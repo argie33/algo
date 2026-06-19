@@ -1034,6 +1034,15 @@ class OptimalLoader(ABC):
             )
             lock_manager = None
 
+        # Initialize SLA monitoring early (before try block so it's always accessible)
+        sla_monitor = None
+        try:
+            from utils.loaders.sla_monitor import SLAMonitor
+            sla_monitor = SLAMonitor(self.table_name)
+            sla_monitor.start()
+        except Exception as e:
+            logger.debug(f"[{self.table_name}] SLA monitoring unavailable: {e}")
+
         try:
             # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle
             # This reduces connection churn from ~5-10 per operation to 1 total
@@ -1182,6 +1191,11 @@ class OptimalLoader(ABC):
                         f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%) — "
                         "Phase 1 will detect this and trigger failsafe retry"
                     )
+
+                # SLA monitoring: log and publish metrics
+                if sla_monitor:
+                    sla_monitor.log_status(level="info" if loader_status == "COMPLETED" else "warning")
+                    sla_monitor.publish_metric()
 
                 # Use a fresh connection for the final status write to avoid
                 # statement timeout from the long-running pooled connection state.
