@@ -178,10 +178,16 @@ class RejectionTracker:
             }
 
         try:
-            return self._with_cursor(_get_funnel) or {"total_signals": 0, "tiers": []}
+            result = self._with_cursor(_get_funnel)
+            if result is None:
+                return {"total_signals": 0, "tiers": []}
+            return result
         except Exception as e:
             logger.error(f"Failed to get rejection funnel: {e}")
-            return {"total_signals": 0, "tiers": []}
+            raise RuntimeError(
+                f"Failed to get rejection funnel: {e}. "
+                "Cannot proceed without rejection funnel data."
+            ) from e
 
     def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20):
         """Get top rejection reasons for a specific tier."""

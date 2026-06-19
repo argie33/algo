@@ -113,35 +113,22 @@ class CircuitBreaker:
                         import traceback
 
                         tb = traceback.format_exc()
-                        error_msg = str(e).lower()
                         error_type = type(e).__name__
 
                         # Log full traceback for debugging
                         logger.error(f"Circuit breaker {name} raised {error_type}: {e}")
                         logger.error(f"Full traceback:\n{tb}")
 
-                        # Differentiate between transient errors and real failures
-                        if any(
-                            x in error_msg
-                            for x in ["timeout", "connection", "refused", "unavailable"]
-                        ):
-                            # Transient error: log and skip check, don't halt entire system
-                            logger.warning(
-                                f"Circuit breaker {name} skipped (transient error): {error_type}: {e}"
-                            )
-                            state = {
-                                "halted": False,
-                                "reason": f"check skipped (transient {error_type})",
-                            }
-                        else:
-                            # Real error: fail-closed, halt trading
-                            logger.critical(
-                                f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}"
-                            )
-                            state = {
-                                "halted": True,
-                                "reason": f"check error ({error_type}: {e})",
-                            }
+                        # All check failures result in fail-closed halt.
+                        # If a safety check cannot be verified, trading must halt.
+                        # Do NOT skip checks with "transient" claims — that masks data loss.
+                        logger.critical(
+                            f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}"
+                        )
+                        state = {
+                            "halted": True,
+                            "reason": f"check error ({error_type}: {e})",
+                        }
                     state["label"] = CHECK_LABELS.get(name, name)
                     results["checks"][name] = state
                     if state.get("halted"):
