@@ -189,11 +189,100 @@ def test_phase5_works_with_buysell_signals():
     print("[OK] Signal source is 'buysell_breakout' (not 'stock_scores_fallback')\n")
 
 
+def test_phase5_rejects_null_swing_scores():
+    """
+    CRITICAL TEST: Phase 5 must REJECT candidates with NULL swing_score.
+    This verifies the fix: swing_score NULL defaults to 0.0 no longer allowed.
+    """
+    print("\n" + "="*80)
+    print("TEST: Phase 5 Enforcement - Reject NULL swing_scores")
+    print("="*80)
+
+    test_date = date(2026, 6, 16)
+
+    def mock_check_halt_flag():
+        return False
+
+    def mock_log_phase_result(phase_num, phase_name, status, msg):
+        print(f"[PHASE {phase_num}] {status.upper()}: {msg[:80]}")
+
+    def mock_check_market_regime(run_date):
+        return {
+            "is_entry_allowed": True,
+            "exposure_pct": 100,
+            "regime": "normal",
+            "halt_reasons": [],
+        }
+
+    # Mock database with a signal that has NULL swing_score
+    with patch('algo.orchestrator.phase5_signal_generation.DatabaseContext') as mock_db_context:
+        with patch('algo.orchestrator.phase5_signal_generation._check_market_regime',
+                   side_effect=mock_check_market_regime):
+
+            mock_cursor = MagicMock()
+
+            # Return buy_sell_daily signal with NULL swing_score
+            mock_cursor.fetchall.return_value = [
+                (
+                    'TSLA',  # symbol
+                    75.0,    # composite_score
+                    80.0,    # quality_score
+                    70.0,    # growth_score
+                    72.0,    # momentum_score
+                    85.0,    # rs_percentile
+                    185.5,   # close
+                    186.0,   # high
+                    184.0,   # low
+                    180.0,   # sma_50
+                    'Technology',  # sector
+                    'Auto',  # industry
+                    184.0,   # buylevel
+                    180.0,   # stoplevel
+                    8.5,     # strength (signal_strength)
+                    12.0,    # volume_surge_pct
+                    'breakout',  # market_stage
+                    test_date,  # signal_date
+                    None,    # swing_score is NULL — this is the key test case
+                    None,    # swing_components
+                )
+            ]
+
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_cursor
+            mock_context_manager.__exit__.return_value = None
+
+            mock_db_context.return_value = mock_context_manager
+
+            config = {"phase5_min_composite_score": 50}
+            result = run_phase5(
+                run_date=test_date,
+                dry_run=False,
+                verbose=True,
+                log_phase_result_fn=mock_log_phase_result,
+                exposure_constraints=None,
+                check_halt_flag=mock_check_halt_flag,
+                phase1_degraded=False,
+                config=config
+            )
+
+    print(f"\nPhase 5 Result: {result.status}")
+    print(f"Halted: {result.halted}")
+    print(f"Qualified trades: {len(result.data.get('qualified_trades', []))}")
+
+    # The signal should be REJECTED because swing_score is NULL
+    assert len(result.data.get('qualified_trades', [])) == 0, \
+        f"Candidates with NULL swing_score should be rejected, but got {len(result.data.get('qualified_trades', []))} signals"
+
+    print("\n[OK] Phase 5 correctly rejects candidates with NULL swing_score")
+    print("[OK] No candidates produced when swing_score validation is missing\n")
+
+
 def main():
     """Run all Phase 5 enforcement tests."""
     print("\n" + "="*80)
     print("PHASE 5 ENFORCEMENT TEST SUITE")
     print("Verifies buy_sell_daily is required (no silent fallback)")
+    print("Verifies swing_score NULL is rejected (not silently defaulted to 0.0)")
     print("="*80)
 
     passed = 0
@@ -208,6 +297,13 @@ def main():
 
     try:
         test_phase5_works_with_buysell_signals()
+        passed += 1
+    except Exception as e:
+        print(f"\n✗ FAIL: {e}")
+        failed += 1
+
+    try:
+        test_phase5_rejects_null_swing_scores()
         passed += 1
     except Exception as e:
         print(f"\n✗ FAIL: {e}")

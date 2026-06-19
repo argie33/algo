@@ -73,10 +73,21 @@ def _check_market_regime(run_date: _date) -> Dict:
                 }
             import json
 
+            if row[1] is None:
+                logger.critical(
+                    "[PHASE 5] market_exposure_daily exposure_pct is NULL — halting entries (fail-closed)"
+                )
+                return {
+                    "is_entry_allowed": False,
+                    "exposure_pct": 0,
+                    "regime": "unknown",
+                    "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
+                }
+
             halt_reasons = json.loads(row[3]) if row[3] else []
             return {
                 "is_entry_allowed": bool(row[0]),
-                "exposure_pct": float(row[1]) if row[1] is not None else 50,
+                "exposure_pct": float(row[1]),
                 "regime": row[2] or "unknown",
                 "halt_reasons": halt_reasons,
             }
@@ -142,7 +153,7 @@ def _get_candidates_from_buysell(
                     bsd.volume_surge_pct,
                     bsd.market_stage,
                     bsd.date AS signal_date,
-                    COALESCE(sts.score, 0) AS swing_score,
+                    sts.score AS swing_score,
                     sts.components AS swing_components
                 FROM (
                     SELECT DISTINCT ON (symbol) *
@@ -179,14 +190,21 @@ def _get_candidates_from_buysell(
             rows = cur.fetchall()
 
         candidates = []
+        swing_score_missing = 0
         for r in rows:
+            swing_score_val = r[18]
+            if swing_score_val is None:
+                swing_score_missing += 1
+                logger.debug(f"[PHASE 5] {r[0]}: swing_score is NULL — rejecting candidate (gate: swing validation required)")
+                continue
+
             close = float(r[6]) if r[6] is not None else None
             composite = float(r[1]) if r[1] is not None else None
             raw_strength = float(r[14]) if r[14] is not None else None
             strength = raw_strength if raw_strength is not None else (
                 composite / 100.0 if composite else 0.5
             )
-            swing_score = float(r[18]) if r[18] is not None else 0.0
+            swing_score = float(swing_score_val)
             swing_components = r[19] if r[19] is not None else None
             candidates.append({
                 "symbol": r[0],
@@ -215,7 +233,7 @@ def _get_candidates_from_buysell(
         swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
-            f"(swing_scores: {swing_score_count}, lookback: {lookback_date} to {run_date})"
+            f"(swing_scores: {swing_score_count}, missing: {swing_score_missing}, lookback: {lookback_date} to {run_date})"
         )
         return candidates
     except Exception as e:
@@ -250,7 +268,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                     sma.avg_close AS sma_50,
                     cp.sector,
                     cp.industry,
-                    COALESCE(sts.score, 0) AS swing_score,
+                    sts.score AS swing_score,
                     sts.components AS swing_components
                 FROM stock_scores ss
                 LEFT JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
@@ -279,9 +297,16 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
             rows = cur.fetchall()
 
         candidates = []
+        swing_score_missing = 0
         for r in rows:
+            swing_score_val = r[12]
+            if swing_score_val is None:
+                swing_score_missing += 1
+                logger.debug(f"[PHASE 5] {r[0]}: swing_score is NULL — rejecting candidate (gate: swing validation required)")
+                continue
+
             close = float(r[6]) if r[6] is not None else None
-            swing_score = float(r[12]) if r[12] is not None else 0.0
+            swing_score = float(swing_score_val)
             swing_components = r[13] if r[13] is not None else None
             candidates.append({
                 "symbol": r[0],
@@ -305,7 +330,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
         swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from stock_scores + swing_trader_scores + price_daily "
-            f"(swing_scores: {swing_score_count})"
+            f"(swing_scores: {swing_score_count}, missing: {swing_score_missing})"
         )
         return candidates
     except Exception as e:
