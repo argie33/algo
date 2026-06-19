@@ -293,20 +293,23 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         return default
 
 
-def safe_float_strict(value: Any, context: str = "") -> float:
+def safe_float_strict(value: Any, context: str = "", allow_none: bool = False) -> float:
     """Convert value to float in strict mode, raising on failure.
 
     Args:
         value: Value to convert
         context: Context string for logging
+        allow_none: If True, return None for None values instead of raising error
 
     Returns:
-        Float value
+        Float value, or None if allow_none=True and value is None
 
     Raises:
-        ValueError: If value is None, bool, or conversion fails
+        ValueError: If value is None (unless allow_none=True), bool, or conversion fails
     """
     if value is None:
+        if allow_none:
+            return None
         raise ValueError(f"{context}: cannot convert None to float")
 
     if isinstance(value, bool):
@@ -347,20 +350,23 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
-def safe_int_strict(value: Any, context: str = "") -> int:
+def safe_int_strict(value: Any, context: str = "", allow_none: bool = False) -> int:
     """Convert value to int in strict mode.
 
     Args:
         value: Value to convert
         context: Context string for logging
+        allow_none: If True, return None for None values instead of raising error
 
     Returns:
-        Int value
+        Int value, or None if allow_none=True and value is None
 
     Raises:
-        ValueError: If value is None, bool, or conversion fails
+        ValueError: If value is None (unless allow_none=True), bool, or conversion fails
     """
     if value is None:
+        if allow_none:
+            return None
         raise ValueError(f"{context}: cannot convert None to int")
 
     if isinstance(value, bool):

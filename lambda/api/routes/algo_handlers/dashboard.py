@@ -2,7 +2,6 @@
 
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
-def _get_algo_positions(cur, user_id: str = None) -> Dict:
+def _get_algo_positions(cur, user_id: str = None) -> dict:
     """Get current open positions with computed fields.
 
     Provides comprehensive position data with:
@@ -194,7 +193,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
 
 
 @db_route_handler("fetch algo status")
-def _get_algo_status(cur) -> Dict:
+def _get_algo_status(cur) -> dict:
     """Get latest algo execution status plus latest portfolio snapshot."""
     cur.execute("""
             SELECT
@@ -273,7 +272,7 @@ def _get_algo_status(cur) -> Dict:
 @db_route_handler("fetch algo trades")
 def _get_algo_trades(
     cur, limit: int = 200, user_id: str = None, status: str = None
-) -> Dict:
+) -> dict:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts = []
     params = []
@@ -322,7 +321,7 @@ def _get_algo_trades(
 
 
 @db_route_handler("fetch circuit breakers")
-def _get_circuit_breakers(cur) -> Dict:
+def _get_circuit_breakers(cur) -> dict:
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
         today = date.today()
@@ -764,7 +763,7 @@ def _get_circuit_breakers(cur) -> Dict:
 
 
 @db_route_handler("fetch dashboard signals")
-def _get_dashboard_signals(cur) -> Dict:
+def _get_dashboard_signals(cur) -> dict:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
     Returns: BUY signals with quality scores, grade distribution (A-D by score),
@@ -877,7 +876,7 @@ def _get_dashboard_signals(cur) -> Dict:
 
 
 @db_route_handler("fetch equity curve")
-def _get_equity_curve(cur, days: int = 180) -> Dict:
+def _get_equity_curve(cur, days: int = 180) -> dict:
     """Get equity curve for last N days."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

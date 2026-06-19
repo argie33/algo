@@ -485,8 +485,8 @@ def _get_market_factors(cur) -> dict:
                 factors = {}
 
         data = {
-            "exposure_pct": safe_float_strict(data_dict.get("exposure_pct")),
-            "raw_score": safe_float_strict(data_dict.get("raw_score")),
+            "exposure_pct": safe_float_strict(data_dict.get("exposure_pct"), allow_none=True),
+            "raw_score": safe_float_strict(data_dict.get("raw_score"), allow_none=True),
             "regime": data_dict.get("regime"),
             "factors": factors,
         }

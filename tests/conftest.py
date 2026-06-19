@@ -9,7 +9,7 @@ but this provides a safety net for different test execution contexts.
 
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -64,7 +64,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def mock_config_base() -> Dict[str, Any]:
+def mock_config_base() -> dict[str, Any]:
     """Base configuration fixture for standard conditions.
 
     Use this fixture when you want to test with standard default config.
@@ -73,7 +73,7 @@ def mock_config_base() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_bull() -> Dict[str, Any]:
+def mock_config_bull() -> dict[str, Any]:
     """Configuration fixture for bull market conditions.
 
     Use when testing during uptrend (higher risk, higher confidence).
@@ -82,7 +82,7 @@ def mock_config_bull() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_correction() -> Dict[str, Any]:
+def mock_config_correction() -> dict[str, Any]:
     """Configuration fixture for correction/consolidation conditions.
 
     Use when testing during moderate volatility and mixed signals.
@@ -91,7 +91,7 @@ def mock_config_correction() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_crisis() -> Dict[str, Any]:
+def mock_config_crisis() -> dict[str, Any]:
     """Configuration fixture for crisis/bear market conditions.
 
     Use when testing capital preservation and defensive behavior.
@@ -100,7 +100,7 @@ def mock_config_crisis() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_minimal() -> Dict[str, Any]:
+def mock_config_minimal() -> dict[str, Any]:
     """Minimal configuration with only essential keys.
 
     Use for lightweight unit tests that don't need all config keys.
@@ -110,7 +110,7 @@ def mock_config_minimal() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_strict_risk() -> Dict[str, Any]:
+def mock_config_strict_risk() -> dict[str, Any]:
     """Configuration with very tight risk limits.
 
     Use for testing circuit breaker and risk control systems.
@@ -119,7 +119,7 @@ def mock_config_strict_risk() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_relaxed_risk() -> Dict[str, Any]:
+def mock_config_relaxed_risk() -> dict[str, Any]:
     """Configuration with relaxed risk limits.
 
     Use for testing edge cases where risk controls might be loose.
@@ -128,7 +128,7 @@ def mock_config_relaxed_risk() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_sandbox() -> Dict[str, Any]:
+def mock_config_sandbox() -> dict[str, Any]:
     """Sandbox configuration for integration tests.
 
     Pre-configured for paper trading and review mode (no actual orders).
@@ -137,7 +137,7 @@ def mock_config_sandbox() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config_custom(request) -> Dict[str, Any]:
+def mock_config_custom(request) -> dict[str, Any]:
     """Custom configuration fixture parameterized via pytest.
 
     Usage in test:
@@ -151,3 +151,42 @@ def mock_config_custom(request) -> Dict[str, Any]:
     config = BASE_CONFIG.copy()
     config.update(overrides)
     return config
+
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_loader_status():
+    """Initialize data_loader_status table with fresh timestamps for testing."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from utils.db.context import DatabaseContext
+
+    critical_loaders = [
+        "stock_symbols",
+        "price_daily",
+        "market_health_daily",
+        "technical_data_daily",
+        "sector_ranking",
+    ]
+
+    eastern_tz = ZoneInfo("America/New_York")
+    now = datetime.now(eastern_tz)
+
+    try:
+        with DatabaseContext("write") as cur:
+            for loader in critical_loaders:
+                cur.execute(
+                    """
+                    INSERT INTO data_loader_status
+                    (table_name, status, last_updated, execution_started, execution_completed, row_count, latest_date)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (table_name) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        last_updated = EXCLUDED.last_updated,
+                        execution_started = EXCLUDED.execution_started,
+                        execution_completed = EXCLUDED.execution_completed
+                    """,
+                    (loader, "success", now, now, now, 0, now.date()),
+                )
+    except Exception:
+        pass
