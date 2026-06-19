@@ -29,11 +29,8 @@ class PositionSizer:
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
-        try:
-            with DatabaseContext("read") as cur:
-                return operation(cur)
-        except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+        with DatabaseContext("read") as cur:
+            return operation(cur)
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -51,15 +48,14 @@ class PositionSizer:
             logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
             return alpaca_value
 
+        def fetch_snapshot(cur):
+            cur.execute("""
+                SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1
+            """)
+            return cur.fetchone()
+
         try:
-
-            def fetch_snapshot(cur):
-                cur.execute("""
-                    SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1
-                """)
-                return cur.fetchone()
-
             result = self._with_cursor(fetch_snapshot)
             if result is not None and result[0] is not None:
                 snapshot_value = float(result[0])
@@ -77,8 +73,11 @@ class PositionSizer:
                     "Cannot use stale snapshot for position sizing. "
                     "Phase 7 must run daily to maintain fresh snapshots."
                 )
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             logger.error(f"Error fetching portfolio snapshot: {e}")
+        except Exception as e:
+            logger.error(f"Database error fetching portfolio snapshot: {type(e).__name__}: {e}")
+            raise
 
         # CRITICAL: No valid portfolio value available. Fail-closed.
         # Better to skip trading than risk wrong position sizing.
@@ -116,8 +115,8 @@ class PositionSizer:
                 from config.alpaca_config import get_alpaca_base_url
 
                 base = get_alpaca_base_url()
-            except Exception as cfg_e:
-                raise RuntimeError(f"Operation failed: {cfg_e}") from cfg_e
+            except (ImportError, AttributeError) as cfg_e:
+                raise ValueError(f"Alpaca config unavailable: {cfg_e}") from cfg_e
         if not key or not secret:
             raise RuntimeError("CRITICAL: Alpaca credentials not found. Cannot fetch portfolio value.")
 
@@ -134,9 +133,16 @@ class PositionSizer:
                         data = response.json()
                     except (ValueError, Exception) as e:
                         raise RuntimeError(f"Invalid JSON response from Alpaca portfolio API: {e}") from e
-                    pv = data.get("portfolio_value") or data.get("equity")
-                    if pv:
+
+                    if "portfolio_value" in data and data["portfolio_value"] is not None:
+                        pv = data["portfolio_value"]
                         return float(pv)
+
+                    if "equity" in data and data["equity"] is not None:
+                        pv = data["equity"]
+                        return float(pv)
+
+                    raise ValueError(f"Portfolio value fields missing or null in Alpaca response. Expected 'portfolio_value' or 'equity', got: {list(data.keys())}")
                 elif response.status_code in (429, 503):
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
@@ -290,8 +296,12 @@ class PositionSizer:
             if regime_mult is None:
                 raise ValueError("Regime multiplier is None")
             return regime_mult
+        except ValueError:
+            raise
+        except (ImportError, AttributeError) as e:
+            raise ValueError(f"Could not load RegimeManager: {e}") from e
         except Exception as e:
-                raise RuntimeError(f"Could not load regime multiplier required for position sizing: {e}") from e
+            raise RuntimeError(f"Regime multiplier calculation failed: {type(e).__name__}: {e}") from e
 
     def get_active_positions_value(self):
         """Get sum of active position values.

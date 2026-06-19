@@ -1330,15 +1330,22 @@ class TradeExecutor:
                     except (ValueError, Exception) as e:
                         logger.warning(f"Invalid JSON response from portfolio API: {e}")
                     else:
-                        pv = data.get("portfolio_value") or data.get("equity")
-                        if pv is not None:
-                            pv_float = float(pv)
+                        if "portfolio_value" in data and data["portfolio_value"] is not None:
+                            pv_float = float(data["portfolio_value"])
                             logger.info(
                                 f"[PORTFOLIO] Live Alpaca equity: ${pv_float:.2f} (url={self.alpaca_base_url})"
                             )
                             return pv_float
+
+                        if "equity" in data and data["equity"] is not None:
+                            pv_float = float(data["equity"])
+                            logger.info(
+                                f"[PORTFOLIO] Live Alpaca equity (from equity field): ${pv_float:.2f} (url={self.alpaca_base_url})"
+                            )
+                            return pv_float
+
                         logger.warning(
-                            "[PORTFOLIO] Alpaca /v2/account 200 but missing portfolio_value/equity fields"
+                            f"[PORTFOLIO] Alpaca /v2/account 200 but portfolio_value/equity missing or null. Response keys: {list(data.keys())}"
                         )
                 elif resp.status_code == 401:
                     logger.error(
