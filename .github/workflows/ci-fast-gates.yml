@@ -1,8 +1,9 @@
-name: CI — Fast Gates (Lint + Unit Tests)
+name: CI — Required Checks (Security + Lint + Tests + Coverage)
 
 # Runs on: every commit to main, every PR
-# Duration: ~90 seconds
-# Cost: negligible (within free tier)
+# Duration: ~12 minutes (security scans + linting + full test suite + coverage)
+# Cost: within GitHub free tier
+# All gates are BLOCKING — merge blocked if any gate fails
 
 on:
   push:
@@ -240,9 +241,69 @@ jobs:
           ALPACA_KEY: pk-test-alpaca-key
           ALPACA_SECRET: sk-test-alpaca-secret
 
+  coverage:
+    name: Coverage — Test Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: algo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q -r requirements.txt
+          pip install -q pytest pytest-cov coverage[toml]
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/algo_test
+        run: |
+          pytest tests/ \
+            --cov=algo \
+            --cov=loaders \
+            --cov=lambda \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=html \
+            --cov-report=xml \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Comment PR with coverage report
+        if: github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 75
+          MINIMUM_ORANGE: 50
+
   summary:
     runs-on: ubuntu-latest
-    needs: [scan-secrets, scan-dependencies, scan-sast, validate-terraform, scan-iac, lint-and-type, tests]
+    needs: [scan-secrets, scan-dependencies, scan-sast, validate-terraform, scan-iac, lint-and-type, tests, coverage]
     if: always()
     steps:
       - name: Check status
@@ -294,6 +355,12 @@ jobs:
             exit 1
           fi
           echo "OK: IaC scan passed"
+
+          if [[ "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "FAIL: Coverage analysis FAILED"
+            exit 1
+          fi
+          echo "OK: Coverage analysis completed"
 
           echo ""
           echo "All required gates passed — ready to merge"

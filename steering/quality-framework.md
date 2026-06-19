@@ -4,7 +4,7 @@
 
 **Layer 1: Local Development** — Pre-commit hook blocks commits with errors (mypy, imports). Run manually: `./scripts/check-quality.sh`. Duration: ~60 sec.
 
-**Layer 2: Pull Request Gates** — ci-fast-gates.yml (~90 sec: security, lint, tests), quality-gates.yml (~10 min: coverage, full tests). Both auto-run, must pass before merge.
+**Layer 2: Pull Request Gates** — ci-fast-gates.yml (~12 min: security scan, lint, type check, tests, coverage). Auto-runs on every commit, must pass before merge.
 
 **Layer 3: Production Monitoring** — CloudWatch error rates, type coverage trending, test coverage goals tracked quarterly.
 
@@ -76,8 +76,7 @@
 | mypy config | `pyproject.toml` | TOML |
 | pytest config | `pyproject.toml` | TOML |
 | coverage config | `pyproject.toml` | TOML |
-| CI fast gates | `.github/workflows/ci-fast-gates.yml` | YAML |
-| CI quality gates | `.github/workflows/quality-gates.yml` | YAML |
+| CI gates (required) | `.github/workflows/ci-fast-gates.yml` | YAML |
 | Pre-commit hook | `.git/hooks/pre-commit` | bash |
 | Local script | `scripts/check-quality.sh` | bash |
 | Documentation | `steering/quality-framework.md` | Markdown |
@@ -103,9 +102,11 @@ pytest tests/ --cov=algo --cov-report=html
 ### For Pull Requests
 
 1. Push your branch
-2. GitHub Actions automatically runs:
-   - Fast gates (90 sec): Type check, security scan, quick tests
-   - Quality gates (10 min): Full tests, coverage analysis, linting
+2. GitHub Actions automatically runs ci-fast-gates.yml (~12 min):
+   - Security: TruffleHog (secrets), pip-audit (dependencies), bandit (code), tfsec (IaC)
+   - Code Quality: mypy type check, black formatting, isort imports, flake8 linting
+   - Tests: unit, edge case, and integration tests
+   - Coverage: test coverage report with Codecov upload and PR comment
 3. PR shows status badges and coverage comments
 4. Must pass before merge
 
@@ -154,9 +155,9 @@ coverage report --include=algo/ --skip-covered
    - ✅ Clear error messages
 
 6. **CI/CD Integration**
-   - ✅ Fast gates for quick feedback (~90 sec)
-   - ✅ Full gates for comprehensive validation (~10 min)
-   - ✅ Coverage tracking and PR comments
+   - ✅ Single consolidated workflow for all required checks (~12 min)
+   - ✅ Security scanning (secrets, dependencies, code, IaC)
+   - ✅ Coverage tracking and PR comments with Codecov integration
 
 7. **Documentation**
    - ✅ Steering doc explains standards
@@ -183,11 +184,12 @@ This prevents legitimate commits from being blocked by pre-existing issues in de
 
 ### CI/CD Enhancement
 
-**Before:** Only fast gates (security, quick tests)
+**Before:** Two separate workflows (ci-fast-gates + quality-gates) with duplicate checks
 
-**After:** Two-level system:
-- Fast gates for quick feedback (90s)
-- Quality gates for comprehensive checks (10m)
+**After:** Single consolidated workflow (ci-fast-gates.yml):
+- All required checks in one run (~12 min)
+- Security scanning, linting, type checking, tests, and coverage
+- No duplicate work or CI overhead
 
 ### Documentation
 

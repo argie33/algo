@@ -179,6 +179,16 @@ Daily Schedule (Proposed):
    - Infrastructure changes now require human review + merge + manual approval
    - **Completed:** Terraform apply is now manual-only
 
+6. **Lambda Layer Management Scattered** ✅ FIXED (Issue #6)
+   - ~~`build-lambda-layer.yml`: 150+ lines of shell/Python layer building~~
+   - ~~`deploy-staging.yml`: 80+ lines duplicated layer logic~~
+   - ✅ **FIXED:** Centralized Lambda layer management:
+     - `terraform/modules/lambda-layers/`: Single source of truth for layer definitions
+     - `scripts/build-lambda-layers.py`: Consistent, testable layer builder (replaces scattered scripts)
+     - Workflows now simply call Python script instead of duplicating logic
+   - **Completed:** Layer definitions versioned, building toolchain unified
+   - **See:** `steering/lambda-layer-management.md` for details
+
 ### 🟡 Medium
 
 4. **Operational Workflows Need Scheduling** ✅ CREDENTIALS FIXED
