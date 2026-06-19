@@ -130,15 +130,13 @@ jobs:
         run: |
           echo "🎨 Checking code formatting..."
           black --check algo/ loaders/ lambda/ tests/ --line-length=120
-        continue-on-error: true
 
       - name: Check imports with isort
         run: |
           echo "📦 Checking import ordering..."
           isort --check-only algo/ loaders/ lambda/ tests/
-        continue-on-error: true
 
-      - name: Lint with flake8
+      - name: Lint with flake8 (advisory only)
         run: |
           echo "🔍 Linting code..."
           flake8 algo/ loaders/ lambda/ tests/ \
