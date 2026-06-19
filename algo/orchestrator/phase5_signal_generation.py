@@ -55,13 +55,18 @@ _REQUIRED_SIGNAL_FIELDS = {
 }
 
 
-def _validate_signal_completeness(candidates: List[Dict], source: str) -> None:
-    """ISSUE #6 FIX: Validate that all signals have required fields for Phase 6.
+def _validate_signal_completeness(candidates: List[Dict], source: str) -> Tuple[List[Dict], int]:
+    """ISSUE #8 FIX: Filter signals with missing required fields for Phase 6.
 
-    Raises RuntimeError with detailed report if any required field is missing.
-    This prevents silent skips in downstream entry execution.
+    Logs each incomplete signal explicitly (so operators see what was excluded).
+    Returns (complete_signals, incomplete_count).
+
+    This prevents silent skips by providing upstream alerts when signals are filtered
+    due to incomplete data.
     """
-    missing_by_symbol = {}
+    complete_signals = []
+    incomplete_count = 0
+
     for sig in candidates:
         symbol = sig.get("symbol", "UNKNOWN")
         missing_fields = []
@@ -69,24 +74,23 @@ def _validate_signal_completeness(candidates: List[Dict], source: str) -> None:
             val = sig.get(field_name)
             if val is None:
                 missing_fields.append(field_name)
-        if missing_fields:
-            missing_by_symbol[symbol] = missing_fields
 
-    if missing_by_symbol:
-        error_msg = (
-            f"[PHASE 5 CRITICAL] Signal data validation failed ({source}). "
-            f"{len(missing_by_symbol)} signal(s) missing required fields for Phase 6 entry execution:\n"
+        if missing_fields:
+            incomplete_count += 1
+            logger.warning(
+                f"[PHASE 5] {symbol}: incomplete signal data — filtering from candidates "
+                f"(missing: {', '.join(missing_fields)}). Source={source}"
+            )
+        else:
+            complete_signals.append(sig)
+
+    if incomplete_count > 0:
+        logger.info(
+            f"[PHASE 5] Signal completeness validation ({source}): "
+            f"{incomplete_count} incomplete signals filtered, {len(complete_signals)} complete signals retained"
         )
-        for symbol, fields in list(missing_by_symbol.items())[:5]:
-            error_msg += f"  {symbol}: missing {', '.join(fields)}\n"
-        if len(missing_by_symbol) > 5:
-            error_msg += f"  ... and {len(missing_by_symbol) - 5} more\n"
-        error_msg += (
-            "Signals with incomplete data will be silently skipped in Phase 6 with no upstream alert. "
-            "This is a data pipeline error — check that buy_sell_daily loader populated all columns correctly."
-        )
-        logger.critical(error_msg)
-        raise RuntimeError(error_msg)
+
+    return complete_signals, incomplete_count
 
 
 def _check_market_regime(run_date: _date) -> Dict:
@@ -279,10 +283,10 @@ def _get_candidates_from_buysell(
             f"(swing_scores: {swing_score_count}, missing: {swing_score_missing}, lookback: {lookback_date} to {run_date})"
         )
 
-        # ISSUE #6 FIX: Validate signal data completeness before returning to Phase 6
-        _validate_signal_completeness(candidates, "buy_sell_daily path")
+        # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6
+        complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "buy_sell_daily path")
 
-        return candidates
+        return complete_candidates
     except Exception as e:
         raise RuntimeError(
             f"[PHASE 5] Failed to fetch buy_sell_daily candidates: {e}. "
@@ -380,10 +384,10 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
             f"(swing_scores: {swing_score_count}, missing: {swing_score_missing})"
         )
 
-        # ISSUE #6 FIX: Validate signal data completeness before returning to Phase 6
-        _validate_signal_completeness(candidates, "stock_scores fallback path")
+        # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6
+        complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "stock_scores fallback path")
 
-        return candidates
+        return complete_candidates
     except Exception as e:
         raise RuntimeError(
             f"[PHASE 5] Failed to fetch candidates: {e}. "
