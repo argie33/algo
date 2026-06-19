@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Any, Dict, Optional
 
 # Import get_config from lambda/api/api_utils/config.py
 from api_utils.config import get_config
@@ -31,10 +31,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: Dict[str, Any],
+    body: Optional[Dict[str, Any]] = None,
+    jwt_claims: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Handle health check endpoints.
 
     /api/health — PUBLIC, no auth required. Basic system status.
@@ -55,7 +55,7 @@ def handle(
         return _handle_basic(cur)
 
 
-def _handle_basic(cur) -> Dict:
+def _handle_basic(cur) -> Dict[str, Any]:
     """Basic health check - PUBLIC, no auth required.
 
     Fast health check: DB connectivity + key metrics (optimized).
@@ -63,7 +63,7 @@ def _handle_basic(cur) -> Dict:
     """
     import_status = get_api_import_status()
 
-    health = {
+    health: Dict[str, Any] = {
         "status": "healthy",
         "version": "v2-2026-06-06",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -160,7 +160,7 @@ def _handle_basic(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _handle_cognito(cur) -> Dict:
+def _handle_cognito(cur) -> Dict[str, Any]:
     """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
 
     This endpoint is called by pre-deploy validation (GitHub Actions) to ensure
@@ -182,7 +182,7 @@ def _handle_cognito(cur) -> Dict:
         cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
         cognito_region = os.getenv("AWS_REGION", "us-east-1").strip()
 
-        health = {
+        health: Dict[str, Any] = {
             "status": "healthy",
             "check_type": "cognito_configuration",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -267,7 +267,7 @@ def _handle_cognito(cur) -> Dict:
         return error_response(503, "health_check_error", str(e)[:100])
 
 
-def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
+def _handle_detailed(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
@@ -303,7 +303,7 @@ def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
+def _handle_pipeline(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
