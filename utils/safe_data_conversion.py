@@ -37,7 +37,7 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         Float value or default if conversion fails
 
     Raises:
-        ValueError: If value is a string like "NaN" or "Infinity" (logged as warning)
+        ValueError: If value is NaN or Infinity (fails fast — required for calculations like position sizing)
     """
     if value is None:
         return default
@@ -47,19 +47,23 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
 
     try:
         f = float(value)
-
-        # Reject NaN and Infinity explicitly
-        if math.isnan(f):
-            logger.warning(f"NaN value rejected {context}")
-            return default
-        if math.isinf(f):
-            logger.warning(f"Infinity value rejected {context}")
-            return default
-
-        return f
     except (ValueError, TypeError) as e:
         logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
         return default
+
+    # Reject NaN and Infinity explicitly — fail fast instead of silently returning 0.0.
+    # Position sizing, risk calculations, and other critical paths require valid data.
+    # Silent degradation to 0.0 masks data errors that should be fixed, not ignored.
+    if math.isnan(f):
+        msg = f"NaN value in critical calculation {context} — data error must be fixed"
+        logger.error(msg)
+        raise ValueError(msg)
+    if math.isinf(f):
+        msg = f"Infinity value in critical calculation {context} — data error must be fixed"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    return f
 
 
 def safe_float_strict(value: Any, context: str = "") -> Optional[float]:

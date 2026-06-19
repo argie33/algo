@@ -146,29 +146,33 @@ class AdvancedFilters:
 
             # ===== HARD-FAIL gates (independent) =====
 
-            # H1. Earnings proximity
+            # H1. Earnings proximity (CRITICAL: must not skip on exception)
             days_to_earnings = None
             try:
                 days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
             except ValueError as e:
-                # No earnings data available — warn but don't block.
-                # Pre-tier EarningsBlackout already catches known proximity windows.
-                # Blocking on unknown earnings would eliminate many valid setups.
-                logger.debug(f"  {symbol}: {e} — skipping earnings gate")
+                # Earnings data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # Continuing without earnings check exposes position to surprise earnings gaps.
+                hard_fail = f"Earnings data unavailable (cannot validate blackout): {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
             components["days_to_earnings"] = days_to_earnings
             block_window = int(self.config.get("block_days_before_earnings", 5))
             if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
                 hard_fail = (
-                    f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
+                    hard_fail
+                    or f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
                 )
 
-            # H2. Over-extended
+            # H2. Over-extended (CRITICAL: must not skip on exception)
             ext_pct = None
             try:
                 ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
             except ValueError as e:
-                logger.debug(f"  {symbol}: Extension check failed: {e} — allowing trade")
+                # SMA_50 data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # Cannot measure extension without SMA_50; trade validity is unmeasurable.
+                hard_fail = f"Extension validation failed (SMA_50 missing): {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
             components["extension_pct"] = ext_pct
             max_extension = float(self.config.get("max_extension_above_50ma_pct", 15.0))
@@ -178,12 +182,15 @@ class AdvancedFilters:
                     or f"{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})"
                 )
 
-            # H4. Liquidity (institutional must)
+            # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
             avg_dollar_vol = None
             try:
                 avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             except ValueError as e:
-                logger.debug(f"  {symbol}: Liquidity check failed: {e} — allowing trade")
+                # Liquidity data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # Cannot validate minimum liquidity; trade size calculation is unreliable.
+                hard_fail = f"Liquidity validation failed (price/volume missing): {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
             components["avg_dollar_volume"] = avg_dollar_vol
             min_liq = float(self.config.get("min_avg_daily_dollar_volume", 500_000))
