@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Import get_config from lambda/api/api_utils/config.py
 from api_utils.config import get_config
@@ -31,10 +31,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict[str, Any],
-    body: Optional[Dict[str, Any]] = None,
-    jwt_claims: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Handle health check endpoints.
 
     /api/health — PUBLIC, no auth required. Basic system status.
@@ -44,18 +44,18 @@ def handle(
     """
 
     # Route to appropriate handler
-    if path.startswith("/api/health/cognito") or path.startswith("/health/cognito"):
+    if path.startswith(("/api/health/cognito", "/health/cognito")):
         return _handle_cognito(cur)
-    elif path.startswith("/api/health/detailed") or path.startswith("/health/detailed"):
+    elif path.startswith(("/api/health/detailed", "/health/detailed")):
         return _handle_detailed(cur, jwt_claims)
-    elif path.startswith("/api/health/pipeline") or path.startswith("/health/pipeline"):
+    elif path.startswith(("/api/health/pipeline", "/health/pipeline")):
         return _handle_pipeline(cur, jwt_claims)
     else:
         # Basic health check (default for /api/health)
         return _handle_basic(cur)
 
 
-def _handle_basic(cur) -> Dict[str, Any]:
+def _handle_basic(cur) -> dict[str, Any]:
     """Basic health check - PUBLIC, no auth required.
 
     Fast health check: DB connectivity + key metrics (optimized).
@@ -63,7 +63,7 @@ def _handle_basic(cur) -> Dict[str, Any]:
     """
     import_status = get_api_import_status()
 
-    health: Dict[str, Any] = {
+    health: dict[str, Any] = {
         "status": "healthy",
         "version": "v2-2026-06-06",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -160,7 +160,7 @@ def _handle_basic(cur) -> Dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _handle_cognito(cur) -> Dict[str, Any]:
+def _handle_cognito(cur) -> dict[str, Any]:
     """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
 
     This endpoint is called by pre-deploy validation (GitHub Actions) to ensure
@@ -182,7 +182,7 @@ def _handle_cognito(cur) -> Dict[str, Any]:
         cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
         cognito_region = os.getenv("AWS_REGION", "us-east-1").strip()
 
-        health: Dict[str, Any] = {
+        health: dict[str, Any] = {
             "status": "healthy",
             "check_type": "cognito_configuration",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -267,13 +267,13 @@ def _handle_cognito(cur) -> Dict[str, Any]:
         return error_response(503, "health_check_error", str(e)[:100])
 
 
-def _handle_detailed(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
 
     try:
-        _HEALTH_TABLES = (
+        health_tables = (
             "price_daily",
             "swing_trader_scores",
             "stock_scores",
@@ -287,11 +287,11 @@ def _handle_detailed(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any
             FROM pg_stat_user_tables
             WHERE relname = ANY(%s)
             """,
-            params=(_HEALTH_TABLES,),
+            params=(health_tables,),
             timeout_sec=5,
         )
         table_counts = {row[0]: row[1] for row in rows}
-        for t in _HEALTH_TABLES:
+        for t in health_tables:
             table_counts.setdefault(t, 0)
 
         return success_response(
@@ -303,7 +303,7 @@ def _handle_detailed(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any
         return error_response(code, error_type, message)
 
 
-def _handle_pipeline(cur, jwt_claims: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")

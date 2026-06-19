@@ -6,6 +6,7 @@ Handles dynamic token lifecycle: authentication, refresh, caching, and expiry.
 import json
 import logging
 import os
+import platform
 import sys
 import time
 from datetime import datetime
@@ -31,6 +32,7 @@ class CognitoAuth:
         self.refresh_token: str | None = None
         self.token_expires_at: float | None = None
         self.username: str | None = None
+        self._auth_lost_time: float | None = None
 
     def _parse_jwt_expiry(self, token: str) -> float | None:
         """Parse JWT expiry time. Returns Unix timestamp or None if invalid."""
@@ -108,9 +110,13 @@ class CognitoAuth:
 
         if self.is_token_expired():
             if not self.refresh_token:
-                return {}  # No refresh token to use
+                logger.warning("Token expired and no refresh token available - authentication lost")
+                self._auth_lost_time = time.time()
+                return {}
             if not self.refresh_access_token():
-                return {}  # Refresh failed, don't send expired token
+                logger.error("Token refresh failed - user must re-authenticate")
+                self._auth_lost_time = time.time()
+                return {}
 
         # Validate token format (must be a valid JWT with 3 parts separated by dots)
         if self.access_token and not self._is_valid_jwt(self.access_token):
@@ -134,6 +140,10 @@ class CognitoAuth:
     def is_authenticated(self) -> bool:
         """Check if user has valid credentials."""
         return bool(self.access_token) and not self.is_token_expired()
+
+    def has_lost_authentication(self) -> bool:
+        """Check if authentication was recently lost due to token failure."""
+        return self._auth_lost_time is not None
 
 
 def _get_or_create_test_user() -> tuple[str, str]:
@@ -221,12 +231,18 @@ def get_cognito_auth(
     if os.path.exists(token_file):
         try:
             # Verify file permissions are restrictive (owner read/write only)
-            file_stat = os.stat(token_file)
-            file_mode = file_stat.st_mode & 0o777
-            if file_mode != 0o600:
-                logger.warning(
-                    f"[Cognito] Token file has overly permissive mode {oct(file_mode)}, removing"
-                )
+            # Only enforce on Unix-like systems; Windows NTFS doesn't use these permission bits
+            should_remove = False
+            if platform.system() != "Windows":
+                file_stat = os.stat(token_file)
+                file_mode = file_stat.st_mode & 0o777
+                if file_mode != 0o600:
+                    logger.warning(
+                        f"[Cognito] Token file has overly permissive mode {oct(file_mode)}, removing"
+                    )
+                    should_remove = True
+
+            if should_remove:
                 os.remove(token_file)
             else:
                 with open(token_file) as f:

@@ -85,9 +85,16 @@ class PanelRegistry:
             render_fn: Optional rendering function (can be added later)
             optional: If True, dashboard renders even if endpoint missing
             description: Human-readable panel description
+
+        Raises:
+            ValueError: If render_fn is not callable, or if required endpoints are missing/undefined
         """
         if name in self._panels:
             logger.warning(f"Panel {name} already registered, replacing")
+
+        # Validate render function is callable
+        if render_fn is not None and not callable(render_fn):
+            raise ValueError(f"Panel {name}: render_fn is not callable")
 
         # Validate endpoints exist in contract
         if EndpointRegistry is not None:
@@ -96,7 +103,10 @@ class PanelRegistry:
                 if not EndpointRegistry.validate_endpoint_exists(endpoint):
                     missing.append(endpoint)
             if missing:
-                logger.warning(f"Panel {name} requires undefined endpoints: {missing}")
+                logger.warning(
+                    f"Panel {name} requires undefined endpoints: {missing}"
+                    f" (optional={optional})"
+                )
 
         panel_def = PanelDefinition(
             name=name,
@@ -116,7 +126,12 @@ class PanelRegistry:
         Args:
             name: Panel name
             render_fn: Rendering function
+
+        Raises:
+            ValueError: If render_fn is not callable
         """
+        if not callable(render_fn):
+            raise ValueError(f"Panel {name}: render_fn is not callable")
         if name not in self._panels:
             logger.warning(f"Registering render function for unregistered panel {name}")
         self._render_functions[name] = render_fn

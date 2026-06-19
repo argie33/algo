@@ -112,6 +112,9 @@ def mkt_hours_str() -> tuple:
 
     Uses MarketCalendar for accurate trading hours including holidays and early closes.
     Falls back to hardcoded hours if calendar unavailable.
+
+    After-hours status shows "[orange1]⊘ MARKET CLOSED[/]" to make it clear the market
+    is not trading while all data (VIX, hi/lo, etc.) remains fully visible and relevant.
     """
     try:
         from algo.infrastructure import MarketCalendar
@@ -121,13 +124,13 @@ def mkt_hours_str() -> tuple:
         reason = status.get("reason", "")
 
         if status_val == "OPEN":
-            return "[bold bright_green]- OPEN[/]", reason
+            return "[bold bright_green]◆ OPEN[/]", reason
         elif status_val == "PRE_MARKET":
-            return "[yellow]- PRE-MKT[/]", reason
+            return "[yellow]◇ PRE-MKT[/]", reason
         elif status_val == "AFTER_HOURS":
-            return "[dim]- AFTER-HRS[/]", reason
+            return "[orange1]⊘ AFTER-HRS[/]", reason
         else:
-            return "[dim]- CLOSED[/]", reason
+            return "[orange1]⊘ CLOSED[/]", reason
     except Exception as market_err:
         import logging
 
@@ -150,7 +153,7 @@ def mkt_hours_str() -> tuple:
         )
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
         return (
-            "[dim]- CLOSED[/]",
+            "[orange1]⊘ CLOSED[/]",
             f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
         )
 
@@ -161,13 +164,13 @@ def mkt_hours_str() -> tuple:
 
     if t < PRE_OPEN:
         diff_m = OPEN - t
-        return "[dim]- CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
+        return "[orange1]⊘ CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
     if t < OPEN:
         diff_m = OPEN - t
-        return "[yellow]- PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
+        return "[yellow]◇ PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
     if t < CLOSE:
         diff_m = CLOSE - t
-        return "[bold bright_green]- OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
+        return "[bold bright_green]◆ OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
     if t < AH_END:
         next_days = 3 if wd == 4 else 1
         open_dt = (n + timedelta(days=next_days)).replace(
@@ -175,7 +178,7 @@ def mkt_hours_str() -> tuple:
         )
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
         return (
-            "[dim]- AFTER-HRS[/]",
+            "[orange1]⊘ AFTER-HRS[/]",
             f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
         )
     next_days = 3 if wd == 4 else 1
@@ -183,7 +186,7 @@ def mkt_hours_str() -> tuple:
         hour=9, minute=30, second=0, microsecond=0
     )
     diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-    return "[dim]- CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+    return "[orange1]⊘ CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
 
 def next_run_str() -> str:

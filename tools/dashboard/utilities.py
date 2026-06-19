@@ -157,6 +157,12 @@ def set_cognito_auth(auth):
         _cognito_auth = auth
 
 
+def get_cognito_auth():
+    """Get the current Cognito authentication instance."""
+    with _cognito_auth_lock:
+        return _cognito_auth
+
+
 def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
     """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
 
