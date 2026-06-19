@@ -642,9 +642,12 @@ class AlgoConfig:
         self._load_from_database()
         t2 = time.time()
         logger.info(f"[AlgoConfig] database loaded in {t2-t1:.2f}s, total {t2-t0:.2f}s")
+        self._validate_critical_thresholds()
+        t_crit = time.time()
+        logger.info(f"[AlgoConfig] critical threshold validation completed in {t_crit-t2:.2f}s")
         self._validate_config_interdependencies()
         t3 = time.time()
-        logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t2:.2f}s")
+        logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t_crit:.2f}s")
 
     def _load_defaults(self):
         """Load default configuration."""
@@ -751,6 +754,52 @@ class AlgoConfig:
         except (TypeError, ValueError) as e:
             logger.error(f"Config validation failed: {e}")
             raise
+
+    def _validate_critical_thresholds(self):
+        """Fail-fast validation: critical safety thresholds must never be zero.
+
+        These thresholds disable critical safety gates if zero. This function catches
+        corrupt/missing config before trading can begin.
+
+        Raises RuntimeError if any critical threshold is zero or None.
+        """
+        critical_thresholds = {
+            "min_signal_quality_score": 60,
+            "min_swing_score": 55.0,
+            "min_completeness_score": 70,
+            "min_volume_ma_50d": 300000,
+            "min_avg_daily_dollar_volume": 500000.0,
+            "earnings_blackout_days_before": 7,
+            "earnings_blackout_days_after": 3,
+            "halt_drawdown_pct": -20.0,
+            "max_daily_loss_pct": 2.0,
+            "vix_max_threshold": 35.0,
+        }
+
+        errors = []
+        for key, expected_value in critical_thresholds.items():
+            current_value = self._config.get(key)
+            if current_value is None:
+                errors.append(
+                    f"  CRITICAL: {key} is not configured (None). "
+                    f"Expected minimum: {expected_value}"
+                )
+            elif current_value == 0 or float(current_value) == 0.0:
+                errors.append(
+                    f"  CRITICAL: {key} = 0 disables safety gate. "
+                    f"Expected minimum: {expected_value}"
+                )
+
+        if errors:
+            error_msg = (
+                "SAFETY GATE FAILURE: Critical thresholds are zero or missing.\n"
+                "This disables trading safety features completely.\n\n"
+                + "\n".join(errors)
+                + "\n\nAction: Restore safety thresholds before trading.\n"
+                "Check database or restore migration-033."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
     def _validate_config_interdependencies(self):
         """Validate configuration interdependencies at startup.
