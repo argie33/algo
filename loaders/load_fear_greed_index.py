@@ -38,8 +38,7 @@ class FearGreedIndexLoader(OptimalLoader):
             url, allowed_domains=["cnn.io", "dataviz.cnn.io"]
         )
         if not is_valid:
-            logger.error(f"SSRF prevention: Invalid URL {url}: {error_msg}")
-            return None
+            raise RuntimeError(f"SSRF prevention: Invalid URL {url}: {error_msg}")
         # CNN blocks plain User-Agent strings from data centers. Mimic a real browser.
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -69,8 +68,10 @@ class FearGreedIndexLoader(OptimalLoader):
                     "fear_and_greed" not in data
                     and "fear_and_greed_historical" not in data
                 ):
-                    logger.warning("Invalid Fear & Greed data format")
-                    return None
+                    raise RuntimeError(
+                        "Invalid Fear & Greed data format from CNN API. "
+                        "Response is missing expected data fields."
+                    )
 
                 # CNN API two known formats:
                 # New: {"fear_and_greed": {...current dict...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
@@ -134,22 +135,54 @@ class FearGreedIndexLoader(OptimalLoader):
                     seen[r["date"]] = r
                 rows = list(seen.values())
 
-                return rows if rows else None
+                if not rows:
+                    raise RuntimeError(
+                        "No valid Fear & Greed index entries parsed from CNN API response. "
+                        "All entries were rejected during parsing."
+                    )
+                return rows
 
-            except Exception as e:
+            except requests.exceptions.Timeout:
                 if attempt < 2:
                     logger.warning(
-                        f"Fear & Greed fetch error (attempt {attempt + 1}/3): {e}"
+                        f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying..."
                     )
                     time.sleep((attempt + 1) * 5)
                 else:
-                    logger.error(f"Failed to fetch Fear & Greed index: {e}")
-                    return None
+                    raise RuntimeError(
+                        "Failed to fetch Fear & Greed index after 3 timeout attempts. "
+                        "CNN API is unreachable or slow."
+                    )
+            except requests.exceptions.ConnectionError:
+                if attempt < 2:
+                    logger.warning(
+                        f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying..."
+                    )
+                    time.sleep((attempt + 1) * 5)
+                else:
+                    raise RuntimeError(
+                        "Failed to fetch Fear & Greed index after 3 connection errors. "
+                        "Cannot reach CNN API."
+                    )
+            except (ValueError, KeyError, TypeError) as e:
+                raise RuntimeError(
+                    f"[FEAR_GREED] Data format error parsing CNN response: {e}. "
+                    "CNN API response format may have changed."
+                ) from e
+            except requests.exceptions.HTTPError as e:
+                raise RuntimeError(
+                    f"[FEAR_GREED] HTTP error from CNN: {e}. "
+                    "Check CNN API status and rate limits."
+                ) from e
+            except Exception as e:
+                raise RuntimeError(
+                    f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}."
+                ) from e
 
-        logger.error(
-            "Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block)"
+        raise RuntimeError(
+            "Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block). "
+            "CNN API is blocking requests (rate limit or access restriction)."
         )
-        return None
 
 
 def main():
@@ -164,8 +197,8 @@ def main():
                 logger.info("SUCCESS: Fear & Greed data loaded")
                 return 0
             else:
-                logger.warning("COMPLETED: No data loaded")
-                return 0
+                logger.error("FAILED: No Fear & Greed data loaded")
+                return 1
     except Exception as e:
         logger.error(f"Fear & Greed load failed: {e}", exc_info=True)
         return 1

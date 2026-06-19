@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 import pandas as pd
+import psycopg2
 
 from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
@@ -81,11 +82,17 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         rows = self._fetch_price_daily("SPY", start, end)
         if not rows:
-            return []
+            raise RuntimeError(
+                f"[MARKET_HEALTH] No SPY price data available for {start} to {end}. "
+                "Cannot compute market health metrics without price data."
+            )
 
         health_metrics = self._compute_market_health(rows)
         if not health_metrics:
-            return []
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Failed to compute health metrics from {len(rows)} price rows. "
+                "Market health computation should never produce empty results from valid input."
+            )
 
         logger.info(
             f"Computed {len(health_metrics)} health metrics from {len(rows)} price rows, date range: {health_metrics[0]['date']} to {health_metrics[-1]['date']}"
@@ -139,12 +146,16 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
-                logger.error(f"[VIX DATA ISSUE] Ticker ^VIX not available from yfinance for {start} to {end}")
-                return {}
+                raise RuntimeError(
+                    f"[VIX DATA ISSUE] Ticker ^VIX not available from yfinance for {start} to {end}. "
+                    "VIX is a required input for market health computation."
+                )
             df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
-                logger.error(f"[VIX DATA ISSUE] yfinance ^VIX returned no data for {start} to {end}")
-                return {}
+                raise RuntimeError(
+                    f"[VIX DATA ISSUE] yfinance ^VIX returned no data for {start} to {end}. "
+                    "Cannot compute market health without VIX price data."
+                )
 
             result = {}
             rejected_count = 0
@@ -169,9 +180,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     rejected_count += 1
                     rejected_values.append(close_float)
 
-            # CRITICAL ERROR: If we got data but ZERO valid values, report it
+            # CRITICAL ERROR: If we got data but ZERO valid values, raise
             if rejected_count > 0 and len(result) == 0:
-                logger.error(
+                raise RuntimeError(
                     f"[VIX DATA ISSUE] yfinance returned {rejected_count} values, "
                     f"ALL were < 5.0 (invalid): {rejected_values[:5]}... "
                     f"This is a DATA QUALITY issue, not a network problem. "
@@ -181,7 +192,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             elif len(result) > 0:
                 logger.info(f"[VIX] Fetched {len(result)} valid days, rejected {rejected_count} low values")
             else:
-                logger.warning("[VIX] No data returned by yfinance")
+                raise RuntimeError(
+                    "[VIX] No valid VIX data returned by yfinance. "
+                    "Cannot compute market health without valid VIX values."
+                )
 
             return result
         except Exception as e:
@@ -202,14 +216,16 @@ class MarketHealthDailyLoader(OptimalLoader):
         today = datetime.now(EASTERN_TZ).date()
         if not MarketCalendar.is_trading_day(today):
             logger.debug("Put/call: skipping (not a trading day)")
-            return None
+            return None  # OK to return None on non-trading days—no options data expected
         try:
             from utils.external.yfinance import YFinanceWrapper, _throttled_yf_request
 
             ticker = YFinanceWrapper.get_ticker("SPY")
             if not ticker:
-                logger.warning("Put/call: could not get SPY ticker from yfinance")
-                return None
+                raise RuntimeError(
+                    "Put/call: could not get SPY ticker from yfinance. "
+                    "Cannot compute put/call ratio for market health."
+                )
 
             # ticker.options makes an outbound request — run through the rate limiter
             # so it doesn't race against other yfinance calls sharing the NAT gateway IP.
@@ -222,8 +238,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
 
             if not expirations:
-                logger.warning("Put/call: no option expirations returned by yfinance (ticker.options empty)")
-                return None
+                raise RuntimeError(
+                    "Put/call: no option expirations returned by yfinance (ticker.options empty). "
+                    "Cannot compute put/call ratio without available option contracts."
+                )
 
             total_puts = 0.0
             total_calls = 0.0
@@ -233,8 +251,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                     chain = _throttled_yf_request(lambda e=exp: ticker.option_chain(e))
                     total_puts += float(chain.puts["volume"].fillna(0).sum())
                     total_calls += float(chain.calls["volume"].fillna(0).sum())
+                except (AttributeError, KeyError, ValueError, TypeError) as e:
+                    logger.warning(f"Put/call: option_chain({exp}) data format error: {e}")
+                    chain_errors += 1
+                    continue
                 except Exception as e:
-                    logger.warning(f"Put/call: option_chain({exp}) failed: {e}")
+                    logger.warning(f"Put/call: option_chain({exp}) unexpected error: {e}")
                     chain_errors += 1
                     continue
 
@@ -635,11 +657,20 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 logger.info(
                     f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}"
                 )
+            except (AttributeError, KeyError, ValueError, TypeError) as e:
+                logger.warning(f"Failed to fetch {sym}: Data format error: {e}")
+                continue
+            except RuntimeError:
+                raise
             except Exception as e:
-                logger.warning(f"Failed to fetch {sym}: {e}")
+                logger.warning(f"Failed to fetch {sym}: Unexpected error: {e}")
+                continue
 
         if not records:
-            return 0
+            raise RuntimeError(
+                f"[VIX_PRICES] No VIX family or index prices could be fetched from yfinance for any of {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols. "
+                "All fetch attempts failed. Cannot load market health without these critical indices."
+            )
 
         with DatabaseContext("write") as cur:
             cur.executemany(

@@ -258,19 +258,16 @@ class SignalsDailyLoader(OptimalLoader):
                     else 0
                 )
 
-                # Warn if technical data covers < 70% of price symbols (normal is 80-83%)
-                # RESILIENCE FIX: Allow signal generation to proceed even with incomplete technical data.
-                # Technical columns will be backfilled by enrich_buy_sell_daily_technical.py after loader completes.
-                # This prevents rejection of all signals when upstream loader is slow or partially failed.
+                # Fail-fast if technical data covers < 70% of price symbols (normal is 80-83%)
+                # Do not generate signals with incomplete technical data—this would create inconsistent coverage.
+                # Upstream loader must complete or fix coverage issues before signal generation proceeds.
                 if tech_coverage < 70:
-                    logger.warning(
+                    raise RuntimeError(
                         f"{symbol}: technical_data_daily incomplete for {end}: "
                         f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols "
-                        f"({tech_coverage:.1f}%, expected >= 70%). "
-                        "Proceeding with signal generation - technical data will be backfilled later."
+                        f"({tech_coverage:.1f}%, required >= 70%). "
+                        "Cannot generate buy/sell signals without sufficient technical data coverage."
                     )
-                    # Do NOT return [] — allow signals to be generated even without complete technical data
-                    # The enrichment script will populate technical columns afterward
         except Exception as e:
             raise RuntimeError(
                 f"[BUY_SELL_DAILY] Failed to validate data for {symbol}: {e}. "
@@ -280,10 +277,10 @@ class SignalsDailyLoader(OptimalLoader):
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
         if not rows:
-            logger.warning(
-                f"{symbol}: No technical data found between {start} and {end}"
+            raise RuntimeError(
+                f"[BUY_SELL_DAILY] No technical data found for {symbol} between {start} and {end}. "
+                "Cannot generate signals without technical indicators."
             )
-            return []
 
         # Generate signals
         signals = self._generate_signals(symbol, rows)
@@ -903,8 +900,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)
-    sys.exit(main())

@@ -36,8 +36,7 @@ class SP500ConstituentsLoader(OptimalLoader):
         # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
         is_valid, error_msg = validate_url(SP500_URL, allowed_domains=["wikipedia.org"])
         if not is_valid:
-            logger.error(f"SSRF prevention: Invalid S&P 500 URL: {error_msg}")
-            return None
+            raise RuntimeError(f"SSRF prevention: Invalid S&P 500 URL: {error_msg}")
 
         try:
             logger.info("Fetching S&P 500 constituents from Wikipedia")
@@ -49,16 +48,22 @@ class SP500ConstituentsLoader(OptimalLoader):
                 response = requests.get(SP500_URL, headers=headers, timeout=15)
                 response.raise_for_status()
             except requests.exceptions.Timeout:
-                logger.error("S&P 500 fetch timeout")
-                return None
+                raise RuntimeError(
+                    "S&P 500 fetch timeout. Wikipedia API is unreachable or slow. "
+                    "Cannot load S&P 500 constituent list."
+                )
             except requests.exceptions.ConnectionError:
-                logger.error("S&P 500 connection error")
-                return None
+                raise RuntimeError(
+                    "S&P 500 connection error. Cannot reach Wikipedia. "
+                    "Cannot load S&P 500 constituent list."
+                )
 
             tables = pd.read_html(StringIO(response.text))
             if not tables:
-                logger.error("Could not find S&P 500 table")
-                return None
+                raise RuntimeError(
+                    "Could not find S&P 500 table in Wikipedia response. "
+                    "Wikipedia page format may have changed."
+                )
 
             df = tables[0]
             col = "Symbol" if "Symbol" in df.columns else "Ticker"
@@ -91,8 +96,8 @@ def main():
                 logger.info(f"SUCCESS: {result} S&P 500 symbols marked")
                 return 0
             else:
-                logger.warning("COMPLETED: No symbols marked")
-                return 0
+                logger.error("FAILED: No S&P 500 symbols loaded")
+                return 1
     except Exception as e:
         logger.error(f"S&P 500 constituents load failed: {e}", exc_info=True)
         return 1

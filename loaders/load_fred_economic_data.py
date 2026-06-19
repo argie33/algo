@@ -238,17 +238,28 @@ class FredEconomicDataLoader(OptimalLoader):
                         )
                         failed_series.append(series_id)
                         break  # Don't retry on non-rate-limit errors
+                except (ValueError, TypeError, KeyError) as e:
+                    raise RuntimeError(
+                        f"[FRED] Data format error for {series_id}: {e}. "
+                        "FRED API response format may have changed or data is corrupted."
+                    ) from e
                 except Exception as e:
-                    logger.error(f"  {series_id}: ERROR — {e}")
-                    failed_series.append(series_id)
-                    break  # Don't retry on other exceptions
+                    raise RuntimeError(
+                        f"[FRED] Unexpected error fetching {series_id}: {e}. "
+                        "Cannot proceed reliably — stopping FRED data fetch."
+                    ) from e
 
         if failed_series:
             logger.warning(
                 f"Failed to fetch {len(failed_series)} series: {', '.join(failed_series)}"
             )
 
-        return all_rows if all_rows else None
+        if not all_rows:
+            raise RuntimeError(
+                "No FRED economic data could be fetched. All series failed or returned no observations. "
+                "Check FRED API status and credentials."
+            )
+        return all_rows
 
 
 def main():
@@ -263,8 +274,8 @@ def main():
                 logger.info(f"SUCCESS: {result} economic data records loaded")
                 return 0
             else:
-                logger.warning("COMPLETED: No records loaded")
-                return 0
+                logger.error("FAILED: No FRED economic data records loaded")
+                return 1
     except Exception as e:
         logger.error(f"FRED economic data load failed: {e}", exc_info=True)
         return 1

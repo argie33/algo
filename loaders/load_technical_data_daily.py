@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 import pandas as pd
+import psycopg2
 import psycopg2.sql
 from pandas.tseries.offsets import CustomBusinessDay
 
@@ -73,10 +74,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
                             if isinstance(row[0], date)
                             else date.fromisoformat(str(row[0]))
                         )
-            except Exception as e:
-                logger.warning(
-                    f"Could not read technical_data_daily watermark for {symbol}: {e}"
-                )
+            except (psycopg2.Error, ValueError) as e:
+                raise RuntimeError(
+                    f"[WATERMARK] Failed to read watermark for {symbol}: {e}. "
+                    "Cannot determine incremental load point—cannot proceed."
+                ) from e
 
         if since is None:
             # On ECS restart, load last 60 days only (not 5 years)
@@ -89,7 +91,10 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         rows = self._fetch_price_daily(symbol, start, end)
         if not rows:
-            return []
+            raise RuntimeError(
+                f"[TECHNICAL_DATA] No price data available for {symbol} from {start} to {end}. "
+                "Cannot compute technical indicators without price history."
+            )
 
         spy_rows = self._fetch_price_daily("SPY", start, end) if symbol != "SPY" else []
         indicators = self._compute_all_indicators(symbol, rows, spy_rows)
@@ -148,9 +153,16 @@ class TechnicalDataDailyLoader(OptimalLoader):
                         f"price or volume data — {len(rows)} valid row(s) returned"
                     )
                 return rows
-        except Exception as e:
-            logger.error(f"Failed to fetch price data for {symbol}: {e}")
-            return []
+        except psycopg2.Error as e:
+            raise RuntimeError(
+                f"[PRICE_DATA] Failed to fetch price data for {symbol} [{start} to {end}]: {e}. "
+                "Cannot compute technical indicators without price history."
+            ) from e
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[PRICE_DATA] Invalid data format for {symbol}: {e}. "
+                "Price data may be corrupted."
+            ) from e
 
     def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> int:
         """Calculate age of most recent data in source table (in trading days).
@@ -187,14 +199,25 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
                     return trading_days
                 return -1
-        except Exception as e:
-            logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
-        return -1
+        except psycopg2.Error as e:
+            logger.warning(f"Database error calculating {source_table} age for {symbol}: {e}")
+            return -1
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Data format error calculating {source_table} age for {symbol}: {e}")
+            return -1
 
     def _compute_all_indicators(
         self, symbol: str, rows: List[dict], spy_rows: List[dict] = None
     ) -> List[dict]:
-        if not rows or len(rows) < 50:
+        if not rows:
+            raise RuntimeError(
+                f"[TECHNICAL_DATA] Empty price data passed to indicator computation for {symbol}. "
+                "Cannot compute technical indicators without price history."
+            )
+        if len(rows) < 50:
+            logger.debug(
+                f"[{symbol}] Insufficient price history ({len(rows)} rows, need >=50) to compute technical indicators"
+            )
             return []
 
         # Precalculate source data age once per symbol (not per indicator row)
@@ -238,15 +261,15 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["roc_252d"] = df["close"].pct_change(252) * 100
 
         # Clamp ROC values to database field limits to prevent overflow
-        _DECIMAL84_MAX = 9999.9999
+        _decimal84_max = 9999.9999
         roc_cols = ["roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d"]
         for col in roc_cols:
             before = df[col].copy()
-            df[col] = df[col].clip(-_DECIMAL84_MAX, _DECIMAL84_MAX)
-            capped_count = ((before.abs() > _DECIMAL84_MAX) & (df[col].notna())).sum()
+            df[col] = df[col].clip(-_decimal84_max, _decimal84_max)
+            capped_count = ((before.abs() > _decimal84_max) & (df[col].notna())).sum()
             if capped_count > 0:
                 logger.warning(
-                    f"{symbol}: {capped_count} {col} values capped to ±{_DECIMAL84_MAX} (extreme market conditions)"
+                    f"{symbol}: {capped_count} {col} values capped to ±{_decimal84_max} (extreme market conditions)"
                 )
 
         mas = compute_moving_averages(df["close"])
