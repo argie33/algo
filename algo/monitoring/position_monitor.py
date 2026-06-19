@@ -293,8 +293,19 @@ class PositionMonitor:
                     rec = self._evaluate_position(row, current_date, cur)
                 except PositionValidationError as e:
                     symbol = row[1]  # symbol is at index 1 in the row tuple
-                    validation_errors.append((symbol, str(e)))
-                    logger.warning(f"  Skipping {symbol}: {e}")
+                    trade_id = row[0]
+                    position_id = row[9]
+                    error_msg = str(e)
+                    validation_errors.append((symbol, error_msg))
+                    # Include failed position in results so orchestrator has complete visibility
+                    recs.append({
+                        "trade_id": trade_id,
+                        "symbol": symbol,
+                        "position_id": position_id,
+                        "action": "FAILED_VALIDATION",
+                        "error": error_msg,
+                    })
+                    logger.warning(f"  Validation failed for {symbol}: {error_msg}")
                     continue
 
                 recs.append(rec)
@@ -309,19 +320,17 @@ class PositionMonitor:
                     continue
 
             # If ALL positions failed validation, monitoring is incomplete — raise to signal caller
-            if validation_errors and len(recs) == 0:
+            if validation_errors and len(recs) == len(validation_errors):
                 all_failures = "\n".join([f"  {sym}: {msg}" for sym, msg in validation_errors])
                 raise PositionValidationError(
                     f"Monitoring incomplete: ALL {len(positions)} position(s) failed validation:\n{all_failures}"
                 )
 
-            # If SOME positions failed validation, log warning but continue
+            # If SOME positions failed validation, log warning but continue (failures now in recs)
             if validation_errors:
                 logger.warning(
-                    f"[WARNING] Monitoring incomplete: {len(validation_errors)}/{len(positions)} position(s) failed validation"
+                    f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
                 )
-                for symbol, msg in validation_errors:
-                    logger.warning(f"  {symbol}: {msg}")
 
             return recs
 
@@ -364,16 +373,14 @@ class PositionMonitor:
         max_hold = int(self.config.get("max_hold_days", 20))
 
         # 1. Current market data
-        cur_price, atr, sma_50, ema_12 = self._fetch_current_market(
-            symbol, current_date, cur
-        )
-
-        # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts stop-loss and P&L calculations.
-        # If market data is unavailable, raise an error to signal monitoring is incomplete.
-        if cur_price is None or cur_price <= 0:
-            msg = f"Position {symbol} has no valid current market price (got {cur_price}). Cannot monitor without real market data."
+        try:
+            cur_price, atr, sma_50, ema_12 = self._fetch_current_market(
+                symbol, current_date, cur
+            )
+        except ValueError as e:
+            msg = f"Position {symbol} cannot be monitored: {e}"
             logger.error(f"REJECT: {msg}")
-            raise PositionValidationError(msg)
+            raise PositionValidationError(msg) from e
 
         # P&L (using Decimal for precision)
         risk_per_share = entry_price - init_stop
@@ -452,7 +459,12 @@ class PositionMonitor:
             flags.append(f"EARNINGS_IN_{days_to_earn}D")
 
         # 3f. Distribution-day stress
-        market_dist_days = self._fetch_market_dist_days(current_date, cur)
+        market_dist_days = None
+        try:
+            market_dist_days = self._fetch_market_dist_days(current_date, cur)
+        except (ValueError, RuntimeError) as e:
+            logger.debug(f"Market distribution days unavailable for {current_date}: {e}")
+
         if market_dist_days is not None and market_dist_days > int(
             self.config.get("max_distribution_days", 4)
         ):
@@ -617,6 +629,12 @@ class PositionMonitor:
             ) from db_e
 
     def _fetch_current_market(self, symbol, current_date, cur):
+        """Fetch current price and technical indicators for a symbol.
+
+        Raises:
+            ValueError: If price data is missing — price_daily is required,
+                       technical_data_daily may be None (handled by caller)
+        """
         cur.execute(
             """
             SELECT pd.close, td.atr, td.sma_50, td.ema_12
@@ -629,10 +647,18 @@ class PositionMonitor:
         )
         row = cur.fetchone()
         if row is None:
-            return None, None, None, None
+            raise ValueError(
+                f"Price data missing for {symbol} on {current_date} or earlier — no price_daily entry"
+            )
+
+        close_price = float(row[0]) if row[0] is not None else None
+        if close_price is None:
+            raise ValueError(
+                f"Invalid price for {symbol} on {current_date} — close price is NULL"
+            )
 
         return (
-            float(row[0]) if row[0] is not None else None,
+            close_price,
             float(row[1]) if row[1] is not None else None,
             float(row[2]) if row[2] is not None else None,
             float(row[3]) if row[3] is not None else None,

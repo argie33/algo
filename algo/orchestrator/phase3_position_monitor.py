@@ -83,11 +83,23 @@ def run(
         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
         n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
+        n_failed = sum(1 for r in recommendations if r["action"] == "FAILED_VALIDATION")
+
+        summary = f"{len(recommendations)} positions reviewed"
+        if n_hold > 0:
+            summary += f"; {n_hold} hold"
+        if n_raise_stop > 0:
+            summary += f", {n_raise_stop} raise-stop"
+        if n_early_exit > 0:
+            summary += f", {n_early_exit} early-exit"
+        if n_failed > 0:
+            summary += f", {n_failed} FAILED_VALIDATION"
+
         log_phase_result_fn(
             3,
             "position_monitor",
             "success",
-            f"{len(recommendations)} positions: {n_hold} hold, {n_raise_stop} raise-stop, {n_early_exit} early-exit",
+            summary,
         )
         return PhaseResult(
             3,
