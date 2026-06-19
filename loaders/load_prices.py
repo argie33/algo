@@ -1551,9 +1551,9 @@ class PriceLoader(OptimalLoader):
         # ISSUE #23 FIX: Use SHORT non-blocking check (10s timeout) instead of 1800s blocking check
         # The full 30-min market close check is moved to async background checks during batch loading.
         # This prevents the loader from hanging for minutes before batch processing even starts.
-        market_close_available = (
-            True  # Optimistic: assume data is available (we'll check async)
-        )
+        # Start with False: only set True after explicit verification.
+        market_close_available = False
+
         if self.interval == "1d":
             try:
                 from algo.infrastructure import MarketCalendar
@@ -1564,6 +1564,7 @@ class PriceLoader(OptimalLoader):
                     logger.info(
                         "[MARKET_CLOSE] Today is not a trading day, skipping market close check"
                     )
+                    market_close_available = True
                 else:
                     # Market close data must be available for daily prices to be current.
                     # Failing to verify this allows stale data to flow downstream.
@@ -1596,6 +1597,8 @@ class PriceLoader(OptimalLoader):
                 )
                 logger.critical(error_msg)
                 raise RuntimeError(error_msg)
+        else:
+            market_close_available = True
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)
