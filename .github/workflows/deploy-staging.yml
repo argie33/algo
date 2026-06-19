@@ -109,16 +109,18 @@ jobs:
           print("[OK] Dev config resolved")
           EOF
 
-      - name: Package Algo Lambda (function code + layer)
+      - name: Build Orchestrator Lambda Layer
+        run: |
+          python3 scripts/build-lambda-layers.py \
+            --layer orchestrator \
+            --runtime python3.12 \
+            --output-dir terraform
+
+      - name: Package Algo Lambda Function Code
         run: |
           python3 << 'PYTHON_SCRIPT'
-          import os
           import zipfile
-          import subprocess
           from pathlib import Path
-          import shutil
-
-          app_dir = Path.cwd()
 
           # Function code: handler only (dependencies come from layer)
           zip_path = Path("algo_lambda.zip")
@@ -128,72 +130,69 @@ jobs:
               raise FileNotFoundError(f"Handler not found: {handler_path}")
             zf.write(handler_path, "lambda_function.py")
           print(f"Function code: {zip_path.stat().st_size / 1024:.1f} KB")
-
-          # Lambda layer: pip dependencies + config/ + algo/ + utils/ + monitoring/
-          layer_path = Path("algo_layer.zip")
-          layer_pkg_temp = Path("/tmp/layer_pip_staging")
-          if layer_pkg_temp.exists():
-            shutil.rmtree(layer_pkg_temp)
-          layer_pkg_temp.mkdir()
-
-          subprocess.run([
-            "pip", "install",
-            "-r", "lambda/algo_orchestrator/requirements.txt",
-            "-t", str(layer_pkg_temp),
-            "--platform", "manylinux2014_x86_64",
-            "--only-binary=:all:",
-            "--no-cache-dir",
-            "--quiet"
-          ], check=True)
-
-          with zipfile.ZipFile(layer_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for file_path in layer_pkg_temp.rglob("*"):
-              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path)):
-                zf.write(str(file_path), f"python/{file_path.relative_to(layer_pkg_temp)}")
-
-            for pkg in ["config", "algo", "utils", "monitoring"]:
-              pkg_path = app_dir / pkg
-              if pkg_path.is_dir():
-                for f in pkg_path.rglob("*"):
-                  if f.is_file() and not f.name.endswith(".pyc") and "__pycache__" not in str(f):
-                    zf.write(str(f), f"python/{f.relative_to(app_dir)}")
-                print(f"  + {pkg}/")
-
-          print(f"Layer: {layer_path.stat().st_size / (1024*1024):.1f} MB")
           PYTHON_SCRIPT
 
-      - name: Publish staging Lambda layer
+      - name: Publish Orchestrator Layer & Extract ARN
+        id: publish_layer
         run: |
-          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          LAYER_NAME="algo-orchestrator-layer-staging"
-          LAYER_SIZE_MB=$(du -m algo_layer.zip | cut -f1)
-          echo "Publishing layer: $LAYER_NAME (${LAYER_SIZE_MB}MB)"
+          python3 << 'EOF'
+          import json
+          import subprocess
+          import os
+          from pathlib import Path
 
-          if [ "$LAYER_SIZE_MB" -gt 65 ]; then
-            S3_BUCKET=$(aws s3api list-buckets \
-              --query "Buckets[?contains(Name,'terraform-state')].Name | [0]" \
-              --output text --region $AWS_REGION 2>/dev/null || echo "")
-            [ -z "$S3_BUCKET" ] || [ "$S3_BUCKET" = "None" ] && S3_BUCKET="algo-svc-artifacts-${ACCOUNT_ID}"
-            aws s3 cp algo_layer.zip "s3://${S3_BUCKET}/lambda-layers/${LAYER_NAME}/algo_layer.zip" --region $AWS_REGION
-            LAYER_VERSION=$(aws lambda publish-layer-version \
-              --layer-name "$LAYER_NAME" \
-              --content S3Bucket="${S3_BUCKET}",S3Key="lambda-layers/${LAYER_NAME}/algo_layer.zip" \
-              --compatible-runtimes python3.11 python3.12 \
-              --region $AWS_REGION \
-              --query 'Version' \
-              --output text | xargs)
-          else
-            LAYER_VERSION=$(aws lambda publish-layer-version \
-              --layer-name "$LAYER_NAME" \
-              --zip-file fileb://algo_layer.zip \
-              --compatible-runtimes python3.11 python3.12 \
-              --region $AWS_REGION \
-              --query 'Version' \
-              --output text | xargs)
-          fi
+          region = os.environ['AWS_REGION']
+          account_id = '${{ secrets.AWS_ACCOUNT_ID }}'
+          layer_name = "algo-orchestrator-layer-staging"
+          layer_zip = Path("terraform/orchestrator-layer.zip")
 
-          echo "STAGING_LAYER_ARN=arn:aws:lambda:$AWS_REGION:$ACCOUNT_ID:layer:$LAYER_NAME:$LAYER_VERSION" >> $GITHUB_ENV
-          echo "[OK] Staging layer published: version $LAYER_VERSION"
+          if not layer_zip.exists():
+            print(f"ERROR: Layer ZIP not found: {layer_zip}")
+            exit(1)
+
+          size_mb = layer_zip.stat().st_size / (1024 * 1024)
+          print(f"Publishing layer: {layer_name} ({size_mb:.1f}MB)")
+
+          # Publish layer
+          cmd = [
+            'aws', 'lambda', 'publish-layer-version',
+            '--layer-name', layer_name,
+            '--compatible-runtimes', 'python3.11', 'python3.12',
+            '--region', region,
+            '--output', 'json'
+          ]
+
+          # Use S3 if layer > 50 MB (inline limit)
+          if size_mb > 50:
+            s3_bucket = f"algo-svc-artifacts-{account_id}"
+            s3_key = f"lambda-layers/{layer_name}/orchestrator-layer.zip"
+            print(f"  Uploading to S3: s3://{s3_bucket}/{s3_key}")
+            subprocess.run([
+              'aws', 's3', 'cp', str(layer_zip),
+              f"s3://{s3_bucket}/{s3_key}",
+              '--region', region
+            ], check=True, capture_output=True)
+            cmd.extend(['--content', f'S3Bucket={s3_bucket},S3Key={s3_key}'])
+          else:
+            cmd.extend(['--zip-file', f'fileb://{layer_zip}'])
+
+          result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+          output = json.loads(result.stdout)
+          layer_arn = output['LayerVersionArn']
+          layer_version = output['Version']
+
+          print(f"[OK] Layer published: version {layer_version}")
+          print(f"  ARN: {layer_arn}")
+
+          # Output for next steps
+          with open(os.environ.get('GITHUB_OUTPUT', '/tmp/gh_output'), 'a') as f:
+            f.write(f"layer_arn={layer_arn}\n")
+            f.write(f"layer_version={layer_version}\n")
+
+          # Also set as ENV for backward compatibility
+          with open(os.environ.get('GITHUB_ENV', '/tmp/gh_env'), 'a') as f:
+            f.write(f"STAGING_LAYER_ARN={layer_arn}\n")
+          EOF
 
       - name: Create or update staging algo Lambda
         env:

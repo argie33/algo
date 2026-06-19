@@ -198,6 +198,15 @@ module "loaders" {
   alert_webhook_url           = var.alert_webhook_url
 }
 
+module "lambda_layers" {
+  source = "./modules/lambda-layers"
+
+  project_name               = var.project_name
+  environment                = var.environment
+  orchestrator_layer_enabled = true
+  common_tags                = local.common_tags
+}
+
 module "services" {
   source = "./modules/services"
 
