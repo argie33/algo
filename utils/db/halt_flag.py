@@ -191,7 +191,7 @@ class HaltFlagManager:
             return True, reason
 
         except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_halt_flag_rds(self) -> Tuple[Optional[bool], Optional[str]]:
         """Check halt flag in RDS. Returns (halt_flag, reason) or (None, None) on error."""
@@ -245,7 +245,7 @@ class HaltFlagManager:
                 return True, reason
 
         except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def set_halt_flag(self, reason: str = "") -> bool:
         """Set halt flag in both DynamoDB and RDS. Returns True if set successfully."""
@@ -334,7 +334,8 @@ class HaltFlagManager:
             logger.debug(f"[HALT_FLAG] Set in RDS: {halt_data['reason']}")
             return True
         except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+            logger.warning(f"[HALT_FLAG] Failed to set in RDS: {e}")
+            return False
 
     def clear_halt_flag(self, reason: str = "") -> bool:
         """Clear halt flag in both DynamoDB and RDS. Returns True if cleared successfully."""
@@ -392,7 +393,8 @@ class HaltFlagManager:
             logger.debug("[HALT_FLAG] Cleared in RDS")
             return True
         except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+            logger.warning(f"[HALT_FLAG] Failed to clear in RDS: {e}")
+            return False
 
 
 # Singleton instance
