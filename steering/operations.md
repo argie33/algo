@@ -98,10 +98,20 @@ curl https://api.example.com/api/algo/trades \
 ```
 
 **If there are pending orders:**
-1. **Do NOT manually cancel** - may cause issues with reconciliation
-2. Check CloudWatch logs: `/aws/lambda/algo-algo-dev`
-3. Find error message and root cause
-4. Contact support with error details
+1. Check age: Orders pending >2 hours are automatically cancelled by position monitor (fail-closed: stuck orders block exit logic)
+2. For orders <2 hours old: Likely transient API issue, orchestrator will retry on next run
+3. Check CloudWatch logs: `/aws/lambda/algo-algo-dev` for error pattern
+4. If same orders keep failing: May need manual investigation of Alpaca order status
+
+**Auto-cancel behavior (stale order detection):**
+- **>1 hour pending:** Logged as alert, no action yet
+- **>2 hours pending (120m default, configurable):** Automatically cancelled (in DB + on Alpaca if possible)
+- **Halted symbols:** Exempted from auto-cancel (halts naturally keep orders pending)
+- **Audit trail:** Every cancellation logged to `algo_audit_log` with action type `STALE_ORDER_AUTO_CANCELLED`
+
+**Configuration:**
+- `stale_order_alert_minutes` (default: 60) - threshold to log alert
+- `stale_order_auto_cancel_minutes` (default: 120) - threshold to auto-cancel
 
 **If no orders pending:**
 1. Orchestrator will retry next scheduled run (1 PM, 3 PM, 5:30 PM ET)

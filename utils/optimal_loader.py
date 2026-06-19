@@ -1541,50 +1541,67 @@ class OptimalLoader(ABC):
         from concurrent.futures import TimeoutError as FutureTimeoutError
 
         # Per-symbol timeout is enforced in _safe_load_symbol (ISSUE #26 FIX).
-        # No global timeout on as_completed() — with 10K+ symbols and parallelism=8,
-        # even 1s per symbol would require >20 min runtime.
+        # Global timeout (ISSUE #19 FIX): as_completed(timeout=N) prevents indefinite waits
+        # if a symbol hangs. Timeout set to 1 hour to allow 30+ min loaders while catching
+        # truly stuck futures. Per-symbol timeout is 60s; global catches systemic hangs.
+        global_timeout_sec = 3600  # 1 hour
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
             timed_out = 0
             last_health_check = time.time()
 
-            for fut in as_completed(futures):  # No global timeout; per-symbol timeout enforced in _safe_load_symbol
-                if self._check_shutdown_requested():
-                    logger.warning(
-                        f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
-                    )
-                    for f in futures:
-                        f.cancel()
-                    break
-
-                symbol = futures[fut]
-                try:
-                    fut.result(timeout=5)  # Result should be immediate since future already completed
-                    done += 1
-                except FutureTimeoutError:
-                    # Should not happen since we're in as_completed(), but handle gracefully
-                    timed_out += 1
-                    logger.warning(f"[{self.table_name}] {symbol} timed out during result retrieval")
-                    self._stats["symbols_failed"] += 1  # type: ignore[operator]
-                except Exception:
-                    # Exception already logged in _safe_load_symbol, just count it
-                    done += 1
-
-                # Periodic health check to keep connection pool alive
-                now = time.time()
-                if now - last_health_check > 120:  # Every 2 minutes
-                    try:
-                        with DatabaseContext("read") as cur:
-                            cur.execute("SELECT 1")
-                    except Exception as e:
-                        logger.debug(
-                            f"Connection health check failed: {e}. Reconnecting."
+            try:
+                for fut in as_completed(futures, timeout=global_timeout_sec):  # Global timeout prevents indefinite wait
+                    if self._check_shutdown_requested():
+                        logger.warning(
+                            f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
                         )
-                    last_health_check = now
+                        for f in futures:
+                            f.cancel()
+                        break
 
-                if done % 100 == 0:
-                    logger.info(f"  Progress: {done}/{len(symbols)} (timed_out={timed_out})")
+                    symbol = futures[fut]
+                    try:
+                        fut.result(timeout=5)  # Result should be immediate since future already completed
+                        done += 1
+                    except FutureTimeoutError:
+                        # Should not happen since we're in as_completed(), but handle gracefully
+                        timed_out += 1
+                        logger.warning(f"[{self.table_name}] {symbol} timed out during result retrieval")
+                        self._stats["symbols_failed"] += 1  # type: ignore[operator]
+                    except Exception:
+                        # Exception already logged in _safe_load_symbol, just count it
+                        done += 1
+
+                    # Periodic health check to keep connection pool alive
+                    now = time.time()
+                    if now - last_health_check > 120:  # Every 2 minutes
+                        try:
+                            with DatabaseContext("read") as cur:
+                                cur.execute("SELECT 1")
+                        except Exception as e:
+                            logger.debug(
+                                f"Connection health check failed: {e}. Reconnecting."
+                            )
+                        last_health_check = now
+
+                    if done % 100 == 0:
+                        logger.info(f"  Progress: {done}/{len(symbols)} (timed_out={timed_out})")
+            except FutureTimeoutError:
+                # Global timeout fired: as_completed() waited global_timeout_sec seconds without all futures completing.
+                # This prevents indefinite hangs if one or more symbols are stuck (ISSUE #19 FIX).
+                pending = [s for f, s in futures.items() if not f.done()]
+                pending_count = len(pending)
+                logger.error(
+                    f"[{self.table_name}] Global timeout ({global_timeout_sec}s) reached. "
+                    f"Processed {done} symbols; {pending_count} symbols hung/pending. "
+                    f"Marking pending symbols as failed and aborting loader."
+                )
+                # Mark all pending symbols as failed
+                self._stats["symbols_failed"] = self._stats.get("symbols_failed", 0) + pending_count  # type: ignore[operator]
+                for f in futures.keys():
+                    f.cancel()
 
     def _safe_load_symbol(self, symbol: str) -> None:
         """Load symbol with timeout protection (ISSUE #26 FIX).

@@ -157,21 +157,22 @@ def _get_data_status(cur) -> dict:
     try:
         from algo.infrastructure import MarketCalendar
         try:
-            from utils.validation.freshness_config import FRESHNESS_RULES as _FR
+            from utils.validation.freshness_config import FRESHNESS_RULES
+            _fr = FRESHNESS_RULES
         except ImportError:
-            _FR = {}
+            _fr = {}
 
         # Tables intentionally removed from the EOD pipeline — orchestrator Phase 5
         # computes these signals on-the-fly. Excluding them prevents permanent false-stale
         # alerts on the health panel (they will never be refreshed again by a loader).
-        PIPELINE_REMOVED_TABLES = {"technical_data_daily", "buy_sell_daily", "signal_quality_scores"}
+        pipeline_removed_tables = {"technical_data_daily", "buy_sell_daily", "signal_quality_scores"}
 
         cur.execute("""
                 SELECT table_name, row_count, last_updated
                 FROM data_loader_status
                 ORDER BY table_name
             """)
-        loader_rows = [dict(r) for r in cur.fetchall() if r["table_name"] not in PIPELINE_REMOVED_TABLES]
+        loader_rows = [dict(r) for r in cur.fetchall() if r["table_name"] not in pipeline_removed_tables]
         loader_names = {r["table_name"] for r in loader_rows}
 
         # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
@@ -197,7 +198,7 @@ def _get_data_status(cur) -> dict:
         # Use freshness_config critical set; fall back to Phase 1 halt tables if unavailable.
         # Note: trend_template_data is warning-only in Phase 1 — stale does NOT prevent
         # trading, so it remains non-critical even though freshness_config marks it otherwise.
-        CRITICAL_TABLES = {t for t, r in _FR.items() if r.get("critical")} or {
+        critical_tables = {t for t, r in _fr.items() if r.get("critical")} or {
             "price_daily", "market_health_daily", "market_exposure_daily"
         }
 
@@ -232,7 +233,7 @@ def _get_data_status(cur) -> dict:
                     if hasattr(last_updated, "date")
                     else last_updated
                 )
-                rule = _FR.get(row["table_name"], {})
+                rule = _fr.get(row["table_name"], {})
                 max_age = rule.get("max_age_days", 1)
                 if max_age <= 1:
                     # Daily tables: use trading-day-aware comparison
@@ -250,7 +251,7 @@ def _get_data_status(cur) -> dict:
             else:
                 age_h = 999
 
-            rule = _FR.get(row["table_name"], {})
+            rule = _fr.get(row["table_name"], {})
             if rule.get("critical"):
                 role = "CRIT"
             elif rule.get("max_age_days", 999) <= 7:
@@ -259,7 +260,7 @@ def _get_data_status(cur) -> dict:
                 role = "NORM"
 
             summary[status] = summary.get(status, 0) + 1
-            if status in ("stale", "empty") and row["table_name"] in CRITICAL_TABLES:
+            if status in ("stale", "empty") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
             sources.append(
                 {
@@ -337,7 +338,6 @@ def _get_market(cur) -> dict:
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
                    yield_curve_slope, fed_rate_environment
             FROM market_health_daily
-            WHERE vix_level IS NOT NULL
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
@@ -665,7 +665,6 @@ def _get_markets(cur) -> dict:
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
                     FROM market_health_daily
-                    WHERE vix_level IS NOT NULL
                     ORDER BY date DESC LIMIT 1
                 """)
             mh_row = cur.fetchone()

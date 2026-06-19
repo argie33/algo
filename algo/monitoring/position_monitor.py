@@ -50,23 +50,33 @@ class PositionMonitor:
         self.config = config
 
     def check_stale_orders(self, current_date=None):
-        """Check for orders stuck in pending state >1 hour. Alert if found.
+        """Check for orders stuck in pending state >1 hour. Auto-cancel if >2 hours.
 
-        Stuck orders = likely API issue or rejection. Should be resolved manually.
+        Stuck orders = likely API issue or rejection. Orders >2 hours old are auto-cancelled
+        (fail-closed: stuck orders block exit logic, so cancellation is safer than waiting).
         Filters out orders for halted symbols (these stay pending naturally).
+
+        Returns dict with:
+          - status: "OK", "STALE_ORDERS_FOUND", "AUTO_CANCELLED", or "ERROR"
+          - count: number of orders in that state
+          - orders: list of order tuples
+          - cancelled: list of cancelled order details (if auto_cancelled)
         """
         if not current_date:
             current_date = _date.today()
 
-        with DatabaseContext("read") as cur:
+        alert_threshold = int(self.config.get("stale_order_alert_minutes", 60))
+        auto_cancel_threshold = int(self.config.get("stale_order_auto_cancel_minutes", 120))
+
+        with DatabaseContext("write") as cur:
             try:
                 cur.execute("""
                     SELECT trade_id, symbol, entry_price, entry_quantity, created_at
                     FROM algo_trades
                     WHERE status = 'pending'
-                      AND created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                      AND created_at < CURRENT_TIMESTAMP - INTERVAL %s
                     ORDER BY created_at ASC
-                """)
+                """, (f"{alert_threshold} minutes",))
                 stale_orders = cur.fetchall()
             except Exception as e:
                 logger.error(f"Stale orders query failed: {e}")
@@ -79,6 +89,7 @@ class PositionMonitor:
 
                     meh = MarketEventHandler(self.config)
                     filtered_stale = []
+                    halted_orders = []
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
                         halt_check = meh.check_single_stock_halt(symbol)
@@ -86,6 +97,7 @@ class PositionMonitor:
                             logger.info(
                                 f"    {trade_id} {symbol} pending (but halted, expected)"
                             )
+                            halted_orders.append(row)
                             continue
                         filtered_stale.append(row)
                     stale_orders = filtered_stale
@@ -94,11 +106,13 @@ class PositionMonitor:
 
                 if stale_orders:
                     logger.info(
-                        f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour (excluding halted):"
+                        f"\n  [ALERT] Found {len(stale_orders)} orders pending >{alert_threshold}m (excluding halted):"
                     )
+
+                    cancelled_orders = []
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
-                        # Ensure created_at is timezone-aware (UTC) for subtraction from datetime.now(timezone.utc)
+                        # Ensure created_at is timezone-aware (UTC) for subtraction
                         if not getattr(created_at, "tzinfo", None):
                             created_at = created_at.replace(tzinfo=timezone.utc)
                         age_minutes = int(
@@ -108,6 +122,37 @@ class PositionMonitor:
                         logger.info(
                             f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)"
                         )
+
+                        # Auto-cancel if > 2 hours (or configured threshold)
+                        if age_minutes >= auto_cancel_threshold:
+                            try:
+                                self._auto_cancel_stale_order(
+                                    trade_id, symbol, qty, price, age_minutes, cur
+                                )
+                                cancelled_orders.append({
+                                    "trade_id": trade_id,
+                                    "symbol": symbol,
+                                    "qty": qty,
+                                    "price": price,
+                                    "age_minutes": age_minutes
+                                })
+                                logger.warning(
+                                    f"  [AUTO-CANCEL] {trade_id} {symbol} (pending {age_minutes}m >= {auto_cancel_threshold}m threshold)"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"  Failed to auto-cancel {trade_id} {symbol}: {e}"
+                                )
+
+                    # Commit all changes (cancellations + audit logs)
+                    if cancelled_orders:
+                        return {
+                            "status": "AUTO_CANCELLED",
+                            "count": len(cancelled_orders),
+                            "cancelled": cancelled_orders,
+                            "alert_count": len(stale_orders) - len(cancelled_orders),
+                        }
+
                     return {
                         "status": "STALE_ORDERS_FOUND",
                         "count": len(stale_orders),
@@ -404,6 +449,79 @@ class PositionMonitor:
         }
 
     # ---------- Helpers ----------
+
+    def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
+        """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
+
+        Attempts Alpaca API cancellation first (idempotent). If successful or API fails
+        (order already cancelled), marks trade as cancelled in DB + adds audit log.
+
+        Raises RuntimeError if database update fails (transaction will rollback).
+        """
+        try:
+            creds = get_alpaca_credentials()
+            base_url = get_alpaca_base_url()
+            alpaca_key = creds.get("key")
+            alpaca_secret = creds.get("secret")
+
+            if not alpaca_key or not alpaca_secret:
+                logger.warning(
+                    f"Alpaca credentials unavailable; marking {trade_id} as cancelled in DB only"
+                )
+            else:
+                # Attempt to cancel on Alpaca
+                try:
+                    url = f"{base_url}/v2/orders/{trade_id}"
+                    headers = {
+                        "APCA-API-KEY-ID": alpaca_key,
+                        "APCA-API-SECRET-KEY": alpaca_secret,
+                    }
+                    timeout = self.config.get("api_request_timeout_seconds", 5)
+                    resp = requests.delete(url, headers=headers, timeout=timeout)
+
+                    if resp.status_code == 204 or resp.status_code == 200:
+                        logger.info(
+                            f"Successfully cancelled order {trade_id} on Alpaca"
+                        )
+                    elif resp.status_code == 404:
+                        logger.info(
+                            f"Order {trade_id} not found on Alpaca (already closed/cancelled)"
+                        )
+                    else:
+                        logger.warning(
+                            f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}"
+                        )
+                except Exception as api_e:
+                    logger.warning(
+                        f"Could not cancel {trade_id} on Alpaca: {api_e}. Proceeding with DB update."
+                    )
+
+            # Update database (atomic with audit log)
+            cur.execute(
+                """UPDATE algo_trades
+                   SET status = %s, updated_at = CURRENT_TIMESTAMP
+                   WHERE trade_id = %s""",
+                ("cancelled", trade_id),
+            )
+
+            cur.execute(
+                """INSERT INTO algo_audit_log (
+                       action_type, symbol, action_date, details, severity, actor, status, created_at
+                   ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
+                (
+                    "STALE_ORDER_AUTO_CANCELLED",
+                    symbol,
+                    f"Trade {trade_id}: {qty}@${price} pending {age_minutes}m >= auto-cancel threshold",
+                    "WARN",
+                    "position_monitor",
+                    "auto_cancelled",
+                ),
+            )
+
+        except Exception as db_e:
+            raise RuntimeError(
+                f"Failed to cancel and update {trade_id}: {db_e}"
+            ) from db_e
 
     def _fetch_current_market(self, symbol, current_date, cur):
         cur.execute(

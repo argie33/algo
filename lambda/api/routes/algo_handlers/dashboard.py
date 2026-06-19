@@ -376,7 +376,7 @@ def _get_circuit_breakers(cur) -> Dict:
         cbm_data = None
         try:
             cur.execute(
-                "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status WHERE vix_level IS NOT NULL ORDER BY check_date DESC LIMIT 1"
+                "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status ORDER BY check_date DESC LIMIT 1"
             )
             cbm_row = cur.fetchone()
             if cbm_row:
