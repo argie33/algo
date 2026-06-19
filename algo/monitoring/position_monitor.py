@@ -35,6 +35,11 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+class PositionValidationError(Exception):
+    """Raised when a position fails validation and cannot be monitored."""
+    pass
+
+
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
@@ -278,10 +283,16 @@ class PositionMonitor:
             logger.info(f"{'='*70}")
             logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
+            validation_errors = []
             for i, row in enumerate(positions):
-                rec = self._evaluate_position(row, current_date, cur)
-                if rec is None:
+                try:
+                    rec = self._evaluate_position(row, current_date, cur)
+                except PositionValidationError as e:
+                    symbol = row[1]  # symbol is at index 1 in the row tuple
+                    validation_errors.append((symbol, str(e)))
+                    logger.warning(f"  Skipping {symbol}: {e}")
                     continue
+
                 recs.append(rec)
                 self._print_recommendation(rec)
                 try:
@@ -292,6 +303,22 @@ class PositionMonitor:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
+
+            # If ALL positions failed validation, monitoring is incomplete — raise to signal caller
+            if validation_errors and len(recs) == 0:
+                all_failures = "\n".join([f"  {sym}: {msg}" for sym, msg in validation_errors])
+                raise PositionValidationError(
+                    f"Monitoring incomplete: ALL {len(positions)} position(s) failed validation:\n{all_failures}"
+                )
+
+            # If SOME positions failed validation, log warning but continue
+            if validation_errors:
+                logger.warning(
+                    f"[WARNING] Monitoring incomplete: {len(validation_errors)}/{len(positions)} position(s) failed validation"
+                )
+                for symbol, msg in validation_errors:
+                    logger.warning(f"  {symbol}: {msg}")
+
             return recs
 
     def _evaluate_position(self, row, current_date, cur):
@@ -316,20 +343,17 @@ class PositionMonitor:
         init_stop = float(init_stop)
 
         if entry_price <= 0:
-            logger.error(
-                f"ERROR: Invalid entry price {entry_price} for {symbol} — cannot monitor"
-            )
-            return None
+            msg = f"Invalid entry price {entry_price} for {symbol} — cannot monitor"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg)
         if init_stop <= 0:
-            logger.error(
-                f"ERROR: Invalid stop {init_stop} for {symbol} — cannot monitor"
-            )
-            return None
+            msg = f"Invalid stop {init_stop} for {symbol} — cannot monitor"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg)
         if init_stop >= entry_price:
-            logger.error(
-                f"ERROR: Stop {init_stop} >= entry {entry_price} for {symbol} — invalid trade"
-            )
-            return None
+            msg = f"Stop {init_stop} >= entry {entry_price} for {symbol} — invalid trade"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg)
         active_stop = float(current_stop) if current_stop else init_stop
         target_hits = int(target_hits or 0)
         days_held = (current_date - trade_date).days
@@ -341,12 +365,11 @@ class PositionMonitor:
         )
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts stop-loss and P&L calculations.
-        # If market data is unavailable, skip the position entirely.
+        # If market data is unavailable, raise an error to signal monitoring is incomplete.
         if cur_price is None or cur_price <= 0:
-            logger.error(
-                f"REJECT: Position {symbol} has no valid current market price (got {cur_price}). Cannot monitor without real market data."
-            )
-            return None
+            msg = f"Position {symbol} has no valid current market price (got {cur_price}). Cannot monitor without real market data."
+            logger.error(f"REJECT: {msg}")
+            raise PositionValidationError(msg)
 
         # P&L (using Decimal for precision)
         risk_per_share = entry_price - init_stop
