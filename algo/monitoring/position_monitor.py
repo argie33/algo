@@ -45,11 +45,8 @@ class PositionMonitor:
 
     def _with_cursor(self, operation, mode="read"):
         """Execute operation with cursor via DatabaseContext."""
-        try:
-            with DatabaseContext(mode) as cur:
-                return operation(cur)
-        except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        with DatabaseContext(mode) as cur:
+            return operation(cur)
 
     def __init__(self, config):
         self.config = config
@@ -543,10 +540,17 @@ class PositionMonitor:
     def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
         """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
 
-        Attempts Alpaca API cancellation first (idempotent). If successful or API fails
-        (order already cancelled), marks trade as cancelled in DB + adds audit log.
+        Attempts Alpaca API cancellation first. Marks trade as cancelled in DB + adds audit log
+        only if cancellation succeeds (200/204) or order already closed (404).
 
-        Raises RuntimeError if database update fails (transaction will rollback).
+        Raises RuntimeError if:
+        - Alpaca credentials unavailable
+        - Alpaca API call fails (network/timeout/exception)
+        - Alpaca returns unexpected status code
+        - Database update fails
+
+        This ensures broker/DB state consistency: if DB is marked cancelled, trade must be
+        successfully cancelled at Alpaca (or already was).
         """
         try:
             creds = get_alpaca_credentials()
@@ -555,36 +559,35 @@ class PositionMonitor:
             alpaca_secret = creds.get("secret")
 
             if not alpaca_key or not alpaca_secret:
-                logger.warning(
-                    f"Alpaca credentials unavailable; marking {trade_id} as cancelled in DB only"
+                raise RuntimeError(
+                    f"Cannot cancel order {trade_id}: Alpaca credentials unavailable. DB update blocked to maintain broker/DB state consistency."
                 )
-            else:
-                # Attempt to cancel on Alpaca
-                try:
-                    url = f"{base_url}/v2/orders/{trade_id}"
-                    headers = {
-                        "APCA-API-KEY-ID": alpaca_key,
-                        "APCA-API-SECRET-KEY": alpaca_secret,
-                    }
-                    timeout = self.config.get("api_request_timeout_seconds", 5)
-                    resp = requests.delete(url, headers=headers, timeout=timeout)
+            # Attempt to cancel on Alpaca
+            try:
+                url = f"{base_url}/v2/orders/{trade_id}"
+                headers = {
+                    "APCA-API-KEY-ID": alpaca_key,
+                    "APCA-API-SECRET-KEY": alpaca_secret,
+                }
+                timeout = self.config.get("api_request_timeout_seconds", 5)
+                resp = requests.delete(url, headers=headers, timeout=timeout)
 
-                    if resp.status_code == 204 or resp.status_code == 200:
-                        logger.info(
-                            f"Successfully cancelled order {trade_id} on Alpaca"
-                        )
-                    elif resp.status_code == 404:
-                        logger.info(
-                            f"Order {trade_id} not found on Alpaca (already closed/cancelled)"
-                        )
-                    else:
-                        logger.warning(
-                            f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}"
-                        )
-                except Exception as api_e:
+                if resp.status_code == 204 or resp.status_code == 200:
+                    logger.info(
+                        f"Successfully cancelled order {trade_id} on Alpaca"
+                    )
+                elif resp.status_code == 404:
+                    logger.info(
+                        f"Order {trade_id} not found on Alpaca (already closed/cancelled)"
+                    )
+                else:
                     raise RuntimeError(
-                        f"Failed to cancel order {trade_id} on Alpaca: {api_e}. DB update blocked to maintain broker/DB state consistency."
-                    ) from api_e
+                        f"Alpaca cancel returned unexpected status {resp.status_code} for {trade_id}: {resp.text}. DB update blocked to maintain broker/DB state consistency."
+                    )
+            except Exception as api_e:
+                raise RuntimeError(
+                    f"Failed to cancel order {trade_id} on Alpaca: {api_e}. DB update blocked to maintain broker/DB state consistency."
+                ) from api_e
 
             # Update database (atomic with audit log)
             cur.execute(
@@ -833,12 +836,21 @@ class PositionMonitor:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_market_dist_days(self, current_date, cur):
+        """Get market distribution days from health data.
+
+        Raises:
+            ValueError: If market health data is unavailable for the date
+        """
         cur.execute(
             "SELECT distribution_days_4w FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()
-        return int(row[0]) if row and row[0] is not None else None
+        if not row or row[0] is None:
+            raise ValueError(
+                f"Market distribution days not available for {current_date} — market_health_daily table missing or empty"
+            )
+        return int(row[0])
 
     def _period_return(self, symbol, end_date, lookback_days, cur):
         """Compute simple return over a lookback period.
