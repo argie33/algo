@@ -115,10 +115,23 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
+def _is_api_error(response: dict) -> bool:
+    """Check if API response indicates an error (network error or statusCode >= 400)."""
+    return "_error" in response or response.get("statusCode", 200) >= 400
+
+
+def _get_error_message(response: dict) -> str:
+    """Extract error message from API response."""
+    if "_error" in response:
+        return response["_error"]
+    # Extract from statusCode-based error response
+    return response.get("message", f"API error {response.get('statusCode', 'unknown')}")
+
+
 def fetch_run(c):
     try:
         data = api_call("/api/algo/last-run")
-        if data.get("_error"):
+        if _is_api_error(data):
             return data
         # api_call returns {statusCode, data: {...}} — unwrap inner data
         inner = data.get("data", {}) if isinstance(data.get("data"), dict) else data
@@ -153,9 +166,9 @@ def fetch_algo_config(c):
     """AWS-only algo configuration (no local fallback)."""
     try:
         data = api_call("/api/algo/config")
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "enabled": False,
                 "mode": "unknown",
                 "max_pos_pct": None,
@@ -401,12 +414,12 @@ def fetch_portfolio(c):
     """
     try:
         data = api_call("/api/algo/portfolio")
-        if data.get("_error"):
+        if _is_api_error(data):
             record_data_quality_issue(
-                "portfolio", "api_call", "api_error", data.get("_error")
+                "portfolio", "api_call", "api_error", _get_error_message(data)
             )
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "snapshot_date": None,
                 "total_portfolio_value": None,
                 "total_cash": None,
@@ -543,9 +556,9 @@ def fetch_perf(c):
     """
     try:
         data = api_call("/api/algo/performance")
-        if data.get("_error"):
+        if _is_api_error(data):
             # 503 means no performance data yet (no completed trades) — not a true error
-            if "503" in str(data.get("_error", "")):
+            if "503" in str(_get_error_message(data)):
                 return {
                     "_no_data": True,
                     "n": 0, "w": 0, "l": 0, "wr": None, "pnl": None,
@@ -554,10 +567,10 @@ def fetch_perf(c):
                     "expectancy": None, "avg_r": None, "equity_vals": [], "recent_rets": [],
                 }
             record_data_quality_issue(
-                "per", "api_call", "api_error", data.get("_error")
+                "per", "api_call", "api_error", _get_error_message(data)
             )
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "n": None,
                 "w": None,
                 "l": None,
@@ -708,9 +721,9 @@ def fetch_positions(c):
     """Fetch positions via AWS API only (no local database fallback)."""
     try:
         data = api_call(_get_endpoint_path("pos"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "items": [],
                 "timestamp": datetime.now(timezone.utc),
             }
@@ -741,16 +754,16 @@ def fetch_recent_trades(c):
             _get_endpoint_path("trades"),
             params={"limit": 30, "status": "closed"},
         )
-        if data.get("_error"):
+        if _is_api_error(data):
             # 503 means no trades data yet (algo just started or no closed trades) — not a true error
-            if "503" in str(data.get("_error", "")):
+            if "503" in str(_get_error_message(data)):
                 return {
                     "_no_data": True,
                     "items": [],
                     "timestamp": datetime.now(timezone.utc),
                 }
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "items": [],
                 "timestamp": datetime.now(timezone.utc),
             }
@@ -775,9 +788,9 @@ def fetch_signals(c):
     """Fetch dashboard signals from API."""
     try:
         data = api_call(_get_endpoint_path("sig"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "n": 0,
                 "total": 0,
                 "buy_sigs": [],
@@ -839,8 +852,8 @@ def fetch_sector_ranking(c):
     """
     try:
         data = api_call("/api/sectors")
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "items": []}
         raw = data.get("data", {})
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
@@ -859,9 +872,9 @@ def fetch_activity(c):
     """
     try:
         data = api_call(_get_endpoint_path("activity"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "run_id": None,
                 "run_at": None,
                 "phases": [],
@@ -925,8 +938,8 @@ def fetch_health(c):
     """
     try:
         data = _get_data_status_cached()
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "items": []}
         inner = data.get("data", {})
         if not isinstance(inner, dict):
             inner = {}
@@ -976,8 +989,8 @@ def fetch_exp_factors(c):
     """
     try:
         data = api_call("/api/algo/markets")
-        if data.get("_error"):
-            return {"_error": data.get("_error")}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data)}
         # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
         inner = data.get("data", {})
         if not isinstance(inner, dict):
@@ -1016,7 +1029,7 @@ def fetch_economic_pulse(c):
         ind_data = api_call("/api/economic/indicators")
 
         t10 = t2 = t3m = t6m = yc_10_2 = yc_10_3m = hy = ig = None
-        if not yc_data.get("_error"):
+        if not _is_api_error(yc_data):
             d = yc_data.get("data", {})
             curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
             spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
@@ -1033,7 +1046,7 @@ def fetch_economic_pulse(c):
 
         fed_funds = cpi_yoy = unrate = be10 = be5 = None
         oil = nfci = dxy = mortgage = umcsent = None
-        if not ind_data.get("_error"):
+        if not _is_api_error(ind_data):
             d2 = ind_data.get("data", {})
             indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
             by_series = {
@@ -1072,8 +1085,8 @@ def fetch_algo_metrics(c):
     do valid_metrics[0] and iterate over multiple days."""
     try:
         data = api_call(_get_endpoint_path("algo_metrics"))
-        if data.get("_error"):
-            return {"_error": data.get("_error")}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data)}
         d = data.get("data")
         if isinstance(d, list):
             return d
@@ -1089,8 +1102,8 @@ def fetch_algo_metrics(c):
 def fetch_notifications(c):
     try:
         data = api_call(_get_endpoint_path("notifs"))
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "items": []}
         raw = data.get("data", {})
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
@@ -1104,9 +1117,9 @@ def fetch_sentiment(c):
     """Issue 3 FIX: API-only sentiment data."""
     try:
         data = api_call(_get_endpoint_path("sentiment"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "fg": 50,
                 "label": "Unknown",
                 "date": None,
@@ -1139,8 +1152,8 @@ def fetch_economic_calendar(c):
     event_name, country, importance, category, ...}], total: N}."""
     try:
         data = api_call(_get_endpoint_path("econ_cal"))
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "items": []}
         raw = data.get("data", {})
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
@@ -1154,9 +1167,9 @@ def fetch_risk_metrics(c):
     """Issue 3 FIX: API-only risk metrics."""
     try:
         data = api_call(_get_endpoint_path("risk"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "date": None,
                 "var95": None,
                 "cvar95": None,
@@ -1191,9 +1204,9 @@ def fetch_perf_analytics(c):
     """Issue 3 FIX: API-only performance analytics."""
     try:
         data = api_call(_get_endpoint_path("perf_anl"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "sharpe252": None,
                 "sortino": None,
                 "calmar": None,
@@ -1234,8 +1247,8 @@ def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
     try:
         data = api_call(_get_endpoint_path("sig_eval"))
-        if data.get("_error"):
-            return {"_error": data.get("_error")}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data)}
         result = data.get("data", {})
         return {
             "total": safe_int(result.get("total")),
@@ -1258,9 +1271,9 @@ def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API."""
     try:
         data = api_call(_get_endpoint_path("srank"))
-        if data.get("_error"):
+        if _is_api_error(data):
             return {
-                "_error": data.get("_error"),
+                "_error": _get_error_message(data),
                 "date": None,
                 "signal": "",
                 "strength": None,
@@ -1311,8 +1324,8 @@ def fetch_industry_ranking(c):
     current_rank, overall_rank, rank_1w_ago, rank_4w_ago}], total: N}."""
     try:
         data = api_call(_get_endpoint_path("irank"))
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "items": []}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "items": []}
         raw = data.get("data", {})
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
@@ -1330,8 +1343,8 @@ def fetch_exec_history(c):
             _get_endpoint_path("exec_hist"),
             params={"days": 7, "limit": 10},
         )
-        if data.get("_error"):
-            return {"_error": data.get("_error")}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data)}
         raw = data.get("data")
         if isinstance(raw, dict):
             return raw.get("items", [])
@@ -1374,8 +1387,8 @@ def fetch_audit_log(c):
     dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
     try:
         data = api_call(_get_endpoint_path("audit"))
-        if data.get("_error"):
-            return {"_error": data.get("_error")}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data)}
         raw = data.get("data", {})
         if isinstance(raw, dict):
             return raw.get("items", [])
@@ -1392,8 +1405,8 @@ def fetch_circuit(c):
     """Fetch circuit breakers from API."""
     try:
         data = api_call("/api/algo/circuit-breakers")
-        if data.get("_error"):
-            return {"_error": data.get("_error"), "bs": [], "any": False, "n": 0}
+        if _is_api_error(data):
+            return {"_error": _get_error_message(data), "bs": [], "any": False, "n": 0}
         result = data.get("data", {})
         bs = result.get("breakers", [])
         formatted_bs = []

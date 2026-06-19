@@ -23,7 +23,7 @@ def test_unwrap_single_object_response():
         },
     }
     unwrapped = _unwrap_api_response(response)
-    assert "statusCode" not in unwrapped, "statusCode should be removed"
+    assert unwrapped["statusCode"] == 200, "statusCode should be preserved for error detection"
     assert "data" not in unwrapped, "data wrapper should be extracted"
     assert unwrapped["portfolio"]["total_value"] == 100000
     assert unwrapped["run_id"] == "test-123"
@@ -39,7 +39,7 @@ def test_unwrap_list_response():
         "pagination": {"limit": 10, "offset": 0},
     }
     unwrapped = _unwrap_api_response(response)
-    assert "statusCode" not in unwrapped, "statusCode should be removed"
+    assert unwrapped["statusCode"] == 200, "statusCode should be preserved for error detection"
     assert "items" in unwrapped, "items field should remain"
     assert len(unwrapped["items"]) == 2
     print("[OK] List response unwrapping works")
@@ -55,7 +55,7 @@ def test_unwrap_direct_fields_response():
         "grades": {"a": 2, "b": 3},
     }
     unwrapped = _unwrap_api_response(response)
-    assert "statusCode" not in unwrapped, "statusCode should be removed"
+    assert unwrapped["statusCode"] == 200, "statusCode should be preserved for error detection"
     assert unwrapped["n"] == 5, "Direct fields should remain"
     assert unwrapped["total"] == 10
     assert len(unwrapped["buy_sigs"]) == 1
@@ -70,7 +70,7 @@ def test_unwrap_preserves_metadata():
         "data_freshness": {"is_stale": False, "data_age_days": 0},
     }
     unwrapped = _unwrap_api_response(response)
-    assert "statusCode" not in unwrapped
+    assert unwrapped["statusCode"] == 200, "statusCode should be preserved"
     assert "items" in unwrapped
     assert "data_freshness" in unwrapped
     print("[OK] Metadata preservation works")
@@ -80,24 +80,26 @@ def test_unwrap_empty_response():
     """Test unwrapping empty response."""
     response = {"statusCode": 200}
     unwrapped = _unwrap_api_response(response)
-    assert unwrapped == {}
+    assert unwrapped == {"statusCode": 200}, "statusCode should be preserved"
     print("[OK] Empty response unwrapping works")
 
 
-def test_data_fetcher_pattern():
-    """Test the pattern used by data fetchers: resp.get("data", resp)"""
-    # Simulate json_response format
+def test_data_fetcher_error_detection():
+    """Test that callers can distinguish errors from successful responses via statusCode."""
+    # Successful response
     response = {"statusCode": 200, "data": {"key": "value"}}
     unwrapped = _unwrap_api_response(response)
-    payload = unwrapped.get("data", unwrapped)  # This is the pattern used in fetchers
-    assert payload == {"key": "value"}
+    assert unwrapped["statusCode"] == 200, "Success status should be detectable"
+    assert unwrapped.get("key") == "value", "Payload should be available"
 
-    # Simulate direct field format
-    response = {"statusCode": 200, "key": "value"}
+    # Error response with error details in data field
+    response = {"statusCode": 400, "error": "invalid_param", "details": "x is required"}
     unwrapped = _unwrap_api_response(response)
-    payload = unwrapped.get("data", unwrapped)  # Falls back to unwrapped itself
-    assert payload == {"key": "value"}
-    print("[OK] Data fetcher unwrapping pattern works")
+    assert unwrapped["statusCode"] == 400, "Error status should be detectable"
+    assert unwrapped.get("error") == "invalid_param", "Error details should be preserved"
+    assert unwrapped.get("details") == "x is required", "Error details should be preserved"
+
+    print("[OK] Error detection via statusCode works")
 
 
 if __name__ == "__main__":
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         test_unwrap_direct_fields_response()
         test_unwrap_preserves_metadata()
         test_unwrap_empty_response()
-        test_data_fetcher_pattern()
+        test_data_fetcher_error_detection()
         print("\n[PASS] All tests passed! Issue 1.1 response consistency fix verified.")
         sys.exit(0)
     except AssertionError as e:

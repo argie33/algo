@@ -27,7 +27,7 @@ Migration status:
 
 import logging
 import os
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 import requests
 
@@ -39,7 +39,7 @@ API_TIMEOUT = 10
 API_MAX_RETRIES = 3
 
 
-def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Dict:
+def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
     """Call API endpoint with retry logic and standardized response unwrapping.
 
     Standardizes API responses into a consistent format regardless of the endpoint's
@@ -100,7 +100,7 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
     return {"_error": "API max retries exceeded"}
 
 
-def _unwrap_api_response(response: Dict) -> Dict:
+def _unwrap_api_response(response: dict) -> dict:
     """Unwrap standardized API response wrapper while preserving error status.
 
     All API responses follow the format: {statusCode: 200, data: {...}, ...metadata}
@@ -115,14 +115,14 @@ def _unwrap_api_response(response: Dict) -> Dict:
         statusCode >= 400 to distinguish errors from successful empty responses.
     """
     if not isinstance(response, dict):
-        return cast(Dict, response)
+        return cast(dict, response)
 
     status_code = response.get("statusCode", 200)
 
     # Extract the data field (all endpoints wrap payloads in 'data' via _wrap_response in api_router)
     # This is the only field that contains actual application data
     if "data" in response:
-        payload = cast(Dict, response["data"])
+        payload = cast(dict, response["data"])
     else:
         # Fallback for error responses that have no 'data' field
         # Keep statusCode but remove other metadata markers
@@ -140,7 +140,7 @@ class DashboardDataAPI:
     """Consolidated API data layer for all dashboard fetchers."""
 
     @staticmethod
-    def get_portfolio() -> Dict[str, Any]:
+    def get_portfolio() -> dict[str, Any]:
         """Get portfolio snapshot via /api/algo/status."""
         resp = api_call("/api/algo/status")
         if "_error" in resp:
@@ -158,7 +158,7 @@ class DashboardDataAPI:
         }
 
     @staticmethod
-    def get_positions() -> Dict[str, Any]:
+    def get_positions() -> dict[str, Any]:
         """Get open positions via /api/algo/positions."""
         resp = api_call("/api/algo/positions")
         if "_error" in resp:
@@ -177,7 +177,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_performance() -> Dict[str, Any]:
+    def get_performance() -> dict[str, Any]:
         """Get performance metrics via /api/algo/performance."""
         resp = api_call("/api/algo/performance")
         if "_error" in resp:
@@ -186,7 +186,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_trades(limit: int = 100) -> Dict[str, Any]:
+    def get_trades(limit: int = 100) -> dict[str, Any]:
         """Get recent trades via /api/algo/trades."""
         resp = api_call("/api/algo/trades", params={"limit": limit})
         if "_error" in resp:
@@ -195,7 +195,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_signals() -> Dict[str, Any]:
+    def get_signals() -> dict[str, Any]:
         """Get dashboard signals via /api/algo/dashboard-signals."""
         resp = api_call("/api/algo/dashboard-signals")
         if "_error" in resp:
@@ -204,7 +204,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_health() -> Dict[str, Any]:
+    def get_health() -> dict[str, Any]:
         """Get data health status via /api/algo/data-status."""
         resp = api_call("/api/algo/data-status")
         if "_error" in resp:
@@ -213,7 +213,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_config() -> Dict[str, Any]:
+    def get_config() -> dict[str, Any]:
         """Get algo configuration via /api/algo/config."""
         resp = api_call("/api/algo/config")
         if "_error" in resp:
@@ -222,7 +222,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_notifications(limit: int = 10) -> Dict[str, Any]:
+    def get_notifications(limit: int = 10) -> dict[str, Any]:
         """Get recent notifications via /api/algo/notifications."""
         resp = api_call("/api/algo/notifications", params={"limit": limit})
         if "_error" in resp:
@@ -231,7 +231,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_last_run() -> Dict[str, Any]:
+    def get_last_run() -> dict[str, Any]:
         """Get last orchestrator run info via /api/algo/last-run."""
         resp = api_call("/api/algo/last-run")
         if "_error" in resp:
@@ -240,7 +240,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_audit_log(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+    def get_audit_log(limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """Get audit log via /api/algo/audit-log."""
         resp = api_call(
             "/api/algo/audit-log", params={"limit": limit, "offset": offset}
@@ -251,7 +251,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_circuit_breakers() -> Dict[str, Any]:
+    def get_circuit_breakers() -> dict[str, Any]:
         """Get circuit breaker status via /api/algo/circuit-breakers."""
         resp = api_call("/api/algo/circuit-breakers")
         if "_error" in resp:
@@ -260,7 +260,7 @@ class DashboardDataAPI:
         return resp
 
     @staticmethod
-    def get_sector_breadth() -> Dict[str, Any]:
+    def get_sector_breadth() -> dict[str, Any]:
         """Get sector breadth via /api/algo/sector-breadth."""
         resp = api_call("/api/algo/sector-breadth")
         if "_error" in resp:
