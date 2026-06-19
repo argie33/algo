@@ -753,7 +753,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             live.update(layout)
                         except Exception as e:
                             error_panel = _handle_render_error(
-                                e, recovery.state.get_recovery_status()
+                                e, recovery.get_recovery_status()
                             )
                             try:
                                 live.update(error_panel)
@@ -835,7 +835,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         if current_error:
                             error_panel = _handle_render_error(
                                 RuntimeError(current_error),
-                                recovery.state.get_recovery_status(),
+                                recovery.get_recovery_status(),
                             )
                             try:
                                 live.update(error_panel)
@@ -858,7 +858,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             live.update(layout)
                         except Exception as e:
                             error_panel = _handle_render_error(
-                                e, recovery.state.get_recovery_status()
+                                e, recovery.get_recovery_status()
                             )
                             try:
                                 live.update(error_panel)

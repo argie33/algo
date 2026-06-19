@@ -4,6 +4,7 @@ Implements transient vs permanent error classification, exponential backoff,
 and automatic retry with state persistence.
 """
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -101,6 +102,7 @@ class RenderRecovery:
 
     def __init__(self):
         self.state = RenderState()
+        self._lock = threading.Lock()
 
     def render_with_recovery(
         self, data: dict, render_fn: Callable[[dict], Layout]
@@ -116,55 +118,76 @@ class RenderRecovery:
             - layout: successful render or last good render (if available)
             - status_message: recovery status for display in error panel
         """
-        # Check if we're in backoff period
-        if self.state.next_retry_time and datetime.now() < self.state.next_retry_time:
-            # Still in backoff period, use cached render with status
-            status = self.state.get_recovery_status()
-            if self.state.last_good_layout:
-                return self.state.last_good_layout, status
+        # Check if we're in backoff period (hold lock for brief state read)
+        with self._lock:
+            if self.state.next_retry_time and datetime.now() < self.state.next_retry_time:
+                # Still in backoff period, use cached render with status
+                status = self.state.get_recovery_status()
+                cached_layout = self.state.last_good_layout
+
+            else:
+                cached_layout = None
+                status = None
+
+        # If in backoff period, return cached result
+        if status is not None:
+            if cached_layout:
+                return cached_layout, status
             return self._create_loading_panel(status), status
 
-        # Attempt render
+        # Attempt render (don't hold lock during potentially long operation)
         try:
             layout = render_fn(data)
             # Success: reset error state and cache this layout
-            self.state.last_good_layout = layout
-            self.state.last_good_time = datetime.now()
-            self.state.retry_count = 0
-            self.state.error_category = None
-            self.state.next_retry_time = None
+            with self._lock:
+                self.state.last_good_layout = layout
+                self.state.last_good_time = datetime.now()
+                self.state.retry_count = 0
+                self.state.error_category = None
+                self.state.next_retry_time = None
             return layout, ""  # No status = no error
         except Exception as e:
-            # Error: categorize and decide retry
-            self.state.error_category = categorize_error(e)
-            self.state.error_log.append((datetime.now(), type(e).__name__, str(e)))
-            self.state.retry_count += 1
+            # Error: categorize and decide retry (hold lock while updating state)
+            with self._lock:
+                self.state.error_category = categorize_error(e)
+                self.state.error_log.append((datetime.now(), type(e).__name__, str(e)))
+                self.state.retry_count += 1
 
-            if self.state.should_retry():
-                # Schedule next retry
-                delay = self.state.next_backoff_delay()
-                self.state.next_retry_time = datetime.now() + timedelta(seconds=delay)
-                status = self.state.get_recovery_status()
-            else:
-                # Give up
-                status = self.state.get_recovery_status()
+                if self.state.should_retry():
+                    # Schedule next retry
+                    delay = self.state.next_backoff_delay()
+                    self.state.next_retry_time = datetime.now() + timedelta(seconds=delay)
+                    status = self.state.get_recovery_status()
+                else:
+                    # Give up
+                    status = self.state.get_recovery_status()
 
-            # Return last good render if available, else error panel
-            if self.state.last_good_layout:
-                return self.state.last_good_layout, status
-            else:
-                return self._create_error_panel(e, status), status
+                # Return last good render if available, else error panel
+                if self.state.last_good_layout:
+                    return self.state.last_good_layout, status
+                else:
+                    return self._create_error_panel(e, status), status
 
     def should_retry_data_load(self) -> bool:
         """Check if data reload should be triggered (e.g., in watch mode).
 
         For transient errors, reloading data may help recover from API issues.
         """
-        return (
-            self.state.error_category == ErrorCategory.TRANSIENT
-            and self.state.retry_count > 0
-            and self.state.should_retry()
-        )
+        with self._lock:
+            return (
+                self.state.error_category == ErrorCategory.TRANSIENT
+                and self.state.retry_count > 0
+                and self.state.should_retry()
+            )
+
+    def get_recovery_status(self) -> str:
+        """Get recovery status message (thread-safe).
+
+        Returns:
+            Human-readable recovery status string, or empty string if no error.
+        """
+        with self._lock:
+            return self.state.get_recovery_status()
 
     def _create_loading_panel(self, status: str) -> Layout:
         """Create a loading panel for backoff periods."""
