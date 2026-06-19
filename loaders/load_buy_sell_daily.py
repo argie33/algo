@@ -91,13 +91,17 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_coverage_symbols = tech_row[0] if tech_row else 0
                 tech_max_date = tech_row[1] if tech_row else None
 
-                # ROOT CAUSE #5 FIX: Read global watermark once instead of per-symbol
-                # Prevents 10k+ duplicate queries (one per symbol in fetch_incremental)
+                # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup
+                # Fetch in one query: symbol -> max(date) mapping for entire table
+                # Prevents 10k individual queries on ECS restart (would stall if any single query is slow)
+                symbol_watermarks = {}
                 cur.execute(
-                    "SELECT MAX(date) FROM buy_sell_daily",
+                    "SELECT symbol, MAX(date) FROM buy_sell_daily GROUP BY symbol",
                 )
-                watermark_row = cur.fetchone()
-                watermark_date = watermark_row[0] if watermark_row and watermark_row[0] else None
+                for row in cur.fetchall():
+                    symbol, max_date = row
+                    if max_date:
+                        symbol_watermarks[symbol] = max_date
 
             today_et = now_et.date()
             tech_data_age = (today_et - tech_max_date).days if tech_max_date else None
@@ -107,16 +111,16 @@ class SignalsDailyLoader(OptimalLoader):
                 "price_coverage_symbols": price_coverage_symbols,
                 "tech_coverage_symbols": tech_coverage_symbols,
                 "tech_data_age": tech_data_age,
-                "watermark_date": watermark_date,
+                "symbol_watermarks": symbol_watermarks,
             }
             logger.debug(
                 f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
-                f"tech_coverage={tech_coverage_symbols}"
+                f"tech_coverage={tech_coverage_symbols}, cached {len(symbol_watermarks)} symbol watermarks"
             )
         except Exception as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
-                "Cannot proceed without shared batch data (end_date, price/tech coverage)."
+                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks)."
             )
 
     def fetch_incremental(self, symbol: str, since: date | None):
@@ -139,28 +143,45 @@ class SignalsDailyLoader(OptimalLoader):
                 end = end - timedelta(days=1)
 
         # On ECS restart the in-memory watermark is empty, so since=None.
-        # Read symbol-specific watermark from buy_sell_daily table to avoid regenerating signals.
+        # ISSUE #9 FIX: Look up symbol watermark from pre-cached batch_context
+        # (populated at startup with all symbols' watermarks in one query).
+        # Fallback to database query only on cache miss (for newly added symbols).
+        # This prevents stalls on ECS restart when fetching per-symbol watermarks.
+        #
         # BUGFIX: Use per-symbol watermark, not global watermark. Different symbols generate signals
         # on different schedules - some may have max_date=2026-06-03, others 2026-06-17.
         # Using global watermark caused symbols like AAPL to be skipped even when behind.
         if since is None:
             try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
-                        (symbol,),
-                    )
-                    row = cur.fetchone()
-                    if row and row[0]:
-                        max_date = row[0]
-                        # Handle different date types from database
-                        if isinstance(max_date, date) and not isinstance(max_date, datetime):
-                            since = max_date
-                        elif isinstance(max_date, datetime):
-                            since = max_date.date()
-                        else:
-                            # Try string conversion as fallback
-                            since = date.fromisoformat(str(max_date).split(' ')[0])
+                # Try cache first (populated in _prepare_batch_context)
+                symbol_watermarks = (
+                    self._batch_context.get("symbol_watermarks", {})
+                    if self._batch_context
+                    else {}
+                )
+                max_date = symbol_watermarks.get(symbol)
+
+                # Cache miss: query database as fallback
+                if max_date is None:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
+                            (symbol,),
+                        )
+                        row = cur.fetchone()
+                        if row and row[0]:
+                            max_date = row[0]
+
+                # Convert max_date to date if found
+                if max_date:
+                    # Handle different date types from database
+                    if isinstance(max_date, date) and not isinstance(max_date, datetime):
+                        since = max_date
+                    elif isinstance(max_date, datetime):
+                        since = max_date.date()
+                    else:
+                        # Try string conversion as fallback
+                        since = date.fromisoformat(str(max_date).split(' ')[0])
             except Exception as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
@@ -309,6 +330,7 @@ class SignalsDailyLoader(OptimalLoader):
                     return age_days
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
+        return None
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""

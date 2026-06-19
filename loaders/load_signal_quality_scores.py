@@ -160,7 +160,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         # This avoids N+1 per-symbol queries during restart recovery.
         if since is None and self._batch_context and "watermarks" in self._batch_context:
             watermarks = self._batch_context["watermarks"]
-            if symbol in watermarks and watermarks[symbol]:
+            if watermarks.get(symbol):
                 parsed = safe_parse_date(
                     watermarks[symbol], f"signal_quality_scores watermark for {symbol}"
                 )
@@ -348,6 +348,34 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         try:
             with DatabaseContext("read") as cur:
+                # Check if vcp_patterns table exists (ISSUE #10 FIX)
+                cur.execute(
+                    "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name = 'vcp_patterns')"
+                )
+                table_exists = cur.fetchone()[0]
+                if not table_exists:
+                    logger.critical(
+                        "[VCP_TABLE_MISSING] VCP patterns table does not exist. "
+                        "Upstream loader (load_vcp_patterns.py) must run first. "
+                        "Failing closed: returning empty patterns."
+                    )
+                    return []
+
+                # Check if vcp_patterns table has been populated for the symbol
+                cur.execute(
+                    "SELECT COUNT(*) FROM vcp_patterns "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s",
+                    (symbol, start, end),
+                )
+                count = cur.fetchone()[0]
+                if count == 0:
+                    logger.debug(
+                        f"[VCP_NO_DATA] No VCP patterns found for {symbol} "
+                        f"in date range {start} to {end}"
+                    )
+                    return []
+
                 cur.execute(
                     "SELECT date, vcp_strength FROM vcp_patterns "
                     "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
@@ -755,6 +783,7 @@ def _log_signal_metrics():
     4. Seasonal variations (volume changes around earnings, Fed days, etc)
     """
     from datetime import datetime, timezone
+
     from utils.infrastructure.timezone import EASTERN_TZ
 
     try:
@@ -765,7 +794,7 @@ def _log_signal_metrics():
                 "FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL')"
             )
             result = cur.fetchone()
-            total_signals = result[0] if result else 0
+            result[0] if result else 0
             latest_signal_date = result[1] if result and result[1] else None
 
             if latest_signal_date:
