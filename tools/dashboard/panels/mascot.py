@@ -2,8 +2,115 @@
 
 import logging
 
+from rich.align import Align
+from rich.console import Group
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.text import Text
+
 
 logger = logging.getLogger(__name__)
+
+
+class _RenderCache:
+    """Cache rendered Panel/Layout objects to avoid redundant rendering on every frame."""
+    def __init__(self):
+        self.mascot_compact_pose_index = None
+        self.mascot_compact_panel = None
+        self.loading_layout_pose_index = None
+        self.loading_layout_dots_idx = None
+        self.loading_layout_cache = None
+        self.loading_layout_data_source = None
+
+    def get_mascot_panel(self, pose_index: int, data: dict) -> Panel:
+        """Return cached Panel if pose hasn't changed, otherwise render new one."""
+        if self.mascot_compact_pose_index == pose_index:
+            return self.mascot_compact_panel
+
+        self.mascot_compact_pose_index = pose_index
+        mc = MASCOT_COLORS[pose_index]
+        pose = MASCOT_FRAMES[pose_index]
+        self.mascot_compact_panel = Panel(
+            Group(
+                Text(" " * 11),
+                Text(pose[0], style=f"bold {mc}", no_wrap=True),
+                Text(pose[1], style=f"bold {mc}", no_wrap=True),
+                Text(pose[2], style=f"bold {mc}", no_wrap=True),
+                Text(pose[3], style=f"bold {mc}", no_wrap=True),
+                Text(" " * 11),
+            ),
+            border_style=mc,
+            padding=(0, 0),
+        )
+        return self.mascot_compact_panel
+
+    def get_loading_layout(self, pose_index: int, dots_idx: int, data_source: str) -> Layout:
+        """Return cached Layout if pose and dots haven't changed."""
+        if (self.loading_layout_pose_index == pose_index and
+            self.loading_layout_dots_idx == dots_idx and
+            self.loading_layout_data_source == data_source):
+            return self.loading_layout_cache
+
+        self.loading_layout_pose_index = pose_index
+        self.loading_layout_dots_idx = dots_idx
+        self.loading_layout_data_source = data_source
+        mc = MASCOT_COLORS[pose_index]
+        pose = MASCOT_FRAMES[pose_index]
+        dots = "." * (dots_idx + 1)
+
+        mascot_panel = Panel(
+            Group(
+                Text(" " * 11),
+                Text(pose[0], style=f"bold {mc}", no_wrap=True),
+                Text(pose[1], style=f"bold {mc}", no_wrap=True),
+                Text(pose[2], style=f"bold {mc}", no_wrap=True),
+                Text(pose[3], style=f"bold {mc}", no_wrap=True),
+                Text(" " * 11),
+            ),
+            border_style=mc,
+            padding=(0, 0),
+        )
+
+        source_color = "cyan" if data_source == "LOCAL" else "dim"
+        hdr_text = Text.from_markup(
+            f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]  [{source_color}]{data_source}[/]"
+        )
+        hdr_panel = Panel(
+            Align(hdr_text, vertical="middle"),
+            border_style="blue",
+            padding=(0, 1),
+        )
+
+        loading_body = Text.from_markup(
+            f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
+            "  [dim]Connecting to database...[/]\n\n"
+            "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
+            "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]t[/][dim] trades  "
+            "[/][cyan]e[/][dim] economic  [/][cyan]f[/][dim] portfolio  [/][cyan]q[/][dim] quit[/]"
+        )
+        main_panel = Panel(
+            Align(loading_body, align="left", vertical="middle"),
+            border_style="blue",
+            padding=(0, 1),
+        )
+
+        layout = Layout()
+        layout.split_column(
+            Layout(name="top", size=MASCOT_H),
+            Layout(name="main", ratio=1),
+        )
+        layout["top"].split_row(
+            Layout(name="hdr", ratio=1),
+            Layout(name="mascot", size=MASCOT_W),
+        )
+        layout["top"]["hdr"].update(hdr_panel)
+        layout["top"]["mascot"].update(mascot_panel)
+        layout["main"].update(main_panel)
+        self.loading_layout_cache = layout
+        return layout
+
+
+_render_cache = _RenderCache()
 
 try:
     from panel_registry import register_panel
@@ -13,12 +120,6 @@ except ImportError as e:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
-
-from rich.align import Align
-from rich.console import Group
-from rich.layout import Layout
-from rich.panel import Panel
-from rich.text import Text
 
 from ..utilities import (
     LOAD_SEQ,
@@ -63,21 +164,7 @@ def mascot_pose(data: dict, frame: int) -> int:
 )
 def mascot_compact(data: dict, frame: int) -> Panel:
     fi = mascot_pose(data, frame)
-    mc = MASCOT_COLORS[fi]
-    pose = MASCOT_FRAMES[fi]
-    # No justify= — strings are pre-padded to exactly 11 chars (panel content width).
-    return Panel(
-        Group(
-            Text(" " * 11),
-            Text(pose[0], style=f"bold {mc}", no_wrap=True),
-            Text(pose[1], style=f"bold {mc}", no_wrap=True),
-            Text(pose[2], style=f"bold {mc}", no_wrap=True),
-            Text(pose[3], style=f"bold {mc}", no_wrap=True),
-            Text(" " * 11),
-        ),
-        border_style=mc,
-        padding=(0, 0),
-    )
+    return _render_cache.get_mascot_panel(fi, data)
 
 
 @register_panel(
@@ -90,60 +177,8 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
     idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]  # 4fps loading animation
     fi = _get_safe_frame_index(idx)
-    mc = MASCOT_COLORS[fi]
-    pose = MASCOT_FRAMES[fi]
-    dots = "." * ((frame // 2 % 4) + 1)  # dots cycle at ~1Hz
-
-    # Same pre-padded approach as mascot_compact (11-char strings)
-    mascot_panel = Panel(
-        Group(
-            Text(" " * 11),
-            Text(pose[0], style=f"bold {mc}", no_wrap=True),
-            Text(pose[1], style=f"bold {mc}", no_wrap=True),
-            Text(pose[2], style=f"bold {mc}", no_wrap=True),
-            Text(pose[3], style=f"bold {mc}", no_wrap=True),
-            Text(" " * 11),
-        ),
-        border_style=mc,
-        padding=(0, 0),
-    )
-
-    source_color = "cyan" if data_source == "LOCAL" else "dim"
-    hdr_text = Text.from_markup(
-        f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]  [{source_color}]{data_source}[/]"
-    )
-    hdr_panel = Panel(
-        Align(hdr_text, vertical="middle"),
-        border_style="blue",
-        padding=(0, 1),
-    )
-
-    loading_body = Text.from_markup(
-        f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
-        "  [dim]Connecting to database...[/]\n\n"
-        "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
-        "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]t[/][dim] trades  "
-        "[/][cyan]e[/][dim] economic  [/][cyan]f[/][dim] portfolio  [/][cyan]q[/][dim] quit[/]"
-    )
-    main_panel = Panel(
-        Align(loading_body, align="left", vertical="middle"),
-        border_style="blue",
-        padding=(0, 1),
-    )
-
-    layout = Layout()
-    layout.split_column(
-        Layout(name="top", size=MASCOT_H),
-        Layout(name="main", ratio=1),
-    )
-    layout["top"].split_row(
-        Layout(name="hdr", ratio=1),
-        Layout(name="mascot", size=MASCOT_W),
-    )
-    layout["top"]["hdr"].update(hdr_panel)
-    layout["top"]["mascot"].update(mascot_panel)
-    layout["main"].update(main_panel)
-    return layout
+    dots_idx = frame // 2 % 4  # dots cycle at ~1Hz
+    return _render_cache.get_loading_layout(fi, dots_idx, data_source)
 
 
 def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Layout:
