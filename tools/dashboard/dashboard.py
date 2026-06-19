@@ -968,12 +968,12 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 )
 
                         if should_reload or should_retry_load:
-                            cleanup_dead_threads()
                             reload_thread = threading.Thread(
                                 target=reload, daemon=False
                             )
                             reload_thread.start()
                             with active_threads_lock:
+                                active_threads = [t for t in active_threads if t.is_alive()]
                                 active_threads.append(reload_thread)
                     time.sleep(0.125)
             except KeyboardInterrupt:
