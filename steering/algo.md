@@ -29,6 +29,20 @@ See `steering/rate-limiting-strategy.md` for complete rate limiting strategy. Qu
 
 All endpoints return HTTP error codes (503/504/500) with details, never 200 OK with empty data. `db_route_handler` decorator enforces this. Frontend must handle 503/504/500 as actual errors.
 
+## Security & Scanning
+
+**Multi-layer security strategy:**
+- **Pre-commit:** Linting, type checking, import validation, credential blocking (dev machine)
+- **CI/CD:** Secrets detection (TruffleHog), SAST (Bandit), dependency scanning (pip-audit), IaC scanning (tfsec)
+- **Runtime:** AWS WAF, IAM least-privilege, VPC isolation, CloudWatch monitoring
+
+**See:** `SECURITY.md` for detailed strategy, `SECURITY-VULNERABILITIES.md` for known issues and analysis, `.github/workflows/ci-fast-gates.yml` for CI implementation.
+
+**Key points:**
+- Pre-commit hook blocks commits with `.env` files, debug code, session docs
+- CI/CD fails if secrets, high-confidence security issues, or vulnerable dependencies found
+- Bandit B608 (SQL injection) warnings are false positives here (all queries use parameterized values)
+
 ## Credentials & Secrets
 
 **Local setup:** `scripts/setup-local-dev.ps1` (fetches credentials from Secrets Manager).  
