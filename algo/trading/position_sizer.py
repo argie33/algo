@@ -93,7 +93,7 @@ class PositionSizer:
         raise RuntimeError(error_msg)
 
     def _fetch_live_alpaca_equity(self):
-        """Fetch live portfolio equity from Alpaca with retries. Returns None on failure."""
+        """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""
         import time
 
         import requests
@@ -119,7 +119,7 @@ class PositionSizer:
             except Exception as cfg_e:
                 raise RuntimeError(f"Operation failed: {cfg_e}") from cfg_e
         if not key or not secret:
-            return None
+            raise RuntimeError("CRITICAL: Alpaca credentials not found. Cannot fetch portfolio value.")
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -133,8 +133,7 @@ class PositionSizer:
                     try:
                         data = response.json()
                     except (ValueError, Exception) as e:
-                        logger.warning(f"Invalid JSON from Alpaca portfolio API: {e}")
-                        return None
+                        raise RuntimeError(f"Invalid JSON response from Alpaca portfolio API: {e}") from e
                     pv = data.get("portfolio_value") or data.get("equity")
                     if pv:
                         return float(pv)
@@ -146,13 +145,9 @@ class PositionSizer:
                         )
                         time.sleep(wait_time)
                         continue
-                    logger.debug(f"Alpaca API unavailable after {max_retries} attempts")
-                    return None
+                    raise RuntimeError(f"Alpaca API unavailable after {max_retries} attempts (status {response.status_code})")
                 else:
-                    logger.debug(
-                        f"Alpaca portfolio API error (status {response.status_code})"
-                    )
-                    return None
+                    raise RuntimeError(f"Alpaca portfolio API error (status {response.status_code})")
             except (requests.Timeout, requests.ConnectionError) as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt
@@ -161,13 +156,11 @@ class PositionSizer:
                     )
                     time.sleep(wait_time)
                     continue
-                logger.debug(
+                raise RuntimeError(
                     f"Portfolio value retrieval failed after {max_retries} attempts: {e}"
-                )
-                return None
+                ) from e
             except Exception as e:
                 raise RuntimeError(f"Operation failed: {e}") from e
-        return None
 
     def get_current_drawdown(self):
         """Calculate current drawdown from peak.

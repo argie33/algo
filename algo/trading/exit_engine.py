@@ -489,7 +489,7 @@ class ExitEngine:
     def _fetch_alpaca_quote(self, symbol: str) -> Optional[float]:
         """Fetch real-time quote from Alpaca Data API.
 
-        Returns the current bid-ask midpoint if market is open, None if market closed or API fails.
+        Raises on API failure or missing credentials. Returns None only if market is closed.
         """
         try:
             creds = get_alpaca_credentials()
@@ -497,7 +497,7 @@ class ExitEngine:
             secret = creds.get("secret")
 
             if not key or not secret:
-                return None
+                raise RuntimeError(f"CRITICAL: Alpaca credentials missing. Cannot fetch quote for {symbol}.")
 
             data_url = get_alpaca_data_url()
             # Use latest quotes endpoint for real-time midpoint price
@@ -525,16 +525,13 @@ class ExitEngine:
                     return float(last_price)
                 return None
             elif response.status_code == 401:
-                logger.debug(f"Alpaca quote API auth failed for {symbol}")
-                return None
+                raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
             else:
-                logger.debug(
-                    f"Alpaca quote API returned {response.status_code} for {symbol}"
+                raise RuntimeError(
+                    f"Alpaca quote API error for {symbol}: status {response.status_code}"
                 )
-                return None
         except requests.Timeout:
-            logger.debug(f"Alpaca quote API timeout for {symbol}")
-            return None
+            raise RuntimeError(f"Alpaca quote API timeout for {symbol}")
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -545,12 +542,13 @@ class ExitEngine:
 
         Strategy:
         1. Try to fetch real-time quote from Alpaca (for intraday stop checking)
-        2. If unavailable (market closed, API failure), fall back to daily closes
+        2. If market closed (quote returns None), fall back to daily closes
+        3. If API fails (raises exception), propagate to caller for immediate halt
 
-        This ensures stop losses execute on current prices during market hours,
-        not stale daily closes from the previous day.
+        This ensures stop losses execute on current prices during market hours.
+        On API failure, exit engine halts rather than using stale daily closes.
         """
-        # Try real-time quote first (intraday pricing)
+        # Try real-time quote first (intraday pricing, raises on API failure)
         current_price = self._fetch_alpaca_quote(symbol)
 
         if current_price is not None:
