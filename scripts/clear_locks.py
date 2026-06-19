@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Clear orchestrator and loader locks."""
+import psycopg2.errors
+
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 
@@ -12,11 +14,8 @@ with DatabaseContext('write') as cur:
         print(f"Found {len(locks)} orchestrator_locks:")
         for lock in locks:
             print(f"  {lock}")
-    except Exception as e:
-        if "does not exist" in str(e) or "undefined table" in str(e):
-            print("No orchestrator_locks table")
-        else:
-            raise
+    except psycopg2.errors.UndefinedTable:
+        print("No orchestrator_locks table")
 
     try:
         cur.execute("SELECT * FROM distributed_locks")
@@ -27,11 +26,8 @@ with DatabaseContext('write') as cur:
         if locks:
             cur.execute("DELETE FROM distributed_locks")
             print(f"Cleared {cur.rowcount} distributed locks")
-    except Exception as e:
-        if "does not exist" in str(e) or "undefined table" in str(e):
-            print("No distributed_locks table")
-        else:
-            raise
+    except psycopg2.errors.UndefinedTable:
+        print("No distributed_locks table")
 
     try:
         cur.execute("SELECT * FROM advisory_locks")
@@ -42,11 +38,8 @@ with DatabaseContext('write') as cur:
         if locks:
             cur.execute("DELETE FROM advisory_locks")
             print(f"Cleared {cur.rowcount} advisory locks")
-    except Exception as e:
-        if "does not exist" in str(e) or "undefined table" in str(e):
-            print("No advisory_locks table")
-        else:
-            raise
+    except psycopg2.errors.UndefinedTable:
+        print("No advisory_locks table")
 
     # Try to list all tables that might contain locks
     cur.execute("""
