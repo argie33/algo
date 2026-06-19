@@ -132,8 +132,8 @@ def fetch_run(c):
         data = api_call("/api/algo/last-run")
         if _is_api_error(data):
             return data
-        # api_call returns {statusCode, data: {...}} — unwrap inner data
-        inner = data.get("data", {}) if isinstance(data.get("data"), dict) else data
+        # api_call already returns unwrapped data (statusCode + fields at top level)
+        inner = data
         phases = inner.get("phases") or []
         halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
@@ -177,7 +177,7 @@ def fetch_algo_config(c):
                 "base_risk": None,
                 "t1_r": None,
             }
-        raw = data.get("data", {})
+        raw = data
         if not isinstance(raw, dict):
             raw = {}
         if "_error" in raw:
@@ -430,7 +430,7 @@ def fetch_portfolio(c):
                 "largest_position_pct": None,
                 "data_age_seconds": None,
             }
-        port = data.get("data", {})
+        port = data
 
         # Check data freshness before validation (portfolio data > 5 days old is stale;
         # algo only runs on trading days so a long weekend + Monday holiday can mean
@@ -586,7 +586,7 @@ def fetch_perf(c):
                 "equity_vals": [],
                 "recent_rets": [],
             }
-        perf = data.get("data", {})
+        perf = data
 
         # Check data freshness (performance data > 1 hour old is stale)
         perf_timestamp = perf.get("timestamp") or perf.get("last_updated")
@@ -726,7 +726,7 @@ def fetch_positions(c):
                 "items": [],
                 "timestamp": datetime.now(timezone.utc),
             }
-        result = data.get("data", {})
+        result = data
         items = (
             result.get("items", [])
             if isinstance(result, dict)
@@ -766,7 +766,7 @@ def fetch_recent_trades(c):
                 "items": [],
                 "timestamp": datetime.now(timezone.utc),
             }
-        result = data.get("data", {})
+        result = data
         trades = (
             result.get("items", [])
             if isinstance(result, dict)
@@ -799,7 +799,7 @@ def fetch_signals(c):
                 "trend": [],
                 "timestamp": datetime.now(timezone.utc),
             }
-        if not data.get("data"):
+        if not data:
             return {
                 "_error": "No data returned from /api/algo/dashboard-signals",
                 "n": 0,
@@ -812,7 +812,7 @@ def fetch_signals(c):
                 "timestamp": datetime.now(timezone.utc),
             }
 
-        result = data["data"]
+        result = data
         buy_sigs = result.get("buy_sigs", [])
         near = result.get("near", [])
         top_a = result.get("top_a", [])
@@ -853,7 +853,7 @@ def fetch_sector_ranking(c):
         data = api_call("/api/sectors")
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "items": []}
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
@@ -879,7 +879,7 @@ def fetch_activity(c):
                 "phases": [],
                 "recent_actions": [],
             }
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else []
         run_at = items[0].get("action_date") if items else None
         phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
@@ -939,7 +939,7 @@ def fetch_health(c):
         data = _get_data_status_cached()
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "items": []}
-        inner = data.get("data", {})
+        inner = data
         if not isinstance(inner, dict):
             inner = {}
         raw_sources = inner.get("sources", [])
@@ -991,7 +991,7 @@ def fetch_exp_factors(c):
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
         # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
-        inner = data.get("data", {})
+        inner = data
         if not isinstance(inner, dict):
             return {"_error": "Unexpected response format from markets endpoint"}
         current = inner.get("current") or {}
@@ -1029,7 +1029,7 @@ def fetch_economic_pulse(c):
 
         t10 = t2 = t3m = t6m = yc_10_2 = yc_10_3m = hy = ig = None
         if not _is_api_error(yc_data):
-            d = yc_data.get("data", {})
+            d = yc_data
             curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
             spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
             credit = d.get("credit", {}) if isinstance(d, dict) else {}
@@ -1046,7 +1046,7 @@ def fetch_economic_pulse(c):
         fed_funds = cpi_yoy = unrate = be10 = be5 = None
         oil = nfci = dxy = mortgage = umcsent = None
         if not _is_api_error(ind_data):
-            d2 = ind_data.get("data", {})
+            d2 = ind_data
             indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
             by_series = {
                 i["series_id"]: safe_float(i.get("rawValue"), default=None)
@@ -1086,7 +1086,7 @@ def fetch_algo_metrics(c):
         data = api_call(_get_endpoint_path("algo_metrics"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
-        d = data.get("data")
+        d = data
         if isinstance(d, list):
             return d
         if isinstance(d, dict):
@@ -1103,7 +1103,7 @@ def fetch_notifications(c):
         data = api_call(_get_endpoint_path("notifs"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "items": []}
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
@@ -1124,7 +1124,7 @@ def fetch_sentiment(c):
                 "date": None,
                 "color": CY,
             }
-        d = data.get("data", {})
+        d = data
         fg = safe_float(d.get("fear_greed_index"), default=50)
         label = d.get("label", "Neutral")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
@@ -1153,7 +1153,7 @@ def fetch_economic_calendar(c):
         data = api_call(_get_endpoint_path("econ_cal"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "items": []}
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
@@ -1176,7 +1176,7 @@ def fetch_risk_metrics(c):
                 "beta": None,
                 "conc5": None,
             }
-        d = data.get("data", {})
+        d = data
         return {
             "date": d.get("report_date"),
             "var95": safe_float(d.get("var_pct_95")),
@@ -1215,7 +1215,7 @@ def fetch_perf_analytics(c):
                 "expectancy": None,
                 "maxdd": None,
             }
-        d = data.get("data", {})
+        d = data
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
             "sortino": safe_float(d.get("rolling_sortino_252d")),
@@ -1248,7 +1248,7 @@ def fetch_signal_eval(c):
         data = api_call(_get_endpoint_path("sig_eval"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
-        result = data.get("data", {})
+        result = data
         return {
             "total": safe_int(result.get("total")),
             "t1": safe_int(result.get("t1")),
@@ -1283,7 +1283,7 @@ def fetch_sector_rotation(c):
         # API returns {items: [{date, defensive_lead_score, cyclical_weak_score,
         # spread, signal, weeks_persistent, _is_fallback}], total: N}.
         # Use the most recent item (index 0).
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else []
         if not items:
             return {
@@ -1325,7 +1325,7 @@ def fetch_industry_ranking(c):
         data = api_call(_get_endpoint_path("irank"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "items": []}
-        raw = data.get("data", {})
+        raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
@@ -1344,7 +1344,7 @@ def fetch_exec_history(c):
         )
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
-        raw = data.get("data")
+        raw = data
         if isinstance(raw, dict):
             return raw.get("items", [])
         if isinstance(raw, list):
@@ -1388,7 +1388,7 @@ def fetch_audit_log(c):
         data = api_call(_get_endpoint_path("audit"))
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
-        raw = data.get("data", {})
+        raw = data
         if isinstance(raw, dict):
             return raw.get("items", [])
         if isinstance(raw, list):
@@ -1406,7 +1406,7 @@ def fetch_circuit(c):
         data = api_call("/api/algo/circuit-breakers")
         if _is_api_error(data):
             return {"_error": _get_error_message(data), "bs": [], "any": False, "n": 0}
-        result = data.get("data", {})
+        result = data
         bs = result.get("breakers", [])
         formatted_bs = []
         for r in bs:
