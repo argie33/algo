@@ -233,9 +233,12 @@ def fetch_market(c):
     If VIX is NULL, it means load_market_health_daily ran but yfinance returned
     no valid data (likely all values < 5.0 threshold). This is a data quality issue,
     not a missing loader issue.
+
+    Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
+    when fetch_exp_factors also needs the same data.
     """
     try:
-        mkt = api_call("/api/algo/markets")
+        mkt = _get_markets_cached()
         if mkt.get("_error"):
             record_data_quality_issue(
                 "market", "api_call", "api_error", mkt.get("_error")
@@ -904,6 +907,9 @@ def fetch_activity(c):
 _data_status_cache: dict = {}
 _data_status_lock = threading.Lock()
 
+_markets_cache: dict = {}
+_markets_lock = threading.Lock()
+
 
 def _get_data_status_cached():
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
@@ -926,6 +932,30 @@ def _get_data_status_cached():
         except Exception as e:
             error_result = {"_error": str(e)}
             _data_status_cache["result"] = error_result
+            return error_result
+
+
+def _get_markets_cached():
+    """Issue 14 FIX: Unified fetch for /api/algo/markets endpoint.
+
+    Both fetch_market and fetch_exp_factors need the same endpoint. This
+    caches the result to avoid duplicate API calls when both are fetched
+    in parallel. Thread-safe with lock to ensure single API call.
+    """
+    if "result" in _markets_cache:
+        return _markets_cache["result"]
+
+    with _markets_lock:
+        if "result" in _markets_cache:
+            return _markets_cache["result"]
+
+        try:
+            data = api_call("/api/algo/markets")
+            _markets_cache["result"] = data
+            return data
+        except Exception as e:
+            error_result = {"_error": str(e)}
+            _markets_cache["result"] = error_result
             return error_result
 
 
@@ -985,9 +1015,12 @@ def fetch_exp_factors(c):
 
     Extracts factors from data.current.factors which has the full 12-factor breakdown
     needed by the exposure panel.
+
+    Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
+    when fetch_market also needs the same data.
     """
     try:
-        data = api_call("/api/algo/markets")
+        data = _get_markets_cached()
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
         # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
@@ -1475,11 +1508,13 @@ def load_all() -> dict:
     Issue 10 FIX: Exponential backoff capped at API_MAX_BACKOFF (30s) to prevent runaway delays.
     Issue 11 FIX: Timeout handling ensures orphaned fetchers are marked incomplete and not lost.
     Issue 12 FIX: API calls use retry logic with capped exponential backoff.
+    Issue 14 FIX: Consolidated duplicate /api/algo/markets fetches via shared cache.
     """
-    # Clear per-call cache so watch mode gets fresh health data on each refresh.
-    # _get_data_status_cached() deduplicates concurrent fetches within one load_all()
-    # call but must not persist across refresh cycles.
+    # Clear per-call caches so watch mode gets fresh data on each refresh.
+    # _get_data_status_cached() and _get_markets_cached() deduplicate concurrent fetches
+    # within one load_all() call but must not persist across refresh cycles.
     _data_status_cache.clear()
+    _markets_cache.clear()
 
     out: dict = {}
     max_retries = 3
