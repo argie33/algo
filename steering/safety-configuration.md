@@ -1,30 +1,14 @@
 # Trading Safety Configuration
 
-**Last Updated:** 2026-06-19  
-**Owner:** Algo Risk Management  
 **Related Files:** `algo/infrastructure/config.py`, `migrations/versions/032_enforce_safety_thresholds.py`, `migrations/versions/033_restore_disabled_safety_thresholds.py`
 
-## CRITICAL ISSUE: All Safety Thresholds Were at Zero (FIXED)
+## Critical Safety Thresholds (Non-Negotiable Defaults)
 
-**Status:** RESOLVED via Migration 033
-
-All safety thresholds were discovered to be set to ZERO or minimums in the database (2026-06-19 10:45 UTC):
-- `min_signal_quality_score`: 0 (should be 60) — enabled system to trade garbage signals
-- `min_swing_score`: 0.0 (should be 55.0) — enabled system to trade weak setups
-- `min_completeness_score`: 0 (should be 70) — enabled system to trade incomplete-data stocks
-- `earnings_blackout_days_before`: 0 (should be 7) — removed pre-earnings protection
-- `earnings_blackout_days_after`: 0 (should be 3) — removed post-earnings protection
-- `min_avg_daily_dollar_volume`: 1 (should be 500000) — enabled position sizing errors from illiquid stocks
-
-**Root Cause:** Unknown (likely manual test configuration that was not restored)
-
-**Impact:** System would trade ANY stock regardless of:
-- Signal quality (SQS scoring meaningless)
-- Setup strength (whipsaw-prone weak setups)
-- Data completeness (ATR/MA calculation errors, backtesting invalid)
-- Earnings risk (uncontrolled stop-loss gaps from earnings surprises)
-
-**Resolution:** Migration 033 restored all thresholds to safe defaults. All audited in `algo_config_audit` table.
+All safety thresholds are enforced via Migration 033. **Never set any threshold to zero for testing** — doing so bypasses safety gates entirely and enables:
+- Trading garbage signals regardless of quality
+- Trading during earnings blackout periods (uncontrolled stop-loss gaps)
+- Position sizing errors from illiquid stocks
+- Incomplete-data signals (invalid ATR/MA calculations)
 
 ## Overview
 

@@ -12,17 +12,12 @@ scripts/refresh-aws-credentials.ps1
 
 This fetches fresh credentials from IaC (Secrets Manager) and updates your local profile. See `steering/algo.md` → **LOCAL AWS CREDENTIALS** for details.
 
-## STEERING PRINCIPLES
+## STEERING RULES
 
-**Goal:** Steering docs are the single source of truth for how systems work. They must be clear, complete, and verifiable so people can understand and debug the system without relying on stale memory.
-
-**Rules:**
-
-1. **Content:** System map, credentials, deploy procedures, resources, schedule, key files, and debugging/troubleshooting procedures. NO live operational status ("currently broken", "just deployed", "as of 3pm"). That goes in GitHub Actions logs.
-2. **Clarity over brevity:** Write for understanding first. Spell out times (4:00 AM ET, not 4A ET). Say "Lambda" not "Λ". If an abbreviation requires decoding, don't use it. Long sentences that are clear beat short sentences that confuse.
-3. **Length:** No arbitrary limits. A 250-line steering doc that's clear is better than a 100-line one that requires guessing.
-4. **Procedures, not status:** Document "how to debug X" (verifiable steps), not "X is broken" (stale status).
-5. **Update in same commit:** When code changes, update steering doc in the same commit. No async updates.
+1. **Content:** System map, credentials, procedures, resources, debugging/troubleshooting. NO live status ("currently broken", "just deployed", timestamps, incident logs). That lives in GitHub Actions logs and git commit messages.
+2. **Clarity:** Spell out times (4:00 AM ET). Avoid abbreviations that need decoding. Complete sentences beat brevity.
+3. **Procedures not status:** Document "how to debug X" (verifiable steps), never "X is broken" (stale status).
+4. **Update in same commit:** Code changes + steering doc updates in one commit. No async updates.
 
 ## Where Information Goes
 
