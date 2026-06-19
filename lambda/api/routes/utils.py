@@ -55,115 +55,176 @@ def normalize_to_utc_datetime(dt):
     return None
 
 
-def safe_limit(limit_str, max_val=5000, default=500):
+def safe_limit(limit_str, max_val=5000, default=500, strict=False):
     """Parse and validate limit parameter."""
     if not limit_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "limit parameter is required")
         return default
     try:
         return min(int(limit_str), max_val)
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "limit must be a valid integer")
         return default
 
 
-def safe_offset(offset_str, max_val=1000000, default=0):
+def safe_offset(offset_str, max_val=1000000, default=0, strict=False):
     """Parse and validate offset parameter."""
     if not offset_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "offset parameter is required")
         return default
     try:
         value = int(offset_str)
-        return max(0, min(value, max_val))
+        if value < 0:
+            if strict:
+                raise_api_error(400, "BadRequest", "offset must be non-negative")
+            return default
+        return min(value, max_val)
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "offset must be a valid integer")
         return default
 
 
-def safe_days(days_str, max_val=365, default=30):
+def safe_days(days_str, max_val=365, default=30, strict=False):
     """Parse and validate days parameter."""
     if not days_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "days parameter is required")
         return default
     try:
-        return max(1, min(int(days_str), max_val))
+        value = int(days_str)
+        if value < 1:
+            if strict:
+                raise_api_error(400, "BadRequest", "days must be at least 1")
+            return default
+        return min(value, max_val)
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "days must be a valid integer")
         return default
 
 
-def safe_page(page_str, default=1):
+def safe_page(page_str, default=1, strict=False):
     """Parse and validate page parameter."""
     if not page_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "page parameter is required")
         return default
     try:
-        return max(1, int(page_str))
+        value = int(page_str)
+        if value < 1:
+            if strict:
+                raise_api_error(400, "BadRequest", "page must be at least 1")
+            return default
+        return value
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "page must be a valid integer")
         return default
 
 
-def safe_int(int_str, default=0, min_val=None, max_val=None):
+def safe_int(int_str, default=0, min_val=None, max_val=None, strict=False):
     """Parse and validate integer parameter."""
     if int_str is None or int_str == "":
+        if strict:
+            raise_api_error(400, "BadRequest", "parameter is required")
         return default
     try:
         value = int(int_str)
-        if min_val is not None:
-            value = max(value, min_val)
-        if max_val is not None:
-            value = min(value, max_val)
+        if min_val is not None and value < min_val:
+            if strict:
+                raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
+            return default
+        if max_val is not None and value > max_val:
+            if strict:
+                raise_api_error(400, "BadRequest", f"value must be at most {max_val}")
+            return default
         return value
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "value must be a valid integer")
         return default
 
 
-def safe_float(float_str, default=0.0, min_val=None, max_val=None):
+def safe_float(float_str, default=0.0, min_val=None, max_val=None, strict=False):
     """Parse and validate float parameter."""
     if float_str is None or float_str == "":
+        if strict:
+            raise_api_error(400, "BadRequest", "parameter is required")
         return default
     try:
         value = float(float_str)
-        if min_val is not None:
-            value = max(value, min_val)
-        if max_val is not None:
-            value = min(value, max_val)
+        if min_val is not None and value < min_val:
+            if strict:
+                raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
+            return default
+        if max_val is not None and value > max_val:
+            if strict:
+                raise_api_error(400, "BadRequest", f"value must be at most {max_val}")
+            return default
         return value
     except (ValueError, TypeError):
+        if strict:
+            raise_api_error(400, "BadRequest", "value must be a valid float")
         return default
 
 
-def safe_string(value_str, allowed_values=None, default=None, max_length=100):
+def safe_string(value_str, allowed_values=None, default=None, max_length=100, strict=False):
     """Validate and sanitize string parameter.
 
     Args:
         value_str: String to validate
         allowed_values: Set of allowed values (whitelist)
-        default: Default if invalid
+        default: Default if invalid (ignored if strict=True)
         max_length: Maximum allowed length
+        strict: If True, raise BadRequest on invalid input instead of returning default
 
     Returns:
         Validated string or default
     """
     if not value_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "parameter is required")
         return default
 
+    value_str = str(value_str)
+
     # Enforce max length
-    if len(str(value_str)) > max_length:
+    if len(value_str) > max_length:
+        if strict:
+            raise_api_error(400, "BadRequest", f"value exceeds maximum length of {max_length}")
         return default
 
     # Check against whitelist if provided
     if allowed_values is not None:
-        if str(value_str) not in allowed_values:
+        if value_str not in allowed_values:
+            if strict:
+                raise_api_error(400, "BadRequest", f"value must be one of: {', '.join(allowed_values)}")
             return default
 
-    return str(value_str)
+    return value_str
 
 
-def safe_symbol(symbol_str):
+def safe_symbol(symbol_str, strict=False):
     """Validate stock symbol (alphanumeric + dash + caret for indices)."""
     if not symbol_str:
+        if strict:
+            raise_api_error(400, "BadRequest", "symbol parameter is required")
         return None
 
     # Allow up to 10 chars: alphanumeric, dash, caret (^GSPC, BRK-A, BRK.B)
     symbol = str(symbol_str).upper()
     if len(symbol) > 10:
+        if strict:
+            raise_api_error(400, "BadRequest", "symbol must be 10 characters or less")
         return None
 
     if not all(c.isalnum() or c in "-^." for c in symbol):
+        if strict:
+            raise_api_error(400, "BadRequest", "symbol contains invalid characters")
         return None
 
     return symbol

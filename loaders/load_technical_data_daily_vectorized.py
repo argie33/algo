@@ -296,7 +296,7 @@ class VectorizedTechnicalLoader:
                             rs_line_s / rs_line_52w_ma - 1
                         ) * 100
                 except Exception as e:
-                    logger.debug(f"Could not compute Mansfield RS for {symbol}: {e}")
+                    logger.debug(f"Could not compute Mansfield RS for {symbol} (optional enrichment): {e}")
                     symbol_df["mansfield_rs"] = None
 
                 # Format for insertion
@@ -508,7 +508,7 @@ def _tech_heartbeat_worker(stop_event):
                     ("technical_data_daily", "RUNNING"),
                 )
         except Exception as e:
-            logger.debug(f"Heartbeat failed: {e}")
+            logger.error(f"Heartbeat failed — hung task detection disabled: {e}", exc_info=True)
 
 
 def main():
@@ -600,8 +600,10 @@ def main():
                         result.get("duration_sec", 0),
                     ),
                 )
+        except psycopg2.Error as e:
+            logger.warning(f"Failed to log execution metrics (non-critical): {e}")
         except Exception as e:
-            logger.error(f"Failed to log execution: {e}")
+            logger.warning(f"Unexpected error logging execution (non-critical): {e}", exc_info=True)
 
         return 0 if final_status == "completed" else 1
 
