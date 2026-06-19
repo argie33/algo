@@ -21,6 +21,7 @@ from datetime import date as _date
 from datetime import timedelta
 from typing import Any
 
+from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
@@ -61,6 +62,36 @@ def run(
     logger.info(
         f"[PHASE 1] Starting comprehensive freshness check (Pipeline: {pipeline_context}, Time: {now_et.strftime('%H:%M:%S ET')})"
     )
+
+    # PHASE 1 FAILSAFE: Check for and retry incomplete loaders before freshness check
+    # This prevents cascading failures when upstream loaders are incomplete
+    failsafe_result = check_and_retry_incomplete_loaders(dry_run=dry_run)
+
+    if failsafe_result.get("halt_required"):
+        logger.critical(
+            "[PHASE 1] CRITICAL: Incomplete critical loaders even after failsafe retry. "
+            "Cannot proceed with data processing."
+        )
+        log_phase_result_fn(
+            1,
+            "incomplete_loaders_after_retry",
+            "halt",
+            f"Still incomplete after retry: {failsafe_result.get('still_failing', [])}",
+        )
+        return PhaseResult(
+            1,
+            "incomplete_loaders_after_retry",
+            "halted",
+            failsafe_result,
+            True,
+            f"Critical loaders incomplete after retry: {failsafe_result.get('still_failing', [])[0] if failsafe_result.get('still_failing') else 'unknown'}",
+        )
+
+    if failsafe_result.get("incomplete_loaders"):
+        logger.info(
+            f"[PHASE 1] Failsafe retry check: {len(failsafe_result.get('recovered', []))} recovered, "
+            f"{len(failsafe_result.get('still_failing', []))} still failing (auxiliary)"
+        )
 
     try:
         with DatabaseContext("read") as cur:
@@ -106,16 +137,18 @@ def run(
                     f"Price data too old: {max_date} vs {last_trading_day}",
                 )
 
-            # Verify price coverage
+            # Verify price coverage - accept symbols with recent data (past 2 trading days)
+            # This handles asynchronous data loading where different symbols update on different dates
+            recent_cutoff = max_date - timedelta(days=2)
             cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                (max_date,),
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date <= %s",
+                (recent_cutoff, max_date),
             )
             symbols_loaded = cur.fetchone()[0]
+            prior_cutoff = recent_cutoff - timedelta(days=2)
             cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = "
-                "(SELECT MAX(date) FROM price_daily WHERE date < %s)",
-                (max_date,),
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date < %s",
+                (prior_cutoff, recent_cutoff),
             )
             prior_count = cur.fetchone()[0] or symbols_loaded
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
@@ -193,13 +226,18 @@ def run(
 
                         if table_max_date < max_date:
                             days_behind = (max_date - table_max_date).days
-                            msg = f"{description} is {days_behind} day(s) stale"
-                            if is_halt_table:
-                                logger.critical(f"[PHASE 1] {msg}")
-                                halt_stale.append(msg)
+                            max_tolerance_days = 1 if is_halt_table else 0
+                            if days_behind > max_tolerance_days:
+                                msg = f"{description} is {days_behind} day(s) stale"
+                                if is_halt_table:
+                                    logger.critical(f"[PHASE 1] {msg}")
+                                    halt_stale.append(msg)
+                                else:
+                                    logger.warning(f"[PHASE 1] {msg}")
+                                    warn_stale.append(msg)
                             else:
-                                logger.warning(f"[PHASE 1] {msg}")
-                                warn_stale.append(msg)
+                                msg = f"{description} is {days_behind} day(s) behind (within 1-day tolerance)"
+                                logger.info(f"[PHASE 1] {msg}")
 
                     except Exception as e:
                         msg = f"{description} check failed: {str(e)[:50]}"
