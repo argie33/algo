@@ -18,7 +18,12 @@ class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
     def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
+        if config is None:
+            raise ValueError(
+                "TradeNotificationService requires explicit config dict; "
+                "silent empty config defaults would cause undetected notification failures"
+            )
+        self.config = config
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
 
@@ -56,7 +61,7 @@ class TradeNotificationService:
             stop_loss = details.get("stop_loss")
             target_1 = details.get("target_1")
 
-            return """
+            return f"""
 [ENTRY] TRADE ENTRY -- {symbol}
 Entry Price:  ${entry_price:.2f}
 Shares:       {shares:.2f}
@@ -81,7 +86,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             pnl = details.get("pnl")
             exit_reason = details.get("reason", "unknown")
 
-            return """
+            return f"""
 [EXIT] TRADE EXIT -- {symbol}
 Exit Price:   ${exit_price:.2f}
 Shares:       {shares:.2f}
@@ -200,7 +205,7 @@ def notify(
 ):
     """Convenience function to send alerts without managing service lifecycle."""
     try:
-        service = TradeNotificationService()
+        service = TradeNotificationService(config={})
         service._send_notification(
             subject=title,
             message=message,
@@ -229,7 +234,7 @@ def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = N
 
         message = f"Trading signals based on stale or unavailable data.\n\nAffected: {tables_str}"
 
-        service = TradeNotificationService()
+        service = TradeNotificationService(config={})
         service._send_notification(
             subject="SIGNAL STALENESS ALERT",
             message=message,
