@@ -182,8 +182,7 @@ class ExposurePolicy:
                         actions.append(action)
                 return actions
         except Exception as e:
-            logger.error(f"Failed to review positions: {e}")
-            return []
+            raise RuntimeError(f"Position review failed: {e}") from e
 
     def _evaluate_position(self, row, tier):
         (

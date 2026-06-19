@@ -349,8 +349,7 @@ class ValueAtRisk:
                                     if var > 0:
                                         estimated_beta = round(cov / var, 2)
                         except Exception as e:
-                            logger.warning(f"Exception: {e}")
-                            estimated_beta = 1.0
+                            raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 
                     weighted_beta = estimated_beta * position_weight
                     total_beta_exposure += weighted_beta

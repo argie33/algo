@@ -774,8 +774,7 @@ class CircuitBreaker:
                 "reason": f"All sectors within limits (max {max_sector_positions} per sector)",
             }
         except Exception as e:
-            logger.warning(f"Sector concentration check failed: {e}")
-            return {"halted": False, "reason": f"Check error: {e}"}
+            raise RuntimeError(f"Sector concentration check failed: {e}") from e
 
     def _check_daily_profit_cap(self, current_date: Any, cur) -> Dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
