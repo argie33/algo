@@ -351,5 +351,27 @@ Never silently return defaults (0, None, [], {}, False). Raise exception with co
 
 Check current market regime: `SELECT date, is_entry_allowed, halt_reasons FROM market_exposure_daily WHERE date = CURRENT_DATE ORDER BY date DESC LIMIT 1`. Entries resume automatically when conditions improve (next morning's market_exposure_daily computation). This is a designed risk control — trading halts in severe market conditions.
 
-**Missing scheduled orchestrator runs:** If <4 runs in a trading day, check EventBridge rules (algo-algo-dev) are ENABLED for 9:30 AM, 1 PM, 3 PM, 5:30 PM ET. Check Lambda provisioned concurrency: `aws lambda get-provisioned-concurrency-config --function-name algo-algo-dev`. If cold, Lambda may timeout during warm-up phase (wait 30s and retry).
+**Missing scheduled orchestrator runs:** CRITICAL ISSUE - If <4 runs in a trading day (expect 9:30 AM, 1 PM, 3 PM, 5:30 PM ET), the EventBridge Scheduler rules are likely DISABLED. This is the root cause of prolonged halted status.
+
+**Diagnosis:**
+1. Query database: `SELECT DATE(started_at) as date, COUNT(*), EXTRACT(HOUR FROM started_at) as hour FROM orchestrator_execution_log WHERE DATE(started_at) = CURRENT_DATE GROUP BY date, hour ORDER BY hour`
+2. Should show 4 runs; if <4, schedules are not triggering
+
+**Fix:**
+1. Check AWS EventBridge Scheduler console for these schedules:
+   - `algo-algo-schedule-morning-dev` (9:30 AM ET) — status should be ENABLED
+   - `algo-algo-schedule-afternoon-dev` (1:00 PM ET) — status should be ENABLED
+   - `algo-algo-schedule-preclose-dev` (3:00 PM ET) — status should be ENABLED
+   - `algo-algo-schedule-dev` (5:30 PM ET) — status should be ENABLED
+
+2. If any schedules are DISABLED or missing:
+   ```bash
+   cd terraform/
+   terraform plan -var-file=terraform.tfvars
+   terraform apply -var-file=terraform.tfvars
+   ```
+
+3. Verify Lambda permissions: EventBridge Scheduler principal must have `lambda:InvokeFunction` permission
+
+4. Monitor: After fix, verify today gets all 4 scheduled runs executing at correct times
 
