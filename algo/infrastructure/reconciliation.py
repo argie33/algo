@@ -87,12 +87,42 @@ class DailyReconciliation:
                 pv = alpaca_data.get('portfolio_value')
                 cash = alpaca_data.get('cash')
                 equity = alpaca_data.get('equity')
-                logger.info(
-                    f"   Portfolio Value: ${pv:,.2f}" if pv is not None else "   Portfolio Value: UNAVAILABLE"
-                )
-                logger.info(
-                    f"   Cash: ${cash:,.2f}" if cash is not None else "   Cash: UNAVAILABLE"
-                )
+
+                # Validate critical fields are present — fail immediately, not silently
+                if pv is None:
+                    logger.critical(
+                        "Alpaca portfolio_value is missing — reconciliation cannot proceed without live portfolio value"
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title="Reconciliation Halted",
+                            message="Alpaca portfolio_value missing — reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send notification: {e}")
+                    raise ValueError(
+                        "Alpaca portfolio_value required for reconciliation — cannot proceed"
+                    )
+
+                if cash is None:
+                    logger.critical(
+                        "Alpaca cash is missing — reconciliation cannot proceed without live cash value"
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title="Reconciliation Halted",
+                            message="Alpaca cash missing — reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send notification: {e}")
+                    raise ValueError(
+                        "Alpaca cash required for reconciliation — cannot proceed"
+                    )
+
+                logger.info(f"   Portfolio Value: ${pv:,.2f}")
+                logger.info(f"   Cash: ${cash:,.2f}")
                 logger.info(
                     f"   Equity: ${equity:,.2f}" if equity is not None else "   Equity: UNAVAILABLE"
                 )
@@ -241,42 +271,10 @@ class DailyReconciliation:
                     )
 
                 # 3. Calculate metrics
-                cash_val = alpaca_data.get("cash")
-                cash = float(cash_val) if cash_val is not None else None
-                if cash is None:
-                    logger.critical(
-                        "Alpaca cash is missing/None — cannot proceed with position sizing. Halting."
-                    )
-                    try:
-                        notify(
-                            "critical",
-                            title="Reconciliation Halted",
-                            message="Alpaca cash data missing — reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError(
-                        "Alpaca cash required for reconciliation — cannot proceed with DB-only fallback"
-                    )
-
+                # Values already validated at initial Alpaca fetch; convert to float
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
                 # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
-                pv = alpaca_data.get("portfolio_value")
-                if pv is None:
-                    logger.critical(
-                        "Alpaca portfolio_value is missing — cannot proceed with drawdown calculations. Halting."
-                    )
-                    try:
-                        notify(
-                            "critical",
-                            title="Reconciliation Halted",
-                            message="Alpaca portfolio_value missing — reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError(
-                        "Alpaca portfolio_value required for reconciliation — cannot proceed with DB-only fallback"
-                    )
+                cash = float(cash)
                 alpaca_portfolio_value = float(pv)
                 if alpaca_portfolio_value <= 0:
                     logger.critical(
