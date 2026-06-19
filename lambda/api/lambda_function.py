@@ -641,6 +641,16 @@ def validate_bearer_token(token: str | None) -> tuple:
             options={"verify_exp": True, "verify_aud": False},
         )
 
+        # SECURITY FIX S-21: Validate required JWT claims are present
+        # Cognito tokens MUST have 'sub' (subject/user ID) claim
+        required_claims = ["sub"]
+        missing_claims = [claim for claim in required_claims if not payload.get(claim)]
+        if missing_claims:
+            logger.warning(
+                f"JWT missing required claims: {missing_claims}"
+            )
+            return (False, None, f"Token missing required claims: {', '.join(missing_claims)}")
+
         # Manually verify client identity from either claim
         actual_client = payload.get("client_id") or payload.get("aud", "")
         if isinstance(actual_client, list):
@@ -650,6 +660,18 @@ def validate_bearer_token(token: str | None) -> tuple:
                 f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}"
             )
             return (False, None, "Token client mismatch")
+
+        # SECURITY FIX S-21: Explicit expiration validation (PyJWT checks via verify_exp=True, but explicit check adds defense-in-depth)
+        exp = payload.get("exp")
+        if not exp:
+            logger.warning("JWT missing 'exp' (expiration) claim")
+            return (False, None, "Token missing expiration claim")
+
+        now = datetime.now(timezone.utc)
+        exp_dt = datetime.fromtimestamp(exp, tz=timezone.utc)
+        if now > exp_dt:
+            logger.warning(f"Token expired at {exp_dt.isoformat()}, current time {now.isoformat()}")
+            return (False, None, "Token expired")
 
         # O-1: Check server-side revocation (user called POST /api/logout)
         jti = payload.get("jti")

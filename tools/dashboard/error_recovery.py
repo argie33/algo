@@ -100,9 +100,10 @@ class RenderState:
 class RenderRecovery:
     """Manage render error recovery with exponential backoff and state persistence."""
 
+    _lock = threading.Lock()
+
     def __init__(self):
         self.state = RenderState()
-        self._lock = threading.Lock()
 
     def render_with_recovery(
         self, data: dict, render_fn: Callable[[dict], Layout]

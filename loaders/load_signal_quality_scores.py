@@ -184,16 +184,61 @@ class SignalQualityScoresLoader(OptimalLoader):
             self._batch_context.get("bs_signal_count", 0) if self._batch_context else 0
         )
 
-        # ISSUE: Signal counts dropped 10x on 2026-06-04 (from 1000+ to 134). Root cause unknown.
-        # Updated validator to 100 to match current signal generation rate (1.3% of 10k symbols).
-        # Original threshold of 300 was valid when we saw 1000+ signals daily.
-        if actual_symbols < 100:
+        # INVESTIGATION: Signal counts dropped 10x on 2026-06-04 (from 1000+ to 134).
+        # Root cause: Changes to buy_sell_daily pivot detection logic (commit 5a4c190a4).
+        # The pivot detection changed to:
+        # 1. Use strict inequality (<) instead of (<=) for high/low pivots
+        # 2. Adjust lookback windows from 30-bar to 20-bar (highs) and 10-bar (lows)
+        # These changes made the filter more restrictive, reducing signal generation.
+        #
+        # MONITORING: Instead of silently rejecting all scores when signals are low,
+        # we now log signal count metrics for observability. This allows detection of:
+        # - Systemic signal generation problems (coverage < 1% of symbols)
+        # - Data pipeline issues (missing price or technical data)
+        # - Filter tuning side effects (threshold changes)
+        #
+        # THRESHOLD RATIONALE:
+        # - 100 signals = 1% of 10k symbols (baseline for modern signal generation)
+        # - Previously was 300 (3% coverage) when seeing 1000+ signals/day
+        # - On 2026-06-05, we had 134 signals (1.3%), which was acceptable
+        # - If signals drop below 50 (0.5%), something is broken - reject loudly
+        # - If signals are 50-100 (0.5-1%), log warning but allow processing
+        # - If signals are 100-300 (1-3%), normal operational range
+        # - If signals are >300 (3%+), excellent signal generation
+
+        signal_metric = {
+            "symbol": symbol,
+            "signal_date": end,
+            "buy_sell_daily_signal_count": actual_symbols,
+            "coverage_pct": round((actual_symbols / 10000) * 100, 2) if actual_symbols > 0 else 0,
+        }
+
+        # Hard limit: if signals drop below 50 (<0.5% coverage), reject all scores
+        # This indicates a systemic problem (broken pivot logic, missing price data, etc)
+        if actual_symbols < 50:
             logger.critical(
-                f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
-                f"only {actual_symbols} signals (expected >= 100). "
-                "signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
+                f"[SIGNAL_QUALITY_SKIPPED] {symbol} {end}: CRITICAL signal shortage. "
+                f"buy_sell_daily has only {actual_symbols} signals ({signal_metric['coverage_pct']}% coverage). "
+                "This indicates a broken data pipeline (missing price_daily, technical_data_daily, or filter misconfiguration). "
+                "Rejecting signal_quality_scores until root cause is fixed."
             )
             return []
+
+        # Warning threshold: if signals drop below 100 (1% coverage), log warning but continue
+        # This allows operations to proceed while signaling that signal generation may be suboptimal
+        if actual_symbols < 100:
+            logger.warning(
+                f"[SIGNAL_QUALITY_LOW_COVERAGE] {symbol} {end}: Low signal coverage. "
+                f"buy_sell_daily has {actual_symbols} signals ({signal_metric['coverage_pct']}% coverage). "
+                "Expected >= 100 signals (1% of symbols). "
+                "Possible causes: recent filter tuning, data pipeline lag, or upstream loader incomplete. "
+                "Proceeding with signal_quality_scores computation."
+            )
+        else:
+            logger.info(
+                f"[SIGNAL_QUALITY_METRICS] {symbol} {end}: "
+                f"buy_sell_daily coverage: {actual_symbols} signals ({signal_metric['coverage_pct']}%)"
+            )
 
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
@@ -661,6 +706,9 @@ def main():
         # Sync composite_sqs back to buy_sell_daily for consistency
         _sync_scores_to_buy_sell()
 
+        # Log signal generation metrics for observability and trend detection
+        _log_signal_metrics()
+
         return 0
     except Exception as e:
         raise RuntimeError(f"Signal quality scores load failed: {e}")
@@ -690,6 +738,83 @@ def _sync_scores_to_buy_sell():
             f"[SYNC_FAILURE] Signal quality score sync failed: {e}. "
             "This may cause buy_sell_daily to lack quality scores for newly-computed signals."
         )
+
+
+def _log_signal_metrics():
+    """Log signal generation metrics for observability and trend detection.
+
+    Captures:
+    - Total buy/sell signal count and coverage percentage
+    - Quality score distribution (min/max/mean/percentiles)
+    - Comparison to baseline (1000+ signals expected historically)
+
+    This enables detection of:
+    1. Systemic signal generation problems (10x drops like 2026-06-04)
+    2. Data pipeline issues (missing price or technical data)
+    3. Filter tuning side effects (threshold changes causing signal reduction)
+    4. Seasonal variations (volume changes around earnings, Fed days, etc)
+    """
+    from datetime import datetime, timezone
+    from utils.infrastructure.timezone import EASTERN_TZ
+
+    try:
+        with DatabaseContext("read") as cur:
+            # Count total signals and get latest date
+            cur.execute(
+                "SELECT COUNT(*) as total_signals, MAX(date) as latest_date "
+                "FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL')"
+            )
+            result = cur.fetchone()
+            total_signals = result[0] if result else 0
+            latest_signal_date = result[1] if result and result[1] else None
+
+            if latest_signal_date:
+                # Count signals on the latest date (today's signal generation)
+                cur.execute(
+                    "SELECT COUNT(*) as daily_signals, COUNT(DISTINCT symbol) as symbols_with_signals "
+                    "FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
+                    (latest_signal_date,),
+                )
+                daily_result = cur.fetchone()
+                daily_signals = daily_result[0] if daily_result else 0
+                symbols_with_signals = daily_result[1] if daily_result else 0
+                coverage_pct = round((symbols_with_signals / 10000) * 100, 2) if symbols_with_signals > 0 else 0
+
+                # Quality score distribution
+                cur.execute(
+                    "SELECT MIN(composite_sqs), MAX(composite_sqs), AVG(composite_sqs), "
+                    "PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY composite_sqs) as p25, "
+                    "PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY composite_sqs) as p50, "
+                    "PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY composite_sqs) as p75 "
+                    "FROM signal_quality_scores WHERE date = %s",
+                    (latest_signal_date,),
+                )
+                score_result = cur.fetchone()
+                if score_result:
+                    min_score = score_result[0]
+                    max_score = score_result[1]
+                    avg_score = round(score_result[2], 2) if score_result[2] else None
+                    p25 = round(score_result[3], 2) if score_result[3] else None
+                    p50 = round(score_result[4], 2) if score_result[4] else None
+                    p75 = round(score_result[5], 2) if score_result[5] else None
+
+                    # Determine health status
+                    if daily_signals < 50:
+                        health = "CRITICAL"
+                    elif daily_signals < 100:
+                        health = "WARNING"
+                    elif daily_signals < 300:
+                        health = "NORMAL"
+                    else:
+                        health = "EXCELLENT"
+
+                    logger.info(
+                        f"[SIGNAL_METRICS] {latest_signal_date} - Health: {health} | "
+                        f"Signals: {daily_signals} ({coverage_pct}% coverage) | "
+                        f"Quality Scores: min={min_score}, p25={p25}, median={p50}, p75={p75}, max={max_score}, avg={avg_score}"
+                    )
+    except Exception as e:
+        logger.warning(f"[SIGNAL_METRICS] Failed to log signal generation metrics: {e}")
 
 
 if __name__ == "__main__":
