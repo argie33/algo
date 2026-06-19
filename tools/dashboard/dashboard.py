@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Algo Ops Terminal Dashboard
 
 Usage:
@@ -65,7 +65,10 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from tools.dashboard.cognito_auth import get_cognito_auth, save_tokens
+from tools.dashboard.cognito_auth import (
+    get_cognito_auth as get_cognito_auth_instance,
+    save_tokens,
+)
 from tools.dashboard.error_boundary import error_summary_panel
 from tools.dashboard.error_recovery import RenderRecovery
 from tools.dashboard.fetchers import load_all
@@ -101,6 +104,7 @@ from tools.dashboard.utilities import (
     CONSOLE,
     ET,
     MASCOT_W,
+    get_cognito_auth,
     logger,
     set_api_url,
     set_cognito_auth,
@@ -363,8 +367,12 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
                     timeout=60,
                 )
                 if result.returncode != 0:
-                    error_output = result.stderr.strip() if result.stderr else "(no error output)"
-                    logger.warning(f"Terraform init failed: {error_output[:200]} - may need manual setup")
+                    error_output = (
+                        result.stderr.strip() if result.stderr else "(no error output)"
+                    )
+                    logger.warning(
+                        f"Terraform init failed: {error_output[:200]} - may need manual setup"
+                    )
                     return (None, None, None)
             except subprocess.TimeoutExpired:
                 logger.warning(
@@ -390,7 +398,9 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             return (None, None, None)
 
         if result.returncode != 0:
-            error_output = result.stderr.strip() if result.stderr else "(no error output)"
+            error_output = (
+                result.stderr.strip() if result.stderr else "(no error output)"
+            )
             logger.warning(f"Terraform output failed: {error_output[:100]}")
             return (None, None, None)
 
@@ -472,6 +482,26 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
         panel_status[panel_name] = can_render
 
     return panel_status
+
+
+def _check_auth_lost() -> Panel | None:
+    """Check if authentication was lost and return error panel if needed."""
+    auth = get_cognito_auth()
+    if auth and auth.has_lost_authentication():
+        content = (
+            "[bold red]Authentication Lost[/]\n"
+            "[dim]Token refresh failed - please re-authenticate[/]\n\n"
+            "[yellow]To continue:[/]\n"
+            "[dim]• Restart the dashboard\n"
+            "• Or set COGNITO_USERNAME + COGNITO_PASSWORD environment variables\n"
+            "• Then run the dashboard again[/]"
+        )
+        return Panel(
+            Text.from_markup(content),
+            title="[bold red]RE-AUTHENTICATION REQUIRED[/]",
+            border_style="red",
+        )
+    return None
 
 
 def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
@@ -569,12 +599,25 @@ def render_dashboard(
     exp_panel = panel_exposure_compact(exp_f)
     mascot_panel = mascot_compact(data, frame)
 
+    # Check for authentication loss first (highest priority)
+    auth_lost_panel = _check_auth_lost()
+
     # Check for data fetch errors and show summary if present
     error_panel = error_summary_panel(data)
 
     outer = Layout()
-    # If there are errors, add error panel at the top
-    if error_panel:
+    # If authentication was lost, show that first; otherwise show other errors
+    if auth_lost_panel:
+        outer.split_column(
+            Layout(name="auth_error", size=5),
+            Layout(name="top", size=10),
+            Layout(name="r1", ratio=2),
+            Layout(name="r2", ratio=2),
+            Layout(name="r3", ratio=2),
+            Layout(name="pos", ratio=3),
+        )
+        outer["auth_error"].update(auth_lost_panel)
+    elif error_panel:
         outer.split_column(
             Layout(name="errors", size=3),
             Layout(name="top", size=10),
@@ -749,6 +792,8 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         target = key_map[key]
                         view_mode = "normal" if view_mode == target else target
                     frame += 1
+                    if frame > 1_000_000:
+                        frame = 0
                     if not done.is_set():
                         live.update(loading_layout(frame, data_source=data_source))
                     else:
@@ -779,7 +824,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             done.set()
             bg_thread.join(timeout=60)
             if bg_thread.is_alive():
-                logger.error("Background thread abandoned after 60s timeout (data load exceeded graceful shutdown window)")
+                logger.error(
+                    "Background thread abandoned after 60s timeout (data load exceeded graceful shutdown window)"
+                )
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -834,6 +881,8 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         view_mode = "normal" if view_mode == target else target
                     with state_lock:
                         state.frame += 1
+                        if state.frame > 1_000_000:
+                            state.frame = 0
                         current_frame = state.frame
                         is_loading = state.loading
                         current_last_load = state.last_load
@@ -859,8 +908,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 render_wrapper.refreshing = is_loading
                                 render_wrapper.view_mode = view_mode
                             try:
-                                layout, _recovery_status = recovery.render_with_recovery(
-                                    current_result, render_wrapper
+                                layout, _recovery_status = (
+                                    recovery.render_with_recovery(
+                                        current_result, render_wrapper
+                                    )
                                 )
                                 render_layout = layout
                                 render_error = None
@@ -894,7 +945,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                     f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
                                 )
                         else:
-                            live.update(loading_layout(current_frame, data_source=data_source))
+                            live.update(
+                                loading_layout(current_frame, data_source=data_source)
+                            )
                     else:
                         if render_error is None:
                             live.update(render_layout)
@@ -926,7 +979,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             if thread:
                 thread.join(timeout=60)
                 if thread.is_alive():
-                    logger.error("Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)")
+                    logger.error(
+                        "Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)"
+                    )
                 else:
                     active_threads.remove(thread)
 
@@ -1027,20 +1082,26 @@ def main():
         data_source = "AWS"
 
         # Cognito authentication - dynamic with fallback
-        auth = get_cognito_auth(require_auth=True)
+        auth = get_cognito_auth_instance(require_auth=True)
         if auth is None:
             try:
-                CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
+                CONSOLE.print(
+                    "[bold red]ERROR:[/] Authentication required but Cognito credentials not found"
+                )
                 CONSOLE.print("")
                 CONSOLE.print("[bold cyan]Options:[/]")
                 CONSOLE.print("[yellow]1. Set environment variables:[/]")
                 CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
                 CONSOLE.print("[cyan]   $env:COGNITO_PASSWORD = 'your_password'[/]")
                 CONSOLE.print("")
-                CONSOLE.print("[yellow]2. Or run setup (will prompt for credentials):[/]")
+                CONSOLE.print(
+                    "[yellow]2. Or run setup (will prompt for credentials):[/]"
+                )
                 CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
                 CONSOLE.print("")
-                CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
+                CONSOLE.print(
+                    "[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]"
+                )
             except Exception as e:
                 logger.error(
                     f"[AUTH] Authentication required but failed - no credentials available. "
@@ -1070,5 +1131,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

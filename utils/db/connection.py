@@ -56,6 +56,9 @@ def _get_connection_pool():
 
     With 50 concurrent Lambdas at max parallelism (10 conn each) = 500 peak = at RDS limit
     Default: Graceful queueing when pool exhausted (blocks until connection available, max 30s)
+
+    Wrapped with IdleConnectionPool to clean up idle connections and prevent pool exhaustion
+    when loaders die or abandon connections.
     """
     global _connection_pool
 
@@ -63,6 +66,8 @@ def _get_connection_pool():
         with _pool_lock:
             # Double-check pattern to avoid race conditions
             if _connection_pool is None:
+                from utils.db.pooled_connection_manager import IdleConnectionPool
+
                 db_config = get_db_config()
                 if not all(
                     [
@@ -88,7 +93,7 @@ def _get_connection_pool():
                 try:
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection
                     # Statement timeout is set at RDS parameter group level instead
-                    _connection_pool = psycopg2.pool.SimpleConnectionPool(
+                    base_pool = psycopg2.pool.SimpleConnectionPool(
                         minconn=2,
                         maxconn=10,
                         host=db_config["host"],
@@ -108,8 +113,13 @@ def _get_connection_pool():
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
                     )
+
+                    _connection_pool = IdleConnectionPool(
+                        base_pool, max_idle_sec=300, cleanup_interval_sec=60
+                    )
                     logger.info(
-                        "[DB_POOL] Connection pool initialized (minconn=2, maxconn=10)"
+                        "[DB_POOL] Connection pool initialized (minconn=2, maxconn=10) "
+                        "with idle connection cleanup (max_idle=300s, check every 60s)"
                     )
                 except psycopg2.Error as e:
                     logger.error(f"[DB_POOL] Failed to create pool: {e}")
