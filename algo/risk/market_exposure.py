@@ -97,14 +97,19 @@ class MarketExposure:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def try_load_cached(self, eval_date=None):
-        """Load cached market exposure for today. Returns dict or None if not cached."""
+        """Load cached market exposure for today. Returns dict or None if not cached/stale.
+
+        CRITICAL: Validates cache freshness. Never silently uses stale cache — if cached value
+        is from a different date, returns None to force recomputation instead of using stale data.
+        Stale cache causes incorrect risk allocation and must be detected + logged, not silently accepted.
+        """
         if not eval_date:
             eval_date = _date.today()
 
         def fetch_cached(cur):
             cur.execute(
                 """
-                SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors
+                SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date
                 FROM market_exposure_daily
                 WHERE date = %s
                 LIMIT 1
@@ -113,6 +118,7 @@ class MarketExposure:
             )
             row = cur.fetchone()
             if row is None:
+                logger.debug(f"No cached market exposure for {eval_date}")
                 return None
 
             (
@@ -122,7 +128,20 @@ class MarketExposure:
                 halt_reasons_str,
                 dist_days,
                 factors_obj,
+                cached_date,
             ) = row
+
+            # Validate cache freshness: must be today's data (cached_date == eval_date)
+            # If cached value is from a different date, it's stale and should not be used
+            if cached_date != eval_date:
+                msg = (
+                    f"CRITICAL: Cached market exposure is stale — cached from {cached_date}, "
+                    f"but requested for {eval_date}. Not using stale cache to prevent incorrect risk allocation. "
+                    f"This requires recomputation (check Phase 4 data loader)."
+                )
+                logger.critical(msg)
+                return None
+
             halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
             factors = (
                 factors_obj
@@ -726,12 +745,14 @@ class MarketExposure:
             )
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
-                logger.error(
-                    f"[VIX ERROR] No VIX data available for {eval_date}: "
+                msg = (
+                    f"[VIX CRITICAL] No VIX data available for {eval_date}: "
                     f"^VIX missing from price_daily AND vix_level missing/null in market_health_daily. "
+                    f"Exposure calculation INCOMPLETE — hard veto for high VIX cannot run. "
                     f"Check that load_market_health_daily loader is running and fetching VIX from external sources."
                 )
-                return {"score_factor": None, "value": None}
+                logger.critical(msg)
+                raise RuntimeError(msg)
             vix = float(r2[0])
             logger.debug(f"[VIX] Using fallback: vix_level={vix} from market_health_daily for {eval_date}")
             return self._vix_score(vix, rising=False, term_structure=None)

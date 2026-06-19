@@ -82,7 +82,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
     cash = safe_float(port.get("total_cash"), default=None)
-    npos = int(port.get("position_count") or 0)
+    npos_val = port.get("position_count")
+    npos = int(npos_val) if npos_val is not None else None
     cum = port.get("cumulative_return_pct")
     mxdd = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
@@ -102,11 +103,14 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     tbl.add_column("right", ratio=1)
 
     # Cash / Positions
-    if max_n:
-        _sb = mini_bar(npos, max_n, w=4)
-        pos_val = f"{_sb}[dim]{npos}/{max_n}[/]"
+    if npos is not None:
+        if max_n:
+            _sb = mini_bar(npos, max_n, w=4)
+            pos_val = f"{_sb}[dim]{npos}/{max_n}[/]"
+        else:
+            pos_val = f"[white]{npos}[/]"
     else:
-        pos_val = f"[white]{npos}[/]"
+        pos_val = "[dim]--[/]"
     tbl.add_row(
         cell("Cash:", f"[white]{fmt_money(cash)}[/]"),
         cell("Positions:", pos_val),
@@ -348,7 +352,8 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     if port and not port.get("_error"):
         pv = safe_float(port.get("total_portfolio_value"), default=None)
         cash = safe_float(port.get("total_cash"), default=None)
-        npos = int(port.get("position_count") or 0)
+        npos_val = port.get("position_count")
+        npos = int(npos_val) if npos_val is not None else None
         dr = safe_float(port.get("daily_return_pct"), default=None)
         urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
         cum = safe_float(port.get("cumulative_return_pct"), default=None)
@@ -367,7 +372,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Cash:", fmt_money(cash),
         )
         max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
-        slots_s = f"{npos}/{max_n}" if max_n else str(npos)
+        slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
         ptbl.add_row("Open Positions:", slots_s, "Day Return:", dr_s)
         urp_s = f"{urp:+.2f}%" if urp is not None else "--"
@@ -595,8 +600,8 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
 
 
 __all__ = [
-    "panel_portfolio",
-    "panel_performance_spark",
-    "panel_portfolio_perf_expanded",
     "_calculate_adjusted_win_rate",
+    "panel_performance_spark",
+    "panel_portfolio",
+    "panel_portfolio_perf_expanded",
 ]

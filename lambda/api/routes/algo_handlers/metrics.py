@@ -114,11 +114,14 @@ def _get_algo_performance(cur) -> dict:
             """)
             fb = cur.fetchone()
             fb = safe_dict_convert(fb) if fb else {}
-            total_fb = int(fb.get("total_trades") or 0)
+            total_fb_raw = fb.get("total_trades")
+            total_fb = int(total_fb_raw) if total_fb_raw is not None else 0
             if total_fb == 0:
                 return error_response(503, "no_data", "Performance metrics not yet available")
-            winning_fb = int(fb.get("winning_trades") or 0)
-            losing_fb = int(fb.get("losing_trades") or 0)
+            winning_fb_raw = fb.get("winning_trades")
+            winning_fb = int(winning_fb_raw) if winning_fb_raw is not None else 0
+            losing_fb_raw = fb.get("losing_trades")
+            losing_fb = int(losing_fb_raw) if losing_fb_raw is not None else 0
             wr_fb = round(winning_fb / total_fb * 100, 1) if total_fb else None
             avg_win_r = safe_float(fb.get("avg_win_r"))
             avg_loss_r = safe_float(fb.get("avg_loss_r"))
@@ -128,11 +131,13 @@ def _get_algo_performance(cur) -> dict:
             pf_fb = None
             if avg_win_r is not None and avg_loss_r is not None and avg_loss_r != 0:
                 pf_fb = round(abs(avg_win_r / avg_loss_r), 2)
-            fallback_data = {
+            breakeven_fb_raw = fb.get("breakeven_trades")
+            breakeven_fb = int(breakeven_fb_raw) if breakeven_fb_raw is not None else 0
+            fallback_data: dict = {
                 "total_trades": total_fb,
                 "winning_trades": winning_fb,
                 "losing_trades": losing_fb,
-                "breakeven_trades": int(fb.get("breakeven_trades") or 0),
+                "breakeven_trades": breakeven_fb,
                 "win_rate_pct": wr_fb,
                 "win_rate": wr_fb,
                 "profit_factor": pf_fb,
@@ -159,11 +164,16 @@ def _get_algo_performance(cur) -> dict:
     try:
 
         metrics = safe_dict_convert(row)
-        total_trades = metrics.get("total_trades") or 0
-        winning = metrics.get("winning_trades") or 0
-        losing = metrics.get("losing_trades") or 0
-        breakeven = metrics.get("breakeven_trades") or 0
-        win_loss_total = winning + losing
+        total_trades_raw = metrics.get("total_trades")
+        winning_raw = metrics.get("winning_trades")
+        losing_raw = metrics.get("losing_trades")
+        breakeven_raw = metrics.get("breakeven_trades")
+
+        total_trades = int(total_trades_raw) if total_trades_raw is not None else None
+        winning = int(winning_raw) if winning_raw is not None else None
+        losing = int(losing_raw) if losing_raw is not None else None
+        breakeven = int(breakeven_raw) if breakeven_raw is not None else None
+        win_loss_total = (winning if winning is not None else 0) + (losing if losing is not None else 0)
 
         # Compute trade-level metrics missing from algo_performance_metrics
         trade_stats = {}
@@ -222,8 +232,12 @@ def _get_algo_performance(cur) -> dict:
                 """)
             pos_row = cur.fetchone()
             if pos_row:
-                open_losses_count = safe_int(pos_row["open_losses"]) or 0
-                total_open_losses_dollars = safe_float(pos_row["total_losses"]) or 0.0
+                open_losses_count = safe_int(pos_row["open_losses"])
+                if open_losses_count is None:
+                    open_losses_count = 0
+                total_open_losses_dollars = safe_float(pos_row["total_losses"])
+                if total_open_losses_dollars is None:
+                    total_open_losses_dollars = 0.0
                 wr = safe_float(metrics.get("win_rate_pct"))
                 if open_losses_count > 0 and wr is not None:
                     total_adj = winning + losing + open_losses_count + breakeven
@@ -321,8 +335,8 @@ def _get_algo_performance(cur) -> dict:
             "avg_hold_days": safe_float(metrics.get("avg_holding_days")),
             "avg_holding_days": safe_float(metrics.get("avg_holding_days")),
             "portfolio_snapshots": len(equity_vals),
-            "best_win_streak": metrics.get("best_win_streak") or 0,
-            "worst_loss_streak": metrics.get("worst_loss_streak") or 0,
+            "best_win_streak": int(metrics.get("best_win_streak")) if metrics.get("best_win_streak") is not None else None,
+            "worst_loss_streak": int(metrics.get("worst_loss_streak")) if metrics.get("worst_loss_streak") is not None else None,
             "current_streak": current_streak,
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
