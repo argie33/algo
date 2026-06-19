@@ -23,8 +23,8 @@ class CompanyProfileLoader(OptimalLoader):
     watermark_field = "created_at"
 
     def fetch_incremental(
-        self, symbol: str, since: Optional[date]
-    ) -> Optional[List[dict]]:
+        self, symbol: str, since: date | None
+    ) -> list[dict] | None:
         """Fetch company info from yfinance for a symbol."""
         ticker = get_ticker(symbol)
         if not ticker:

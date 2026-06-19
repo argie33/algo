@@ -43,7 +43,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         from datetime import datetime, timezone
 
         from algo.infrastructure import MarketCalendar
@@ -107,7 +107,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         return indicators
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -207,8 +207,8 @@ class TechnicalDataDailyLoader(OptimalLoader):
             return -1
 
     def _compute_all_indicators(
-        self, symbol: str, rows: List[dict], spy_rows: List[dict] = None
-    ) -> List[dict]:
+        self, symbol: str, rows: list[dict], spy_rows: list[dict] = None
+    ) -> list[dict]:
         if not rows:
             raise RuntimeError(
                 f"[TECHNICAL_DATA] Empty price data passed to indicator computation for {symbol}. "

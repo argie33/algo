@@ -23,8 +23,8 @@ class EarningsCalendarLoader(OptimalLoader):
     watermark_field = "updated_at"
 
     def fetch_incremental(
-        self, symbol: str, since: Optional[date]
-    ) -> Optional[List[dict]]:
+        self, symbol: str, since: date | None
+    ) -> list[dict] | None:
         """Fetch earnings dates from yfinance for a symbol."""
         try:
             import pandas as pd

@@ -20,7 +20,7 @@ class SentimentLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute a single MARKET sentiment score from available data sources."""
         try:
             with DatabaseContext("read") as cur:
@@ -84,15 +84,19 @@ class SentimentLoader(OptimalLoader):
 
 
 def main():
-    loader = SentimentLoader()
-    result = loader.load_global()
+    try:
+        loader = SentimentLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} sentiment records loaded")
-        return 0
-    else:
-        logger.warning("COMPLETED: No sentiment loaded")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} sentiment records loaded")
+            return 0
+        else:
+            logger.error("FAILED: No sentiment records loaded")
+            return 1
+    except Exception as e:
+        logger.error(f"Sentiment load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

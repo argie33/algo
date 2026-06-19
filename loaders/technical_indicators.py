@@ -25,7 +25,7 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
 
 def compute_macd(
     closes: pd.Series, fast: int = 12, slow: int = 26, signal_period: int = 9
-) -> Tuple[pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series]:
     """Compute MACD line and signal line."""
     ema_fast = closes.ewm(span=fast).mean()
     ema_slow = closes.ewm(span=slow).mean()
@@ -34,7 +34,7 @@ def compute_macd(
     return macd_line, signal_line
 
 
-def compute_moving_averages(closes: pd.Series) -> Dict[str, pd.Series]:
+def compute_moving_averages(closes: pd.Series) -> dict[str, pd.Series]:
     """Compute all standard moving averages."""
     return {
         "sma_20": closes.rolling(20).mean(),
@@ -65,7 +65,7 @@ def compute_atr(
 
 def compute_bollinger_bands(
     closes: pd.Series, period: int = 20, std_dev: float = 2.0
-) -> Dict[str, pd.Series]:
+) -> dict[str, pd.Series]:
     """Compute Bollinger Bands."""
     sma = closes.rolling(period).mean()
     std = closes.rolling(period).std()
@@ -83,7 +83,7 @@ def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
 
 def compute_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Compute Plus DI, Minus DI, and ADX using Wilder's smoothing.
 
     Returns: (plus_di, minus_di, adx)

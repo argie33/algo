@@ -35,7 +35,7 @@ class QualityMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute quality metrics from balance sheet and income statement."""
         try:
             with DatabaseContext("read") as cur:
@@ -78,8 +78,8 @@ class QualityMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _compute_metrics(
-        symbol: str, income: tuple, balance: Optional[tuple]
-    ) -> Optional[dict]:
+        symbol: str, income: tuple, balance: tuple | None
+    ) -> dict | None:
         """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
         if balance:

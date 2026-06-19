@@ -26,7 +26,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
     primary_key = ("date", "sector_name")
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute sector allocations for today from algo_positions."""
         try:
             now_utc = datetime.now(timezone.utc)

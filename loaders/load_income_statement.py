@@ -93,7 +93,7 @@ _PERIOD_CONFIG = {
 }
 
 
-def _resolve_period(cli_arg: Optional[str]) -> str:
+def _resolve_period(cli_arg: str | None) -> str:
     """Resolve period from CLI arg or LOADER_PERIOD env var (not LOADER_TYPE)."""
     if cli_arg:
         return cli_arg
@@ -128,7 +128,7 @@ class IncomeStatementLoader(OptimalLoader):
         except Exception:
             return set()
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
             if not cik:

@@ -24,7 +24,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch Russell 2000 symbols from data source with timeout protection."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)
@@ -100,8 +100,8 @@ def main():
                 logger.info(f"SUCCESS: {result} Russell 2000 symbols marked")
                 return 0
             else:
-                logger.warning("COMPLETED: No symbols marked")
-                return 0
+                logger.error("FAILED: No Russell 2000 symbols loaded")
+                return 1
     except Exception as e:
         logger.error(f"Russell 2000 constituents load failed: {e}", exc_info=True)
         return 1

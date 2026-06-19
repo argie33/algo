@@ -31,7 +31,7 @@ from utils.validation import safe_float, safe_int
 logger = logging.getLogger(__name__)
 
 
-def compute_circuit_breaker_metrics(cur, today: Optional[date] = None):
+def compute_circuit_breaker_metrics(cur, today: date | None = None):
     """Compute all circuit breaker metrics for today and store in database."""
     if today is None:
         # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
@@ -146,8 +146,8 @@ def _compute_consecutive_losses(cur) -> int:
     return streak
 
 
-def _compute_vix_level(cur) -> Optional[float]:
-    """Get latest VIX level from market_health_daily. Returns None if not available."""
+def _compute_vix_level(cur) -> float | None:
+    """Get latest VIX level from market_health_daily. Raises if not available."""
     cur.execute("""
         SELECT vix_level FROM market_health_daily
         WHERE vix_level IS NOT NULL
@@ -155,8 +155,7 @@ def _compute_vix_level(cur) -> Optional[float]:
     """)
     row = cur.fetchone()
     if not row or row[0] is None:
-        logger.warning("VIX level not available in market_health_daily")
-        return None
+        raise ValueError("VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed")
     vix = float(safe_float(row[0]))
     return round(vix, 1)
 

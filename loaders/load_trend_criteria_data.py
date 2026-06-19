@@ -61,7 +61,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         self._batch_context = {"end_date": end}
 
-    def fetch_incremental(self, symbol: str, since: Optional[date] = None):
+    def fetch_incremental(self, symbol: str, since: date | None = None):
         # Use end date cached at batch start (avoids per-symbol SELECT on price_daily)
         end = (self._batch_context or {}).get("end_date")
         if end is None:
@@ -115,7 +115,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         return results
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
         with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT date, close, volume FROM price_daily "
@@ -134,7 +134,7 @@ class TrendCriteriaLoader(OptimalLoader):
                 for r in rows
             ]
 
-    def _compute_trend_criteria(self, symbol: str, rows: List[dict]) -> List[dict]:
+    def _compute_trend_criteria(self, symbol: str, rows: list[dict]) -> list[dict]:
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)

@@ -20,7 +20,7 @@ class SectorRankingLoader(OptimalLoader):
     primary_key = ("sector_name", "date")
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute sector rankings from stock scores and company profile data."""
         try:
             with DatabaseContext("read") as cur:
@@ -135,15 +135,19 @@ class SectorRankingLoader(OptimalLoader):
 
 
 def main():
-    loader = SectorRankingLoader()
-    result = loader.load_global()
+    try:
+        loader = SectorRankingLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} sectors ranked")
-        return 0
-    else:
-        logger.warning("COMPLETED: No sector rankings computed")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} sectors ranked")
+            return 0
+        else:
+            logger.error("FAILED: No sector rankings computed")
+            return 1
+    except Exception as e:
+        logger.error(f"Sector ranking load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

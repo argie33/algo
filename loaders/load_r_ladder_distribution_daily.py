@@ -29,7 +29,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
     # Risk buckets: < -2R, -2R to -1R, -1R to 0R, 0R to 1R, 1R to 2R, > 2R
     BUCKETS = ["< -2R", "-2R to -1R", "-1R to 0R", "0R to 1R", "1R to 2R", "> 2R"]
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute R-ladder distribution for today from positions."""
         try:
             now_utc = datetime.now(timezone.utc)
@@ -119,7 +119,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _calculate_r_multiple(
-        self, entry: float, stop: Optional[float], target: Optional[float]
+        self, entry: float, stop: float | None, target: float | None
     ) -> float:
         """Calculate R-multiple for a position."""
         if not entry or entry <= 0:

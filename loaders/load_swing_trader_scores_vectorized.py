@@ -193,7 +193,7 @@ class VectorizedSwingScoresLoader:
         signal_scores: pd.DataFrame,
         technical_data: pd.DataFrame,
         trend_data: pd.DataFrame,
-        end_date: Optional[date] = None,
+        end_date: date | None = None,
     ) -> pd.DataFrame:
         """Compute swing scores for ALL symbols at once (vectorized)."""
         if end_date is None:
@@ -333,7 +333,7 @@ class VectorizedSwingScoresLoader:
             return 0
 
 
-def _update_swing_loader_status(status: str, error_message: Optional[str] = None):
+def _update_swing_loader_status(status: str, error_message: str | None = None):
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
@@ -422,7 +422,7 @@ def main():
             logger.info(f"Loaded {len(symbols)} symbols")
         except Exception as e:
             logger.error(f"Failed to get symbols: {e}")
-            _update_swing_loader_status("FAILED", f"Symbol fetch failed: {str(e)}")
+            _update_swing_loader_status("FAILED", f"Symbol fetch failed: {e!s}")
             return 1
 
         # Run loader
@@ -472,7 +472,7 @@ def main():
 
     except Exception as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)
-        _update_swing_loader_status("FAILED", f"Unexpected error: {str(e)}")
+        _update_swing_loader_status("FAILED", f"Unexpected error: {e!s}")
         return 1
     finally:
         # Stop heartbeat thread and wait for clean shutdown

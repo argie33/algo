@@ -872,7 +872,7 @@ def main():
             )
         except RuntimeError as e:
             # Enrichment failed to meet quality threshold — mark loader as FAILED
-            logger.critical(f"[ENRICHMENT_FAILED] {str(e)}")
+            logger.critical(f"[ENRICHMENT_FAILED] {e!s}")
             try:
                 # Update loader status to FAILED so orchestration detects the failure
                 with DatabaseContext("write") as cur:
@@ -890,7 +890,7 @@ def main():
                 f"[ENRICHMENT_CRITICAL] Technical data enrichment failed. "
                 f"Marked buy_sell_daily loader as FAILED to prevent silent data corruption. "
                 f"Signal quality would be degraded with NULL technical fields. "
-                f"Details: {str(e)}"
+                f"Details: {e!s}"
             )
 
         return 0

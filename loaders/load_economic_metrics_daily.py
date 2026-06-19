@@ -33,7 +33,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     # Allow multiple updates per day
     allow_multiple_updates_per_day = True
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute daily economic metrics from source data.
 
         Metrics:
@@ -187,15 +187,19 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
 
 def main():
-    loader = EconomicMetricsDailyLoader()
-    result = loader.load_global()
+    try:
+        loader = EconomicMetricsDailyLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} economic metric records computed")
-        return 0
-    else:
-        logger.warning("COMPLETED: No economic metrics computed (insufficient data)")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} economic metric records computed")
+            return 0
+        else:
+            logger.error("FAILED: No economic metrics computed (insufficient data)")
+            return 1
+    except Exception as e:
+        logger.error(f"Economic metrics daily load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

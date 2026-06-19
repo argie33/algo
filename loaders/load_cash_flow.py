@@ -81,7 +81,7 @@ _PERIOD_CONFIG = {
 }
 
 
-def _resolve_period(cli_arg: Optional[str]) -> str:
+def _resolve_period(cli_arg: str | None) -> str:
     if cli_arg:
         return cli_arg
     period_env = os.getenv("LOADER_PERIOD", "annual")
@@ -102,7 +102,7 @@ class CashFlowLoader(OptimalLoader):
         super().__init__()
         self._sec_client = SecEdgarClient()
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
             if not cik:

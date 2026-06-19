@@ -21,9 +21,12 @@ class CredentialRotationChecker:
             )
             secret_string = response["SecretString"]
             return json.loads(secret_string) if isinstance(secret_string, str) else None
+        except json.JSONDecodeError as e:
+            print(f"ERROR: Failed to parse credential status JSON: {e}", file=sys.stderr)
+            raise
         except Exception as e:
-            print(f"ERROR: Could not retrieve credentials: {e}", file=sys.stderr)
-            return None
+            print(f"ERROR: Could not retrieve credentials from Secrets Manager: {e}", file=sys.stderr)
+            raise
 
     def check_grace_period(self, creds: dict) -> tuple[bool, str]:
         """Check if grace period is active and return status."""

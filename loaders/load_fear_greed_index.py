@@ -24,7 +24,7 @@ class FearGreedIndexLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch Fear & Greed Index from CNN."""
         import time
 

@@ -28,7 +28,7 @@ class NAAIMExposureLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch NAAIM Exposure Index from website."""
         try:
             url = "https://www.naaim.org/programs/naaim-exposure-index/"
@@ -127,15 +127,19 @@ class NAAIMExposureLoader(OptimalLoader):
 
 
 def main():
-    loader = NAAIMExposureLoader()
-    result = loader.load_global()
+    try:
+        loader = NAAIMExposureLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info("SUCCESS: NAAIM data loaded")
-        return 0
-    else:
-        logger.warning("COMPLETED: No NAAIM data loaded")
-        return 0
+        if result > 0:
+            logger.info("SUCCESS: NAAIM data loaded")
+            return 0
+        else:
+            logger.error("FAILED: No NAAIM data loaded")
+            return 1
+    except Exception as e:
+        logger.error(f"NAAIM load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

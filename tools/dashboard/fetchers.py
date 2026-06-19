@@ -1394,9 +1394,10 @@ def fetch_scores(c):
     try:
         top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})
 
+        if _is_api_error(top_data):
+            return {"_error": _get_error_message(top_data), "top": []}
+
         def _extract(d):
-            if d.get("_error"):
-                return []
             raw = d.get("data", {})
             if isinstance(raw, dict):
                 return raw.get("items", [])

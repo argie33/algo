@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def enrich_technical_data(
-    since: Optional[date] = None, symbols: Optional[List[str]] = None, min_success_rate: float = 0.95
+    since: date | None = None, symbols: list[str] | None = None, min_success_rate: float = 0.95
 ) -> dict:
     """
     Enrich buy_sell_daily with technical data from technical_data_daily.

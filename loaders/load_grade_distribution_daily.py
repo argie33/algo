@@ -39,7 +39,7 @@ class GradeDistributionDailyLoader(OptimalLoader):
     # Allow multiple updates per day
     allow_multiple_updates_per_day = True
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute grade distribution from latest swing_trader_scores.
 
         Counts stocks in each grade bucket:
@@ -127,15 +127,19 @@ class GradeDistributionDailyLoader(OptimalLoader):
 
 
 def main():
-    loader = GradeDistributionDailyLoader()
-    result = loader.load_global()
+    try:
+        loader = GradeDistributionDailyLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} grade distribution records computed")
-        return 0
-    else:
-        logger.warning("COMPLETED: No grade distribution computed (insufficient data)")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} grade distribution records computed")
+            return 0
+        else:
+            logger.error("FAILED: No grade distribution computed (insufficient data)")
+            return 1
+    except Exception as e:
+        logger.error(f"Grade distribution daily load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

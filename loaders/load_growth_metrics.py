@@ -28,7 +28,7 @@ class GrowthMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Compute multi-year growth metrics from annual income statement."""
         try:
             with DatabaseContext("read") as cur:
@@ -63,7 +63,7 @@ class GrowthMetricsLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
-    def _compute_metrics(symbol: str, latest: tuple, all_years: list) -> Optional[dict]:
+    def _compute_metrics(symbol: str, latest: tuple, all_years: list) -> dict | None:
         """Compute multi-year growth metrics."""
         latest_year, latest_rev, latest_eps = latest
 

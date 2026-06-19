@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Backfill buy_sell_daily signals for June 15-17 by copying from June 12."""
+from psycopg2.errors import IntegrityError
+
 from utils.db.context import DatabaseContext
 
 
@@ -33,8 +35,8 @@ with DatabaseContext('write') as cur:
                     ON CONFLICT DO NOTHING
                 """, values_list)
                 inserted += 1
-            except Exception:
-                pass  # Silently skip conflicts
+            except IntegrityError:
+                pass  # Skip existing rows (conflicts)
 
         print(f"Inserted {inserted} rows for {target_date_str}")
 

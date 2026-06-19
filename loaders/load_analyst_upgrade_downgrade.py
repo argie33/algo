@@ -28,7 +28,7 @@ class AnalystRatingsLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch analyst upgrades/downgrades from yfinance."""
         try:
             from utils.external.yfinance import get_ticker

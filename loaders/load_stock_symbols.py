@@ -60,7 +60,7 @@ class StockSymbolsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch all stock symbols from NASDAQ/NYSE with timeout protection.
 
         Also populates etf_symbols table with ETF-flagged symbols so that
@@ -144,7 +144,7 @@ class StockSymbolsLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _upsert_etf_symbols(self, etf_rows: List[dict]) -> None:
+    def _upsert_etf_symbols(self, etf_rows: list[dict]) -> None:
         """Replace ETF symbols in etf_symbols table to keep it in sync with source data.
 
         Truncates the table first to ensure it only contains current ETFs from NASDAQ/NYSE,
@@ -185,8 +185,8 @@ def main():
                 logger.info(f"SUCCESS: {result} symbols loaded")
                 return 0
             else:
-                logger.warning("COMPLETED: No symbols loaded")
-                return 0
+                logger.error("FAILED: No stock symbols loaded")
+                return 1
     except Exception as e:
         logger.error(f"Stock symbols load failed: {e}", exc_info=True)
         return 1

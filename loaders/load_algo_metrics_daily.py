@@ -21,7 +21,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute daily algo metrics from audit log."""
         try:
             from datetime import datetime, timezone
@@ -71,15 +71,19 @@ class AlgoMetricsDailyLoader(OptimalLoader):
 
 
 def main():
-    loader = AlgoMetricsDailyLoader()
-    result = loader.load_global()
+    try:
+        loader = AlgoMetricsDailyLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} daily metrics computed")
-        return 0
-    else:
-        logger.warning("COMPLETED: No metrics computed")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} daily metrics computed")
+            return 0
+        else:
+            logger.error("FAILED: No daily metrics computed")
+            return 1
+    except Exception as e:
+        logger.error(f"Algo metrics daily load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

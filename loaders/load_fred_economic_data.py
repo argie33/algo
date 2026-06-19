@@ -101,7 +101,7 @@ class FredEconomicDataLoader(OptimalLoader):
     primary_key = ("series_id", "date")
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch FRED economic data for all configured series with proper timeouts."""
         api_key = get_fred_api_key()
         if not api_key:

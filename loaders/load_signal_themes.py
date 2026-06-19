@@ -25,7 +25,7 @@ class SignalThemesLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "created_at"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch and group signal themes from quality scores."""
         try:
             with DatabaseContext("read") as cur:
@@ -80,15 +80,19 @@ class SignalThemesLoader(OptimalLoader):
 
 
 def main():
-    loader = SignalThemesLoader()
-    result = loader.load_global()
+    try:
+        loader = SignalThemesLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info(f"SUCCESS: {result} signal themes loaded")
-        return 0
-    else:
-        logger.warning("COMPLETED: No themes loaded")
-        return 0
+        if result > 0:
+            logger.info(f"SUCCESS: {result} signal themes loaded")
+            return 0
+        else:
+            logger.error("FAILED: No signal themes loaded")
+            return 1
+    except Exception as e:
+        logger.error(f"Signal themes load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

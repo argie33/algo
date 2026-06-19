@@ -31,7 +31,7 @@ class EarningsHistoryLoader(OptimalLoader):
     primary_key = ("symbol", "quarter")
     watermark_field = "earnings_date"
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch earnings history from yfinance earnings_dates."""
         try:
             from datetime import datetime

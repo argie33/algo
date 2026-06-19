@@ -136,10 +136,16 @@ class SwingTraderScoresLoader(OptimalLoader):
                             )
                             if last_sqs < end:
                                 end = last_sqs
-                except Exception as e:
-                    logger.debug(
-                        f"Could not check signal_quality_scores max date: {e}"
-                    )
+                except psycopg2.Error as e:
+                    raise RuntimeError(
+                        f"[SWING_SCORES] Database error checking signal_quality_scores max date: {e}. "
+                        "Cannot determine end date for score computation."
+                    ) from e
+                except (ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"[SWING_SCORES] Data format error reading max date: {e}. "
+                        "signal_quality_scores data may be corrupted."
+                    ) from e
 
             if since is None:
                 try:
@@ -155,10 +161,16 @@ class SwingTraderScoresLoader(OptimalLoader):
                             if isinstance(wm_row[0], date)
                             else date.fromisoformat(str(wm_row[0]))
                         )
-                except Exception as e:
-                    logger.warning(
-                        f"Could not read swing_trader_scores watermark for {symbol}: {e}"
-                    )
+                except psycopg2.Error as e:
+                    raise RuntimeError(
+                        f"[WATERMARK] Database error reading swing_trader_scores watermark for {symbol}: {e}. "
+                        "Cannot determine incremental load point."
+                    ) from e
+                except (ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"[WATERMARK] Data format error reading watermark for {symbol}: {e}. "
+                        "Watermark data may be corrupted."
+                    ) from e
 
             if since is None:
                 start = end - timedelta(days=30)

@@ -25,6 +25,7 @@ from typing import Optional, cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import psycopg2
 from pandas.tseries.offsets import CustomBusinessDay
 
 from loaders.technical_indicators import (
@@ -50,7 +51,7 @@ class VectorizedTechnicalLoader:
     def __init__(self):
         self.table_name = "technical_data_daily"
 
-    def run(self, symbols: list, since_date: Optional[date] = None) -> dict:
+    def run(self, symbols: list, since_date: date | None = None) -> dict:
         """Load technical indicators for all symbols vectorized.
 
         Args:
@@ -105,13 +106,22 @@ class VectorizedTechnicalLoader:
                 "latest_date": latest_date,
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             logger.error(f"VectorizedTechnicalLoader failed: {e}", exc_info=True)
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
                 "duration_sec": 0,
                 "error": str(e),
+                "latest_date": None,
+            }
+        except Exception as e:
+            logger.error(f"VectorizedTechnicalLoader unexpected error: {e}", exc_info=True)
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "duration_sec": 0,
+                "error": f"Unexpected error: {e!s}",
                 "latest_date": None,
             }
 
@@ -128,13 +138,13 @@ class VectorizedTechnicalLoader:
         try:
             with DatabaseContext("read") as cur:
                 placeholders = ",".join(["%s"] * len(symbols))
-                query = """
+                query = f"""
                     SELECT symbol, date, open, high, low, close, volume
                     FROM price_daily
-                    WHERE symbol IN ({})
+                    WHERE symbol IN ({placeholders})
                     AND date >= %s AND date <= %s
                     ORDER BY symbol, date ASC
-                """.format(placeholders)
+                """
                 cur.execute(query, symbols + [start_date, end_date])
                 rows = cur.fetchall()
 
@@ -163,9 +173,16 @@ class VectorizedTechnicalLoader:
                     )
 
                 return result
-        except Exception as e:
-            logger.error(f"Failed to fetch all prices: {e}")
-            return []
+        except psycopg2.Error as e:
+            raise RuntimeError(
+                f"[PRICES] Failed to fetch prices for {len(symbols)} symbols [{start_date} to {end_date}]: {e}. "
+                "Cannot compute technical indicators without price data."
+            ) from e
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[PRICES] Invalid price data format: {e}. "
+                "Price data may be corrupted."
+            ) from e
 
     def _compute_all_indicators_vectorized(self, prices: list) -> pd.DataFrame:
         """Compute ALL technical indicators for ALL symbols at once using pandas.
@@ -293,9 +310,15 @@ class VectorizedTechnicalLoader:
 
                 results.append(symbol_df)
 
+            except (ValueError, TypeError, KeyError) as e:
+                raise RuntimeError(
+                    f"[INDICATORS] Failed to compute indicators for {symbol}: {e}. "
+                    "Data may be corrupted or have invalid format."
+                ) from e
             except Exception as e:
-                logger.error(f"Failed to compute indicators for {symbol}: {e}")
-                continue
+                raise RuntimeError(
+                    f"[INDICATORS] Unexpected error computing indicators for {symbol}: {e}."
+                ) from e
 
         if not results:
             return pd.DataFrame()
@@ -311,11 +334,18 @@ class VectorizedTechnicalLoader:
                     ("SPY", start_date, end_date),
                 )
                 return [{"date": r[0], "close": float(r[1])} for r in cur.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to fetch SPY prices for Mansfield RS: {e}")
-            return []
+        except psycopg2.Error as e:
+            raise RuntimeError(
+                f"[SPY_PRICES] Failed to fetch SPY prices for Mansfield RS [{start_date} to {end_date}]: {e}. "
+                "Cannot compute relative strength indicator."
+            ) from e
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[SPY_PRICES] Invalid SPY price data format: {e}. "
+                "SPY price data may be corrupted."
+            ) from e
 
-    def _bulk_insert(self, df: pd.DataFrame, since_date: Optional[date] = None) -> int:
+    def _bulk_insert(self, df: pd.DataFrame, since_date: date | None = None) -> int:
         """Bulk insert all indicators at once using COPY (fast)."""
         if df.empty:
             return 0
@@ -409,12 +439,19 @@ class VectorizedTechnicalLoader:
                 logger.info(f"Bulk inserted {inserted} technical indicator rows")
                 return inserted
 
-        except Exception as e:
-            logger.error(f"Bulk insert failed: {e}")
-            return 0
+        except psycopg2.Error as e:
+            raise RuntimeError(
+                f"[BULK_INSERT] Failed to insert technical indicators: {e}. "
+                "Database connectivity or permissions issue."
+            ) from e
+        except (ValueError, TypeError, KeyError) as e:
+            raise RuntimeError(
+                f"[BULK_INSERT] Invalid data format for bulk insert: {e}. "
+                "Data structure mismatch with schema."
+            ) from e
 
 
-def _update_tech_loader_status(status: str, error_message: Optional[str] = None, latest_date: Optional[date] = None) -> None:
+def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
@@ -508,7 +545,7 @@ def main():
             logger.info(f"Loaded {len(symbols)} symbols for vectorized processing")
         except Exception as e:
             logger.error(f"Failed to get symbols: {e}")
-            _update_tech_loader_status("FAILED", f"Symbol fetch failed: {str(e)}")
+            _update_tech_loader_status("FAILED", f"Symbol fetch failed: {e!s}")
             return 1
 
         # Parse since date
@@ -570,7 +607,7 @@ def main():
 
     except Exception as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)
-        _update_tech_loader_status("FAILED", f"Unexpected error: {str(e)}")
+        _update_tech_loader_status("FAILED", f"Unexpected error: {e!s}")
         return 1
     finally:
         # Stop heartbeat thread and wait for clean shutdown

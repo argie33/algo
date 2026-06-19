@@ -75,7 +75,11 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         )
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
-    sorted_secs, total_secs, pv = compute_sector_agg(pos, port)
+    try:
+        sorted_secs, total_secs, pv = compute_sector_agg(pos, port)
+    except ValueError as e:
+        logger.warning(f"Cannot compute sector aggregation: {e}")
+        sorted_secs = None
     if sorted_secs:
         show_secs = sorted_secs[:6]
         hdr_more = f" [dim](top 6 of {total_secs})[/]" if total_secs > 6 else ""

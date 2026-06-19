@@ -119,7 +119,7 @@ class PriceLoader(OptimalLoader):
         self._adaptive_request_interval = (
             0.375  # Start at 160 req/min = 0.375s between requests
         )
-        self._last_request_time: Optional[float] = None
+        self._last_request_time: float | None = None
 
         # CREATIVE FIX #2: Smart batch sizing based on API responsiveness
         # Tracks which batch sizes cause rate limiting for this specific API instance
@@ -132,7 +132,7 @@ class PriceLoader(OptimalLoader):
         # EOD pipeline (4:05-5:30 PM, 85 min): Use aggressive threshold (180s) to fail fast
         # Morning prep (3:30-9:30 AM, 6h): Use generous threshold (480s) for recovery time
         self._rate_limit_errors = 0
-        self._rate_limit_error_start_time: Optional[float] = None
+        self._rate_limit_error_start_time: float | None = None
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         # Load from centralized config (config/thresholds.py)
         from config.thresholds import ThresholdConfig
@@ -154,7 +154,7 @@ class PriceLoader(OptimalLoader):
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
         self._market_close_timeout_count = 0
-        self._last_market_close_timeout_time: Optional[float] = None
+        self._last_market_close_timeout_time: float | None = None
 
         # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
         # Track root cause of failures to apply appropriate fixes:
@@ -264,7 +264,7 @@ class PriceLoader(OptimalLoader):
         """
         # Find batch size with best success rate
         if self._batch_size_performance:
-            best_size: Optional[int] = None
+            best_size: int | None = None
             best_rate: float = -1
             for size, (successes, failures) in self._batch_size_performance.items():
                 total = successes + failures
@@ -381,7 +381,7 @@ class PriceLoader(OptimalLoader):
             ]
         return retry_symbols
 
-    def _check_market_close_data_available(self, max_wait_sec: Optional[int] = None) -> bool:
+    def _check_market_close_data_available(self, max_wait_sec: int | None = None) -> bool:
         """Check if SPY close data is available (market close data freshness check).
 
         EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-15 minutes after market close (4 PM ET).
@@ -783,7 +783,7 @@ class PriceLoader(OptimalLoader):
                     timeout=wait_sec
                 )  # Wake on timeout or notify()
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]):
+    def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch OHLCV from yfinance at specified interval."""
         from datetime import datetime, timezone
 
@@ -805,12 +805,9 @@ class PriceLoader(OptimalLoader):
 
         # Try to fetch fresh data from live APIs
         rows = self._try_fetch(symbol, start, end)
-        if rows:
-            return rows
+        return rows
 
-        return None
-
-    def fetch_batch_incremental(self, symbols: List[str], since: Optional[date]):
+    def fetch_batch_incremental(self, symbols: list[str], since: date | None):
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
         Returns: dict[symbol] -> rows or None
@@ -854,7 +851,7 @@ class PriceLoader(OptimalLoader):
             start = since
 
         if start >= end:
-            return {s: None for s in symbols}
+            return dict.fromkeys(symbols)
 
         # Batch fetch with adaptive batch sizing based on recent success rates
         # If recent batches had high success, use full batch. If rate limited recently, use smaller batches.
@@ -870,7 +867,7 @@ class PriceLoader(OptimalLoader):
 
     def _fetch_with_fallback(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start: date,
         end: date,
         batch_size: int,
@@ -905,7 +902,7 @@ class PriceLoader(OptimalLoader):
                 f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
                 "Failing immediately to prevent Step Function timeout. yfinance severely degraded."
             )
-            return {s: None for s in symbols}
+            return dict.fromkeys(symbols)
 
         # ISSUE #6 FIX: If we've shrunk to batch_size=1 and still rate limiting, give up immediately
         # This prevents infinite reduction and timeout cascade
@@ -913,7 +910,7 @@ class PriceLoader(OptimalLoader):
             logger.warning(
                 f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s"
             )
-            return {s: None for s in symbols}
+            return dict.fromkeys(symbols)
 
         # Issue #1 FIX (Blocker #1): Proactive early abort if rate limiting detected at batch >= 20
         # CRITICAL: Fail-fast rather than wait through hopeless retry loops.
@@ -940,7 +937,7 @@ class PriceLoader(OptimalLoader):
                     "yfinance API severely degraded. Aborting early to prevent timeout cascade. "
                     "Phase 1 failsafe will retry when API recovers."
                 )
-                return {s: None for s in symbols}
+                return dict.fromkeys(symbols)
 
         # Issue #20 FIX: At batch=1, try longer wait before giving up
         if batch_size == 1 and self._rate_limit_errors > 3:
@@ -987,7 +984,7 @@ class PriceLoader(OptimalLoader):
                     logger.debug(
                         f"Could not publish batch fetch minimum size metric: {metric_err}"
                     )
-                return {s: None for s in symbols}
+                return dict.fromkeys(symbols)
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
         # Issue #6: Instead of failing completely, reduce batch size to avoid timeout
@@ -1009,7 +1006,7 @@ class PriceLoader(OptimalLoader):
                         f"[CIRCUIT BREAKER] Rate limiting {elapsed_sec/60:.1f}min, approaching timeout. "
                         "Skipping reduced batch size attempts, failing batch immediately."
                     )
-                    return {s: None for s in symbols}
+                    return dict.fromkeys(symbols)
 
                 reduced_batch_sizes = [10, 5, 1]
                 for reduced_size in reduced_batch_sizes:
@@ -1054,7 +1051,7 @@ class PriceLoader(OptimalLoader):
                     )
                 except Exception as alert_err:
                     logger.debug(f"Could not send rate limit alert: {alert_err}")
-                return {s: None for s in symbols}
+                return dict.fromkeys(symbols)
 
         try:
             # CREATIVE FIX #1: Predictive request pacing
@@ -1505,7 +1502,7 @@ class PriceLoader(OptimalLoader):
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
     def run(  # type: ignore
-        self, symbols: list, parallelism: int = 1, backfill_days: Optional[int] = None
+        self, symbols: list, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict:
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
@@ -1978,7 +1975,7 @@ class PriceLoader(OptimalLoader):
 
         return self._stats
 
-    def _load_batch(self, symbols: List[str]) -> None:
+    def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
         wm_store = self._get_watermark()
 

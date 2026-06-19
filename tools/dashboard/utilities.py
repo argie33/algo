@@ -140,12 +140,12 @@ def compute_sector_agg(pos, port):
 
     Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
     """
-    pos, _, has_error = normalize_positions_data(pos)
+    pos, err_msg, has_error = normalize_positions_data(pos)
     if has_error:
-        return None, None, 0
+        raise ValueError(f"Cannot compute sector aggregation: {err_msg}")
 
     if not pos:
-        return None, None, 0
+        raise ValueError("Cannot compute sector aggregation: positions data is empty")
 
     pos_hash = hashlib.md5(
         json.dumps(pos, sort_keys=True, default=str).encode()
@@ -178,10 +178,9 @@ def compute_sector_agg(pos, port):
             sd[sec]["pnls"].append(pnl)
 
     if invalid_count > 0:
-        logger.error(
-            f"compute_sector_agg: encountered {invalid_count} invalid position(s); sector totals may be incomplete"
+        raise ValueError(
+            f"Cannot compute sector aggregation: encountered {invalid_count} invalid position(s)"
         )
-        return None, None, 0
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)

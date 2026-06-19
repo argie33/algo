@@ -30,7 +30,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str = "SPY", since: Optional[date] = None):
+    def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
         """Fetch SPY price data and compute market health metrics."""
         from datetime import datetime, timezone
 
@@ -204,7 +204,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "VIX data is authoritative for market health computation."
             )
 
-    def _fetch_put_call_ratio(self, eval_date: date) -> Optional[float]:
+    def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Compute put/call ratio from SPY options chain volume via yfinance.
 
         Sums total puts and calls volume across near-term expirations as a proxy
@@ -403,7 +403,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Advance/decline ratio and new highs/lows are authoritative for market health."
             )
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -428,7 +428,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without SPY price data."
             )
 
-    def _compute_market_health(self, rows: List[dict]) -> List[dict]:
+    def _compute_market_health(self, rows: list[dict]) -> list[dict]:
         if not rows:
             return []
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)

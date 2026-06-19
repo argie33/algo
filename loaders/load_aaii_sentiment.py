@@ -28,7 +28,7 @@ class AAIISentimentLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch AAII sentiment data from Excel file."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(60.0)
@@ -240,8 +240,8 @@ def main():
                 logger.info(f"SUCCESS: {result} AAII sentiment records loaded")
                 return 0
             else:
-                logger.warning("COMPLETED: No records loaded")
-                return 0
+                logger.error("FAILED: No AAII sentiment records loaded")
+                return 1
     except Exception as e:
         logger.error(f"AAII sentiment load failed: {e}", exc_info=True)
         return 1

@@ -24,7 +24,7 @@ class SentimentAggregateLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch and aggregate sentiment data from AAII and NAAIM."""
         from utils.db.context import DatabaseContext
 
@@ -76,15 +76,19 @@ class SentimentAggregateLoader(OptimalLoader):
 
 
 def main():
-    loader = SentimentAggregateLoader()
-    result = loader.load_global()
+    try:
+        loader = SentimentAggregateLoader()
+        result = loader.load_global()
 
-    if result > 0:
-        logger.info("SUCCESS: Sentiment aggregate loaded")
-        return 0
-    else:
-        logger.warning("COMPLETED: No sentiment aggregated")
-        return 0
+        if result > 0:
+            logger.info("SUCCESS: Sentiment aggregate loaded")
+            return 0
+        else:
+            logger.error("FAILED: No sentiment aggregated")
+            return 1
+    except Exception as e:
+        logger.error(f"Sentiment aggregate load failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
