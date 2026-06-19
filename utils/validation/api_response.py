@@ -9,7 +9,7 @@ Sanitizes API response data:
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -20,32 +20,29 @@ class APIResponseValidator:
 
     @staticmethod
     def sanitize_response(data: Any, path: str = "root") -> Any:
-        """Recursively sanitize response data, replacing None values with appropriate defaults.
+        """Recursively sanitize response data, filtering nulls from lists while preserving them in dicts.
 
         Args:
             data: Response data to sanitize (dict, list, scalar, or None)
             path: Current path in the data structure (for logging)
 
         Returns:
-            Sanitized data with None values replaced by defaults
+            Sanitized data with None items filtered from lists, None values preserved in dicts
         """
         if data is None:
-            return 0
+            return None
 
         if isinstance(data, dict):
-            sanitized_dict: Dict[str, Any] = {}
+            sanitized_dict: dict[str, Any] = {}
             for key, value in data.items():
                 new_path = f"{path}.{key}"
-                if value is None:
-                    sanitized_dict[key] = 0
-                else:
-                    sanitized_dict[key] = APIResponseValidator.sanitize_response(
-                        value, new_path
-                    )
+                sanitized_dict[key] = APIResponseValidator.sanitize_response(
+                    value, new_path
+                )
             return sanitized_dict
 
         elif isinstance(data, list):
-            sanitized_list: List[Any] = []
+            sanitized_list: list[Any] = []
             for i, item in enumerate(data):
                 new_path = f"{path}[{i}]"
                 if item is None:
@@ -60,7 +57,7 @@ class APIResponseValidator:
             return data
 
     @staticmethod
-    def validate_no_nulls(data: Any, path: str = "root") -> List[str]:
+    def validate_no_nulls(data: Any, path: str = "root") -> list[str]:
         """Validate that response contains no None values.
 
         Recursively checks data structure and returns list of paths where None was found.
