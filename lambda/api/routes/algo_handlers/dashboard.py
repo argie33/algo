@@ -24,6 +24,7 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     safe_float,
+    safe_float_strict,
     safe_int,
 )
 
@@ -121,7 +122,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
 
         # Compute stage_label for stage distribution (Issue #8)
         stage = safe_int(d.get("weinstein_stage"))
-        trend_score = safe_float(d.get("minervini_trend_score"))
+        trend_score = safe_float_strict(d.get("minervini_trend_score"))
         if stage == 2:
             if trend_score and trend_score < 4:
                 d["stage_label"] = "Early Stage-2"
