@@ -14,9 +14,11 @@ import json
 import logging
 import os
 import threading
-from typing import Dict, Any, Optional
+from typing import Any
 
 import boto3
+from botocore.config import Config
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +35,19 @@ class LambdaAPIClient:
         """Get or create Lambda client."""
         if self.client is None:
             try:
-                self.client = boto3.client("lambda", region_name=self.region)
+                config = Config(
+                    connect_timeout=5,
+                    read_timeout=30,
+                    retries={"max_attempts": 0},
+                )
+                self.client = boto3.client("lambda", region_name=self.region, config=config)
             except Exception as e:
                 raise RuntimeError(f"Operation failed: {e}") from e
         return self.client
 
     def invoke(
-        self, path: str, method: str = "GET", query_params: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+        self, path: str, method: str = "GET", query_params: dict | None = None
+    ) -> dict[str, Any]:
         """
         Invoke the Lambda function directly.
 
@@ -108,7 +115,7 @@ class LambdaAPIClient:
             logger.error(f"[Lambda] Invocation failed: {e}")
             return {
                 "statusCode": 500,
-                "body": {"_error": f"Lambda invocation failed: {str(e)}"},
+                "body": {"_error": f"Lambda invocation failed: {e!s}"},
                 "_source": "lambda_direct",
             }
 
@@ -133,7 +140,7 @@ def get_lambda_client() -> LambdaAPIClient:
 
 
 def invoke_api(
-    path: str, method: str = "GET", query_params: Optional[Dict] = None
-) -> Dict[str, Any]:
+    path: str, method: str = "GET", query_params: dict | None = None
+) -> dict[str, Any]:
     """Invoke the Lambda API directly (convenience function)."""
     return get_lambda_client().invoke(path, method, query_params)
