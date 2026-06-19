@@ -12,7 +12,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
     return f
 
 
-def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
+def safe_float_strict(value: Any, context: str = "") -> float | None:
     """Convert value to float safely, returning None on failure (strict mode).
 
     For use in optional fields where None is appropriate.
@@ -118,7 +118,7 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
-def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
+def safe_int_strict(value: Any, context: str = "") -> int | None:
     """Convert value to int safely, returning None on failure (strict mode).
 
     For use in optional fields where None is appropriate.
@@ -148,7 +148,7 @@ def safe_int_strict(value: Any, context: str = "") -> Optional[int]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
+def safe_parse_date(value: Any, context: str = "") -> date | None:
     """Parse date from multiple formats: ISO, string, datetime.
 
     Handles:
@@ -187,7 +187,7 @@ def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
     return None
 
 
-def safe_parse_datetime_et(value: Any, context: str = "") -> Optional[datetime]:
+def safe_parse_datetime_et(value: Any, context: str = "") -> datetime | None:
     """Parse datetime string with timezone awareness (ET).
 
     Returns timezone-aware datetime in ET, or None if parsing fails.
@@ -275,8 +275,8 @@ def safe_json_get(obj: Any, key: str, default: Any = None, context: str = "") ->
 def log_data_fetch(
     source: str,
     count: int,
-    error: Optional[str] = None,
-    fetch_time_ms: Optional[float] = None,
+    error: str | None = None,
+    fetch_time_ms: float | None = None,
 ) -> None:
     """Log data fetch results with consistent format.
 
