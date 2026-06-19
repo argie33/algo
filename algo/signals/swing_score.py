@@ -154,28 +154,14 @@ class SwingTraderScore:
                         "swing_score": 0.0,
                     }
 
-                # Compute components (wrap each in error handling to prevent cascade failures)
-                try:
-                    setup_pts, setup_detail = self._setup_component(symbol, eval_date)
-                except (ValueError, RuntimeError) as e:
-                    logger.debug(f"Setup component failed for {symbol}: {e}")
-                    setup_pts, setup_detail = 0, {"error": str(e)[:50]}
-
-                try:
-                    trend_pts, trend_detail = self._trend_component(
-                        symbol, eval_date, cur
-                    )
-                except Exception as e:
-                    logger.debug(f"Trend component failed for {symbol}: {e}")
-                    trend_pts, trend_detail = 0, {"error": str(e)[:50]}
-
-                try:
-                    mom_pts, mom_detail = self._momentum_component(
-                        symbol, eval_date, cur
-                    )
-                except Exception as e:
-                    logger.debug(f"Momentum component failed for {symbol}: {e}")
-                    mom_pts, mom_detail = 0, {"error": str(e)[:50]}
+                # Compute critical components (fail-hard if data unavailable)
+                setup_pts, setup_detail = self._setup_component(symbol, eval_date)
+                trend_pts, trend_detail = self._trend_component(
+                    symbol, eval_date, cur
+                )
+                mom_pts, mom_detail = self._momentum_component(
+                    symbol, eval_date, cur
+                )
 
                 try:
                     vol_pts, vol_detail = self._volume_component(symbol, eval_date, cur)

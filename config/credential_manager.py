@@ -49,11 +49,6 @@ def _sanitize_error(error: Exception) -> str:
     return "Credential retrieval failed (internal error)"
 
 
-# Database defaults
-DEFAULT_DB_PORT = "5432"
-DEFAULT_DB_USER = "stocks"
-DEFAULT_DB_NAME = "stocks"
-
 # Cache TTL for credential secrets (5 minutes to balance freshness with API costs)
 CREDENTIAL_CACHE_TTL_SECONDS = 300
 
@@ -181,6 +176,9 @@ class CredentialManager:
 
         Always fetches from AWS Secrets Manager. Fails fast if unavailable.
         No local caching or fallbacks — credentials must be current.
+
+        IMPORTANT: Requires one of SecretString or SecretBinary to be present.
+        Fails explicitly if both are missing.
         """
         try:
             client = self._get_secrets_client()
@@ -189,11 +187,19 @@ class CredentialManager:
 
             # Try to get the secret by name
             response = client.get_secret_value(SecretId=secret_name)
-            secret_value = response.get("SecretString") or response.get(
-                "SecretBinary", ""
-            )
 
-            return secret_value if secret_value else None
+            # Require one of SecretString or SecretBinary, no fallback to empty string
+            secret_string = cast(str | None, response.get("SecretString"))
+            secret_binary = cast(str | None, response.get("SecretBinary"))
+
+            if secret_string:
+                return secret_string
+            elif secret_binary:
+                return secret_binary
+            else:
+                raise ValueError(
+                    f"Secret '{secret_name}' exists but contains neither SecretString nor SecretBinary"
+                )
 
         except Exception as e:
             raise RuntimeError(_sanitize_error(e)) from e
@@ -202,13 +208,19 @@ class CredentialManager:
         """Get database connection credentials as a dict.
 
         In AWS Lambda the RDS secret is a JSON blob stored under the ARN given by
-        DB_SECRET_ARN. We fetch and parse that blob rather
-        than looking up individual secret names, which don't exist in this setup.
-        Falls back to individual env vars for local dev.
+        DB_SECRET_ARN. We fetch and parse that blob rather than looking up individual
+        secret names, which don't exist in this setup.
+
+        In local dev mode (DB_SECRET_ARN not set), all credentials must be explicitly
+        provided via environment variables — no hardcoded defaults.
 
         Result is cached in self._cache to avoid a Secrets Manager API call on every
         DatabaseContext creation (which is called 10+ times per orchestrator run).
         Cache uses TTL to ensure fresh credentials are fetched periodically.
+
+        REQUIRED FIELDS:
+        - AWS Lambda: DB_SECRET_ARN must be set and contain host, port, username, password, dbname
+        - Local dev: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME all required
         """
         import json as _json
 
@@ -231,28 +243,54 @@ class CredentialManager:
                 )
             try:
                 response = client.get_secret_value(SecretId=secret_arn)
-                creds = _json.loads(response.get("SecretString", "{}"))
-                # Prefer DB_HOST env var (proxy endpoint set by Terraform) over
-                # the secret's host field (which may point to direct RDS endpoint).
-                db_host = (
-                    os.getenv("DB_HOST")
-                    or os.getenv("DB_ENDPOINT")
-                    or creds.get("host")
-                )
+                secret_string = response.get("SecretString")
+                if not secret_string:
+                    raise ValueError(
+                        f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString"
+                    )
+                creds = _json.loads(secret_string)
+
+                # Extract host (prefer DB_HOST env var override for proxy endpoints)
+                db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
+                if not db_host:
+                    db_host = creds.get("host")
                 if not db_host:
                     raise ValueError(
-                        "Database host not found in secret or environment"
+                        "Database host not found in secret or DB_HOST/DB_ENDPOINT environment variables"
                     )
+
+                # Extract port (no fallback, must be in secret)
+                port_str = creds.get("port")
+                if not port_str:
+                    raise ValueError("Database port not found in secret")
+                try:
+                    port = int(port_str)
+                except (ValueError, TypeError) as e:
+                    raise ValueError(
+                        f"Database port in secret is not a valid integer: {port_str}"
+                    ) from e
+
+                # Extract username (no default)
+                username = creds.get("username")
+                if not username:
+                    raise ValueError("Database username not found in secret")
+
+                # Extract password (no default)
                 password = creds.get("password")
                 if not password:
                     raise ValueError("Database password not found in secret")
+
+                # Extract database name (no default)
+                database = creds.get("dbname")
+                if not database:
+                    raise ValueError("Database name (dbname) not found in secret")
+
                 result = {
                     "host": db_host,
-                    "port": int(creds.get("port") or os.getenv("DB_PORT", "5432")),
-                    "user": creds.get("username", "stocks"),
+                    "port": port,
+                    "user": username,
                     "password": password,
-                    "database": creds.get("dbname")
-                    or os.getenv("DB_NAME", "stocks"),
+                    "database": database,
                 }
                 self._cache[_db_creds_cache_key] = (result, time.time())
                 return result
@@ -262,22 +300,45 @@ class CredentialManager:
                     "Database connections require fresh credentials from AWS Secrets Manager in Lambda environment."
                 ) from e
 
-        # DB_HOST is required - no localhost fallback for safety
+        # Local dev mode: all credentials must be explicitly set
         db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
         if not db_host:
             raise ValueError(
                 "DB_HOST not set in environment. Set DB_HOST before using credential manager."
             )
 
+        db_port_str = os.getenv("DB_PORT")
+        if not db_port_str:
+            raise ValueError(
+                "DB_PORT not set in environment. Set DB_PORT before using credential manager."
+            )
+        try:
+            db_port = int(db_port_str)
+        except ValueError as e:
+            raise ValueError(f"DB_PORT must be a valid integer, got: {db_port_str}") from e
+
+        db_user = os.getenv("DB_USER")
+        if not db_user:
+            raise ValueError(
+                "DB_USER not set in environment. Set DB_USER before using credential manager."
+            )
+
         password = self.get_password("db/password")
         if not password:
             raise ValueError("Database password not found in environment or Secrets Manager")
+
+        db_name = os.getenv("DB_NAME")
+        if not db_name:
+            raise ValueError(
+                "DB_NAME not set in environment. Set DB_NAME before using credential manager."
+            )
+
         result = {
             "host": db_host,
-            "port": int(os.getenv("DB_PORT", "5432")),
-            "user": self.get_password("db/username", default="stocks"),
+            "port": db_port,
+            "user": db_user,
             "password": password,
-            "database": os.getenv("DB_NAME", "stocks"),
+            "database": db_name,
         }
         self._cache[_db_creds_cache_key] = (result, time.time())
         return result
@@ -316,7 +377,12 @@ class CredentialManager:
                     user_secret_id = f"algo/alpaca/{user_id}"
                     try:
                         response = client.get_secret_value(SecretId=user_secret_id)
-                        creds = _json.loads(response.get("SecretString", "{}"))
+                        secret_string = response.get("SecretString")
+                        if not secret_string:
+                            raise ValueError(
+                                f"User secret '{user_secret_id}' exists but contains no SecretString"
+                            )
+                        creds = _json.loads(secret_string)
                         key = creds.get("api_key") or creds.get("APCA_API_KEY_ID")
                         secret = creds.get("api_secret") or creds.get(
                             "APCA_API_SECRET_KEY"
@@ -326,9 +392,17 @@ class CredentialManager:
                                 f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}"
                             )
                             return {"key": key, "secret": secret}
+                        else:
+                            raise ValueError(
+                                f"User secret '{user_secret_id}' exists but missing api_key/APCA_API_KEY_ID or api_secret/APCA_API_SECRET_KEY"
+                            )
                     except client.exceptions.ResourceNotFoundException:
                         logger.debug(
                             f"[CREDENTIALS] No user-specific Alpaca secret for {user_id}, falling back to shared"
+                        )
+                    except ValueError as e:
+                        logger.warning(
+                            f"[CREDENTIALS] User-specific Alpaca secret validation failed for {user_id}: {e}"
                         )
                     except Exception as e:
                         logger.warning(
@@ -352,7 +426,12 @@ class CredentialManager:
                 client = self._get_secrets_client()
                 if client:
                     response = client.get_secret_value(SecretId=algo_secrets_arn)
-                    creds = _json.loads(response.get("SecretString", "{}"))
+                    secret_string = response.get("SecretString")
+                    if not secret_string:
+                        raise ValueError(
+                            f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but contains no SecretString"
+                        )
+                    creds = _json.loads(secret_string)
                     key = creds.get("APCA_API_KEY_ID")
                     secret = creds.get("APCA_API_SECRET_KEY")
                     if key and secret:
@@ -361,9 +440,13 @@ class CredentialManager:
                         )
                         return {"key": key, "secret": secret}
                     else:
-                        logger.warning(
-                            "[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields"
+                        raise ValueError(
+                            f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY"
                         )
+            except ValueError as e:
+                logger.warning(
+                    f"[CREDENTIALS] ALGO_SECRETS_ARN validation failed: {e}"
+                )
             except Exception as e:
                 logger.error(
                     f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
@@ -382,11 +465,22 @@ class CredentialManager:
                         "ALPACA_LEGACY_SECRET_ID", "algo/alpaca"
                     )
                     response = client.get_secret_value(SecretId=alpaca_secret_id)
-                    creds = _json.loads(response.get("SecretString", "{}"))
+                    secret_string = response.get("SecretString")
+                    if not secret_string:
+                        raise ValueError(
+                            f"Alpaca secret '{alpaca_secret_id}' exists but contains no SecretString"
+                        )
+                    creds = _json.loads(secret_string)
                     key = creds.get("api_key")
                     secret = creds.get("api_secret")
                     if key and secret:
                         return {"key": key, "secret": secret}
+                    else:
+                        raise ValueError(
+                            f"Alpaca secret '{alpaca_secret_id}' exists but missing api_key or api_secret"
+                        )
+            except ValueError as e:
+                logger.warning(f"Alpaca secret validation failed: {e}")
             except Exception as e:
                 logger.warning(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
 
@@ -426,17 +520,67 @@ class CredentialManager:
         )
 
     def get_smtp_credentials(self) -> dict[str, Any] | None:
-        """Get SMTP credentials. Returns None if not configured."""
-        password = self.get_password(
-            "smtp/password", default=os.getenv("ALERT_SMTP_PASSWORD")
-        )
-        if not password:
+        """Get SMTP credentials. Returns None if not configured.
+
+        If any SMTP env var or secret is set, ALL SMTP fields must be explicitly provided.
+        No defaults or partial fallbacks.
+
+        Fields required if SMTP is configured:
+        - ALERT_SMTP_HOST or smtp/host secret
+        - ALERT_SMTP_USER or smtp/user secret
+        - ALERT_SMTP_PASSWORD or smtp/password secret
+        - ALERT_SMTP_PORT or smtp/port secret
+        """
+        # Check if SMTP is configured by looking for any required field
+        has_smtp_host = os.getenv("ALERT_SMTP_HOST") is not None
+        has_smtp_user = os.getenv("ALERT_SMTP_USER") is not None
+        has_smtp_password = os.getenv("ALERT_SMTP_PASSWORD") is not None
+        has_smtp_port = os.getenv("ALERT_SMTP_PORT") is not None
+
+        if not (has_smtp_host or has_smtp_user or has_smtp_password or has_smtp_port):
             return None
+
+        # If any field is set, all must be explicitly configured
+        smtp_host = os.getenv("ALERT_SMTP_HOST")
+        if not smtp_host:
+            raise ValueError(
+                "SMTP is partially configured but ALERT_SMTP_HOST is not set. "
+                "Either configure all SMTP fields or none."
+            )
+
+        smtp_user = os.getenv("ALERT_SMTP_USER")
+        if not smtp_user:
+            raise ValueError(
+                "SMTP is partially configured but ALERT_SMTP_USER is not set. "
+                "Either configure all SMTP fields or none."
+            )
+
+        smtp_password = os.getenv("ALERT_SMTP_PASSWORD")
+        if not smtp_password:
+            raise ValueError(
+                "SMTP is partially configured but ALERT_SMTP_PASSWORD is not set. "
+                "Either configure all SMTP fields or none."
+            )
+
+        smtp_port_str = os.getenv("ALERT_SMTP_PORT")
+        if not smtp_port_str:
+            raise ValueError(
+                "SMTP is partially configured but ALERT_SMTP_PORT is not set. "
+                "Either configure all SMTP fields or none."
+            )
+
+        try:
+            smtp_port = int(smtp_port_str)
+        except ValueError as e:
+            raise ValueError(
+                f"ALERT_SMTP_PORT must be a valid integer, got: {smtp_port_str}"
+            ) from e
+
         return {
-            "username": os.getenv("ALERT_SMTP_USER", ""),
-            "password": password,
-            "host": os.getenv("ALERT_SMTP_HOST", ""),
-            "port": int(os.getenv("ALERT_SMTP_PORT", "587")),
+            "username": smtp_user,
+            "password": smtp_password,
+            "host": smtp_host,
+            "port": smtp_port,
         }
 
     def clear_cache(self):

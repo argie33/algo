@@ -933,10 +933,18 @@ class MarketExposure:
                     return {"score_factor": None, "value": None, "stale": True}
 
         # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
-        nets = [
-            (float(r.get("ratio") or 1) - 1) / (float(r.get("ratio") or 1) + 1)
-            for r in rows
-        ]
+        nets = []
+        for r in rows:
+            ratio = r.get("ratio")
+            if ratio is None:
+                msg = (
+                    f"Advance/decline ratio missing for {r.get('date')} — "
+                    "A/D calculation requires real advance/decline data from market_health_daily. "
+                    "Check that market_health_daily is populated with advance_decline_ratio."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+            nets.append((float(ratio) - 1) / (float(ratio) + 1))
         first_net = nets[0]
         last_net = nets[-1]
         ad_change = last_net - first_net
