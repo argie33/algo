@@ -18,7 +18,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 import requests
 
@@ -58,7 +58,7 @@ def _redact_for_logs(message: str) -> str:
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
         alpaca_creds = get_alpaca_credentials()
         self.alpaca_key = alpaca_creds["key"]
@@ -78,11 +78,10 @@ class TradeExecutor:
         )
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
-        if isinstance(config, dict):
-            execution_mode = config.get("execution_mode", "paper").lower()
-        else:
-            # AlgoConfig object has .get() method
-            execution_mode = (config.get("execution_mode", "paper") or "paper").lower()
+        execution_mode = config.get("execution_mode", "paper")
+        if not execution_mode:
+            execution_mode = "paper"
+        execution_mode = execution_mode.lower()
 
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
@@ -142,28 +141,28 @@ class TradeExecutor:
         entry_price: float,
         shares: float,
         stop_loss_price: float,
-        target_1_price: Optional[float] = None,
-        target_2_price: Optional[float] = None,
-        target_3_price: Optional[float] = None,
-        signal_date: Optional[Any] = None,
-        entry_date: Optional[Any] = None,
-        sqs: Optional[Any] = None,
-        trend_score: Optional[float] = None,
-        swing_score: Optional[float] = None,
-        swing_grade: Optional[str] = None,
-        base_type: Optional[str] = None,
-        base_quality: Optional[str] = None,
-        stage_phase: Optional[str] = None,
-        sector: Optional[str] = None,
-        industry: Optional[str] = None,
-        rs_percentile: Optional[float] = None,
-        market_exposure_at_entry: Optional[float] = None,
-        exposure_tier_at_entry: Optional[str] = None,
-        stop_method: Optional[str] = None,
-        stop_reasoning: Optional[str] = None,
-        swing_components: Optional[Dict] = None,
-        advanced_components: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        target_1_price: float | None = None,
+        target_2_price: float | None = None,
+        target_3_price: float | None = None,
+        signal_date: Any | None = None,
+        entry_date: Any | None = None,
+        sqs: Any | None = None,
+        trend_score: float | None = None,
+        swing_score: float | None = None,
+        swing_grade: str | None = None,
+        base_type: str | None = None,
+        base_quality: str | None = None,
+        stage_phase: str | None = None,
+        sector: str | None = None,
+        industry: str | None = None,
+        rs_percentile: float | None = None,
+        market_exposure_at_entry: float | None = None,
+        exposure_tier_at_entry: str | None = None,
+        stop_method: str | None = None,
+        stop_reasoning: str | None = None,
+        swing_components: dict | None = None,
+        advanced_components: dict | None = None,
+    ) -> dict[str, Any]:
         """Execute a new entry trade.
 
         Returns: {
@@ -237,7 +236,7 @@ class TradeExecutor:
                 "success": False,
                 "trade_id": "",
                 "status": "pretrade_check_failed",
-                "message": f"Pre-trade check failed: {str(e)}",
+                "message": f"Pre-trade check failed: {e!s}",
             }
         if not pretrade_passed:
             return {
@@ -275,7 +274,7 @@ class TradeExecutor:
                 "success": False,
                 "trade_id": "",
                 "status": "duplicate_check_failed",
-                "message": f"Cannot verify duplicate position status due to database error: {str(e)}. Order halted for safety.",
+                "message": f"Cannot verify duplicate position status due to database error: {e!s}. Order halted for safety.",
             }
 
         # Compute targets if missing — based on R-multiples from actual stop
@@ -457,7 +456,7 @@ class TradeExecutor:
             reentry_count = 0
             prior_trade_id = None
             if prior:
-                prior_trade_id, exit_date, exit_reason, exit_pnl, prior_reentry = prior
+                prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
                 # If prior trade was a stop-out, we're attempting a re-entry
                 if exit_reason and (
                     "STOP" in (exit_reason or "").upper()
@@ -900,9 +899,9 @@ class TradeExecutor:
         cur,
         position_id: int,
         new_qty: float,
-        new_stop_price: Optional[float] = None,
+        new_stop_price: float | None = None,
         full_exit: bool = False,
-        exit_stage: Optional[str] = None,
+        exit_stage: str | None = None,
     ) -> tuple:
         """Update position with retry logic for race condition safety.
 
@@ -978,9 +977,9 @@ class TradeExecutor:
         exit_price: float,
         exit_reason: str,
         exit_fraction: float = 1.0,
-        exit_stage: Optional[str] = None,
-        new_stop_price: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        exit_stage: str | None = None,
+        new_stop_price: float | None = None,
+    ) -> dict[str, Any]:
         """Exit all or part of a position.
 
         Args:
@@ -1312,7 +1311,7 @@ class TradeExecutor:
 
     # ---------- Helpers ----------
 
-    def _get_portfolio_value(self) -> Optional[float]:
+    def _get_portfolio_value(self) -> float | None:
         """Live Alpaca equity, fall back to latest snapshot, alert if using stale data."""
         if self.alpaca_key and self.alpaca_secret:
             try:
@@ -1393,7 +1392,7 @@ class TradeExecutor:
             return None
 
         try:
-            return cast(Optional[float], self._with_cursor(_get_snapshot))
+            return cast(float | None, self._with_cursor(_get_snapshot))
         except Exception as e:
             logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
 
@@ -1412,10 +1411,10 @@ class TradeExecutor:
         symbol: str,
         shares: float,
         entry_price: float,
-        stop_loss_price: Optional[float] = None,
-        take_profit_price: Optional[float] = None,
+        stop_loss_price: float | None = None,
+        take_profit_price: float | None = None,
         order_class: str = "bracket",
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Send a BRACKET order to Alpaca — entry + stop loss + take profit.
 
         This is the institutional best practice: even if our system goes down,
@@ -1548,7 +1547,7 @@ class TradeExecutor:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
             return {"success": False, "message": f"Request failed: {e}"}
 
-    def _cancel_bracket_orders(self, alpaca_order_id: str) -> Dict[str, Any]:
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         """Cancel bracket order and its children (stop loss + take profit).
 
         Returns: { success: bool, message: str }
@@ -1556,9 +1555,7 @@ class TradeExecutor:
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             return {"success": True, "message": "No order to cancel"}
 
-        if alpaca_order_id.startswith("LOCAL-") or alpaca_order_id.startswith(
-            "PENDING-"
-        ):
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return {"success": True, "message": "Paper mode, no Alpaca order to cancel"}
 
         try:
@@ -1581,9 +1578,9 @@ class TradeExecutor:
                     "message": f"Failed to cancel: {resp.status_code}",
                 }
         except Exception as e:
-            return {"success": False, "message": f"Error cancelling order: {str(e)}"}
+            return {"success": False, "message": f"Error cancelling order: {e!s}"}
 
-    def _get_order_fill_price(self, alpaca_order_id: str) -> Optional[float]:
+    def _get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
 
         Returns: float or None if not filled yet
@@ -1591,9 +1588,7 @@ class TradeExecutor:
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             return None
 
-        if alpaca_order_id.startswith("LOCAL-") or alpaca_order_id.startswith(
-            "PENDING-"
-        ):
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None  # Paper mode, no real fill
 
         try:
@@ -1624,7 +1619,7 @@ class TradeExecutor:
                 raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
-    def _get_order_filled_quantity(self, alpaca_order_id: str) -> Optional[float]:
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual filled quantity of an order.
 
         Includes retry logic (B11) with exponential backoff for transient failures.
@@ -1634,9 +1629,7 @@ class TradeExecutor:
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             return None
 
-        if alpaca_order_id.startswith("LOCAL-") or alpaca_order_id.startswith(
-            "PENDING-"
-        ):
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None  # Paper mode, no real order
 
         max_retries = 3
@@ -1672,7 +1665,7 @@ class TradeExecutor:
                     )
         return None
 
-    def _verify_order_status(self, alpaca_order_id: str) -> Optional[Dict[str, Any]]:
+    def _verify_order_status(self, alpaca_order_id: str) -> dict[str, Any] | None:
         """Re-query order status from Alpaca (B6: race condition protection).
 
         Includes retry logic (B5) with exponential backoff for transient failures.
@@ -1683,9 +1676,7 @@ class TradeExecutor:
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             return None
 
-        if alpaca_order_id.startswith("LOCAL-") or alpaca_order_id.startswith(
-            "PENDING-"
-        ):
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None  # Paper mode, no real order
 
         max_retries = 3
@@ -1707,7 +1698,7 @@ class TradeExecutor:
                         if attempt < max_retries - 1:
                             time.sleep(2**attempt)
                         continue
-                    return cast(Optional[Dict[str, Any]], data.get("status"))
+                    return cast(dict[str, Any] | None, data.get("status"))
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt  # 1s, 2s, 4s
@@ -1728,7 +1719,7 @@ class TradeExecutor:
                     )
         return None
 
-    def _send_alpaca_exit(self, symbol: str, shares: float) -> Optional[Dict[str, Any]]:
+    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any] | None:
         """Send a sell order to Alpaca. Returns { success, order_id, filled_price }.
 
         For auto mode: sends market order and waits briefly for fill.
@@ -1826,7 +1817,7 @@ class TradeExecutor:
                         f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})"
                     )
             except Exception as e:
-                last_error = f"Error: {str(e)}"
+                last_error = f"Error: {e!s}"
                 logger.warning(
                     f"[SEND_EXIT] {symbol}: Exception attempt {attempt+1}/{max_attempts}: {e}"
                 )
