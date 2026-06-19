@@ -288,7 +288,12 @@ def run(
             position_value = shares * entry_price
 
             # Final hard-stop validation
-            pt_ok, pt_reason = pretrade.run_all(symbol, position_value, portfolio_value)
+            try:
+                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, portfolio_value)
+            except ValueError as e:
+                logger.warning(f"[PHASE 6] {symbol}: pre-trade check critical failure — {e}")
+                skipped_count += 1
+                continue
             if not pt_ok:
                 logger.info(f"[PHASE 6] {symbol}: pre-trade check — {pt_reason}")
                 skipped_count += 1

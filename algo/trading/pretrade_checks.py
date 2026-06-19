@@ -122,7 +122,7 @@ class PreTradeChecks:
                 if not cur.fetchone():
                     return (False, f"Symbol {symbol} not found in universe")
         except Exception as e:
-            logger.warning(f"Failed to validate symbol: {e}")
+            raise ValueError(f"Symbol validation unavailable for {symbol}: {e}")
 
         try:
             with DatabaseContext("read") as cur:

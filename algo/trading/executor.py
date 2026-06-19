@@ -224,12 +224,21 @@ class TradeExecutor:
                 "message": "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
             }
         position_value = shares * entry_price
-        pretrade_passed, pretrade_reason = self.pretrade.run_all(
-            symbol=symbol,
-            position_value=position_value,
-            portfolio_value=portfolio_value,
-            side="BUY",
-        )
+        try:
+            pretrade_passed, pretrade_reason = self.pretrade.run_all(
+                symbol=symbol,
+                position_value=position_value,
+                portfolio_value=portfolio_value,
+                side="BUY",
+            )
+        except ValueError as e:
+            logger.error(f"Pre-trade validation failed with critical error: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "pretrade_check_failed",
+                "message": f"Pre-trade check failed: {str(e)}",
+            }
         if not pretrade_passed:
             return {
                 "success": False,
@@ -261,7 +270,13 @@ class TradeExecutor:
                     "duplicate": True,
                 }
         except Exception as e:
-            logger.warning(f"Failed to check for duplicate position: {e}")
+            logger.error(f"Failed to check for duplicate position: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "duplicate_check_failed",
+                "message": f"Cannot verify duplicate position status due to database error: {str(e)}. Order halted for safety.",
+            }
 
         # Compute targets if missing — based on R-multiples from actual stop
         risk_per_share = entry_price - stop_loss_price
