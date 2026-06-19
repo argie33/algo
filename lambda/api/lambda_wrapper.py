@@ -126,16 +126,11 @@ _client_lock = threading.Lock()
 
 
 def get_lambda_client() -> LambdaAPIClient:
-    """Get the global Lambda API client (thread-safe).
-
-    Uses double-checked locking to prevent race conditions during initialization.
-    """
+    """Get the global Lambda API client (thread-safe)."""
     global _client
-    if _client is None:
-        with _client_lock:
-            # Double-check pattern to avoid race conditions
-            if _client is None:
-                _client = LambdaAPIClient()
+    with _client_lock:
+        if _client is None:
+            _client = LambdaAPIClient()
     return _client
 
 

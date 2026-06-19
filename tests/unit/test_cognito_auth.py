@@ -23,6 +23,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tools.dashboard.cognito_auth import CognitoAuth
 
 
+def create_jwt(exp: int, sub: str = "user-123") -> str:
+    """Create a properly encoded JWT for testing."""
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"exp": exp, "sub": sub}).encode()
+    ).decode().rstrip("=")
+    signature = base64.urlsafe_b64encode(b"test-signature").decode().rstrip("=")
+    return f"{header}.{payload}.{signature}"
+
+
 class TestAuthorizationHeaderValidation:
     """Test authorization header generation and validation."""
 
@@ -36,7 +46,7 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create a mock JWT token (not expired)
         future_exp = int(time.time()) + 3600
-        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = create_jwt(future_exp)
         auth.token_expires_at = future_exp
 
         header = auth.get_authorization_header()
@@ -49,7 +59,7 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
         auth.token_expires_at = past_exp
         auth.refresh_token = None
 
@@ -61,7 +71,7 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
         auth.token_expires_at = past_exp
         auth.refresh_token = "refresh-token-123"
 
@@ -76,14 +86,14 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        old_token = f"old_header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp}).encode()).decode().rstrip('=')}.signature"
+        old_token = f"old_header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
         auth.access_token = old_token
         auth.token_expires_at = past_exp
         auth.refresh_token = "refresh-token-123"
 
         # New token after refresh
         future_exp = int(time.time()) + 3600
-        new_token = f"new_header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.signature"
+        new_token = f"new_header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
 
         def mock_refresh(self):
             self.access_token = new_token
@@ -128,11 +138,17 @@ class TestAuthorizationHeaderValidation:
         assert header == {}
 
     def test_jwt_format_validation(self):
-        """Test _is_valid_jwt method."""
+        """Test _is_valid_jwt method with proper JWT structure and claims."""
         auth = CognitoAuth("pool-123", "client-456")
 
-        # Valid JWT format
-        assert auth._is_valid_jwt("header.payload.signature") is True
+        # Valid JWT format with required claims - create properly encoded parts
+        header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
+        payload = base64.urlsafe_b64encode(
+            json.dumps({"exp": int(time.time()) + 3600, "sub": "user-123"}).encode()
+        ).decode().rstrip("=")
+        signature = base64.urlsafe_b64encode(b"test-signature").decode().rstrip("=")
+        valid_jwt = f"{header}.{payload}.{signature}"
+        assert auth._is_valid_jwt(valid_jwt) is True
 
         # Invalid formats
         assert auth._is_valid_jwt("not-a-jwt") is False
@@ -140,6 +156,16 @@ class TestAuthorizationHeaderValidation:
         assert auth._is_valid_jwt("header..signature") is False
         assert auth._is_valid_jwt("") is False
         assert auth._is_valid_jwt("...") is False
+
+        # Valid structure but missing required claims
+        missing_claims_payload = base64.urlsafe_b64encode(
+            json.dumps({"data": "value"}).encode()
+        ).decode().rstrip("=")
+        missing_claims_jwt = f"{header}.{missing_claims_payload}.{signature}"
+        assert auth._is_valid_jwt(missing_claims_jwt) is False
+
+        # Valid structure but invalid base64 payload
+        assert auth._is_valid_jwt("header.!!!invalid-base64!!!.signature") is False
 
 
 class TestTokenExpiryBuffer:
@@ -166,7 +192,7 @@ class TestTokenExpiryBuffer:
         auth.refresh_token = "refresh-token-123"
 
         future_exp = now + 3600
-        new_token = f"new.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp}).encode()).decode().rstrip('=')}.sig"
+        new_token = f"new.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.sig"
         auth.access_token = "old-token"
 
         refresh_called = []

@@ -101,31 +101,39 @@ def api_call(endpoint: str, params: Optional[Dict] = None, method: str = "GET") 
 
 
 def _unwrap_api_response(response: Dict) -> Dict:
-    """Unwrap standardized API response wrapper.
+    """Unwrap standardized API response wrapper while preserving error status.
 
     All API responses follow the format: {statusCode: 200, data: {...}, ...metadata}
-    This function extracts and returns ONLY the payload, removing all metadata.
+    This function extracts the payload while preserving statusCode so callers can
+    distinguish between successful and error responses.
 
     Args:
         response: Full API response dict with format {statusCode: X, data: {...}, ...}
 
     Returns:
-        Unwrapped payload (contents of the 'data' field) ready for use by callers
+        Unwrapped response preserving statusCode and payload. Allows callers to check
+        statusCode >= 400 to distinguish errors from successful empty responses.
     """
     if not isinstance(response, dict):
         return cast(Dict, response)
 
-    # Extract the data field (all endpoints wrap payloads in 'data' via _wrap_response in api_router)
-    # This is the only field that contains actual application data; everything else is metadata
-    if "data" in response:
-        return cast(Dict, response["data"])
+    status_code = response.get("statusCode", 200)
 
-    # Fallback for error responses that have no 'data' field
-    # Remove only metadata markers (statusCode, headers) and return rest
-    unwrapped = {
-        k: v for k, v in response.items() if k not in ("statusCode", "headers")
-    }
-    return unwrapped if unwrapped else {}
+    # Extract the data field (all endpoints wrap payloads in 'data' via _wrap_response in api_router)
+    # This is the only field that contains actual application data
+    if "data" in response:
+        payload = cast(Dict, response["data"])
+    else:
+        # Fallback for error responses that have no 'data' field
+        # Keep statusCode but remove other metadata markers
+        payload = {
+            k: v for k, v in response.items() if k not in ("statusCode", "headers")
+        }
+
+    # Preserve statusCode at top level so callers can distinguish errors from success
+    result = {"statusCode": status_code}
+    result.update(payload)
+    return result
 
 
 class DashboardDataAPI:

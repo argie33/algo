@@ -983,9 +983,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 pass
     finally:
         shutdown.set()
-        cleanup_dead_threads()
         with active_threads_lock:
             threads_to_join = active_threads[:]
+        cleanup_dead_threads()
         for thread in threads_to_join:
             if thread:
                 thread.join(timeout=60)

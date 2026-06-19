@@ -130,10 +130,40 @@ class CognitoAuth:
         )
 
     def _is_valid_jwt(self, token: str) -> bool:
-        """Check if token has valid JWT format (three dot-separated parts)."""
+        """Check if token is a valid JWT with required claims (exp, sub) and proper structure."""
         try:
+            import base64
+
             parts = token.split(".")
-            return len(parts) == 3 and all(part for part in parts)
+            if len(parts) != 3:
+                return False
+
+            # All parts must be non-empty
+            if not all(part for part in parts):
+                return False
+
+            # Validate header is valid base64
+            try:
+                base64.urlsafe_b64decode(parts[0] + "==")
+            except Exception:
+                return False
+
+            # Validate payload is valid base64 and contains required claims
+            try:
+                payload_json = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
+                # Verify required claims exist
+                if "exp" not in payload_json or "sub" not in payload_json:
+                    return False
+            except Exception:
+                return False
+
+            # Validate signature is present and valid base64
+            try:
+                base64.urlsafe_b64decode(parts[2] + "==")
+            except Exception:
+                return False
+
+            return True
         except Exception:
             return False
 
