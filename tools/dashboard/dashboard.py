@@ -182,22 +182,20 @@ else:
         logger.error(
             f"Panel registry import failed: {e}\n"
             "  This usually means a required dependency is missing.\n"
-            "  Try: pip install -r requirements.txt"
+            "  Try: pip install -r requirements.txt\n"
+            "  Dashboard will continue with graceful fallback."
         )
         _REGISTRY_FAILED = True
-        sys.exit(1)
     except Exception as e:
         logger.error(
             f"Unexpected error initializing panel registry: {type(e).__name__}: {e}",
             exc_info=True,
         )
         logger.error(
-            "Please file a bug report with the traceback above. "
-            "To run without panel validation:\n"
-            "  SKIP_PANEL_REGISTRY=1 python -m tools.dashboard.dashboard"
+            "Panel registry initialization failed. "
+            "Dashboard will continue with graceful fallback."
         )
         _REGISTRY_FAILED = True
-        sys.exit(1)
 
 
 def _validate_watch_interval(value):
