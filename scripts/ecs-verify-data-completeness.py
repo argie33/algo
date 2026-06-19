@@ -33,12 +33,20 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection():
     """Connect to RDS via private proxy inside VPC."""
+    required_env = ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"]
+    missing = [var for var in required_env if var not in os.environ]
+    if missing:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing)}. "
+            f"This script requires ECS task environment configuration."
+        )
+
     return psycopg2.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        port=int(os.environ.get("DB_PORT", "5432")),
-        user=os.environ.get("DB_USER", "stocks"),
-        password=os.environ.get("DB_PASSWORD", ""),
-        database=os.environ.get("DB_NAME", "stocks"),
+        host=os.environ["DB_HOST"],
+        port=int(os.environ["DB_PORT"]),
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        database=os.environ["DB_NAME"],
         connect_timeout=10
     )
 
