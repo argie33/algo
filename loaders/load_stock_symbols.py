@@ -159,14 +159,14 @@ class StockSymbolsLoader(OptimalLoader):
                 cur.execute("TRUNCATE TABLE etf_symbols")
                 logger.debug("Truncated etf_symbols table")
 
-                # Bulk insert fresh ETF data
-                for row in etf_rows:
-                    cur.execute(
+                # Bulk insert fresh ETF data in single statement
+                if etf_rows:
+                    cur.executemany(
                         """
                         INSERT INTO etf_symbols (symbol, security_name)
                         VALUES (%s, %s)
                     """,
-                        (row["symbol"], row["security_name"]),
+                        [(row["symbol"], row["security_name"]) for row in etf_rows],
                     )
             logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except Exception as e:
