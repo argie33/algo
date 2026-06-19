@@ -831,11 +831,50 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         current_elapsed = state.elapsed
                         current_error = state.error
 
+                        # Protect recovery operations with state_lock to ensure atomicity
+                        error_status = None
+                        render_layout = None
+                        render_error = None
+                        should_reload = False
+                        should_retry_load = False
+
+                        if current_result is None:
+                            if current_error:
+                                error_status = recovery.get_recovery_status()
+                        else:
+                            render_wrapper.elapsed = current_elapsed
+                            render_wrapper.frame = current_frame
+                            render_wrapper.last_load_time = current_last_load
+                            render_wrapper.refreshing = is_loading
+                            render_wrapper.view_mode = view_mode
+                            try:
+                                layout, _recovery_status = recovery.render_with_recovery(
+                                    current_result, render_wrapper
+                                )
+                                render_layout = layout
+                                render_error = None
+                            except Exception as e:
+                                render_layout = None
+                                render_error = e
+                                error_status = recovery.get_recovery_status()
+                            should_reload = (
+                                not is_loading
+                                and (time.monotonic() - current_last_load) >= interval
+                            )
+                            try:
+                                should_retry_load = recovery.should_retry_data_load()
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to check recovery retry status: {type(e).__name__}: {e}"
+                                )
+                                should_retry_load = False
+
+                    # Render UI outside lock (I/O operations)
                     if current_result is None:
                         if current_error:
                             error_panel = _handle_render_error(
                                 RuntimeError(current_error),
-                                recovery.get_recovery_status(),
+                                error_status,
                             )
                             try:
                                 live.update(error_panel)
@@ -846,19 +885,11 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         else:
                             live.update(loading_layout(current_frame, data_source=data_source))
                     else:
-                        render_wrapper.elapsed = current_elapsed
-                        render_wrapper.frame = current_frame
-                        render_wrapper.last_load_time = current_last_load
-                        render_wrapper.refreshing = is_loading
-                        render_wrapper.view_mode = view_mode
-                        try:
-                            layout, _recovery_status = recovery.render_with_recovery(
-                                current_result, render_wrapper
-                            )
-                            live.update(layout)
-                        except Exception as e:
+                        if render_error is None:
+                            live.update(render_layout)
+                        else:
                             error_panel = _handle_render_error(
-                                e, recovery.get_recovery_status()
+                                render_error, error_status
                             )
                             try:
                                 live.update(error_panel)
@@ -866,19 +897,6 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 logger.error(
                                     f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
                                 )
-
-                        # Trigger data reload on interval or on transient errors
-                        should_reload = (
-                            not is_loading
-                            and (time.monotonic() - current_last_load) >= interval
-                        )
-                        try:
-                            should_retry_load = recovery.should_retry_data_load()
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to check recovery retry status: {type(e).__name__}: {e}"
-                            )
-                            should_retry_load = False
 
                         if should_reload or should_retry_load:
                             cleanup_dead_threads()
@@ -893,11 +911,13 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     finally:
         shutdown.set()
         cleanup_dead_threads()
-        for thread in active_threads:
+        for thread in active_threads[:]:
             if thread:
                 thread.join(timeout=60)
                 if thread.is_alive():
                     logger.error("Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)")
+                else:
+                    active_threads.remove(thread)
 
 
 def main():
@@ -998,6 +1018,24 @@ def main():
         # Cognito authentication - dynamic with fallback
         auth = get_cognito_auth(require_auth=True)
         if auth is None:
+            try:
+                CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
+                CONSOLE.print("")
+                CONSOLE.print("[bold cyan]Options:[/]")
+                CONSOLE.print("[yellow]1. Set environment variables:[/]")
+                CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
+                CONSOLE.print("[cyan]   $env:COGNITO_PASSWORD = 'your_password'[/]")
+                CONSOLE.print("")
+                CONSOLE.print("[yellow]2. Or run setup (will prompt for credentials):[/]")
+                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+                CONSOLE.print("")
+                CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
+            except Exception as e:
+                logger.error(
+                    f"[AUTH] Authentication required but failed - no credentials available. "
+                    f"Set COGNITO_USERNAME + COGNITO_PASSWORD or run in interactive mode. "
+                    f"(Failed to display full message: {type(e).__name__})"
+                )
             logger.error(
                 "[AUTH] Authentication required but failed - no credentials available. "
                 "Set COGNITO_USERNAME + COGNITO_PASSWORD or run in interactive mode."
