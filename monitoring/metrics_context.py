@@ -27,7 +27,11 @@ _metrics_buffer: Dict[str, list] = {}
 
 
 def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> None:
-    """Emit duration metric to CloudWatch if AWS SDK available."""
+    """Emit duration metric to CloudWatch if AWS SDK available.
+
+    Gracefully handles unavailable AWS SDK or credentials (not in AWS env).
+    Logs errors for actual failures (invalid data, API errors).
+    """
     try:
         import boto3
 
@@ -46,8 +50,14 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
                 }
             ],
         )
+    except ImportError:
+        logger.debug("boto3 not available; CloudWatch metrics disabled")
     except Exception as e:
-        logger.warning(f"Could not emit CloudWatch metric for {operation_name}: {e}")
+        error_msg = str(e).lower()
+        if any(phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]):
+            logger.debug(f"AWS credentials unavailable; CloudWatch metrics skipped")
+        else:
+            logger.warning(f"CloudWatch metric failed for {operation_name}: {e}")
 
 
 class TimeBlock:

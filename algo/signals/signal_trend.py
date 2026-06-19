@@ -9,7 +9,7 @@ computation if trend_template_data is stale.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -18,9 +18,18 @@ logger = logging.getLogger(__name__)
 class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 
+    @staticmethod
+    def _is_valid_float(v) -> bool:
+        """Check if a value can be safely converted to float."""
+        try:
+            float(v)
+            return True
+        except (TypeError, ValueError):
+            return False
+
     def _compute_minervini_from_prices(
         self, cur, symbol: str, eval_date
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compute Minervini 8-point trend score on-the-fly from price_daily."""
         cur.execute(
             """SELECT date, close, volume FROM price_daily
@@ -43,14 +52,16 @@ class SignalTrendMixin:
         closes_raw = [row[1] for row in rows]
         try:
             close = np.array([float(v) for v in closes_raw], dtype=np.float64)
-        except (TypeError, ValueError):
-            valid = []
-            for v in closes_raw:
-                try:
-                    valid.append(float(v))
-                except (TypeError, ValueError):
-                    pass
-            close = np.array(valid, dtype=np.float64)
+        except (TypeError, ValueError) as e:
+            invalid_indices = [
+                i for i, v in enumerate(closes_raw) if not self._is_valid_float(v)
+            ]
+            raise ValueError(
+                f"Invalid price data for {symbol}: {len(invalid_indices)} "
+                f"non-numeric values at indices {invalid_indices[:5]}{'...' if len(invalid_indices) > 5 else ''}. "
+                f"Cannot silently drop data points (breaks date alignment). "
+                f"Original error: {e}"
+            )
 
         close = close[np.isfinite(close)]
         if len(close) < 50:
@@ -130,7 +141,7 @@ class SignalTrendMixin:
             },
         }
 
-    def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def minervini_trend_template(self, symbol: str, eval_date) -> dict[str, Any]:
         def _fetch_trend(cur):
             cur.execute(
                 """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,
@@ -165,7 +176,7 @@ class SignalTrendMixin:
             logger.warning(f"minervini_trend_template({symbol}) failed: {e}")
             return {"score": 0, "pass": False, "criteria": {}, "reason": str(e)[:50]}
 
-    def weinstein_stage(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def weinstein_stage(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Read pre-computed Weinstein 4-stage classification from trend_template_data.
 
@@ -220,7 +231,7 @@ class SignalTrendMixin:
 
     def mansfield_rs(
         self, symbol: str, eval_date, lookback: int = 252
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
 
@@ -267,6 +278,6 @@ class SignalTrendMixin:
                 "spy_return_pct": None,
             }
 
-    def stage2_phase(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""
         return self.weinstein_stage(symbol, eval_date)

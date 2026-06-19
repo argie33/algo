@@ -112,7 +112,11 @@ class MarketHealthDailyLoader(OptimalLoader):
             for m in health_metrics:
                 m["vix_level"] = vix.get(m["date"])
         except RuntimeError as e:
-            logger.warning(f"VIX enrichment failed: {e}. Continuing with missing VIX values.")
+            error_msg = str(e)
+            if "DATA QUALITY" in error_msg:
+                logger.error(f"VIX data quality issue (operator action required): {e}")
+            else:
+                logger.warning(f"VIX unavailable: {e}. Continuing with missing VIX values.")
 
         # Merge today's put/call ratio from SPY options (non-critical enrichment)
         try:

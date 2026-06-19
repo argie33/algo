@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Backfill buy_sell_daily signals for June 15-17 by copying from June 12."""
+import logging
+
 from psycopg2.errors import IntegrityError
 
 from utils.db.context import DatabaseContext
+
+
+logger = logging.getLogger(__name__)
+
 
 
 with DatabaseContext('write') as cur:
@@ -16,7 +22,7 @@ with DatabaseContext('write') as cur:
     for target_date_str in ['2026-06-15', '2026-06-16', '2026-06-17']:
         inserted = 0
         for row in rows:
-            row_dict = dict(zip(cols, row))
+            row_dict = dict(zip(cols, row, strict=False))
             # Update the date
             row_dict['date'] = target_date_str
             row_dict['signal_triggered_date'] = target_date_str
@@ -35,8 +41,8 @@ with DatabaseContext('write') as cur:
                     ON CONFLICT DO NOTHING
                 """, values_list)
                 inserted += 1
-            except IntegrityError:
-                pass  # Skip existing rows (conflicts)
+            except IntegrityError as e:
+                logger.warning(f"Integrity constraint violation for {target_date_str}: {e.diag.message_primary if hasattr(e, 'diag') else str(e)}")
 
         print(f"Inserted {inserted} rows for {target_date_str}")
 

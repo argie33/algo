@@ -152,9 +152,14 @@ class CashFlowLoader(OptimalLoader):
                 elif db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(
-                    row["fiscal_quarter"]
-                )
+                quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
+                quarter_value = row["fiscal_quarter"]
+                if quarter_value not in quarter_map:
+                    raise ValueError(
+                        f"Invalid fiscal_quarter value '{quarter_value}' for {r.get('symbol')}. "
+                        f"Expected one of {list(quarter_map.keys())}"
+                    )
+                row["fiscal_quarter"] = quarter_map[quarter_value]
             # Calculate free_cash_flow if we have operating_cash_flow and capex
             if "free_cash_flow" in self._schema_cols:
                 ocf = row.get("operating_cash_flow")

@@ -48,11 +48,22 @@ def _load_db_credentials():
         secret_arn = os.getenv("DB_SECRET_ARN", "algo/database")
         secret = sm.get_secret_value(SecretId=secret_arn)
         creds = json.loads(secret.get("SecretString", "{}"))
+
+        host = creds.get("host")
+        user = creds.get("username")
+        password = creds.get("password")
+
+        if not host or not user or not password:
+            raise ValueError(
+                f"Secrets Manager returned incomplete credentials: "
+                f"host={host}, user={user}, password={'***' if password else None}"
+            )
+
         return {
-            "host": creds.get("host"),
+            "host": host,
             "port": creds.get("port", 5432),
-            "user": creds.get("username"),
-            "password": creds.get("password"),
+            "user": user,
+            "password": password,
             "database": creds.get("dbname", "stocks"),
         }
     except Exception as e:

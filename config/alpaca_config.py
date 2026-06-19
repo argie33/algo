@@ -32,14 +32,13 @@ def get_alpaca_base_url() -> str:
         return alpaca_url.rstrip("/")
 
     # Check trading mode from ALPACA_PAPER_TRADING flag
-    try:
-        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower()
-        if paper_flag == "false":
-            return "https://api.alpaca.markets"
-    except Exception as e:
-        import logging
-
-        logging.debug(f"Could not parse ALPACA_PAPER_TRADING: {e}, using default")
+    paper_flag = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower()
+    if paper_flag not in ("true", "false"):
+        raise ValueError(
+            f"ALPACA_PAPER_TRADING must be 'true' or 'false', got '{paper_flag}'"
+        )
+    if paper_flag == "false":
+        return "https://api.alpaca.markets"
 
     return "https://paper-api.alpaca.markets"
 

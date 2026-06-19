@@ -12,7 +12,6 @@ import argparse
 import logging
 import time
 from datetime import date, datetime, timezone
-from typing import List, Optional
 
 from utils.external.yfinance import get_ticker
 from utils.loaders.config import get_default_parallelism
@@ -38,10 +37,12 @@ class ValueMetricsLoader(OptimalLoader):
             try:
                 ticker = get_ticker(symbol)
                 if not ticker:
+                    logger.debug(f"Ticker not found for {symbol} (no data available)")
                     return None
 
                 info = ticker.info
                 if not info:
+                    logger.debug(f"No info available for {symbol}")
                     return None
 
                 mkt_cap = info.get("marketCap")
@@ -55,6 +56,7 @@ class ValueMetricsLoader(OptimalLoader):
                 held_institutions = info.get("heldPercentInstitutions")
 
                 if not any([mkt_cap, pe, pb, ps]):
+                    logger.debug(f"Insufficient metrics for {symbol}: no market cap, PE, PB, or PS")
                     return None
 
                 fcf_yield = None
@@ -93,8 +95,11 @@ class ValueMetricsLoader(OptimalLoader):
                         logger.warning(f"Rate limited on {symbol}, waiting {wait}s...")
                         time.sleep(wait)
                         continue
-                logger.debug(f"yfinance failed for {symbol}: {e}")
-                return None
+                    else:
+                        logger.error(f"Rate limit persisted after retries for {symbol}")
+                        raise RuntimeError(f"API rate limited for {symbol} after retries") from e
+                logger.error(f"API error fetching value metrics for {symbol}: {e}")
+                raise RuntimeError(f"Failed to fetch value metrics for {symbol}") from e
 
         return None
 

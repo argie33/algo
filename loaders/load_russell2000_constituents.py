@@ -5,7 +5,6 @@ import logging
 import socket
 import sys
 from datetime import date
-from typing import List, Optional
 
 import requests
 
@@ -81,8 +80,8 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                     logger.debug(f"URL {url} failed: {e}")
                     continue
 
-            logger.warning("Could not fetch Russell 2000 constituents from any source")
-            return None
+            logger.error("Could not fetch Russell 2000 constituents from any source")
+            raise RuntimeError("Failed to fetch Russell 2000 constituents: all data sources exhausted")
 
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
