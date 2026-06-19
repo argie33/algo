@@ -841,9 +841,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
     def cleanup_dead_threads() -> None:
         """Remove finished threads from active_threads list to prevent unbounded growth."""
-        nonlocal active_threads
         with active_threads_lock:
-            active_threads = [t for t in active_threads if t.is_alive()]
+            for i in range(len(active_threads) - 1, -1, -1):
+                if not active_threads[i].is_alive():
+                    active_threads.pop(i)
 
     def reload():
         try:
@@ -973,7 +974,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             )
                             reload_thread.start()
                             with active_threads_lock:
-                                active_threads = [t for t in active_threads if t.is_alive()]
+                                for i in range(len(active_threads) - 1, -1, -1):
+                                    if not active_threads[i].is_alive():
+                                        active_threads.pop(i)
                                 active_threads.append(reload_thread)
                     time.sleep(0.125)
             except KeyboardInterrupt:
