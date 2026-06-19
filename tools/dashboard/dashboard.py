@@ -767,9 +767,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     finally:
         if bg_thread:
             done.set()
-            bg_thread.join(timeout=10)
+            bg_thread.join(timeout=60)
             if bg_thread.is_alive():
-                logger.warning("Background thread did not exit within timeout")
+                logger.error("Background thread abandoned after 60s timeout (data load exceeded graceful shutdown window)")
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
@@ -778,6 +778,11 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     state_lock = threading.Lock()
     active_threads: list = []
     shutdown = threading.Event()
+
+    def cleanup_dead_threads() -> None:
+        """Remove finished threads from active_threads list to prevent unbounded growth."""
+        nonlocal active_threads
+        active_threads = [t for t in active_threads if t.is_alive()]
 
     def reload():
         try:
@@ -876,6 +881,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             should_retry_load = False
 
                         if should_reload or should_retry_load:
+                            cleanup_dead_threads()
                             reload_thread = threading.Thread(
                                 target=reload, daemon=False
                             )
@@ -886,11 +892,12 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 pass
     finally:
         shutdown.set()
+        cleanup_dead_threads()
         for thread in active_threads:
             if thread:
-                thread.join(timeout=10)
+                thread.join(timeout=60)
                 if thread.is_alive():
-                    logger.warning("Thread still running after 10s timeout in watch mode")
+                    logger.error("Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)")
 
 
 def main():
