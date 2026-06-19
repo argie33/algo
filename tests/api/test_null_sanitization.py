@@ -9,6 +9,7 @@ from pathlib import Path
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 
 from routes.utils import json_response, list_response, success_response
 
@@ -25,14 +26,14 @@ def test_sanitize_nested_dict_with_nulls():
 
     sanitized = APIResponseValidator.sanitize_response(data)
 
-    # Verify None values are replaced with 0
+    # Verify None values are preserved in dicts (nullable fields)
     assert (
-        sanitized["profit_factor"] == 0
-    ), f"Expected 0, got {sanitized['profit_factor']}"
+        sanitized["profit_factor"] is None
+    ), f"Expected None, got {sanitized['profit_factor']}"
     assert sanitized["win_rate"] == 50.5, f"Expected 50.5, got {sanitized['win_rate']}"
     assert (
-        sanitized["trades"]["avg_win"] == 0
-    ), f"Expected 0, got {sanitized['trades']['avg_win']}"
+        sanitized["trades"]["avg_win"] is None
+    ), f"Expected None, got {sanitized['trades']['avg_win']}"
     print("[OK] test_sanitize_nested_dict_with_nulls passed")
 
 
@@ -49,8 +50,8 @@ def test_sanitize_list_with_nulls():
 
     # None item should be filtered out
     assert len(sanitized) == 3, f"Expected 3 items, got {len(sanitized)}"
-    # None price should be replaced with 0
-    assert sanitized[1]["price"] == 0, f"Expected 0, got {sanitized[1]['price']}"
+    # None price in dict should be preserved (nullable field)
+    assert sanitized[1]["price"] is None, f"Expected None, got {sanitized[1]['price']}"
     print("[OK] test_sanitize_list_with_nulls passed")
 
 
@@ -61,7 +62,7 @@ def test_success_response_sanitizes():
     response = success_response(data)
 
     assert response["statusCode"] == 200
-    assert response["data"]["profit_factor"] == 0
+    assert response["data"]["profit_factor"] is None
     assert response["data"]["win_rate"] == 45.0
     print("[OK] test_success_response_sanitizes passed")
 
@@ -74,7 +75,7 @@ def test_list_response_sanitizes():
 
     assert response["statusCode"] == 200
     assert response["data"]["total"] == 2
-    assert response["data"]["items"][1]["quantity"] == 0
+    assert response["data"]["items"][1]["quantity"] is None
     print("[OK] test_list_response_sanitizes passed")
 
 
@@ -105,10 +106,11 @@ def test_json_serializable():
     json_str = json.dumps(sanitized)
     assert json_str is not None
 
-    # Verify no "null" in JSON (except in JSON strings which shouldn't happen)
+    # Verify None values are preserved in dicts (as JSON null)
     parsed = json.loads(json_str)
-    assert parsed["profit_factor"] == 0
+    assert parsed["profit_factor"] is None
     assert len(parsed["items"]) == 1  # None item filtered out
+    assert parsed["metadata"]["last_update"] is None
     print("[OK] test_json_serializable passed")
 
 
@@ -119,7 +121,7 @@ def test_json_response_sanitizes_success():
     response = json_response(200, data)
 
     assert response["statusCode"] == 200
-    assert response["data"]["ratio"] == 0
+    assert response["data"]["ratio"] is None
     assert response["data"]["value"] == 42
     print("[OK] test_json_response_sanitizes_success passed")
 
@@ -138,15 +140,15 @@ def test_json_response_sanitizes_errors():
     assert response["statusCode"] == 400
     assert response["errorType"] == "validation_error"
     assert response["message"] == "Invalid input"
-    # None values should be replaced with 0 (or filtered as appropriate)
-    assert response["details"] == 0
-    assert response["nested"]["field"] == 0
+    # None values are preserved in dicts (nullable fields)
+    assert response["details"] is None
+    assert response["nested"]["field"] is None
     assert response["nested"]["status"] == "error"
     print("[OK] test_json_response_sanitizes_errors passed")
 
 
-def test_no_null_in_json_output():
-    """Test that serialized responses contain no null values."""
+def test_null_in_json_output():
+    """Test that serialized responses correctly handle null values."""
     responses = [
         success_response({"value": None}),
         list_response([{"item": None}]),
@@ -155,14 +157,13 @@ def test_no_null_in_json_output():
     ]
 
     for response in responses:
+        # Should serialize without error
         json_str = json.dumps(response)
-        # No null should appear in the JSON output (except potentially in strings)
+        # Should deserialize back correctly
         parsed = json.loads(json_str)
-        assert None not in str(parsed).lower().split(
-            "none"
-        ), f"Found null in response: {response}"
+        assert parsed is not None, f"Failed to parse response: {response}"
 
-    print("[OK] test_no_null_in_json_output passed")
+    print("[OK] test_null_in_json_output passed")
 
 
 if __name__ == "__main__":
@@ -174,5 +175,5 @@ if __name__ == "__main__":
     test_json_serializable()
     test_json_response_sanitizes_success()
     test_json_response_sanitizes_errors()
-    test_no_null_in_json_output()
+    test_null_in_json_output()
     print("\n[SUCCESS] All tests passed!")
