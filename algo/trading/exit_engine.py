@@ -272,8 +272,12 @@ class ExitEngine:
         Target hit times prevent duplicate exits when price bounces around target levels.
         If a target was hit today, we skip the exit even if price is still above the level.
         """
-        # PHASE 1 FIX: Enforce minimum holding period (no same-day exits)
-        min_hold_days = int(self.config.get("min_hold_days", 1))
+        # ISSUE #5 FIX: Enforce minimum holding period (no same-day exits)
+        # Fail-closed: if config missing, raise error instead of defaulting to 1 day
+        min_hold_val = self.config.get("min_hold_days")
+        if min_hold_val is None:
+            raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
+        min_hold_days = int(min_hold_val)
         if days_held < min_hold_days:
             return None  # Not ready to exit yet
 
@@ -314,13 +318,20 @@ class ExitEngine:
                 }
 
         # 4. TIME — but with O'Neil 8-week rule override for big winners
-        max_hold = int(self.config.get("max_hold_days", 20))
+        max_hold_val = self.config.get("max_hold_days")
+        if max_hold_val is None:
+            raise ValueError("CRITICAL: max_hold_days config missing. Cannot enforce maximum holding period for exits.")
+        max_hold = int(max_hold_val)
         if days_held >= max_hold:
             # 8-week rule: if stock gained >= 20% in first 3 weeks, hold for 8 weeks
-            eight_wk_threshold = float(
-                self.config.get("eight_week_rule_threshold_pct", 20.0)
-            )
-            eight_wk_window = int(self.config.get("eight_week_rule_window_days", 21))
+            eight_wk_val = self.config.get("eight_week_rule_threshold_pct")
+            if eight_wk_val is None:
+                raise ValueError("CRITICAL: eight_week_rule_threshold_pct config missing. Cannot apply 8-week rule.")
+            eight_wk_threshold = float(eight_wk_val)
+            eight_wk_window_val = self.config.get("eight_week_rule_window_days")
+            if eight_wk_window_val is None:
+                raise ValueError("CRITICAL: eight_week_rule_window_days config missing. Cannot apply 8-week rule.")
+            eight_wk_window = int(eight_wk_window_val)
             eight_wk_ext = self._eight_week_rule_active(
                 cur,
                 symbol,
@@ -344,8 +355,11 @@ class ExitEngine:
 
         # 5. BREAKEVEN STOP MOVE at +1R (Curtis Faith research — premature is worse)
         # This is a "raise stop" not an exit. The orchestrator handles via new_stop.
+        move_be_val = self.config.get("move_be_at_r")
+        if move_be_val is None:
+            raise ValueError("CRITICAL: move_be_at_r config missing. Cannot determine breakeven stop move trigger.")
         if (
-            r_mult >= float(self.config.get("move_be_at_r", 1.0))
+            r_mult >= float(move_be_val)
             and active_stop < entry_price
         ):
             return {
@@ -407,7 +421,10 @@ class ExitEngine:
 
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management
-        if self.config.get("use_chandelier_trail", True) and r_mult >= 1.0:
+        chandelier_enabled = self.config.get("use_chandelier_trail")
+        if chandelier_enabled is None:
+            raise ValueError("CRITICAL: use_chandelier_trail config missing. Cannot determine trailing stop behavior.")
+        if bool(chandelier_enabled) and r_mult >= 1.0:
             chand_stop = self._chandelier_or_ema_stop(
                 cur, symbol, current_date, days_held
             )
@@ -419,7 +436,10 @@ class ExitEngine:
                     "new_stop": chand_stop,
                 }
 
-        if self.config.get("exit_on_td_sequential", True) and target_hits >= 1:
+        td_seq_enabled = self.config.get("exit_on_td_sequential")
+        if td_seq_enabled is None:
+            raise ValueError("CRITICAL: exit_on_td_sequential config missing. Cannot determine TD Sequential exit behavior.")
+        if bool(td_seq_enabled) and target_hits >= 1:
             if r_mult >= 0.5:
                 td_state = self._get_td_state(cur, symbol, current_date)
                 if (
@@ -470,11 +490,17 @@ class ExitEngine:
         # may still be working. Minervini/O'Neil use distribution days as a signal to
         # tighten risk, not automatically liquidate. Partial exit books some profit while
         # the raised stop protects the remainder.
+        dist_enabled = self.config.get("exit_on_distribution_day")
+        if dist_enabled is None:
+            raise ValueError("CRITICAL: exit_on_distribution_day config missing. Cannot determine distribution day exit behavior.")
         if (
-            self.config.get("exit_on_distribution_day", True)
+            bool(dist_enabled)
             and dist_days_today is not None
         ):
-            max_dd = int(self.config.get("max_distribution_days", 4))
+            max_dd_val = self.config.get("max_distribution_days")
+            if max_dd_val is None:
+                raise ValueError("CRITICAL: max_distribution_days config missing. Cannot enforce distribution day limit.")
+            max_dd = int(max_dd_val)
             if dist_days_today > max_dd:
                 return {
                     "stage": "distribution",
@@ -713,7 +739,10 @@ class ExitEngine:
     ) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
-        switch_days = int(self.config.get("switch_to_21ema_after_days", 10))
+        switch_val = self.config.get("switch_to_21ema_after_days")
+        if switch_val is None:
+            raise ValueError("CRITICAL: switch_to_21ema_after_days config missing. Cannot determine EMA switch point for trailing stop.")
+        switch_days = int(switch_val)
         if days_held >= switch_days:
             cur.execute(
                 """
@@ -757,7 +786,10 @@ class ExitEngine:
                 raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
             hh = float(row[0])
             atr = float(row[1])
-            mult = float(self.config.get("chandelier_atr_mult", 3.0))
+            mult_val = self.config.get("chandelier_atr_mult")
+            if mult_val is None:
+                raise ValueError("CRITICAL: chandelier_atr_mult config missing. Cannot calculate chandelier trailing stop.")
+            mult = float(mult_val)
             return round(hh - (mult * atr), 2)
 
     def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:

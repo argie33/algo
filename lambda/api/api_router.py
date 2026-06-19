@@ -518,6 +518,9 @@ def _format_handler_error(e):
     Error types documented in steering/algo.md → Error Handling & Diagnostics section.
     All errors include _error field for consistent error detection by dashboard.
     """
+    error_type = type(e).__name__
+    error_msg = str(e)
+
     # Handle APIException first (has explicit status code and error type)
     try:
         from exceptions import APIException
@@ -535,11 +538,12 @@ def _format_handler_error(e):
                 "message": msg,
                 "_error": msg,
             }
-    except ImportError:
-        pass
-
-    error_type = type(e).__name__
-    error_msg = str(e)
+    except ImportError as import_err:
+        # Log import failure but continue with fallback error handling (don't suppress)
+        logger.debug(f"APIException not available ({import_err}), using fallback error handling for {error_type}")
+    except Exception as handler_err:
+        # Log unexpected error in exception handler, continue with fallback
+        logger.warning(f"Error handling APIException check ({type(handler_err).__name__}: {handler_err}), using fallback error handling for {error_type}")
 
     # Map exception types to documented diagnostic error codes
     # Schema errors: missing tables, columns, or migration issues

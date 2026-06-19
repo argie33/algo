@@ -204,13 +204,27 @@ def run(
                     except Exception as e:
                         msg = f"{description} check failed: {str(e)[:50]}"
                         if is_halt_table:
-                            logger.warning(f"[PHASE 1] {msg}")
+                            logger.critical(f"[PHASE 1] {msg} — FAIL-CLOSED")
                             halt_stale.append(msg)
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
             except Exception as e:
-                logger.error(f"[PHASE 1] Failed to check table freshness: {e}")
+                logger.critical(f"[PHASE 1] CRITICAL: Failed to check table freshness — cannot verify data integrity: {e}", exc_info=True)
+                log_phase_result_fn(
+                    1,
+                    "table_freshness_check_error",
+                    "halt",
+                    f"Could not verify table freshness: {str(e)[:100]}",
+                )
+                return PhaseResult(
+                    1,
+                    "table_freshness_check_error",
+                    "halted",
+                    {},
+                    True,
+                    f"Table freshness check failed (cannot distinguish stale from error): {str(e)[:100]}",
+                )
 
             if warn_stale:
                 logger.warning(

@@ -1063,6 +1063,8 @@ class Orchestrator:
                 return self._final_report()
 
             # Phase 3: Position Monitor
+            # ISSUE #7 FIX: Track whether Phase 3 completed successfully
+            phase_3_failed = False
             phase_3_start = time.time()
             logger.info(
                 f"\n[PHASE 3] Starting at {datetime.now(timezone.utc).isoformat()}"
@@ -1075,10 +1077,13 @@ class Orchestrator:
                     f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
             except Exception as e:
+                phase_3_failed = True
                 logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
                 self.log_phase_result(3, "position_monitor", "error", str(e))
 
             # Phase 3b: Exposure Policy
+            # ISSUE #7 FIX: Track whether Phase 3b completed successfully
+            phase_3b_failed = False
             phase_3b_start = time.time()
             logger.info(
                 f"\n[PHASE 3b] Starting at {datetime.now(timezone.utc).isoformat()}"
@@ -1091,6 +1096,7 @@ class Orchestrator:
                     f"[PHASE 3b] Completed in {phase_3b_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
             except Exception as e:
+                phase_3b_failed = True
                 logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
                 self.log_phase_result("3b", "exposure_policy", "error", str(e))
 
@@ -1116,7 +1122,19 @@ class Orchestrator:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, "exit_execution", "error", str(e))
 
+            # ISSUE #7 FIX: Check prerequisites before Phase 5
+            # Phase 5 requires exposure_constraints from Phase 3b. If Phase 3b failed,
+            # we cannot proceed with signal generation (it needs to validate against exposure limits).
+            if phase_3b_failed:
+                logger.critical(
+                    "[PHASE 5] SKIPPING — Phase 3b (Exposure Policy) failed. "
+                    "Cannot generate signals without exposure constraints. Running Phase 7 for snapshot then stopping."
+                )
+                self.phase_7_reconcile()
+                return self._final_report()
+
             # Phase 5: Signal Generation
+            phase_5_failed = False
             phase_5_start = time.time()
             logger.info(
                 f"\n[PHASE 5] Starting at {datetime.now(timezone.utc).isoformat()}"
@@ -1141,10 +1159,20 @@ class Orchestrator:
                     f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
             except Exception as e:
+                phase_5_failed = True
                 logger.error(
                     f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True
                 )
                 self.log_phase_result(5, "signal_generation", "error", str(e))
+
+            # ISSUE #7 FIX: Skip Phase 6 if Phase 5 failed (no qualified trades available)
+            if phase_5_failed:
+                logger.critical(
+                    "[PHASE 6] SKIPPING — Phase 5 (Signal Generation) failed with exception. "
+                    "Cannot execute entries without valid signals. Running Phase 7 for snapshot then stopping."
+                )
+                self.phase_7_reconcile()
+                return self._final_report()
 
             # Phase 6: Entry Execution
             phase_6_start = time.time()

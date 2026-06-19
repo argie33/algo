@@ -45,6 +45,49 @@ _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0–100 scale)
 _BUYSELL_LOOKBACK_DAYS = 3  # Calendar days; covers 2 trading days including weekends
 
+# ISSUE #6 FIX: Define required signal fields for Phase 6 execution
+_REQUIRED_SIGNAL_FIELDS = {
+    "symbol": str,
+    "composite_score": float,
+    "entry_price": float,
+    "close": float,
+    "sma_50": float,
+}
+
+
+def _validate_signal_completeness(candidates: List[Dict], source: str) -> None:
+    """ISSUE #6 FIX: Validate that all signals have required fields for Phase 6.
+
+    Raises RuntimeError with detailed report if any required field is missing.
+    This prevents silent skips in downstream entry execution.
+    """
+    missing_by_symbol = {}
+    for sig in candidates:
+        symbol = sig.get("symbol", "UNKNOWN")
+        missing_fields = []
+        for field_name, field_type in _REQUIRED_SIGNAL_FIELDS.items():
+            val = sig.get(field_name)
+            if val is None:
+                missing_fields.append(field_name)
+        if missing_fields:
+            missing_by_symbol[symbol] = missing_fields
+
+    if missing_by_symbol:
+        error_msg = (
+            f"[PHASE 5 CRITICAL] Signal data validation failed ({source}). "
+            f"{len(missing_by_symbol)} signal(s) missing required fields for Phase 6 entry execution:\n"
+        )
+        for symbol, fields in list(missing_by_symbol.items())[:5]:
+            error_msg += f"  {symbol}: missing {', '.join(fields)}\n"
+        if len(missing_by_symbol) > 5:
+            error_msg += f"  ... and {len(missing_by_symbol) - 5} more\n"
+        error_msg += (
+            "Signals with incomplete data will be silently skipped in Phase 6 with no upstream alert. "
+            "This is a data pipeline error — check that buy_sell_daily loader populated all columns correctly."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+
 
 def _check_market_regime(run_date: _date) -> Dict:
     """Return current market regime from market_exposure_daily."""
@@ -235,6 +278,10 @@ def _get_candidates_from_buysell(
             f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
             f"(swing_scores: {swing_score_count}, missing: {swing_score_missing}, lookback: {lookback_date} to {run_date})"
         )
+
+        # ISSUE #6 FIX: Validate signal data completeness before returning to Phase 6
+        _validate_signal_completeness(candidates, "buy_sell_daily path")
+
         return candidates
     except Exception as e:
         raise RuntimeError(
@@ -332,6 +379,10 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
             f"[PHASE 5] {len(candidates)} candidates from stock_scores + swing_trader_scores + price_daily "
             f"(swing_scores: {swing_score_count}, missing: {swing_score_missing})"
         )
+
+        # ISSUE #6 FIX: Validate signal data completeness before returning to Phase 6
+        _validate_signal_completeness(candidates, "stock_scores fallback path")
+
         return candidates
     except Exception as e:
         raise RuntimeError(
@@ -392,7 +443,17 @@ def run(
             5, "signal_generation", "halted", {"qualified_trades": []}, True, reasons[:100]
         )
 
-    # Exposure policy gate
+    # ISSUE #7 FIX: Exposure policy gate — fail-closed if constraints not provided
+    if exposure_constraints is None:
+        msg = (
+            "[PHASE 5 CRITICAL] Exposure constraints not provided by Phase 3b. "
+            "Cannot proceed with signal generation without knowing market exposure limits. "
+            "Check that Phase 3b (Exposure Policy) completed successfully."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(5, "signal_generation", "halt", msg)
+        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+
     if exposure_constraints and exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
         logger.warning(f"[PHASE 5] {reason}")

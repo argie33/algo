@@ -221,17 +221,29 @@ class PositionSizer:
 
         Combined with market_exposure_pct multiplier for dynamic risk:
             effective_risk = base_risk × dd_adjustment × (exposure_pct / 100)
+
+        CRITICAL: Risk adjustment thresholds are hard risk gates. Fails closed if any
+        config value is missing — these must NEVER use fallback defaults.
         """
         dd = self.get_current_drawdown()
 
         if dd >= 20:
             return 0.0
         elif dd >= 15:
-            return float(self.config.get("risk_reduction_at_minus_15", 0.25))
+            val = self.config.get("risk_reduction_at_minus_15")
+            if val is None:
+                raise ValueError("CRITICAL: risk_reduction_at_minus_15 config missing. Cannot adjust risk at -15% drawdown.")
+            return float(val)
         elif dd >= 10:
-            return float(self.config.get("risk_reduction_at_minus_10", 0.5))
+            val = self.config.get("risk_reduction_at_minus_10")
+            if val is None:
+                raise ValueError("CRITICAL: risk_reduction_at_minus_10 config missing. Cannot adjust risk at -10% drawdown.")
+            return float(val)
         elif dd >= 5:
-            return float(self.config.get("risk_reduction_at_minus_5", 0.75))
+            val = self.config.get("risk_reduction_at_minus_5")
+            if val is None:
+                raise ValueError("CRITICAL: risk_reduction_at_minus_5 config missing. Cannot adjust risk at -5% drawdown.")
+            return float(val)
         else:
             return 1.0
 
@@ -260,6 +272,8 @@ class PositionSizer:
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
         Fail-fast — if data unavailable, raises exception.
+
+        CRITICAL: VIX thresholds are hard risk gates. Fails closed if config missing.
         """
         def fetch_vix(cur):
             cur.execute(
@@ -269,12 +283,19 @@ class PositionSizer:
             if not row or row[0] is None:
                 raise ValueError("VIX level unavailable from market_health_daily. Cannot adjust position size for volatility.")
             vix = float(row[0])
-            caution_threshold = float(
-                self.config.get("vix_caution_threshold", 25.0)
-            )
-            max_threshold = float(self.config.get("vix_max_threshold", 35.0))
+            caution_threshold_val = self.config.get("vix_caution_threshold")
+            max_threshold_val = self.config.get("vix_max_threshold")
+            reduction_val = self.config.get("vix_caution_risk_reduction")
+            if caution_threshold_val is None:
+                raise ValueError("CRITICAL: vix_caution_threshold config missing. Cannot determine VIX caution zone.")
+            if max_threshold_val is None:
+                raise ValueError("CRITICAL: vix_max_threshold config missing. Cannot determine VIX max threshold.")
+            if reduction_val is None:
+                raise ValueError("CRITICAL: vix_caution_risk_reduction config missing. Cannot apply VIX risk reduction.")
+            caution_threshold = float(caution_threshold_val)
+            max_threshold = float(max_threshold_val)
             if vix > caution_threshold and vix <= max_threshold:
-                return float(self.config.get("vix_caution_risk_reduction", 0.75))
+                return float(reduction_val)
             return 1.0
 
         result = self._with_cursor(fetch_vix)
@@ -436,7 +457,10 @@ class PositionSizer:
             active_positions = self.get_position_count()
             active_position_value = self.get_active_positions_value()
 
-            max_positions = self.config.get("max_positions", 15)
+            max_positions_val = self.config.get("max_positions")
+            if max_positions_val is None:
+                raise ValueError("CRITICAL: max_positions config missing. Cannot determine position limit.")
+            max_positions = int(max_positions_val)
             if active_positions >= max_positions:
                 return {
                     "shares": 0,
@@ -455,7 +479,10 @@ class PositionSizer:
                     "reason": "Drawdown >= 20%, trading halted",
                 }
 
-            base_risk_pct = float(self.config.get("base_risk_pct", 0.75)) / 100
+            base_risk_val = self.config.get("base_risk_pct")
+            if base_risk_val is None:
+                raise ValueError("CRITICAL: base_risk_pct config missing. Cannot calculate position size.")
+            base_risk_pct = float(base_risk_val) / 100
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier()
             vix_mult = self.get_vix_caution_multiplier()
@@ -493,7 +520,10 @@ class PositionSizer:
                     "reason": "Invalid entry or stop price",
                 }
 
-            min_risk_floor = float(self.config.get("min_risk_pct_floor", 0.10)) / 100
+            min_risk_val = self.config.get("min_risk_pct_floor")
+            if min_risk_val is None:
+                raise ValueError("CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor.")
+            min_risk_floor = float(min_risk_val) / 100
             has_safety_reduction = (
                 exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
             )
@@ -516,7 +546,10 @@ class PositionSizer:
                 }
 
             position_value = shares * entry_price
-            max_position_pct = self.config.get("max_position_size_pct", 8.0) / 100
+            max_pos_pct_val = self.config.get("max_position_size_pct")
+            if max_pos_pct_val is None:
+                raise ValueError("CRITICAL: max_position_size_pct config missing. Cannot enforce position size cap.")
+            max_position_pct = float(max_pos_pct_val) / 100
             max_position_value = portfolio_value * max_position_pct
 
             if position_value > max_position_value:
@@ -527,7 +560,10 @@ class PositionSizer:
             position_pct_of_portfolio = (
                 (position_value / portfolio_value * 100) if portfolio_value > 0 else 0
             )
-            max_concentration = float(self.config.get("max_concentration_pct", 50.0))
+            max_conc_val = self.config.get("max_concentration_pct")
+            if max_conc_val is None:
+                raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
+            max_concentration = float(max_conc_val)
 
             if position_pct_of_portfolio > max_concentration:
                 return {
@@ -539,7 +575,10 @@ class PositionSizer:
                 }
 
             total_invested = active_position_value + position_value
-            max_invested_pct = float(self.config.get("max_total_invested_pct", 95.0))
+            max_inv_val = self.config.get("max_total_invested_pct")
+            if max_inv_val is None:
+                raise ValueError("CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit.")
+            max_invested_pct = float(max_inv_val)
             if (
                 portfolio_value > 0
                 and (total_invested / portfolio_value * 100) > max_invested_pct
