@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -11,11 +10,11 @@ import psycopg2.sql
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
-    error_response,
     execute_with_timeout,
-    handle_db_error,
     json_response,
     list_response,
+    raise_api_error,
+    raise_db_error,
     safe_json_serialize,
 )
 
@@ -27,10 +26,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict = None,
+    jwt_claims: dict = None,
+) -> dict:
     """Handle /api/market/* endpoints."""
     try:
         if path in ["/api/market", "/api/market/status"] or path.startswith(
@@ -46,9 +45,7 @@ def handle(
             """)
             row = cur.fetchone()
             if not row:
-                return error_response(
-                    503, "no_data", "Market status data not yet available"
-                )
+                raise_api_error(503, "no_data", "Market status data not yet available")
 
             result = safe_json_serialize(dict(row))
 
@@ -106,9 +103,7 @@ def handle(
                 )
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}")
-                return error_response(
-                    504, "timeout", "Market breadth data query exceeded timeout"
-                )
+                raise_api_error(504, "timeout", "Market breadth data query exceeded timeout")
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
@@ -118,16 +113,12 @@ def handle(
                 logger.error(
                     f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}"
                 )
-                return error_response(
-                    503, "service_unavailable", "Failed to fetch market breadth data"
-                )
+                raise_db_error(e, "market breadth query")
             except Exception as e:
                 logger.error(
                     f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}"
                 )
-                return error_response(
-                    503, "service_unavailable", "Failed to fetch market breadth data"
-                )
+                raise_db_error(e, "market breadth query")
 
             if breadth:
                 # Only fetch freshness if query succeeded
@@ -174,9 +165,7 @@ def handle(
                 logger.error(
                     f"[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}"
                 )
-                return error_response(
-                    504, "timeout", "Market technicals data query exceeded timeout"
-                )
+                raise_api_error(504, "timeout", "Market technicals data query exceeded timeout")
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
@@ -186,16 +175,12 @@ def handle(
                 logger.error(
                     f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}"
                 )
-                return error_response(
-                    503, "service_unavailable", "Failed to fetch market technicals data"
-                )
+                raise_db_error(e, "market technicals query")
             except Exception as e:
                 logger.error(
                     f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}"
                 )
-                return error_response(
-                    503, "service_unavailable", "Failed to fetch market technicals data"
-                )
+                raise_db_error(e, "market technicals query")
 
             base = safe_json_serialize(dict(rows[0])) if rows else {}
             # Ensure breadth and mcclellan_oscillator are always present
@@ -428,7 +413,7 @@ def handle(
                 200, {"gainers": gainers or [], "losers": losers or [], "items": items}
             )
         elif path == "/api/market/distribution-days":
-            DIST_INDEX_NAMES = {
+            dist_index_names = {
                 "^GSPC": "S&P 500",
                 "^IXIC": "Nasdaq Composite",
                 "^NYA": "NYSE Composite",
@@ -498,37 +483,21 @@ def handle(
                         )
                     )
                     result[sym] = {
-                        "name": DIST_INDEX_NAMES.get(sym, sym),
+                        "name": dist_index_names.get(sym, sym),
                         "count": count,
                         "signal": signal,
                         "days": days,
                     }
                 cur.execute("RELEASE SAVEPOINT dist_days")
                 return json_response(200, result)
-            except psycopg2.errors.QueryCanceled as e:
-                logger.warning(f"[DIST_DAYS] Query timeout: {type(e).__name__}: {e}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT dist_days")
-                    cur.execute("RELEASE SAVEPOINT dist_days")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                except Exception as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                code, error_type, message = handle_db_error(
-                    e, "distribution days query"
-                )
-                return error_response(code, error_type, message)
             except (
+                psycopg2.errors.QueryCanceled,
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError,
                 psycopg2.DatabaseError,
+                Exception,
             ) as e:
-                logger.error(f"[DIST_DAYS] Database error: {type(e).__name__}: {e}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT dist_days")
                     cur.execute("RELEASE SAVEPOINT dist_days")
@@ -540,27 +509,8 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
                     )
-                code, error_type, message = handle_db_error(
-                    e, "distribution days query"
-                )
-                return error_response(code, error_type, message)
-            except Exception as e:
-                logger.error(f"[DIST_DAYS] Unexpected error: {type(e).__name__}: {e}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT dist_days")
-                    cur.execute("RELEASE SAVEPOINT dist_days")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                except Exception as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                code, error_type, message = handle_db_error(
-                    e, "distribution days query"
-                )
-                return error_response(code, error_type, message)
+                logger.error(f"[DIST_DAYS] Error: {type(e).__name__}: {e}")
+                raise_db_error(e, "distribution days query")
         elif path == "/api/market/seasonality":
             # Seasonality tables are market-wide aggregates (SPY-based)
             monthly_data = []
@@ -588,14 +538,10 @@ def handle(
                         worst_month = r_dict
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
-                return error_response(
-                    504, "timeout", "Seasonality data query exceeded timeout"
-                )
+                raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
             except Exception as e:
-                code, error_type, message = handle_db_error(
-                    e, "seasonality monthly query"
-                )
-                return error_response(code, error_type, message)
+                logger.error(f"[SEASONALITY] Monthly query error: {type(e).__name__}")
+                raise_db_error(e, "seasonality monthly query")
 
             dow_data = []
             best_dow = None
@@ -620,14 +566,10 @@ def handle(
                         worst_dow = r_dict
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")
-                return error_response(
-                    504, "timeout", "Seasonality data query exceeded timeout"
-                )
+                raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
             except Exception as e:
-                code, error_type, message = handle_db_error(
-                    e, "seasonality day of week query"
-                )
-                return error_response(code, error_type, message)
+                logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
+                raise_db_error(e, "seasonality day of week query")
 
             return json_response(
                 200,
@@ -793,8 +735,8 @@ def handle(
                     ),
                 }
             except Exception as e:
-                code, error_type, message = handle_db_error(e, "AAII sentiment query")
-                return error_response(code, error_type, message)
+                logger.error(f"[SENTIMENT_AAII] Error: {type(e).__name__}")
+                raise_db_error(e, "AAII sentiment query")
 
             # NAAIM manager exposure
             try:
@@ -847,8 +789,8 @@ def handle(
                     ),
                 }
             except Exception as e:
-                code, error_type, message = handle_db_error(e, "NAAIM sentiment query")
-                return error_response(code, error_type, message)
+                logger.error(f"[SENTIMENT_NAAIM] Error: {type(e).__name__}")
+                raise_db_error(e, "NAAIM sentiment query")
 
             # Fear & Greed
             try:
@@ -894,10 +836,8 @@ def handle(
                     "data": fg_rows,
                 }
             except Exception as e:
-                code, error_type, message = handle_db_error(
-                    e, "fear/greed sentiment query"
-                )
-                return error_response(code, error_type, message)
+                logger.error(f"[SENTIMENT_FG] Error: {type(e).__name__}")
+                raise_db_error(e, "fear/greed sentiment query")
 
             freshness = check_data_freshness(
                 cur, "aaii_sentiment", "date", warning_days=1
@@ -1020,8 +960,8 @@ def handle(
                         200, {"current": None, "history": [], "signals": {}}
                     )
             except Exception as e:
-                code, error_type, message = handle_db_error(e, "NAAIM query")
-                return error_response(code, error_type, message)
+                logger.error(f"[NAAIM] Error: {type(e).__name__}")
+                raise_db_error(e, "NAAIM query")
         elif path == "/api/market/latest":
             return _get_market_latest(cur)
         elif path == "/api/market/cap-distribution":
@@ -1030,20 +970,14 @@ def handle(
             return _get_correlation_matrix(cur)
         elif path == "/api/market/sectors":
             return _get_sector_overview(cur)
-        return error_response(404, "not_found", f"No market handler for {path}")
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-        Exception,
-    ) as e:
-        code, error_type, message = handle_db_error(e, "handle market")
-        return error_response(code, error_type, message)
+        raise_api_error(404, "not_found", f"No market handler for {path}")
+    except Exception as e:
+        logger.error(f"[MARKET] Unhandled error: {type(e).__name__}: {e}")
+        raise_db_error(e, "handle market")
 
 
 @db_route_handler("get fear greed history")
-def _get_fear_greed_history(cur, days: int = 30) -> Dict:
+def _get_fear_greed_history(cur, days: int = 30) -> dict:
     """Get fear/greed index history with signals."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -1141,7 +1075,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
 
 
 @db_route_handler("get market latest")
-def _get_market_latest(cur) -> Dict:
+def _get_market_latest(cur) -> dict:
     """Get latest market data including indices, breadth, and sentiment."""
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -1181,15 +1115,15 @@ def _get_market_latest(cur) -> Dict:
     return json_response(200, result if result else {})
 
 
-def _parse_range_param(params: Dict, default: int = 30) -> int:
+def _parse_range_param(params: dict, default: int = 30) -> int:
     try:
-        return int((params.get("range", [None])[0] or params.get("days", [default])[0]))
+        return int(params.get("range", [None])[0] or params.get("days", [default])[0])
     except (ValueError, TypeError, IndexError):
         return default
 
 
 @db_route_handler("get correlation matrix")
-def _get_correlation_matrix(cur) -> Dict:
+def _get_correlation_matrix(cur) -> dict:
     """Compute and return correlation matrix between key market indices."""
     symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
 
@@ -1395,7 +1329,7 @@ def _get_correlation_matrix(cur) -> Dict:
 
 
 @db_route_handler("get cap distribution")
-def _get_cap_distribution(cur) -> Dict:
+def _get_cap_distribution(cur) -> dict:
     """Get market cap distribution across market cap buckets and sectors."""
     # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
     cur.execute("""
@@ -1535,7 +1469,7 @@ INDEX_NAMES = {
 
 
 @db_route_handler("get market indices")
-def _get_markets(cur) -> Dict:
+def _get_markets(cur) -> dict:
     from datetime import date
 
     cur.execute(
@@ -1645,7 +1579,7 @@ def _get_markets(cur) -> Dict:
 
 
 @db_route_handler("get sector overview")
-def _get_sector_overview(cur) -> Dict:
+def _get_sector_overview(cur) -> dict:
     """Get latest sector performance overview from sectors table."""
     cur.execute("""
         SELECT sector_name, performance_ytd, performance_1y, pe_ratio,

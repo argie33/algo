@@ -375,7 +375,6 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 )
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
-                logger.error(f"Public handler error for {path}: {e}", exc_info=True)
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check authenticated handlers
@@ -387,7 +386,6 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 )
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
-                logger.error(f"Handler error for {path}: {e}", exc_info=True)
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check if the path matches a route module that failed to import
@@ -520,6 +518,26 @@ def _format_handler_error(e):
     Error types documented in steering/algo.md → Error Handling & Diagnostics section.
     All errors include _error field for consistent error detection by dashboard.
     """
+    # Handle APIException first (has explicit status code and error type)
+    try:
+        from exceptions import APIException
+        if isinstance(e, APIException):
+            # Sanitize message to remove credentials/sensitive info
+            try:
+                from utils.error_handlers import sanitize_error_message
+                msg = sanitize_error_message(e.message)
+            except Exception:
+                import re
+                msg = re.sub(r"password=\S+|api.?key=\S+", "***", e.message)
+            return {
+                "statusCode": e.status_code,
+                "errorType": e.error_type,
+                "message": msg,
+                "_error": msg,
+            }
+    except ImportError:
+        pass
+
     error_type = type(e).__name__
     error_msg = str(e)
 

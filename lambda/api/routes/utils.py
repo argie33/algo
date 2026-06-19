@@ -14,6 +14,34 @@ import setup_imports  # noqa: F401
 from utils.validation import APIResponseValidator
 
 
+# Import exceptions for raising instead of returning error dicts
+try:
+    from exceptions import (
+        APIException,
+        BadRequest,
+        Conflict,
+        DataNotAvailable,
+        Forbidden,
+        NotFound,
+        QueryTimeout,
+        ServiceUnavailable,
+        TooManyRequests,
+        UnprocessableEntity,
+    )
+except ImportError:
+    # Fallback if exceptions module not available (for backward compatibility)
+    APIException = Exception
+    BadRequest = Exception
+    Conflict = Exception
+    DataNotAvailable = Exception
+    Forbidden = Exception
+    NotFound = Exception
+    QueryTimeout = Exception
+    ServiceUnavailable = Exception
+    TooManyRequests = Exception
+    UnprocessableEntity = Exception
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -165,6 +193,9 @@ def error_response(code, typ, msg):
     Returns consistent error format with statusCode, errorType, message, and _error.
     All error responses include HTTP status code for client-side error handling.
     The _error field enables consistent error detection across the dashboard.
+
+    DEPRECATED: Prefer raising APIException subclasses instead.
+    Use raise_api_error() or raise_db_error() helper functions.
     """
     # Sanitize message to remove credentials, paths, SQL
     try:
@@ -176,6 +207,68 @@ def error_response(code, typ, msg):
         msg = re.sub(r"password=\S+|api.?key=\S+", "***", msg)
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
+
+
+def raise_db_error(error, context="database operation"):
+    """Convert database error to APIException.
+
+    Maps psycopg2 exceptions to appropriate HTTP status codes:
+    - QueryCanceled → 504 QueryTimeout
+    - UndefinedTable/UndefinedColumn → 503 ServiceUnavailable (schema error)
+    - OperationalError/DatabaseError → 503 ServiceUnavailable (connection/query error)
+    - Generic Exception → 500 ServiceUnavailable
+
+    Args:
+        error: Exception caught from database operation
+        context: Operation name for logging context
+
+    Raises:
+        APIException: Appropriate exception type with status code
+    """
+    from utils.error_handlers import classify_exception, log_sanitizer
+
+    # Use centralized classification to determine status code and error type
+    try:
+        status_code, _, message = classify_exception(error)
+    except Exception:
+        status_code = 503
+        message = f"Error during {context}"
+
+    # Log with sanitization to prevent PII/SQL leakage
+    with log_sanitizer(f"database error: {context}") as safe_log:
+        safe_log.error(error)
+
+    # Raise appropriate exception based on status code
+    if status_code == 504:
+        raise QueryTimeout(message)
+    else:
+        raise ServiceUnavailable(message)
+
+
+def raise_api_error(status_code, error_type, message):
+    """Raise APIException with explicit status code and error type.
+
+    Selects the appropriate exception subclass based on status code.
+
+    Args:
+        status_code: HTTP status code (400, 403, 404, 409, 422, 429, 503, 504)
+        error_type: Error type string for client
+        message: Error message
+    """
+    # Map status codes to exception classes
+    exception_map = {
+        400: BadRequest,
+        403: Forbidden,
+        404: NotFound,
+        409: Conflict,
+        422: UnprocessableEntity,
+        429: TooManyRequests,
+        503: ServiceUnavailable,
+        504: QueryTimeout,
+    }
+
+    exc_class = exception_map.get(status_code, ServiceUnavailable)
+    raise exc_class(message, error_type=error_type, status_code=status_code)
 
 
 def success_response(data, metadata=None):

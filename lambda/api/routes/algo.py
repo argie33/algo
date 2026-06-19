@@ -2,14 +2,13 @@
 
 import logging
 import re
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
 from routes.utils import (
-    error_response,
-    handle_db_error,
     json_response,
+    raise_api_error,
+    raise_db_error,
     safe_days,
     safe_limit,
     safe_offset,
@@ -98,7 +97,7 @@ from .algo_handlers.signals import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Dict) -> bool:
+def _check_admin_access(jwt_claims: dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
@@ -112,28 +111,35 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+    idempotency_key: str | None = None,
+) -> dict:
     """Handle /api/algo/* endpoints."""
     try:
-        return _dispatch(cur, path, method, params, body, jwt_claims)
+        return _dispatch(cur, path, method, params, body, jwt_claims, idempotency_key)
     except Exception as e:
+        # Re-raise APIException so api_router can format it properly
+        try:
+            from exceptions import APIException
+            if isinstance(e, APIException):
+                raise
+        except ImportError:
+            pass
         logger.error(f"[ALGO] unhandled {type(e).__name__}: {e}", exc_info=True)
-        return error_response(
-            500, "internal_error", "An error occurred while processing your request"
-        )
+        raise_db_error(e, "handle algo")
 
 
 def _dispatch(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+    idempotency_key: str | None = None,
+) -> dict:
     user_id = (jwt_claims or {}).get("sub", "")
 
     # SECURITY: Rate limit public endpoints to prevent DoS attacks
@@ -144,7 +150,7 @@ def _dispatch(
         )
         if not is_allowed:
             logger.warning(f"Public endpoint rate limit exceeded for {path}")
-            return error_response(429, "too_many_requests", error_msg)
+            raise_api_error(429, "too_many_requests", error_msg)
 
     # Notification mark-as-read
     if method == "PATCH" and path.endswith("/read") and "/notifications/" in path:
@@ -155,18 +161,18 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         try:
             try:
                 notif_id_int = int(notif_id)
             except ValueError:
-                return error_response(400, "bad_request", "ID must be numeric")
+                raise_api_error(400, "bad_request", "ID must be numeric")
 
             cur.execute(
                 "SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,)
             )
             if not cur.fetchone():
-                return error_response(404, "not_found", "Notification not found")
+                raise_api_error(404, "not_found", "Notification not found")
 
             cur.execute(
                 "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
@@ -180,11 +186,8 @@ def _dispatch(
             psycopg2.DatabaseError,
             Exception,
         ) as e:
-            code, error_type, message = handle_db_error(e, "mark notification as read")
-            logger.error(
-                f"Failed to mark notification as read: {error_type} - {message}"
-            )
-            return error_response(code, error_type, message)
+            logger.error(f"Failed to mark notification as read: {type(e).__name__}")
+            raise_db_error(e, "mark notification as read")
 
     # Notification delete
     if method == "DELETE" and "/notifications/" in path:
@@ -195,18 +198,18 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         try:
             try:
                 notif_id_int = int(notif_id)
             except ValueError:
-                return error_response(400, "bad_request", "ID must be numeric")
+                raise_api_error(400, "bad_request", "ID must be numeric")
 
             cur.execute(
                 "SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,)
             )
             if not cur.fetchone():
-                return error_response(404, "not_found", "Notification not found")
+                raise_api_error(404, "not_found", "Notification not found")
 
             cur.execute("DELETE FROM algo_notifications WHERE id=%s", (notif_id_int,))
             return json_response(200, {"status": "deleted"})
@@ -217,9 +220,8 @@ def _dispatch(
             psycopg2.DatabaseError,
             Exception,
         ) as e:
-            code, error_type, message = handle_db_error(e, "delete notification")
-            logger.error(f"Failed to delete notification: {error_type} - {message}")
-            return error_response(code, error_type, message)
+            logger.error(f"Failed to delete notification: {type(e).__name__}")
+            raise_db_error(e, "delete notification")
 
     # Data patrol trigger
     if method == "POST" and path == "/api/algo/patrol":
@@ -229,7 +231,8 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
+
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
@@ -239,19 +242,21 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
-        return _trigger_data_patrol()
+                raise_api_error(429, "too_many_requests", error_msg)
+
+        response = _trigger_data_patrol()
+        return response
 
     # Trade preview calculation
     if method == "POST" and path == "/api/algo/preview":
         if not body:
-            return error_response(400, "bad_request", "Request body required")
+            raise_api_error(400, "bad_request", "Request body required")
         return _calculate_trade_preview(cur, body)
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
         if not body:
-            return error_response(400, "bad_request", "Request body required")
+            raise_api_error(400, "bad_request", "Request body required")
         return _calculate_pre_trade_impact(cur, body)
 
     # Dispatch to handler functions by path
@@ -262,7 +267,7 @@ def _dispatch(
         limit = safe_limit(limit_str, max_val=10000, default=100)
         status_filter = params.get("status", [None])[0] if params else None
         if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
-            return error_response(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
+            raise_api_error(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
         is_admin = _check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
@@ -287,7 +292,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
         if not _check_admin_access(
@@ -296,7 +301,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params else None
         limit = safe_limit(limit_str, max_val=10000, default=100)
         offset_str = params.get("offset", [None])[0] if params else None
@@ -320,11 +325,11 @@ def _dispatch(
             else None
         )
         if min_score_str and min_score is None:
-            return error_response(400, "bad_request", "min_score must be numeric")
+            raise_api_error(400, "bad_request", "min_score must be numeric")
         symbol_filter = params.get("symbol", [None])[0] if params else None
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
-                return error_response(400, "bad_request", "Invalid symbol format")
+                raise_api_error(400, "bad_request", "Invalid symbol format")
         return _get_swing_scores(cur, limit, min_score, symbol_filter)
     elif path == "/api/algo/swing-scores-history":
         days_str = params.get("days", [None])[0] if params else None
@@ -365,7 +370,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         key = path[len("/api/algo/config/") :]
         if method == "GET":
             return _get_algo_config_key(cur, key)
@@ -384,7 +389,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params else None
         limit = safe_limit(limit_str, max_val=10000, default=100)
         offset_str = params.get("offset", [None])[0] if params else None
@@ -392,7 +397,7 @@ def _dispatch(
         action_type = params.get("action_type", [None])[0] if params else None
         if action_type:
             action_type = action_type.lower()
-            VALID_ACTION_TYPES = {
+            valid_action_types = {
                 "entry", "exit", "alert", "halt", "reconciliation", "error", "stop", "skip", "pass",
                 "phase_0_halt_flag_detected", "phase_0_oom_prevention", "phase_0_table_validation",
                 "phase_1_data_freshness", "phase_1_data_patrol", "phase_1_pipeline_health",
@@ -405,8 +410,8 @@ def _dispatch(
                 "halt_flag_detected", "position_review", "position_monitor", "pipeline_health",
                 "single_stock_halts", "halt_check_error",
             }
-            if action_type not in VALID_ACTION_TYPES:
-                return error_response(
+            if action_type not in valid_action_types:
+                raise_api_error(
                     400, "bad_request", f"Invalid action_type: {action_type}"
                 )
         return _get_algo_audit_log(cur, limit, offset, action_type)
@@ -417,7 +422,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str, default=7, max_val=90)
         limit_str = params.get("limit", [None])[0] if params else None
@@ -430,7 +435,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str, default=30, max_val=90)
         return _get_orchestrator_execution_failed(cur, days)
@@ -441,7 +446,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         run_id = path.split("/api/algo/execution/details/")[-1]
         return _get_orchestrator_execution_details(cur, run_id)
     elif path == "/api/algo/execution/patterns":
@@ -451,7 +456,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str, default=30, max_val=90)
         return _get_orchestrator_execution_patterns(cur, days)
@@ -462,7 +467,7 @@ def _dispatch(
             logger.warning(
                 f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
             )
-            return error_response(403, "forbidden", "Admin access required")
+            raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str, default=7, max_val=90)
         return _get_orchestrator_execution_stats(cur, days)
@@ -475,7 +480,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_daily_return_histogram(cur)
     elif path == "/api/algo/trade-distribution":
         if path in ADMIN_RATE_LIMITS:
@@ -486,7 +491,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_trade_distribution(cur)
     elif path == "/api/algo/holding-period-distribution":
         if path in ADMIN_RATE_LIMITS:
@@ -497,7 +502,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_holding_period_distribution(cur)
     elif path == "/api/algo/stage-distribution":
         if path in ADMIN_RATE_LIMITS:
@@ -508,7 +513,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_stage_distribution(cur)
     elif path == "/api/algo/market-sentiment":
         if path in ADMIN_RATE_LIMITS:
@@ -519,7 +524,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_market_sentiment(cur)
     elif path == "/api/algo/trend-criteria":
         if path in ADMIN_RATE_LIMITS:
@@ -530,7 +535,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_trend_criteria(cur)
     elif path == "/api/algo/performance-metrics":
         if path in ADMIN_RATE_LIMITS:
@@ -541,7 +546,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_performance_metrics_endpoint(cur)
     elif path == "/api/algo/portfolio-summary":
         if path in ADMIN_RATE_LIMITS:
@@ -552,7 +557,7 @@ def _dispatch(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                return error_response(429, "too_many_requests", error_msg)
+                raise_api_error(429, "too_many_requests", error_msg)
         return _get_portfolio_summary(cur)
     else:
-        return error_response(404, "not_found", f"No algo handler for {path}")
+        raise_api_error(404, "not_found", f"No algo handler for {path}")

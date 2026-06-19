@@ -19,7 +19,8 @@ class CredentialRotationChecker:
             response = self.secretsmanager.get_secret_value(
                 SecretId="algo/developer-credentials"
             )
-            return json.loads(response["SecretString"])
+            secret_string = response["SecretString"]
+            return json.loads(secret_string) if isinstance(secret_string, str) else None
         except Exception as e:
             print(f"ERROR: Could not retrieve credentials: {e}", file=sys.stderr)
             return None

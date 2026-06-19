@@ -18,6 +18,8 @@ from routes.utils import (
     handle_db_error,
     json_response,
     list_response,
+    raise_api_error,
+    raise_db_error,
     safe_json_serialize,
     safe_limit,
     safe_offset,
@@ -48,11 +50,11 @@ def handle(
     try:
         if path == "/api/trades/manual" and method == "POST":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-                return error_response(403, "forbidden", "Admin access required")
+                raise_api_error(403, "forbidden", "Admin access required")
             return _create_manual_trade(cur, body or {})
         if path == "/api/trades":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-                return error_response(403, "forbidden", "Admin access required")
+                raise_api_error(403, "forbidden", "Admin access required")
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=5000, default=500)
             offset_str = params.get("offset", [None])[0] if params else None
@@ -60,7 +62,7 @@ def handle(
             status_filter = params.get("status", [None])[0] if params else None
 
             # SECURITY FIX: Validate status filter against whitelist (enum validation)
-            VALID_STATUSES = {
+            valid_statuses = {
                 "pending",
                 "open",
                 "closed",
@@ -69,7 +71,7 @@ def handle(
                 "rejected",
             }
             if status_filter:
-                if status_filter.lower() not in VALID_STATUSES:
+                if status_filter.lower() not in valid_statuses:
                     return error_response(
                         400, "bad_request", f"Invalid status value: {status_filter}"
                     )
@@ -114,7 +116,7 @@ def handle(
             )
         elif path == "/api/trades/summary":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-                return error_response(403, "forbidden", "Admin access required")
+                raise_api_error(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
             cur.execute("""
                     SELECT
@@ -131,16 +133,10 @@ def handle(
             result = safe_json_serialize(dict(summary)) if summary else {}
             result["data_freshness"] = freshness
             return json_response(200, result)
-        return error_response(404, "not_found", f"Unknown trade endpoint: {path}")
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-        Exception,
-    ) as e:
-        code, error_type, message = handle_db_error(e, "handle trades")
-        return error_response(code, error_type, message)
+        raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
+    except Exception as e:
+        logger.error(f"[TRADES] Unhandled error: {type(e).__name__}: {e}")
+        raise_db_error(e, "handle trades")
 
 
 def _create_manual_trade(cur, body: Dict) -> Dict:
@@ -154,8 +150,8 @@ def _create_manual_trade(cur, body: Dict) -> Dict:
                 error_detail = errors[0]
                 field = error_detail.get("loc", ("unknown",))[0]
                 msg = error_detail.get("msg", "Validation failed")
-                return error_response(400, "bad_request", f"Invalid {field}: {msg}")
-            return error_response(400, "bad_request", "Invalid request")
+                raise_api_error(400, "bad_request", f"Invalid {field}: {msg}")
+            raise_api_error(400, "bad_request", "Invalid request")
 
         symbol = req.symbol
         trade_type = req.trade_type
