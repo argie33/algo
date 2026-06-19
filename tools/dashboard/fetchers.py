@@ -461,7 +461,7 @@ def fetch_portfolio(c):
                 "data_age_seconds": None,
             }
 
-        required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
+        required_fields = ["total_portfolio_value", "total_cash", "position_count"]
         validation_error = _validate_required_fields(
             port, required_fields, "fetch_portfolio"
         )
@@ -491,7 +491,7 @@ def fetch_portfolio(c):
                 port["total_portfolio_value"], "portfolio.total_portfolio_value"
             )
             tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
-            pc = safe_int_strict(port["open_positions"], "portfolio.open_positions")
+            pc = safe_int_strict(port["position_count"], "portfolio.position_count")
         except StrictValidationError as e:
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)

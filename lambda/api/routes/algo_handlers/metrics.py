@@ -385,7 +385,7 @@ def _get_algo_portfolio(cur) -> dict:
                 {
                     "total_portfolio_value": None,
                     "total_cash": None,
-                    "open_positions": 0,
+                    "position_count": 0,
                     "daily_return_pct": None,
                     "unrealized_pnl": {
                         "total_dollars": 0.0,
