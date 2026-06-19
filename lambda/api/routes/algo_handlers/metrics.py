@@ -22,6 +22,7 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     safe_float,
+    safe_float_strict,
     safe_int,
 )
 
@@ -58,7 +59,7 @@ def _get_algo_metrics(cur) -> dict:
                 "total_actions": safe_int(data.get("total_actions")),
                 "entries": safe_int(data.get("entries")),
                 "exits": safe_int(data.get("exits")),
-                "avg_signal_score": safe_float(data.get("avg_signal_score")),
+                "avg_signal_score": safe_float_strict(data.get("avg_signal_score")),
             }
         )
     except (
@@ -141,13 +142,13 @@ def _get_algo_performance(cur) -> dict:
                 "win_rate_pct": wr_fb,
                 "win_rate": wr_fb,
                 "profit_factor": pf_fb,
-                "total_pnl_dollars": safe_float(fb.get("total_pnl_dollars")),
-                "avg_win_pct": safe_float(fb.get("avg_win_pct")),
-                "avg_loss_pct": safe_float(fb.get("avg_loss_pct")),
+                "total_pnl_dollars": safe_float_strict(fb.get("total_pnl_dollars")),
+                "avg_win_pct": safe_float_strict(fb.get("avg_win_pct")),
+                "avg_loss_pct": safe_float_strict(fb.get("avg_loss_pct")),
                 "avg_win_r": avg_win_r,
                 "avg_loss_r": avg_loss_r,
-                "best_trade_pct": safe_float(fb.get("best_trade_pct")),
-                "worst_trade_pct": safe_float(fb.get("worst_trade_pct")),
+                "best_trade_pct": safe_float_strict(fb.get("best_trade_pct")),
+                "worst_trade_pct": safe_float_strict(fb.get("worst_trade_pct")),
                 "sharpe_annualized": None,
                 "max_drawdown_pct": None,
                 "expectancy_r": exp_r,
@@ -301,39 +302,39 @@ def _get_algo_performance(cur) -> dict:
             "winning_trades": winning,
             "losing_trades": losing,
             "breakeven_trades": breakeven,
-            "win_rate": safe_float(metrics.get("win_rate_pct")),
-            "win_rate_pct": safe_float(metrics.get("win_rate_pct")),
+            "win_rate": safe_float_strict(metrics.get("win_rate_pct")),
+            "win_rate_pct": safe_float_strict(metrics.get("win_rate_pct")),
             "win_rate_pct_adjusted": win_rate_pct_adjusted,
             "win_rate_confidence": (
                 "high"
                 if win_loss_total >= 30
                 else ("medium" if win_loss_total >= 10 else "low")
             ),
-            "profit_factor": safe_float(metrics.get("profit_factor")),
-            "total_pnl_dollars": safe_float(metrics.get("total_pnl_dollars")),
-            "total_pnl_pct": safe_float(metrics.get("total_pnl_pct")),
-            "total_return_pct": safe_float(metrics.get("cagr_pct")),
-            "avg_trade_pct": safe_float(metrics.get("avg_trade_pct")),
-            "avg_win_pct": safe_float(trade_stats.get("avg_win_pct")),
-            "avg_loss_pct": safe_float(trade_stats.get("avg_loss_pct")),
-            "avg_win_r": safe_float(trade_stats.get("avg_win_r")),
-            "avg_loss_r": safe_float(trade_stats.get("avg_loss_r")),
-            "gross_win_dollars": safe_float(trade_stats.get("gross_win_dollars")),
-            "gross_loss_dollars": safe_float(trade_stats.get("gross_loss_dollars")),
+            "profit_factor": safe_float_strict(metrics.get("profit_factor")),
+            "total_pnl_dollars": safe_float_strict(metrics.get("total_pnl_dollars")),
+            "total_pnl_pct": safe_float_strict(metrics.get("total_pnl_pct")),
+            "total_return_pct": safe_float_strict(metrics.get("cagr_pct")),
+            "avg_trade_pct": safe_float_strict(metrics.get("avg_trade_pct")),
+            "avg_win_pct": safe_float_strict(trade_stats.get("avg_win_pct")),
+            "avg_loss_pct": safe_float_strict(trade_stats.get("avg_loss_pct")),
+            "avg_win_r": safe_float_strict(trade_stats.get("avg_win_r")),
+            "avg_loss_r": safe_float_strict(trade_stats.get("avg_loss_r")),
+            "gross_win_dollars": safe_float_strict(trade_stats.get("gross_win_dollars")),
+            "gross_loss_dollars": safe_float_strict(trade_stats.get("gross_loss_dollars")),
             "open_losses_count": open_losses_count,
             "total_open_losses_dollars": total_open_losses_dollars,
-            "best_trade_pct": safe_float(metrics.get("best_trade_pct")),
-            "worst_trade_pct": safe_float(metrics.get("worst_trade_pct")),
-            "sharpe_annualized": safe_float(metrics.get("sharpe_ratio")),
-            "sharpe_ratio": safe_float(metrics.get("sharpe_ratio")),
+            "best_trade_pct": safe_float_strict(metrics.get("best_trade_pct")),
+            "worst_trade_pct": safe_float_strict(metrics.get("worst_trade_pct")),
+            "sharpe_annualized": safe_float_strict(metrics.get("sharpe_ratio")),
+            "sharpe_ratio": safe_float_strict(metrics.get("sharpe_ratio")),
             "sharpe_confidence": "high",
-            "sortino_annualized": safe_float(metrics.get("sortino_ratio")),
-            "sortino_ratio": safe_float(metrics.get("sortino_ratio")),
-            "max_drawdown_pct": safe_float(metrics.get("max_drawdown_pct")),
-            "calmar_ratio": safe_float(metrics.get("calmar_ratio")),
+            "sortino_annualized": safe_float_strict(metrics.get("sortino_ratio")),
+            "sortino_ratio": safe_float_strict(metrics.get("sortino_ratio")),
+            "max_drawdown_pct": safe_float_strict(metrics.get("max_drawdown_pct")),
+            "calmar_ratio": safe_float_strict(metrics.get("calmar_ratio")),
             "expectancy_r": expectancy_r,
-            "avg_hold_days": safe_float(metrics.get("avg_holding_days")),
-            "avg_holding_days": safe_float(metrics.get("avg_holding_days")),
+            "avg_hold_days": safe_float_strict(metrics.get("avg_holding_days")),
+            "avg_holding_days": safe_float_strict(metrics.get("avg_holding_days")),
             "portfolio_snapshots": len(equity_vals),
             "best_win_streak": int(metrics.get("best_win_streak")) if metrics.get("best_win_streak") is not None else None,
             "worst_loss_streak": int(metrics.get("worst_loss_streak")) if metrics.get("worst_loss_streak") is not None else None,
@@ -402,16 +403,16 @@ def _get_algo_portfolio(cur) -> dict:
                 }
             )
         data = safe_dict_convert(row)
-        pv = safe_float(data.get("total_portfolio_value"))
+        pv = safe_float_strict(data.get("total_portfolio_value"))
         return success_response(
             {
                 "total_portfolio_value": pv,
-                "total_cash": safe_float(data.get("total_cash")),
-                "open_positions": safe_int(data.get("position_count")),
-                "daily_return_pct": safe_float(data.get("daily_return_pct")),
+                "total_cash": safe_float_strict(data.get("total_cash")),
+                "position_count": safe_int(data.get("position_count")),
+                "daily_return_pct": safe_float_strict(data.get("daily_return_pct")),
                 "unrealized_pnl": {
-                    "total_dollars": safe_float(data.get("unrealized_pnl_total")),
-                    "total_pct": safe_float(data.get("unrealized_pnl_pct")),
+                    "total_dollars": safe_float_strict(data.get("unrealized_pnl_total")),
+                    "total_pct": safe_float_strict(data.get("unrealized_pnl_pct")),
                     "winning_positions": safe_int(
                         data.get("unrealized_pnl_winning_count")
                     ),
@@ -424,9 +425,9 @@ def _get_algo_portfolio(cur) -> dict:
                     "source": data.get("unrealized_pnl_source", "open_positions_only"),
                     "note": "Includes only open positions (no closed trades, no dividends)",
                 },
-                "cumulative_return_pct": safe_float(data.get("cumulative_return_pct")),
-                "max_drawdown_pct": safe_float(data.get("max_drawdown_pct")),
-                "largest_position_pct": safe_float(data.get("largest_position_pct")),
+                "cumulative_return_pct": safe_float_strict(data.get("cumulative_return_pct")),
+                "max_drawdown_pct": safe_float_strict(data.get("max_drawdown_pct")),
+                "largest_position_pct": safe_float_strict(data.get("largest_position_pct")),
                 "last_run": data.get("snapshot_date"),
             }
         )
@@ -577,14 +578,14 @@ def _get_performance_analytics(cur) -> dict:
         data = safe_dict_convert(row)
         return success_response(
             {
-                "rolling_sharpe_252d": safe_float(data.get("rolling_sharpe_252d")),
-                "rolling_sortino_252d": safe_float(data.get("rolling_sortino_252d")),
-                "calmar_ratio": safe_float(data.get("calmar_ratio")),
-                "win_rate_50t": safe_float(data.get("win_rate_50t")),
-                "avg_win_r_50t": safe_float(data.get("avg_win_r_50t")),
-                "avg_loss_r_50t": safe_float(data.get("avg_loss_r_50t")),
-                "expectancy": safe_float(data.get("expectancy")),
-                "max_drawdown_pct": safe_float(data.get("max_drawdown_pct")),
+                "rolling_sharpe_252d": safe_float_strict(data.get("rolling_sharpe_252d")),
+                "rolling_sortino_252d": safe_float_strict(data.get("rolling_sortino_252d")),
+                "calmar_ratio": safe_float_strict(data.get("calmar_ratio")),
+                "win_rate_50t": safe_float_strict(data.get("win_rate_50t")),
+                "avg_win_r_50t": safe_float_strict(data.get("avg_win_r_50t")),
+                "avg_loss_r_50t": safe_float_strict(data.get("avg_loss_r_50t")),
+                "expectancy": safe_float_strict(data.get("expectancy")),
+                "max_drawdown_pct": safe_float_strict(data.get("max_drawdown_pct")),
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
@@ -623,13 +624,13 @@ def _get_performance_metrics_endpoint(cur) -> dict:
         200,
         {
             "winRate": (
-                safe_float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
+                safe_float_strict(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
             ),
-            "profitFactor": safe_float(row["profit_factor"]),
-            "expectancy": safe_float(row["avg_trade_pct"]),
-            "sharpeRatio": safe_float(row["sharpe_ratio"]),
+            "profitFactor": safe_float_strict(row["profit_factor"]),
+            "expectancy": safe_float_strict(row["avg_trade_pct"]),
+            "sharpeRatio": safe_float_strict(row["sharpe_ratio"]),
             "maxDrawdown": (
-                safe_float(row["max_drawdown_pct"]) / 100
+                safe_float_strict(row["max_drawdown_pct"]) / 100
                 if row["max_drawdown_pct"]
                 else None
             ),
@@ -657,11 +658,11 @@ def _get_portfolio_summary(cur) -> dict:
             503, "incomplete_data", "Portfolio snapshot missing required fields"
         )
 
-    total_value = safe_float(row["total_portfolio_value"])
-    cash = safe_float(row["total_cash"])
-    invested = safe_float(row["total_equity"])
+    total_value = safe_float_strict(row["total_portfolio_value"])
+    cash = safe_float_strict(row["total_cash"])
+    invested = safe_float_strict(row["total_equity"])
     positions = safe_int(row["position_count"])
-    daily_return_pct = safe_float(row["daily_return_pct"])
+    daily_return_pct = safe_float_strict(row["daily_return_pct"])
 
     daily_change_dollars = (
         (daily_return_pct / 100 * total_value)
@@ -713,11 +714,11 @@ def _get_risk_metrics(cur) -> dict:
         return success_response(
             {
                 "report_date": data.get("report_date"),
-                "var_pct_95": safe_float(data.get("var_pct_95")),
-                "cvar_pct_95": safe_float(data.get("cvar_pct_95")),
-                "stressed_var_pct": safe_float(data.get("stressed_var_pct")),
-                "portfolio_beta": safe_float(data.get("portfolio_beta")),
-                "top_5_concentration": safe_float(data.get("top_5_concentration")),
+                "var_pct_95": safe_float_strict(data.get("var_pct_95")),
+                "cvar_pct_95": safe_float_strict(data.get("cvar_pct_95")),
+                "stressed_var_pct": safe_float_strict(data.get("stressed_var_pct")),
+                "portfolio_beta": safe_float_strict(data.get("portfolio_beta")),
+                "top_5_concentration": safe_float_strict(data.get("top_5_concentration")),
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):

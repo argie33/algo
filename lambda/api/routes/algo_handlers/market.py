@@ -380,7 +380,7 @@ def _get_market(cur) -> dict:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
         data = {
-            "exposure_pct": safe_float(exposure["exposure_pct"]),
+            "exposure_pct": safe_float_strict(exposure["exposure_pct"]),
             "regime": exposure["regime"],
             "halt_reasons": exposure["halt_reasons"],
             "vix_level": safe_float_strict(
@@ -485,8 +485,8 @@ def _get_market_factors(cur) -> dict:
                 factors = {}
 
         data = {
-            "exposure_pct": safe_float(data_dict.get("exposure_pct")),
-            "raw_score": safe_float(data_dict.get("raw_score")),
+            "exposure_pct": safe_float_strict(data_dict.get("exposure_pct")),
+            "raw_score": safe_float_strict(data_dict.get("raw_score")),
             "regime": data_dict.get("regime"),
             "factors": factors,
         }
@@ -532,7 +532,7 @@ def _get_market_sentiment(cur) -> dict:
             503, "incomplete_data", "Market sentiment data incomplete"
         )
 
-    sentiment_score = safe_float(row["sentiment_score"])
+    sentiment_score = safe_float_strict(row["sentiment_score"])
     bullish = None  # Not available in market_sentiment view
     bearish = None  # Not available in market_sentiment view
     neutral = None  # Not available in market_sentiment view
