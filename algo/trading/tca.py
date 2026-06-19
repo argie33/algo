@@ -184,7 +184,7 @@ class TCAEngine:
                     return {
                         "report_date": report_date,
                         "fill_count": 0,
-                        "status": "no_trades",
+                        "status": "no_data",
                     }
 
                 (
@@ -221,17 +221,17 @@ class TCAEngine:
                 return {
                     "report_date": report_date,
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": round(avg_abs_slippage or 0, 2),
-                    "best_slippage_bps": round(best_slippage or 0, 2),
-                    "worst_slippage_bps": round(worst_slippage or 0, 2),
+                    "avg_abs_slippage_bps": round(avg_abs_slippage, 2),
+                    "best_slippage_bps": round(best_slippage, 2),
+                    "worst_slippage_bps": round(worst_slippage, 2),
                     "worst_symbol": worst_symbol,
                     "high_slippage_fills": high_slippage_count,
                     "high_slippage_pct": round(
-                        high_slippage_count / fill_count * 100 if fill_count > 0 else 0,
+                        high_slippage_count / fill_count * 100,
                         1,
                     ),
-                    "avg_fill_rate_pct": round(avg_fill_rate or 0, 2),
-                    "avg_execution_latency_ms": round(avg_latency or 0),
+                    "avg_fill_rate_pct": round(avg_fill_rate, 2),
+                    "avg_execution_latency_ms": round(avg_latency),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except Exception as e:
@@ -272,7 +272,7 @@ class TCAEngine:
                 if not row or row[0] == 0:
                     return {
                         "period": f"{year}-{month:02d}",
-                        "status": "no_trades",
+                        "status": "no_data",
                     }
 
                 (
@@ -287,15 +287,15 @@ class TCAEngine:
                 return {
                     "period": f"{year}-{month:02d}",
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": round(avg_abs_slippage or 0, 2),
-                    "p95_abs_slippage_bps": round(p95_slippage or 0, 2),
-                    "worst_slippage_bps": round(worst_slippage or 0, 2),
-                    "avg_fill_rate_pct": round(avg_fill_rate or 0, 2),
-                    "high_slippage_fills": high_slippage_count or 0,
+                    "avg_abs_slippage_bps": round(avg_abs_slippage, 2),
+                    "p95_abs_slippage_bps": round(p95_slippage, 2),
+                    "worst_slippage_bps": round(worst_slippage, 2),
+                    "avg_fill_rate_pct": round(avg_fill_rate, 2),
+                    "high_slippage_fills": high_slippage_count,
                     "high_slippage_pct": round(
-                        (high_slippage_count or 0) / fill_count * 100, 1
+                        high_slippage_count / fill_count * 100, 1
                     ),
-                    "status": "ok" if (high_slippage_count or 0) == 0 else "warning",
+                    "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except Exception as e:
             logger.error(f"TCA: monthly_summary failed: {e}")
