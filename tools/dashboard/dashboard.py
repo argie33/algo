@@ -153,17 +153,26 @@ class _RenderWrapper:
         self.watch_interval = None
         self.last_load_time = None
         self.refreshing = False
+        self._state_lock = threading.Lock()
 
     def __call__(self, data: dict) -> Layout:
+        with self._state_lock:
+            elapsed = self.elapsed
+            frame = self.frame
+            view_mode = self.view_mode
+            watch_interval = self.watch_interval
+            last_load_time = self.last_load_time
+            refreshing = self.refreshing
+
         return render_dashboard(
             data,
             compact=self.compact,
-            elapsed=self.elapsed,
-            frame=self.frame,
-            watch_interval=self.watch_interval,
-            last_load_time=self.last_load_time,
-            refreshing=self.refreshing,
-            view_mode=self.view_mode,
+            elapsed=elapsed,
+            frame=frame,
+            watch_interval=watch_interval,
+            last_load_time=last_load_time,
+            refreshing=refreshing,
+            view_mode=view_mode,
             data_source=self.data_source,
         )
 
@@ -743,9 +752,10 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     if not done.is_set():
                         live.update(loading_layout(frame, data_source=data_source))
                     else:
-                        render_wrapper.elapsed = state.elapsed
-                        render_wrapper.frame = frame
-                        render_wrapper.view_mode = view_mode
+                        with render_wrapper._state_lock:
+                            render_wrapper.elapsed = state.elapsed
+                            render_wrapper.frame = frame
+                            render_wrapper.view_mode = view_mode
                         try:
                             layout, _recovery_status = recovery.render_with_recovery(
                                 state.result, render_wrapper
@@ -842,11 +852,12 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             if current_error:
                                 error_status = recovery.get_recovery_status()
                         else:
-                            render_wrapper.elapsed = current_elapsed
-                            render_wrapper.frame = current_frame
-                            render_wrapper.last_load_time = current_last_load
-                            render_wrapper.refreshing = is_loading
-                            render_wrapper.view_mode = view_mode
+                            with render_wrapper._state_lock:
+                                render_wrapper.elapsed = current_elapsed
+                                render_wrapper.frame = current_frame
+                                render_wrapper.last_load_time = current_last_load
+                                render_wrapper.refreshing = is_loading
+                                render_wrapper.view_mode = view_mode
                             try:
                                 layout, _recovery_status = recovery.render_with_recovery(
                                     current_result, render_wrapper
