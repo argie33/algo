@@ -27,19 +27,26 @@ logger = logging.getLogger(__name__)
 
 
 def enrich_technical_data(
-    since: Optional[date] = None, symbols: Optional[List[str]] = None
+    since: Optional[date] = None, symbols: Optional[List[str]] = None, min_success_rate: float = 0.95
 ) -> dict:
     """
     Enrich buy_sell_daily with technical data from technical_data_daily.
 
+    Fail-close: If enrichment success rate falls below min_success_rate, raises RuntimeError.
+    This prevents buy_sell_daily from being marked complete with degraded signal quality.
+
     Args:
         since: Only update records from this date onward (default: 7 days ago)
         symbols: Only update these symbols (default: all)
+        min_success_rate: Min fraction of records that must be enriched (0.0-1.0). Default 95%.
 
     Returns:
         Dict with stats: {updated: count, checked: count, errors: []}
+
+    Raises:
+        RuntimeError: If enrichment success rate < min_success_rate (fail-close)
     """
-    stats = {"updated": 0, "checked": 0, "errors": []}
+    stats: dict = {"updated": 0, "checked": 0, "errors": [], "nulls_remaining": 0}
 
     if since is None:
         since = date.today() - timedelta(days=7)
@@ -48,7 +55,7 @@ def enrich_technical_data(
         with DatabaseContext("write") as cur:
             # Build WHERE clause
             where_parts = ["bsd.date >= %s"]
-            params = [since]
+            params: list = [since]
 
             if symbols:
                 placeholders = ",".join(["%s"] * len(symbols))
@@ -59,7 +66,7 @@ def enrich_technical_data(
 
             # Find records with NULL technical data
             cur.execute(
-                """
+                f"""
                 SELECT bsd.id, bsd.symbol, bsd.date,
                        COUNT(CASE WHEN bsd.rsi IS NULL THEN 1 END) as has_null_rsi
                 FROM buy_sell_daily bsd
@@ -139,22 +146,46 @@ def enrich_technical_data(
                         )
                         stats["updated"] += 1
                     else:
+                        stats["nulls_remaining"] += 1
                         logger.debug(
                             f"{symbol} {signal_date}: No technical data available"
                         )
                 except Exception as e:
                     error_msg = f"{symbol} {signal_date}: {str(e)[:100]}"
                     stats["errors"].append(error_msg)
+                    stats["nulls_remaining"] += 1
                     logger.warning(error_msg)
 
-        logger.info(
-            f"Enrichment complete: {stats['updated']} records updated, {len(stats['errors'])} errors"
-        )
+            # Check if enrichment coverage meets minimum threshold (fail-close)
+            checked: int = stats.get("checked", 0) or 0
+            if checked > 0:
+                updated: int = stats.get("updated", 0) or 0
+                nulls: int = stats.get("nulls_remaining", 0) or 0
+                success_rate = updated / checked
+                logger.info(
+                    f"Enrichment complete: {updated}/{checked} records updated "
+                    f"({success_rate*100:.1f}%), {nulls} remain with NULL technical fields"
+                )
+
+                if success_rate < min_success_rate:
+                    errors_sample = stats["errors"][:3] if stats.get("errors") else []
+                    raise RuntimeError(
+                        f"[ENRICHMENT] Technical data enrichment failed coverage threshold: "
+                        f"{updated}/{checked} records enriched ({success_rate*100:.1f}%), "
+                        f"need >={min_success_rate*100:.0f}%. {nulls} records have NULL technical fields. "
+                        f"Cannot load buy_sell_daily with degraded signal quality—failing load to prevent silent data corruption. "
+                        f"Errors: {errors_sample}"
+                    )
+            else:
+                logger.info("No records requiring enrichment")
+
         return stats
 
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.error(f"Enrichment failed: {e}")
-        raise
+        raise RuntimeError(f"[ENRICHMENT] Unexpected error during enrichment: {e}") from e
 
 
 def main():
@@ -169,6 +200,12 @@ def main():
     )
     parser.add_argument(
         "--symbols", type=str, help="Comma-separated symbols to update (default: all)"
+    )
+    parser.add_argument(
+        "--min-success-rate",
+        type=float,
+        default=0.95,
+        help="Min fraction of records that must be enriched (0.0-1.0), default: 0.95 (95%)",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
 
@@ -192,12 +229,18 @@ def main():
         symbols = [s.strip().upper() for s in args.symbols.split(",")]
 
     try:
-        stats = enrich_technical_data(since=since, symbols=symbols)
+        stats = enrich_technical_data(
+            since=since, symbols=symbols, min_success_rate=args.min_success_rate
+        )
         logger.info(f"Updated {stats['updated']} records")
         if stats["errors"]:
             logger.warning(f"{len(stats['errors'])} errors occurred")
             return 1
         return 0
+    except RuntimeError as e:
+        # Fail-close: enrichment didn't meet quality threshold
+        logger.critical(f"Enrichment failed: {e}")
+        return 1
     except Exception as e:
         logger.error(f"Failed: {e}")
         return 1

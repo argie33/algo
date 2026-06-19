@@ -858,17 +858,43 @@ def main():
         result = loader.run(symbols, parallelism=args.parallelism)
         logger.info("Daily signals load completed")
 
-        # ISSUE #7 FIX: Automatically enrich technical data after signal generation
-        # This backfills NULL technical columns in buy_sell_daily with data from technical_data_daily
-        logger.info("Starting technical data enrichment...")
+        # ISSUE #27 FIX: Make technical data enrichment part of the critical path.
+        # Enrichment is MANDATORY for signal quality—if it fails, the entire load fails.
+        # This prevents buy_sell_daily from being marked COMPLETED with NULL technical fields.
+        # Fail-close: If >5% of records can't be enriched, update loader status to FAILED.
+        logger.info("Starting technical data enrichment (fail-close)...")
         from enrich_buy_sell_daily_technical import enrich_technical_data
 
-        enrich_result = enrich_technical_data(
-            since=today_et - timedelta(days=3), symbols=None
-        )
-        logger.info(
-            f"Technical enrichment complete: {enrich_result['updated']} updated, {enrich_result['checked']} checked"
-        )
+        try:
+            enrich_result = enrich_technical_data(
+                since=today_et - timedelta(days=3), symbols=None, min_success_rate=0.95
+            )
+            logger.info(
+                f"✓ Technical enrichment complete: {enrich_result['updated']} updated, "
+                f"{enrich_result['checked']} checked, {enrich_result['nulls_remaining']} nulls remaining"
+            )
+        except RuntimeError as e:
+            # Enrichment failed to meet quality threshold — mark loader as FAILED
+            logger.critical(f"[ENRICHMENT_FAILED] {str(e)}")
+            try:
+                # Update loader status to FAILED so orchestration detects the failure
+                with DatabaseContext("write") as cur:
+                    cur.execute("SET statement_timeout = 0")
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
+                        "WHERE table_name = %s",
+                        ("FAILED", "buy_sell_daily"),
+                    )
+                    logger.info("[STATUS] Marked buy_sell_daily as FAILED due to enrichment failure")
+            except Exception as status_err:
+                logger.error(f"[STATUS] Could not update loader status: {status_err}")
+
+            raise RuntimeError(
+                f"[ENRICHMENT_CRITICAL] Technical data enrichment failed. "
+                f"Marked buy_sell_daily loader as FAILED to prevent silent data corruption. "
+                f"Signal quality would be degraded with NULL technical fields. "
+                f"Details: {str(e)}"
+            )
 
         return 0
     except Exception as e:
