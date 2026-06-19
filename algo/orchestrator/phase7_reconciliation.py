@@ -40,15 +40,20 @@ def run(
         result = recon.run_daily_reconciliation(run_date)
         reconciliation_succeeded = result.get("success", False)
         status = "success" if reconciliation_succeeded else "error"
-        summary = (
-            (
-                f'Portfolio ${result.get("portfolio_value", 0):,.2f}, '
-                f'{result.get("positions", 0)} positions, '
-                f'unrealized P&L ${result.get("unrealized_pnl", 0):+,.2f}'
+
+        if reconciliation_succeeded:
+            required_keys = ["portfolio_value", "positions", "unrealized_pnl"]
+            missing_keys = [k for k in required_keys if k not in result or result[k] is None]
+            if missing_keys:
+                raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
+
+            summary = (
+                f'Portfolio ${result["portfolio_value"]:,.2f}, '
+                f'{result["positions"]} positions, '
+                f'unrealized P&L ${result["unrealized_pnl"]:+,.2f}'
             )
-            if reconciliation_succeeded
-            else result.get("error", "unknown")
-        )
+        else:
+            summary = result.get("error", "unknown")
         log_phase_result_fn(7, "reconciliation", status, summary)
 
         # CRITICAL: Validate that local P&L matches Alpaca P&L
@@ -216,6 +221,15 @@ def run(
             report_text = daily_report.format_text(report)
             logger.info(f"\n{report_text}")
 
+            # Validate critical report data before use
+            if not report or "portfolio" not in report:
+                raise ValueError("Daily report generated but missing portfolio data")
+            portfolio_data = report.get("portfolio", {})
+            if "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+                raise ValueError("Portfolio data missing current_value")
+            if "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+                raise ValueError("Portfolio data missing daily_pnl_pct")
+
             # Log to algo_audit_log for historical tracking
             try:
                 with DatabaseContext("write") as cur:
@@ -237,8 +251,8 @@ def run(
                 7,
                 "daily_report",
                 "success",
-                f"Portfolio ${report.get('portfolio', {}).get('current_value', 0):,.0f}, "
-                f"P&L {report.get('portfolio', {}).get('daily_pnl_pct', 0):+.2f}%",
+                f"Portfolio ${portfolio_data['current_value']:,.0f}, "
+                f"P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
             )
         except Exception as e:
             logger.warning(f"Daily report generation failed: {e}")
@@ -368,9 +382,9 @@ def run(
             log_phase_result_fn(7, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
 
         data = {
-            "portfolio_value": result.get("portfolio_value", 0),
-            "positions": result.get("positions", 0),
-            "unrealized_pnl": result.get("unrealized_pnl", 0),
+            "portfolio_value": result.get("portfolio_value") if reconciliation_succeeded else 0,
+            "positions": result.get("positions") if reconciliation_succeeded else 0,
+            "unrealized_pnl": result.get("unrealized_pnl") if reconciliation_succeeded else 0,
             "reconciliation": result,
         }
 
