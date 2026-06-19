@@ -1,18 +1,10 @@
 # Trading Safety Configuration
 
-**Related Files:** `algo/infrastructure/config.py`, `migrations/versions/032_enforce_safety_thresholds.py`, `migrations/versions/033_restore_disabled_safety_thresholds.py`
-
-## Critical Safety Thresholds (Non-Negotiable Defaults)
-
-All safety thresholds are enforced via Migration 033. **Never set any threshold to zero for testing** — doing so bypasses safety gates entirely and enables:
-- Trading garbage signals regardless of quality
-- Trading during earnings blackout periods (uncontrolled stop-loss gaps)
-- Position sizing errors from illiquid stocks
-- Incomplete-data signals (invalid ATR/MA calculations)
+**Related Files:** `algo/infrastructure/config.py`, `migrations/versions/032_enforce_safety_thresholds.py`, `algo/risk/earnings_blackout.py`, `algo/risk/exposure_policy.py`
 
 ## Overview
 
-The system has three layers of safety gates that prevent trading low-quality signals or during high-risk periods. All are configured via `algo_config` database table (hot-reloadable). **Never set any threshold to zero for "testing" — doing so bypasses safety guards entirely.**
+The system has three layers of safety gates that prevent trading low-quality signals or during high-risk periods. All are configured via `algo_config` database table (hot-reloadable). **Never set any threshold to zero — doing so bypasses all safety guards.**
 
 ---
 
@@ -20,29 +12,18 @@ The system has three layers of safety gates that prevent trading low-quality sig
 
 These reject signals that fail minimum quality criteria. If ANY threshold is zero or unmet, the entry is blocked.
 
-| Config Key | Default | Type | Purpose |
-|---|---|---|---|
-| `min_signal_quality_score` | 60 | int (0-100) | Signal Quality Score (SQS) gate; rejects below 60 |
-| `min_swing_score` | 55.0 | float | Overall trade setup quality score; regime manager may raise higher |
-| `min_completeness_score` | 70 | int (%) | Data completeness gate; rejects stocks with <70% price/technical history |
-| `min_volume_ma_50d` | 300,000 | int (shares) | Liquidity gate; rejects if 50-day avg volume < 300k |
-| `min_avg_daily_dollar_volume` | 500,000 | float ($) | Dollar liquidity; rejects if daily avg < $500k |
+- `min_signal_quality_score` = 60 (SQS 0-100 scale)
+- `min_swing_score` = 55.0 (setup quality)
+- `min_completeness_score` = 70 (% price/technical data)
+- `min_volume_ma_50d` = 300,000 shares
+- `min_avg_daily_dollar_volume` = $500,000
 
-### Why These Thresholds?
 
-- **min_signal_quality_score=60:** Scores 0-100. Below 60 = weak signals prone to whipsaw. Based on Minervini signal quality research.
-- **min_swing_score=55:** Composite score (setup + trend + momentum + volume). Below 55 = fundamentally weak setup.
-- **min_completeness_score=70:** Stocks with incomplete data (missing price bars, technical indicators) are dangerous; 70% = safe minimum per Minervini standard.
-- **Liquidity gates:** Prevent position sizing errors and stop-loss gaps from low-volume stocks.
-
-### Impact if Disabled
-
-| Scenario | Result |
-|---|---|
-| `min_signal_quality_score = 0` | System trades any signal, even garbage-tier SQS (whipsaws, gap risk) |
-| `min_swing_score = 0` | System trades weak setups (high loss rate, stops blown by noise) |
-| `min_completeness_score = 0` | System trades stocks with <1% price data (backtesting errors, missing ATR/MA) |
-| `min_volume_ma_50d = 0` | System trades penny stocks (2-cent spreads, stops gapped overnight) |
+**Impact if set to zero:**
+- `min_signal_quality_score=0`: Trades garbage signals (whipsaws, gap risk)
+- `min_swing_score=0`: Weak setups, stops blown by noise
+- `min_completeness_score=0`: Incomplete price data, missing indicators
+- `min_volume_ma_50d=0`: Penny stocks, 2-cent spreads, overnight gaps
 
 ---
 
@@ -50,16 +31,9 @@ These reject signals that fail minimum quality criteria. If ANY threshold is zer
 
 Prevents entries 7 days before and 3 days after earnings announcements to avoid gap risk from earnings surprises.
 
-| Config Key | Default | Type | Purpose |
-|---|---|---|---|
-| `earnings_blackout_days_before` | 7 | int (days) | Block entries N trading days before earnings |
-| `earnings_blackout_days_after` | 3 | int (days) | Block entries N trading days after earnings |
+- `earnings_blackout_days_before` = 7 (trading days before earnings)
+- `earnings_blackout_days_after` = 3 (trading days after earnings)
 
-### Why 7 Before / 3 After?
-
-- **7 days before:** Market repricing risk as hedge funds/insiders unwind ahead of earnings.
-- **3 days after:** Post-earnings volatility window; some stocks gap 10%+ on misses.
-- **Why not just earnings day?** Institutional flows leak out 7-10 days before; stops clustered below key support are blown by volume spikes.
 
 ### Impact if Disabled
 
@@ -76,23 +50,10 @@ Prevents entries 7 days before and 3 days after earnings announcements to avoid 
 
 These are configured as **warn-only** (not hard-gates) because consolidating bases legitimately show patterns that would hard-gate them.
 
-| Config Key | Default | Type | Purpose | Why Warn-Only? |
-|---|---|---|---|---|
-| `rs_slope_gate_enabled` | false | bool | Hard-gate T3 on RS line trending up | Consolidating bases show flat RS by design; hard-gating loses legitimate Minervini setups |
-| `volume_decay_gate_enabled` | false | bool | Hard-gate T3 on volume decay into breakout | Institutional accumulation shows declining volume; hard-gating loses high-prob entries |
+- `rs_slope_gate_enabled` = false (warn-only; consolidating bases show flat RS)
+- `volume_decay_gate_enabled` = false (warn-only; accumulation shows declining volume)
 
-### Why Warn-Only?
-
-**Consolidating bases (Minervini Stage 2 → 3 transition)** naturally show:
-- **Flat or slightly negative RS-line slope** (stock consolidating vs. market; normal for tight bases)
-- **Declining volume** (drying up = institutional accumulation, not distribution)
-
-If these were hard-gates, the system would reject ~30% of breakout setups that actually work (high Minervini score, stage 2 weekly chart, strong fundamentals). So:
-
-- **Hard-gating RS-slope / volume-decay:** Would reject consolidating bases = lower win rate overall
-- **Warn-only (current):** Logs the concerns for human review, lets legitimate setups through
-
-**Decision:** Warnings only, other T3 gates (Stage 2 weekly, Minervini score, 52w range) remain hard-gates and maintain quality.
+**Rationale:** Consolidating bases naturally show flat RS and declining volume (institutional accumulation). Hard-gating these would reject ~30% of legitimate Minervini setups. Warn-only allows human judgment.
 
 ---
 

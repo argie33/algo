@@ -13,7 +13,7 @@ To enable **2x daily trading during market hours**, we've implemented vectorized
 
 ## Two Loader Patterns
 
-### Pattern 1: Vectorized (FAST - For Production)
+### Pattern 1: Vectorized (Production Standard)
 Use for: **Full daily loads, intraday updates, production pipelines**
 
 **Technical Data Daily Vectorized** (`load_technical_data_daily_vectorized.py`)
@@ -113,200 +113,82 @@ Start: 4:05 PM ET
 
 ## Performance Comparison
 
-| Loader | Old (Per-Symbol) | New (Vectorized) | Speedup | Use Case |
-|--------|-----------------|-----------------|---------|----------|
-| technical_data_daily | 60-90 min | 15-25 min | 4-6x | Full daily load |
-| technical_data_daily (today only) | 60-90 min | 3-8 min | 8-20x | Intraday |
-| swing_trader_scores | 30-40 min | 10-20 min | 2-3x | Full daily load |
-| swing_trader_scores (today) | 30-40 min | 5-15 min | 3-6x | Intraday |
-| **Total morning prep** | **240 min** | **60-90 min** | **2.7-4x** | **Production** |
-| **Total intraday update** | **N/A** | **20-25 min** | **N/A** | **Afternoon run** |
+Old (per-symbol) → New (vectorized):
+- `technical_data_daily`: 60-90 min → 15-25 min (4-6x)
+- `technical_data_daily --today`: 60-90 min → 3-8 min (8-20x)
+- `swing_trader_scores`: 30-40 min → 10-20 min (2-3x)
+- `swing_trader_scores --today`: 30-40 min → 5-15 min (3-6x)
+- **Morning prep total:** 240 min → 60-90 min (2.7-4x)
+- **Intraday update:** → 20-25 min
 
 ---
 
 ## Why Vectorization Works
 
-### The Old Problem (Per-Symbol)
-```python
-for symbol in all_5000_symbols:  # 5000 iterations
-    prices = db.query(f"SELECT * FROM price_daily WHERE symbol = {symbol}")  # 5000 queries
-    indicators = compute_indicators(prices)  # per-symbol computation
-    db.insert(indicators)  # per-symbol or batched inserts (5-50 batches)
-```
+**Per-symbol (old):** 5000 DB queries → vectorized pandas → 5-50 batched inserts. ~60-90 min.
 
-**Bottlenecks:**
-- 5000 database round trips (vs 1)
-- Python per-symbol object overhead
-- Thread coordination for parallelism (diminishing returns at 4-6 threads)
-
-### The New Solution (Vectorized)
-```python
-prices = db.query("SELECT * FROM price_daily WHERE symbol IN (...)")  # 1 bulk query
-df = pd.DataFrame(prices)
-indicators = compute_all_indicators_vectorized(df)  # vectorized across all symbols
-db.bulk_insert(indicators)  # single COPY command
-```
-
-**Advantages:**
-- 1 database round trip (5000x fewer)
-- No Python per-symbol overhead
-- Vectorized computation (pandas uses numpy under the hood)
-- Single bulk insert (optimal database performance)
+**Vectorized (new):** 1 bulk query → pandas broadcast → 1 COPY insert. ~15-25 min. 4-6x faster.
 
 ---
 
-## Integration with Step Functions - DEPLOYED ✅
+## Step Functions Pipeline Architecture
 
 ### Morning & EOD Pipelines
 
 ```yaml
-morning_prep_pipeline (2:00 AM ET):
+morning_prep_pipeline (Start: 2:00 AM ET):
   steps:
-    - stock_prices_daily (60-90 min)
-    - swing_trader_scores_vectorized (10-20 min)  # ✅ VECTORIZED
-    - sector_ranking
+    - stock_prices_daily (20-30 min)
+    - technical_data_daily_vectorized (15-25 min)
+    - signal_quality_scores (5-10 min)
+    - swing_trader_scores_vectorized (10-15 min)
   timeout: 120 minutes
-  completes: ~4:00 AM (ready for 9:30 AM orchestrator)
+  SLA: Complete by 9:30 AM market open
 
-eod_pipeline (4:05 PM ET):
+eod_pipeline (Start: 4:05 PM ET):
   steps:
-    - stock_prices_daily (60-90 min)
-    - swing_trader_scores_vectorized (10-20 min)  # ✅ VECTORIZED
-    - sector_ranking
-    - orchestrator dry-run validation
+    - stock_prices_daily (20-30 min)
+    - technical_data_daily_vectorized (15-25 min)
+    - All other loaders...
   timeout: 120 minutes
 ```
 
-### Intraday Update Pipelines (NEW - DEPLOYED ✅)
+### Intraday Update Pipelines
 
 ```yaml
-afternoon_update_pipeline (12:50 PM ET):
+afternoon_update_pipeline (Start: 12:50 PM ET):
   steps:
-    - swing_trader_scores_vectorized --INTRADAY_MODE (5-15 min)
+    - swing_trader_scores_vectorized --today (5-15 min)
   timeout: 30 minutes
-  completes: ~1:05 PM (ready for 1 PM orchestrator)
-  fresh_scores: Used by 1 PM orchestrator
+  SLA: Complete by 1:00 PM orchestrator
 
-preclose_update_pipeline (2:50 PM ET):  # SLA CRITICAL
+preclose_update_pipeline (Start: 2:50 PM ET):
   steps:
-    - swing_trader_scores_vectorized --INTRADAY_MODE (5-15 min)
+    - swing_trader_scores_vectorized --today (5-15 min)
   timeout: 30 minutes
-  completes: ~3:05 PM (ready for 3 PM orchestrator, SLA deadline 3:15 PM)
-  fresh_scores: Used by 3 PM orchestrator
+  SLA: Complete by 3:00 PM orchestrator (critical: must finish before 3:15 PM)
 ```
 
 ---
 
 
-## Deployment Procedures
+## Verification & Monitoring
 
-### Pre-Deployment Validation
+### Pipeline Health Checks
 
-```bash
-# 1. Validate Terraform syntax
-cd terraform/
-terraform validate
-# Expected: Success! The configuration is valid.
-
-# 2. Review planned changes
-terraform plan -out=tfplan
-# Review: 2 new state machines, 2 new scheduler rules created
-```
-
-### Deployment Steps
-
-```bash
-# 1. Deploy infrastructure
-cd terraform/
-terraform apply tfplan
-
-# 2. Verify state machines created
-aws stepfunctions list-state-machines | grep intraday
-
-# 3. Verify scheduler rules created
-aws scheduler list-schedules | grep intraday
-
-# 4. Run test suite
-python tests/test_intraday_pipelines.py
-```
-
-### Live Monitoring (First Trading Day)
-
-**2:00 AM** - Morning Pipeline
+**Morning pipeline (2:00 AM - 9:30 AM ET):**
 - CloudWatch logs: `/aws/states/algo-morning-prep-pipeline-prod`
-- Expected: Completes by 4:00 AM
-- Check: swing_trader_scores_vectorized loaded successfully
+- SLA: Must complete by 9:30 AM market open
+- Check: All loader steps show SUCCESS
 
-**9:30 AM** - Morning Orchestrator
-- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
-- Expected: Uses morning pipeline scores
-- Check: Phase 5 shows swing_trader_scores lookup
+**Intraday pipelines (12:50 PM, 2:50 PM ET):**
+- CloudWatch logs: `/aws/states/algo-intraday-*-update-prod`
+- SLA: afternoon update by 1:00 PM; preclose update by 3:00 PM
+- Check: INTRADAY_MODE logs confirm execution
 
-**12:50 PM** - Afternoon Update Pipeline (NEW)
-- CloudWatch logs: `/aws/states/algo-intraday-afternoon-update-prod`
-- Expected: Completes by 1:05 PM
-- Check: INTRADAY_MODE=true in logs, duration 5-15 min
+**EOD pipeline (4:05 PM - 6:00 PM ET):**
+- CloudWatch logs: `/aws/states/algo-eod-pipeline-prod`
+- SLA: Complete before market settlement
+- Check: All loader steps show SUCCESS
 
-**1:00 PM** - Afternoon Orchestrator
-- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
-- Expected: Uses fresh 12:50 PM scores (NOT morning scores)
-- Check: Phase 5 shows computed_at ~ 12:50 PM
-
-**2:50 PM** - Pre-Close Update Pipeline (NEW, SLA CRITICAL)
-- CloudWatch logs: `/aws/states/algo-intraday-preclose-update-prod`
-- Expected: Completes by 3:05 PM (must finish before 3:15 PM SLA)
-- Check: INTRADAY_MODE=true in logs, duration 5-15 min
-- **⚠️ CRITICAL**: If > 3:15 PM, SLA fails - needs immediate investigation
-
-**3:00 PM** - Pre-Close Orchestrator
-- CloudWatch logs: `/aws/lambda/algo-orchestrator-prod`
-- Expected: Uses fresh 2:50 PM scores, finishes by 3:15 PM
-- Check: Phase 5 shows computed_at ~ 2:50 PM
-
-### Success Criteria - ALL MUST PASS
-
-✅ Morning pipeline completes before 4:30 AM  
-✅ Afternoon update completes before 1:05 PM  
-✅ Pre-close update completes before 3:05 PM (SLA deadline 3:15 PM)  
-✅ 1 PM orchestrator uses fresh 12:50 PM scores (not morning)  
-✅ 3 PM orchestrator uses fresh 2:50 PM scores (not morning)  
-✅ No database lock conflicts or connection pool errors  
-✅ All CloudWatch logs show INTRADAY_MODE entries  
-
-### Rollback Procedure (if SLA fails)
-
-```bash
-# Disable intraday pipelines - orchestrators still run with morning scores
-cd terraform/
-# Comment out: aws_sfn_state_machine.intraday_afternoon_update_pipeline
-# Comment out: aws_sfn_state_machine.intraday_preclose_update_pipeline
-terraform apply
-
-# This keeps 1 PM and 3 PM orchestrator runs (less optimal, but functional)
-# Re-deploy after fixing the issue
-```
-
----
-
-## Questions?
-
-**Why not use parallelism more on per-symbol loaders?**
-- Parallelism adds overhead for 5000+ small tasks
-- Thread scheduling, connection pool management eat gains above 4-6 threads
-- Vectorization eliminates the need for parallelism entirely
-
-**What about incremental loading with vectorization?**
-- Use `--since DATE` flag to load only new data
-- E.g., `load_technical_data_daily_vectorized.py --since 2026-01-01` to load data from January onward
-- Perfect for backfill or catching up after errors
-
-**Can I go back to per-symbol loaders if vectorized fails?**
-- Yes, keep per-symbol loaders as fallback
-- They're backward compatible, use if needed for troubleshooting
-- But they're 4-6x slower, so only for specific symbols
-
-**What about memory usage?**
-- Vectorized loads all data at once (~300MB for 5000 symbols × 60 days)
-- ECS task has 2GB memory available (plenty)
-- Monitor if data volume grows significantly
 

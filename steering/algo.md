@@ -4,13 +4,11 @@ Live trading system: Minervini trend-following + fundamental quality filters. Up
 
 ## System Map
 
-| Component | Code | Deployment | Trigger |
-|-----------|------|------------|---------|
-| Orchestrator (7 phases) | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
-| Loaders (6 core + supporting) | `loaders/load_*.py` | ECS Fargate | 6 core via Step Functions (2:15 AM, 4:05 PM ET); supporting loaders async |
-| API | `lambda/api/lambda_function.py` | Lambda algo-api-dev | HTTP requests |
-| Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
-| Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
+- **Orchestrator** (7 phases): `algo/algo_orchestrator.py` → Lambda `algo-algo-dev` → EventBridge 9:30 AM/1 PM/3 PM/5:30 PM ET
+- **Loaders**: `loaders/load_*.py` → ECS Fargate → Step Functions (2:15 AM, 4:05 PM ET)
+- **API**: `lambda/api/lambda_function.py` → Lambda `algo-api-dev`
+- **Frontend**: `webapp/frontend/src/` → S3 + CloudFront
+- **Database**: PostgreSQL RDS `algo-db`
 
 ## API Rate Limiting
 
@@ -41,16 +39,9 @@ All endpoints return HTTP error codes (503/504/500) with details, never 200 OK w
 **Rules:** Rotate quarterly (first Monday), immediately if leaked. No `.env` files. GitHub Actions uses AWS OIDC.
 **Locations:** `algo/dashboard-config`, `algo/database`, `algo/alpaca` (paper trading), `algo/fred`
 
-## Terraform Outputs
+**Terraform outputs:** `.terraform-outputs.json` (auto-saved by CI/CD, <24h = fresh)
 
-Tracked in `.terraform-outputs.json` with timestamp. Fresh if <24h old. Auto-saved by CI/CD post-apply. Scripts: `verify-terraform-outputs.ps1`, `sync-terraform-outputs.ps1`
-
-## Deployment
-
-**Frontend:** Injects cache-bust + 4-layer cache invalidation (S3 headers, CloudFront, browser, parameters).  
-**Production:** `git push main` → deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations).  
-**Staging:** `git push staging` → deploy-staging.yml (dry-run, separate Lambda, shared RDS).  
-**Database schema:** Applied by GitHub Actions (avoids race conditions, not Terraform).
+**Deployment:** `git push main` → deploy-all-infrastructure.yml. DB schema: GitHub Actions (avoids races).
 
 ## Lambda Ownership: Source of Truth
 
@@ -73,7 +64,6 @@ ls -la lambda/api/
 unzip -l terraform/lambda_api.zip | head -30
 ```
 
-**Why this structure:** Terraform cannot build dependencies (pip install) because it's infrastructure-as-code, not a build tool. GitHub Actions builds Lambda packages before Terraform uses them. This ensures reproducible, version-controlled deployments.
 
 ## Data Architecture: Positions
 
@@ -145,56 +135,16 @@ unzip -l terraform/lambda_api.zip | head -30
 
 **Pipeline Timing Alarms:**
 
-| Metric | Threshold | Pipeline | Action |
-|--------|-----------|----------|--------|
-| `stock_prices_daily` | >120 min | Morning + EOD | Alert: yfinance rate limiting likely; check adaptive batching config |
-| `morning_prep_pipeline` | >300 min | Morning (2-9:30 AM) | Alert: approaching 9:30 AM deadline; investigate loader health |
-| RDS Connections | >40 | Any time | Warning: monitor for slow queries; check if parallelism needs reduction |
+**SLA Alerts:**
+- `stock_prices_daily` >120 min → yfinance rate limiting
+- `morning_prep_pipeline` >300 min → approaching 9:30 AM deadline
+- RDS Connections >40 → check for slow queries
 
-**CloudWatch Metrics Emitted:**
+**Monitoring:** CloudWatch metrics for SLA tracking (operation durations). SNS topic `algo-loader-alerts-dev` for failures.
 
-- `AlgoTrading/Operations:OperationDuration` — Each operation (loader, phase) emits duration in seconds with Operation dimension
-  - Source: `TimeBlock` context manager in `monitoring/metrics_context.py`
-  - Used for: SLA tracking, slow operation detection, rate limit diagnosis
-- `AlgoTrading:LoaderDurationSeconds` — Detailed per-loader timing (price_daily, scores, health, etc.)
-  - Emitted by: Orchestrator Phase 1 (data freshness check)
-  - Period: Every orchestrator run (9:30 AM, 1 PM, 3 PM, 5:30 PM ET + morning/EOD pipelines)
+**Pre-computed metrics:** circuit_breaker_status (@ 4:30 PM ET), algo_performance_metrics (@ 4:45 PM ET). Verify: `algo-compute_*-schedule` EventBridge rules must be ENABLED.
 
-**Dashboard Access:**
-- `algo-pipeline-monitoring-dev`: Timeline of stock_prices_daily, RDS connections, and recent loader errors
-- `algo-rds-monitoring-dev`: RDS CPU, connections, disk queue depth
-- `algo-loader-monitoring-dev`: Supporting loader failures (28 loaders) consolidated alarm
-
-**Dashboards auto-refresh every 5 minutes. View real-time to diagnose slow pipelines.**
-
-**Monitoring Checklist:**
-
-Morning (2:00-9:30 AM ET): (1) stock_prices_daily completes by 4:00 AM, (2) market_health + swing_scores ~30 min, (3) Phase 1 passes by 9:00 AM. If >90 min, check yfinance rate limiting (CloudWatch logs).
-
-EOD (4:05-6:00 PM ET): (1) stock_prices_daily by 5:15 PM, (2) Phase 1 passes by 5:30 PM. If >85 min, check yfinance lag or RDS Performance Insights.
-
-**Alerting:** SNS topic `algo-loader-alerts-dev` receives alarms. Configure email subscription in Terraform variables.
-
-## Pre-Computed Metrics
-
-**circuit_breaker_status:** 9 metrics (drawdown, daily loss, consecutive losses, open risk, VIX, market stage, SPY change, win rate, trigger count). Computed by compute_circuit_breakers.py @ 4:30 PM ET (2-5 sec). API response: /api/algo/circuit-breakers (20-30ms, was 800ms).
-
-**algo_performance_metrics:** 14 stats (win rate, profit factor, Sharpe, Sortino, max drawdown, avg holding, CAGR, Calmar, streaks). Computed by compute_performance_metrics.py @ 4:45 PM ET (10-15 sec). API response: /api/algo/performance (20-30ms, was 1200ms).
-
-**Verify:** Query DynamoDB `algo-loader-status` for today's date → check for SUCCESS status. Or check PostgreSQL: `SELECT MAX(check_date), COUNT(*) FROM circuit_breaker_status WHERE check_date >= CURRENT_DATE - 5`. EventBridge rules: `algo-compute_*-schedule` (must be ENABLED). ECS logs: `/ecs/algo-compute_*-loader` (look for SUCCESS message). Alert if no execution in 25+ hours or ECS exit non-zero.
-
-## Data Freshness Configuration
-
-**Configurable thresholds (algo_config table):**
-- `phase1_min_symbol_count` (default 5000) — minimum symbols required for Phase 1 to pass
-- `phase1_min_coverage_pct` (default 75) — minimum coverage % vs prior day
-- `SIGNAL_STALE_THRESHOLD_HOURS` (default 24) — signal quality threshold
-- `PIPELINE_HEALTHY_DAYS` (default 2) — healthy status threshold
-- `PIPELINE_CRITICAL_DAYS` (default 7) — critical status threshold
-
-**Price data coverage:** Recent loads complete ~5,600 symbols per date (partial coverage acceptable if >5000 and >=75% vs prior day). Phase 1 passes if both thresholds met.
-
-**Weekend/holiday handling:** Automatically extends 1-2 days on weekends (no false stale warnings)
+**Data freshness:** Phase 1 halts if price/market_health/market_exposure >1 trading day old. Thresholds in algo_config table.
 
 ## Orchestrator Phases
 
@@ -351,27 +301,34 @@ Never silently return defaults (0, None, [], {}, False). Raise exception with co
 
 Check current market regime: `SELECT date, is_entry_allowed, halt_reasons FROM market_exposure_daily WHERE date = CURRENT_DATE ORDER BY date DESC LIMIT 1`. Entries resume automatically when conditions improve (next morning's market_exposure_daily computation). This is a designed risk control — trading halts in severe market conditions.
 
-**Missing scheduled orchestrator runs:** CRITICAL ISSUE - If <4 runs in a trading day (expect 9:30 AM, 1 PM, 3 PM, 5:30 PM ET), the EventBridge Scheduler rules are likely DISABLED. This is the root cause of prolonged halted status.
+**Troubleshooting: Missing scheduled orchestrator runs**
+
+If fewer than 4 runs appear in a trading day (expect 9:30 AM, 1 PM, 3 PM, 5:30 PM ET):
 
 **Diagnosis:**
-1. Query database: `SELECT DATE(started_at) as date, COUNT(*), EXTRACT(HOUR FROM started_at) as hour FROM orchestrator_execution_log WHERE DATE(started_at) = CURRENT_DATE GROUP BY date, hour ORDER BY hour`
-2. Should show 4 runs; if <4, schedules are not triggering
+```sql
+SELECT DATE(started_at) as date, COUNT(*), EXTRACT(HOUR FROM started_at) as hour 
+FROM orchestrator_execution_log 
+WHERE DATE(started_at) = CURRENT_DATE 
+GROUP BY date, hour 
+ORDER BY hour
+```
+Should show 4 runs per trading day. If <4, schedules are not triggering.
 
 **Fix:**
-1. Check AWS EventBridge Scheduler console for these schedules:
-   - `algo-algo-schedule-morning-dev` (9:30 AM ET) — status should be ENABLED
-   - `algo-algo-schedule-afternoon-dev` (1:00 PM ET) — status should be ENABLED
-   - `algo-algo-schedule-preclose-dev` (3:00 PM ET) — status should be ENABLED
-   - `algo-algo-schedule-dev` (5:30 PM ET) — status should be ENABLED
+1. Check AWS EventBridge Scheduler console:
+   - `algo-algo-schedule-morning-dev` (9:30 AM ET) → ENABLED
+   - `algo-algo-schedule-afternoon-dev` (1:00 PM ET) → ENABLED
+   - `algo-algo-schedule-preclose-dev` (3:00 PM ET) → ENABLED
+   - `algo-algo-schedule-dev` (5:30 PM ET) → ENABLED
 
-2. If any schedules are DISABLED or missing:
+2. If any are DISABLED:
    ```bash
    cd terraform/
-   terraform plan -var-file=terraform.tfvars
    terraform apply -var-file=terraform.tfvars
    ```
 
-3. Verify Lambda permissions: EventBridge Scheduler principal must have `lambda:InvokeFunction` permission
+3. Verify Lambda permissions: EventBridge Scheduler must have `lambda:InvokeFunction` on `algo-orchestrator-dev`
 
-4. Monitor: After fix, verify today gets all 4 scheduled runs executing at correct times
+4. Verify: Check logs confirm all 4 runs executed at correct times
 

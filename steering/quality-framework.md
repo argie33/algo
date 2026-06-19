@@ -24,62 +24,21 @@
 
 ---
 
-### 3. Code Quality (Style & Linting)
+## Linting & Security
 
-**Tools:**
-| Tool | Purpose | Status |
-|------|---------|--------|
-| Black | Formatting | Checked, non-blocking |
-| isort | Import ordering | Checked, non-blocking |
-| flake8 | Linting | Checked, non-blocking |
+**Linting:** Black (format), isort (imports), flake8 (lint) — non-blocking
 
-**Philosophy:** Consistency > perfection. Automated fixable issues are just information.
+**Security:** TruffleHog (blocks on secrets), pip-audit (dependencies), bandit (code issues) — TruffleHog blocks; others informational
+
+**Terraform:** Format, syntax, tfsec, plan validation
 
 ---
 
-### 4. Security
-
-**Three tiers:**
-
-1. **Secrets Detection (TruffleHog)**
-   - Blocks commits if credentials found
-   - Runs on every push
-
-2. **Dependency Vulnerabilities (pip-audit)**
-   - Informational, not blocking
-   - Updated on every commit
-
-3. **Code Security Issues (bandit)**
-   - Detects hardcoded secrets, SQL injection risks
-   - Informational, not blocking
-
-**Philosophy:** Prevention first, detection second
-
----
-
-### 5. Infrastructure as Code (Terraform)
-
-**Checked:**
-- Format validation
-- Syntax validation
-- Security scanning (tfsec)
-- Plan dry-run
-
-**Philosophy:** IaC is code and should follow same standards
-
----
-
-## Configuration Map
-
-| Requirement | Location | Format |
-|------------|----------|--------|
-| mypy config | `pyproject.toml` | TOML |
-| pytest config | `pyproject.toml` | TOML |
-| coverage config | `pyproject.toml` | TOML |
-| CI gates (required) | `.github/workflows/ci-fast-gates.yml` | YAML |
-| Pre-commit hook | `.git/hooks/pre-commit` | bash |
-| Local script | `scripts/check-quality.sh` | bash |
-| Documentation | `steering/quality-framework.md` | Markdown |
+**Config locations:**
+- mypy: `pyproject.toml`
+- pytest: `pyproject.toml`
+- CI: `.github/workflows/ci-fast-gates.yml`
+- Pre-commit: `.git/hooks/pre-commit`
 
 ---
 
