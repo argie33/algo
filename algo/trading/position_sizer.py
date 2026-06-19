@@ -25,6 +25,10 @@ class PositionSizer:
     """Calculate position sizes based on risk parameters."""
 
     def __init__(self, config):
+        if config is None:
+            raise ValueError("PositionSizer config cannot be None")
+        if not isinstance(config, dict):
+            raise TypeError(f"PositionSizer config must be a dict, got {type(config).__name__}")
         self.config = config
 
     def _with_cursor(self, operation):

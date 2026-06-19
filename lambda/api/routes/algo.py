@@ -251,12 +251,16 @@ def _dispatch(
     if method == "POST" and path == "/api/algo/preview":
         if not body:
             raise_api_error(400, "bad_request", "Request body required")
+        if not isinstance(body, dict):
+            raise_api_error(400, "bad_request", "Request body must be a JSON object")
         return _calculate_trade_preview(cur, body)
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
         if not body:
             raise_api_error(400, "bad_request", "Request body required")
+        if not isinstance(body, dict):
+            raise_api_error(400, "bad_request", "Request body must be a JSON object")
         return _calculate_pre_trade_impact(cur, body)
 
     # Dispatch to handler functions by path
@@ -375,6 +379,8 @@ def _dispatch(
         if method == "GET":
             return _get_algo_config_key(cur, key)
         elif method == "PUT":
+            if not body or not isinstance(body, dict):
+                raise_api_error(400, "bad_request", "Request body must be a JSON object")
             actor = (jwt_claims or {}).get("sub", "unknown")
             return _update_algo_config_key(cur, key, body, actor)
         elif method == "DELETE":
