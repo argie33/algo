@@ -170,9 +170,7 @@ class DatabaseContext:
     def _get_loader_correlation_id() -> Optional[str]:
         """Auto-retrieve correlation_id from context (loaders only)."""
         try:
-            from utils.infrastructure import (  # type: ignore[attr-defined]
-                get_correlation_id,
-            )
+            from utils.infrastructure import get_correlation_id
 
             cid = get_correlation_id()
             return cid if cid else None
@@ -229,38 +227,47 @@ class DatabaseContext:
 
         OPTIMIZATION: If connection is externally managed (from pooled context),
         don't close it - let OptimalLoader manage its lifecycle.
+
+        Guarantees: Rollback is ALWAYS called on exception to prevent "transaction is aborted"
+        state from poisoning the connection pool.
         """
         try:
+            # Always try to close cursor, but don't let cursor errors prevent rollback
             if self.cur:
-                self.cur.close()
-
-            if self.conn and not self._externally_managed:
-                # Only close connections we acquired (not pooled context connections)
-                if exc_type is None and self.role == "write":
-                    self.conn.commit()
-                else:
-                    # Always rollback for:
-                    # - Any exception (clears aborted transaction)
-                    # - Read connections with no exception (clears any internally-caught
-                    #   sub-query failures that left the connection in an aborted state;
-                    #   without this, the broken connection goes back to the pool and
-                    #   poisons the next request with InFailedSqlTransaction errors)
-                    self.conn.rollback()
-                self.conn.close()
-            elif self.conn and self._externally_managed:
-                # Still commit/rollback, but don't close the connection
-                if exc_type is None and self.role == "write":
-                    self.conn.commit()
-                else:
-                    self.conn.rollback()
-                logger.debug(
-                    "[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)"
-                )
-        except Exception as e:
-            logger.warning(
-                f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}"
-            )
+                try:
+                    self.cur.close()
+                except Exception as e:
+                    logger.warning(f"[DB_CLEANUP_WARNING] Error closing cursor: {e}")
         finally:
-            self.cur = None
-            if not self._externally_managed:
-                self.conn = None
+            try:
+                if self.conn:
+                    if not self._externally_managed:
+                        # Only close connections we acquired (not pooled context connections)
+                        if exc_type is None and self.role == "write":
+                            self.conn.commit()
+                        else:
+                            # Always rollback for:
+                            # - Any exception (clears aborted transaction)
+                            # - Read connections with no exception (clears any internally-caught
+                            #   sub-query failures that left the connection in an aborted state;
+                            #   without this, the broken connection goes back to the pool and
+                            #   poisons the next request with InFailedSqlTransaction errors)
+                            self.conn.rollback()
+                        self.conn.close()
+                    else:
+                        # Still commit/rollback, but don't close the connection
+                        if exc_type is None and self.role == "write":
+                            self.conn.commit()
+                        else:
+                            self.conn.rollback()
+                        logger.debug(
+                            "[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)"
+                        )
+            except Exception as e:
+                logger.warning(
+                    f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}"
+                )
+            finally:
+                self.cur = None
+                if not self._externally_managed:
+                    self.conn = None
