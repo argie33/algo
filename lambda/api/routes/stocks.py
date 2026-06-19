@@ -309,6 +309,8 @@ def handle(
         query_params = []
 
         if search:
+            if len(search) > 200:
+                return error_response(400, "bad_request", "Search query too long (max 200 characters)")
             where_clauses.append("(ss.symbol ILIKE %s OR ss.security_name ILIKE %s)")
             query_params.extend([f"%{search}%", f"%{search}%"])
         if sector:

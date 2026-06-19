@@ -79,7 +79,6 @@ def lambda_handler(event, context):
 
     logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
 
-    connection = None
     try:
         logger.info("Connecting to RDS with current credentials...")
         connection = psycopg2.connect(
@@ -101,39 +100,35 @@ def lambda_handler(event, context):
         }
 
     try:
-        cursor = connection.cursor()
+        with connection:
+            cursor = connection.cursor()
 
-        # Reset the master user password using parameterized query
-        logger.info(f"Resetting password for user '{db_user}'")
-        cursor.execute(
-            psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
-                psycopg2.sql.Identifier(db_user)
-            ),
-            (new_password,),
-        )
-        connection.commit()
+            # Reset the master user password using parameterized query
+            logger.info(f"Resetting password for user '{db_user}'")
+            cursor.execute(
+                psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
+                    psycopg2.sql.Identifier(db_user)
+                ),
+                (new_password,),
+            )
+            connection.commit()
 
-        logger.info(f"✓ Password reset successfully for user '{db_user}'")
+            logger.info(f"✓ Password reset successfully for user '{db_user}'")
 
-        cursor.close()
-        connection.close()
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": f"Successfully reset password for {db_user}",
-                    "user": db_user,
-                    "host": db_host,
-                    "database": db_name,
-                }
-            ),
-        }
+            return {
+                "statusCode": 200,
+                "body": json.dumps(
+                    {
+                        "message": f"Successfully reset password for {db_user}",
+                        "user": db_user,
+                        "host": db_host,
+                        "database": db_name,
+                    }
+                ),
+            }
 
     except Exception as e:
         logger.error(f"✗ Error executing ALTER USER: {str(e)}")
-        if connection:
-            connection.close()
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Failed to reset password: {str(e)}"}),

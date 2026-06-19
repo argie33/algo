@@ -80,7 +80,7 @@
 | CI quality gates | `.github/workflows/quality-gates.yml` | YAML |
 | Pre-commit hook | `.git/hooks/pre-commit` | bash |
 | Local script | `scripts/check-quality.sh` | bash |
-| Documentation | `steering/code-quality.md` | Markdown |
+| Documentation | `steering/quality-framework.md` | Markdown |
 
 ---
 
@@ -193,7 +193,7 @@ This prevents legitimate commits from being blocked by pre-existing issues in de
 
 **Before:** Scattered requirements in CLAUDE.md
 
-**After:** Comprehensive guide in `steering/code-quality.md`
+**After:** Comprehensive guide in this document (steering/quality-framework.md)
 
 ---
 
@@ -254,7 +254,7 @@ This prevents legitimate commits from being blocked by pre-existing issues in de
 
 ## Questions?
 
-See `steering/code-quality.md` for detailed documentation on:
+See below for detailed documentation on:
 - How to fix type errors
 - How to interpret coverage reports
 - How to troubleshoot CI failures

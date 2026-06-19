@@ -235,5 +235,5 @@ pip install ruff==0.7.0 mypy==2.1.0 pylint==3.2.0
 1. **Review and approve** this strategy
 2. **Run implementation phases** 1-4
 3. **Verify** each enforcement point works as expected
-4. **Document** findings in steering/code-quality.md
+4. **Document** findings in steering/quality-framework.md
 5. **Monitor** for 2 weeks post-implementation

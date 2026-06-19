@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Clear orchestrator and loader locks."""
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 
 
 with DatabaseContext('write') as cur:
@@ -49,7 +50,8 @@ with DatabaseContext('write') as cur:
     for table_tuple in lock_tables:
         table = table_tuple[0]
         try:
-            cur.execute(f"DELETE FROM {table} WHERE 1=1")
+            table_safe = assert_safe_table(table)
+            cur.execute(f"DELETE FROM {table_safe} WHERE 1=1")
             print(f"Cleared {cur.rowcount} rows from {table}")
         except Exception as e:
             print(f"Could not clear {table}: {e}")

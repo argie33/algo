@@ -201,7 +201,7 @@ class PipelineHealth:
             with DatabaseContext("read") as cur:
                 # Set statement timeout for health checks (fail fast)
                 stmt_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", 30000))
-                cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
+                cur.execute("SET statement_timeout = %s", (f"{stmt_timeout_ms}ms",))
 
                 for table_name, config in self.CRITICAL_TABLES.items():
                     try:

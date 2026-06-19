@@ -75,6 +75,27 @@ def validate_credentials() -> Tuple[bool, List[str]]:
         )
     elif len(db_host.strip()) == 0:
         errors.append("[ERROR] DB_HOST is empty string. Set to valid hostname.")
+    elif not is_local_dev:
+        # In production, validate that DB_HOST is not a private/local IP
+        import re
+        private_ip_patterns = [
+            r"^localhost$",
+            r"^127\.",
+            r"^10\.",
+            r"^172\.(1[6-9]|2[0-9]|3[01])\.",
+            r"^192\.168\.",
+            r"^169\.254\.",
+            r"^::1$",
+            r"^fc00:",
+            r"^fe80:",
+        ]
+        for pattern in private_ip_patterns:
+            if re.match(pattern, db_host):
+                errors.append(
+                    f"[ERROR] DB_HOST appears to be a private/local IP in production: {db_host}. "
+                    "Production must use a valid RDS endpoint. Set DB_HOST to your production RDS endpoint."
+                )
+                break
 
     db_user = os.getenv("DB_USER", "stocks")
     os.getenv("DB_NAME", "stocks")

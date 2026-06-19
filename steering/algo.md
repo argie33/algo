@@ -27,7 +27,7 @@ All endpoints return HTTP error codes (503/504/500) with details, never 200 OK w
 - **CI/CD:** Secrets detection (TruffleHog), SAST (Bandit), dependency scanning (pip-audit), IaC scanning (tfsec)
 - **Runtime:** AWS WAF, IAM least-privilege, VPC isolation, CloudWatch monitoring
 
-**See:** `steering/code-quality.md` for detailed code scanning strategy, `.github/workflows/ci-fast-gates.yml` for CI implementation.
+**See:** `steering/quality-framework.md` for detailed code scanning and testing strategy, `.github/workflows/ci-fast-gates.yml` for CI implementation.
 
 **Key points:**
 - Pre-commit hook blocks commits with `.env` files, debug code, session docs

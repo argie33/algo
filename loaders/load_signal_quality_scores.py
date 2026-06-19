@@ -39,7 +39,8 @@ class SignalQualityScoresLoader(OptimalLoader):
     def _prepare_batch_context(self) -> None:
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
 
-        Caches end_date and buy_sell_daily signal count to avoid per-symbol computation.
+        Caches end_date, buy_sell_daily signal count, and watermarks for all symbols
+        to avoid per-symbol computation.
 
         ISSUE #27 FIX: Check that buy_sell_daily is not RUNNING/PENDING before proceeding.
         If buy_sell_daily loader is stuck, abort this loader to prevent incomplete data.
@@ -93,11 +94,17 @@ class SignalQualityScoresLoader(OptimalLoader):
                 cur_row = cur.fetchone()
                 actual_symbols = cur_row[0] if cur_row else 0
 
+                cur.execute(
+                    "SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol"
+                )
+                watermarks = {row[0]: row[1] for row in cur.fetchall()}
+
             self._batch_context = {
                 "end_date": end,
                 "bs_signal_count": actual_symbols,
+                "watermarks": watermarks,
             }
-            logger.debug(f"Batch context: end={end}, bs_signals={actual_symbols}")
+            logger.debug(f"Batch context: end={end}, bs_signals={actual_symbols}, watermarks={len(watermarks)} symbols")
         except Exception as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for signal_quality_scores: {e}. "
@@ -149,34 +156,16 @@ class SignalQualityScoresLoader(OptimalLoader):
                 logger.debug(f"Could not check buy_sell_daily max date: {e}")
 
         # On ECS restart the in-memory watermark is empty, so since=None.
-        # Read the actual DB max date to avoid re-querying 5 years of history.
-        if since is None:
-            max_retries = 2
-            for attempt in range(max_retries):
-                try:
-                    with DatabaseContext("read") as cur:
-                        cur.execute(
-                            "SELECT MAX(date) FROM signal_quality_scores WHERE symbol = %s",
-                            (symbol,),
-                        )
-                        row = cur.fetchone()
-                        if row and row[0]:
-                            parsed = safe_parse_date(
-                                row[0], f"signal_quality_scores watermark for {symbol}"
-                            )
-                            if parsed:
-                                since = parsed
-                        break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        logger.debug(
-                            f"Watermark read failed (attempt {attempt + 1}/{max_retries}), retrying: {e}"
-                        )
-                        continue
-                    logger.warning(
-                        f"Could not read signal_quality_scores watermark for {symbol} after {max_retries} attempts. Using full history."
-                    )
-                    break
+        # Use cached watermarks from batch context (loaded once for all symbols).
+        # This avoids N+1 per-symbol queries during restart recovery.
+        if since is None and self._batch_context and "watermarks" in self._batch_context:
+            watermarks = self._batch_context["watermarks"]
+            if symbol in watermarks and watermarks[symbol]:
+                parsed = safe_parse_date(
+                    watermarks[symbol], f"signal_quality_scores watermark for {symbol}"
+                )
+                if parsed:
+                    since = parsed
 
         if since is None:
             # On ECS restart, load last 60 days only (not 5 years)
@@ -696,7 +685,11 @@ def _sync_scores_to_buy_sell():
             if rows > 0:
                 logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
     except Exception as e:
-        logger.warning(f"Failed to sync signal quality scores: {e}")
+        logger.error(f"Failed to sync signal quality scores to buy_sell_daily: {e}")
+        raise RuntimeError(
+            f"[SYNC_FAILURE] Signal quality score sync failed: {e}. "
+            "This may cause buy_sell_daily to lack quality scores for newly-computed signals."
+        )
 
 
 if __name__ == "__main__":

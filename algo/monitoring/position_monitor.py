@@ -219,7 +219,7 @@ class PositionMonitor:
                     self._persist_review(rec, cur)
                 except Exception as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
-                    cur.execute(f"ROLLBACK TO SAVEPOINT sp_pos_{i}")
+                    cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
             return recs
 
