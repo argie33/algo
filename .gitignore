@@ -89,6 +89,7 @@ aws_test_results.json
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.ruff_cache/
 
 # IDE
 .vscode/
@@ -127,6 +128,7 @@ paper_mode_reports/
 .loader-progress.json
 .claude/*.lock
 .claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # Windows path-expansion artifacts (scripts that use ~ literally instead of $HOME on Windows)
 ~
