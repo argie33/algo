@@ -716,6 +716,30 @@ data "aws_iam_policy_document" "rds_rotation_policy" {
       "arn:aws:rds-db:${var.aws_region}:${var.aws_account_id}:dbuser:${aws_db_instance.main.resource_id}/*"
     ]
   }
+
+  statement {
+    sid    = "CloudWatchMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "SNSPublish"
+    effect = "Allow"
+
+    actions = [
+      "sns:Publish"
+    ]
+
+    resources = [
+      "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:${var.project_name}-*"
+    ]
+  }
 }
 
 # Attach VPC execution policy so Lambda can run in private subnet
@@ -748,6 +772,7 @@ resource "aws_lambda_function" "rds_rotation" {
   environment {
     variables = {
       SECRETS_MANAGER_ENDPOINT = "https://secretsmanager.${var.aws_region}.amazonaws.com"
+      PASSWORD_RESET_SNS_TOPIC = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : ""
     }
   }
 

@@ -1,11 +1,14 @@
 """
-One-shot Lambda to reset RDS master password.
-SECURITY: Requires NEW_PASSWORD env var. Does NOT accept hardcoded password guesses.
+One-shot Lambda to reset RDS master password with strength validation and approval trail.
+SECURITY: Requires NEW_PASSWORD env var with strength validation. No weak passwords allowed.
+Logs all reset events to CloudWatch. Sends SNS notification for audit trail.
 """
 
 import json
 import logging
 import os
+import re
+from datetime import datetime, timezone
 
 import boto3
 import psycopg2
@@ -16,9 +19,48 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+cloudwatch = boto3.client("cloudwatch")
+sns = boto3.client("sns")
+
+
+def validate_password_strength(password: str) -> dict:
+    """Validate password meets minimum strength requirements.
+
+    Returns dict with 'valid' bool and 'errors' list of failure reasons.
+    Requirements:
+    - Minimum 16 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one special character (!@#$%^&*)
+    """
+    errors = []
+
+    if not password:
+        return {"valid": False, "errors": ["Password cannot be empty"]}
+
+    if len(password) < 16:
+        errors.append(f"Password too short: {len(password)} chars (minimum 16)")
+
+    if not re.search(r"[A-Z]", password):
+        errors.append("Password must contain at least one uppercase letter")
+
+    if not re.search(r"[a-z]", password):
+        errors.append("Password must contain at least one lowercase letter")
+
+    if not re.search(r"\d", password):
+        errors.append("Password must contain at least one digit")
+
+    if not re.search(r"[!@#$%^&*\-_=+\[\]{}|;:',.<>?/~`]", password):
+        errors.append("Password must contain at least one special character")
+
+    return {"valid": len(errors) == 0, "errors": errors}
+
 
 def lambda_handler(event, context):
-    """Reset RDS master password by retrieving credentials from Secrets Manager."""
+    """Reset RDS master password with strength validation and audit trail."""
+
+    timestamp = datetime.now(timezone.utc).isoformat()
 
     # All credentials must come from Secrets Manager or env vars, never hardcoded defaults
     db_host = os.environ.get("DB_HOST")
@@ -27,19 +69,73 @@ def lambda_handler(event, context):
     db_name = os.environ.get("DB_SYSTEM_DB", "postgres")
     new_password = os.environ.get("NEW_PASSWORD")
     secret_arn = os.environ.get("DB_SECRET_ARN")
+    sns_topic_arn = os.environ.get("PASSWORD_RESET_SNS_TOPIC")
 
     if not db_host:
+        error_msg = "DB_HOST environment variable is required"
+        logger.error(error_msg)
         return {
             "statusCode": 400,
-            "body": json.dumps({"error": "DB_HOST environment variable is required"}),
+            "body": json.dumps({"error": error_msg}),
         }
 
     if not new_password:
+        error_msg = "NEW_PASSWORD environment variable is required"
+        logger.error(error_msg)
         return {
             "statusCode": 400,
-            "body": json.dumps(
-                {"error": "NEW_PASSWORD environment variable is required"}
-            ),
+            "body": json.dumps({"error": error_msg}),
+        }
+
+    # Validate password strength before attempting reset
+    validation = validate_password_strength(new_password)
+    if not validation["valid"]:
+        error_details = "; ".join(validation["errors"])
+        logger.error(f"Password validation failed: {error_details}")
+        cloudwatch.put_metric_data(
+            Namespace="RDS/Security",
+            MetricData=[
+                {
+                    "MetricName": "PasswordResetValidationFailure",
+                    "Value": 1,
+                    "Unit": "Count",
+                    "Timestamp": datetime.now(timezone.utc),
+                    "Dimensions": [
+                        {"Name": "Database", "Value": db_host},
+                        {"Name": "Reason", "Value": "WeakPassword"},
+                    ],
+                }
+            ],
+        )
+
+        # Send SNS alert for weak password attempt
+        validation_message = {
+            "event": "RDS_PASSWORD_RESET",
+            "timestamp": timestamp,
+            "status": "VALIDATION_FAILED",
+            "database_host": db_host,
+            "database_user": db_user,
+            "reason": "Weak password rejected",
+            "validation_errors": validation["errors"],
+            "message": "RDS password reset rejected: supplied password does not meet strength requirements",
+        }
+
+        if sns_topic_arn:
+            try:
+                sns.publish(
+                    TopicArn=sns_topic_arn,
+                    Subject=f"RDS Password Reset REJECTED - Weak Password - {db_host}",
+                    Message=json.dumps(validation_message, indent=2),
+                )
+            except ClientError:
+                pass
+
+        return {
+            "statusCode": 400,
+            "body": json.dumps({
+                "error": "Password does not meet strength requirements",
+                "details": validation["errors"]
+            }),
         }
 
     db_port = int(db_port_str)
@@ -60,16 +156,57 @@ def lambda_handler(event, context):
         current_password = secret.get("password")
 
         if not current_password:
+            error_msg = "Could not retrieve current password from Secrets Manager"
+            logger.error(error_msg)
+
+            secret_message = {
+                "event": "RDS_PASSWORD_RESET",
+                "timestamp": timestamp,
+                "status": "FAILED",
+                "database_host": db_host,
+                "database_user": db_user,
+                "reason": "Could not retrieve current password from Secrets Manager",
+                "message": error_msg,
+            }
+
+            if sns_topic_arn:
+                try:
+                    sns.publish(
+                        TopicArn=sns_topic_arn,
+                        Subject=f"RDS Password Reset FAILED - Missing Secret - {db_host}",
+                        Message=json.dumps(secret_message, indent=2),
+                    )
+                except ClientError:
+                    pass
+
             return {
                 "statusCode": 400,
-                "body": json.dumps(
-                    {
-                        "error": "Could not retrieve current password from Secrets Manager"
-                    }
-                ),
+                "body": json.dumps({"error": error_msg}),
             }
     except ClientError as e:
         logger.error(f"Failed to retrieve secret: {e}")
+
+        secret_message = {
+            "event": "RDS_PASSWORD_RESET",
+            "timestamp": timestamp,
+            "status": "FAILED",
+            "database_host": db_host,
+            "database_user": db_user,
+            "reason": "Failed to retrieve credentials from Secrets Manager",
+            "error": str(e),
+            "message": "RDS password reset failed: could not access Secrets Manager",
+        }
+
+        if sns_topic_arn:
+            try:
+                sns.publish(
+                    TopicArn=sns_topic_arn,
+                    Subject=f"RDS Password Reset FAILED - Secrets Manager Error - {db_host}",
+                    Message=json.dumps(secret_message, indent=2),
+                )
+            except ClientError:
+                pass
+
         return {
             "statusCode": 500,
             "body": json.dumps(
@@ -92,6 +229,30 @@ def lambda_handler(event, context):
         logger.info("✓ Connected successfully!")
     except psycopg2.Error as e:
         logger.error(f"Failed to connect: {str(e)[:100]}")
+
+        conn_message = {
+            "event": "RDS_PASSWORD_RESET",
+            "timestamp": timestamp,
+            "status": "FAILED",
+            "database_host": db_host,
+            "database_port": db_port,
+            "database_user": db_user,
+            "database_name": db_name,
+            "reason": "Could not connect to RDS with provided credentials",
+            "error": str(e)[:200],
+            "message": f"RDS password reset failed: connection error to {db_host}",
+        }
+
+        if sns_topic_arn:
+            try:
+                sns.publish(
+                    TopicArn=sns_topic_arn,
+                    Subject=f"RDS Password Reset FAILED - Connection Error - {db_host}",
+                    Message=json.dumps(conn_message, indent=2),
+                )
+            except ClientError:
+                pass
+
         return {
             "statusCode": 500,
             "body": json.dumps(
@@ -115,6 +276,56 @@ def lambda_handler(event, context):
 
             logger.info(f"✓ Password reset successfully for user '{db_user}'")
 
+            # Log password reset event to CloudWatch with structured metrics
+            cloudwatch.put_metric_data(
+                Namespace="RDS/Security",
+                MetricData=[
+                    {
+                        "MetricName": "PasswordResetSuccess",
+                        "Value": 1,
+                        "Unit": "Count",
+                        "Timestamp": datetime.now(timezone.utc),
+                        "Dimensions": [
+                            {"Name": "Database", "Value": db_host},
+                            {"Name": "User", "Value": db_user},
+                            {"Name": "RotationType", "Value": "Quarterly"},
+                        ],
+                    }
+                ],
+            )
+
+            # Send SNS notification for audit trail and approval record
+            audit_message = {
+                "event": "RDS_PASSWORD_RESET",
+                "timestamp": timestamp,
+                "status": "SUCCESS",
+                "database_host": db_host,
+                "database_port": db_port,
+                "database_user": db_user,
+                "database_name": db_name,
+                "password_strength_verified": True,
+                "message": f"RDS password reset completed for user '{db_user}' on {db_host}",
+            }
+
+            if sns_topic_arn:
+                try:
+                    sns.publish(
+                        TopicArn=sns_topic_arn,
+                        Subject=f"RDS Password Reset - {db_user}@{db_host}",
+                        Message=json.dumps(audit_message, indent=2),
+                    )
+                    logger.info(f"SNS notification sent to {sns_topic_arn}")
+                except ClientError as e:
+                    logger.warning(
+                        f"Failed to send SNS notification: {e}. "
+                        "Password reset succeeded but audit notification failed."
+                    )
+            else:
+                logger.warning(
+                    "PASSWORD_RESET_SNS_TOPIC not configured. "
+                    "Password reset succeeded but no audit notification sent."
+                )
+
             return {
                 "statusCode": 200,
                 "body": json.dumps(
@@ -123,13 +334,54 @@ def lambda_handler(event, context):
                         "user": db_user,
                         "host": db_host,
                         "database": db_name,
+                        "timestamp": timestamp,
                     }
                 ),
             }
 
     except Exception as e:
-        logger.error(f"✗ Error executing ALTER USER: {str(e)}")
+        logger.error(f"✗ Error executing ALTER USER: {e!s}")
+
+        # Log failed reset attempt to CloudWatch
+        cloudwatch.put_metric_data(
+            Namespace="RDS/Security",
+            MetricData=[
+                {
+                    "MetricName": "PasswordResetFailure",
+                    "Value": 1,
+                    "Unit": "Count",
+                    "Timestamp": datetime.now(timezone.utc),
+                    "Dimensions": [
+                        {"Name": "Database", "Value": db_host},
+                        {"Name": "User", "Value": db_user},
+                        {"Name": "ErrorType", "Value": type(e).__name__},
+                    ],
+                }
+            ],
+        )
+
+        # Send SNS notification of failure
+        failure_message = {
+            "event": "RDS_PASSWORD_RESET",
+            "timestamp": timestamp,
+            "status": "FAILED",
+            "database_host": db_host,
+            "database_user": db_user,
+            "error": str(e),
+            "message": f"Failed to reset RDS password for {db_user}@{db_host}",
+        }
+
+        if sns_topic_arn:
+            try:
+                sns.publish(
+                    TopicArn=sns_topic_arn,
+                    Subject=f"RDS Password Reset FAILED - {db_user}@{db_host}",
+                    Message=json.dumps(failure_message, indent=2),
+                )
+            except ClientError:
+                pass
+
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": f"Failed to reset password: {str(e)}"}),
+            "body": json.dumps({"error": f"Failed to reset password: {e!s}"}),
         }
