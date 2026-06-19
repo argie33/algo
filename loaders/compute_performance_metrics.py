@@ -183,31 +183,30 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if not returns:
             return 0.0, 0.0, 0.0, 0.0, 0.0
 
-        # Calculate metrics with explicit error handling — no silent fallbacks to 0
-        sharpe = 0.0
-        sortino = 0.0
-        max_drawdown = 0.0
-        calmar = 0.0
-
+        # Calculate metrics with explicit error handling — fail-secure, no silent fallbacks
         try:
             sharpe = MetricsCalculator.calculate_sharpe_ratio(returns)
         except ValueError as e:
-            logger.warning(f"Sharpe ratio failed: {e}")
+            logger.error(f"Sharpe ratio calculation failed: {e}")
+            raise
 
         try:
             sortino = MetricsCalculator.calculate_sortino_ratio(returns)
         except ValueError as e:
-            logger.warning(f"Sortino ratio failed: {e}")
+            logger.error(f"Sortino ratio calculation failed: {e}")
+            raise
 
         try:
             max_drawdown = MetricsCalculator.calculate_max_drawdown(vals)
         except ValueError as e:
-            logger.warning(f"Max drawdown failed: {e}")
+            logger.error(f"Max drawdown calculation failed: {e}")
+            raise
 
         try:
             calmar = MetricsCalculator.calculate_calmar_ratio(vals)
         except ValueError as e:
-            logger.warning(f"Calmar ratio failed: {e}")
+            logger.error(f"Calmar ratio calculation failed: {e}")
+            raise
 
         # CAGR calculation (not in MetricsCalculator, so keep custom implementation)
         start_val = vals[0]
