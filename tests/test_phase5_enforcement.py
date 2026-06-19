@@ -64,12 +64,18 @@ def test_phase5_fails_without_buysell_signals():
 
             # Run Phase 5
             config = {"phase5_min_composite_score": 50}
+            exposure_constraints = {
+                "max_positions": 12,
+                "max_single_position_pct": 8.0,
+                "sector_limits": {},
+                "industry_limits": {},
+            }
             result = run_phase5(
                 run_date=test_date,
                 dry_run=False,
                 verbose=True,
                 log_phase_result_fn=mock_log_phase_result,
-                exposure_constraints=None,
+                exposure_constraints=exposure_constraints,
                 check_halt_flag=mock_check_halt_flag,
                 phase1_degraded=False,
                 config=config
@@ -164,12 +170,18 @@ def test_phase5_works_with_buysell_signals():
                 )
 
                 config = {"phase5_min_composite_score": 50}
+                exposure_constraints = {
+                    "max_positions": 12,
+                    "max_single_position_pct": 8.0,
+                    "sector_limits": {},
+                    "industry_limits": {},
+                }
                 result = run_phase5(
                     run_date=test_date,
                     dry_run=False,
                     verbose=True,
                     log_phase_result_fn=mock_log_phase_result,
-                    exposure_constraints=None,
+                    exposure_constraints=exposure_constraints,
                     check_halt_flag=mock_check_halt_flag,
                     phase1_degraded=False,
                     config=config

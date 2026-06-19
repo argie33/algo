@@ -122,7 +122,8 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
 
         # Compute stage_label for stage distribution (Issue #8)
         stage = safe_int(d.get("weinstein_stage"))
-        trend_score = safe_float_strict(d.get("minervini_trend_score"))
+        trend_score_raw = d.get("minervini_trend_score")
+        trend_score = safe_float_strict(trend_score_raw) if trend_score_raw is not None else None
         if stage == 2:
             if trend_score and trend_score < 4:
                 d["stage_label"] = "Early Stage-2"
@@ -216,7 +217,7 @@ def _get_algo_status(cur) -> Dict:
     portfolio = {}
     try:
         cur.execute("""
-                SELECT total_portfolio_value, daily_return_pct,
+                SELECT total_portfolio_value, total_cash, daily_return_pct,
                        unrealized_pnl_total, position_count
                 FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1
@@ -225,7 +226,9 @@ def _get_algo_status(cur) -> Dict:
         if snap:
             pv = safe_float(snap["total_portfolio_value"])
             portfolio = {
-                "total_value": round(pv, 2),
+                "total_portfolio_value": round(pv, 2),
+                "total_cash": round(safe_float(snap["total_cash"]) or 0, 2),
+                "position_count": safe_int(snap["position_count"]),
                 "daily_return_pct": round(safe_float(snap["daily_return_pct"]), 2),
                 "unrealized_pnl_pct": round(
                     (
@@ -238,7 +241,6 @@ def _get_algo_status(cur) -> Dict:
                 "unrealized_pnl_dollars": round(
                     safe_float(snap["unrealized_pnl_total"]) or 0, 2
                 ),
-                "open_positions": safe_int(snap["position_count"]),
             }
     except (
         psycopg2.errors.UndefinedTable,

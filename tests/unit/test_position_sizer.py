@@ -22,6 +22,12 @@ def mock_config():
         "max_position_size_pct": 8.0,
         "max_concentration_pct": 50.0,
         "max_positions": 12,
+        "risk_reduction_at_minus_5": 0.75,
+        "risk_reduction_at_minus_10": 0.5,
+        "risk_reduction_at_minus_15": 0.25,
+        "vix_caution_threshold": 25.0,
+        "vix_max_threshold": 35.0,
+        "vix_caution_risk_reduction": 0.75,
     }
 
 
