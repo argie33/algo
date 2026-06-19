@@ -206,7 +206,14 @@ class ExposurePolicy:
         entry_price = float(entry_price)
         init_stop = float(init_stop)
         active_stop = float(cur_stop) if cur_stop else init_stop
-        target_hits = int(target_hits or 0)
+
+        # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
+        if target_hits is None:
+            logger.warning(
+                f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy."
+            )
+            return None
+        target_hits = int(target_hits)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
