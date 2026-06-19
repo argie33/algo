@@ -71,16 +71,16 @@
 
 ## Configuration Map
 
-| Requirement | Location | Format | Updated |
-|------------|----------|--------|---------|
-| mypy config | `pyproject.toml` | TOML | 2026-06-17 |
-| pytest config | `pyproject.toml` | TOML | 2026-06-17 |
-| coverage config | `pyproject.toml` | TOML | 2026-06-17 |
-| CI fast gates | `.github/workflows/ci-fast-gates.yml` | YAML | 2026-06-14 |
-| CI quality gates | `.github/workflows/quality-gates.yml` | YAML | 2026-06-17 |
-| Pre-commit hook | `.git/hooks/pre-commit` | bash | 2026-06-17 |
-| Local script | `scripts/check-quality.sh` | bash | 2026-06-17 |
-| Documentation | `steering/code-quality.md` | Markdown | 2026-06-17 |
+| Requirement | Location | Format |
+|------------|----------|--------|
+| mypy config | `pyproject.toml` | TOML |
+| pytest config | `pyproject.toml` | TOML |
+| coverage config | `pyproject.toml` | TOML |
+| CI fast gates | `.github/workflows/ci-fast-gates.yml` | YAML |
+| CI quality gates | `.github/workflows/quality-gates.yml` | YAML |
+| Pre-commit hook | `.git/hooks/pre-commit` | bash |
+| Local script | `scripts/check-quality.sh` | bash |
+| Documentation | `steering/code-quality.md` | Markdown |
 
 ---
 

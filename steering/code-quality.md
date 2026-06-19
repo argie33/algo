@@ -104,7 +104,7 @@ pytest tests/unit/test_position_sizer.py -v
 
 ## Code Linting & Type Checking (Ruff + Mypy)
 
-**Status:** Implemented 2026-06-17, data-driven best-practice strategy
+Data-driven best-practice strategy.
 
 ### Primary Tools
 
