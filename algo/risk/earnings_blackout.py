@@ -44,7 +44,7 @@ class EarningsBlackout:
         """Check if eval_date is in earnings blackout window (Issue #27: trading day aware).
 
         Uses MarketCalendar to compute trading days, not calendar days.
-        If earnings_calendar table doesn't exist, passes through.
+        Raises ValueError if earnings_calendar table doesn't exist (explicit halt).
         """
         try:
             with DatabaseContext("read") as cur:
@@ -89,22 +89,14 @@ class EarningsBlackout:
                 "pass": True,
                 "reason": f"No earnings in ±{self.days_before}/{self.days_after} trading days",
             }
-        except psycopg2.errors.UndefinedTable:
-            logger.error(
-                f"Earnings calendar table missing for {symbol} — FAILING CLOSED (blocking trade)"
-            )
-            return {
-                "pass": False,
-                "reason": "Earnings calendar not available (fail-closed for safety)",
-            }
+        except psycopg2.errors.UndefinedTable as e:
+            raise ValueError(
+                f"Earnings calendar table missing for {symbol} — explicit halt (table infrastructure failure)"
+            ) from e
         except Exception as e:
-            logger.error(
-                f"Earnings blackout check error for {symbol}: {e} — FAILING CLOSED (blocking trade)"
-            )
-            return {
-                "pass": False,
-                "reason": f"Earnings check failed: {str(e)[:50]} (fail-closed for safety)",
-            }
+            raise ValueError(
+                f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt"
+            ) from e
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""
