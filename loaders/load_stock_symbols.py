@@ -65,6 +65,10 @@ class StockSymbolsLoader(OptimalLoader):
 
         Also populates etf_symbols table with ETF-flagged symbols so that
         the anti-join filter in /api/scores/stockscores can exclude them.
+
+        All symbols in stock_symbols are marked with etf='N' (non-ETF). ETF symbols
+        are never inserted into stock_symbols; they are stored in etf_symbols.
+        The API filter uses etf='N' to exclude ETFs.
         """
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)

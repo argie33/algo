@@ -113,7 +113,7 @@ def _get_stock_scores(
         where_clause = """
             WHERE sc.composite_score > 0
             AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
-            AND (ss.etf IS NULL OR ss.etf = 'N')
+            AND ss.etf = 'N'
             """
         params_list = []
 
