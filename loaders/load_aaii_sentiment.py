@@ -14,7 +14,7 @@ import requests
 
 from config.api_endpoints import get_aaii_sentiment_url
 from utils.infrastructure.timeout import ExecutionTimeout
-from utils.infrastructure.url_validator import validate_url
+from utils.infrastructure.url_validator import validate_redirect_url, validate_url
 from utils.optimal_loader import OptimalLoader
 
 
@@ -40,7 +40,7 @@ class AAIISentimentLoader(OptimalLoader):
         is_valid, error_msg = validate_url(aaii_url, allowed_domains=["aaii.com"])
         if not is_valid:
             # SECURITY FIX S-12: Don't log full URL (exposes infrastructure)
-            logging.error(f"SSRF prevention: Invalid AAII URL: {error_msg}")
+            logger.error(f"SSRF prevention: Invalid AAII URL: {error_msg}")
             return None
 
         headers = {
@@ -57,6 +57,17 @@ class AAIISentimentLoader(OptimalLoader):
                     aaii_url, headers=headers, allow_redirects=True, timeout=60
                 )
                 response.raise_for_status()
+
+                # SECURITY FIX S-05: Validate redirect target to prevent SSRF via redirects
+                if response.url != aaii_url:
+                    is_valid, error_msg = validate_redirect_url(
+                        aaii_url, response.url, allowed_domains=["aaii.com"]
+                    )
+                    if not is_valid:
+                        logger.error(
+                            f"SSRF prevention: Redirect to invalid URL: {error_msg}"
+                        )
+                        raise ValueError(f"Redirect to invalid URL: {error_msg}")
 
                 content_type = response.headers.get("Content-Type", "")
                 if "html" in content_type.lower():

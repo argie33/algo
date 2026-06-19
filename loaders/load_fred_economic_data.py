@@ -12,6 +12,7 @@ import requests
 
 from config.api_endpoints import get_fred_url
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
 from utils.optimal_loader import OptimalLoader
 
@@ -106,6 +107,13 @@ class FredEconomicDataLoader(OptimalLoader):
         if not api_key:
             logger.error("FRED_API_KEY not found")
             raise ValueError("FRED_API_KEY not found")
+
+        # SECURITY FIX S-05: Validate FRED base URL to prevent SSRF attacks
+        fred_base_url = get_fred_url()
+        is_valid, error_msg = validate_url(fred_base_url, allowed_domains=["stlouisfed.org"])
+        if not is_valid:
+            logger.error(f"SSRF prevention: Invalid FRED URL: {error_msg}")
+            raise ValueError(f"Invalid FRED URL: {error_msg}")
 
         end_date = date.today().isoformat()
         # 3 years covers quarterly series (GDP, HOUST) plus gives YoY% enough lookback

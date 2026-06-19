@@ -10,6 +10,7 @@ from typing import List, Optional
 import requests
 
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 
@@ -39,6 +40,12 @@ class Russell2000ConstituentsLoader(OptimalLoader):
             ]
 
             for url in urls:
+                # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
+                is_valid, error_msg = validate_url(url, allowed_domains=["multpl.com", "wikipedia.org"])
+                if not is_valid:
+                    logger.debug(f"SSRF prevention: Invalid Russell 2000 URL: {error_msg}")
+                    continue
+
                 try:
                     from io import StringIO
 

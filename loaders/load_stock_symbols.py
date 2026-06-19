@@ -13,6 +13,7 @@ from typing import List, Optional
 import requests
 
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 
@@ -67,6 +68,13 @@ class StockSymbolsLoader(OptimalLoader):
         """
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)
+
+        # SECURITY FIX S-05: Validate URLs to prevent SSRF attacks
+        for url, url_name in [(NASDAQ_URL, "NASDAQ_SYMBOLS_URL"), (OTHER_URL, "OTHER_SYMBOLS_URL")]:
+            is_valid, error_msg = validate_url(url, allowed_domains=["nasdaqtrader.com"])
+            if not is_valid:
+                logger.error(f"SSRF prevention: Invalid {url_name}: {error_msg}")
+                return None
 
         try:
             logger.info("Downloading NASDAQ list")

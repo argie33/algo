@@ -12,6 +12,7 @@ import pandas as pd
 import requests
 
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 
@@ -31,6 +32,12 @@ class SP500ConstituentsLoader(OptimalLoader):
         """Fetch S&P 500 symbols from Wikipedia with timeout protection."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)
+
+        # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
+        is_valid, error_msg = validate_url(SP500_URL, allowed_domains=["wikipedia.org"])
+        if not is_valid:
+            logger.error(f"SSRF prevention: Invalid S&P 500 URL: {error_msg}")
+            return None
 
         try:
             logger.info("Fetching S&P 500 constituents from Wikipedia")

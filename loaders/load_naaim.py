@@ -9,6 +9,7 @@ from typing import List, Optional
 import pandas as pd
 import requests
 
+from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 
@@ -31,6 +32,13 @@ class NAAIMExposureLoader(OptimalLoader):
         """Fetch NAAIM Exposure Index from website."""
         try:
             url = "https://www.naaim.org/programs/naaim-exposure-index/"
+
+            # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
+            is_valid, error_msg = validate_url(url, allowed_domains=["naaim.org"])
+            if not is_valid:
+                logger.error(f"SSRF prevention: Invalid NAAIM URL: {error_msg}")
+                return None
+
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
