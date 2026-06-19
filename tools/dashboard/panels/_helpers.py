@@ -32,13 +32,36 @@ def _score_cell(v):
 
 
 def _build_buy_sig_map(buy_sigs) -> dict:
-    """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols."""
+    """Map symbol -> score from buy-signal records (normalized symbols).
+
+    Uses signal_quality_score if present, falls back to swing_score if available,
+    but logs warning if neither field is present (not silent fallback to 0).
+    """
     out: dict = {}
     for bs in buy_sigs or []:
+        if not isinstance(bs, dict):
+            continue
         sym = bs.get("symbol")
-        if sym:
-            sym_norm = str(sym).upper().strip()
-            out[sym_norm] = float(bs.get("signal_quality_score") or bs.get("swing_score") or 0)
+        if not sym:
+            continue
+        sym_norm = str(sym).upper().strip()
+
+        # Try signal_quality_score first, then swing_score
+        score = bs.get("signal_quality_score")
+        if score is None:
+            score = bs.get("swing_score")
+
+        # Only use the score if we found one; log warning if both missing
+        if score is not None:
+            try:
+                out[sym_norm] = float(score)
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Failed to convert score for {sym}: {e}")
+        else:
+            logger.warning(
+                f"Buy signal {sym}: missing signal_quality_score and swing_score"
+            )
+
     return out
 
 

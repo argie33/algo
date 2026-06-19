@@ -166,7 +166,12 @@ def compute_sector_agg(pos, port):
                 f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}"
             )
             continue
-        sec = p.get("sector") or "Unknown"
+        # Sector is critical for aggregation; fail if missing instead of silently using "Unknown"
+        sec = p.get("sector")
+        if not sec:
+            invalid_count += 1
+            logger.error(f"compute_sector_agg: position missing sector: {p.get('symbol', 'unknown')}")
+            continue
         val = safe_float(p.get("position_value"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
         if sec not in sd:

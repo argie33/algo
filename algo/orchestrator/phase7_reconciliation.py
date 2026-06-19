@@ -62,7 +62,17 @@ def run(
         try:
             alpaca_data = recon._fetch_alpaca_account()
             if alpaca_data and reconciliation_succeeded:
-                alpaca_equity = alpaca_data.get("equity") or alpaca_data.get("portfolio_value")
+                alpaca_equity = alpaca_data.get("equity")
+                if alpaca_equity is None:
+                    alpaca_equity = alpaca_data.get("portfolio_value")
+                    if alpaca_equity is None:
+                        logger.error(
+                            "[PHASE 7 P&L VALIDATION] Alpaca data missing both 'equity' and "
+                            "'portfolio_value'. Available keys: " + str(list(alpaca_data.keys()))
+                        )
+                        raise ValueError(
+                            "Alpaca data missing equity and portfolio_value — cannot validate P&L"
+                        )
                 local_equity = result.get("portfolio_value", 0)
 
                 pnl_check = recon.validate_pnl(alpaca_equity, local_equity)
@@ -118,12 +128,16 @@ def run(
                 exits_recorded = 0
 
                 for symbol, entry_price, exit_price, quantity in closed_positions:
+                    if not exit_price:
+                        logger.critical(
+                            f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
+                            f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
+                        )
+                        continue
                     if recorder.record_exit(
                         symbol=symbol,
                         exit_date=run_date,
-                        exit_price=(
-                            float(exit_price) if exit_price else float(entry_price)
-                        ),
+                        exit_price=float(exit_price),
                         quantity=int(quantity),
                         reason="Closed position recorded during reconciliation",
                     ):
@@ -172,8 +186,19 @@ def run(
                 )
             if attr_result:
                 attribution.persist(run_date, attr_result)
+        except ImportError as e:
+            logger.warning(
+                f"Signal attribution skipped (scipy/numpy not available): {e}"
+            )
+        except ValueError as e:
+            logger.warning(
+                f"Signal attribution skipped (insufficient trades or invalid data): {e}"
+            )
         except Exception as e:
-            logger.warning(f"Signal attribution failed: {e}")
+            logger.error(
+                f"Signal attribution failed unexpectedly: {e}",
+                exc_info=True
+            )
         log_phase_result_fn(
             7,
             "ic_computation",
@@ -205,8 +230,19 @@ def run(
                 logger.info(
                     "Weight optimization: no changes (insufficient trades or weights stable)"
                 )
+        except ValueError as e:
+            logger.warning(
+                f"Weight optimization skipped (insufficient trades): {e}"
+            )
+        except ImportError as e:
+            logger.warning(
+                f"Weight optimization skipped (scipy/numpy not available): {e}"
+            )
         except Exception as e:
-            logger.warning(f"Weight optimization failed: {e}")
+            logger.error(
+                f"Weight optimization failed unexpectedly: {e}",
+                exc_info=True
+            )
         log_phase_result_fn(
             7,
             "weight_optimization",
@@ -220,43 +256,52 @@ def run(
             report = daily_report.generate(run_date)
             report_text = daily_report.format_text(report)
             logger.info(f"\n{report_text}")
-
-            # Validate critical report data before use
-            if not report or "portfolio" not in report:
-                raise ValueError("Daily report generated but missing portfolio data")
-            portfolio_data = report.get("portfolio", {})
-            if "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
-                raise ValueError("Portfolio data missing current_value")
-            if "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
-                raise ValueError("Portfolio data missing daily_pnl_pct")
-
-            # Log to algo_audit_log for historical tracking
-            try:
-                with DatabaseContext("write") as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO algo_audit_log (
-                            action_type, action_date, symbol, details, created_at
-                        ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                        """,
-                        ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
-                    )
-            except Exception as e:
-                logger.critical(
-                    f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}"
-                )
-                raise
-
-            log_phase_result_fn(
-                7,
-                "daily_report",
-                "success",
-                f"Portfolio ${portfolio_data['current_value']:,.0f}, "
-                f"P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
-            )
         except Exception as e:
-            logger.warning(f"Daily report generation failed: {e}")
-            log_phase_result_fn(7, "daily_report", "warn", f"error: {str(e)[:60]}")
+            logger.error(
+                f"Daily report generation failed (could not generate): {e}",
+                exc_info=True
+            )
+            log_phase_result_fn(7, "daily_report", "warn", f"generation error: {str(e)[:60]}")
+        else:
+            # Validate critical report data before use
+            try:
+                if not report or "portfolio" not in report:
+                    raise ValueError("Daily report generated but missing portfolio data")
+                portfolio_data = report.get("portfolio", {})
+                if "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+                    raise ValueError("Portfolio data missing current_value")
+                if "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+                    raise ValueError("Portfolio data missing daily_pnl_pct")
+
+                # Log to algo_audit_log for historical tracking
+                try:
+                    with DatabaseContext("write") as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO algo_audit_log (
+                                action_type, action_date, symbol, details, created_at
+                            ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                            """,
+                            ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
+                        )
+                except Exception as e:
+                    logger.critical(
+                        f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}"
+                    )
+                    raise
+
+                log_phase_result_fn(
+                    7,
+                    "daily_report",
+                    "success",
+                    f"Portfolio ${portfolio_data['current_value']:,.0f}, "
+                    f"P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
+                )
+            except ValueError as e:
+                logger.error(
+                    f"Daily report validation failed (generated but data incomplete): {e}"
+                )
+                log_phase_result_fn(7, "daily_report", "warn", f"validation error: {str(e)[:60]}")
 
         # Step 5: Compute and log live performance metrics
         perf_status = "warn"

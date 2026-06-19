@@ -40,6 +40,21 @@ import requests.exceptions
 
 
 try:
+    from .response_validators import ResponseValidationError, validate_response
+except ImportError:
+    # Fallback for test imports that don't support relative imports
+    try:
+        from response_validators import (  # type: ignore
+            ResponseValidationError,
+            validate_response,
+        )
+    except ImportError:
+        ResponseValidationError = Exception  # type: ignore
+        def validate_response(endpoint: str, data: dict) -> dict:  # type: ignore
+            """Fallback validator that does no validation."""
+            return data
+
+try:
     from urllib3.util.retry import Retry
 except ImportError:
     from requests.packages.urllib3.util.retry import Retry  # type: ignore
@@ -173,8 +188,9 @@ def get_cached_response(endpoint: str) -> dict | None:
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
     if age_seconds > 1800:
         raise RuntimeError(
-            f"API {endpoint}: cached response too stale (30+ min old, {int(age_seconds)}s). "
-            "API unavailable and fallback data expired. Cannot serve to dashboard."
+            f"API {endpoint}: cached response too stale "
+            f"(30+ min old, {int(age_seconds)}s). "
+            "API unavailable - cannot serve stale data."
         )
     return cached_data
 
@@ -185,7 +201,12 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     Returns dict with 'data' key on success, '_error' on failure.
     Implements exponential backoff with maximum cap to prevent runaway delays.
     Circuit breaker pattern prevents hammering downed API.
-    Supports Cognito auth and response caching.
+    Supports Cognito auth.
+
+    CRITICAL: Does NOT return cached data on transient failures (retries exhausted).
+    Returns error dict to surface data unavailability to callers. Circuit breaker
+    may use stale cache as last resort only when breaker is fully open and stale
+    data is explicitly checked via get_cached_response().
 
     Args:
         endpoint: API endpoint path (e.g., "/api/algo/positions")
@@ -194,7 +215,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
 
     Returns:
         Unwrapped response dict containing actual data fields (no statusCode wrapper),
-        or {"_error": message} on failure
+        or {"_error": message} on failure (never cached fallback on transient failures)
     """
     if not API_BASE_URL:
         logger.error(
@@ -256,14 +277,8 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                     time.sleep(backoff)
                     continue
                 _record_api_failure()
-                try:
-                    cached = get_cached_response(endpoint)
-                    if cached:
-                        return cached
-                except RuntimeError as e:
-                    logger.error(str(e))
-                    return {"_error": str(e)}
-                return {"_error": f"API error {resp.status_code}"}
+                max_att = API_MAX_RETRIES + 1
+                return {"_error": f"API error {resp.status_code} after {max_att} attempts"}
 
             data = resp.json()
             if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
@@ -275,14 +290,23 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                     time.sleep(backoff)
                     continue
                 _record_api_failure()
-                cached = get_cached_response(endpoint)
-                if cached:
-                    return cached
-                return {"_error": data.get("message", "Unknown API error")}
+                status = data.get("statusCode", "unknown")
+                msg = data.get("message", "Unknown API error")
+                max_att = API_MAX_RETRIES + 1
+                return {"_error": f"API error {status} after {max_att} attempts: {msg}"}
 
             cache_response(endpoint, data)
             _record_api_success()
-            return _unwrap_api_response(data)
+            unwrapped = _unwrap_api_response(data)
+            # Validate response at boundary (fail fast if critical fields missing)
+            try:
+                validated = validate_response(endpoint, unwrapped)
+                return validated
+            except ResponseValidationError as e:
+                logger.error(
+                    f"API response validation failed for {endpoint}: {e}"
+                )
+                return {"_error": str(e)}
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
                 backoff = min(
@@ -296,10 +320,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
             _record_api_failure()
-            cached = get_cached_response(endpoint)
-            if cached:
-                return cached
-            return {"_error": "API timeout"}
+            return {"_error": f"API timeout after {API_MAX_RETRIES + 1} attempts"}
         except requests.exceptions.ConnectionError:
             if attempt < API_MAX_RETRIES:
                 backoff = min(
@@ -317,10 +338,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                 f"API {endpoint}: connection unavailable after {max_att} attempts"
             )
             _record_api_failure()
-            cached = get_cached_response(endpoint)
-            if cached:
-                return cached
-            return {"_error": "API unavailable"}
+            return {"_error": f"API unavailable after {max_att} attempts"}
         except Exception as e:
             if attempt < API_MAX_RETRIES:
                 backoff = min(
