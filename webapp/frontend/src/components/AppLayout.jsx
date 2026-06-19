@@ -72,6 +72,14 @@ const NAV_SECTIONS = [
       { text: 'System Blueprint',  icon: Map,         path: '/app/blueprint' },
     ],
   },
+  {
+    title: 'Company',
+    items: [
+      { text: 'About',             icon: Briefcase, path: '/about' },
+      { text: 'Our Team',          icon: Award,     path: '/our-team' },
+      { text: 'Contact',           icon: Globe,     path: '/contact' },
+    ],
+  },
 ];
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -341,7 +349,14 @@ export default function AppLayout({ children }) {
         {/* Footer */}
         <footer className="app-footer">
           <div>BULLSEYE</div>
-          <div>Yahoo Finance · Alpaca · Computed</div>
+          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', opacity: 0.8 }}>
+            <span>Yahoo Finance · Alpaca · Computed</span>
+            <span style={{ borderLeft: '1px solid var(--border-soft)', paddingLeft: '1.5rem' }}>
+              <a href="/about" style={{ color: 'inherit', textDecoration: 'none', marginRight: '0.75rem' }} title="About the firm">About</a>
+              <a href="/our-team" style={{ color: 'inherit', textDecoration: 'none', marginRight: '0.75rem' }} title="Meet the team">Team</a>
+              <a href="/contact" style={{ color: 'inherit', textDecoration: 'none' }} title="Get in touch">Contact</a>
+            </span>
+          </div>
         </footer>
       </div>
 
