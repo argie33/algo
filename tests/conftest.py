@@ -39,6 +39,25 @@ from tests.test_helpers.config_fixtures import (
 )
 
 
+def pytest_configure(config):
+    """Register pytest markers for test categorization."""
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "edge: mark test as an edge case test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Automatically mark tests based on their directory location."""
+    for item in items:
+        test_path = str(item.fspath)
+        if "tests/unit/" in test_path or "tests\\unit\\" in test_path:
+            item.add_marker(pytest.mark.unit)
+        elif "tests/edge_cases/" in test_path or "tests\\edge_cases\\" in test_path:
+            item.add_marker(pytest.mark.edge)
+        elif "tests/integration/" in test_path or "tests\\integration\\" in test_path:
+            item.add_marker(pytest.mark.integration)
+
+
 # ============================================================================
 # Pytest Fixtures for Dependency Injection Testing
 # ============================================================================

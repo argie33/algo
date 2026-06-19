@@ -127,6 +127,11 @@ python_classes = "Test*"
 python_functions = "test_*"
 addopts = "--tb=short -v"
 minversion = "7.0"
+markers = [
+    "unit: mark test as a unit test",
+    "edge: mark test as an edge case test",
+    "integration: mark test as an integration test",
+]
 
 [tool.coverage.run]
 source = ["algo", "utils", "loaders", "lambda"]
