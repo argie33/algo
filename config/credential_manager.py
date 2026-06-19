@@ -24,11 +24,29 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
 
+
+def _sanitize_error(error: Exception) -> str:
+    """Sanitize exception messages to prevent leaking ARNs, secret names, or credentials.
+
+    Returns a generic error message that doesn't expose sensitive Secrets Manager details.
+    """
+    error_str = str(error)
+    # Hide ARNs (arn:aws:... pattern)
+    if "arn:aws:" in error_str:
+        return "Secrets Manager access failed (check ARN and IAM permissions)"
+    # Hide secret names and paths
+    if "ResourceNotFoundException" in error_str or "not found" in error_str:
+        return "Secret not found or access denied"
+    # Hide other boto3 errors
+    if "ClientError" in error_str or "botocore" in error_str:
+        return "Secrets Manager API error (check network and credentials)"
+    # Default: generic message
+    return "Credential retrieval failed (internal error)"
 
 
 # Database defaults
@@ -44,7 +62,7 @@ class CredentialManager:
     """Centralized credential fetcher with caching and TTL-based expiration."""
 
     def __init__(self):
-        self._cache: Dict[str, Tuple[Any, float]] = {}  # key -> (value, timestamp)
+        self._cache: dict[str, tuple[Any, float]] = {}  # key -> (value, timestamp)
         self._is_aws = self._detect_aws()
         self._secrets_client = None
 
@@ -88,7 +106,7 @@ class CredentialManager:
                 self._secrets_client = False  # sentinel: tried and failed
         return self._secrets_client if self._secrets_client else None
 
-    def get_password(self, secret_name: str, default: Optional[str] = None) -> str:
+    def get_password(self, secret_name: str, default: str | None = None) -> str:
         """
         Fetch a password/secret from Secrets Manager or environment.
 
@@ -104,12 +122,12 @@ class CredentialManager:
         """
         return self._get_secret(secret_name, default, is_password=True)
 
-    def get_secret(self, secret_name: str, default: Optional[str] = None) -> str:
+    def get_secret(self, secret_name: str, default: str | None = None) -> str:
         """Alias for get_password (get_secret is more generic)."""
         return self.get_password(secret_name, default)
 
     def _get_secret(
-        self, secret_name: str, default: Optional[str] = None, is_password: bool = False
+        self, secret_name: str, default: str | None = None, is_password: bool = False
     ) -> str:
         """
         Internal secret retrieval with caching and TTL-based expiration.
@@ -152,11 +170,10 @@ class CredentialManager:
 
         # Fail if required and not found
         raise ValueError(
-            f"Required credential '{secret_name}' not found in Secrets Manager or environment variable '{env_var}'. "
-            f"Set {env_var} environment variable or add secret to AWS Secrets Manager."
+            "Required credential not found. Configure the secret in Secrets Manager or set the appropriate environment variable."
         )
 
-    def _fetch_from_secrets_manager(self, secret_name: str) -> Optional[str]:
+    def _fetch_from_secrets_manager(self, secret_name: str) -> str | None:
         """Fetch from AWS Secrets Manager. Returns None if not found.
 
         Always fetches from AWS Secrets Manager. Fails fast if unavailable.
@@ -176,9 +193,9 @@ class CredentialManager:
             return secret_value if secret_value else None
 
         except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(_sanitize_error(e)) from e
 
-    def get_db_credentials(self) -> Dict[str, Any]:
+    def get_db_credentials(self) -> dict[str, Any]:
         """Get database connection credentials as a dict.
 
         In AWS Lambda the RDS secret is a JSON blob stored under the ARN given by
@@ -192,11 +209,11 @@ class CredentialManager:
         """
         import json as _json
 
-        _DB_CREDS_CACHE_KEY = "__db_credentials__"
-        if _DB_CREDS_CACHE_KEY in self._cache:
-            cached_value: Dict[str, Any]
+        _db_creds_cache_key = "__db_credentials__"
+        if _db_creds_cache_key in self._cache:
+            cached_value: dict[str, Any]
             timestamp: float
-            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]
+            cached_value, timestamp = self._cache[_db_creds_cache_key]
             age = time.time() - timestamp
             if age < CREDENTIAL_CACHE_TTL_SECONDS:
                 return cached_value
@@ -217,11 +234,11 @@ class CredentialManager:
                     )
                     if not db_host:
                         raise ValueError(
-                            "DB_HOST not set in Secrets Manager or environment"
+                            "Database host not found in secret or environment"
                         )
                     password = creds.get("password")
                     if not password:
-                        raise ValueError("password not found in DB_SECRET_ARN")
+                        raise ValueError("Database password not found in secret")
                     result = {
                         "host": db_host,
                         "port": int(creds.get("port") or os.getenv("DB_PORT", "5432")),
@@ -230,13 +247,12 @@ class CredentialManager:
                         "database": creds.get("dbname")
                         or os.getenv("DB_NAME", "stocks"),
                     }
-                    self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())
+                    self._cache[_db_creds_cache_key] = (result, time.time())
                     return result
             except Exception as e:
                 logger.warning(
-                    "Failed to load DB credentials from secret ARN %s: %s — falling back to env vars",
-                    secret_arn,
-                    e,
+                    "Failed to load database credentials from secret: %s — falling back to env vars",
+                    _sanitize_error(e),
                 )
 
         # DB_HOST is required - no localhost fallback for safety
@@ -253,10 +269,10 @@ class CredentialManager:
             "password": self.get_password("db/password"),
             "database": os.getenv("DB_NAME", "stocks"),
         }
-        self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())
+        self._cache[_db_creds_cache_key] = (result, time.time())
         return result
 
-    def get_alpaca_credentials(self, user_id: Optional[str] = None) -> Dict[str, str]:
+    def get_alpaca_credentials(self, user_id: str | None = None) -> dict[str, str]:
         """Get Alpaca API credentials as a dict.
 
         Always fetches fresh credentials from Secrets Manager. Never returns cached/stale credentials.
@@ -340,7 +356,7 @@ class CredentialManager:
                         )
             except Exception as e:
                 logger.error(
-                    f"[CREDENTIALS] Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}"
+                    f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
                 )
         elif algo_secrets_arn and self._is_aws and not is_paper_mode:
             logger.info(
@@ -362,7 +378,7 @@ class CredentialManager:
                     if key and secret:
                         return {"key": key, "secret": secret}
             except Exception as e:
-                logger.debug(f"Could not fetch 'algo/alpaca' from Secrets Manager: {e}")
+                logger.debug(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
 
         # Step 4: Fall back to individual secrets (legacy format)
         try:
@@ -391,19 +407,15 @@ class CredentialManager:
             "[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!"
         )
         logger.error(
-            "[CREDENTIALS] Checked: user-specific secret, ALGO_SECRETS_ARN, algo/alpaca, legacy secrets, and env vars"
-        )
-        logger.error(
             "[CREDENTIALS_H3_FIX] Stale credential fallback REMOVED (was security risk after rotation)"
         )
         raise ValueError(
-            "Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not found. "
-            "Set these environment variables or configure 'algo/alpaca' secret in AWS Secrets Manager. "
+            "Alpaca API credentials not found. Verify credentials are configured in AWS Secrets Manager and accessible. "
             "If Secrets Manager is unreachable, check CloudWatch alarm [ALPACA_CREDS_FETCH_FAILED]. "
             "NOTE: Stale credential fallback is disabled—credentials must be fetched fresh within the last 5 minutes."
         )
 
-    def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:
+    def get_smtp_credentials(self) -> dict[str, Any] | None:
         """Get SMTP credentials. Returns None if not configured."""
         password = self.get_password(
             "smtp/password", default=os.getenv("ALERT_SMTP_PASSWORD")
@@ -438,15 +450,15 @@ class CredentialManager:
         Call this when Alpaca returns 401 Unauthorized to force a refetch on next request.
         Also emits CloudWatch metric for ops team to trigger manual rotation if needed.
         """
-        _ALPACA_CREDS_CACHE_KEY = "__alpaca_credentials__"
-        if _ALPACA_CREDS_CACHE_KEY in self._cache:
-            cached_creds, timestamp = self._cache[_ALPACA_CREDS_CACHE_KEY]
+        _alpaca_creds_cache_key = "__alpaca_credentials__"
+        if _alpaca_creds_cache_key in self._cache:
+            _cached_creds, timestamp = self._cache[_alpaca_creds_cache_key]
             age = time.time() - timestamp
             logger.warning(
                 "[CREDENTIALS_INVALID] Alpaca credentials detected as invalid (401). "
                 f"Clearing cache (credentials were {age:.0f}s old). Next request will refetch from Secrets Manager."
             )
-            del self._cache[_ALPACA_CREDS_CACHE_KEY]
+            del self._cache[_alpaca_creds_cache_key]
 
             # Emit CloudWatch alarm metric for ops to investigate credential rotation
             try:
@@ -470,7 +482,7 @@ class CredentialManager:
                 )
             except Exception as e:
                 logger.warning(
-                    f"[CREDENTIALS_INVALID] Could not emit CloudWatch metric: {e}"
+                    f"[CREDENTIALS_INVALID] Could not emit CloudWatch metric: {_sanitize_error(e)}"
                 )
         else:
             logger.info(
@@ -497,22 +509,22 @@ def get_credential_manager() -> CredentialManager:
     return _manager
 
 
-def get_password(secret_name: str, default: Optional[str] = None) -> str:
+def get_password(secret_name: str, default: str | None = None) -> str:
     """Module-level convenience function."""
     return get_credential_manager().get_password(secret_name, default)
 
 
-def get_secret(secret_name: str, default: Optional[str] = None) -> str:
+def get_secret(secret_name: str, default: str | None = None) -> str:
     """Module-level convenience function (alias)."""
     return get_credential_manager().get_secret(secret_name, default)
 
 
-def get_db_credentials() -> Dict[str, str]:
+def get_db_credentials() -> dict[str, str]:
     """Module-level convenience function."""
     return get_credential_manager().get_db_credentials()
 
 
-def get_alpaca_credentials(user_id: Optional[str] = None) -> Dict[str, str]:
+def get_alpaca_credentials(user_id: str | None = None) -> dict[str, str]:
     """Module-level convenience function for Alpaca credentials.
 
     Args:
@@ -532,7 +544,7 @@ def get_db_password() -> str:
     return creds["password"]
 
 
-def get_db_config() -> Dict[str, Any]:
+def get_db_config() -> dict[str, Any]:
     """Get full database configuration dict.
 
     Replaces credential_helper.get_db_config() after consolidation.
