@@ -1,6 +1,6 @@
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- CORE TABLES - Required for all systems
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Stock symbols and identifiers
 CREATE TABLE IF NOT EXISTS stock_symbols (
@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS price_monthly (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_monthly_unique ON price_monthly(symbol, date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- EARNINGS & FINANCIAL DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Historical and forward-looking earnings data
 CREATE TABLE IF NOT EXISTS earnings_estimates (
@@ -153,9 +153,9 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
     UNIQUE(symbol, earnings_date)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ANALYST DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Analyst rating changes
 CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
@@ -187,9 +187,9 @@ CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
     UNIQUE(symbol, date)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- TECHNICAL INDICATORS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Daily technical indicators
 CREATE TABLE IF NOT EXISTS technical_data_daily (
@@ -270,9 +270,9 @@ CREATE TABLE IF NOT EXISTS technical_data_monthly (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_monthly_unique ON technical_data_monthly(symbol, date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- TRADING SIGNALS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Daily buy/sell signals
 CREATE TABLE IF NOT EXISTS buy_sell_daily (
@@ -470,9 +470,9 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_monthly_unique ON buy_sell_monthly(symbol, timeframe, date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- QUALITY METRICS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Profitability and efficiency metrics
 CREATE TABLE IF NOT EXISTS quality_metrics (
@@ -539,9 +539,9 @@ CREATE TABLE IF NOT EXISTS positioning_metrics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- COMPOSITE SCORES
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Overall stock quality score
 CREATE TABLE IF NOT EXISTS stock_scores (
@@ -560,9 +560,9 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- USER MANAGEMENT & SYSTEM TABLES
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- User accounts and authentication
 CREATE TABLE IF NOT EXISTS users (
@@ -674,9 +674,9 @@ CREATE TABLE IF NOT EXISTS data_loader_runs (
     UNIQUE(loader_name, run_date)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- COMPANY & FUNDAMENTAL DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Company profile and basic information
 CREATE TABLE IF NOT EXISTS company_profile (
@@ -730,9 +730,9 @@ CREATE TABLE IF NOT EXISTS institutional_positioning (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- COMMODITY & MARKET DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Commodity prices and data
 CREATE TABLE IF NOT EXISTS commodity_prices (
@@ -794,9 +794,9 @@ CREATE TABLE IF NOT EXISTS market_data (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SENTIMENT & PSYCHOLOGICAL DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- AAII investor sentiment survey
 CREATE TABLE IF NOT EXISTS aaii_sentiment (
@@ -864,9 +864,9 @@ CREATE TABLE IF NOT EXISTS sentiment_social (
 -- (target_price, current_price, upside_downside_percent, total_analysts)
 -- This duplicate definition removed to avoid confusion.
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- OPTIONS DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Options chains for stocks
 CREATE TABLE IF NOT EXISTS options_chains (
@@ -910,9 +910,9 @@ CREATE TABLE IF NOT EXISTS iv_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- PORTFOLIO & HOLDINGS DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Portfolio holdings for users
 CREATE TABLE IF NOT EXISTS portfolio_holdings (
@@ -939,9 +939,9 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ECONOMIC & MARKET INDEX DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Economic calendar events (FRED release dates and upcoming data)
 CREATE TABLE IF NOT EXISTS economic_calendar (
@@ -984,9 +984,9 @@ CREATE TABLE IF NOT EXISTS index_metrics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SECTOR & INDUSTRY ANALYSIS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Sector performance rankings
 CREATE TABLE IF NOT EXISTS sector_ranking (
@@ -1035,9 +1035,9 @@ CREATE TABLE IF NOT EXISTS industry_performance (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SEASONALITY DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Day of week seasonality — SPY-based market aggregate (no per-symbol rows)
 CREATE TABLE IF NOT EXISTS seasonality_day_of_week (
@@ -1088,9 +1088,9 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- STRATEGY & ANALYSIS DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Covered call opportunities
 CREATE TABLE IF NOT EXISTS covered_call_opportunities (
@@ -1104,9 +1104,9 @@ CREATE TABLE IF NOT EXISTS covered_call_opportunities (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- EARNINGS & FINANCIAL FORECASTS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Earnings estimate trends
 CREATE TABLE IF NOT EXISTS earnings_estimate_trends (
@@ -1134,9 +1134,9 @@ CREATE TABLE IF NOT EXISTS earnings_estimate_revisions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ALTERNATIVE METRICS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Momentum metrics for stocks
 CREATE TABLE IF NOT EXISTS momentum_metrics (
@@ -1158,9 +1158,9 @@ CREATE TABLE IF NOT EXISTS beta_validation (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- FINANCIAL STATEMENTS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Annual income statements
 CREATE TABLE IF NOT EXISTS annual_income_statement (
@@ -1274,9 +1274,9 @@ CREATE TABLE IF NOT EXISTS ttm_cash_flow (
     UNIQUE(symbol, date)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ETF DATA
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- ETF price data - Daily
 CREATE TABLE IF NOT EXISTS etf_price_daily (
@@ -1353,9 +1353,9 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly_etf (
     UNIQUE(symbol, date)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- CALENDAR & NEWS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Calendar events (earnings, dividends, etc)
 CREATE TABLE IF NOT EXISTS calendar_events (
@@ -1367,9 +1367,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SWING TRADING ALGO SYSTEM
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Algo configuration (hot-reload enabled, no restart needed)
 CREATE TABLE IF NOT EXISTS algo_config (
@@ -2022,9 +2022,9 @@ CREATE TABLE IF NOT EXISTS algo_information_coefficient (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- OPERATIONAL MONITORING & EXECUTION TRACKING (PHASE 1-4 INTEGRATION)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Loader SLA Status - Data freshness monitoring per loader
 CREATE TABLE IF NOT EXISTS loader_sla_status (
@@ -2142,9 +2142,9 @@ CREATE TABLE IF NOT EXISTS order_execution_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- INDEXES for Performance
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE INDEX IF NOT EXISTS idx_price_daily_symbol ON price_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_price_daily_date ON price_daily(date);
@@ -2191,9 +2191,9 @@ CREATE INDEX IF NOT EXISTS idx_algo_config_audit_date ON algo_config_audit(chang
 CREATE INDEX IF NOT EXISTS idx_algo_champion_challenger_date ON algo_champion_challenger(trial_date);
 CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_information_coefficient(ic_date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- BACKTEST & STRATEGY ANALYSIS TABLES
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS backtest_runs (
     run_id SERIAL PRIMARY KEY,
@@ -2252,9 +2252,9 @@ CREATE TABLE IF NOT EXISTS safeguard_audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ETF & MEAN REVERSION SIGNAL TABLES
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS etf_symbols (
     symbol VARCHAR(20) PRIMARY KEY,
@@ -2265,9 +2265,9 @@ CREATE TABLE IF NOT EXISTS etf_symbols (
 );
 
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- COMMODITY ANALYSIS TABLES
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS commodity_seasonality (
     symbol VARCHAR(20),
@@ -2371,9 +2371,9 @@ CREATE INDEX IF NOT EXISTS idx_commodity_technicals_symbol_date ON commodity_tec
 CREATE INDEX IF NOT EXISTS idx_commodity_macro_drivers_series_date ON commodity_macro_drivers(series_id, date);
 CREATE INDEX IF NOT EXISTS idx_commodity_events_date ON commodity_events(event_date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- DERIVED VIEWS (API convenience — combine normalized tables)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- stock_fundamentals: join scores + profiles + fundamental metrics
 -- Used by: /api/stocks/deep-value, /api/scores/stockscores
@@ -2472,21 +2472,21 @@ SELECT
     fear_greed_value AS sentiment_score
 FROM fear_greed_index;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- BUY/SELL SIGNAL TABLE SCHEMA MIGRATIONS
 -- The original buy_sell_daily/weekly/monthly tables had only 7 columns.
 -- The loadbuyselldaily loader and Node.js API require ~50 columns.
 -- These idempotent ALTERs add all missing columns and fix the UNIQUE constraint.
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- ✅ CONSOLIDATED: buy_sell_daily/weekly/monthly columns now in CREATE TABLE
 
 -- ✅ algo_trades: mfe_pct, mae_pct already in CREATE TABLE
 -- ✅ technical_data_daily/weekly/monthly: close, ema_21 already in CREATE TABLE
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Market overview indices (loadmarket.py) — SPY/QQQ/IWM/VIX daily OHLCV
 CREATE TABLE IF NOT EXISTS market_overview (
@@ -2545,9 +2545,9 @@ CREATE TABLE IF NOT EXISTS factor_metrics (
 CREATE INDEX IF NOT EXISTS idx_factor_metrics_symbol_date ON factor_metrics(symbol, metric_date);
 CREATE INDEX IF NOT EXISTS idx_factor_metrics_date ON factor_metrics(metric_date);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- BACKTEST RESULTS & HISTORICAL ANALYSIS
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Backtest results: historical performance data from strategy runs
 CREATE TABLE IF NOT EXISTS backtest_results (
@@ -2632,9 +2632,9 @@ CREATE TABLE IF NOT EXISTS sentiment (
 );
 CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON sentiment(symbol);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- LOADER TRACKING & MONITORING
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Loader execution metrics (loader_metrics.py)
 CREATE TABLE IF NOT EXISTS loader_execution_metrics (
@@ -2705,9 +2705,9 @@ CREATE TABLE IF NOT EXISTS price_window (
     UNIQUE(symbol, date, period_type)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- PERFORMANCE INDEXES (2026-05-15) — After Phase 1 Data Integrity
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- Critical for orchestrator phases 2-7 execution speed
 
 -- PRICE DATA INDEXES — Most expensive queries
@@ -2817,15 +2817,15 @@ ON economic_data (series_id, date DESC)
 WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
   AND value IS NOT NULL;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SCHEMA MIGRATIONS — Ensure live tables have all required columns
--- ════════════════════════════════════════════════════════════════════════════
+--
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS quantity DECIMAL(12,2);
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS profit_loss_percent DECIMAL(8,4);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- FEATURE FLAGS — Control system behavior without code changes
--- ════════════════════════════════════════════════════════════════════════════
+--
 CREATE TABLE IF NOT EXISTS feature_flags (
     flag_name VARCHAR(100) PRIMARY KEY,
     flag_type VARCHAR(50) NOT NULL,
@@ -2837,9 +2837,9 @@ CREATE TABLE IF NOT EXISTS feature_flags (
 
 CREATE INDEX IF NOT EXISTS idx_feature_flags_type ON feature_flags (flag_type);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- LOADER WATERMARKS — Track incremental load progress per symbol
--- ════════════════════════════════════════════════════════════════════════════
+--
 CREATE TABLE IF NOT EXISTS loader_watermarks (
     loader VARCHAR(100) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
@@ -2853,9 +2853,9 @@ CREATE TABLE IF NOT EXISTS loader_watermarks (
     UNIQUE (loader, symbol, granularity)
 );
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SCHEMA FIXES — Missing columns referenced by active code
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- market_exposure_daily: add missing columns used by algo_market_exposure.py
 ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS long_exposure_pct DECIMAL(8, 4);
@@ -2882,9 +2882,9 @@ ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER;
 ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS entry_date DATE;
 ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(100);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- NEW TABLES — Finance optimization system
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Component-level signal attribution (Information Coefficient per component)
 CREATE TABLE IF NOT EXISTS algo_component_attribution (
@@ -2938,9 +2938,9 @@ CREATE TABLE IF NOT EXISTS earnings_metrics (
 CREATE INDEX IF NOT EXISTS idx_earnings_metrics_symbol_date ON earnings_metrics(symbol, report_date DESC);
 CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_date DESC);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- SCHEMA MIGRATIONS - Add missing columns to existing tables
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Add updated_at column to analyst_sentiment_analysis if missing
 DO $$ BEGIN
@@ -2994,9 +2994,9 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- ENHANCED AUDIT LOGGING FOR REAL MONEY TRADING
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Position sizing audit: track all multipliers and cascade effect
 CREATE TABLE IF NOT EXISTS algo_position_sizing_audit (
@@ -3055,9 +3055,9 @@ CREATE INDEX IF NOT EXISTS idx_exit_rules_created_at
 CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
     ON algo_exit_rules_distribution(exit_rule, created_at DESC);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- FOREIGN KEY CONSTRAINTS FOR DATA INTEGRITY
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Add foreign key: algo_trades.symbol → stock_symbols.symbol
 -- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
@@ -3144,13 +3144,13 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- RUNTIME CONFIGURATION & AUDIT (Issue #20)
--- ════════════════════════════════════════════════════════════════════════════
--- ════════════════════════════════════════════════════════════════════════════
+--
+--
 -- SCHEMA EVOLUTION: Add columns missing from production database
 -- (CREATE TABLE IF NOT EXISTS does not add new columns to existing tables)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- technical_data_daily: indicator columns added 2026-05-30
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS rsi_14 DECIMAL(8, 4);
@@ -3375,9 +3375,9 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('failsafe_grace_period_minutes', '150', 'int', 'Grace period for async failsafe loader (default 150 min)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_coverage_min_pct', '75', 'int', 'Min symbol coverage % for data tables (Issue #9)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- CONFIGURATION TABLES FOR API DISPLAY LAYER (No Hardcoded Business Rules)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Signal Filter Tiers: Configuration for signal evaluation and filtering rules
 -- Moves hardcoded thresholds from webapp/lambda/routes/algo.js /evaluate endpoint
@@ -3464,10 +3464,10 @@ UPDATE market_exposure_daily med SET active_tier_id = (
     LIMIT 1
 ) WHERE active_tier_id IS NULL AND exposure_pct IS NOT NULL;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- PHASE 2: Pre-computed Stock Correlations (Architectural Fix)
 -- Moves correlation matrix calculation from API layer to database
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS stock_correlations (
     symbol1 VARCHAR(20) NOT NULL,
@@ -3487,11 +3487,11 @@ CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol1 ON stock_correlations(
 CREATE INDEX IF NOT EXISTS idx_stock_correlations_symbol2 ON stock_correlations(symbol2);
 CREATE INDEX IF NOT EXISTS idx_stock_correlations_updated ON stock_correlations(updated_at);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- PHASE 3: Pre-computed Circuit Breaker Metrics (Architectural Fix)
 -- Moves circuit breaker calculations from API layer to nightly batch job
 -- Updated by: loaders/compute_circuit_breakers.py (4:30 PM ET)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS circuit_breaker_status (
     check_date DATE PRIMARY KEY,
@@ -3512,11 +3512,11 @@ CREATE TABLE IF NOT EXISTS circuit_breaker_status (
 
 CREATE INDEX IF NOT EXISTS idx_circuit_breaker_status_date ON circuit_breaker_status(check_date DESC);
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- PHASE 3: Pre-computed Performance Metrics (Architectural Fix)
 -- Moves performance statistics from API layer to nightly batch job
 -- Updated by: loaders/compute_performance_metrics.py (4:45 PM ET)
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 CREATE TABLE IF NOT EXISTS algo_performance_metrics (
     metric_date DATE PRIMARY KEY,
@@ -3572,9 +3572,9 @@ WHERE ap.status IN ('open', 'partially_closed')
 GROUP BY cp.sector
 ORDER BY allocation_pct DESC;
 
--- ════════════════════════════════════════════════════════════════════════════
+--
 -- Missing pre-computed loader tables
--- ════════════════════════════════════════════════════════════════════════════
+--
 
 -- Sector lookup for positions (populated by loaders that know sector data)
 CREATE TABLE IF NOT EXISTS company_sector_mapping (
