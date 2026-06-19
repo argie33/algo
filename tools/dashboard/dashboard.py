@@ -67,6 +67,8 @@ from rich.text import Text
 
 from tools.dashboard.cognito_auth import (
     get_cognito_auth as get_cognito_auth_instance,
+)
+from tools.dashboard.cognito_auth import (
     save_tokens,
 )
 from tools.dashboard.error_boundary import error_summary_panel
@@ -834,12 +836,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     state = _WatchState()
     state_lock = threading.Lock()
     active_threads: list = []
+    active_threads_lock = threading.Lock()
     shutdown = threading.Event()
 
     def cleanup_dead_threads() -> None:
         """Remove finished threads from active_threads list to prevent unbounded growth."""
         nonlocal active_threads
-        active_threads = [t for t in active_threads if t.is_alive()]
+        with active_threads_lock:
+            active_threads = [t for t in active_threads if t.is_alive()]
 
     def reload():
         try:
@@ -863,7 +867,8 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)
         reload_thread.start()
-        active_threads.append(reload_thread)
+        with active_threads_lock:
+            active_threads.append(reload_thread)
 
         view_mode = "normal"
         recovery = RenderRecovery()
@@ -968,14 +973,17 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 target=reload, daemon=False
                             )
                             reload_thread.start()
-                            active_threads.append(reload_thread)
+                            with active_threads_lock:
+                                active_threads.append(reload_thread)
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass
     finally:
         shutdown.set()
         cleanup_dead_threads()
-        for thread in active_threads[:]:
+        with active_threads_lock:
+            threads_to_join = active_threads[:]
+        for thread in threads_to_join:
             if thread:
                 thread.join(timeout=60)
                 if thread.is_alive():
@@ -983,7 +991,8 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         "Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)"
                     )
                 else:
-                    active_threads.remove(thread)
+                    with active_threads_lock:
+                        active_threads.remove(thread)
 
 
 def main():
