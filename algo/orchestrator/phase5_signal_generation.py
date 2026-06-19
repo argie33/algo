@@ -86,7 +86,7 @@ def _check_market_regime(run_date: _date) -> Dict:
             "is_entry_allowed": False,
             "exposure_pct": 0,
             "regime": "unknown",
-            "halt_reasons": [f"Market regime read failed: {str(e)[:50]}"],
+            "halt_reasons": [f"Market regime read failed: {type(e).__name__}: {str(e)}"],
         }
 
 
@@ -99,7 +99,9 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
             logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
         return candidate, liq_ok
     except Exception as e:
-        logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity check error — {str(e)[:50]}")
+        logger.warning(
+            f"[PHASE 5] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {str(e)}"
+        )
         return candidate, False
 
 
