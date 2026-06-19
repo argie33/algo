@@ -59,7 +59,7 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = create_jwt(past_exp)
         auth.token_expires_at = past_exp
         auth.refresh_token = None
 
@@ -71,7 +71,7 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        auth.access_token = f"header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
+        auth.access_token = create_jwt(past_exp)
         auth.token_expires_at = past_exp
         auth.refresh_token = "refresh-token-123"
 
@@ -86,14 +86,14 @@ class TestAuthorizationHeaderValidation:
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
-        old_token = f"old_header.{base64.urlsafe_b64encode(json.dumps({'exp': past_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
+        old_token = create_jwt(past_exp)
         auth.access_token = old_token
         auth.token_expires_at = past_exp
         auth.refresh_token = "refresh-token-123"
 
         # New token after refresh
         future_exp = int(time.time()) + 3600
-        new_token = f"new_header.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.signature"
+        new_token = create_jwt(future_exp)
 
         def mock_refresh(self):
             self.access_token = new_token
@@ -191,8 +191,8 @@ class TestTokenExpiryBuffer:
         auth.token_expires_at = now + 240
         auth.refresh_token = "refresh-token-123"
 
-        future_exp = now + 3600
-        new_token = f"new.{base64.urlsafe_b64encode(json.dumps({'exp': future_exp, 'sub': 'user-123'}).encode()).decode().rstrip('=')}.sig"
+        future_exp = int(now + 3600)
+        new_token = create_jwt(future_exp)
         auth.access_token = "old-token"
 
         refresh_called = []
