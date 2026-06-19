@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
+from .api_data_layer import API_MAX_BACKOFF, api_call
 from .data_validation import (
     StrictValidationError,
     safe_bool,
@@ -16,12 +17,10 @@ from .data_validation import (
     safe_json_parse,
 )
 from .utilities import (
-    API_MAX_BACKOFF,
     CY,
     G,
     R,
     Y,
-    api_call,
     logger,
     record_data_quality_issue,
 )

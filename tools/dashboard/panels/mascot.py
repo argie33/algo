@@ -32,12 +32,27 @@ from ..utilities import (
 MASCOT_H = 8
 
 
+def _get_safe_frame_index(frame_index: int) -> int:
+    """Validate frame index is within bounds of MASCOT_FRAMES and MASCOT_COLORS."""
+    max_index = len(MASCOT_FRAMES) - 1
+    if frame_index < 0 or frame_index > max_index:
+        logger.warning(
+            f"Frame index {frame_index} out of bounds [0-{max_index}]. "
+            f"MASCOT_FRAMES has {len(MASCOT_FRAMES)} frames, MASCOT_COLORS has {len(MASCOT_COLORS)} colors. "
+            f"Falling back to frame 0."
+        )
+        return 0
+    return frame_index
+
+
 def mascot_pose(data: dict, frame: int) -> int:
     """Determine mascot pose based on circuit breaker status."""
     if (data.get("cb") or {}).get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
-        return seq[(frame // 2) % len(seq)]
-    return LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+        idx = seq[(frame // 2) % len(seq)]
+    else:
+        idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+    return _get_safe_frame_index(idx)
 
 
 @register_panel(
@@ -73,7 +88,8 @@ def mascot_compact(data: dict, frame: int) -> Panel:
 )
 def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
-    fi = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]  # 4fps loading animation
+    idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]  # 4fps loading animation
+    fi = _get_safe_frame_index(idx)
     mc = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
     dots = "." * ((frame // 2 % 4) + 1)  # dots cycle at ~1Hz
@@ -148,8 +164,8 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
 
 
 __all__ = [
-    "mascot_pose",
-    "mascot_compact",
-    "loading_layout",
     "_expanded_layout",
+    "loading_layout",
+    "mascot_compact",
+    "mascot_pose",
 ]

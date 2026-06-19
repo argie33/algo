@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from rich.panel import Panel
 from rich.text import Text
@@ -11,6 +11,8 @@ from ..utilities import (
     CY,
     DIM,
     LOAD_SEQ,
+    MASCOT_COLORS,
+    MASCOT_FRAMES,
     PHASE_NAMES,
     G,
     R,
@@ -21,12 +23,27 @@ from ..utilities import (
 logger = logging.getLogger(__name__)
 
 
+def _get_safe_frame_index(frame_index: int) -> int:
+    """Validate frame index is within bounds of MASCOT_FRAMES and MASCOT_COLORS."""
+    max_index = len(MASCOT_FRAMES) - 1
+    if frame_index < 0 or frame_index > max_index:
+        logger.warning(
+            f"Frame index {frame_index} out of bounds [0-{max_index}]. "
+            f"MASCOT_FRAMES has {len(MASCOT_FRAMES)} frames, MASCOT_COLORS has {len(MASCOT_COLORS)} colors. "
+            f"Falling back to frame 0."
+        )
+        return 0
+    return frame_index
+
+
 def mascot_pose(data: dict, frame: int) -> int:
     """Get mascot pose index based on circuit breaker status and frame."""
     if (data.get("cb") or {}).get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
-        return seq[(frame // 2) % len(seq)]
-    return LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+        idx = seq[(frame // 2) % len(seq)]
+    else:
+        idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
+    return _get_safe_frame_index(idx)
 
 
 def _score_cell(v):
@@ -65,13 +82,13 @@ def _composite_score_color(v) -> str:
     return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
 
 
-def _best_halt_reason(top_level: str, phase_results: list) -> List[Tuple[str, str]]:
+def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
 
     Falls back to top_level if no per-phase detail is found.
     Tries multiple field names so the display is robust to orchestrator schema changes.
     """
-    _FIELDS = (
+    _FIELDS = (  # noqa: N806
         "halt_reason",
         "reason",
         "message",
@@ -81,7 +98,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> List[Tuple[str, st
         "triggered_by",
         "details",
     )
-    found: List[Tuple[str, str]] = []
+    found: list[tuple[str, str]] = []
     for p in phase_results or []:
         ps = (p.get("status") or "").lower()
         if ps not in ("halt", "halted"):
@@ -135,7 +152,7 @@ def _fmt_phases_halted(phases_halted) -> str:
     return ", ".join(names[:3])
 
 
-def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Optional[Panel]:
+def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Panel | None:
     """Create a panel showing granular error info for failed data sources."""
     if not data:
         return Panel(

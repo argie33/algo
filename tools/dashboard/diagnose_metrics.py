@@ -16,7 +16,7 @@ if __name__ == "__main__" and __package__ is None:
 
 import logging
 
-from .utilities import api_call
+from .api_data_layer import api_call
 
 
 logging.basicConfig(level=logging.DEBUG)

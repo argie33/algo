@@ -4,16 +4,12 @@ import hashlib
 import json
 import logging
 import os
-import random
 import threading
-import time
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 from zoneinfo import ZoneInfo
 
-import requests
-import requests.exceptions
 from rich.console import Console
 
 from .data_validation import safe_float
@@ -106,166 +102,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# API configuration
-API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "")
-API_TIMEOUT = 20  # Increased from 10s to handle network latency + slow responses
-API_MAX_RETRIES = 3
-API_MAX_BACKOFF = 30  # Cap exponential backoff at 30 seconds
 
-
-def set_api_url(url: str):
-    """Set API base URL at runtime (used by -local mode)."""
-    global API_BASE_URL
-    API_BASE_URL = url
-
-
-def get_api_url() -> str:
-    """Get the current API base URL."""
-    return API_BASE_URL
-
-
-# HTTP session with connection pooling (reuse TCP connections across 25+ parallel fetchers)
-try:
-    from urllib3.util.retry import Retry
-except ImportError:
-    from requests.packages.urllib3.util.retry import Retry  # type: ignore
-_http_session = requests.Session()
-_http_adapter = requests.adapters.HTTPAdapter(
-    pool_connections=16,
-    pool_maxsize=16,
-    max_retries=Retry(
-        total=0, backoff_factor=0  # Retries handled by api_call() instead
-    ),
-)
-_http_session.mount("http://", _http_adapter)
-_http_session.mount("https://", _http_adapter)
 
 # Sector aggregation cache (E5 optimization)
 _sector_agg_cache = OrderedDict()
 _sector_cache_maxsize = 100
 
 # ── Helper functions ──────────────────────────────────────────────────────────
-
-_cognito_auth = None
-_cognito_auth_lock = threading.Lock()
-
-
-def set_cognito_auth(auth):
-    """Set the Cognito authentication instance for API calls."""
-    global _cognito_auth
-    with _cognito_auth_lock:
-        _cognito_auth = auth
-
-
-def get_cognito_auth():
-    """Get the current Cognito authentication instance."""
-    with _cognito_auth_lock:
-        return _cognito_auth
-
-
-def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
-    """Call API endpoint with exponential backoff retry logic (Issue 12 FIX).
-
-    Returns dict with 'data' key on success, '_error' on failure.
-    Implements exponential backoff with maximum cap to prevent runaway delays.
-    E1 FIX: Removed silent fallback to cache; failures are now visible to detect API issues.
-    Circuit breaker pattern prevents hammering downed API (Issue 16 FIX).
-    """
-    if not API_BASE_URL:
-        logger.error(
-            "DASHBOARD_API_URL environment variable not set - cannot make API calls"
-        )
-        return {
-            "_error": "API_BASE_URL not configured - set DASHBOARD_API_URL environment variable"
-        }
-
-    if _check_circuit_breaker():
-        return {
-            "_error": "API unavailable - circuit breaker open",
-            "_circuit_open": True,
-        }
-
-    url = f"{API_BASE_URL}{endpoint}"
-    headers = {"Content-Type": "application/json"}
-
-    # Add Cognito authorization if available
-    with _cognito_auth_lock:
-        cognito_auth = _cognito_auth
-    if cognito_auth:
-        auth_headers = cognito_auth.get_authorization_header()
-        headers.update(auth_headers)
-
-    for attempt in range(API_MAX_RETRIES + 1):
-        try:
-            if method == "GET":
-                resp = _http_session.get(
-                    url, params=params, headers=headers, timeout=API_TIMEOUT
-                )
-            else:
-                resp = _http_session.post(
-                    url, json=params, headers=headers, timeout=API_TIMEOUT
-                )
-
-            if resp.status_code >= 400:
-                logger.warning(
-                    f"API {endpoint}: {resp.status_code} - {resp.text[:100]}"
-                )
-                return {"_error": f"API error {resp.status_code}"}
-
-            data = resp.json()
-            if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
-                logger.warning(f"API {endpoint}: error in JSON response")
-                return {"_error": data.get("message", "Unknown API error")}
-
-            cache_response(endpoint, data)
-            _record_api_success()
-            return cast(dict[Any, Any], data)
-        except requests.exceptions.Timeout:
-            if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                logger.warning(
-                    f"API {endpoint} timeout (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s"
-                )
-                time.sleep(backoff)
-                continue
-            logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
-            _record_api_failure()
-            return {"_error": "API timeout"}
-        except requests.exceptions.ConnectionError:
-            if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                logger.warning(
-                    f"API {endpoint} connection failed (attempt {attempt+1}/{API_MAX_RETRIES+1}), retry in {backoff:.1f}s"
-                )
-                time.sleep(backoff)
-                continue
-            logger.error(
-                f"API {endpoint}: connection unavailable after {API_MAX_RETRIES+1} attempts"
-            )
-            _record_api_failure()
-            return {"_error": "API unavailable"}
-        except Exception as e:
-            if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                logger.warning(
-                    f"API {endpoint} error (attempt {attempt+1}/{API_MAX_RETRIES+1}): {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s"
-                )
-                time.sleep(backoff)
-                continue
-            logger.error(
-                f"API {endpoint}: {type(e).__name__} after {API_MAX_RETRIES+1} attempts\n  Last error: {str(e)[:200]}\n  Endpoint URL: {endpoint}"
-            )
-            _record_api_failure()
-            return {"_error": str(e)}
-
-    # Should not reach here, but ensure a return exists
-    return {"_error": "API call failed"}
 
 
 def normalize_positions_data(data):
@@ -407,88 +250,6 @@ def validate_data_freshness(
     return True
 
 
-_response_cache: dict[str, dict[str, Any]] = {}
-_response_cache_lock = threading.Lock()
-
-_circuit_breaker_state = "closed"
-_circuit_breaker_failures = 0
-_circuit_breaker_lock = threading.Lock()
-_circuit_breaker_reset_time: float | None = None
-CIRCUIT_BREAKER_THRESHOLD = 3
-CIRCUIT_BREAKER_RESET_SECONDS = 60
-
-
-def _check_circuit_breaker():
-    """Check if circuit breaker is open; attempt half-open state after reset time."""
-    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
-    with _circuit_breaker_lock:
-        if _circuit_breaker_state != "open":
-            return False
-        if (
-            _circuit_breaker_reset_time
-            and time.time() - _circuit_breaker_reset_time
-            > CIRCUIT_BREAKER_RESET_SECONDS
-        ):
-            _circuit_breaker_state = "half-open"
-            _circuit_breaker_failures = 0
-            logger.info("Circuit breaker attempting half-open state")
-            return False
-        return True
-
-
-def _record_api_failure():
-    """Record API failure, open circuit breaker if threshold exceeded."""
-    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
-    with _circuit_breaker_lock:
-        _circuit_breaker_failures += 1
-        if _circuit_breaker_failures >= CIRCUIT_BREAKER_THRESHOLD:
-            if _circuit_breaker_state != "open":
-                logger.error(
-                    f"Circuit breaker OPEN after {_circuit_breaker_failures} failures"
-                )
-                _circuit_breaker_state = "open"
-                _circuit_breaker_reset_time = time.time()
-
-
-def _record_api_success():
-    """Record API success, close circuit breaker if in half-open state."""
-    global _circuit_breaker_state, _circuit_breaker_failures
-    with _circuit_breaker_lock:
-        if _circuit_breaker_state == "half-open":
-            logger.info("Circuit breaker CLOSED - API recovered")
-            _circuit_breaker_state = "closed"
-            _circuit_breaker_failures = 0
-
-
-def cache_response(endpoint: str, data: dict) -> None:
-    """Cache successful API response for fallback during outages."""
-    if not isinstance(data, dict) or data.get("_error"):
-        return
-    with _response_cache_lock:
-        _response_cache[endpoint] = {
-            "data": data,
-            "timestamp": datetime.now(timezone.utc),
-        }
-
-
-def get_cached_response(endpoint: str) -> dict | None:
-    """Get cached response if available, mark as stale if > 30 minutes old."""
-    with _response_cache_lock:
-        cached = _response_cache.get(endpoint)
-        if not cached:
-            return None
-    cached_data = cached.get("data", {})
-    age_minutes = (
-        datetime.now(timezone.utc) - cached["timestamp"]
-    ).total_seconds() / 60
-    if age_minutes > 30:
-        logger.warning(
-            f"Using stale cached response for {endpoint} ({age_minutes:.0f}m old)"
-        )
-        cached_data = {**cached_data, "_cached": True, "_stale": True}
-    else:
-        cached_data = {**cached_data, "_cached": True}
-    return cached_data
 
 
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────

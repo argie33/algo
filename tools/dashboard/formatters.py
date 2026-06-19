@@ -134,7 +134,7 @@ def mkt_hours_str() -> tuple:
     except Exception as market_err:
         import logging
 
-        logging.debug(
+        logging.debug(  # noqa: LOG015
             f"Could not get market status from calendar: {market_err}, using fallback"
         )
 
@@ -157,10 +157,10 @@ def mkt_hours_str() -> tuple:
             f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
         )
 
-    PRE_OPEN = 4 * 60
-    OPEN = 9 * 60 + 30
-    CLOSE = 16 * 60
-    AH_END = 20 * 60
+    PRE_OPEN = 4 * 60  # noqa: N806
+    OPEN = 9 * 60 + 30  # noqa: N806
+    CLOSE = 16 * 60  # noqa: N806
+    AH_END = 20 * 60  # noqa: N806
 
     if t < PRE_OPEN:
         diff_m = OPEN - t
@@ -200,7 +200,7 @@ def next_run_str() -> str:
         return _schedule_cache["result"]
 
     try:
-        from .utilities import api_call
+        from .api_data_layer import api_call
 
         resp = api_call("/api/algo/schedule")
         if not resp.get("_error") and "schedule" in resp:
@@ -213,7 +213,9 @@ def next_run_str() -> str:
     except Exception as sched_err:
         import logging
 
-        logging.debug(f"Could not fetch next run schedule: {sched_err}, using fallback")
+        logging.debug(  # noqa: LOG015
+            f"Could not fetch next run schedule: {sched_err}, using fallback"
+        )
 
     result = _next_run_hardcoded()
     _schedule_cache["result"] = result
