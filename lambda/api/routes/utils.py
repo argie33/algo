@@ -5,6 +5,7 @@ import re
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -242,6 +243,8 @@ def execute_with_timeout(
         psycopg2.errors.QueryCanceled: If query times out after all retries
         Exception: For other database errors
     """
+    from utils.error_handlers import log_sanitizer
+
     current_timeout = timeout_sec
     last_error = None
 
@@ -261,10 +264,8 @@ def execute_with_timeout(
             last_error = e
             if attempt < max_attempts - 1:
                 current_timeout *= backoff_multiplier
-                log_msg = f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout\n  Query: {query[:500]}"
-                if params:
-                    log_msg += f"\n  Params: {str(params)[:200]}"
-                logger.warning(log_msg)
+                with log_sanitizer("query timeout retry") as safe_log:
+                    safe_log.warning(e)
                 try:
                     cur.connection.rollback()
                 except Exception as rollback_err:
@@ -273,10 +274,8 @@ def execute_with_timeout(
                     )
                 time.sleep(0.1)
             else:
-                log_msg = f"Query timeout after {max_attempts} attempts\n  Query: {query[:500]}"
-                if params:
-                    log_msg += f"\n  Params: {str(params)[:200]}"
-                logger.warning(log_msg)
+                with log_sanitizer("query timeout final") as safe_log:
+                    safe_log.warning(e)
                 try:
                     cur.connection.rollback()
                 except Exception as rollback_err:
@@ -284,12 +283,8 @@ def execute_with_timeout(
                 raise e
         except Exception as e:
             last_error = e
-            log_msg = (
-                f"Query failed ({type(e).__name__}): {str(e)}\n  Query: {query[:500]}"
-            )
-            if params:
-                log_msg += f"\n  Params: {str(params)[:200]}"
-            logger.error(log_msg)
+            with log_sanitizer("query execution") as safe_log:
+                safe_log.error(e)
             try:
                 cur.connection.rollback()
             except Exception as rollback_err:
@@ -299,9 +294,8 @@ def execute_with_timeout(
 
     # This line should never be reached, but kept for safety
     if last_error:
-        logger.error(
-            f"Query execution failed after {max_attempts} attempts: {last_error}"
-        )
+        with log_sanitizer("query execution final") as safe_log:
+            safe_log.error(last_error)
         raise last_error
 
 
@@ -408,6 +402,36 @@ def json_response(code, data, data_freshness=None):
         return response
 
 
+def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate API response against dashboard contract schema.
+
+    Validates that responses match the contract defined in shared_contracts.
+    Logs validation errors for debugging but does NOT fail the request.
+    This ensures the dashboard has predictable response schemas.
+
+    Args:
+        endpoint_name: Name of endpoint from DASHBOARD_ENDPOINTS (e.g., 'run', 'port', 'mkt')
+        response_data: Response dict to validate (the 'data' field for JSON responses)
+
+    Returns:
+        The original response_data unchanged (validation is logging only)
+    """
+    try:
+        from shared_contracts.response_validator import ResponseValidator
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response(
+            endpoint_name, response_data
+        )
+        if not is_valid:
+            logger.warning(
+                f"[SCHEMA_VALIDATION] Endpoint '{endpoint_name}' response does not match contract: {error_msg}"
+            )
+    except Exception as e:
+        logger.warning(
+            f"[SCHEMA_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
+        )
+    return response_data
+
+
 def safe_dict_convert(row):
     """Safely convert DictCursor row to dictionary, handling schema mismatches.
 
@@ -477,6 +501,7 @@ def handle_db_error(error, context="database operation", query=None, params=None
     """Unified database error handler for all route handlers.
 
     Uses centralized error classification from utils.error_handlers.classify_exception.
+    Logs with automatic PII/SQL sanitization via log_sanitizer context manager.
 
     Args:
         error: The exception caught
@@ -487,10 +512,10 @@ def handle_db_error(error, context="database operation", query=None, params=None
     Returns:
         Tuple of (statusCode, errorType, message) for standardized error responses
     """
+    from utils.error_handlers import classify_exception, log_sanitizer
+
     # Use centralized classification (handles both psycopg2 and custom exceptions)
     try:
-        from utils.error_handlers import classify_exception
-
         status_code, error_type, message = classify_exception(error)
     except Exception:
         # Fallback to old logic if import fails
@@ -498,17 +523,14 @@ def handle_db_error(error, context="database operation", query=None, params=None
         error_type = "database_error"
         message = f"Error during {context}"
 
-    # Log with full context
-    error_name = type(error).__name__
-    error_str = str(error)
-    log_msg = f"[DB_ERROR] {error_name} in {context}: {error_str}"
-    if query:
-        log_msg += f"\n  Query: {query[:500]}"
-    if params:
-        param_str = str(params)[:200]
-        log_msg += f"\n  Params: {param_str}"
-
-    logger.error(log_msg)
+    # Log with sanitization to prevent PII/SQL leakage
+    with log_sanitizer(f"database error: {context}") as safe_log:
+        ctx_dict = {}
+        if query:
+            ctx_dict["query"] = query
+        if params:
+            ctx_dict["params"] = params
+        safe_log.error(error, context=ctx_dict if ctx_dict else None)
 
     return status_code, error_type, message
 
@@ -518,7 +540,7 @@ def db_route_handler(operation_name: str, default_error_response=None):
 
     Eliminates redundant try-except blocks by wrapping function with:
     - Consistent database error catching
-    - Unified error logging via handle_db_error()
+    - Unified error logging via handle_db_error() with PII/SQL sanitization
     - Standard error response formatting with _error field for consistency
 
     When database errors occur, returns proper error status codes (503, 504, etc.)
@@ -548,7 +570,6 @@ def db_route_handler(operation_name: str, default_error_response=None):
                 Exception,
             ) as e:
                 code, error_type, message = handle_db_error(e, operation_name)
-                logger.error(f"Failed to {operation_name}: {error_type} - {message}")
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
                 return json_response(

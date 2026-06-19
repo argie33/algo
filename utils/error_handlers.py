@@ -6,7 +6,8 @@ Provides helpers for error logging, sanitization, and context extraction.
 
 import logging
 import re
-from typing import Any, Dict, Optional, Tuple
+from contextlib import contextmanager
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -26,7 +27,80 @@ except ImportError:
     HAS_PSYCOPG2 = False
 
 
-def classify_exception(e: Exception) -> Tuple[int, str, str]:
+@contextmanager
+def log_sanitizer(operation: str = "operation"):
+    """Context manager for safe error logging with automatic sanitization.
+
+    Prevents accidental PII leakage to CloudWatch by intercepting log calls
+    and redacting sensitive fields (credentials, SQL, user data).
+
+    Usage:
+        with log_sanitizer("fetch user data") as safe_log:
+            try:
+                # risky operation
+            except Exception as e:
+                safe_log.error(e, context={"user_id": user_id})
+
+    Args:
+        operation: Operation name for context in error messages
+
+    Yields:
+        Sanitized logger wrapper with error() and warning() methods
+    """
+
+    class SanitizedLogger:
+        def __init__(self, logger_inst: logging.Logger, op: str):
+            self.logger = logger_inst
+            self.operation = op
+
+        def error(self, exc: Exception, context: dict[str, Any] | None = None):
+            """Log error with automatic sanitization."""
+            self._log_sanitized(exc, context, level="error")
+
+        def warning(self, exc: Exception, context: dict[str, Any] | None = None):
+            """Log warning with automatic sanitization."""
+            self._log_sanitized(exc, context, level="warning")
+
+        def _log_sanitized(
+            self,
+            exc: Exception,
+            context: dict[str, Any] | None = None,
+            level: str = "error",
+        ):
+            """Internal method to log with full sanitization."""
+            status_code, error_type, message = classify_exception(exc)
+
+            # Sanitize exception message
+            exc_str = sanitize_error_message(str(exc)[:500])
+
+            log_msg = f"[{error_type.upper()}] {self.operation}: {message}\n"
+            log_msg += f"  Exception: {type(exc).__name__}: {exc_str}\n"
+
+            # Sanitize context dict
+            if context:
+                for key, value in context.items():
+                    # Skip logging param values if they look like data
+                    if key in ("params", "query", "sql"):
+                        value_str = "[REDACTED SQL]"
+                    elif key in ("password", "api_key", "token", "secret"):
+                        value_str = "[REDACTED CREDENTIAL]"
+                    elif isinstance(value, (list, dict)):
+                        value_str = "[REDACTED DATA STRUCTURE]"
+                    else:
+                        value_str = sanitize_error_message(str(value)[:200])
+
+                    log_msg += f"  {key}: {value_str}\n"
+
+            # Log using the appropriate level
+            if level == "error":
+                self.logger.error(log_msg)
+            else:
+                self.logger.warning(log_msg)
+
+    yield SanitizedLogger(logger, operation)
+
+
+def classify_exception(e: Exception) -> tuple[int, str, str]:
     """Map any exception to (statusCode, errorType, message).
 
     Converts standard exceptions and custom BaseAPIException to standardized format.
@@ -88,10 +162,12 @@ def classify_exception(e: Exception) -> Tuple[int, str, str]:
 def log_error_with_context(
     e: Exception,
     operation: str,
-    context_dict: Optional[Dict[str, Any]] = None,
-    logger_instance: Optional[logging.Logger] = None,
+    context_dict: dict[str, Any] | None = None,
+    logger_instance: logging.Logger | None = None,
 ) -> None:
     """Log error with full context for debugging.
+
+    Uses sanitization to prevent PII/SQL leakage to CloudWatch logs.
 
     Args:
         e: Exception instance
@@ -102,19 +178,12 @@ def log_error_with_context(
     if logger_instance is None:
         logger_instance = logger
 
-    status_code, error_type, message = classify_exception(e)
-    log_msg = f"[{error_type.upper()}] {operation}: {message}\n"
-    log_msg += f"  Exception: {type(e).__name__}: {str(e)[:500]}\n"
-
-    if context_dict:
-        for key, value in context_dict.items():
-            value_str = str(value)[:200]
-            log_msg += f"  {key}: {value_str}\n"
-
-    if status_code >= 500:
-        logger_instance.error(log_msg, exc_info=True)
-    else:
-        logger_instance.warning(log_msg)
+    with log_sanitizer(operation) as safe_log:
+        status_code, _, _ = classify_exception(e)
+        if status_code >= 500:
+            safe_log.error(e, context=context_dict)
+        else:
+            safe_log.warning(e, context=context_dict)
 
 
 def sanitize_error_message(msg: str) -> str:
@@ -144,7 +213,7 @@ def sanitize_error_message(msg: str) -> str:
     return msg
 
 
-def extract_error_context(e: Exception) -> Dict[str, Any]:
+def extract_error_context(e: Exception) -> dict[str, Any]:
     """Extract query, params, table_name, etc from exception for logging.
 
     Args:
@@ -153,7 +222,7 @@ def extract_error_context(e: Exception) -> Dict[str, Any]:
     Returns:
         Dict with extracted context (may be empty if not applicable)
     """
-    context: Dict[str, Any] = {}
+    context: dict[str, Any] = {}
 
     # Extract from psycopg2 exceptions
     if HAS_PSYCOPG2 and isinstance(e, psycopg2.extensions.Diagnostic):
@@ -182,6 +251,8 @@ def retry_with_backoff(
     jitter: bool = True,
 ) -> Any:
     """Generic retry with exponential backoff.
+
+    Logs retries with automatic PII/SQL sanitization.
 
     Args:
         func: Callable that returns result or raises exception
@@ -215,13 +286,13 @@ def retry_with_backoff(
                     actual_backoff = current_backoff
 
                 actual_backoff = min(actual_backoff, max_backoff_sec)
-                logger.warning(
-                    f"Attempt {attempt + 1}/{max_attempts} failed, retrying in {actual_backoff:.1f}s: {e}"
-                )
+                with log_sanitizer(f"retry attempt {attempt + 1}/{max_attempts}") as safe_log:
+                    safe_log.warning(e)
                 time.sleep(actual_backoff)
                 current_backoff *= backoff_multiplier
             else:
-                logger.error(f"All {max_attempts} attempts failed")
+                with log_sanitizer("retry exhausted") as safe_log:
+                    safe_log.error(e)
 
     if last_error:
         raise last_error
@@ -230,9 +301,9 @@ def retry_with_backoff(
 def make_error_response(
     e: Exception,
     operation: str = "unknown operation",
-    context_dict: Optional[Dict[str, Any]] = None,
-    logger_instance: Optional[logging.Logger] = None,
-) -> Dict[str, Any]:
+    context_dict: dict[str, Any] | None = None,
+    logger_instance: logging.Logger | None = None,
+) -> dict[str, Any]:
     """Create standardized error response from any exception.
 
     Logs the error with full context, classifies it, and returns API response.

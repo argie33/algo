@@ -34,6 +34,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
+    idempotency_key: str = None,
 ) -> dict[str, Any]:
     """Handle health check endpoints.
 
@@ -122,7 +123,9 @@ def _handle_basic(cur) -> dict[str, Any]:
                 else:
                     health["freshness"] = {"status": "UNKNOWN"}
         except Exception as e:
-            logger.debug(f"Signal freshness check unavailable: {str(e)[:60]}")
+            from utils.error_handlers import sanitize_error_message
+            sanitized = sanitize_error_message(str(e)[:60])
+            logger.debug(f"Signal freshness check unavailable: {sanitized}")
             health["freshness"] = {"status": "UNKNOWN"}
 
         # Last successful loader timestamp (indexed query, 1 second timeout)
@@ -147,7 +150,9 @@ def _handle_basic(cur) -> dict[str, Any]:
                         else str(latest_load)
                     )
         except Exception as e:
-            logger.debug(f"Loader check unavailable: {str(e)[:60]}")
+            from utils.error_handlers import sanitize_error_message
+            sanitized = sanitize_error_message(str(e)[:60])
+            logger.debug(f"Loader check unavailable: {sanitized}")
 
         if has_critical:
             health["status"] = "degraded"
@@ -155,7 +160,6 @@ def _handle_basic(cur) -> dict[str, Any]:
         return success_response(health)
 
     except Exception as e:
-        logger.error(f"Health check error: {str(e)[:100]}")
         code, error_type, message = handle_db_error(e, "health check")
         return error_response(code, error_type, message)
 
@@ -254,17 +258,21 @@ def _handle_cognito(cur) -> dict[str, Any]:
                 )
 
         except Exception as cognito_err:
+            from utils.error_handlers import sanitize_error_message
+            sanitized = sanitize_error_message(str(cognito_err)[:100])
             logger.warning(
-                f"Could not verify Cognito client ID with API (will proceed with config): {str(cognito_err)[:100]}"
+                f"Could not verify Cognito client ID with API (will proceed with config): {sanitized}"
             )
             # If we can't reach Cognito API, still report what we have configured (pre-deploy may not have IAM)
             health["cognito_verification_skipped"] = True
-            health["cognito_error"] = str(cognito_err)[:80]
+            health["cognito_error"] = sanitize_error_message(str(cognito_err)[:80])
             return success_response(health)
 
     except Exception as e:
-        logger.error(f"Cognito health check error: {str(e)[:100]}")
-        return error_response(503, "health_check_error", str(e)[:100])
+        from utils.error_handlers import sanitize_error_message
+        sanitized = sanitize_error_message(str(e)[:100])
+        logger.error(f"Cognito health check error: {sanitized}")
+        return error_response(503, "health_check_error", sanitized)
 
 
 def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
@@ -298,7 +306,6 @@ def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
             {"status": "healthy", "dbStatus": "connected", "tables": table_counts}
         )
     except Exception as e:
-        logger.error(f"[HEALTH_DETAILED_ERROR] {e}", exc_info=True)
         code, error_type, message = handle_db_error(e, "detailed health check")
         return error_response(code, error_type, message)
 
@@ -388,6 +395,5 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
             }
         )
     except Exception as e:
-        logger.error(f"[HEALTH_PIPELINE_ERROR] {e}", exc_info=True)
         code, error_type, message = handle_db_error(e, "pipeline health check")
         return error_response(code, error_type, message)
