@@ -242,43 +242,25 @@ def _get_rejection_funnel(cur) -> dict:
     try:
         today = date.today()
 
-        # Get total initial candidates (swing_trader_scores replaced buy_sell_daily)
+        # Get all candidate counts in single query
         cur.execute("""
-                SELECT COUNT(DISTINCT symbol) as total_signals
+                SELECT
+                    COUNT(DISTINCT symbol) as total_signals,
+                    COUNT(DISTINCT symbol) as scored,
+                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 60) as high_quality
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
         row = cur.fetchone()
-        initial_count = (
-            safe_json_serialize(safe_dict_convert(row)).get("total_signals", 0)
-            if row
-            else 0
-        )
-
-        # Get scored candidates
-        cur.execute("""
-                SELECT COUNT(DISTINCT symbol) as scored
-                FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
-            """)
-        row = cur.fetchone()
-        scored_count = (
-            safe_json_serialize(safe_dict_convert(row)).get("scored", 0) if row else 0
-        )
-
-        # Get high-quality candidates (SQS > 60)
-        cur.execute("""
-                SELECT COUNT(DISTINCT symbol) as high_quality
-                FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
-                AND score >= 60
-            """)
-        row = cur.fetchone()
-        high_quality_count = (
-            safe_json_serialize(safe_dict_convert(row)).get("high_quality", 0)
-            if row
-            else 0
-        )
+        if row:
+            row_data = safe_json_serialize(safe_dict_convert(row))
+            initial_count = row_data.get("total_signals", 0)
+            scored_count = row_data.get("scored", 0)
+            high_quality_count = row_data.get("high_quality", 0)
+        else:
+            initial_count = 0
+            scored_count = 0
+            high_quality_count = 0
 
         # Build funnel stages with rejection reasons
         funnel = [

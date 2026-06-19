@@ -40,25 +40,28 @@ class PatrolLogger:
 
     def log_results(self, cur, results: List[CheckResult]) -> None:
         """Log all check results to database."""
-        for result in results:
+        if results:
             try:
-                cur.execute(
+                cur.executemany(
                     """
                     INSERT INTO data_patrol_log
                       (patrol_run_id, check_name, severity, target_table, message, details)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                    (
-                        self.run_id,
-                        result.check_name,
-                        result.severity,
-                        result.target_table,
-                        result.message,
-                        json.dumps(result.details) if result.details else None,
-                    ),
+                    [
+                        (
+                            self.run_id,
+                            result.check_name,
+                            result.severity,
+                            result.target_table,
+                            result.message,
+                            json.dumps(result.details) if result.details else None,
+                        )
+                        for result in results
+                    ],
                 )
             except Exception as e:
-                logger.error(f"Failed to log patrol result: {e}")
+                logger.error(f"Failed to log patrol results: {e}")
 
     def log_performance(self, cur, elapsed_seconds: float, status: str) -> None:
         """Log patrol execution performance metrics."""

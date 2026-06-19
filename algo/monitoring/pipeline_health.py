@@ -252,8 +252,18 @@ class PipelineHealth:
         """Log pipeline health to database for historical tracking."""
         try:
             with DatabaseContext("write") as cur:
-                for table_health in status.tables.values():
-                    cur.execute(
+                if status.tables:
+                    insert_values = [
+                        (
+                            table_health.table_name,
+                            table_health.status.value,
+                            table_health.row_count,
+                            table_health.latest_date,
+                            table_health.age_days,
+                        )
+                        for table_health in status.tables.values()
+                    ]
+                    cur.executemany(
                         """
                         INSERT INTO data_loader_status
                         (table_name, status, row_count, latest_date, age_days, last_updated)
@@ -266,13 +276,7 @@ class PipelineHealth:
                             age_days = EXCLUDED.age_days,
                             last_updated = NOW()
                         """,
-                        (
-                            table_health.table_name,
-                            table_health.status.value,
-                            table_health.row_count,
-                            table_health.latest_date,
-                            table_health.age_days,
-                        ),
+                        insert_values,
                     )
         except Exception as e:
             logger.error(f"[LOGGING_FAILURE] Could not log health check: {e}")

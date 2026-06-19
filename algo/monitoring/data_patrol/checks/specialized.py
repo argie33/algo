@@ -133,48 +133,62 @@ class SpecializedChecker(BaseCheck):
             ("key_metrics", "created_at", 14, WARN),
         ]
 
-        for tbl, col, max_days, sev in table_checks:
-            try:
+        try:
+            for tbl, col, max_days, sev in table_checks:
+                assert_safe_table(tbl)
+                assert_safe_table(col)
+
+            union_parts = []
+            for tbl, col, max_days, sev in table_checks:
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_table(col)
-                cur.execute(
-                    f"""
-                    SELECT MAX({col_safe}::date), COUNT(*), COUNT(DISTINCT symbol)
-                    FROM {tbl_safe}
-                """
-                )
-                latest, total, unique_syms = cur.fetchone()
+                union_parts.append(f"SELECT '{tbl}' as tbl_name, MAX({col_safe}::date) as latest, COUNT(*) as total, COUNT(DISTINCT symbol) as unique_syms FROM {tbl_safe}")
 
-                if not latest:
+            union_query = " UNION ALL ".join(union_parts)
+            cur.execute(union_query)
+
+            results_by_table = {}
+            for row in cur.fetchall():
+                row_dict = dict(row)
+                results_by_table[row_dict["tbl_name"]] = (row_dict["latest"], row_dict["total"], row_dict["unique_syms"])
+
+            for tbl, col, max_days, sev in table_checks:
+                try:
+                    if tbl in results_by_table:
+                        latest, total, unique_syms = results_by_table[tbl]
+
+                        if not latest:
+                            self.log(
+                                "fundamental_data",
+                                WARN,
+                                tbl,
+                                f"{tbl} is empty",
+                                {},
+                            )
+                        else:
+                            age = (today - latest).days
+                            result_sev = sev if age > max_days else INFO
+                            self.log(
+                                "fundamental_data",
+                                result_sev,
+                                tbl,
+                                f"{tbl} {age}d old ({unique_syms} symbols)",
+                                {
+                                    "latest": str(latest),
+                                    "age_days": age,
+                                    "symbols": unique_syms,
+                                },
+                            )
+                except Exception as e:
                     self.log(
                         "fundamental_data",
                         WARN,
                         tbl,
-                        f"{tbl} is empty",
-                        {},
+                        f"Check skipped: {e}",
+                        None,
                     )
-                else:
-                    age = (today - latest).days
-                    result_sev = sev if age > max_days else INFO
-                    self.log(
-                        "fundamental_data",
-                        result_sev,
-                        tbl,
-                        f"{tbl} {age}d old ({unique_syms} symbols)",
-                        {
-                            "latest": str(latest),
-                            "age_days": age,
-                            "symbols": unique_syms,
-                        },
-                    )
-            except Exception as e:
-                self.log(
-                    "fundamental_data",
-                    WARN,
-                    tbl,
-                    f"Check skipped: {e}",
-                    None,
-                )
+        except Exception as e:
+            logger.warning(f"Fundamental data checks failed: {e}")
 
     def check_derived_metrics(self, cur) -> None:
         """Check technical indicators for bounds violations."""

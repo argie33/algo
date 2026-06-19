@@ -90,56 +90,69 @@ class CoverageChecker(BaseCheck):
                 "signal_quality_scores",
             ]
 
-            for table_name in critical_tables:
-                try:
-                    table_safe = assert_safe_table(table_name)
-                    cur.execute(f"""
-                        SELECT COUNT(DISTINCT symbol) FROM {table_safe}
-                        WHERE date = (SELECT MAX(date) FROM {table_safe})
-                    """)
-                    result = cur.fetchone()
-                    table_count = (
-                        result[0] if result is not None and result[0] is not None else 0
-                    )
-                    coverage_pct = (
-                        (table_count / expected_count * 100) if expected_count else 0
-                    )
+            try:
+                coverage_results = {}
+                for table_name in critical_tables:
+                    assert_safe_table(table_name)
 
-                    if coverage_pct < coverage_error_pct:
-                        self.log(
-                            "coverage",
-                            ERROR,
-                            table_name,
-                            f"{table_name} coverage {coverage_pct:.1f}% < {coverage_error_pct}% threshold ({table_count}/{expected_count} symbols)",
-                            {
-                                "coverage_pct": round(coverage_pct, 1),
-                                "count": table_count,
-                                "expected": expected_count,
-                                "threshold": coverage_error_pct,
-                            },
+                union_parts = []
+                for i, table_name in enumerate(critical_tables):
+                    union_parts.append(f"""
+                        SELECT '{table_name}' as table_name, COUNT(DISTINCT symbol) as cnt
+                        FROM {assert_safe_table(table_name)}
+                        WHERE date = (SELECT MAX(date) FROM {assert_safe_table(table_name)})
+                    """)
+
+                union_query = " UNION ALL ".join(union_parts)
+                cur.execute(union_query)
+
+                results_by_table = {}
+                for row in cur.fetchall():
+                    row_dict = dict(row)
+                    results_by_table[row_dict["table_name"]] = row_dict["cnt"] or 0
+
+                for table_name in critical_tables:
+                    try:
+                        table_count = results_by_table.get(table_name, 0)
+                        coverage_pct = (
+                            (table_count / expected_count * 100) if expected_count else 0
                         )
-                    elif coverage_pct < coverage_warn_pct:
-                        self.log(
-                            "coverage",
-                            WARN,
-                            table_name,
-                            f"{table_name} coverage {coverage_pct:.1f}% < {coverage_warn_pct}% warn threshold",
-                            {
-                                "coverage_pct": round(coverage_pct, 1),
-                                "count": table_count,
-                                "expected": expected_count,
-                            },
-                        )
-                    else:
-                        self.log(
-                            "coverage",
-                            INFO,
-                            table_name,
-                            f"{table_name} coverage {coverage_pct:.1f}% OK",
-                            {"coverage_pct": round(coverage_pct, 1), "count": table_count},
-                        )
-                except Exception as e:
-                    self.log("coverage", ERROR, table_name, f"Check failed: {e}", None)
+
+                        if coverage_pct < coverage_error_pct:
+                            self.log(
+                                "coverage",
+                                ERROR,
+                                table_name,
+                                f"{table_name} coverage {coverage_pct:.1f}% < {coverage_error_pct}% threshold ({table_count}/{expected_count} symbols)",
+                                {
+                                    "coverage_pct": round(coverage_pct, 1),
+                                    "count": table_count,
+                                    "expected": expected_count,
+                                    "threshold": coverage_error_pct,
+                                },
+                            )
+                        elif coverage_pct < coverage_warn_pct:
+                            self.log(
+                                "coverage",
+                                WARN,
+                                table_name,
+                                f"{table_name} coverage {coverage_pct:.1f}% < {coverage_warn_pct}% warn threshold",
+                                {
+                                    "coverage_pct": round(coverage_pct, 1),
+                                    "count": table_count,
+                                    "expected": expected_count,
+                                },
+                            )
+                        else:
+                            self.log(
+                                "coverage",
+                                INFO,
+                                table_name,
+                                f"{table_name} coverage {coverage_pct:.1f}% OK",
+                                {"coverage_pct": round(coverage_pct, 1), "count": table_count},
+                            )
+                    except Exception as e:
+                        self.log("coverage", ERROR, table_name, f"Check failed: {e}", None)
         except Exception as e:
             self.log("coverage", ERROR, "patrol_coverage", f"Check failed: {e}", None)
 

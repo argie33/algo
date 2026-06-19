@@ -6,8 +6,9 @@ Data Operations Integration - Unified API for freshness, validation, caching
 import logging
 from typing import Any, Callable, Dict, Optional
 
-from utils.db import get_or_create_cache
-from utils.validation import check_freshness, is_fresh, validate_record
+from utils.data.age_validator import check_freshness, is_fresh
+from utils.db.query_cache import get_or_create_cache
+from utils.validation.registry import validate_record
 
 
 logger = logging.getLogger(__name__)
@@ -76,4 +77,4 @@ def check_data_fresh(
     context: str = "",
 ) -> bool:
     """Quick freshness check."""
-    return is_fresh(last_updated, data_type, context=context)
+    return is_fresh(last_updated, data_type)

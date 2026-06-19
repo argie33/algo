@@ -84,4 +84,3 @@ def up():
 
 def down():
     """Rollback: no changes needed (restoration is manual)."""
-    pass

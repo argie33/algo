@@ -153,18 +153,17 @@ class QualityChecker(BaseCheck):
 
             # Mark suspicious OHLC in database
             if ident_count > 0:
-                for symbol in ident_symbols:
-                    try:
-                        cur.execute(
-                            """
-                            UPDATE price_daily
-                            SET data_quality_flags = COALESCE(data_quality_flags, '{}')::jsonb || '{"is_suspicious_ohlc": true}'::jsonb
-                            WHERE symbol = %s AND date = (SELECT MAX(date) FROM price_daily)
-                        """,
-                            (symbol,),
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not mark suspicious OHLC for {symbol}: {e}")
+                try:
+                    cur.execute(
+                        """
+                        UPDATE price_daily
+                        SET data_quality_flags = COALESCE(data_quality_flags, '{}')::jsonb || '{"is_suspicious_ohlc": true}'::jsonb
+                        WHERE symbol = ANY(%s) AND date = (SELECT MAX(date) FROM price_daily)
+                    """,
+                        (ident_symbols,),
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not mark suspicious OHLC: {e}")
 
             if ident_count > ident_threshold:
                 self.log(

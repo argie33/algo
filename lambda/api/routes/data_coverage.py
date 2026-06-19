@@ -264,31 +264,44 @@ def get_loader_health(cur) -> Dict[str, Any]:
         ]
 
         table_health = []
-        for table in tables_to_check:
-            try:
+        try:
+            for table in tables_to_check:
+                assert_safe_table(table)
+
+            union_parts = []
+            for table in tables_to_check:
                 table_safe = assert_safe_table(table)
-                cur.execute(f"""
-                    SELECT MAX(date) as last_update, COUNT(*) as row_count
-                    FROM {table_safe}
-                """)  # nosec B608 — table_safe is sanitized by assert_safe_table
-                result = cur.fetchone()
-                if result:
-                    last_update, count = result
-                    days_old = (
-                        (datetime.utcnow() - last_update).days if last_update else 999
+                union_parts.append(f"SELECT '{table}' as tbl_name, MAX(date) as last_update, COUNT(*) as row_count FROM {table_safe}")
+
+            union_query = " UNION ALL ".join(union_parts)
+            cur.execute(union_query)
+
+            health_by_table = {}
+            for row in cur.fetchall():
+                row_dict = dict(row)
+                health_by_table[row_dict["tbl_name"]] = (row_dict["last_update"], row_dict["row_count"])
+
+            for table in tables_to_check:
+                try:
+                    if table in health_by_table:
+                        last_update, count = health_by_table[table]
+                        days_old = (
+                            (datetime.utcnow() - last_update).days if last_update else 999
+                        )
+                        status = "stale" if days_old > 7 else "fresh"
+                        table_health.append((table, status, last_update, count))
+                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                    logger.debug(f"[LOADER_HEALTH] Table {table} not found - skipping")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                    logger.warning(
+                        f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"
                     )
-                    status = "stale" if days_old > 7 else "fresh"
-                    table_health.append((table, status, last_update, count))
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                logger.debug(f"[LOADER_HEALTH] Table {table} not found - skipping")
-            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.warning(
-                    f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}"
-                )
+                except Exception as e:
+                    logger.warning(
+                        f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}"
+                    )
+        except Exception as e:
+            logger.warning(f"[LOADER_HEALTH] Failed to check table health: {e}")
 
         stale_loaders = [t[0] for t in table_health if t[1] == "stale"]
         return success_response(

@@ -110,6 +110,9 @@ class PositionMonitor:
                     )
 
                     cancelled_orders = []
+                    trades_to_update = []
+                    audit_entries = []
+
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
                         # Ensure created_at is timezone-aware (UTC) for subtraction
@@ -125,24 +128,47 @@ class PositionMonitor:
 
                         # Auto-cancel if > 2 hours (or configured threshold)
                         if age_minutes >= auto_cancel_threshold:
+                            # Try Alpaca cancellation
                             try:
-                                self._auto_cancel_stale_order(
-                                    trade_id, symbol, qty, price, age_minutes, cur
-                                )
-                                cancelled_orders.append({
-                                    "trade_id": trade_id,
-                                    "symbol": symbol,
-                                    "qty": qty,
-                                    "price": price,
-                                    "age_minutes": age_minutes
-                                })
-                                logger.warning(
-                                    f"  [AUTO-CANCEL] {trade_id} {symbol} (pending {age_minutes}m >= {auto_cancel_threshold}m threshold)"
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"  Failed to auto-cancel {trade_id} {symbol}: {e}"
-                                )
+                                self._cancel_on_alpaca(trade_id)
+                            except Exception as api_e:
+                                logger.warning(f"Could not cancel {trade_id} on Alpaca: {api_e}")
+
+                            # Collect for batch DB update
+                            trades_to_update.append(trade_id)
+                            audit_entries.append((
+                                "STALE_ORDER_AUTO_CANCELLED",
+                                symbol,
+                                f"Trade {trade_id}: {qty}@${price} pending {age_minutes}m >= auto-cancel threshold",
+                                "WARN",
+                                "position_monitor",
+                                "auto_cancelled",
+                            ))
+                            cancelled_orders.append({
+                                "trade_id": trade_id,
+                                "symbol": symbol,
+                                "qty": qty,
+                                "price": price,
+                                "age_minutes": age_minutes
+                            })
+                            logger.warning(
+                                f"  [AUTO-CANCEL] {trade_id} {symbol} (pending {age_minutes}m >= {auto_cancel_threshold}m threshold)"
+                            )
+
+                    # Batch update database
+                    if trades_to_update:
+                        cur.execute(
+                            """UPDATE algo_trades
+                               SET status = %s, updated_at = CURRENT_TIMESTAMP
+                               WHERE trade_id = ANY(%s)""",
+                            ("cancelled", trades_to_update),
+                        )
+                        cur.executemany(
+                            """INSERT INTO algo_audit_log (
+                                   action_type, symbol, action_date, details, severity, actor, status, created_at
+                               ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
+                            audit_entries,
+                        )
 
                     # Commit all changes (cancellations + audit logs)
                     if cancelled_orders:
@@ -449,6 +475,35 @@ class PositionMonitor:
         }
 
     # ---------- Helpers ----------
+
+    def _cancel_on_alpaca(self, trade_id):
+        """Cancel a stale pending order on Alpaca API only (idempotent)."""
+        try:
+            creds = get_alpaca_credentials()
+            base_url = get_alpaca_base_url()
+            alpaca_key = creds.get("key")
+            alpaca_secret = creds.get("secret")
+
+            if not alpaca_key or not alpaca_secret:
+                logger.warning(f"Alpaca credentials unavailable for {trade_id}")
+                return
+
+            url = f"{base_url}/v2/orders/{trade_id}"
+            headers = {
+                "APCA-API-KEY-ID": alpaca_key,
+                "APCA-API-SECRET-KEY": alpaca_secret,
+            }
+            timeout = self.config.get("api_request_timeout_seconds", 5)
+            resp = requests.delete(url, headers=headers, timeout=timeout)
+
+            if resp.status_code == 204 or resp.status_code == 200:
+                logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
+            elif resp.status_code == 404:
+                logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
+            else:
+                logger.warning(f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}")
+        except Exception as e:
+            logger.warning(f"Could not cancel {trade_id} on Alpaca: {e}")
 
     def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
         """Cancel a stale pending order on Alpaca and mark as cancelled in DB.

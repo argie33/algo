@@ -289,27 +289,44 @@ class AlignmentChecker(BaseCheck):
             ("stock_scores", "1=1", 0.90, WARN),
         ]
 
-        for tbl, where, min_ratio, sev in checks:
-            try:
+        try:
+            for tbl, where, min_ratio, sev in checks:
+                assert_safe_table(tbl)
+
+            union_parts = []
+            for tbl, where, min_ratio, sev in checks:
                 tbl_safe = assert_safe_table(tbl)
-                cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl_safe} WHERE {where}")
-                count = int(cur.fetchone()[0] or 0)
-                ratio = count / baseline
-                if ratio < min_ratio:
-                    self.log(
-                        "cross_align",
-                        sev,
-                        tbl,
-                        f"{tbl} coverage {ratio*100:.1f}% < {min_ratio*100:.0f}% ({count}/{baseline} symbols)",
-                        {"coverage_pct": round(ratio * 100, 1), "baseline": baseline},
-                    )
-                else:
-                    self.log(
-                        "cross_align",
-                        INFO,
-                        tbl,
-                        f"{tbl} alignment OK ({ratio*100:.1f}%)",
-                        None,
-                    )
-            except Exception as e:
-                self.log("cross_align", WARN, tbl, f"Check skipped: {e}", None)
+                union_parts.append(f"SELECT '{tbl}' as tbl_name, COUNT(DISTINCT symbol) as cnt FROM {tbl_safe} WHERE {where}")
+
+            union_query = " UNION ALL ".join(union_parts)
+            cur.execute(union_query)
+
+            counts_by_table = {}
+            for row in cur.fetchall():
+                row_dict = dict(row)
+                counts_by_table[row_dict["tbl_name"]] = row_dict["cnt"] or 0
+
+            for tbl, where, min_ratio, sev in checks:
+                try:
+                    count = counts_by_table.get(tbl, 0)
+                    ratio = count / baseline
+                    if ratio < min_ratio:
+                        self.log(
+                            "cross_align",
+                            sev,
+                            tbl,
+                            f"{tbl} coverage {ratio*100:.1f}% < {min_ratio*100:.0f}% ({count}/{baseline} symbols)",
+                            {"coverage_pct": round(ratio * 100, 1), "baseline": baseline},
+                        )
+                    else:
+                        self.log(
+                            "cross_align",
+                            INFO,
+                            tbl,
+                            f"{tbl} alignment OK ({ratio*100:.1f}%)",
+                            None,
+                        )
+                except Exception as e:
+                    self.log("cross_align", WARN, tbl, f"Check skipped: {e}", None)
+        except Exception as e:
+            self.log("cross_align", ERROR, "alignment", f"Cross-alignment check failed: {e}", None)

@@ -306,18 +306,27 @@ def _get_system_health(cur) -> Dict:
         health_data["status"] = "unhealthy"
 
     table_counts = {}
-    for table in ["stock_symbols", "price_daily", "algo_trades", "algo_positions"]:
-        try:
-            query = psycopg2.sql.SQL("SELECT COUNT(*) FROM {}").format(
-                psycopg2.sql.Identifier(table)
-            )
-            cur.execute(query)
-            count = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-            )
-            table_counts[table] = count
-        except (psycopg2.Error, TypeError, AttributeError) as e:
-            logger.warning(f"Failed to count rows in table {table}: {e}")
+    tables = ["stock_symbols", "price_daily", "algo_trades", "algo_positions"]
+    table_placeholders = ",".join([psycopg2.sql.SQL("{}").format(psycopg2.sql.Identifier(t)).as_string(cur) for t in tables])
+    try:
+        cur.execute(f"""
+            SELECT
+                'stock_symbols' as table_name, COUNT(*) as cnt FROM stock_symbols
+            UNION ALL
+            SELECT 'price_daily', COUNT(*) FROM price_daily
+            UNION ALL
+            SELECT 'algo_trades', COUNT(*) FROM algo_trades
+            UNION ALL
+            SELECT 'algo_positions', COUNT(*) FROM algo_positions
+        """)
+        for row in cur.fetchall():
+            row_dict = safe_json_serialize(dict(row))
+            table_name = row_dict.get("table_name")
+            count = row_dict.get("cnt", 0)
+            table_counts[table_name] = count
+    except (psycopg2.Error, TypeError, AttributeError) as e:
+        logger.warning(f"Failed to count rows in tables: {e}")
+        for table in tables:
             table_counts[table] = 0
 
     health_data["tables"] = table_counts

@@ -1041,30 +1041,32 @@ class DailyReconciliation:
         # Find orphans (in our DB but not in Alpaca positions AND not pending)
         orphans = (our_symbols - set(alpaca_symbols.keys())) - pending_symbols
         if orphans:
+            orphan_list = list(orphans)
+
+            # Bulk update algo_positions for all orphans
+            cur.execute(
+                """
+                UPDATE algo_positions
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE symbol = ANY(%s) AND status = %s
+            """,
+                (PositionStatus.ORPHANED.value, orphan_list, PositionStatus.OPEN.value),
+            )
+
+            # Bulk close all orphan positions in algo_trades (single source of truth for dashboard)
+            # This ensures the dashboard doesn't show positions that don't exist in Alpaca
+            # Close both: trades with no exit_date AND trades with old exit_date but wrong status
+            cur.execute(
+                """
+                UPDATE algo_trades
+                SET status = 'closed', exit_date = COALESCE(exit_date, CURRENT_DATE), updated_at = CURRENT_TIMESTAMP
+                WHERE symbol = ANY(%s) AND status IN ('open', 'filled', 'partially_filled', 'active')
+            """,
+                (orphan_list,),
+            )
+
+            # Alert on each orphan
             for sym in orphans:
-                # Mark as orphaned in algo_positions (legacy)
-                cur.execute(
-                    """
-                    UPDATE algo_positions
-                    SET status = %s, updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = %s AND status = %s
-                """,
-                    (PositionStatus.ORPHANED.value, sym, PositionStatus.OPEN.value),
-                )
-
-                # Also close positions in algo_trades (single source of truth for dashboard)
-                # This ensures the dashboard doesn't show positions that don't exist in Alpaca
-                # Close both: trades with no exit_date AND trades with old exit_date but wrong status
-                cur.execute(
-                    """
-                    UPDATE algo_trades
-                    SET status = 'closed', exit_date = COALESCE(exit_date, CURRENT_DATE), updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
-                """,
-                    (sym,),
-                )
-
-                # Alert: position missing from Alpaca
                 try:
                     notify(
                         severity="critical",

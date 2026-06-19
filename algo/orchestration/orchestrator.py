@@ -434,47 +434,57 @@ class Orchestrator:
                 ]
 
                 logger.info("  Table Freshness Status:")
-                for table, desc in tables_to_check:
-                    try:
-                        table_safe = assert_safe_table(table)
-                        cur.execute(
-                            psycopg2.sql.SQL("SELECT MAX(date) FROM {} LIMIT 1").format(
-                                psycopg2.sql.Identifier(table_safe)
-                            )
-                        )
-                        row = cur.fetchone()
-                        latest_date = (
-                            row[0] if row is not None and row[0] is not None else None
-                        )
-                        if latest_date:
-                            from datetime import date as date_type
-                            from datetime import datetime as dt
+                try:
+                    for table, desc in tables_to_check:
+                        assert_safe_table(table)
 
-                            if isinstance(latest_date, date_type) and not isinstance(
-                                latest_date, datetime
-                            ):
-                                latest_dt = dt.combine(
-                                    latest_date, dt.min.time()
-                                ).replace(tzinfo=timezone.utc)
-                            elif (
-                                isinstance(latest_date, datetime)
-                                and latest_date.tzinfo is None
-                            ):
-                                latest_dt = latest_date.replace(tzinfo=timezone.utc)
-                            else:
-                                latest_dt = (
-                                    latest_date
-                                    if isinstance(latest_date, datetime)
-                                    else dt.fromisoformat(str(latest_date)).replace(
-                                        tzinfo=timezone.utc
+                    union_parts = []
+                    for table, desc in tables_to_check:
+                        table_safe = assert_safe_table(table)
+                        union_parts.append(f"SELECT '{table}' as table_name, MAX(date) as latest_date FROM {table_safe}")
+
+                    union_query = " UNION ALL ".join(union_parts)
+                    cur.execute(union_query)
+
+                    dates_by_table = {}
+                    for row in cur.fetchall():
+                        row_dict = dict(row)
+                        dates_by_table[row_dict["table_name"]] = row_dict["latest_date"]
+
+                    for table, desc in tables_to_check:
+                        try:
+                            latest_date = dates_by_table.get(table)
+                            if latest_date:
+                                from datetime import date as date_type
+                                from datetime import datetime as dt
+
+                                if isinstance(latest_date, date_type) and not isinstance(
+                                    latest_date, datetime
+                                ):
+                                    latest_dt = dt.combine(
+                                        latest_date, dt.min.time()
+                                    ).replace(tzinfo=timezone.utc)
+                                elif (
+                                    isinstance(latest_date, datetime)
+                                    and latest_date.tzinfo is None
+                                ):
+                                    latest_dt = latest_date.replace(tzinfo=timezone.utc)
+                                else:
+                                    latest_dt = (
+                                        latest_date
+                                        if isinstance(latest_date, datetime)
+                                        else dt.fromisoformat(str(latest_date)).replace(
+                                            tzinfo=timezone.utc
+                                        )
                                     )
-                                )
-                            age = (datetime.now(timezone.utc) - latest_dt).days
-                            logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
-                        else:
-                            logger.info(f"    [EMPTY] {desc:20s}: no data")
-                    except Exception as t_err:
-                        logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
+                                age = (datetime.now(timezone.utc) - latest_dt).days
+                                logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
+                            else:
+                                logger.info(f"    [EMPTY] {desc:20s}: no data")
+                        except Exception as t_err:
+                            logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
+                except Exception as e:
+                    logger.warning(f"  Could not fetch table freshness: {e}")
 
                 # Check loader status
                 try:

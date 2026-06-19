@@ -163,40 +163,54 @@ def run(
             # Tables checked by MAX(date) vs price_daily latest date
             date_checked_tables = critical_tables
 
-            for table_name, description in date_checked_tables.items():
-                is_halt_table = table_name in halt_tables
-                try:
-                    cur.execute(f"SELECT MAX(date) FROM {table_name}")
-                    table_max_date = cur.fetchone()[0]
+            try:
+                union_parts = []
+                for table_name in date_checked_tables.keys():
+                    union_parts.append(f"SELECT '{table_name}' as tbl, MAX(date) as max_dt FROM {table_name}")
 
-                    if table_max_date is None:
-                        msg = f"{description} is empty"
+                union_query = " UNION ALL ".join(union_parts)
+                cur.execute(union_query)
+
+                max_dates = {}
+                for row in cur.fetchall():
+                    row_dict = dict(row)
+                    max_dates[row_dict["tbl"]] = row_dict["max_dt"]
+
+                for table_name, description in date_checked_tables.items():
+                    is_halt_table = table_name in halt_tables
+                    try:
+                        table_max_date = max_dates.get(table_name)
+
+                        if table_max_date is None:
+                            msg = f"{description} is empty"
+                            if is_halt_table:
+                                logger.critical(f"[PHASE 1] {msg}")
+                                halt_stale.append(msg)
+                            else:
+                                logger.warning(f"[PHASE 1] {msg}")
+                                warn_stale.append(msg)
+                            continue
+
+                        if table_max_date < max_date:
+                            days_behind = (max_date - table_max_date).days
+                            msg = f"{description} is {days_behind} day(s) stale"
+                            if is_halt_table:
+                                logger.critical(f"[PHASE 1] {msg}")
+                                halt_stale.append(msg)
+                            else:
+                                logger.warning(f"[PHASE 1] {msg}")
+                                warn_stale.append(msg)
+
+                    except Exception as e:
+                        msg = f"{description} check failed: {str(e)[:50]}"
                         if is_halt_table:
-                            logger.critical(f"[PHASE 1] {msg}")
+                            logger.warning(f"[PHASE 1] {msg}")
                             halt_stale.append(msg)
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
-                        continue
-
-                    if table_max_date < max_date:
-                        days_behind = (max_date - table_max_date).days
-                        msg = f"{description} is {days_behind} day(s) stale"
-                        if is_halt_table:
-                            logger.critical(f"[PHASE 1] {msg}")
-                            halt_stale.append(msg)
-                        else:
-                            logger.warning(f"[PHASE 1] {msg}")
-                            warn_stale.append(msg)
-
-                except Exception as e:
-                    msg = f"{description} check failed: {str(e)[:50]}"
-                    if is_halt_table:
-                        logger.warning(f"[PHASE 1] {msg}")
-                        halt_stale.append(msg)
-                    else:
-                        logger.warning(f"[PHASE 1] {msg}")
-                        warn_stale.append(msg)
+            except Exception as e:
+                logger.error(f"[PHASE 1] Failed to check table freshness: {e}")
 
             if warn_stale:
                 logger.warning(
