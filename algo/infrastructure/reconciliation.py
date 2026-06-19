@@ -1566,6 +1566,74 @@ class DailyReconciliation:
             "Cannot determine initial capital: Alpaca history unavailable and no database snapshots found"
         )
 
+    def validate_pnl(self, alpaca_equity: float, local_equity: float) -> dict:
+        """Validate that local P&L matches Alpaca P&L within tolerance.
+
+        Args:
+            alpaca_equity: Equity reported by Alpaca
+            local_equity: Equity calculated from local positions and cash
+
+        Returns:
+            Dict with validation results: {
+                'valid': bool,
+                'alpaca_equity': float,
+                'local_equity': float,
+                'variance_pct': float,
+                'variance_dollars': float,
+                'status': 'ok'|'alert'|'critical',
+                'message': str
+            }
+        """
+        if alpaca_equity is None or local_equity is None:
+            return {
+                'valid': False,
+                'alpaca_equity': alpaca_equity,
+                'local_equity': local_equity,
+                'variance_pct': None,
+                'variance_dollars': None,
+                'status': 'error',
+                'message': 'Cannot validate P&L: missing Alpaca or local equity data'
+            }
+
+        if alpaca_equity <= 0 or local_equity <= 0:
+            return {
+                'valid': False,
+                'alpaca_equity': alpaca_equity,
+                'local_equity': local_equity,
+                'variance_pct': None,
+                'variance_dollars': None,
+                'status': 'error',
+                'message': 'Cannot validate P&L: equity values must be positive'
+            }
+
+        variance_dollars = alpaca_equity - local_equity
+        variance_pct = (variance_dollars / alpaca_equity) * 100.0 if alpaca_equity > 0 else 0.0
+
+        threshold = 0.1  # 0.1% tolerance
+
+        if abs(variance_pct) <= threshold:
+            status = 'ok'
+            message = f'P&L validated: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%)'
+            valid = True
+        elif abs(variance_pct) <= 1.0:
+            status = 'alert'
+            message = f'P&L variance ALERT: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f})'
+            valid = False
+        else:
+            status = 'critical'
+            message = f'P&L MISMATCH CRITICAL: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f}) - verify position prices and trade exit prices'
+            valid = False
+
+        return {
+            'valid': valid,
+            'alpaca_equity': alpaca_equity,
+            'local_equity': local_equity,
+            'variance_pct': variance_pct,
+            'variance_dollars': variance_dollars,
+            'status': status,
+            'message': message
+        }
+
 
 if __name__ == "__main__":
     from algo.infrastructure import get_config

@@ -51,6 +51,33 @@ def run(
         )
         log_phase_result_fn(7, "reconciliation", status, summary)
 
+        # CRITICAL: Validate that local P&L matches Alpaca P&L
+        pnl_validation_status = "warn"
+        pnl_validation_summary = "N/A"
+        try:
+            alpaca_data = recon._fetch_alpaca_account()
+            if alpaca_data and reconciliation_succeeded:
+                alpaca_equity = alpaca_data.get("equity") or alpaca_data.get("portfolio_value")
+                local_equity = result.get("portfolio_value", 0)
+
+                pnl_check = recon.validate_pnl(alpaca_equity, local_equity)
+                pnl_validation_status = pnl_check["status"]
+                pnl_validation_summary = pnl_check["message"]
+
+                if pnl_check["status"] == "ok":
+                    logger.info(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+                elif pnl_check["status"] == "alert":
+                    logger.warning(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+                else:  # critical
+                    logger.critical(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+            else:
+                pnl_validation_summary = "Skipped (reconciliation failed or no Alpaca data)"
+        except Exception as e:
+            logger.error(f"[PHASE 7] P&L validation failed: {e}")
+            pnl_validation_summary = f"error: {str(e)[:60]}"
+        finally:
+            log_phase_result_fn(7, "pnl_validation", pnl_validation_status, pnl_validation_summary)
+
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
         try:
             with DatabaseContext("read") as audit_cur:
