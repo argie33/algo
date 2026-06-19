@@ -642,6 +642,9 @@ class AlgoConfig:
         self._load_from_database()
         t2 = time.time()
         logger.info(f"[AlgoConfig] database loaded in {t2-t1:.2f}s, total {t2-t0:.2f}s")
+        self._validate_config_interdependencies()
+        t3 = time.time()
+        logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t2:.2f}s")
 
     def _load_defaults(self):
         """Load default configuration."""
@@ -678,6 +681,9 @@ class AlgoConfig:
                 logger.info(
                     f"[AlgoConfig] _load_from_database() completed in {t_end-t0:.2f}s"
                 )
+        except ValueError as e:
+            logger.error(f"Config validation error: {e}")
+            raise
         except Exception as e:
             logger.warning(f"Warning: Could not load config from DB: {e}")
             logger.info("  Using defaults...")
@@ -738,12 +744,150 @@ class AlgoConfig:
             t2 = float(self._config.get("t2_target_r_multiple", 3.0))
             t3 = float(self._config.get("t3_target_r_multiple", 4.0))
             if not (t1 < t2 < t3):
-                logging.getLogger(__name__).warning(
-                    f"Config: R-multiple targets not ordered (t1={t1} t2={t2} t3={t3}). "
-                    "Expected t1 < t2 < t3."
+                raise ValueError(
+                    f"R-multiple ordering broken: t1={t1} t2={t2} t3={t3}. "
+                    "Required: t1 < t2 < t3 for position sizing."
                 )
         except (TypeError, ValueError) as e:
-            logger.debug(f"Failed to validate R-multiple ordering: {e}")
+            logger.error(f"Config validation failed: {e}")
+            raise
+
+    def _validate_config_interdependencies(self):
+        """Validate configuration interdependencies at startup.
+
+        Checks for conflicting values that create impossible or dead-code scenarios.
+        Raises ValueError for hard constraints; warns for soft conflicts.
+        """
+        try:
+            # Position geometry: max_positions * max_position_size_pct <= max_total_invested_pct
+            max_pos = float(self._config.get("max_positions", 15))
+            max_pos_size_pct = float(self._config.get("max_position_size_pct", 8.0))
+            max_total_pct = float(self._config.get("max_total_invested_pct", 95.0))
+
+            theoretical_max_from_position_size = (
+                max_total_pct / max_pos_size_pct if max_pos_size_pct > 0 else float("inf")
+            )
+            if max_pos > theoretical_max_from_position_size:
+                logger.warning(
+                    f"Config conflict: max_positions={max_pos} * "
+                    f"max_position_size_pct={max_pos_size_pct}% = "
+                    f"{max_pos * max_pos_size_pct}% > max_total_invested_pct={max_total_pct}%. "
+                    f"Geometric maximum is {theoretical_max_from_position_size:.1f} positions."
+                )
+
+            # VIX thresholds: caution < max (hard constraint)
+            vix_caution = float(self._config.get("vix_caution_threshold", 25.0))
+            vix_max = float(self._config.get("vix_max_threshold", 35.0))
+            vix_alert = float(self._config.get("vix_alert_threshold", 30.0))
+
+            if vix_caution >= vix_max:
+                raise ValueError(
+                    f"Config error: vix_caution_threshold ({vix_caution}) must be < "
+                    f"vix_max_threshold ({vix_max})"
+                )
+
+            if vix_alert >= vix_max:
+                logger.warning(
+                    f"Config: vix_alert_threshold ({vix_alert}) >= vix_max_threshold ({vix_max}). "
+                    "Alert will never trigger (max threshold reached first)."
+                )
+
+            if vix_caution >= vix_alert:
+                logger.warning(
+                    f"Config: vix_caution_threshold ({vix_caution}) >= "
+                    f"vix_alert_threshold ({vix_alert}). Caution will trigger before alert."
+                )
+
+            # Drawdown thresholds: all should be negative and ordered
+            halt_dd = float(self._config.get("halt_drawdown_pct", -20.0))
+            r_at_minus_5 = float(self._config.get("risk_reduction_at_minus_5", 0.75))
+            r_at_minus_10 = float(self._config.get("risk_reduction_at_minus_10", 0.5))
+            r_at_minus_15 = float(self._config.get("risk_reduction_at_minus_15", 0.25))
+            r_at_minus_20 = float(self._config.get("risk_reduction_at_minus_20", 0.0))
+
+            if halt_dd >= 0:
+                logger.warning(
+                    f"Config: halt_drawdown_pct ({halt_dd}) should be negative "
+                    "(represents downside loss)"
+                )
+
+            if not (r_at_minus_20 <= r_at_minus_15 <= r_at_minus_10 <= r_at_minus_5):
+                logger.warning(
+                    f"Config: Risk reduction thresholds not ordered: "
+                    f"-5%={r_at_minus_5}, -10%={r_at_minus_10}, "
+                    f"-15%={r_at_minus_15}, -20%={r_at_minus_20}. "
+                    f"Expected: -5% >= -10% >= -15% >= -20%"
+                )
+
+            # Earnings blackout: both should be non-negative
+            eb_before = int(self._config.get("earnings_blackout_days_before", 7))
+            eb_after = int(self._config.get("earnings_blackout_days_after", 3))
+
+            if eb_before < 0 or eb_after < 0:
+                logger.warning(
+                    f"Config: Earnings blackout days should be non-negative "
+                    f"(before={eb_before}, after={eb_after})"
+                )
+
+            # Stop loss: max_stop_distance_pct should be positive and reasonable
+            max_stop = float(self._config.get("max_stop_distance_pct", 12.0))
+            if max_stop <= 0:
+                logger.warning(
+                    f"Config: max_stop_distance_pct ({max_stop}) should be positive"
+                )
+            if max_stop > 50:
+                logger.warning(
+                    f"Config: max_stop_distance_pct ({max_stop}) is very wide "
+                    "(typical range 5-20%)"
+                )
+
+            # Risk percentages: should be positive
+            base_risk = float(self._config.get("base_risk_pct", 0.75))
+            if base_risk <= 0:
+                logger.warning(
+                    f"Config: base_risk_pct ({base_risk}) should be positive"
+                )
+            if base_risk > 5:
+                logger.warning(
+                    f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)"
+                )
+
+            # Daily/weekly loss caps should be positive
+            daily_loss = float(self._config.get("max_daily_loss_pct", 2.0))
+            weekly_loss = float(self._config.get("max_weekly_loss_pct", 5.0))
+
+            if daily_loss <= 0 or weekly_loss <= 0:
+                logger.warning(
+                    f"Config: Max loss caps should be positive "
+                    f"(daily={daily_loss}, weekly={weekly_loss})"
+                )
+
+            if daily_loss >= weekly_loss:
+                logger.warning(
+                    f"Config: max_daily_loss_pct ({daily_loss}) >= max_weekly_loss_pct ({weekly_loss}). "
+                    "Daily limit will trigger before weekly limit."
+                )
+
+            # Minimum thresholds should be non-negative
+            min_completeness = int(self._config.get("min_completeness_score", 70))
+            min_signal_quality = int(self._config.get("min_signal_quality_score", 60))
+            min_swing_score = float(self._config.get("min_swing_score", 55.0))
+            min_stock_price = float(self._config.get("min_stock_price", 5.0))
+
+            if min_completeness < 0 or min_signal_quality < 0 or min_swing_score < 0 or min_stock_price < 0:
+                logger.warning(
+                    f"Config: Score/price thresholds should be non-negative "
+                    f"(completeness={min_completeness}, signal_quality={min_signal_quality}, "
+                    f"swing_score={min_swing_score}, stock_price={min_stock_price})"
+                )
+
+            logger.info("[AlgoConfig] Interdependency validation passed")
+
+        except ValueError as e:
+            logger.error(f"[AlgoConfig] FATAL: {e}")
+            raise
+        except Exception as e:
+            logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
     def get(self, key, default=None):
         """Get configuration value with validation of hardcoded defaults.
