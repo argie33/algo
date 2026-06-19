@@ -8,18 +8,18 @@ Verify pipeline-loaded tables are fresh before trading:
 3. market_exposure_daily: Market regime / exposure limits — HALT if stale
 4. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
 5. swing_trader_scores: Legacy scoring — WARNING if stale
-6. stock_scores: Composite scores for ranking — WARNING if stale (weekly refresh is acceptable)
-7. sector_ranking: Sector data for last trading day — WARNING if stale
+6. sector_ranking: Sector data for last trading day — WARNING if stale
 
-Phase 5 generates signals on-the-fly from stock_scores + price_daily.
-Technical data (technical_data_daily, buy_sell_daily) no longer in pipeline — not checked here.
+Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
+Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (no longer in pipeline).
 """
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from datetime import timedelta
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -41,17 +41,14 @@ def run(
 
     Halts if price_daily, market_health_daily, or market_exposure_daily are stale —
     these are required for Phase 5 signal generation and regime gating.
-    Issues warnings for trend_template_data, swing_trader_scores, stock_scores, and
-    sector_ranking — stale but trading can continue.
+    Issues warnings for trend_template_data, swing_trader_scores, and sector_ranking —
+    stale but trading can continue.
+    Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
     phase_start = time.time()
 
     min_coverage_pct = config.get("phase1_min_coverage_pct", 75) if config else 75
     min_symbol_count = config.get("phase1_min_symbol_count", 5000) if config else 5000
-    signal_freshness_hours = (
-        config.get("phase1_signal_freshness_hours", 24) if config else 24
-    )
-    max_stale_hours = signal_freshness_hours
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
@@ -156,18 +153,15 @@ def run(
             warn_tables = {
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "swing_trader_scores": "Swing trader scores (legacy, warning only)",
-                "stock_scores": "Composite scores for ranking (weekly refresh OK)",
                 "sector_ranking": "Sector rankings",
             }
             critical_tables = {**halt_tables, **warn_tables}
 
-            now_utc = datetime.now(timezone.utc)
             halt_stale = []   # pipeline-loaded tables — stale = HALT
             warn_stale = []   # auxiliary tables — stale = WARNING only
 
             # Tables checked by MAX(date) vs price_daily latest date
-            date_checked_tables = {k: v for k, v in critical_tables.items() if k != "stock_scores"}
-            # stock_scores has no date column — checked separately by updated_at
+            date_checked_tables = critical_tables
 
             for table_name, description in date_checked_tables.items():
                 is_halt_table = table_name in halt_tables
@@ -203,25 +197,6 @@ def run(
                     else:
                         logger.warning(f"[PHASE 1] {msg}")
                         warn_stale.append(msg)
-
-            # stock_scores: check by updated_at (no date column; weekly refresh is acceptable)
-            try:
-                cur.execute("SELECT MAX(updated_at) FROM stock_scores")
-                ss_updated = cur.fetchone()[0]
-                stock_scores_max_age_days = 7
-                if ss_updated is None:
-                    logger.warning("[PHASE 1] stock_scores is empty — composite score ranking unavailable")
-                    warn_stale.append("Composite scores (stock_scores) is empty")
-                else:
-                    if ss_updated.tzinfo is None:
-                        ss_updated = ss_updated.replace(tzinfo=timezone.utc)
-                    age_days = (now_utc - ss_updated).total_seconds() / 86400
-                    if age_days > stock_scores_max_age_days:
-                        msg = f"Composite scores (stock_scores) is {age_days:.1f} days old (max {stock_scores_max_age_days}d)"
-                        logger.warning(f"[PHASE 1] {msg}")
-                        warn_stale.append(msg)
-            except Exception as e:
-                logger.warning(f"[PHASE 1] stock_scores check failed: {str(e)[:50]}")
 
             if warn_stale:
                 logger.warning(
