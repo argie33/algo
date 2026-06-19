@@ -66,7 +66,12 @@ class DynamoDBHealthCheck:
             response = table.get_item(Key={"key": "orchestrator_halt"})
             item = response.get("Item", {})
 
-            halt_active = item.get("halt_flag", False) is True
+            if "halt_flag" not in item:
+                raise KeyError(
+                    "halt_flag missing from DynamoDB item 'orchestrator_halt'. "
+                    "Item structure may have changed. Cannot safely determine halt status."
+                )
+            halt_active = item["halt_flag"] is True
             set_time = item.get("set_at")
             reason = item.get("reason")
             ttl = item.get("TTL")

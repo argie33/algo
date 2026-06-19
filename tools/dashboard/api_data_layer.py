@@ -163,7 +163,7 @@ def cache_response(endpoint: str, data: dict) -> None:
 
 
 def get_cached_response(endpoint: str) -> dict | None:
-    """Get cached response if available, mark as stale if > 30 minutes old."""
+    """Get cached response if available, fail if stale (> 30 minutes old)."""
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
         if not cached:
@@ -172,10 +172,10 @@ def get_cached_response(endpoint: str) -> dict | None:
     timestamp = cached.get("timestamp")
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
     if age_seconds > 1800:
-        logger.warning(
-            f"API {endpoint}: using cached response (30+ min old, API unavailable)"
+        raise RuntimeError(
+            f"API {endpoint}: cached response too stale (30+ min old, {int(age_seconds)}s). "
+            "API unavailable and fallback data expired. Cannot serve to dashboard."
         )
-        return {**cached_data, "_cached": True, "_cache_age_seconds": int(age_seconds)}
     return cached_data
 
 
@@ -208,9 +208,13 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         }
 
     if _check_circuit_breaker():
-        cached = get_cached_response(endpoint)
-        if cached:
-            return cached
+        try:
+            cached = get_cached_response(endpoint)
+            if cached:
+                return cached
+        except RuntimeError as e:
+            logger.error(str(e))
+            return {"_error": str(e)}
         return {
             "_error": "API unavailable - circuit breaker open",
             "_circuit_open": True,
@@ -252,9 +256,13 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                     time.sleep(backoff)
                     continue
                 _record_api_failure()
-                cached = get_cached_response(endpoint)
-                if cached:
-                    return cached
+                try:
+                    cached = get_cached_response(endpoint)
+                    if cached:
+                        return cached
+                except RuntimeError as e:
+                    logger.error(str(e))
+                    return {"_error": str(e)}
                 return {"_error": f"API error {resp.status_code}"}
 
             data = resp.json()

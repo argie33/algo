@@ -12,8 +12,11 @@ with DatabaseContext('write') as cur:
         print(f"Found {len(locks)} orchestrator_locks:")
         for lock in locks:
             print(f"  {lock}")
-    except:
-        print("No orchestrator_locks table")
+    except Exception as e:
+        if "does not exist" in str(e) or "undefined table" in str(e):
+            print("No orchestrator_locks table")
+        else:
+            raise
 
     try:
         cur.execute("SELECT * FROM distributed_locks")
@@ -24,8 +27,11 @@ with DatabaseContext('write') as cur:
         if locks:
             cur.execute("DELETE FROM distributed_locks")
             print(f"Cleared {cur.rowcount} distributed locks")
-    except:
-        print("No distributed_locks table")
+    except Exception as e:
+        if "does not exist" in str(e) or "undefined table" in str(e):
+            print("No distributed_locks table")
+        else:
+            raise
 
     try:
         cur.execute("SELECT * FROM advisory_locks")
@@ -36,8 +42,11 @@ with DatabaseContext('write') as cur:
         if locks:
             cur.execute("DELETE FROM advisory_locks")
             print(f"Cleared {cur.rowcount} advisory locks")
-    except:
-        print("No advisory_locks table")
+    except Exception as e:
+        if "does not exist" in str(e) or "undefined table" in str(e):
+            print("No advisory_locks table")
+        else:
+            raise
 
     # Try to list all tables that might contain locks
     cur.execute("""

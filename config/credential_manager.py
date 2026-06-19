@@ -99,10 +99,13 @@ class CredentialManager:
                     region_name=os.getenv("AWS_REGION", "us-east-1"),
                     config=_cfg,
                 )
-            except ImportError:
-                logger.warning(
-                    "boto3 not available; falling back to environment variables only"
-                )
+            except ImportError as e:
+                if self._is_aws:
+                    raise RuntimeError(
+                        "boto3 not available in AWS environment. This is a critical deployment error. "
+                        "Ensure boto3 is installed in Lambda layer or container image."
+                    ) from e
+                logger.debug("boto3 not available; using environment variables only")
                 self._secrets_client = False  # sentinel: tried and failed
         return self._secrets_client if self._secrets_client else None
 
@@ -220,40 +223,44 @@ class CredentialManager:
 
         secret_arn = os.getenv("DB_SECRET_ARN")
         if secret_arn and self._is_aws:
-            try:
-                client = self._get_secrets_client()
-                if client:
-                    response = client.get_secret_value(SecretId=secret_arn)
-                    creds = _json.loads(response.get("SecretString", "{}"))
-                    # Prefer DB_HOST env var (proxy endpoint set by Terraform) over
-                    # the secret's host field (which may point to direct RDS endpoint).
-                    db_host = (
-                        os.getenv("DB_HOST")
-                        or os.getenv("DB_ENDPOINT")
-                        or creds.get("host")
-                    )
-                    if not db_host:
-                        raise ValueError(
-                            "Database host not found in secret or environment"
-                        )
-                    password = creds.get("password")
-                    if not password:
-                        raise ValueError("Database password not found in secret")
-                    result = {
-                        "host": db_host,
-                        "port": int(creds.get("port") or os.getenv("DB_PORT", "5432")),
-                        "user": creds.get("username", "stocks"),
-                        "password": password,
-                        "database": creds.get("dbname")
-                        or os.getenv("DB_NAME", "stocks"),
-                    }
-                    self._cache[_db_creds_cache_key] = (result, time.time())
-                    return result
-            except Exception as e:
-                logger.warning(
-                    "Failed to load database credentials from secret: %s — falling back to env vars",
-                    _sanitize_error(e),
+            client = self._get_secrets_client()
+            if not client:
+                raise RuntimeError(
+                    "DB_SECRET_ARN is set but Secrets Manager client is unavailable. "
+                    "Cannot fall back to environment variables for database credentials in AWS environment."
                 )
+            try:
+                response = client.get_secret_value(SecretId=secret_arn)
+                creds = _json.loads(response.get("SecretString", "{}"))
+                # Prefer DB_HOST env var (proxy endpoint set by Terraform) over
+                # the secret's host field (which may point to direct RDS endpoint).
+                db_host = (
+                    os.getenv("DB_HOST")
+                    or os.getenv("DB_ENDPOINT")
+                    or creds.get("host")
+                )
+                if not db_host:
+                    raise ValueError(
+                        "Database host not found in secret or environment"
+                    )
+                password = creds.get("password")
+                if not password:
+                    raise ValueError("Database password not found in secret")
+                result = {
+                    "host": db_host,
+                    "port": int(creds.get("port") or os.getenv("DB_PORT", "5432")),
+                    "user": creds.get("username", "stocks"),
+                    "password": password,
+                    "database": creds.get("dbname")
+                    or os.getenv("DB_NAME", "stocks"),
+                }
+                self._cache[_db_creds_cache_key] = (result, time.time())
+                return result
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load database credentials from Secrets Manager: {_sanitize_error(e)}. "
+                    "Database connections require fresh credentials from AWS Secrets Manager in Lambda environment."
+                ) from e
 
         # DB_HOST is required - no localhost fallback for safety
         db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
@@ -378,7 +385,7 @@ class CredentialManager:
                     if key and secret:
                         return {"key": key, "secret": secret}
             except Exception as e:
-                logger.debug(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
+                logger.warning(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
 
         # Step 4: Fall back to individual secrets (legacy format)
         try:

@@ -47,7 +47,7 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
             ],
         )
     except Exception as e:
-        logger.debug(f"Could not emit CloudWatch metric for {operation_name}: {e}")
+        logger.warning(f"Could not emit CloudWatch metric for {operation_name}: {e}")
 
 
 class TimeBlock:
