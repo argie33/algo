@@ -343,3 +343,13 @@ Never silently return defaults (0, None, [], {}, False). Raise exception with co
 
 **Orchestrator lock timeout:** Check: `aws ecs list-tasks --cluster algo-cluster` (no stuck tasks). Check CloudWatch for "Lock acquisition failed".
 
+**Market regime halts entries:** Phase 5 halts when market_exposure_daily sets `is_entry_allowed=false`. Common triggers (see market_exposure.py hard vetoes):
+- 6+ heavy-volume down days in last 25 trading sessions (institutional distribution)
+- VIX > 40 with rising trend
+- SPY below 30-week MA + no market confirmation
+- HY credit spread > 8.5% (systemic stress)
+
+Check current market regime: `SELECT date, is_entry_allowed, halt_reasons FROM market_exposure_daily WHERE date = CURRENT_DATE ORDER BY date DESC LIMIT 1`. Entries resume automatically when conditions improve (next morning's market_exposure_daily computation). This is a designed risk control — trading halts in severe market conditions.
+
+**Missing scheduled orchestrator runs:** If <4 runs in a trading day, check EventBridge rules (algo-algo-dev) are ENABLED for 9:30 AM, 1 PM, 3 PM, 5:30 PM ET. Check Lambda provisioned concurrency: `aws lambda get-provisioned-concurrency-config --function-name algo-algo-dev`. If cold, Lambda may timeout during warm-up phase (wait 30s and retry).
+
