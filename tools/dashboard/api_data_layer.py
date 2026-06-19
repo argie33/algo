@@ -177,8 +177,21 @@ def cache_response(endpoint: str, data: dict) -> None:
         }
 
 
-def get_cached_response(endpoint: str) -> dict | None:
-    """Get cached response if available, fail if stale (> 30 minutes old)."""
+def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
+    """Get cached response if available.
+
+    Args:
+        endpoint: API endpoint path
+        mark_stale: If True, add _stale_cache flag when data is >30min old
+                   instead of failing. Used during circuit breaker outages to
+                   serve stale data with warning flag.
+
+    Returns:
+        Cached data with optional _stale_cache flag, or None if not cached.
+
+    Raises:
+        RuntimeError: If cache > 30 min old and mark_stale=False
+    """
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
         if not cached:
@@ -186,12 +199,18 @@ def get_cached_response(endpoint: str) -> dict | None:
     cached_data = cached.get("data", {})
     timestamp = cached.get("timestamp")
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
+
     if age_seconds > 1800:
-        raise RuntimeError(
-            f"API {endpoint}: cached response too stale "
-            f"(30+ min old, {int(age_seconds)}s). "
-            "API unavailable - cannot serve stale data."
-        )
+        if not mark_stale:
+            raise RuntimeError(
+                f"API {endpoint}: cached response too stale "
+                f"(30+ min old, {int(age_seconds)}s). "
+                "API unavailable - cannot serve stale data."
+            )
+        cached_data = dict(cached_data)
+        cached_data["_stale_cache"] = True
+        cached_data["_cache_age_seconds"] = int(age_seconds)
+
     return cached_data
 
 
@@ -230,8 +249,12 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
 
     if _check_circuit_breaker():
         try:
-            cached = get_cached_response(endpoint)
+            cached = get_cached_response(endpoint, mark_stale=True)
             if cached:
+                logger.warning(
+                    f"Circuit breaker open - returning cached data for {endpoint} "
+                    f"(age: {cached.get('_cache_age_seconds', 0)}s)"
+                )
                 return cached
         except RuntimeError as e:
             logger.error(str(e))
