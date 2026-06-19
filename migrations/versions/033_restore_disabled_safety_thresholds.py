@@ -12,6 +12,7 @@ Current (DANGEROUS) State:
 - min_completeness_score: 0 (should be 70)
 - earnings_blackout_days_before: 0 (should be 7)
 - earnings_blackout_days_after: 0 (should be 3)
+- min_avg_daily_dollar_volume: 1 (should be 500000)
 
 Impact: System will trade ANY stock regardless of signal quality, data completeness,
 or proximity to earnings announcements. This creates:
@@ -34,6 +35,7 @@ SAFE_DEFAULTS = [
     ("min_completeness_score", "70", "int"),
     ("earnings_blackout_days_before", "7", "int"),
     ("earnings_blackout_days_after", "3", "int"),
+    ("min_avg_daily_dollar_volume", "500000", "float"),
 ]
 
 
