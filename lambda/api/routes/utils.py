@@ -1,6 +1,7 @@
 """Shared route utilities."""
 
 import logging
+import re
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
@@ -169,9 +170,9 @@ def error_response(code, typ, msg):
         from utils.error_handlers import sanitize_error_message
 
         msg = sanitize_error_message(msg)
-    except Exception as e:
-
-        raise RuntimeError(f"Unexpected error: {e}") from e
+    except Exception:
+        # Fallback: basic sanitization if import fails
+        msg = re.sub(r"password=\S+|api.?key=\S+", "***", msg)
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
