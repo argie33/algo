@@ -263,10 +263,9 @@ def fetch_market(c):
                 "ycs": None,
                 "fed": None,
             }
-        # API returns: {data: {current: {...}, active_tier: {...}, market_health: {...}, ...}}
-        data = mkt.get("data", {})
-        current = data.get("current", {})
-        market_health = data.get("market_health", {})
+        # API response is unwrapped so data is at top level (statusCode + fields)
+        current = mkt.get("current", {})
+        market_health = mkt.get("market_health", {})
 
         # VIX is under market_health, not top-level data
         try:
@@ -306,10 +305,10 @@ def fetch_market(c):
                 "fed": None,
             }
 
-        # regime is nested under data.current; fall back to active_tier.name
+        # regime is in current; fall back to active_tier.name
         tier = (
             current.get("regime")
-            or data.get("active_tier", {}).get("name")
+            or mkt.get("active_tier", {}).get("name")
             or "unknown"
         )
 
@@ -1397,18 +1396,11 @@ def fetch_scores(c):
         if _is_api_error(top_data):
             return {"_error": _get_error_message(top_data), "top": []}
 
-        def _extract(d):
-            raw = d.get("data", {})
-            if isinstance(raw, dict):
-                return raw.get("items", [])
-            if isinstance(raw, list):
-                return raw
-            return []
-
-        top = _extract(top_data)
-        if not top:
+        # API response is unwrapped so items is at top level, not under data
+        items = top_data.get("items", [])
+        if not items:
             return {"_error": "No score data available", "top": []}
-        return {"top": top}
+        return {"top": items}
     except Exception as e:
         error_msg = _format_fetcher_error("scores", e)
         logger.error(error_msg)

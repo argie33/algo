@@ -106,22 +106,31 @@ class MarketHealthDailyLoader(OptimalLoader):
             m["new_highs_count"] = b.get("new_highs_count", 0)
             m["new_lows_count"] = b.get("new_lows_count", 0)
 
-        # Merge VIX data
-        vix = self._fetch_vix_data(start, end)
-        for m in health_metrics:
-            m["vix_level"] = vix.get(m["date"])
-
-        # Merge today's put/call ratio from SPY options (only available on trading days)
-        today_pc = self._fetch_put_call_ratio(end)
-        if today_pc is not None:
+        # Merge VIX data (non-critical enrichment - fail gracefully if unavailable)
+        try:
+            vix = self._fetch_vix_data(start, end)
             for m in health_metrics:
-                if m["date"] == end.isoformat():
-                    m["put_call_ratio"] = today_pc
+                m["vix_level"] = vix.get(m["date"])
+        except RuntimeError as e:
+            logger.warning(f"VIX enrichment failed: {e}. Continuing with missing VIX values.")
 
-        # Merge yield curve slope from economic_metrics_daily (10Y-2Y spread loaded by FRED loader)
-        yield_curve = self._fetch_yield_curve_data(start, end)
-        for m in health_metrics:
-            m["yield_curve_slope"] = yield_curve.get(m["date"])
+        # Merge today's put/call ratio from SPY options (non-critical enrichment)
+        try:
+            today_pc = self._fetch_put_call_ratio(end)
+            if today_pc is not None:
+                for m in health_metrics:
+                    if m["date"] == end.isoformat():
+                        m["put_call_ratio"] = today_pc
+        except RuntimeError as e:
+            logger.warning(f"Put/call ratio enrichment failed: {e}. Continuing with missing put/call data.")
+
+        # Merge yield curve slope from economic_metrics_daily (non-critical enrichment)
+        try:
+            yield_curve = self._fetch_yield_curve_data(start, end)
+            for m in health_metrics:
+                m["yield_curve_slope"] = yield_curve.get(m["date"])
+        except RuntimeError as e:
+            logger.warning(f"Yield curve enrichment failed: {e}. Continuing with missing yield curve data.")
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
