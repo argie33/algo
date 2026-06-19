@@ -171,8 +171,8 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
 
             result = {}
-            rejected_count = 0
-            rejected_values = []
+            low_value_count = 0  # Track but don't reject low values
+            low_values = []
 
             for idx, row in df.iterrows():
                 date_str = (
@@ -187,28 +187,34 @@ class MarketHealthDailyLoader(OptimalLoader):
                     continue
 
                 close_float = float(close_val)
-                if close_float > 5.0:
+                # CRITICAL FIX: Accept ALL valid numeric VIX values, including < 5.0
+                # Low VIX (< 5) is rare but valid (indicates very low market volatility)
+                # Filtering them out masks data quality issues. Only reject NaN/None.
+                if close_float >= 0:
                     result[date_str] = round(close_float, 2)
-                else:
-                    rejected_count += 1
-                    rejected_values.append(close_float)
+                    if close_float < 5.0:
+                        low_value_count += 1
+                        low_values.append(close_float)
 
-            # CRITICAL ERROR: If we got data but ZERO valid values, raise
-            if rejected_count > 0 and len(result) == 0:
+            # Check for data availability
+            if len(result) == 0:
                 raise RuntimeError(
-                    f"[VIX DATA ISSUE] yfinance returned {rejected_count} values, "
-                    f"ALL were < 5.0 (invalid): {rejected_values[:5]}... "
-                    f"This is a DATA QUALITY issue, not a network problem. "
-                    f"Probable causes: 1) Yahoo backend issue 2) Bad data stream 3) Rate limiting. "
-                    f"Check yfinance directly: import yfinance; print(yfinance.Ticker('^VIX').history(period='1d'))"
-                )
-            elif len(result) > 0:
-                logger.info(f"[VIX] Fetched {len(result)} valid days, rejected {rejected_count} low values")
-            else:
-                raise RuntimeError(
-                    "[VIX] No valid VIX data returned by yfinance. "
+                    "[VIX] No valid VIX data returned by yfinance (all values were NaN/None). "
                     "Cannot compute market health without valid VIX values."
                 )
+
+            # WARN if many low values (unusual pattern, may indicate data issue)
+            if low_value_count > 0:
+                low_pct = (low_value_count / len(result) * 100) if result else 0
+                if low_pct > 50:
+                    logger.warning(
+                        f"[VIX] Unusual data pattern: {low_pct:.0f}% of values < 5.0 ({low_values[:3]}...). "
+                        "This may indicate a data feed issue. Check yfinance directly."
+                    )
+                else:
+                    logger.info(
+                        f"[VIX] Fetched {len(result)} values, {low_value_count} were < 5.0 (low volatility)"
+                    )
 
             return result
         except Exception as e:

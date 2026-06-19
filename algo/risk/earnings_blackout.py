@@ -118,8 +118,9 @@ class EarningsBlackout:
 
             return [{"date": row[0]} for row in rows]
         except Exception as e:
-            logger.warning(f"Failed to fetch earnings for {symbol}: {e}")
-            return []
+            raise ValueError(
+                f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt"
+            ) from e
 
 
 if __name__ == "__main__":

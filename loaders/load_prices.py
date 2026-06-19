@@ -1731,11 +1731,9 @@ class PriceLoader(OptimalLoader):
                 # halt early instead of continuing to retry indefinitely.
                 # This prevents the scenario: batch 150→20 at 7 AM → execution time becomes 80min→400min → misses 9:30 AM deadline
                 current_batch_size = self._get_adaptive_batch_size()
-                # Context-aware threshold: EOD (85 min total) can afford 45 min, morning (450 min total) can wait 3 hours
-                # INCREASED from 30m/120m to 45m/180m to allow full symbol coverage before circuit breaker
-                circuit_break_threshold_sec = (
-                    45 * 60 if self._is_eod_pipeline else 180 * 60
-                )
+                # Use config-based threshold (180s EOD / 480s morning) instead of hardcoded values
+                # These match the circuit breaker config in config/thresholds.py
+                circuit_break_threshold_sec = self._rate_limit_circuit_break_threshold
                 if (
                     current_batch_size < 100 and elapsed > circuit_break_threshold_sec
                 ):  # Batch reduced AND threshold exceeded

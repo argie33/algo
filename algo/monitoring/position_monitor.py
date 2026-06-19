@@ -159,18 +159,24 @@ class PositionMonitor:
 
                     # Batch update database
                     if trades_to_update:
-                        cur.execute(
-                            """UPDATE algo_trades
-                               SET status = %s, updated_at = CURRENT_TIMESTAMP
-                               WHERE trade_id = ANY(%s)""",
-                            ("cancelled", trades_to_update),
-                        )
-                        cur.executemany(
-                            """INSERT INTO algo_audit_log (
-                                   action_type, symbol, action_date, details, severity, actor, status, created_at
-                               ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                            audit_entries,
-                        )
+                        try:
+                            cur.execute(
+                                """UPDATE algo_trades
+                                   SET status = %s, updated_at = CURRENT_TIMESTAMP
+                                   WHERE trade_id = ANY(%s)""",
+                                ("cancelled", trades_to_update),
+                            )
+                            cur.executemany(
+                                """INSERT INTO algo_audit_log (
+                                       action_type, symbol, action_date, details, severity, actor, status, created_at
+                                   ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
+                                audit_entries,
+                            )
+                        except Exception as audit_e:
+                            logger.critical(
+                                f"[AUDIT_FAILURE] Could not update stale orders or log to audit trail: {audit_e}"
+                            )
+                            raise
 
                     # Commit all changes (cancellations + audit logs)
                     if cancelled_orders:

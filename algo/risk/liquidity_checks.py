@@ -91,8 +91,10 @@ class LiquidityChecks:
                 return True, f"ADV {avg_vol:,.0f} ok"
 
         except Exception as e:
-            logger.warning(f"ADV check error for {symbol}: {e}")
-            return True, "ADV check skipped"
+            logger.error(
+                f"ADV check failed for {symbol}: {e} — blocking as safety measure"
+            )
+            return False, f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure"
 
     def _check_dollar_volume(self, symbol: str, signal_date) -> tuple:
         """
@@ -135,8 +137,10 @@ class LiquidityChecks:
                 return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
 
         except Exception as e:
-            logger.warning(f"Dollar volume check error for {symbol}: {e}")
-            return True, "Dollar volume check skipped"
+            logger.error(
+                f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure"
+            )
+            return False, f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure"
 
     def _check_price_history_age(self, symbol: str, signal_date) -> tuple:
         """
@@ -180,5 +184,7 @@ class LiquidityChecks:
                 return True, f"{trading_days} trading days of history ok"
 
         except Exception as e:
-            logger.warning(f"Price history age check error for {symbol}: {e}")
-            return True, "Price history age check skipped"
+            logger.error(
+                f"Price history age check failed for {symbol}: {e} — blocking as safety measure"
+            )
+            return False, f"Price history age check unavailable ({type(e).__name__}) — blocking as safety measure"
