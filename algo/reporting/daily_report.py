@@ -175,15 +175,14 @@ class DailyFinanceReport:
 
             components = {}
             for comp, ic, pval in rows:
-                components[comp] = {
-                    "ic": round(float(ic), 3) if ic is not None else 0,
-                    "pvalue": round(float(pval), 3) if pval is not None else 1.0,
-                    "status": (
-                        self._ic_interpretation(float(ic))
-                        if ic is not None
-                        else "unknown"
-                    ),
-                }
+                if ic is not None and pval is not None:
+                    components[comp] = {
+                        "ic": round(float(ic), 3),
+                        "pvalue": round(float(pval), 3),
+                        "status": self._ic_interpretation(float(ic)),
+                    }
+                else:
+                    components[comp] = {"status": "no_data"}
 
             return components
         except Exception as e:
@@ -336,14 +335,18 @@ class DailyFinanceReport:
             "multi_timeframe",
         ]:
             comp_data = components.get(comp, {})
-            ic = comp_data.get("ic", 0)
             status = comp_data.get("status", "?")
-            status_marker = (
-                "★" if status == "strong" else "◇" if status == "moderate" else " "
-            )
-            lines.append(
-                f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}"
-            )
+
+            if status == "no_data":
+                lines.append(f"  {comp:20s} r=N/A        {status.upper():10s}")
+            else:
+                ic = comp_data.get("ic", 0)
+                status_marker = (
+                    "★" if status == "strong" else "◇" if status == "moderate" else " "
+                )
+                lines.append(
+                    f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}"
+                )
 
         signals = report.get("signals", {})
         lines.extend(
