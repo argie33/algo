@@ -254,12 +254,19 @@ class PositionMonitor:
                         logger.critical(
                             f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity — liquidation risk imminent"
                         )
+                        raise PositionValidationError(
+                            f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
+                        )
                     elif margin_util_pct > 80:
                         logger.warning(
                             f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%"
                         )
+            except PositionValidationError:
+                raise
             except Exception as margin_e:
-                logger.debug(f"Could not check margin: {margin_e}")
+                raise PositionValidationError(
+                    f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
+                ) from margin_e
 
             conc = self.check_sector_concentration(current_date)
             if conc["status"] == "HIGH_CONCENTRATION":
@@ -575,9 +582,9 @@ class PositionMonitor:
                             f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}"
                         )
                 except Exception as api_e:
-                    logger.warning(
-                        f"Could not cancel {trade_id} on Alpaca: {api_e}. Proceeding with DB update."
-                    )
+                    raise RuntimeError(
+                        f"Failed to cancel order {trade_id} on Alpaca: {api_e}. DB update blocked to maintain broker/DB state consistency."
+                    ) from api_e
 
             # Update database (atomic with audit log)
             cur.execute(

@@ -90,12 +90,12 @@ class EarningsBlackout:
                 "reason": f"No earnings in ±{self.days_before}/{self.days_after} trading days",
             }
         except psycopg2.errors.UndefinedTable:
-            logger.info(
-                f"Earnings calendar not yet populated; skipping blackout for {symbol}"
+            logger.error(
+                f"Earnings calendar table missing for {symbol} — FAILING CLOSED (blocking trade)"
             )
             return {
-                "pass": True,
-                "reason": "Earnings calendar not available (pass-through)",
+                "pass": False,
+                "reason": "Earnings calendar not available (fail-closed for safety)",
             }
         except Exception as e:
             logger.error(
