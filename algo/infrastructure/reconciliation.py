@@ -1009,6 +1009,17 @@ class DailyReconciliation:
             except Exception as e:
                 logger.warning(f"  Failed to import {sym}: {e}")
                 cur.execute("ROLLBACK TO SAVEPOINT import_sp")
+                try:
+                    cur.execute(
+                        "INSERT INTO alpaca_import_failures "
+                        "(symbol, error_message, retry_count) VALUES (%s, %s, 0)",
+                        (sym, str(e)[:500]),
+                    )
+                except Exception as fail_e:
+                    logger.error(f"  Could not log import failure for {sym}: {fail_e}")
+
+        # Retry failed imports and alert if multiple failures
+        failed_retried = self._process_failed_imports(cur, alpaca_positions)
 
         # Find pending orders that haven't been filled yet (don't show in /v2/positions)
         # These should NOT be marked as orphaned, as they may still fill
@@ -1088,9 +1099,130 @@ class DailyReconciliation:
             "orphaned": len(orphans),
             "alpaca_total": len(alpaca_positions),
             "orphan_symbols": list(orphans),
+            "failed_retried": failed_retried,
             "message": f"Imported {imported} external Alpaca positions, "
-            f"{len(orphans)} orphans flagged",
+            f"{len(orphans)} orphans flagged, {failed_retried} retried",
         }
+
+    def _process_failed_imports(self, cur, alpaca_positions):
+        """Retry failed imports and alert on multiple failures."""
+        if not alpaca_positions:
+            return 0
+        alpaca_map = {ap.symbol: ap for ap in alpaca_positions}
+        cur.execute(
+            "SELECT DISTINCT symbol FROM alpaca_import_failures "
+            "WHERE resolved = FALSE AND retry_count < 3"
+        )
+        failed_symbols = {row[0] for row in cur.fetchall()}
+        retryable = failed_symbols & set(alpaca_map.keys())
+        retried = 0
+        for sym in retryable:
+            ap = alpaca_map[sym]
+            try:
+                qty_raw = getattr(ap, "qty", None)
+                if qty_raw is None or qty_raw == 0:
+                    continue
+                qty = float(qty_raw)
+                avg_entry_raw = getattr(ap, "avg_entry_price", None)
+                if avg_entry_raw is None or float(avg_entry_raw) <= 0:
+                    continue
+                avg_entry = float(avg_entry_raw)
+                cur_price_raw = getattr(ap, "current_price", None)
+                if cur_price_raw is None or float(cur_price_raw) <= 0:
+                    continue
+                cur_price = float(cur_price_raw)
+                pos_value_raw = getattr(ap, "market_value", None)
+                pos_value = (
+                    float(pos_value_raw) if pos_value_raw else qty * cur_price
+                )
+                pnl_raw = getattr(ap, "unrealized_pl", None)
+                pnl = float(pnl_raw) if pnl_raw else 0.0
+                pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
+                pnl_pct = (float(pnl_pct_raw) * 100) if pnl_pct_raw else 0.0
+                position_id = (
+                    f'EXT-{sym}-{datetime.now(timezone.utc).strftime("%Y%m%d")}'
+                )
+                trade_id = f"EXT-{sym}"
+                cur.execute("SAVEPOINT retry_sp")
+                try:
+                    cur.execute(
+                        "INSERT INTO algo_trades "
+                        "(trade_id, symbol, signal_date, trade_date, entry_time, "
+                        "entry_price, entry_quantity, entry_reason, "
+                        "stop_loss_price, stop_loss_method, target_1_price, "
+                        "target_2_price, target_3_price, status, execution_mode, "
+                        "alpaca_order_id, position_size_pct, base_type, created_at) "
+                        "VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, "
+                        "CURRENT_TIMESTAMP, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+                        "%s, %s, %s, CURRENT_TIMESTAMP) "
+                        "ON CONFLICT (trade_id) DO NOTHING",
+                        (
+                            trade_id, sym, avg_entry, int(qty),
+                            "EXTERNAL: retried import", avg_entry * 0.95,
+                            "imported_retry_default", avg_entry * 1.05,
+                            avg_entry * 1.10, avg_entry * 1.15,
+                            PositionStatus.OPEN.value, "external",
+                            f"ALPACA-EXT-{sym}", 0.0, "imported_external",
+                        ),
+                    )
+                    cur.execute(
+                        "INSERT INTO algo_positions "
+                        "(position_id, symbol, quantity, avg_entry_price, "
+                        "current_price, position_value, unrealized_pnl, "
+                        "unrealized_pnl_pct, status, trade_ids_arr, "
+                        "current_stop_price, stop_loss_price, target_levels_hit, "
+                        "created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+                        "%s, %s, 0, CURRENT_TIMESTAMP) "
+                        "ON CONFLICT (position_id) DO NOTHING",
+                        (
+                            position_id, sym, int(qty), avg_entry, cur_price,
+                            pos_value, pnl, pnl_pct, PositionStatus.OPEN.value,
+                            [trade_id], avg_entry * 0.95, avg_entry * 0.95,
+                        ),
+                    )
+                    cur.execute(
+                        "UPDATE alpaca_import_failures "
+                        "SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP "
+                        "WHERE symbol = %s AND resolved = FALSE",
+                        (sym,),
+                    )
+                    retried += 1
+                    logger.info(f"  Retried import of {sym} successfully")
+                except Exception as retry_e:
+                    cur.execute("ROLLBACK TO SAVEPOINT retry_sp")
+                    logger.warning(f"  Retry import of {sym} failed: {retry_e}")
+                    cur.execute(
+                        "UPDATE alpaca_import_failures "
+                        "SET retry_count = retry_count + 1, "
+                        "last_retry_at = CURRENT_TIMESTAMP "
+                        "WHERE symbol = %s AND resolved = FALSE",
+                        (sym,),
+                    )
+            except Exception as e:
+                logger.debug(f"  Retry prep for {sym} failed: {e}")
+        cur.execute(
+            "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
+            "WHERE resolved = FALSE AND failed_at > NOW() - INTERVAL '1 day'"
+        )
+        failure_count = cur.fetchone()[0] if cur.fetchone() else 0
+        if failure_count > 5:
+            try:
+                notify(
+                    severity="warning",
+                    title=f"Alpaca Import Failures ({failure_count})",
+                    message=">5 failed imports in last 24h. Positions may be orphaned.",
+                    details={"failure_count": failure_count},
+                )
+            except Exception as alert_e:
+                logger.warning(f"Could not send failure alert: {alert_e}")
+        try:
+            cur.execute(
+                "DELETE FROM alpaca_import_failures "
+                "WHERE resolved = TRUE AND resolved_at < NOW() - INTERVAL '7 days'"
+            )
+        except Exception as e:
+            logger.warning(f"Could not cleanup old failures: {e}")
+        return retried
 
     def compute_analytics_metrics(self, cur):
         """E4+E5: Compute Information Coefficient and Expectancy metrics.
