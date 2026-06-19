@@ -72,11 +72,18 @@ class DailyReconciliation:
                 )
             else:
                 logger.info("1. Alpaca Account:")
+                pv = alpaca_data.get('portfolio_value')
+                cash = alpaca_data.get('cash')
+                equity = alpaca_data.get('equity')
                 logger.info(
-                    f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}"
+                    f"   Portfolio Value: ${pv:,.2f}" if pv is not None else "   Portfolio Value: UNAVAILABLE"
                 )
-                logger.info(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
-                logger.info(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
+                logger.info(
+                    f"   Cash: ${cash:,.2f}" if cash is not None else "   Cash: UNAVAILABLE"
+                )
+                logger.info(
+                    f"   Equity: ${equity:,.2f}" if equity is not None else "   Equity: UNAVAILABLE"
+                )
 
             with DatabaseContext("write") as cur:
                 # 1b. Sync Alpaca positions into our DB (imports any external positions)
