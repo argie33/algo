@@ -953,6 +953,7 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
+        self._phase2_result = result
         return not result.halted
 
     def phase_3_position_monitor(self) -> bool:
@@ -1223,11 +1224,22 @@ class Orchestrator:
                 logger.info(
                     "\nHALT: Circuit breaker fired. Will still review positions but skip new entries."
                 )
+                phase2_result = getattr(self, "_phase2_result", None)
+                halt_reason = (
+                    phase2_result.error
+                    if phase2_result and phase2_result.error
+                    else "Circuit breaker triggered"
+                )
+                self._set_halt_flag(halt_reason)
                 self.phase_3_position_monitor()
                 self.phase_3b_exposure_policy()
                 self.phase_4_exit_execution()
                 self.phase_7_reconcile()
                 return cast(Dict[str, Any], self._final_report())
+
+            # Phase 2 passed: no circuit breakers active. If Phase 1 also passed,
+            # clear halt flag to resume normal trading (both data fresh + no risk issues)
+            self._clear_halt_flag("Phase 2 passed: all circuit breakers clear")
 
             # Phase 3: Position Monitor
             phase_3_start = time.time()
