@@ -11,7 +11,6 @@ the shared NAT gateway IP used by all ECS tasks.
 import logging
 import threading
 import time
-from typing import Optional, cast
 
 import requests
 import yfinance as yf
@@ -89,7 +88,7 @@ class YFinanceWrapper:
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)
 
-        return None
+        raise RuntimeError("Failed to create yfinance session after all retries")
 
     @classmethod
     def get_ticker(cls, symbol: str, max_retries: int = 5):
@@ -99,8 +98,7 @@ class YFinanceWrapper:
         All requests go through the global rate limiter to stay within Yahoo's limits.
         """
         if not yf:
-            logger.error("yfinance not installed")
-            return None
+            raise RuntimeError("yfinance not installed")
 
         import random
 
@@ -181,13 +179,16 @@ class YFinanceWrapper:
                         )
                     continue
                 else:
-                    logger.debug(f"Data not available for {symbol}: {e}")
-                    return None
+                    logger.error(f"Failed to get ticker for {symbol}: {e}")
+                    raise
 
-        logger.error(f"Failed to get ticker for {symbol} after {max_retries} attempts")
-        return None
+        raise RuntimeError(f"Failed to get ticker for {symbol} after {max_retries} attempts")
 
 
-def get_ticker(symbol: str) -> Optional[object]:
-    """Convenience function to get yfinance ticker with retry logic."""
-    return cast(Optional[object], YFinanceWrapper.get_ticker(symbol))
+def get_ticker(symbol: str):
+    """Convenience function to get yfinance ticker with retry logic.
+
+    Raises RuntimeError if yfinance is not installed, session creation fails,
+    or all retry attempts are exhausted.
+    """
+    return YFinanceWrapper.get_ticker(symbol)
