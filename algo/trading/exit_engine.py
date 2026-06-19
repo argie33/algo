@@ -36,6 +36,7 @@ import logging
 from typing import Any, Dict, Optional, cast
 
 from algo.infrastructure import get_alpaca_timeout
+from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from config.alpaca_config import get_alpaca_data_url
@@ -490,6 +491,10 @@ class ExitEngine:
         """Fetch real-time quote from Alpaca Data API.
 
         Raises on API failure or missing credentials. Returns None only if market is closed.
+
+        When API returns status 200 but no valid price data:
+        - Market open: Raises RuntimeError (API is broken, got 200 but no quote)
+        - Market closed: Returns None (expected; market closed means no intraday quotes)
         """
         try:
             creds = get_alpaca_credentials()
@@ -523,6 +528,15 @@ class ExitEngine:
                 last_price = quote.get("lp")
                 if last_price is not None:
                     return float(last_price)
+
+                # Status 200 but no valid price data: check if market is open
+                # During market open, this is an API error (we should get valid data)
+                # During market closed, this is expected (no intraday quotes available)
+                if MarketCalendar.is_market_open():
+                    raise RuntimeError(
+                        f"Alpaca quote API returned status 200 but no valid price data for {symbol}. "
+                        f"Market is open; this indicates an API issue, not market closure."
+                    )
                 return None
             elif response.status_code == 401:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")

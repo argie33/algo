@@ -12,6 +12,7 @@ Tests validate that:
 
 import sys
 from pathlib import Path
+from unittest import mock
 
 
 # Add project root to path
@@ -59,7 +60,6 @@ class TestLoaderParallelism:
         loader = PriceLoader()
 
         # 5000 symbols / 300 per batch = ~17 API calls
-        expected_batches = 17  # 5000 / 300
         assert loader.batch_size == 300, f"Batch size {loader.batch_size}, expected 300"
 
         # Rate limiter should be configured for 160 req/min
@@ -264,6 +264,40 @@ class TestProductionReadinessCheck:
         ), "Readiness check: 0 checks passed, expected at least 1"
 
 
+class TestConfigValidation:
+    """Test configuration validation at startup."""
+
+    def test_r_multiple_ordering_valid_defaults(self):
+        """Default R-multiple ordering should be valid (t1 < t2 < t3)."""
+        from algo.infrastructure.config import AlgoConfig
+
+        config = AlgoConfig()
+        t1 = config.get("t1_target_r_multiple")
+        t2 = config.get("t2_target_r_multiple")
+        t3 = config.get("t3_target_r_multiple")
+
+        assert t1 < t2 < t3, f"Invalid ordering: t1={t1}, t2={t2}, t3={t3}; expected t1 < t2 < t3"
+
+    def test_r_multiple_ordering_validation_fails_on_reversed(self):
+        """Config should raise ValueError when R-multiple ordering is broken."""
+        from algo.infrastructure.config import AlgoConfig
+
+        # Mock DatabaseContext to return reversed R-multiples
+        with mock.patch("algo.infrastructure.config.DatabaseContext") as mock_db:
+            # Setup mock to return reversed values
+            mock_cursor = mock.MagicMock()
+            mock_cursor.fetchall.return_value = [
+                ("t1_target_r_multiple", "3.0", "float"),
+                ("t2_target_r_multiple", "2.0", "float"),
+                ("t3_target_r_multiple", "1.0", "float"),
+            ]
+            mock_db.return_value.__enter__.return_value = mock_cursor
+
+            # Initialization should fail with ValueError
+            with pytest.raises(ValueError, match="R-multiple ordering broken"):
+                AlgoConfig()
+
+
 class TestAPISecurity:
     """Test API security configuration."""
 
@@ -287,6 +321,72 @@ class TestAPISecurity:
         # File may not exist in all environments, just verify directory structure
         api_dir = os.path.join(project_root, "lambda", "api")
         assert os.path.exists(api_dir), f"Lambda API directory not found: {api_dir}"
+
+
+class TestEquityDataHandling:
+    """Test that equity data is handled safely without invalid defaults."""
+
+    def test_alpaca_equity_not_defaulted_to_one(self):
+        """Verify get_alpaca_account() returns None for missing equity, not 1."""
+        from unittest.mock import MagicMock, patch
+
+        from algo.infrastructure.reconciliation import DailyReconciliation
+
+        recon = DailyReconciliation({})
+
+        # Mock the requests.get to simulate Alpaca returning no equity
+        with patch("requests.get") as mock_requests_get:
+            # Simulate a response where equity and portfolio_value are both None
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "equity": None,
+                "portfolio_value": None,
+                "cash": 100000.0,
+                "buying_power": 50000.0,
+            }
+            mock_requests_get.return_value = mock_response
+
+            # Mock the credential manager
+            with patch(
+                "algo.infrastructure.reconciliation.get_credential_manager"
+            ) as mock_creds:
+                mock_creds.return_value.get_alpaca_credentials.return_value = {
+                    "key": "test_key",
+                    "secret": "test_secret",
+                }
+                mock_creds.return_value.get_alpaca_base_url.return_value = (
+                    "https://api.example.com"
+                )
+
+                result = recon._fetch_alpaca_account()
+
+                # Verify equity is None, not 1
+                assert result["equity"] is None, (
+                    "equity should be None when Alpaca returns no value, "
+                    "not defaulted to 1 (which would cause false margin usage calculations)"
+                )
+
+                # Verify other fields are still returned correctly
+                assert result["cash"] == 100000.0
+                assert result["buying_power"] == 50000.0
+
+    def test_margin_usage_not_triggered_on_missing_equity(self):
+        """Verify missing equity doesn't cause false margin usage alerts."""
+        from algo.infrastructure.reconciliation import DailyReconciliation
+
+        recon = DailyReconciliation({})
+
+        # Test validate_pnl with None equity (should not throw, should return error status)
+        result = recon.validate_pnl(alpaca_equity=None, local_equity=100000.0)
+
+        assert result["valid"] is False, "Validation should fail when equity is None"
+        assert (
+            result["status"] == "error"
+        ), "Status should be 'error' when equity is missing"
+        assert (
+            "missing" in result["message"].lower()
+        ), "Error message should indicate missing data"
 
 
 if __name__ == "__main__":

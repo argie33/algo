@@ -81,16 +81,15 @@ class TestAlpacaQuoteFetching:
             assert quote == pytest.approx(150.02, rel=0.001)
 
     def test_fetch_alpaca_quote_no_credentials(self, exit_engine):
-        """Test quote fetch fails gracefully when credentials unavailable."""
+        """Test quote fetch raises when credentials unavailable."""
         with patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds:
             mock_creds.return_value = {"key": None, "secret": None}
 
-            quote = exit_engine._fetch_alpaca_quote("AAPL")
-
-            assert quote is None
+            with pytest.raises(RuntimeError, match="Alpaca credentials missing"):
+                exit_engine._fetch_alpaca_quote("AAPL")
 
     def test_fetch_alpaca_quote_api_failure(self, exit_engine):
-        """Test quote fetch fails gracefully on API error."""
+        """Test quote fetch raises on API error."""
         with (
             patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
             patch("algo.trading.exit_engine.requests.get") as mock_get,
@@ -103,12 +102,11 @@ class TestAlpacaQuoteFetching:
             mock_response.status_code = 500
             mock_get.return_value = mock_response
 
-            quote = exit_engine._fetch_alpaca_quote("AAPL")
-
-            assert quote is None
+            with pytest.raises(RuntimeError, match="Alpaca quote API error"):
+                exit_engine._fetch_alpaca_quote("AAPL")
 
     def test_fetch_alpaca_quote_timeout(self, exit_engine):
-        """Test quote fetch handles timeout gracefully."""
+        """Test quote fetch raises on timeout."""
         import requests
 
         with (
@@ -121,8 +119,49 @@ class TestAlpacaQuoteFetching:
             # Simulate timeout
             mock_get.side_effect = requests.Timeout()
 
-            quote = exit_engine._fetch_alpaca_quote("AAPL")
+            with pytest.raises(RuntimeError, match="Alpaca quote API timeout"):
+                exit_engine._fetch_alpaca_quote("AAPL")
 
+    def test_fetch_alpaca_quote_market_open_no_data(self, exit_engine):
+        """Test quote fetch raises when market is open but API returns no data."""
+        with (
+            patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
+            patch("algo.trading.exit_engine.requests.get") as mock_get,
+            patch("algo.trading.exit_engine.MarketCalendar.is_market_open") as mock_market,
+        ):
+
+            mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
+            mock_market.return_value = True  # Market is open
+
+            # Status 200 but no valid price data (empty quote)
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"quotes": {"AAPL": {}}}
+            mock_get.return_value = mock_response
+
+            # Should raise because market is open but we got no data
+            with pytest.raises(RuntimeError, match=r"Market is open.*API issue"):
+                exit_engine._fetch_alpaca_quote("AAPL")
+
+    def test_fetch_alpaca_quote_market_closed_no_data(self, exit_engine):
+        """Test quote fetch returns None when market is closed and API returns no data."""
+        with (
+            patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
+            patch("algo.trading.exit_engine.requests.get") as mock_get,
+            patch("algo.trading.exit_engine.MarketCalendar.is_market_open") as mock_market,
+        ):
+
+            mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
+            mock_market.return_value = False  # Market is closed
+
+            # Status 200 but no valid price data (empty quote)
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"quotes": {"AAPL": {}}}
+            mock_get.return_value = mock_response
+
+            # Should return None because market is closed
+            quote = exit_engine._fetch_alpaca_quote("AAPL")
             assert quote is None
 
 
@@ -193,6 +232,26 @@ class TestFetchRecentPrices:
 
             assert current_price is None
             assert prev_close is None
+
+    def test_fetch_recent_prices_propagates_alpaca_error(self, exit_engine):
+        """Test that API errors from Alpaca are propagated to caller."""
+        current_date = _date(2025, 6, 14)
+
+        with patch.object(
+            exit_engine, "_fetch_alpaca_quote"
+        ) as mock_alpaca:
+            # Simulate Alpaca API error (market open, no data)
+            mock_alpaca.side_effect = RuntimeError(
+                "Alpaca quote API returned status 200 but no valid price data"
+            )
+
+            mock_cur = Mock()
+
+            # Should raise, not fall back to daily closes
+            with pytest.raises(RuntimeError, match="no valid price data"):
+                exit_engine._fetch_recent_prices(
+                    mock_cur, "AAPL", current_date
+                )
 
 
 class TestStopExecutionWithIntradayPrices:
