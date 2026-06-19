@@ -178,9 +178,9 @@ class CircuitBreaker:
         # Bootstrap path: if table is empty (first ever run), allow through
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "First run — no portfolio history yet"}
-        peak = _safe_float(row[0], 0.0, context="drawdown peak")
-        cur_val = _safe_float(row[1], 0.0, context="drawdown current")
-        if peak <= 0 or cur_val <= 0:
+        peak = _safe_float(row[0], None, context="drawdown peak")
+        cur_val = _safe_float(row[1], None, context="drawdown current")
+        if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
             return {"halted": True, "reason": "Invalid portfolio values — fail-closed"}
         dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
         threshold = _safe_float(
@@ -289,7 +289,9 @@ class CircuitBreaker:
         row = cur.fetchone()
         if row is None or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = _safe_float(row[0], 0.0, context="daily_loss")
+        daily = _safe_float(row[0], None, context="daily_loss")
+        if daily is None:
+            return {"halted": True, "reason": "Daily return data invalid — fail-closed"}
         threshold = -_safe_float(
             self.config.get("max_daily_loss_pct", 2.0),
             2.0,
@@ -323,7 +325,10 @@ class CircuitBreaker:
         # Count consecutive losses from most recent
         streak = 0
         for r in rows:
-            pnl = _safe_float(r[0], 0.0, context="trade_pnl")
+            pnl = _safe_float(r[0], None, context="trade_pnl")
+            if pnl is None:
+                logger.warning(f"Trade {r} has invalid P&L — stopping consecutive loss count")
+                break
             if pnl < 0:
                 streak += 1
             else:
@@ -410,8 +415,11 @@ class CircuitBreaker:
         )
         result = cur.fetchone()
         total_open_risk = (
-            _safe_float(result[0], 0.0, context="total_open_risk") if result else 0.0
+            _safe_float(result[0], None, context="total_open_risk") if result else None
         )
+        if total_open_risk is None:
+            logger.critical("Cannot calculate total open risk — risk calculation failed")
+            return {"halted": True, "reason": "Risk calculation failed — fail-closed"}
 
         cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -437,7 +445,7 @@ class CircuitBreaker:
                 "reason": f"Portfolio value invalid ({portfolio}) — risk calculation impossible. Fail-closed halt.",
             }
 
-        risk_pct = (total_open_risk / portfolio * 100.0) if portfolio > 0 else 0.0
+        risk_pct = total_open_risk / portfolio * 100.0
         threshold = _safe_float(
             self.config.get("max_total_risk_pct", 4.0),
             4.0,

@@ -269,11 +269,14 @@ class CredentialManager:
                 "DB_HOST not set in environment. Set DB_HOST before using credential manager."
             )
 
+        password = self.get_password("db/password")
+        if not password:
+            raise ValueError("Database password not found in environment or Secrets Manager")
         result = {
             "host": db_host,
             "port": int(os.getenv("DB_PORT", "5432")),
             "user": self.get_password("db/username", default="stocks"),
-            "password": self.get_password("db/password"),
+            "password": password,
             "database": os.getenv("DB_NAME", "stocks"),
         }
         self._cache[_db_creds_cache_key] = (result, time.time())

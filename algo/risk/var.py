@@ -42,7 +42,7 @@ class ValueAtRisk:
             lookback_days: Historical window (default 252 = 1 year)
 
         Returns:
-            dict with VaR dollar and %, or None if insufficient data
+            dict with VaR dollar and %, or raises RuntimeError if insufficient data
         """
         import numpy as np
 
@@ -56,7 +56,14 @@ class ValueAtRisk:
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
-                    return None
+                    logger.critical(
+                        f"Historical VaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required). "
+                        "Cannot compute VaR with insufficient data — trading must halt."
+                    )
+                    raise RuntimeError(
+                        f"Insufficient historical data for VaR (only {len(rows)} snapshots, need 5+). "
+                        "Run daily reconciliation to populate portfolio snapshots."
+                    )
                 if len(rows) < 30:
                     logger.warning(
                         f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
@@ -69,7 +76,13 @@ class ValueAtRisk:
                 ]
 
                 if not returns:
-                    return None
+                    logger.critical(
+                        "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
+                    )
+                    raise RuntimeError(
+                        "Cannot compute VaR: no valid portfolio return data available. "
+                        "Verify portfolio snapshots have valid values."
+                    )
 
                 var_percentile = np.percentile(returns, (1 - confidence) * 100)
                 current_value = values[-1]
@@ -98,7 +111,7 @@ class ValueAtRisk:
             lookback_days: Historical window
 
         Returns:
-            dict with CVaR dollar and %, or None if insufficient data
+            dict with CVaR dollar and %, or raises RuntimeError if insufficient data
         """
         import numpy as np
 
@@ -112,7 +125,12 @@ class ValueAtRisk:
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
-                    return None
+                    logger.critical(
+                        f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)"
+                    )
+                    raise RuntimeError(
+                        f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)"
+                    )
                 if len(rows) < 30:
                     logger.warning(
                         f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
@@ -125,13 +143,23 @@ class ValueAtRisk:
                 ]
 
                 if not returns:
-                    return None
+                    logger.critical(
+                        "CVaR calculation failed: no valid returns computed from portfolio snapshots"
+                    )
+                    raise RuntimeError(
+                        "Cannot compute CVaR: no valid portfolio return data available"
+                    )
 
                 var_threshold = np.percentile(returns, (1 - confidence) * 100)
                 tail_losses = [r for r in returns if r <= var_threshold]
 
                 if not tail_losses:
-                    return None
+                    logger.critical(
+                        "CVaR calculation failed: no tail loss events in historical data"
+                    )
+                    raise RuntimeError(
+                        "Cannot compute CVaR: no tail loss events found in historical returns"
+                    )
 
                 cvar_pct = abs(np.mean(tail_losses)) * 100
                 current_value = values[-1]
@@ -157,7 +185,7 @@ class ValueAtRisk:
             confidence: Confidence level (default 0.99 = 99%)
 
         Returns:
-            dict with stressed VaR, or None if insufficient data
+            dict with stressed VaR, or raises RuntimeError if insufficient data
         """
         import numpy as np
 
@@ -171,7 +199,13 @@ class ValueAtRisk:
                 rows = cur.fetchall()
 
                 if len(rows) < 365:
-                    return None
+                    logger.critical(
+                        f"Stressed VaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 365 required for 5-year window)"
+                    )
+                    raise RuntimeError(
+                        f"Insufficient historical data for Stressed VaR (only {len(rows)} snapshots, need 365+). "
+                        "Portfolio must have at least 1 year of trading history."
+                    )
 
                 values = [float(row[1]) for row in rows]
                 returns = np.array(
@@ -222,17 +256,21 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
+                    logger.warning("Beta exposure skipped: no open positions")
                     return None
 
                 cur.execute(
                     "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
-                if not portfolio_row:
-                    logger.error(
-                        "No portfolio snapshot available - cannot compute risk metrics with real portfolio value"
+                if not portfolio_row or not portfolio_row[0]:
+                    logger.critical(
+                        "Beta exposure calculation failed: no portfolio snapshot available"
                     )
-                    return None
+                    raise RuntimeError(
+                        "Cannot compute beta exposure without portfolio snapshot. "
+                        "Portfolio must have been reconciled at least once."
+                    )
                 portfolio_value = float(portfolio_row[0])
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
@@ -374,17 +412,21 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
+                    logger.warning("Concentration report skipped: no open positions")
                     return None
 
                 cur.execute(
                     "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
-                if not portfolio_row:
-                    logger.error(
-                        "No portfolio snapshot available - cannot compute risk metrics with real portfolio value"
+                if not portfolio_row or not portfolio_row[0]:
+                    logger.critical(
+                        "Concentration report failed: no portfolio snapshot available"
                     )
-                    return None
+                    raise RuntimeError(
+                        "Cannot compute concentration without portfolio snapshot. "
+                        "Portfolio must have been reconciled at least once."
+                    )
                 portfolio_value = float(portfolio_row[0])
 
                 top_holdings = []
@@ -484,11 +526,37 @@ class ValueAtRisk:
             logger.info(f"Generating daily risk report for {report_date}")
 
             # Compute all risk metrics (each handles its own connection)
-            var_metrics = self.historical_var()
-            cvar_metrics = self.cvar()
-            stressed_var = self.stressed_var()
-            beta = self.beta_exposure()
-            concentration = self.concentration_report()
+            # Each metric may raise RuntimeError on critical failures — handle gracefully
+            var_metrics = None
+            cvar_metrics = None
+            stressed_var = None
+            beta = None
+            concentration = None
+
+            try:
+                var_metrics = self.historical_var()
+            except RuntimeError as e:
+                logger.warning(f"VaR calculation skipped: {e}")
+
+            try:
+                cvar_metrics = self.cvar()
+            except RuntimeError as e:
+                logger.warning(f"CVaR calculation skipped: {e}")
+
+            try:
+                stressed_var = self.stressed_var()
+            except RuntimeError as e:
+                logger.warning(f"Stressed VaR calculation skipped: {e}")
+
+            try:
+                beta = self.beta_exposure()
+            except RuntimeError as e:
+                logger.warning(f"Beta exposure calculation skipped: {e}")
+
+            try:
+                concentration = self.concentration_report()
+            except RuntimeError as e:
+                logger.warning(f"Concentration report skipped: {e}")
 
             logger.debug(
                 f"  VaR: {var_metrics['var_pct']:.3f}%"
