@@ -937,7 +937,11 @@ def main():
         return
 
     if args.local:
-        set_api_url("http://localhost:3001")
+        local_url = "http://localhost:3001"
+        if not _validate_api_url(local_url):
+            logger.error(f"Invalid local API URL: {local_url}")
+            return
+        set_api_url(local_url)
         data_source = "LOCAL"
     else:
         # AWS mode: fetch credentials from multiple sources (Secrets Manager -> Terraform -> Error)
