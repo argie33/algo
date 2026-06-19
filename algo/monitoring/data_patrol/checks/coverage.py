@@ -2,7 +2,6 @@
 """Coverage and loader contract checks."""
 
 import logging
-from typing import List
 
 from utils.db import assert_safe_table, safe_select_count
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class CoverageChecker(BaseCheck):
     """Check symbol coverage and loader contracts."""
 
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute coverage checks."""
         self.results = []
 
@@ -91,12 +90,11 @@ class CoverageChecker(BaseCheck):
             ]
 
             try:
-                coverage_results = {}
                 for table_name in critical_tables:
                     assert_safe_table(table_name)
 
                 union_parts = []
-                for i, table_name in enumerate(critical_tables):
+                for table_name in critical_tables:
                     union_parts.append(f"""
                         SELECT '{table_name}' as table_name, COUNT(DISTINCT symbol) as cnt
                         FROM {assert_safe_table(table_name)}
@@ -153,8 +151,10 @@ class CoverageChecker(BaseCheck):
                             )
                     except Exception as e:
                         self.log("coverage", ERROR, table_name, f"Check failed: {e}", None)
+            except Exception as e:
+                self.log("coverage", ERROR, "patrol_coverage", f"Union query check failed: {e}", None)
         except Exception as e:
-            self.log("coverage", ERROR, "patrol_coverage", f"Check failed: {e}", None)
+            self.log("coverage", ERROR, "patrol_coverage", f"Coverage check failed: {e}", None)
 
     def check_loader_contracts(self, cur) -> None:
         """Verify per-loader output contracts."""

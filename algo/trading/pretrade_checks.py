@@ -8,6 +8,7 @@ Validates:
 - Duplicate position prevention
 - Exchange/symbol status
 - Order size limits
+- Sector/industry concentration limits (Issue #2 fix)
 """
 
 import logging
@@ -122,6 +123,48 @@ class PreTradeChecks:
                     return (False, f"Symbol {symbol} not found in universe")
         except Exception as e:
             logger.warning(f"Failed to validate symbol: {e}")
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row:
+                    sector, industry = row
+
+                    max_sector_positions = int(self.config.get("max_positions_per_sector", 10))
+                    max_industry_positions = int(self.config.get("max_positions_per_industry", 8))
+
+                    cur.execute(
+                        """SELECT COUNT(*) FROM algo_positions ap
+                           LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                           WHERE ap.status = %s AND cp.sector = %s""",
+                        ("open", sector),
+                    )
+                    sector_count = cur.fetchone()[0]
+                    if sector_count >= max_sector_positions:
+                        return (
+                            False,
+                            f"Sector {sector} at limit ({sector_count}/{max_sector_positions} positions)",
+                        )
+
+                    cur.execute(
+                        """SELECT COUNT(*) FROM algo_positions ap
+                           LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                           WHERE ap.status = %s AND cp.industry = %s""",
+                        ("open", industry),
+                    )
+                    industry_count = cur.fetchone()[0]
+                    if industry_count >= max_industry_positions:
+                        return (
+                            False,
+                            f"Industry {industry} at limit ({industry_count}/{max_industry_positions} positions)",
+                        )
+        except Exception as e:
+            logger.warning(f"Failed to check sector/industry concentration: {e}")
+            return (False, f"Sector/industry check unavailable for {symbol} — blocking as safety measure")
 
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
