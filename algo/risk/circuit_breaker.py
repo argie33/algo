@@ -474,19 +474,13 @@ class CircuitBreaker:
             else None
         )
 
-        if vix is None:
-            vix = self._compute_vix_fallback(current_date, cur)
-            if vix is not None:
-                logger.info(f"VIX missing, using fallback estimate: {vix:.1f}")
-            else:
-                logger.warning("VIX missing and fallback computation failed")
-
         # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
-        # Fail-closed: assume worst case (high volatility) and halt trading.
-        # Never use neutral default (20) as fallback — that masks market uncertainty.
+        # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
+        # volatility mask the real issue (missing live data) and may be inaccurate during
+        # extreme market dislocations when we most need reliable circuit breaker protection.
         if vix is None:
             logger.critical(
-                "VIX unavailable from all sources (live data, fallback computation failed) — halting trading"
+                "VIX unavailable from live data sources — halting trading"
             )
             return {
                 "halted": True,
@@ -512,63 +506,6 @@ class CircuitBreaker:
             "value": vix,
             "threshold": threshold,
         }
-
-    def _compute_vix_fallback(self, current_date: Any, cur):
-        """H2 FIX: Compute implied volatility from SPY price changes when VIX missing.
-
-        Uses 20-day rolling standard deviation of SPY returns as approximation
-        (correlation with VIX: ~0.80-0.85). Returns None if computation fails or
-        insufficient data — caller (_check_vix_spike) will fail-closed and halt trading.
-        """
-        try:
-            twenty_days_ago = current_date - timedelta(days=25)
-            cur.execute(
-                """
-                SELECT close FROM price_daily
-                WHERE symbol = 'SPY'
-                  AND date >= %s AND date <= %s
-                ORDER BY date ASC
-                """,
-                (twenty_days_ago, current_date),
-            )
-            prices = [float(r[0]) for r in cur.fetchall() if r[0]]
-
-            if len(prices) < 5:
-                # Insufficient data: cannot compute implied VIX, return None
-                # This will trigger fail-closed halt in _check_vix_spike
-                logger.warning(
-                    f"VIX fallback: insufficient SPY data ({len(prices)} days), cannot compute implied VIX"
-                )
-                return None
-
-            # Compute daily returns
-            returns = []
-            for i in range(1, len(prices)):
-                ret = (prices[i] - prices[i - 1]) / prices[i - 1]
-                returns.append(ret)
-
-            # Standard deviation of returns * sqrt(252) to annualize
-            import statistics
-
-            if len(returns) > 1:
-                std_dev = statistics.stdev(returns)
-                implied_vix = std_dev * (252**0.5) * 100  # Convert to percentage
-                # Clamp to reasonable range (5-80)
-                implied_vix = max(5.0, min(80.0, implied_vix))
-                logger.info(
-                    f"VIX fallback: computed {implied_vix:.1f} from {len(returns)} daily returns"
-                )
-                return implied_vix
-            else:
-                # Cannot compute implied VIX from returns
-                logger.warning(
-                    f"VIX fallback: insufficient returns ({len(returns)}) to compute standard deviation"
-                )
-                return None
-        except Exception as e:
-            # VIX computation failed completely; cannot assess volatility
-            logger.error(f"VIX fallback computation failed: {e}")
-            return None
 
     def _check_market_stage(self, current_date: Any, cur) -> Dict[str, Any]:
         """H7 FIX: Market stage validation with data freshness check.
