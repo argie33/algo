@@ -104,8 +104,10 @@ Quick reference:
 
 ## Trading Safety Configuration
 
+**CRITICAL ISSUE FIXED (Migration 033):** All safety thresholds were set to ZERO in the database, completely disabling quality gates and earnings protection. This has been restored to safe defaults. See `steering/safety-configuration.md` for full details.
+
 **Critical thresholds** in `algo/infrastructure/config.py` DEFAULTS prevent the system from trading low-quality signals.
-Never set these to zero or disable them for "testing" — doing so will trade any stock regardless of quality, including during earnings surprises:
+**NEVER** set these to zero or disable them for "testing" — doing so will trade any stock regardless of quality, including during earnings surprises:
 
 **Entry Quality Thresholds (Hard Gates):**
 - `min_signal_quality_score`: 60 (0-100 scale) — rejects signals below this SQS
