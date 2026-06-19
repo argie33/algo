@@ -22,20 +22,32 @@ class DailyReconciliation:
         self.config = config
         self.trading_client = None  # Kept for backward compat; HTTP calls used directly
         try:
-            pass
-
             credential_manager = get_credential_manager()
             creds = credential_manager.get_alpaca_credentials()
             self._alpaca_key = creds.get("key")
             self._alpaca_secret = creds.get("secret")
             self._alpaca_base_url = get_alpaca_base_url()
-            if self._alpaca_key and self._alpaca_secret:
-                self.trading_client = True  # Signals credentials are available
+
+            # Validate credentials are present; fail explicitly rather than silently
+            if not self._alpaca_key:
+                raise ValueError("Alpaca API key missing from credential manager")
+            if not self._alpaca_secret:
+                raise ValueError("Alpaca API secret missing from credential manager")
+            if not self._alpaca_base_url:
+                raise ValueError("Alpaca base URL not configured")
+
+            self.trading_client = True  # Signals credentials are available
         except Exception as e:
-            logger.warning(f"Alpaca client initialization failed: {e}")
-            self._alpaca_key = None
-            self._alpaca_secret = None
-            self._alpaca_base_url = None
+            logger.critical(f"Alpaca credential initialization FAILED: {e}")
+            try:
+                notify(
+                    "critical",
+                    title="Reconciliation Initialization Failed",
+                    message=f"Alpaca credentials unavailable: {e}. Reconciliation cannot proceed.",
+                )
+            except Exception as notify_e:
+                logger.warning(f"Failed to send credential failure notification: {notify_e}")
+            raise ValueError(f"Alpaca credential initialization failed: {e}") from e
 
     def run_daily_reconciliation(self, reconcile_date=None):
         """Run full daily reconciliation."""
@@ -250,21 +262,36 @@ class DailyReconciliation:
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
                 # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
                 pv = alpaca_data.get("portfolio_value")
-                alpaca_portfolio_value = float(pv) if pv is not None else 0.0
-                if alpaca_portfolio_value <= 0:
+                if pv is None:
                     logger.critical(
-                        "Alpaca portfolio_value is missing/zero — cannot proceed with drawdown calculations. Halting."
+                        "Alpaca portfolio_value is missing — cannot proceed with drawdown calculations. Halting."
                     )
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Alpaca portfolio_value missing/zero — reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
+                            message="Alpaca portfolio_value missing — reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
                         )
                     except Exception as e:
                         logger.warning(f"Failed to send notification: {e}")
                     raise ValueError(
                         "Alpaca portfolio_value required for reconciliation — cannot proceed with DB-only fallback"
+                    )
+                alpaca_portfolio_value = float(pv)
+                if alpaca_portfolio_value <= 0:
+                    logger.critical(
+                        "Alpaca portfolio_value is zero/negative — cannot proceed with drawdown calculations. Halting."
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title="Reconciliation Halted",
+                            message="Alpaca portfolio_value zero/negative — reconciliation requires positive portfolio value. Cannot use stale DB cache.",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send notification: {e}")
+                    raise ValueError(
+                        "Alpaca portfolio_value must be positive for reconciliation — cannot proceed"
                     )
 
                 # DB-computed total (kept for drift reporting)
@@ -901,11 +928,21 @@ class DailyReconciliation:
                 else:
                     pos_value = qty * cur_price
 
-                # Get PnL (may be missing for very new positions — don't mask with fallback to 0)
+                # Get PnL (may be missing for very new positions — compute from prices, don't mask with 0)
                 pnl_raw = getattr(ap, "unrealized_pl", None)
-                pnl = float(pnl_raw) if pnl_raw is not None else 0.0
                 pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
-                pnl_pct = (float(pnl_pct_raw) * 100) if pnl_pct_raw is not None else 0.0
+
+                if pnl_raw is not None and pnl_pct_raw is not None:
+                    pnl = float(pnl_raw)
+                    pnl_pct = float(pnl_pct_raw) * 100
+                elif cur_price is not None and avg_entry is not None and cur_price > 0 and avg_entry > 0:
+                    pnl_pct = ((cur_price - avg_entry) / avg_entry) * 100
+                    pnl = (cur_price - avg_entry) * qty
+                else:
+                    logger.warning(
+                        f"[import_alpaca] {sym}: Cannot compute PnL (missing prices). Skipping position."
+                    )
+                    continue
 
                 position_id = (
                     f'EXT-{sym}-{datetime.now(timezone.utc).strftime("%Y%m%d")}'
