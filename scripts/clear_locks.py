@@ -55,5 +55,5 @@ with DatabaseContext('write') as cur:
             table_safe = assert_safe_table(table)
             cur.execute(f"DELETE FROM {table_safe} WHERE 1=1")
             print(f"Cleared {cur.rowcount} rows from {table}")
-        except Exception as e:
+        except (ValueError, psycopg2.errors.Error) as e:
             print(f"Could not clear {table}: {e}")
