@@ -50,35 +50,37 @@ def test_phase5_fails_without_buysell_signals():
     # Mock the database context to return NO buy_sell_daily signals
     # This simulates the scenario where EOD pipeline hasn't completed
     with patch('algo.orchestrator.phase5_signal_generation.DatabaseContext') as mock_db_context:
-        # When _get_candidates_from_buysell queries for signals, return empty list
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = []  # Empty — no signals found
+        with patch('algo.orchestrator.phase5_signal_generation._check_market_regime',
+                   side_effect=mock_check_market_regime):
+            # When _get_candidates_from_buysell queries for signals, return empty list
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = []  # Empty — no signals found
 
-        mock_context_manager = MagicMock()
-        mock_context_manager.__enter__.return_value = mock_cursor
-        mock_context_manager.__exit__.return_value = None
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_cursor
+            mock_context_manager.__exit__.return_value = None
 
-        mock_db_context.return_value = mock_context_manager
+            mock_db_context.return_value = mock_context_manager
 
-        # Run Phase 5
-        config = {"phase5_min_composite_score": 50}
-        result = run_phase5(
-            run_date=test_date,
-            dry_run=False,
-            verbose=True,
-            log_phase_result_fn=mock_log_phase_result,
-            exposure_constraints=None,
-            check_halt_flag=mock_check_halt_flag,
-            phase1_degraded=False,
-            config=config
-        )
+            # Run Phase 5
+            config = {"phase5_min_composite_score": 50}
+            result = run_phase5(
+                run_date=test_date,
+                dry_run=False,
+                verbose=True,
+                log_phase_result_fn=mock_log_phase_result,
+                exposure_constraints=None,
+                check_halt_flag=mock_check_halt_flag,
+                phase1_degraded=False,
+                config=config
+            )
 
     # Verify Phase 5 HALTS (doesn't degrade gracefully)
     print(f"\nPhase 5 Result: {result.status}")
     print(f"Halted: {result.halted}")
     print(f"Error: {result.error}")
 
-    assert result.halted == True, "Phase 5 should halt when buy_sell_daily is unavailable"
+    assert result.halted, "Phase 5 should halt when buy_sell_daily is unavailable"
     assert result.status == "halted", f"Expected status 'halted', got '{result.status}'"
     assert "buy_sell_daily" in result.error, "Error message should mention buy_sell_daily"
     assert "EOD pipeline" in result.error, "Error message should mention EOD pipeline"

@@ -63,13 +63,13 @@ def _check_market_regime(run_date: _date) -> Dict:
             row = cur.fetchone()
             if row is None:
                 logger.warning(
-                    "[PHASE 5] No market_exposure_daily data — proceeding with default permissive regime"
+                    "[PHASE 5] No market_exposure_daily data — halting entries (fail-closed)"
                 )
                 return {
-                    "is_entry_allowed": True,
-                    "exposure_pct": 50,
+                    "is_entry_allowed": False,
+                    "exposure_pct": 0,
                     "regime": "unknown",
-                    "halt_reasons": [],
+                    "halt_reasons": ["No market regime data available"],
                 }
             import json
 
@@ -81,12 +81,12 @@ def _check_market_regime(run_date: _date) -> Dict:
                 "halt_reasons": halt_reasons,
             }
     except Exception as e:
-        logger.warning(f"[PHASE 5] Could not read market regime: {e} — proceeding permissively")
+        logger.warning(f"[PHASE 5] Could not read market regime: {e} — halting entries (fail-closed)")
         return {
-            "is_entry_allowed": True,
-            "exposure_pct": 50,
+            "is_entry_allowed": False,
+            "exposure_pct": 0,
             "regime": "unknown",
-            "halt_reasons": [],
+            "halt_reasons": [f"Market regime read failed: {str(e)[:50]}"],
         }
 
 
