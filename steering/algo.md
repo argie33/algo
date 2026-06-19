@@ -268,11 +268,11 @@ All responses include `statusCode` root field. Helpers: `success_response(data)`
 
 **Production Auto (4):** deploy-all-infrastructure.yml, deploy-staging.yml, ci-fast-gates.yml, build-push-ecr.yml
 
-**Scheduled (3):** run-fred-loader.yml (5 AM ET), rotate-developer-credentials.yml (quarterly), verify-both-envs.yml (6h)
+**Scheduled (3):** run-fred-loader.yml (5 AM ET), rotate-credentials.yml (quarterly, first Monday), verify-both-envs.yml (6h)
 
 **Infrastructure (2):** build-lambda-layer.yml, verify-and-init-db.yml (manual dispatch)
 
-**Credentials (4):** rotate-developer-credentials.yml, rotate-credentials-simple.yml, update-credentials.yml, refresh-dev-credentials.yml
+**Credentials (4):** rotate-credentials.yml (primary quarterly rotation), rotate-credentials-simple.yml (fallback), update-credentials.yml (API key sync), check-credential-status.yml (audit/monitoring). Local: `scripts/refresh-aws-credentials.ps1` (PowerShell, direct Secrets Manager fetch).
 
 **Manual (3):** manual-invoke-loaders.yml, manual-invoke-orchestrator.yml, test-and-debug.yml
 

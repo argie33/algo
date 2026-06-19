@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 # Refresh local AWS credentials for the algo-developer profile.
-# Reads IaC-managed credentials from Secrets Manager via GitHub Actions OIDC.
+# Reads IaC-managed credentials from Secrets Manager via AWS CLI (OIDC or local AWS profile).
 #
 # Usage: scripts/refresh-aws-credentials.ps1
 #
-# Requires: gh CLI authenticated (gh auth status)
+# Requires: AWS CLI v2 configured with credentials or AWS_PROFILE set
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -13,154 +13,89 @@ $Profile = "algo-developer"
 $Region  = "us-east-1"
 $CredFile = "$HOME\.aws\credentials"
 
-Write-Host "Refreshing $Profile credentials from IaC (Secrets Manager)..." -ForegroundColor Cyan
+Write-Host "Refreshing $Profile credentials from Secrets Manager..." -ForegroundColor Cyan
 
-# Get the current repository
-$RepoPath = & git rev-parse --show-toplevel 2>$null
-if (-not $RepoPath) {
-    Write-Error "Not in a git repository. Run this script from the project root."
-    exit 1
-}
+# Fetch developer credentials from Secrets Manager
+Write-Host "Fetching credentials from Secrets Manager..." -ForegroundColor Gray
+$SecretJson = aws secretsmanager get-secret-value `
+    --secret-id algo/developer-credentials `
+    --region $Region `
+    --query SecretString `
+    --output text 2>&1
 
-# Determine repo owner/name from git remote
-$GitRemote = & git config --get remote.origin.url 2>$null
-if ($GitRemote -match "github\.com[:/]([^/]+)/([^/\.]+)") {
-    $Owner = $Matches[1]
-    $Repo = $Matches[2]
-} else {
-    Write-Error "Could not determine GitHub repo from remote. Ensure 'origin' remote is set."
-    exit 1
-}
-
-$Repository = "$Owner/$Repo"
-
-# Trigger the credentials export workflow
-Write-Host "Triggering refresh-dev-credentials workflow in $Repository..." -ForegroundColor Gray
-gh workflow run refresh-dev-credentials.yml --repo $Repository 2>&1 | Write-Host
-
-# Wait for the run to start
-Start-Sleep -Seconds 2
-
-# Get the run ID (newest first)
-$RunId = gh run list `
-    --workflow refresh-dev-credentials.yml `
-    --repo $Repository `
-    --limit 1 `
-    --json databaseId `
-    --jq ".[0].databaseId"
-
-if (-not $RunId) {
-    Write-Error "Could not find workflow run. Check: gh run list --workflow refresh-dev-credentials.yml --repo $Repository"
-    exit 1
-}
-
-Write-Host "Workflow run ID: $RunId" -ForegroundColor Gray
-Write-Host "Waiting for run to complete (this may take 10-20 seconds)..." -ForegroundColor Gray
-gh run watch $RunId --repo $Repository --exit-status
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Workflow run $RunId failed. Check: gh run view $RunId --repo $Repository"
+    Write-Error "Failed to fetch credentials from Secrets Manager.`nError: $SecretJson`n`nTroubleshooting:`n- Ensure AWS CLI is configured: aws sts get-caller-identity`n- Ensure OIDC role has Secrets Manager access`n- Check secret name: algo/developer-credentials"
     exit 1
 }
 
-# Download the credentials artifact
-$TmpDir = Join-Path $env:TEMP "algo-aws-creds-$RunId"
-New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
-
-Write-Host "Downloading credentials artifact..." -ForegroundColor Gray
-gh run download $RunId `
-    --repo $Repository `
-    --name dev-credentials `
-    --dir $TmpDir 2>&1 | Write-Host
-
-$ArtifactCreds = Join-Path $TmpDir "credentials"
-if (-not (Test-Path $ArtifactCreds)) {
-    Write-Error "Credentials artifact not found at $ArtifactCreds"
+# Parse the secret JSON
+try {
+    $Secret = $SecretJson | ConvertFrom-Json
+} catch {
+    Write-Error "Failed to parse credentials JSON: $_"
     exit 1
 }
 
-# Parse the downloaded credentials
-$Content = Get-Content $ArtifactCreds -Raw
-$AccessKeyId = if ($Content -match "aws_access_key_id\s*=\s*(\S+)") { $Matches[1] } else { $null }
-$SecretKey   = if ($Content -match "aws_secret_access_key\s*=\s*(\S+)") { $Matches[1] } else { $null }
+$AccessKeyId = $Secret.access_key_id
+$SecretKey = $Secret.secret_access_key
 
 if (-not $AccessKeyId -or -not $SecretKey) {
-    Write-Error "Could not parse credentials from artifact"
+    Write-Error "Credentials missing from secret. Expected 'access_key_id' and 'secret_access_key' fields."
     exit 1
 }
 
-# Update cache if dev-cache-manager.ps1 is available
-$CacheManager = Join-Path (Split-Path $PSScriptRoot) "dev-cache-manager.ps1"
-if (Test-Path $CacheManager) {
-    Write-Host "Updating credential cache..." -ForegroundColor Gray
-    & $CacheManager -Mode Set -AccessKeyId $AccessKeyId -SecretKey $SecretKey 2>&1 | Write-Host
+# Ensure ~/.aws directory exists
+$AwsDir = Split-Path $CredFile -Parent
+New-Item -ItemType Directory -Force -Path $AwsDir | Out-Null
+
+# Read existing credentials and replace or add the algo-developer block
+$Existing = if (Test-Path $CredFile) {
+    $r = Get-Content $CredFile -Raw
+    if ($r) { $r } else { "" }
 } else {
-    Write-Host "Cache manager not found; falling back to direct update" -ForegroundColor Gray
-    # Ensure ~/.aws directory exists
-    $AwsDir = Split-Path $CredFile -Parent
-    New-Item -ItemType Directory -Force -Path $AwsDir | Out-Null
+    ""
+}
 
-    # Read existing credentials and replace or add the algo-developer block
-    $Existing = if (Test-Path $CredFile) { $r = Get-Content $CredFile -Raw; if ($r) { $r } else { "" } } else { "" }
-
-    $NewBlock = @"
+$NewBlock = @"
 [$Profile]
 aws_access_key_id = $AccessKeyId
 aws_secret_access_key = $SecretKey
 region = $Region
 "@
 
-    # Remove existing algo-developer block if present
-    $Pattern = "(?ms)\[$Profile\][^\[]*"
-    $Updated = if ($Existing -match $Pattern) {
-        $Existing -replace $Pattern, ""
-    } else {
-        $Existing
-    }
-
-    # Trim trailing whitespace and append new block
-    $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
-    # Write credentials file (UTF-8 without BOM — botocore rejects BOM in credentials files)
-    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
+# Remove existing algo-developer block if present
+$Pattern = "(?ms)\[$Profile\][^\[]*"
+$Updated = if ($Existing -match $Pattern) {
+    $Existing -replace $Pattern, ""
+} else {
+    $Existing
 }
 
-# Clean up temp dir
-Remove-Item -Recurse -Force $TmpDir
+# Trim trailing whitespace and append new block
+$Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
+
+# Write credentials file (UTF-8 without BOM — botocore rejects BOM in credentials files)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
+
+Write-Host "✓ Credentials written to $CredFile" -ForegroundColor Green
+
+# Check credential status from the secret
+if ($Secret.status) {
+    if ($Secret.status -eq "dual_credentials_active") {
+        Write-Host "`n[INFO] Grace period active" -ForegroundColor Yellow
+        Write-Host "  Both old and new keys are valid" -ForegroundColor Yellow
+        if ($Secret.old_key_cleanup_date) {
+            Write-Host "  Old key cleanup date: $($Secret.old_key_cleanup_date)" -ForegroundColor Yellow
+            Write-Host "  Action: Update credentials before cleanup date" -ForegroundColor Yellow
+        }
+    }
+}
 
 # Verify it works
-Write-Host "Verifying credentials..." -ForegroundColor Gray
+Write-Host "`nVerifying credentials..." -ForegroundColor Gray
 $env:AWS_PROFILE = $Profile
 $env:AWS_DEFAULT_REGION = $Region
-
-# Also check if dashboard credentials are available in Secrets Manager
-Write-Host "Checking dashboard configuration in Secrets Manager..." -ForegroundColor Gray
-$DashboardConfigJson = aws secretsmanager get-secret-value `
-    --secret-id algo/dashboard-config `
-    --region $Region `
-    --query SecretString `
-    --output text 2>&1
-
-if ($LASTEXITCODE -eq 0 -and $DashboardConfigJson -and $DashboardConfigJson -ne "") {
-    $DashboardConfig = $DashboardConfigJson | ConvertFrom-Json
-    $HasApiUrl = [string]::IsNullOrWhiteSpace($DashboardConfig.api_url) -eq $false
-    $HasPoolId = [string]::IsNullOrWhiteSpace($DashboardConfig.cognito_user_pool_id) -eq $false
-    $HasClientId = [string]::IsNullOrWhiteSpace($DashboardConfig.cognito_user_pool_client_id) -eq $false
-
-    if ($HasApiUrl -and $HasPoolId -and $HasClientId) {
-        Write-Host "[OK] Dashboard config found in Secrets Manager:" -ForegroundColor Green
-        Write-Host "  API URL: $($DashboardConfig.api_url)" -ForegroundColor Green
-        Write-Host "  Cognito Pool: $($DashboardConfig.cognito_user_pool_id)" -ForegroundColor Green
-        Write-Host "  Cognito Client: $($DashboardConfig.cognito_user_pool_client_id)" -ForegroundColor Green
-    } else {
-        Write-Host "[WARN] Dashboard config exists but is incomplete" -ForegroundColor Yellow
-        Write-Host "  API URL: $(if ($HasApiUrl) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
-        Write-Host "  Cognito Pool: $(if ($HasPoolId) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
-        Write-Host "  Cognito Client: $(if ($HasClientId) { 'SET' } else { 'MISSING' })" -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "[WARN] Dashboard config NOT found in Secrets Manager" -ForegroundColor Yellow
-    Write-Host "       This is normal if infrastructure hasn't been deployed yet." -ForegroundColor Yellow
-}
 
 # Try verification with a short delay for IAM consistency
 $MaxRetries = 3

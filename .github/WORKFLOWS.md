@@ -7,111 +7,120 @@ This guide explains when to use each workflow. Choose the right one to avoid red
 ## CI/CD Pipeline Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Push to main OR Pull Request                                    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ STEP 1: FAST GATES (Required to merge)                          │
-│ ├─ ci-fast-gates.yml (runs ~90 seconds)                         │
-│ │  ├─ Security: scan secrets, deps, SAST, IaC                  │
-│ │  ├─ Code Quality: mypy, black, isort, flake8                 │
-│ │  ├─ Unit Tests: test_position_sizer, test_circuit_breaker   │
-│ │  └─ Integration Tests: core integration tests                │
-│ │  RESULT: ✓ MUST PASS to merge                                │
-│ │                                                               │
-│ └─ quality-gates.yml (runs ~5-10 min, PARALLEL with fast-gates)│
-│    ├─ Type Check: mypy strict mode (stricter than fast-gates) │
-│    ├─ Coverage: full test coverage + codecov upload             │
-│    ├─ Code Quality: black, isort, flake8 (duplicate!)          │
-│    └─ Test Suite: full pytest with DB                          │
-│    RESULT: ⚠ CURRENTLY DUPLICATES fast-gates — see issue #TBD  │
-│                                                                 │
-│ STEP 2: AUTO-DEPLOY (if on main branch)                        │
-│ ├─ deploy-all-infrastructure.yml (runs on push to main)        │
-│ │  ├─ Terraform apply (AWS infrastructure)                     │
-│ │  ├─ Build & push ECR image (loaders)                         │
-│ │  ├─ Deploy Lambda functions (algo + API)                     │
-│ │  ├─ Deploy frontend (S3 + CloudFront)                        │
-│ │  └─ Run database migrations                                  │
-│ │  RESULT: ⚠ AUTO-DEPLOYS ON EVERY PUSH — requires approval?  │
-│ │                                                               │
-│ └─ build-push-ecr.yml (runs on push to main, path-filtered)    │
-│    └─ Build loader Docker image (if loaders/ changed)          │
-│    RESULT: ✓ Called by deploy-all-infrastructure               │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+Pull Request:
+┌────────────────────────────────────────────────────────────────┐
+│ STEP 1: Code Review                                            │
+│ ├─ ci-fast-gates.yml (runs ~12 minutes)                        │
+│ │  ├─ Security: scan secrets, deps, SAST, IaC                 │
+│ │  ├─ Code Quality: mypy, black, isort, flake8                │
+│ │  ├─ Tests: unit, edge case, integration                     │
+│ │  ├─ Coverage: test coverage report + Codecov upload          │
+│ │  └─ RESULT: ✓ MUST PASS to merge                            │
+│ │                                                              │
+│ └─ terraform-plan.yml (runs on PR, shows plan in comment)     │
+│    ├─ Terraform plan (AWS infrastructure changes)             │
+│    ├─ Validates Terraform format                              │
+│    └─ Posts diff to PR for human review                       │
+│    RESULT: ✓ Informs review — no apply yet                    │
+│                                                               │
+└────────────────────────────────────────────────────────────────┘
+
+After Merge to main:
+┌────────────────────────────────────────────────────────────────┐
+│ STEP 2: Manual Deploy (workflow_dispatch only)                 │
+│ └─ deploy-all-infrastructure.yml (MANUAL TRIGGER)              │
+│    ├─ Terraform apply (AWS infrastructure)                     │
+│    ├─ Build & push ECR image (loaders)                         │
+│    ├─ Deploy Lambda functions (algo + API)                     │
+│    ├─ Deploy frontend (S3 + CloudFront)                        │
+│    └─ Run database migrations                                  │
+│    RESULT: ✓ Manual approval required before apply             │
+│                                                               │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Deployment Workflows
 
+### Terraform Plan + Apply (Safe Approval Gate)
+
+1. **Terraform Plan (on PR)** — `terraform-plan.yml`
+   - Trigger: Pull request to main
+   - Action: Runs `terraform plan`, posts diff to PR comment
+   - Human review: Inspector sees infrastructure changes before merge
+   - Result: Plan is read-only (no apply yet)
+
+2. **Terraform Apply (Manual Deploy)** — `deploy-all-infrastructure.yml`
+   - Trigger: **Manual only** (`workflow_dispatch`), after PR is merged to main
+   - Action: Runs Terraform apply + builds Lambda + deploys frontend
+   - Requires: Human explicitly clicks "Run workflow" in GitHub Actions
+   - Result: Infrastructure changes applied only after human review + merge
+
 ### When to Use Which Deploy Workflow
 
 | Scenario | Workflow | Trigger | Notes |
 |----------|----------|---------|-------|
-| **Normal code push to main** | `deploy-all-infrastructure.yml` | Auto (push to main) | Terraform + Lambda + Frontend all deploy together |
-| **Emergency: code-only deploy without Terraform** | `deploy-code.yml` | Manual (`workflow_dispatch`) | ⚠ **CONFUSING**: has `if: false` Lambda jobs — when would you actually use this? |
-| **Manual infrastructure-only (no code)** | `deploy-all-infrastructure.yml` + `skip_code=true` | Manual (`workflow_dispatch`) | Use the `skip_code` input option |
-| **Manual Terraform-only (dry-run first)** | `deploy-all-infrastructure.yml` + `skip_terraform=false` | Manual (`workflow_dispatch`) | Full Terraform plan+apply |
+| **Review infra changes before merge** | `terraform-plan.yml` | Auto (PR to main) | Shows plan in PR comment — no apply yet |
+| **Deploy after merge (normal flow)** | `deploy-all-infrastructure.yml` | Manual (`workflow_dispatch`) | Requires human to click "Run" in Actions tab |
+| **Code-only deploy (skip Terraform)** | `deploy-all-infrastructure.yml` + `skip_terraform=true` | Manual (`workflow_dispatch`) | Use the `skip_terraform` input option |
+| **Infrastructure-only (skip code deploy)** | `deploy-all-infrastructure.yml` + `skip_code=true` | Manual (`workflow_dispatch`) | Use the `skip_code` input option |
 
-### Decision Tree: Which Deploy to Trigger?
+### Decision Tree: How to Deploy
 
 ```
-Need to deploy?
+Have Terraform changes?
 │
-├─ YES, on main (normal flow)
-│  └─ Just push. deploy-all-infrastructure runs automatically.
+├─ YES
+│  ├─ Push PR: terraform-plan.yml auto-runs, shows diff in PR comment
+│  ├─ Review plan and code in PR
+│  ├─ Merge when approved
+│  └─ Manually run deploy-all-infrastructure (click "Run workflow")
 │
-├─ YES, but Terraform is broken (need code-only deploy)
-│  └─ Manually run deploy-all-infrastructure with skip_terraform=true
-│     (deploy-code.yml exists but is confusing — prefer deploy-all-infrastructure)
-│
-└─ YES, but as dry-run (plan without apply)
-   └─ Manually run deploy-all-infrastructure
-      (no built-in plan-only mode yet)
+└─ NO (code-only changes)
+   ├─ Merge PR normally (CI gates pass)
+   └─ Manually run deploy-all-infrastructure with skip_terraform=true
 ```
 
 ---
 
 ## Credential Management Workflows
 
-### Workflow Purpose Matrix
+### Consolidated Workflow Purpose Matrix
 
 | Workflow | Purpose | Trigger | When to Use |
 |----------|---------|---------|------------|
-| `rotate-credentials-simple.yml` | Create new IAM key via AWS CLI (fallback) | Manual | When `rotate-credentials-with-grace-period` is stuck |
-| `rotate-credentials-with-grace-period.yml` | IAM rotation with old key validity window | Manual | Quarterly credential rotation (preferred method) |
-| `rotate-developer-credentials.yml` | Rotate developer-specific keys | Manual | Developer onboarding / offboarding |
-| `update-credentials.yml` | Update existing secret in Secrets Manager | Manual | Post-rotation: update app-facing secrets |
-| `reset-passwords.yml` | Reset database passwords | Manual | Emergency password reset (rare) |
-| `refresh-dev-credentials.yml` | Local dev: refresh .aws/credentials file | Manual | Dev local setup (use `scripts/refresh-aws-credentials.ps1` instead) |
-| `cleanup-old-credentials.yml` | Deregister old IAM keys | Manual | Post-rotation cleanup (run after rotation completes) |
-| `check-credential-status.yml` | Report credential age and key rotation dates | Manual | Audit: check which keys are expiring soon |
+| `rotate-credentials.yml` | Primary quarterly IAM key rotation with optional grace period (7 days) | Scheduled (first Monday of each quarter, 2 AM ET) or Manual | Standard quarterly rotation (includes cleanup) |
+| `rotate-credentials-simple.yml` | Create new IAM key via AWS CLI (direct, no grace period) | Manual | Emergency fallback when primary rotation is stuck |
+| `update-credentials.yml` | Sync GitHub Secrets → Secrets Manager for Alpaca/FRED API keys | Manual | After updating API credentials in GitHub Secrets |
+| `check-credential-status.yml` | Report credential rotation status and expiration dates | Reusable workflow (called by CI/CD) | Audit: verify credentials valid before deployment |
 
 ### Decision Tree: Which Credential Workflow?
 
 ```
 Credential task?
 │
-├─ Quarterly rotation
-│  └─ run: rotate-credentials-with-grace-period
-│     then: update-credentials
-│     then: cleanup-old-credentials
+├─ Quarterly rotation (with grace period)
+│  └─ Automatic: runs first Monday of each quarter at 2 AM ET
+│     (or manually trigger: gh workflow run rotate-credentials.yml)
+│     Includes: create new key → dual-credentials period (7 days) → auto-cleanup
 │
-├─ Emergency: rotation stuck
+├─ Emergency: need immediate rotation (rotation stuck)
 │  └─ run: rotate-credentials-simple
-│     (direct AWS CLI, bypasses Terraform)
+│     (direct AWS CLI, bypasses grace period and Terraform)
 │
-├─ Developer onboarding/offboarding
-│  └─ run: rotate-developer-credentials
+├─ Update API credentials (Alpaca, FRED)
+│  └─ 1. Update GitHub Secret (gh secret set ALPACA_API_KEY ...)
+│     2. run: update-credentials with trading_mode input
 │
-├─ Check what's expiring soon
-│  └─ run: check-credential-status
+├─ Check credential rotation status
+│  └─ run: check-credential-status (called by CI/CD)
+│     Use: --fail-on-grace-period to enforce credential updates
 │
-└─ Local dev: refresh your AWS creds
+└─ Local dev: refresh your AWS credentials
    └─ Don't use workflow. Instead:
       ! scripts/refresh-aws-credentials.ps1
+      (reads from Secrets Manager directly, no workflow overhead)
 ```
 
 ---
@@ -162,19 +171,20 @@ Daily Schedule (Proposed):
    - **Fix:** Either delete or document exact use case (code-only emergency deploy?)
    - **Tracking:** See GitHub issue (to be created)
 
-3. **Auto-Deploy on Every Push**
-   - `deploy-all-infrastructure` runs `terraform apply` automatically on every push to main
-   - No approval gate — infrastructure changes go live instantly
-   - **Fix:** Require manual approval or add approval gate
-   - **Tracking:** See GitHub issue (to be created)
+3. **Auto-Deploy on Every Push** ✅ FIXED
+   - ~~`deploy-all-infrastructure` runs `terraform apply` automatically on every push to main~~
+   - ✅ **FIXED:** Split into two workflows:
+     - `terraform-plan.yml`: Shows diff on PR (read-only)
+     - `deploy-all-infrastructure.yml`: Manual-only, requires clicking "Run workflow"
+   - Infrastructure changes now require human review + merge + manual approval
+   - **Completed:** Terraform apply is now manual-only
 
 ### 🟡 Medium
 
-4. **16 Manual Workflows for Operational Tasks**
-   - 8 credential workflows with overlapping purpose
-   - 8 operational workflows (loaders, monitoring) all manual
-   - Unclear naming and sequencing
-   - **Fix:** See decision trees above; consolidate and schedule as needed
+4. **Operational Workflows Need Scheduling** ✅ CREDENTIALS FIXED
+   - ✅ **DONE:** 8 credential workflows consolidated to 4 (clear naming, automatic scheduling)
+   - ⏳ **TODO:** 8 operational workflows (loaders, monitoring) still all manual
+   - **Fix:** Convert to cron-based scheduled workflows (see Operational Workflows section)
 
 5. **No Scheduled Workflows**
    - Daily tasks (EOD pipeline, morning status, orchestrator) are all manual
@@ -185,14 +195,20 @@ Daily Schedule (Proposed):
 
 ## Quick Reference: "I Want to Deploy X"
 
-**I changed code and merged to main:**
-→ Wait. deploy-all-infrastructure.yml runs automatically. Monitor GitHub Actions.
+**I changed code and want to see infrastructure changes:**
+→ Push PR. terraform-plan.yml auto-runs and posts the plan to your PR comment.
+
+**I merged to main and want to deploy:**
+→ Go to GitHub Actions → select `Deploy All Infrastructure` → click `Run workflow` → choose options → deploy.
+→ Never automatic — always requires human approval via manual trigger.
 
 **I need to deploy code-only without changing infrastructure:**
 → Manually trigger: `deploy-all-infrastructure.yml` with `skip_terraform=true`
 
 **I need to rotate AWS credentials:**
-→ Follow the credential decision tree above. Usually: `rotate-credentials-with-grace-period` → `update-credentials` → `cleanup-old-credentials`
+→ Automatic: `rotate-credentials.yml` runs first Monday of each quarter at 2 AM ET (includes cleanup).
+→ Manual or emergency: `gh workflow run rotate-credentials.yml` (standard) or `gh workflow run rotate-credentials-simple.yml` (fallback).
+→ Follow the credential decision tree above.
 
 **I need to run the EOD data pipeline manually:**
 → Manually trigger: `manual-trigger-eod-pipeline.yml`
@@ -216,8 +232,8 @@ Daily Schedule (Proposed):
 
 1. [ ] Consolidate `ci-fast-gates.yml` + `quality-gates.yml` (duplicate work)
 2. [ ] Clarify or delete `deploy-code.yml` (confusing purpose)
-3. [ ] Add approval gate to `deploy-all-infrastructure` (prevent unvetted deploys)
-4. [ ] Consolidate credential workflows (rename/document for clarity)
+3. [x] Add approval gate to `deploy-all-infrastructure` (prevent unvetted deploys) — ✅ DONE: now manual-only via `workflow_dispatch`
+4. [x] Consolidate credential workflows (rename/document for clarity) — ✅ DONE: 8 workflows → 4 (rotate-credentials.yml primary, rotate-credentials-simple.yml fallback, update-credentials.yml, check-credential-status.yml)
 5. [ ] Convert manual operational workflows to scheduled (cron-based)
 
 See CLAUDE.md for instructions on updating workflows in future commits.
