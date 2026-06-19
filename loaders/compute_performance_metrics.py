@@ -168,7 +168,10 @@ def _compute_advanced_metrics(cur, metric_date: date):
         snapshots = cur.fetchall()
 
         if len(snapshots) < 2:
-            return 0.0, 0.0, 0.0, 0.0, 0.0
+            raise ValueError(
+                f"Insufficient portfolio snapshots for metrics calculation: {len(snapshots)} snapshot(s) found, "
+                "need at least 2 to compute daily returns"
+            )
 
         vals = [safe_float(s["total_portfolio_value"]) for s in snapshots]
         dates = [s["snapshot_date"] for s in snapshots]
@@ -181,7 +184,10 @@ def _compute_advanced_metrics(cur, metric_date: date):
                 returns.append(ret)
 
         if not returns:
-            return 0.0, 0.0, 0.0, 0.0, 0.0
+            raise ValueError(
+                f"Insufficient returns data for metrics calculation: all {len(vals)} snapshots "
+                "have zero or negative previous values; cannot compute daily returns"
+            )
 
         # Calculate metrics with explicit error handling — fail-secure, no silent fallbacks
         try:
