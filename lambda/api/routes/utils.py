@@ -10,36 +10,18 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 import setup_imports  # noqa: F401
+from exceptions import (
+    BadRequest,
+    Conflict,
+    Forbidden,
+    NotFound,
+    QueryTimeout,
+    ServiceUnavailable,
+    TooManyRequests,
+    UnprocessableEntity,
+)
 
 from utils.validation import APIResponseValidator
-
-
-# Import exceptions for raising instead of returning error dicts
-try:
-    from exceptions import (
-        APIException,
-        BadRequest,
-        Conflict,
-        DataNotAvailable,
-        Forbidden,
-        NotFound,
-        QueryTimeout,
-        ServiceUnavailable,
-        TooManyRequests,
-        UnprocessableEntity,
-    )
-except ImportError:
-    # Fallback if exceptions module not available (for backward compatibility)
-    APIException = Exception
-    BadRequest = Exception
-    Conflict = Exception
-    DataNotAvailable = Exception
-    Forbidden = Exception
-    NotFound = Exception
-    QueryTimeout = Exception
-    ServiceUnavailable = Exception
-    TooManyRequests = Exception
-    UnprocessableEntity = Exception
 
 
 logger = logging.getLogger(__name__)
@@ -393,7 +375,7 @@ def execute_with_timeout(
 
 
 def check_data_freshness(
-    cur, table_name: str, date_column: str = "date", warning_days: int = None
+    cur, table_name: str, date_column: str = "date", warning_days: int | None = None
 ) -> dict:
     """Check how fresh data is in a table.
 
@@ -442,7 +424,7 @@ def check_data_freshness(
         today = date.today()
         data_age = (today - max_date).days
 
-        # Financial market data only updates on trading days (Mon–Fri).
+        # Financial market data only updates on trading days (Mon-Fri).
         # Adjust the staleness threshold on weekends so Friday's data stays
         # "fresh" through Sunday without triggering false stale warnings.
         weekday = today.weekday()  # 0=Mon … 6=Sun
