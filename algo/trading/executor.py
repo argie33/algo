@@ -1450,7 +1450,7 @@ class TradeExecutor:
 
             response = requests.post(
                 f"{self.alpaca_base_url}/v2/orders",
-                json=order_data,  # type: ignore[arg-type]
+                json=order_data,
                 headers={
                     "APCA-API-KEY-ID": self.alpaca_key,
                     "APCA-API-SECRET-KEY": self.alpaca_secret,
@@ -1600,6 +1600,7 @@ class TradeExecutor:
                     return cast(float, validation["filled_avg_price"])
         except Exception as e:
                 raise RuntimeError(f"Operation failed: {e}") from e
+        return None
 
     def _get_order_filled_quantity(self, alpaca_order_id: str) -> Optional[float]:
         """Query Alpaca for actual filled quantity of an order.

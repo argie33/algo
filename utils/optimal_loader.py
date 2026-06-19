@@ -86,8 +86,49 @@ class OptimalLoader(ABC):
             None  # Track execution start time as Unix timestamp for execution history logging
         )
         self._batch_context: dict[str, Any] | None = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
+        self._configure_chunk_size()
         self._setup_signal_handlers()
         self._validate_runtime_config()
+
+    def _configure_chunk_size(self) -> None:
+        """Auto-tune chunk_size based on environment and available memory.
+
+        ISSUE #39 FIX: chunk_size was fixed at 10,000, causing memory pressure on
+        constrained ECS tasks (768MB-1GB memory). Auto-tuning prevents OOM kills
+        by scaling chunk_size based on available memory.
+
+        Configuration priority:
+        1. LOADER_CHUNK_SIZE env var (explicit override)
+        2. Auto-tuned based on available memory and ECS_TASK_MEMORY_LIMIT
+        3. Safe default: 5,000 rows for 768MB memory limit
+        """
+        env_chunk_size = os.getenv("LOADER_CHUNK_SIZE")
+        if env_chunk_size:
+            try:
+                configured_size = int(env_chunk_size)
+                if configured_size < 100 or configured_size > 100_000:
+                    logger.warning(
+                        f"[CONFIG] LOADER_CHUNK_SIZE={configured_size} outside safe range (100-100000), "
+                        "using auto-tuned value instead"
+                    )
+                else:
+                    self.chunk_size = configured_size
+                    logger.info(f"[CONFIG] LOADER_CHUNK_SIZE={configured_size} (explicit override)")
+                    return
+            except ValueError:
+                logger.warning(
+                    f"[CONFIG] LOADER_CHUNK_SIZE='{env_chunk_size}' is not a valid integer"
+                )
+
+        memory_limit_mb = int(os.getenv("ECS_TASK_MEMORY_LIMIT", "512"))
+        safe_memory_mb = memory_limit_mb * 0.40
+        avg_row_size_kb = 1.5
+        safe_rows = int((safe_memory_mb * 1024) / avg_row_size_kb)
+        self.chunk_size = max(2_000, min(50_000, safe_rows))
+        logger.info(
+            f"[CONFIG] Auto-tuned LOADER_CHUNK_SIZE={self.chunk_size} "
+            f"(memory_limit={memory_limit_mb}MB, safe_memory={safe_memory_mb:.0f}MB, avg_row={avg_row_size_kb}KB)"
+        )
 
     def _setup_signal_handlers(self) -> None:
         """Register SIGTERM handler for graceful shutdown on ECS task termination."""

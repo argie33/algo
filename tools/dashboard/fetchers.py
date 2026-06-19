@@ -1509,6 +1509,7 @@ def load_all() -> dict:
     Issue 11 FIX: Timeout handling ensures orphaned fetchers are marked incomplete and not lost.
     Issue 12 FIX: API calls use retry logic with capped exponential backoff.
     Issue 14 FIX: Consolidated duplicate /api/algo/markets fetches via shared cache.
+    Issue #40 FIX: Per-fetcher timeout (critical: 8s, optional: 3s) prevents one slow endpoint from blocking refresh.
     """
     # Clear per-call caches so watch mode gets fresh data on each refresh.
     # _get_data_status_cached() and _get_markets_cached() deduplicate concurrent fetches
@@ -1519,6 +1520,38 @@ def load_all() -> dict:
     out: dict = {}
     max_retries = 3
     batch_timeout = 200
+
+    # Per-fetcher timeout limits to prevent one slow endpoint from blocking refresh
+    fetcher_timeout_seconds = {
+        # Critical fetchers: 8 second timeout (must complete)
+        "run": 8.0,
+        "cfg": 8.0,
+        "mkt": 8.0,
+        "port": 8.0,
+        "perf": 8.0,
+        "pos": 8.0,
+        "trades": 8.0,
+        "sig": 8.0,
+        "health": 8.0,
+        "cb": 8.0,
+        # Optional fetchers: 3 second timeout (nice-to-have)
+        "srank": 3.0,
+        "activity": 3.0,
+        "eco": 3.0,
+        "notifs": 3.0,
+        "sentiment": 3.0,
+        "econ_cal": 3.0,
+        "risk": 3.0,
+        "perf_anl": 3.0,
+        "sig_eval": 3.0,
+        "sec_rot": 3.0,
+        "algo_metrics": 3.0,
+        "irank": 3.0,
+        "audit": 3.0,
+        "exec_hist": 3.0,
+        "exp_factors": 3.0,
+        "scores": 3.0,
+    }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
     critical_fetchers = {
@@ -1552,9 +1585,25 @@ def load_all() -> dict:
         "scores",
     }
 
-    def one(name, fn):
-        """Execute fetcher with exponential backoff retry on API errors."""
+    def one(name, fn, timeout_sec):
+        """Execute fetcher with exponential backoff retry and per-fetcher timeout.
+
+        Issue #40 FIX: Individual timeout per fetcher prevents one slow endpoint from
+        blocking others. If fetcher exceeds timeout, immediately return error instead of
+        waiting for global batch timeout.
+        """
+        start_time = time.monotonic()
+
         for attempt in range(max_retries + 1):
+            # Check if per-fetcher timeout has been exceeded
+            elapsed = time.monotonic() - start_time
+            if elapsed > timeout_sec:
+                meta = FETCHER_METADATA.get(name, {})
+                endpoint = meta.get("endpoint", "unknown endpoint")
+                timeout_msg = f"Fetcher {name} ({endpoint}) exceeded per-fetcher timeout ({timeout_sec:.1f}s)"
+                logger.warning(timeout_msg)
+                return name, {"_error": timeout_msg}
+
             try:
                 return name, fn(None)
             except Exception as e:
@@ -1576,7 +1625,10 @@ def load_all() -> dict:
     critical_start_time = time.monotonic()
     with ThreadPoolExecutor(max_workers=10) as pool:
         critical_items = {k: v for k, v in FETCHERS.items() if k in critical_fetchers}
-        futures = {pool.submit(one, k, v): k for k, v in critical_items.items()}
+        futures = {
+            pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 8.0)): k
+            for k, v in critical_items.items()
+        }
         pending_futures = set(futures.keys())
 
         try:
@@ -1614,7 +1666,10 @@ def load_all() -> dict:
     optional_timeout = remaining_time
     with ThreadPoolExecutor(max_workers=6) as pool:
         optional_items = {k: v for k, v in FETCHERS.items() if k in optional_fetchers}
-        futures = {pool.submit(one, k, v): k for k, v in optional_items.items()}
+        futures = {
+            pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 3.0)): k
+            for k, v in optional_items.items()
+        }
         pending_futures = set(futures.keys())
 
         try:

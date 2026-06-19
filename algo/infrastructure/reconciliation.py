@@ -489,7 +489,7 @@ class DailyReconciliation:
                 params={
                     "status": "closed",
                     "side": "sell",
-                    "after": since,  # type: ignore[arg-type]
+                    "after": since,
                     "direction": "desc",
                     "limit": 500,
                 },

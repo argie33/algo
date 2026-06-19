@@ -110,7 +110,7 @@ class AlpacaOrderValidator(Validator):
                     f"{context}: bracket order requires 2+ legs, got {len(legs)}"
                 )
             else:
-                cleaned["legs"] = legs
+                cleaned["legs"] = legs  # type: ignore[assignment]
         else:
             cleaned["legs"] = legs
 

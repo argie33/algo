@@ -120,6 +120,7 @@ class LoaderConfigManager:
                 self._rds_connection_cache = int(latest["Average"])
                 self._rds_connection_cache_time = now
                 return self._rds_connection_cache
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
