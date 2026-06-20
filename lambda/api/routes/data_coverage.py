@@ -196,18 +196,10 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
-        logger.error(f"[MARKET_DATA_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
-    except Exception as e:
-        logger.error(
-            f"[MARKET_DATA_COVERAGE] Unexpected error: {type(e).__name__}: {e}"
-        )
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
+        code, error_type, message = handle_db_error(e, "get market data coverage")
+        return error_response(code, error_type, message)
 
 
 def get_loader_health(cur) -> Dict[str, Any]:
@@ -359,7 +351,8 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
         logger.warning(
             f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}"
         )
-        return error_response(500, "data_processing_error", str(e))
+        code, error_type, message = handle_db_error(e, "data coverage check")
+        return error_response(code, error_type, message)
 
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:

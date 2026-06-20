@@ -427,7 +427,7 @@ def _verify_user_email(body: dict | None = None) -> dict:
         cognito_region = os.getenv("COGNITO_REGION", "us-east-1").strip()
 
         if not cognito_user_pool_id:
-            return error_response(500, "cognito_config_error", "Cognito not configured")
+            return error_response(503, "service_unavailable", "Cognito service not configured")
 
         cognito_client = boto3.client("cognito-idp", region_name=cognito_region)
         username = req.username
@@ -484,4 +484,4 @@ def _verify_user_email(body: dict | None = None) -> dict:
                 404, "not_found", f'User not found: {body.get("username")}'
             )
         logger.error(f"Failed to verify email: {e}")
-        return error_response(500, "email_verification_error", "Failed to verify email")
+        return error_response(503, "service_unavailable", "Failed to verify email with Cognito service")

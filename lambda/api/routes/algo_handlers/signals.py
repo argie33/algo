@@ -523,11 +523,8 @@ def _get_swing_scores(
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        logger.error(
-            f"Failed to fetch swing scores: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_scores\n  Endpoint: GET /api/algo/swing-scores",
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Failed to fetch swing scores")
+        code, error_type, message = handle_db_error(e, "fetch swing scores")
+        return error_response(code, error_type, message)
 
 
 

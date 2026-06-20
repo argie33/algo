@@ -17,11 +17,17 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 from algo.infrastructure import get_alpaca_timeout
-from algo.trading.exceptions import ConfigurationError, DatabaseError, DataUnavailable
+from algo.trading.exceptions import (
+    ConfigurationError,
+    DatabaseError,
+    DataUnavailableError,
+)
 from utils.db.context import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
+
+PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
 class PositionSizer:
@@ -51,6 +57,9 @@ class PositionSizer:
         CRITICAL: Does NOT fall back to default $100k. If neither is available,
         raises RuntimeError to fail-closed. Position sizing requires accurate
         portfolio value — guessing is worse than not trading.
+
+        THREAD SAFETY: Uses PostgreSQL advisory lock to prevent race condition
+        where Phase 6 (position sizing) reads while Phase 7 (reconciliation) updates.
         """
         alpaca_value = self._fetch_live_alpaca_equity()
         if alpaca_value is not None:
@@ -58,11 +67,16 @@ class PositionSizer:
             return alpaca_value
 
         def fetch_snapshot(cur):
-            cur.execute("""
-                SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC LIMIT 1
-            """)
-            return cur.fetchone()
+            cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
+            cur.fetchone()
+            try:
+                cur.execute("""
+                    SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                return cur.fetchone()
+            finally:
+                cur.execute("SELECT pg_advisory_unlock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
 
         try:
             result = self._with_cursor(fetch_snapshot)
@@ -86,7 +100,7 @@ class PositionSizer:
             logger.error(f"Error fetching portfolio snapshot: {e}")
         except DatabaseError as e:
             logger.error(f"Database error fetching portfolio snapshot: {e}")
-            raise DataUnavailable(f"Portfolio snapshot unavailable due to database error: {e}") from e
+            raise DataUnavailableError(f"Portfolio snapshot unavailable due to database error: {e}") from e
 
         # CRITICAL: No valid portfolio value available. Fail-closed.
         # Better to skip trading than risk wrong position sizing.
@@ -362,10 +376,10 @@ class PositionSizer:
             raise RuntimeError("Portfolio value query returned no data")
         except (RuntimeError, ValueError) as e:
             logger.error(f"Could not fetch position values: {e}")
-            raise DataUnavailable(f"Portfolio value unavailable - cannot calculate safe position size: {e}") from e
+            raise DataUnavailableError(f"Portfolio value unavailable - cannot calculate safe position size: {e}") from e
         except DatabaseError as e:
             logger.error(f"Database error fetching position values: {e}")
-            raise DataUnavailable(f"Portfolio value unavailable due to database error: {e}") from e
+            raise DataUnavailableError(f"Portfolio value unavailable due to database error: {e}") from e
 
     def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
@@ -443,7 +457,7 @@ class PositionSizer:
                 signal_date,
                 portfolio_value=portfolio_value,
             )
-        except (DataUnavailable, ConfigurationError, ValueError) as e:
+        except (DataUnavailableError, ConfigurationError, ValueError) as e:
             logger.error(f"Position sizing calculation failed: {type(e).__name__}: {e}")
             return {
                 "shares": 0,
@@ -621,7 +635,7 @@ class PositionSizer:
                 "reason": f"{shares} shares @ ${entry_price:.2f} = ${position_value:.2f} ({position_pct_of_portfolio:.1f}%)",
             }
 
-        except (DataUnavailable, ConfigurationError, ValueError, RuntimeError) as e:
+        except (DataUnavailableError, ConfigurationError, ValueError, RuntimeError) as e:
             logger.error(f"Position calculation failed: {type(e).__name__}: {e}")
             return {
                 "shares": 0,

@@ -190,11 +190,8 @@ def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dic
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        logger.error(
-            f"Failed to fetch notifications: {type(e).__name__}: {e!s}\n  Operation: Query algo_notifications\n  Endpoint: GET /api/algo/notifications",
-            exc_info=True,
-        )
-        return error_response(500, "internal_error", "Failed to fetch notifications")
+        code, error_type, message = handle_db_error(e, "fetch notifications")
+        return error_response(code, error_type, message)
 
 
 

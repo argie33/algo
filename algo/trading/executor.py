@@ -27,18 +27,17 @@ from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     AuditLogError,
     DatabaseError,
-    DuplicatePosition,
-    ExchangeAPIError,
+    DuplicatePositionError,
     NotificationError,
     OrderExecutionError,
-    OrderRejected,
+    OrderRejectedError,
     PortfolioValueError,
-    PretradeCheckFailed,
+    PretradeCheckFailedError,
     TradingError,
 )
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
-from utils.db import DatabaseContext, OptimisticLockRetry, StructuredDBLogger
+from utils.db import DatabaseContext, OptimisticLockRetry
 from utils.trading import PositionStatus, TradeStatus
 from utils.validation import AlpacaResponseValidator
 
@@ -293,7 +292,7 @@ class TradeExecutor:
                 }
         except (DatabaseError, Exception) as e:
             logger.error(f"Failed to check for duplicate position: {type(e).__name__}: {e}")
-            raise DuplicatePosition(f"Cannot verify duplicate position status: {e!s}. Order halted for safety.") from e
+            raise DuplicatePositionError(f"Cannot verify duplicate position status: {e!s}. Order halted for safety.") from e
 
         # Compute targets if missing — based on R-multiples from actual stop
         # Convert to Decimal BEFORE arithmetic to avoid IEEE 754 precision loss
@@ -894,7 +893,7 @@ class TradeExecutor:
                 "status": "error",
                 "message": "Unknown error",
             }
-        except DuplicatePosition as e:
+        except DuplicatePositionError as e:
             logger.error(f"Trade blocked (duplicate/idempotency): {e}")
             return {
                 "success": False,
@@ -903,7 +902,7 @@ class TradeExecutor:
                 "message": str(e),
                 "duplicate": True,
             }
-        except PretradeCheckFailed as e:
+        except PretradeCheckFailedError as e:
             logger.error(f"Pre-trade checks failed: {e}")
             return {
                 "success": False,
@@ -919,7 +918,7 @@ class TradeExecutor:
                 "status": "portfolio_value_unavailable",
                 "message": str(e),
             }
-        except OrderRejected as e:
+        except OrderRejectedError as e:
             logger.error(f"Order rejected by Alpaca: {e}")
             return {
                 "success": False,
@@ -1250,7 +1249,7 @@ class TradeExecutor:
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
             pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-            pnl_pct = float(((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))) if entry_price > 0 else 0
+            pnl_pct = float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if entry_price > 0 else 0
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0

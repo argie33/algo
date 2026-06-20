@@ -90,7 +90,7 @@ class NotificationError(TradingError):
     """
 
 
-class PortfolioValueError(DataUnavailable):
+class PortfolioValueError(DataUnavailableError):
     """Cannot determine current portfolio value.
 
     Fail-closed: position sizing requires accurate portfolio value.

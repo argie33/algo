@@ -27,7 +27,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 import requests
 
-from algo.trading.exceptions import DatabaseError, DataUnavailable, ExchangeAPIError
+from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from utils.db import DatabaseContext
 
 
