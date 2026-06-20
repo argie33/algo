@@ -65,6 +65,17 @@ class TradeExecutor:
         self.alpaca_secret = alpaca_creds["secret"]
         self.alpaca_base_url = get_alpaca_base_url()
 
+        # Explicit validation: credentials must be present and non-empty
+        if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
+            error_msg = (
+                f"[EXECUTOR_INIT_FAILED] Missing critical Alpaca credentials: "
+                f"key={'present' if self.alpaca_key else 'MISSING'} "
+                f"secret={'present' if self.alpaca_secret else 'MISSING'} "
+                f"url={'present' if self.alpaca_base_url else 'MISSING'}"
+            )
+            logger.critical(error_msg)
+            raise ValueError(error_msg)
+
         # Wire TCA engine for execution quality tracking
         from algo.trading import TCAEngine
 
@@ -1200,7 +1211,7 @@ class TradeExecutor:
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
                             CASE WHEN partial_exits_log IS NULL OR partial_exits_log = '' THEN '' ELSE '; ' END ||
                             %s,
-                        partial_exit_count = COALESCE(partial_exit_count, 0) + 1,
+                        partial_exit_count = partial_exit_count + 1,
                         last_partial_exit_date = CURRENT_DATE,
                         status = 'open'
                     WHERE trade_id = %s""",
