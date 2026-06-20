@@ -186,7 +186,7 @@ class PipelineHealth:
             else:
                 health.status = HealthStatus.HEALTHY
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             health.status = HealthStatus.ERROR
             health.error_message = str(e)
 
@@ -226,14 +226,14 @@ class PipelineHealth:
                                 status.warnings.append(
                                     f"WARNING: {table_name} is stale ({health.age_days} days old)"
                                 )
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.error(f"Error checking {table_name}: {e}")
                         status.tables[table_name] = TableHealth(
                             table_name=table_name,
                             status=HealthStatus.ERROR,
                             error_message=str(e),
                         )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Cannot check pipeline status: {e}")
             status.is_healthy = False
             status.critical_alerts.append(f"Database connection failed: {e}")

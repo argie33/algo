@@ -107,7 +107,7 @@ class PositionMonitor:
                             continue
                         filtered_stale.append(row)
                     stale_orders = filtered_stale
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.critical(
                         f"[HALT_CHECK] Could not check halts for stale orders: {e}. "
                         f"Continuing without halt filtering will process halted orders."
@@ -172,8 +172,10 @@ class PositionMonitor:
                                 f"  [AUTO-CANCEL] {trade_id} {symbol} (pending {age_minutes}m >= {auto_cancel_threshold}m threshold)"
                             )
 
-                    # Batch update database
+                    # Batch update database (atomic: trades + audit logs via savepoint)
                     if trades_to_update:
+                        sp_name = "sp_stale_cancel"
+                        cur.execute(f"SAVEPOINT {sp_name}")
                         try:
                             cur.execute(
                                 """UPDATE algo_trades
@@ -188,12 +190,13 @@ class PositionMonitor:
                                 audit_entries,
                             )
                         except (psycopg2.DatabaseError, psycopg2.OperationalError) as audit_e:
+                            cur.execute(f"ROLLBACK TO {sp_name}")
                             logger.critical(
-                                f"[AUDIT_FAILURE] Could not update stale orders or log to audit trail: {audit_e}"
+                                f"[AUDIT_FAILURE] Stale order batch transaction failed (rolled back): {audit_e}"
                             )
                             raise
 
-                    # Commit all changes (cancellations + audit logs)
+                    # Proceed to return (outer transaction will commit)
                     if cancelled_orders:
                         return {
                             "status": "AUTO_CANCELLED",
@@ -293,7 +296,7 @@ class PositionMonitor:
                     )
             except PositionValidationError:
                 raise
-            except Exception as margin_e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
                 raise PositionValidationError(
                     f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
                 ) from margin_e
@@ -428,6 +431,11 @@ class PositionMonitor:
         r_multiple = (cur_price - entry_price) / risk_per_share
 
         # Use Decimal for monetary calculations to avoid floating point precision loss
+        if quantity <= 0:
+            raise PositionValidationError(
+                f"Invalid quantity for {symbol}: {quantity} <= 0"
+            )
+
         price_diff = Decimal(str(cur_price)) - Decimal(str(entry_price))
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
@@ -435,14 +443,14 @@ class PositionMonitor:
         unrealized_pnl = float(
             (price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
         )
-        unrealized_pct = (
-            float(
-                (price_diff / entry_price_dec * 100).quantize(
-                    Decimal("0.01"), ROUND_HALF_UP
-                )
+        if entry_price_dec <= 0:
+            raise PositionValidationError(
+                f"Invalid entry price for {symbol}: {entry_price_dec} <= 0"
             )
-            if entry_price > 0
-            else 0
+        unrealized_pct = float(
+            (price_diff / entry_price_dec * 100).quantize(
+                Decimal("0.01"), ROUND_HALF_UP
+            )
         )
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
@@ -722,6 +730,14 @@ class PositionMonitor:
         - After T1: stop = entry (breakeven) at minimum, or trail tighter via ATR
         - After T2: stop = entry area, never target levels (targets are exits, not protection)
         """
+        # Validate inputs
+        if cur_price is None or cur_price <= 0:
+            raise PositionValidationError(f"Invalid current price for trailing stop: {cur_price}")
+        if active_stop is None or active_stop <= 0:
+            raise PositionValidationError(f"Invalid active stop for trailing stop: {active_stop}")
+        if entry_price is None or entry_price <= 0:
+            raise PositionValidationError(f"Invalid entry price for trailing stop: {entry_price}")
+
         # Sanity check: if active_stop is already > cur_price (shouldn't happen), clamp it.
         # This can occur with stale/imported positions.
         if active_stop > cur_price:
@@ -732,9 +748,9 @@ class PositionMonitor:
 
         candidates = [active_stop]
 
-        if atr and cur_price:
+        if atr is not None and atr > 0:
             candidates.append(cur_price - (2.0 * atr))
-        if sma_50 and sma_50 < cur_price:
+        if sma_50 is not None and sma_50 > 0 and sma_50 < cur_price:
             candidates.append(sma_50)
 
         if target_hits >= 1:
@@ -742,7 +758,7 @@ class PositionMonitor:
         # NOTE: target_hits >= 2 does NOT add T1 price. Target prices are exits, not stops.
 
         # Don't let trailing stop get within 1.0 ATR of price (room to breathe)
-        if atr and cur_price:
+        if atr is not None and atr > 0:
             cap = cur_price - atr
             candidates = [c for c in candidates if c <= cap]
             if not candidates:
@@ -855,6 +871,11 @@ class PositionMonitor:
 
     def _max_unrealized_pct(self, symbol, trade_date, current_date, entry_price, cur):
         """Highest closing price since entry, expressed as % gain."""
+        if entry_price <= 0:
+            raise PositionValidationError(
+                f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
+            )
+
         cur.execute(
             """
             SELECT MAX(close) FROM price_daily
@@ -863,9 +884,17 @@ class PositionMonitor:
             (symbol, trade_date, current_date),
         )
         row = cur.fetchone()
-        if not row or not row[0] or entry_price <= 0:
-            return 0.0
-        return ((float(row[0]) - entry_price) / entry_price) * 100.0
+        if not row or not row[0]:
+            raise PositionValidationError(
+                f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
+            )
+
+        max_close = float(row[0])
+        if max_close <= 0:
+            raise PositionValidationError(
+                f"Invalid price data for {symbol}: max close {max_close} <= 0"
+            )
+        return ((max_close - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol, current_date, cur):
         """Get days until next earnings.
@@ -958,55 +987,66 @@ class PositionMonitor:
         return (recent - oldest) / oldest
 
     def _persist_review(self, rec, cur):
-        """Update algo_positions with current price/PnL and log a monitoring audit row (atomic)."""
-        cur.execute(
-            """
-            UPDATE algo_positions
-            SET current_price = %s,
-                position_value = %s * %s,
-                unrealized_pnl = (%s - avg_entry_price) * quantity,
-                unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
-                days_since_entry = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE position_id = %s
-            """,
-            (
-                float(rec["current_price"]),
-                float(rec["quantity"]),
-                float(rec["current_price"]),
-                float(rec["current_price"]),
-                float(rec["current_price"]),
-                int(rec["days_held"]),
-                rec["position_id"],
-            ),
-        )
-        # Log the review to audit (same transaction)
-        cur.execute(
-            """
-            INSERT INTO algo_audit_log (action_type, symbol, action_date,
-                                        details, actor, status, created_at)
-            VALUES ('position_review', %s, CURRENT_TIMESTAMP, %s, 'position_monitor',
-                    %s, CURRENT_TIMESTAMP)
-            """,
-            (
-                rec["symbol"],
-                json.dumps(
-                    {
-                        "trade_id": rec["trade_id"],
-                        "r_multiple": rec["r_multiple"],
-                        "unrealized_pct": rec["unrealized_pct"],
-                        "flags": rec["flags"],
-                        "rs_label": rec["rs_label"],
-                        "sector_state": rec["sector_state"],
-                        "action": rec["action"],
-                        "action_reason": rec["action_reason"],
-                        "days_to_earnings": rec["days_to_earnings"],
-                        "proposed_stop": float(rec["proposed_stop"]),
-                    }
+        """Update algo_positions with current price/PnL and log a monitoring audit row (atomic).
+
+        Uses savepoint to ensure both position update and audit log succeed together.
+        If audit log fails, both are rolled back.
+        """
+        sp_name = f"sp_persist_review_{rec['position_id']}"
+        cur.execute(f"SAVEPOINT {sp_name}")
+        try:
+            cur.execute(
+                """
+                UPDATE algo_positions
+                SET current_price = %s,
+                    position_value = %s * %s,
+                    unrealized_pnl = (%s - avg_entry_price) * quantity,
+                    unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
+                    days_since_entry = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE position_id = %s
+                """,
+                (
+                    float(rec["current_price"]),
+                    float(rec["quantity"]),
+                    float(rec["current_price"]),
+                    float(rec["current_price"]),
+                    float(rec["current_price"]),
+                    int(rec["days_held"]),
+                    rec["position_id"],
                 ),
-                rec["action"],
-            ),
-        )
+            )
+            # Log the review to audit (atomic with position update)
+            cur.execute(
+                """
+                INSERT INTO algo_audit_log (action_type, symbol, action_date,
+                                            details, actor, status, created_at)
+                VALUES ('position_review', %s, CURRENT_TIMESTAMP, %s, 'position_monitor',
+                        %s, CURRENT_TIMESTAMP)
+                """,
+                (
+                    rec["symbol"],
+                    json.dumps(
+                        {
+                            "trade_id": rec["trade_id"],
+                            "r_multiple": rec["r_multiple"],
+                            "unrealized_pct": rec["unrealized_pct"],
+                            "flags": rec["flags"],
+                            "rs_label": rec["rs_label"],
+                            "sector_state": rec["sector_state"],
+                            "action": rec["action"],
+                            "action_reason": rec["action_reason"],
+                            "days_to_earnings": rec["days_to_earnings"],
+                            "proposed_stop": float(rec["proposed_stop"]),
+                        }
+                    ),
+                    rec["action"],
+                ),
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            cur.execute(f"ROLLBACK TO {sp_name}")
+            logger.error(f"Failed to persist review for {rec['symbol']}: {e} (rolled back)")
+            raise
 
     def _print_recommendation(self, rec):
         flags_str = ", ".join(rec["flags"]) if rec["flags"] else "none"
@@ -1181,7 +1221,7 @@ class PositionMonitor:
                                 }
                             )
 
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(
                         f"  Warning: Could not check Alpaca position for {symbol}: {e}"
                     )

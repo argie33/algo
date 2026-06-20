@@ -334,6 +334,29 @@ class DatabaseResultValidator:
             return False
         return True
 
+    @staticmethod
+    def safe_get_first_row(
+        rows: List[Any] | None, context: str = "database query"
+    ) -> Any | None:
+        """Safely get first row from query results. Returns None if rows are empty or None.
+
+        ALWAYS USE THIS instead of rows[0] to prevent IndexError.
+
+        Args:
+            rows: List from fetchall()
+            context: Operation name for logging
+
+        Returns:
+            First row or None if empty/unavailable
+        """
+        if rows is None:
+            logger.warning(f"{context}: fetchall() returned None")
+            return None
+        if len(rows) == 0:
+            logger.debug(f"{context}: fetchall() returned empty list")
+            return None
+        return rows[0]
+
 
 __all__ = [
     "CognitoValidator",

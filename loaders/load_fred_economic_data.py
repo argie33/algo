@@ -244,7 +244,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         f"[FRED] Data format error for {series_id}: {e}. "
                         "FRED API response format may have changed or data is corrupted."
                     ) from e
-                except Exception as e:
+                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                     raise RuntimeError(
                         f"[FRED] Unexpected error fetching {series_id}: {e}. "
                         "Cannot proceed reliably — stopping FRED data fetch."

@@ -55,7 +55,7 @@ class AdvancedFilters:
             raise RuntimeError(
                 f"CRITICAL: Database/connection error loading config[{key}]: {e}"
             ) from e
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Config value {key} unavailable, using default: {e}")
             return default
 

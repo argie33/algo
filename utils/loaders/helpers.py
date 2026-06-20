@@ -45,7 +45,7 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
                 if key:
                     logger.debug(f"Fetched {secret_name} from Secrets Manager")
                     return key
-            except Exception as sm_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as sm_err:
                 logger.debug(
                     f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var"
                 )

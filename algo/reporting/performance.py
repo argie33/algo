@@ -184,7 +184,7 @@ class LivePerformance:
 
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return round(expectancy, 4)
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def max_drawdown(self) -> float | None:
@@ -316,7 +316,7 @@ class LivePerformance:
                 "live_max_dd": live_max_dd,
                 "backtest_max_dd": backtest_metrics.get("max_drawdown_pct"),
             }
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def generate_daily_report(
@@ -425,14 +425,14 @@ class LivePerformance:
                     logger.info(
                         f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%"
                     )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"Failed to persist performance report: {e}", exc_info=True
                 )
 
             return result
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"Performance: generate_daily_report failed: {e}", exc_info=True
             )

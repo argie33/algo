@@ -83,7 +83,7 @@ def run(
 
         return PhaseResult(3, "reconciliation", "ok", result, False, None)
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         traceback.print_exc()
         log_phase_result_fn(3, "reconciliation", "error", str(e))
         return PhaseResult(3, "reconciliation", "ok", {}, False, str(e))

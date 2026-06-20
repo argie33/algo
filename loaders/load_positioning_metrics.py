@@ -130,7 +130,7 @@ class PositioningMetricsLoader(OptimalLoader):
 
             return None
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def transform(self, rows):

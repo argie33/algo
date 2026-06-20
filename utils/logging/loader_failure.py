@@ -80,7 +80,7 @@ def record_loader_run(
                 f"[FAILURE_TRACKING] Recorded {loader_name} run on {run_date}: {'SUCCESS' if success else 'FAILURE'}"
             )
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[FAILURE_TRACKING] Could not record loader run: {e}")
 
 
@@ -204,7 +204,7 @@ def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list[dict[str, 
 
         return chronic_loaders, all_trends
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[FAILURE_TRACKING] Could not check chronic failures: {e}")
         return [], {}
 

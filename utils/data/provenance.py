@@ -329,7 +329,7 @@ class DataProvenanceTracker:
                         record["data_size_bytes"],
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"Failed to insert provenance record for {record.get('symbol')}: {e}"
             )
@@ -354,7 +354,7 @@ class DataProvenanceTracker:
                         error_record["recorded_at"],
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to insert error record: {e}")
 
     def _finalize_loader_run(

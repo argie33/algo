@@ -150,7 +150,7 @@ class StockSymbolsLoader(OptimalLoader):
 
             return rows if rows else None
 
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _upsert_etf_symbols(self, etf_rows: list[dict]) -> None:

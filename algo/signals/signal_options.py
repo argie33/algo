@@ -117,7 +117,7 @@ class SignalOptionsMixin:
 
         try:
             return self._with_cursor(_fetch_pc_ratio) or {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}  # type: ignore[attr-defined]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"P/C ratio signal failed for {symbol}: {e}")
             return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
 

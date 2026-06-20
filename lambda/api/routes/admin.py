@@ -219,7 +219,7 @@ def _get_loader_status(cur) -> dict:
             f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}"
         )
         freshness = None
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(
             f"[LOADER_STATUS] Unexpected error in freshness check: {type(e).__name__}: {e}"
         )
@@ -279,7 +279,7 @@ def _get_system_health(cur) -> dict:
                 f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check"
             )
             is_fresh = age_days <= 3
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(
                 f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}"
             )

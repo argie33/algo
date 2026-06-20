@@ -118,7 +118,7 @@ class LoaderConflictDetector:
 
                 return result
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Failed to check loader conflicts: {e}", exc_info=True)
             return {
                 "conflicts_detected": False,
@@ -198,7 +198,7 @@ class LoaderConflictDetector:
                     "recommendations": recommendations,
                 }
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to check intraday readiness: {e}", exc_info=True)
             return {
                 "ready_for_afternoon_update": False,

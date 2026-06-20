@@ -118,7 +118,7 @@ def _check_critical_table_freshness() -> dict:
                         "age_days": age_days,
                         "latest_date": str(max_date),
                     }
-            except Exception as table_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as table_err:
                 logger.warning(f"[FRESHNESS] Could not check {description}: {table_err}")
                 age_details[table_name] = {
                     "status": "error",

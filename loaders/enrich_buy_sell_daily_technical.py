@@ -185,7 +185,7 @@ def enrich_technical_data(
                         logger.debug(
                             f"{symbol} {signal_date}: No technical data available"
                         )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = f"{symbol} {signal_date}: {str(e)[:100]}"
                     stats["errors"].append(error_msg)
                     stats["nulls_remaining"] += 1

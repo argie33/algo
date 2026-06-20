@@ -1322,7 +1322,7 @@ class MarketExposure:
             logger.info(
                 f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}"
             )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"persist market_exposure failed for {eval_date}: {e}", exc_info=True
             )

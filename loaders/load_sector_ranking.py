@@ -131,7 +131,7 @@ class SectorRankingLoader(OptimalLoader):
 
                 return valid_rows
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

@@ -550,7 +550,7 @@ def check_data_freshness(
             "max_date": str(max_date),
             "warning": f"Data is {data_age} days old" if is_stale else None,
         }
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
         # Fail fast on data freshness check errors — don't silently mark as stale
         # Caller should know if freshness verification failed, not assume stale
         logger.error(f"[DATA_FRESHNESS] Failed to check freshness for {table_name}: {e}")
@@ -605,7 +605,7 @@ def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any
             logger.warning(
                 f"[SCHEMA_VALIDATION] Endpoint '{endpoint_name}' response does not match contract: {error_msg}"
             )
-    except Exception as e:
+    except (ImportError, AttributeError, KeyError, TypeError) as e:
         logger.warning(
             f"[SCHEMA_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
         )

@@ -244,7 +244,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
             val = get_config().get(key)
             return val if val is not None else default
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[CONFIG] Failed to load config value '{key}': {e}. "
                 "Swing scoring requires authoritative config parameters."

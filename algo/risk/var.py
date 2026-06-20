@@ -372,7 +372,7 @@ class ValueAtRisk:
                     "portfolio_value": portfolio_value,
                 }
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def concentration_report(self) -> dict[str, Any] | None:
@@ -635,11 +635,11 @@ class ValueAtRisk:
                     logger.info(
                         f"[OK] Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%"
                     )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
 
             return result
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}

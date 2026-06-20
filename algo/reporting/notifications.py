@@ -71,7 +71,7 @@ Stop Loss:    ${stop_loss:.2f}
 Target 1:     ${target_1:.2f}
 Time:         {event["created_at"].strftime("%H:%M:%S")}
 """
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _format_trade_exit_alert(self, event: dict) -> str | None:
@@ -194,7 +194,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     subject=f"[ALGO] {subject}", body=message
                 )
             logger.info(f"[NOTIF] Sent: {subject}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[NOTIF] Send failed: {e}")
 
 

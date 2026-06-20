@@ -239,7 +239,7 @@ class Orchestrator:
                     f"Error: {str(e)[:200]}",
                     {"error": str(e)[:200], "action": "manual_intervention_required"},
                 )
-            except Exception as alert_err:
+            except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                 logger.warning(
                     f"Could not send DynamoDB unavailability alert: {alert_err}"
                 )
@@ -251,7 +251,7 @@ class Orchestrator:
                 MetricsPublisher().add_metric(
                     "DynamoDBHaltCheckFailure", 1, unit="Count"
                 )
-            except Exception as metric_err:
+            except (ValueError, ZeroDivisionError, TypeError) as metric_err:
                 logger.warning(
                     f"Could not emit halt check failure metric: {metric_err}"
                 )
@@ -465,9 +465,9 @@ class Orchestrator:
                                 logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
                             else:
                                 logger.info(f"    [EMPTY] {desc:20s}: no data")
-                        except Exception as t_err:
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as t_err:
                             logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"  Could not fetch table freshness: {e}")
 
                 # Check loader status
@@ -486,7 +486,7 @@ class Orchestrator:
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as loader_err:
                     logger.debug(f"    Could not check loader status: {loader_err}")
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"  Health check failed: {e}")
 
     def _verify_task_stopped(
@@ -804,7 +804,7 @@ class Orchestrator:
             )
             return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     # ---------- Logging helpers ----------

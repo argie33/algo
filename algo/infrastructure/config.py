@@ -1002,7 +1002,7 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"Config validation error: {e}")
             raise
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"CRITICAL: Failed to load config from database: {e}")
             raise RuntimeError(
                 f"Config initialization failed: cannot load safety thresholds from database. "
@@ -1537,7 +1537,7 @@ class AlgoConfig:
                 )
                 return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def to_dict(self) -> dict:

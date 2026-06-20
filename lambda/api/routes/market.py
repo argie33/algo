@@ -971,7 +971,7 @@ def handle(
         elif path == "/api/market/sectors":
             return _get_sector_overview(cur)
         raise_api_error(404, "not_found", f"No market handler for {path}")
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[MARKET] Unhandled error: {type(e).__name__}: {e}")
         raise_db_error(e, "handle market")
 

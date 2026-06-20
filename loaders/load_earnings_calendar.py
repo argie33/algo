@@ -126,7 +126,7 @@ class EarningsCalendarLoader(OptimalLoader):
                     delay = base_delay * (2 ** attempt)
                     time.sleep(delay)
 
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 error_msg = str(e).lower()
                 is_rate_limit = "429" in error_msg or "rate" in error_msg or "too many" in error_msg
                 if is_rate_limit:

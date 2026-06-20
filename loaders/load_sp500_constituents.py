@@ -81,7 +81,7 @@ class SP500ConstituentsLoader(OptimalLoader):
                 for sym in symbols
             ]
 
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

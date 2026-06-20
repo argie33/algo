@@ -112,7 +112,7 @@ class CircuitBreaker:
                 ]:
                     try:
                         state = fn(current_date, cur)
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         import traceback
 
                         tb = traceback.format_exc()
@@ -549,7 +549,7 @@ class CircuitBreaker:
                 if MarketCalendar.is_trading_day(min_acceptable_date):
                     break
                 min_acceptable_date -= timedelta(days=1)
-        except Exception as cal_e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
             logger.debug(
                 f"MarketCalendar check failed, falling back to weekday check: {cal_e}"
             )
@@ -660,7 +660,7 @@ class CircuitBreaker:
                 if MarketCalendar.is_trading_day(min_acceptable):
                     break
                 min_acceptable -= timedelta(days=1)
-        except Exception as cal_e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
             logger.debug(
                 f"MarketCalendar check failed, falling back to weekday check: {cal_e}"
             )
@@ -725,7 +725,7 @@ class CircuitBreaker:
                 "reason": f"SPY prior day {prior_day_change:+.2f}%",
                 "market_change_pct": round(prior_day_change, 2),
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Prior-day market health check failed: {e}")
             # Fail-open on data errors — this is an observational check, not a core gate.
             # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
@@ -776,7 +776,7 @@ class CircuitBreaker:
                 "halted": False,
                 "reason": f"All sectors within limits (max {max_sector_positions} per sector)",
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Sector concentration check failed: {e}") from e
 
     def _check_daily_profit_cap(self, current_date: Any, cur) -> dict[str, Any]:
@@ -824,7 +824,7 @@ class CircuitBreaker:
                 message="; ".join(results.get("halt_reasons", [])),
                 details=results.get("checks"),
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
 
 

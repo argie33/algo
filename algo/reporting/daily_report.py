@@ -207,7 +207,7 @@ class DailyFinanceReport:
                 "weight_update_alpha": params["weight_update_alpha"],
                 "description": params["description"],
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Regime fetch failed: {e}")
             return {}
 

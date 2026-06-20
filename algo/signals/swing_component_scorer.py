@@ -325,6 +325,6 @@ class SwingComponentScorer:
                 "monthly_buy_recent": monthly_up,
                 "monthly_above_ma": monthly_above,
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
             return 0, {"error": str(e)[:50]}

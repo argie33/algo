@@ -181,7 +181,7 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
             for row in exit_rows:
                 rules[row["exit_rule"]] = row["count"]
             result["exit_rules_distribution"] = rules  # type: ignore[assignment]
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Exit rules fetch failed: {e}")
 
         freshness = check_data_freshness(
@@ -191,7 +191,7 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
         if freshness:
             response["data_freshness"] = freshness
         return response
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(
             e, "fetch comprehensive risk dashboard"
         )
@@ -288,7 +288,7 @@ def _get_drawdown_metrics(cur) -> dict:
     try:
         info = _fetch_drawdown_info(cur)
         return json_response(200, info)
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch drawdown metrics")
         return error_response(code, error_type, message)
 
@@ -298,7 +298,7 @@ def _get_exposure_tier_info(cur) -> dict:
     try:
         info = _fetch_exposure_tier_info(cur)
         return json_response(200, info)
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch exposure tier info")
         return error_response(code, error_type, message)
 

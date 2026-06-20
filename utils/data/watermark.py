@@ -185,7 +185,7 @@ class WatermarkManager:
 
                 return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def record_error(
@@ -253,7 +253,7 @@ class WatermarkManager:
                             error_message,
                         ),
                     )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to record error for watermark: {e}") from e
 
     def get_status(self) -> Dict[str, Any]:

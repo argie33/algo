@@ -204,7 +204,7 @@ def _get_data_status(cur) -> dict:
                 if MarketCalendar.is_trading_day(expected_date):
                     break
                 expected_date -= timedelta(days=1)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # Fail fast if MarketCalendar unavailable — weekday check is wrong for holidays
             raise RuntimeError(
                 f"Data freshness check requires MarketCalendar: {e}. "

@@ -50,7 +50,7 @@ def db_route_handler(
 
             try:
                 return func(*args, **kwargs)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 # Use centralized error classification
                 context = {
                     "operation": operation_name,
@@ -116,7 +116,7 @@ def external_api_handler(
                     )
                 finally:
                     signal.alarm(0)  # Cancel alarm
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 context = {
                     "operation": operation_name,
                     "timeout_sec": timeout,
@@ -280,13 +280,13 @@ def transactional(
                 result = func(*args, **kwargs)
                 # Auto-commit (connection commits on context exit)
                 return result
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 # Auto-rollback
                 if cur and should_rollback:
                     try:
                         cur.connection.rollback()
                         logger.error(f"Rolled back transaction for {operation_name}")
-                    except Exception as rollback_err:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
                         logger.error(f"Failed to rollback: {rollback_err}")
 
                 context = {"operation": operation_name}

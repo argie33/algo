@@ -123,7 +123,7 @@ def check_loader_health() -> Tuple[str, List[Dict]]:
                             }
                         )
 
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Could not check loader {loader}: {e}")
 
         cur.close()
@@ -194,7 +194,7 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
                             }
                         )
 
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Could not check {table_name}: {e}")
 
         cur.close()
@@ -205,7 +205,7 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
 
         return ("unhealthy" if len(stale_tables) > 1 else "degraded"), stale_tables
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Data freshness check failed: {e}")
         return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
 

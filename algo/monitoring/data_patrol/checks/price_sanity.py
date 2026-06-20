@@ -142,7 +142,7 @@ class PriceSanityChecker(BaseCheck):
                     "No extreme drops detected (no obvious corporate actions)",
                     None,
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("corporate_action", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_sequence_continuity(self, cur) -> None:

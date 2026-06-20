@@ -352,7 +352,7 @@ class PositionSizer:
             raise
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Could not load RegimeManager: {e}") from e
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Regime multiplier calculation failed: {type(e).__name__}: {e}") from e
 
     def get_active_positions_value(self) -> Decimal:
@@ -466,7 +466,7 @@ class PositionSizer:
                 "status": "error",
                 "reason": str(e),
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.exception(f"Unexpected error in position sizing: {type(e).__name__}: {e}")
             return {
                 "shares": 0,
@@ -628,11 +628,11 @@ class PositionSizer:
 
             return {
                 "shares": shares,
-                "position_size_pct": position_pct_of_portfolio,
-                "risk_dollars": risk_dollars,
-                "position_value": position_value,
+                "position_size_pct": float(position_pct_of_portfolio),
+                "risk_dollars": float(risk_dollars),
+                "position_value": float(position_value),
                 "status": "ok",
-                "reason": f"{shares} shares @ ${entry_price:.2f} = ${position_value:.2f} ({position_pct_of_portfolio:.1f}%)",
+                "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
             }
 
         except (DataUnavailableError, ConfigurationError, ValueError, RuntimeError) as e:
@@ -644,7 +644,7 @@ class PositionSizer:
                 "status": "error",
                 "reason": str(e),
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.exception(f"Unexpected error during position calculation: {type(e).__name__}: {e}")
             return {
                 "shares": 0,

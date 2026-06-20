@@ -51,7 +51,7 @@ class DailyReconciliation:
                     title="Reconciliation Initialization Failed",
                     message=f"Alpaca credentials unavailable: {e}. Reconciliation cannot proceed.",
                 )
-            except Exception:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError):
                 logger.warning("Failed to send credential failure notification")
             raise ValueError(f"Alpaca credential initialization failed: {e}") from e
 
@@ -510,7 +510,7 @@ class DailyReconciliation:
                         total_equity,
                         cash,
                         total_equity,
-                        len(positions),
+                        positions_with_prices,
                         max_concentration,
                         (
                             (avg_position_size / total_equity * 100)
@@ -905,7 +905,7 @@ class DailyReconciliation:
                                     "db_qty_before": db_qty,
                                 },
                             )
-                        except Exception as e:
+                        except (ValueError, ZeroDivisionError, TypeError) as e:
                             logger.warning(
                                 f"  Could not send quantity correction alert: {e}"
                             )
@@ -1198,7 +1198,7 @@ class DailyReconciliation:
                             "action": "closed_to_sync",
                         },
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"  Could not send orphan alert: {e}")
 
         return {
@@ -1370,7 +1370,7 @@ class DailyReconciliation:
                 "DELETE FROM alpaca_import_failures "
                 "WHERE resolved = TRUE AND resolved_at < NOW() - INTERVAL '7 days'"
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Could not cleanup old failures: {e}")
         return retried
 
@@ -1454,7 +1454,7 @@ class DailyReconciliation:
                                 else None
                             ),
                         }
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.warning(f"IC computation failed: {e}")
 
             # E5: Expectancy and Kelly sizing (all closed trades)
@@ -1524,7 +1524,7 @@ class DailyReconciliation:
                 "ic": ic_result,
                 "expectancy": expectancy_result,
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Error in compute_analytics_metrics: {e}")
             return {"ic": {"valid": False}, "expectancy": {"valid": False}}
 
@@ -1739,7 +1739,7 @@ class DailyReconciliation:
                                 "alpaca_filled": alpaca_filled_int,
                             },
                         )
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         logger.warning(f"Could not send partial fill alert: {e}")
 
             return {
@@ -1832,7 +1832,7 @@ class DailyReconciliation:
                 "pending": pending_list,
                 "message": f"{len(pending_list)} trades pending reconciliation ({len(stuck)} stuck > 1d)",
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Failed to check pending reconciliations: {e}")
             return {"pending_count": 0, "message": f"Error: {e}"}
 

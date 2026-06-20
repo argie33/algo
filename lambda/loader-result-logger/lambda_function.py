@@ -59,7 +59,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             logger.info(f"[LOADER-RESULT] Logged {loader_name} result to DynamoDB")
 
-        except Exception as db_error:
+        except (ValueError, ZeroDivisionError, TypeError) as db_error:
             logger.error(
                 f"[LOADER-RESULT] Failed to write loader result to DynamoDB: {db_error}"
             )

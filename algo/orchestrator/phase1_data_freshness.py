@@ -290,7 +290,7 @@ def run(
                                 msg = f"{description} is {days_behind} day(s) behind (within 1-day tolerance)"
                                 logger.info(f"[PHASE 1] {msg}")
 
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         msg = f"{description} check failed: {str(e)[:50]}"
                         if is_halt_table:
                             logger.critical(f"[PHASE 1] {msg} — FAIL-CLOSED")
@@ -298,7 +298,7 @@ def run(
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.critical(f"[PHASE 1] CRITICAL: Failed to check table freshness — cannot verify data integrity: {e}", exc_info=True)
                 log_phase_result_fn(
                     1,

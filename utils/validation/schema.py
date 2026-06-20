@@ -109,7 +109,7 @@ def validate_table_schema(
 
         return len(errors) == 0, errors
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Schema validation for '{table_name}' failed: {e}") from e
 
 

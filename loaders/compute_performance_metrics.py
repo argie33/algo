@@ -351,7 +351,7 @@ def main():
         ) as cur:
             compute_performance_metrics(cur)
             logger.info("Performance metrics loader completed successfully")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Performance metrics loader failed: {e}", exc_info=True)
         raise
 

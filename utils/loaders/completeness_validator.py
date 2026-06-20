@@ -217,7 +217,7 @@ class LoaderCompletenessValidator:
                     ),
                 )
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"[{self.table_name}→{upstream_table}] Failed to check upstream completeness: {e}"
             )

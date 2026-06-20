@@ -1605,7 +1605,7 @@ class TradeExecutor:
                         "alpaca_quantity": alpaca_qty,
                     },
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Failed to send position correction alert: {e}")
 
             return {

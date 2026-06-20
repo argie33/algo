@@ -508,7 +508,7 @@ def save_results(results: dict) -> int | None:
         logger.info(f"[BACKTEST] Saved to DB: run_id={run_id}, {len(trades)} trades written")
         return run_id  # type: ignore[return-value]
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

@@ -139,7 +139,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
                 f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}"
             )
             return list_response([], total=0, limit=limit)
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(
             f"Orchestrator execution recent fetch error: {type(e).__name__}: {e}"
         )

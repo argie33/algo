@@ -308,7 +308,7 @@ class VectorizedSwingScoresLoader:
                     }
                 )
 
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(f"Error computing score for {symbol}: {e}")
                 continue
 
@@ -458,7 +458,7 @@ def main():
             if args.limit:
                 symbols = symbols[: args.limit]
             logger.info(f"Loaded {len(symbols)} symbols")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get symbols: {e}")
             _update_swing_loader_status("FAILED", f"Symbol fetch failed: {e!s}")
             return 1
@@ -503,12 +503,12 @@ def main():
                         result.get("duration_sec", 0),
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log execution: {e}")
 
         return 0 if final_status == "completed" else 1
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)
         _update_swing_loader_status("FAILED", f"Unexpected error: {e!s}")
         return 1

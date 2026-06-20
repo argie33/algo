@@ -116,7 +116,7 @@ class TradeAuditLogger:
                     ),
                 )
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Position sizing audit log failed: {e}")
 
     def log_stop_loss_calculation(
@@ -189,7 +189,7 @@ class TradeAuditLogger:
                     ),
                 )
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Stop loss audit log failed: {e}")
 
     def log_exit_execution(
@@ -250,7 +250,7 @@ class TradeAuditLogger:
                     ),
                 )
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Exit execution audit log failed: {e}")
 
     def get_position_sizing_summary(self, days: int = 30) -> Dict[str, Any]:

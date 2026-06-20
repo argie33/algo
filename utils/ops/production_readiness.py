@@ -90,7 +90,7 @@ class ProductionReadinessCheck:
                     )
                     return False
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.checks_failed.append(f"Database connectivity failed: {str(e)[:100]}")
             return False
 

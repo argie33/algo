@@ -337,7 +337,7 @@ class VectorizedTechnicalLoader:
                     f"[INDICATORS] Failed to compute indicators for {symbol}: {e}. "
                     "Data may be corrupted or have invalid format."
                 ) from e
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 raise RuntimeError(
                     f"[INDICATORS] Unexpected error computing indicators for {symbol}: {e}."
                 ) from e
@@ -566,7 +566,7 @@ def main():
             if args.limit:
                 symbols = symbols[: args.limit]
             logger.info(f"Loaded {len(symbols)} symbols for vectorized processing")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get symbols: {e}")
             _update_tech_loader_status("FAILED", f"Symbol fetch failed: {e!s}")
             return 1
@@ -625,7 +625,7 @@ def main():
                 )
         except psycopg2.Error as e:
             logger.warning(f"Failed to log execution metrics (non-critical): {e}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Unexpected error logging execution (non-critical): {e}", exc_info=True)
 
         return 0 if final_status == "completed" else 1

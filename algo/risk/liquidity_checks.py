@@ -41,7 +41,7 @@ class LiquidityChecks:
 
             return True, "All liquidity checks passed"
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(
                 f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure"
             )

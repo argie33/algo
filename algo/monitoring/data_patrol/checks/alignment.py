@@ -101,7 +101,7 @@ class AlignmentChecker(BaseCheck):
                     f"Sources aligned: {buy_sell_count} symbols in both tables",
                     {"sqs_count": sqs_count, "buy_sell_count": buy_sell_count},
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("alignment", ERROR, "signal_alignment", f"Check failed: {e}", None)
 
     def check_signal_data_alignment(self, cur) -> None:
@@ -153,7 +153,7 @@ class AlignmentChecker(BaseCheck):
                     f"All {total} signals have matching price + technical data",
                     None,
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("signal_alignment", ERROR, "buy_sell_daily", f"Check failed: {e}", None)
 
     def check_trade_alignment(self, cur) -> None:
@@ -195,7 +195,7 @@ class AlignmentChecker(BaseCheck):
                     "All recent filled trades have price history",
                     None,
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "trade_alignment",
                 INFO,
@@ -237,7 +237,7 @@ class AlignmentChecker(BaseCheck):
                             f"{name} aligned with price data",
                             None,
                         )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "score_freshness",
                 ERROR,
@@ -330,7 +330,7 @@ class AlignmentChecker(BaseCheck):
                             f"{tbl} alignment OK ({ratio*100:.1f}%)",
                             None,
                         )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     self.log("cross_align", WARN, tbl, f"Check skipped: {e}", None)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("cross_align", ERROR, "alignment", f"Cross-alignment check failed: {e}", None)

@@ -68,7 +68,7 @@ class CoverageChecker(BaseCheck):
                     f"{pct:.1f}% universe coverage",
                     None,
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("coverage", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_loader_coverage(self, cur) -> None:
@@ -150,11 +150,11 @@ class CoverageChecker(BaseCheck):
                                 f"{table_name} coverage {coverage_pct:.1f}% OK",
                                 {"coverage_pct": round(coverage_pct, 1), "count": table_count},
                             )
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         self.log("coverage", ERROR, table_name, f"Check failed: {e}", None)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 self.log("coverage", ERROR, "patrol_coverage", f"Union query check failed: {e}", None)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("coverage", ERROR, "patrol_coverage", f"Coverage check failed: {e}", None)
 
     def check_loader_contracts(self, cur) -> None:
@@ -217,7 +217,7 @@ class CoverageChecker(BaseCheck):
                         f"{clean_pct:.1f}% clean BUY/SELL signals",
                         None,
                     )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "contract_signal_quality",
                 ERROR,

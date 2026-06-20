@@ -103,7 +103,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
                 "phases_halted": row[9],
                 "phases_errored": row[10],
             }
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
@@ -241,7 +241,7 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
                 ),
                 "period_days": days,
             }
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error computing success rate: {e}")
         return {}
 

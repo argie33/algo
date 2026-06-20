@@ -428,7 +428,7 @@ class OrderManager:
                     logger.warning(
                         f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})"
                     )
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 last_error = f"Error: {e!s}"
                 logger.warning(
                     f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})"

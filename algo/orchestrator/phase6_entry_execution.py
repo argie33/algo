@@ -400,7 +400,7 @@ def run(
                             f"[PHASE 6] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})"
                         )
                         failed_count += 1
-                except Exception as exec_err:
+                except (ValueError, ZeroDivisionError, TypeError) as exec_err:
                     logger.error(
                         f"[PHASE 6] {symbol}: execution error: {exec_err}",
                         exc_info=True,

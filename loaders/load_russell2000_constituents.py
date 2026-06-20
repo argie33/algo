@@ -77,14 +77,14 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                                 }
                                 for sym in symbols
                             ]
-                except Exception as e:
+                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                     logger.debug(f"URL {url} failed: {e}")
                     continue
 
             logger.error("Could not fetch Russell 2000 constituents from any source")
             raise RuntimeError("Failed to fetch Russell 2000 constituents: all data sources exhausted")
 
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

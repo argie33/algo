@@ -377,7 +377,7 @@ class DataSourceRouter:
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
                 raise
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 logger.critical(
                     f"[yfinance] BATCH FETCH FAILED: {type(e).__name__}: {e}",
                     exc_info=True,

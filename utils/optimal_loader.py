@@ -288,7 +288,7 @@ class OptimalLoader(ABC):
             aws_region = os.getenv("AWS_REGION", "not set")
             db_name = os.getenv("DB_NAME", "not set")
             logger.debug(f"[CONFIG] AWS_REGION={aws_region}, DB_NAME={db_name}")
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
     def _get_rds_connection_count(self) -> int:
@@ -766,7 +766,7 @@ class OptimalLoader(ABC):
 
         try:
             rows = self.fetch_incremental(symbol, previous_date)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[{self.table_name}] {symbol}: Failed to fetch data: {e}"
             ) from e
@@ -957,7 +957,7 @@ class OptimalLoader(ABC):
                 )
                 return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
                 f"[UPSTREAM] Could not check upstream completeness: {e}. "
                 "Cannot proceed without verifying upstream is complete."
@@ -1014,7 +1014,7 @@ class OptimalLoader(ABC):
             logger.info(
                 f"[{self.table_name}] Logged execution history: status={status}, rows={self._stats.get('rows_inserted', 0)}"
             )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"[{self.table_name}] Failed to log execution history: {e}",
                 exc_info=True,
@@ -1194,7 +1194,7 @@ class OptimalLoader(ABC):
 
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, self._stats)
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(f"metrics unavailable: {e}")
 
             try:
@@ -1302,7 +1302,7 @@ class OptimalLoader(ABC):
                             )
                 finally:
                     set_pooled_connection(_saved_conn)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
@@ -1326,9 +1326,9 @@ class OptimalLoader(ABC):
                     logger.debug(
                         f"[CACHE] Invalidated {cache_key} on {self.table_name} completion"
                     )
-                except Exception as cache_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_err:
                     logger.debug(f"[CACHE] Could not invalidate cache: {cache_err}")
-            except Exception as cache_setup_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_setup_err:
                 logger.debug(
                     f"[CACHE] Cache invalidation unavailable: {cache_setup_err}"
                 )
@@ -1407,7 +1407,7 @@ class OptimalLoader(ABC):
                 logger.info(
                     f"[{self.table_name}] Released pooled connection after loader completion"
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"[{self.table_name}] Error releasing pooled connection: {e}"
                 )
@@ -1415,7 +1415,7 @@ class OptimalLoader(ABC):
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
     def close(self) -> None:
@@ -1452,7 +1452,7 @@ class OptimalLoader(ABC):
                     self.table_name,
                 )
                 return 0
-        except Exception as _lock_err:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
             logger.warning(
                 "[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)",
                 self.table_name,
@@ -1496,7 +1496,7 @@ class OptimalLoader(ABC):
 
             try:
                 rows = self.fetch_global(since)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[{self.table_name}] fetch_global failed: {e}"
                 ) from e
@@ -1585,17 +1585,17 @@ class OptimalLoader(ABC):
             try:
                 self._stats["rows_inserted"] = inserted
                 self._log_execution_history(status="success", error_message=None)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"[{self.table_name}] Failed to log execution history: {e}"
                 )
 
             return inserted
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # Log failed execution to history
             try:
                 self._log_execution_history(status="failed", error_message=str(e)[:500])
-            except Exception as history_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as history_err:
                 logger.error(
                     f"[{self.table_name}] Failed to log failed execution: {history_err}"
                 )
@@ -1610,7 +1610,7 @@ class OptimalLoader(ABC):
                 logger.info(
                     f"[{self.table_name}] Released pooled connection after global load completion"
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"[{self.table_name}] Error releasing pooled connection: {e}"
                 )
@@ -1676,7 +1676,7 @@ class OptimalLoader(ABC):
                         timed_out += 1
                         logger.warning(f"[{self.table_name}] {symbol} timed out during result retrieval")
                         self._stats["symbols_failed"] += 1  # type: ignore[operator]
-                    except Exception:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError):
                         # Exception already logged in _safe_load_symbol, just count it
                         done += 1
 
@@ -1731,6 +1731,6 @@ class OptimalLoader(ABC):
                 )
 
             self._stats["symbols_processed"] += 1  # type: ignore
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self._stats["symbols_failed"] += 1  # type: ignore
             logger.error(f"[{self.table_name}] {symbol} failed: {e}")

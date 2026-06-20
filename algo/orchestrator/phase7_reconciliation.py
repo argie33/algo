@@ -176,14 +176,14 @@ def run(
                                 f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
                                 f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
                             )
-                        except Exception as e:
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                             logger.error(f"Failed to record exit for {symbol}: {e}")
 
                     if exits_recorded > 0:
                         logger.info(f"Recorded {exits_recorded} exits in trade history")
             else:
                 logger.info("No closed positions found for exit recording")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to record exits in trade history: {e}. "
                 "Cannot complete reconciliation without persisting trade exit data."
@@ -361,7 +361,7 @@ def run(
                 perf_summary = perf_report.get("message", "insufficient data")
             else:
                 perf_summary = "failed to generate report"
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             perf_summary = f"error: {str(e)[:60]}"
         finally:
             log_phase_result_fn(7, "performance", perf_status, perf_summary)
@@ -448,7 +448,7 @@ def run(
                     logger.info("No trades recorded today (metrics not updated)")
                     metrics_status = "warn"
                     metrics_summary = "No trades recorded"
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to update algo_metrics_daily: {e}")
             metrics_summary = f"error: {str(e)[:60]}"
         finally:

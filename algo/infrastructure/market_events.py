@@ -292,7 +292,7 @@ class MarketEventHandler:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
             return {"action": "ERROR", "message": str(e)}
 
@@ -408,7 +408,7 @@ class MarketEventHandler:
                 check_name = futures[future]
                 try:
                     result["checks"][check_name] = future.result()
-                except Exception as e:
+                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                     logger.warning(f"Pre-market check {check_name} failed: {e}")
                     result["checks"][check_name] = None
 

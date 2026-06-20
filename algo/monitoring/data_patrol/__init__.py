@@ -75,7 +75,7 @@ class DataPatrol:
             # Log all results
             try:
                 self.logger.log_results(cur, self.results)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to log results: {e}")
 
             elapsed = time.time() - start_time
@@ -105,7 +105,7 @@ class DataPatrol:
                 self.check_timings[check_name] = elapsed
                 if elapsed > 10:
                     logger.warning(f"[patrol_perf] {check_name} took {elapsed:.1f}s (slow)")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 elapsed = time.time() - start
                 self.check_timings[check_name] = elapsed
                 logger.error(f"Check {check_name} failed: {e}", exc_info=True)

@@ -184,7 +184,7 @@ def _get_algo_performance(cur) -> dict:
                 "data_freshness": {"is_stale": False},
             }
             return json_response(200, APIResponseValidator.sanitize_response(fallback_data))
-        except Exception as fb_err:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as fb_err:
             logger.warning(f"Performance fallback from algo_trades failed: {fb_err}")
             return error_response(503, "no_data", "Performance metrics not yet available")
 

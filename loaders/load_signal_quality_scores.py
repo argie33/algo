@@ -851,7 +851,7 @@ def _log_signal_metrics():
                         f"Signals: {daily_signals} ({coverage_pct}% coverage) | "
                         f"Quality Scores: min={min_score}, p25={p25}, median={p50}, p75={p75}, max={max_score}, avg={avg_score}"
                     )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[SIGNAL_METRICS] Failed to log signal generation metrics: {e}")
 
 

@@ -242,7 +242,7 @@ class PriceLoader(OptimalLoader):
 
         except RuntimeError:
             raise  # Re-raise validation errors
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"[SCHEMA] Could not perform schema validation for {self.table_name}: {e}",
                 exc_info=True,
@@ -451,7 +451,7 @@ class PriceLoader(OptimalLoader):
                             f"[MARKET_CLOSE] Config key {config_key} not found, using default timeout: {max_wait_sec}s"
                         )
                         config_used = "default (key missing)"
-            except Exception as config_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as config_err:
                 error_msg = (
                     f"[MARKET_CLOSE] Could not read market close timeout config. "
                     f"Configuration is non-optional: {config_err}. "
@@ -1959,11 +1959,11 @@ class PriceLoader(OptimalLoader):
                 logger.debug(
                     f"[CACHE INVALIDATION] Invalidated Phase 1 cache for {cache_key}"
                 )
-            except Exception as cache_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_err:
                 logger.debug(
                     f"[CACHE INVALIDATION] Could not invalidate cache: {cache_err}"
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(
                 f"Failed to update data_loader_status for {self.table_name}: {e}"
             )
@@ -2212,7 +2212,7 @@ def log_loader_execution(
                     duration_seconds,
                 ),
             )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.critical(
             f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}"
         )
@@ -2232,7 +2232,7 @@ def main():
 
     try:
         logger.info(f"[{_correlation_id}] [MAIN] Environment loaded successfully")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
         try:
             _invalidate_phase1_cache()
@@ -2358,12 +2358,12 @@ def main():
                         error_msg="No symbols found",
                         duration_seconds=round(time.time() - start_time, 2),
                     )
-                except Exception as log_err:
+                except (ValueError, ZeroDivisionError, TypeError) as log_err:
                     logger.critical(
                         f"[MAIN] Could not log loader failure to audit trail: {log_err}"
                     )
                 return 1
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         try:
             _invalidate_phase1_cache()
@@ -2379,7 +2379,7 @@ def main():
                 error_msg=str(e),
                 duration_seconds=round(time.time() - start_time, 2),
             )
-        except Exception as log_err:
+        except (ValueError, ZeroDivisionError, TypeError) as log_err:
             raise RuntimeError(
                 f"[MAIN] Could not log symbols loading failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."

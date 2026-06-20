@@ -139,7 +139,7 @@ class SignalsDailyLoader(OptimalLoader):
                 f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
                 f"tech_coverage={tech_coverage_symbols}, cached {len(symbol_watermarks)} symbol watermarks"
             )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
                 "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks)."
@@ -914,7 +914,7 @@ def main():
             )
 
         return 0
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Daily signals load failed: {e}")
 
 

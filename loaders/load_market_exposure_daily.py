@@ -128,7 +128,7 @@ def main():
         logger.info("✓ Loader completed successfully")
         return 0
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Market exposure loader failed: {e}", exc_info=True)
         try:
             with DatabaseContext("write") as cur:

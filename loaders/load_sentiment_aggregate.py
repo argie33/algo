@@ -72,7 +72,7 @@ class SentimentAggregateLoader(OptimalLoader):
                     }
                 ]
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

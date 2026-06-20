@@ -10,7 +10,7 @@ def fix_file(file_path: Path) -> tuple[int, int]:
     try:
         with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
-    except Exception:
+    except (IOError, OSError):
         return 0, 0
 
     if "except Exception" not in content:
@@ -27,11 +27,11 @@ def fix_file(file_path: Path) -> tuple[int, int]:
             continue
 
         # Skip already-fixed lines
-        if any(exc in line for exc in ["psycopg2", "requests.RequestException", "json.JSONDecodeError"]):
+        if any(exc in line for exc in ["psycopg2", "requests.RequestException", "json.JSONDecodeError", "FileNotFoundError", "ValueError", "ZeroDivisionError", "TypeError", "IOError", "OSError"]):
             continue
 
-        # Get context: lines around this exception
-        context_start = max(0, i - 15)
+        # Get context: lines around this exception (increased from 15 to 50 lines)
+        context_start = max(0, i - 50)
         context = "\n".join(lines[context_start : i + 1])
 
         # Determine what to replace with based on context
@@ -47,18 +47,21 @@ def fix_file(file_path: Path) -> tuple[int, int]:
                 "with.*database",
                 ".fetchone()",
                 ".fetchall()",
+                "cur.fetch",
+                "psycopg2.sql",
+                ".format(psycopg2",
             ]
         ):
-            if "except (psycopg2" not in line and "psycopg2" not in context:
+            if "except (psycopg2" not in line:
                 new_exception = "(psycopg2.DatabaseError, psycopg2.OperationalError)"
 
         # 2. API/Network operations (requests, http)
-        if not new_exception and any(pat in context for pat in ["requests.", "response.json()", ".json()"]):
+        if not new_exception and any(pat in context for pat in ["requests.", "response.json()", ".json()", "requests.get", "requests.post"]):
             if "except (requests" not in line:
                 new_exception = "(requests.RequestException, requests.Timeout, json.JSONDecodeError)"
 
         # 3. JSON operations
-        if not new_exception and "json." in context:
+        if not new_exception and "json." in context and "import json" in context:
             if "except (json" not in line:
                 new_exception = "(json.JSONDecodeError, ValueError)"
 
@@ -72,7 +75,7 @@ def fix_file(file_path: Path) -> tuple[int, int]:
 
         # 5. File operations
         if not new_exception and any(
-            pat in context for pat in ["open(", "Path(", ".read(", ".write(", ".delete("]
+            pat in context for pat in ["open(", "Path(", ".read(", ".write(", ".delete(", "with open"]
         ):
             if "except (FileNotFoundError" not in line and "OSError" not in line:
                 new_exception = "(FileNotFoundError, IOError, OSError)"
@@ -99,7 +102,7 @@ def fix_file(file_path: Path) -> tuple[int, int]:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
             return len(replacements), 0
-        except Exception:
+        except (IOError, OSError):
             return 0, len(replacements)
 
     return 0, 0

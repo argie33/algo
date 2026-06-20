@@ -226,7 +226,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     )
 
             return result
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
                 "VIX data is authoritative for market health computation."
@@ -302,7 +302,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
         except RuntimeError:
             raise
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[PUT_CALL] Failed to compute put/call ratio: {e}. "
                 "This metric is authoritative for market health."
@@ -690,7 +690,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 continue
             except RuntimeError:
                 raise
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"Failed to fetch {sym}: Unexpected error: {e}")
                 failed_symbols[sym] = f"Unexpected error: {str(e)[:50]}"
                 continue
@@ -760,7 +760,7 @@ def main():
         logger.info("Market health daily load completed")
         tracker.complete(symbols_processed=1)
         return 0
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Market health daily load failed: {e}")
         tracker.failed(error_message=str(e))
         raise RuntimeError(f"Market health daily loader failed: {e}")

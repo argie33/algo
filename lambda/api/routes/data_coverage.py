@@ -27,7 +27,7 @@ from routes.utils import (
     json_response,
     success_response,
 )
-
+from utils.validation import DatabaseResultValidator
 from utils.db.sql_safety import assert_safe_table
 
 
@@ -53,7 +53,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
             timeout_sec=10,
         )
 
-        row = rows[0] if rows else None
+        row = DatabaseResultValidator.safe_get_first_row(rows, "price coverage")
         if not row:
             return error_response(503, "no_data", "Price data not yet available")
 
@@ -61,8 +61,8 @@ def get_price_coverage(cur) -> Dict[str, Any]:
         sp500_total = row["sp500_total"]
         latest_date = row["latest_date"]
         total_rows = row["total_rows"]
-        zero_vol = row["zero_vol"]
-        invalid_prices = row["invalid_prices"]
+        zero_vol = row["zero_volume_rows"]
+        invalid_prices = row["invalid_price_rows"]
 
         days_stale = (_date.today() - latest_date).days if latest_date else 999
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
@@ -276,11 +276,11 @@ def get_loader_health(cur) -> Dict[str, Any]:
                     logger.warning(
                         f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(
                         f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}"
                     )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[LOADER_HEALTH] Failed to check table health: {e}")
 
         stale_loaders = [t[0] for t in table_health if t[1] == "stale"]
@@ -293,7 +293,7 @@ def get_loader_health(cur) -> Dict[str, Any]:
                 "source": "patrol" if rows else "table_check",
             }
         )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise Exception(f"Failed to retrieve loader health: {e}")
 
 
@@ -307,7 +307,7 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
         cur.execute("SAVEPOINT coverage_check")
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.debug(f"[SAVEPOINT_CREATE] Database error: {type(e).__name__}: {e}")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.debug(
             f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}"
         )

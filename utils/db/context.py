@@ -46,7 +46,7 @@ class _ErrorLoggedCursor:
         self.last_args = args
         try:
             return self.cursor.execute(query, args)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             context = StructuredDBLogger.extract_context_from_params(args)
             StructuredDBLogger.log_db_error(
                 operation_name=self.operation_name,
@@ -63,7 +63,7 @@ class _ErrorLoggedCursor:
         self.last_args = args
         try:
             return self.cursor.executemany(query, args)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             context = StructuredDBLogger.extract_context_from_params(args)
             StructuredDBLogger.log_db_error(
                 operation_name=self.operation_name,
@@ -262,7 +262,7 @@ class DatabaseContext:
 
             cid = get_correlation_id()
             return cid if cid else None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to get correlation ID for tracing: {e}")
             return None
 
@@ -311,7 +311,7 @@ class DatabaseContext:
 
             # Just error logging, no correlation ID
             return _ErrorLoggedCursor(self.cur, operation_name="db_operation")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             context = {"error_type": type(e).__name__, "timeout": self.timeout}
             logger.error(
                 f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}",
@@ -339,7 +339,7 @@ class DatabaseContext:
             if self.cur:
                 try:
                     self.cur.close()
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"[DB_CLEANUP_WARNING] Error closing cursor: {e}")
         finally:
             try:

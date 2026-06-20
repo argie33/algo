@@ -952,7 +952,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         from config.credential_manager import clear_expired_credentials
 
         clear_expired_credentials()
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
         raise RuntimeError(f"Unexpected error: {e}") from e  # If we can't clear expired creds, continue anyway (non-fatal)
 

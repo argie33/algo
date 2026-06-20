@@ -170,7 +170,7 @@ def handle(
             }
         )
 
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Log handler error: {e}", exc_info=True)
         # Return success anyway - don't break frontend if logging fails
         return success_response(

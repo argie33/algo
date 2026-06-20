@@ -317,7 +317,7 @@ class VectorizedSignalGenerator:
                     "power_trend": ret_21d >= 20 if ret_21d else False,
                     "return_21d": ret_21d,
                 }
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(
                     f"[VECTORIZED] {symbol}: Power trend computation failed: {e}"
                 )

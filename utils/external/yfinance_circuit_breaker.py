@@ -209,7 +209,7 @@ class YFinanceIPCircuitBreaker:
             # Invalidate local cache
             self._cached_state = None
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Failed to write ban state to PostgreSQL: {e}")
 
     def _clear_ban(self):

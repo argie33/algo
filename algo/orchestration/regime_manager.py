@@ -241,7 +241,7 @@ class RegimeManager:
 
             return history
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch regime history: {e}. "
                 "Cannot compute regime transitions without historical data."

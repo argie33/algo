@@ -268,7 +268,7 @@ class SignalAttributionEngine:
                         signal_regime = regime_mgr.get_current_regime(signal_date)
                         if signal_regime not in trades_by_regime:
                             signal_regime = "caution"  # Default if regime not in mapping
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         logger.debug(
                             f"Could not determine regime for {signal_date}: {e}"
                         )
@@ -425,7 +425,7 @@ class SignalAttributionEngine:
                 logger.info(
                     f"Persisted IC for {len(ic_values)} components on {report_date}"
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to persist IC: {e}")
 
     def get_trailing_ic(

@@ -78,5 +78,5 @@ class LoaderHistoryTracker:
                 )
 
             logger.info(f"Logged {self.loader_name}: {status}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log loader history: {e}")

@@ -211,7 +211,7 @@ class AAIISentimentLoader(OptimalLoader):
                     f"[AAII] Data format error parsing Excel: {e}. "
                     "AAII file structure may have changed."
                 ) from e
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
                 if attempt < 5:
                     import time

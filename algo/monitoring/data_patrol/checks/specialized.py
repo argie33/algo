@@ -77,7 +77,7 @@ class SpecializedChecker(BaseCheck):
                             f"{tbl} fresh ({age}d old)",
                             {"latest": str(latest), "count": count},
                         )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 self.log(
                     "earnings_staleness",
                     INFO,
@@ -178,7 +178,7 @@ class SpecializedChecker(BaseCheck):
                                     "symbols": unique_syms,
                                 },
                             )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     self.log(
                         "fundamental_data",
                         WARN,
@@ -186,7 +186,7 @@ class SpecializedChecker(BaseCheck):
                         f"Check skipped: {e}",
                         None,
                     )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Fundamental data checks failed: {e}")
 
     def check_derived_metrics(self, cur) -> None:
@@ -325,7 +325,7 @@ class SpecializedChecker(BaseCheck):
                         "updated_hours": round(updated_age, 1),
                     },
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "sentiment_aggregate",
                 WARN,
@@ -414,7 +414,7 @@ class SpecializedChecker(BaseCheck):
                         f"Missing columns: {', '.join(missing)}",
                         {"missing": list(missing)},
                     )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 self.log(
                     "trade_recorder_columns",
                     WARN,

@@ -214,7 +214,7 @@ def main():
         else:
             logger.warning("COMPLETED: No economic calendar events loaded")
             return 0
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Economic calendar loader failed: {e}")
         return 1
 

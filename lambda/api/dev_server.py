@@ -66,7 +66,7 @@ def _load_db_credentials():
             "password": password,
             "database": creds.get("dbname", "stocks"),
         }
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
 
         # If local mode is enabled, fall back to localhost

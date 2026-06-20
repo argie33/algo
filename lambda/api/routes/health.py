@@ -427,6 +427,6 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
                 "tables": tables,
             }
         )
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "pipeline health check")
         return error_response(code, error_type, message)

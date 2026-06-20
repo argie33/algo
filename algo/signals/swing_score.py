@@ -151,13 +151,13 @@ class SwingTraderScore:
 
                 try:
                     vol_pts, vol_detail = self.scorer.compute_volume_component(symbol, eval_date, cur)
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.debug(f"Volume component failed for {symbol}: {e}")
                     vol_pts, vol_detail = 0, {"error": str(e)[:50]}
 
                 try:
                     fund_pts, fund_detail = self.scorer.compute_fundamentals_component(symbol, cur)
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.debug(f"Fundamentals component failed for {symbol}: {e}")
                     fund_pts, fund_detail = 0, {"error": str(e)[:50]}
 

@@ -497,7 +497,7 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
                 metrics.get("any_triggered"),
             ),
         )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to insert circuit breaker status: {e}", exc_info=True)
         raise
 
@@ -514,7 +514,7 @@ def main():
             logger.info(
                 f"Circuit breaker metrics loader completed successfully for {run_date}"
             )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Circuit breaker metrics loader failed: {e}", exc_info=True)
         raise
 

@@ -80,7 +80,7 @@ class RejectionTracker:
 
         try:
             self._with_cursor(_log_rejection)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log rejection for {symbol}: {e}")
 
     def log_pre_tier_rejection(
@@ -113,7 +113,7 @@ class RejectionTracker:
 
         try:
             self._with_cursor(_log_pre_tier)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
 
     def get_rejection_funnel(self, eval_date: date):
@@ -182,7 +182,7 @@ class RejectionTracker:
             if result is None:
                 return {"total_signals": 0, "tiers": []}
             return result
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get rejection funnel: {e}")
             raise RuntimeError(
                 f"Failed to get rejection funnel: {e}. "

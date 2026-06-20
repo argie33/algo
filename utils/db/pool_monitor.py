@@ -83,7 +83,7 @@ class RDSPoolMonitor:
                     "timestamp": datetime.now().isoformat(),
                 }
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get RDS pool status: {e}")
             return {"_error": str(e), "timestamp": datetime.now().isoformat()}
 
@@ -201,7 +201,7 @@ class RDSPoolMonitor:
             try:
                 states = self.get_connection_by_state()
                 logger.warning(f"[RDS-POOL] Connection breakdown: {states}")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[RDS-POOL] Failed to get connection breakdown: {e}")
 
             try:
@@ -212,7 +212,7 @@ class RDSPoolMonitor:
                         logger.warning(
                             f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}"
                         )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
     def check_eod_readiness(self) -> Dict[str, Any]:

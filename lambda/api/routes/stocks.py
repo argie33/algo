@@ -93,7 +93,7 @@ def handle(
                 )
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}"
                 )

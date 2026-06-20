@@ -348,7 +348,7 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_12m": momentum_12m,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _score_quality(self, metrics: dict | None) -> float | None:

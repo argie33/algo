@@ -85,7 +85,7 @@ class StaleSignalCircuitBreaker:
                 logger.info(msg)
                 return True, msg
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             msg = f"Operation failed: {e}. Circuit breaker check failed: {e}"
             raise RuntimeError(msg) from e
 

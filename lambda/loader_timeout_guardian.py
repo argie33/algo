@@ -130,7 +130,7 @@ def lambda_handler(event, context):
                 "body": f"Checked loaders. Found {len(hung_loaders)} hung (killed and logged)",
             }
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Guardian check failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": str(e)}
 

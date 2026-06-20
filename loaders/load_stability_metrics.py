@@ -44,7 +44,7 @@ class StabilityMetricsLoader(OptimalLoader):
             if metrics:
                 return [metrics]
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _compute_stability_metrics(self, symbol: str) -> dict | None:
@@ -122,7 +122,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod

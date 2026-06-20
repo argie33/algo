@@ -123,7 +123,7 @@ class HaltFlagManager:
             halt_flag, reason = self._check_halt_flag_rds()
             if halt_flag is not None:
                 return halt_flag, reason
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             logger.error(f"[HALT_FLAG] RDS fallback failed: {e}")
 
         # Both failed: cannot proceed safely
@@ -233,7 +233,7 @@ class HaltFlagManager:
                                     f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)"
                                 )
                                 return False, None
-                    except Exception as parse_err:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as parse_err:
                         logger.warning(
                             f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}"
                         )
@@ -243,7 +243,7 @@ class HaltFlagManager:
                 )
                 return True, reason
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def set_halt_flag(self, reason: str = "") -> bool:

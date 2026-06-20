@@ -116,7 +116,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
 
                 return results if results else None
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _calculate_r_multiple(

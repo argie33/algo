@@ -87,7 +87,7 @@ class OrchestratorExecutionTracker:
 
         try:
             self._ensure_table_exists()
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to ensure execution tracking table exists: {e}. "
                 "Cannot proceed with execution logging."

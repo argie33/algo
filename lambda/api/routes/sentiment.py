@@ -18,6 +18,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+from utils.validation import DatabaseResultValidator
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ def handle(
                     timeout_sec=2,
                 )
                 analyst_row = analyst_rows[0] if analyst_rows else None
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(
                     f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}"
                 )
@@ -206,7 +207,10 @@ def handle(
                 (symbol,),
                 timeout_sec=3,
             )
-            if not rows:
+            latest = DatabaseResultValidator.safe_get_first_row(
+                rows, "analyst sentiment metrics"
+            )
+            if not latest:
                 return json_response(
                     200,
                     {
@@ -218,7 +222,7 @@ def handle(
                     },
                 )
             # Use latest row for metrics summary
-            latest = dict(rows[0])
+            latest = dict(latest)
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
@@ -305,7 +309,10 @@ def handle(
                 (symbol,),
             )
             rows = cur.fetchall()
-            if not rows:
+            latest = DatabaseResultValidator.safe_get_first_row(
+                rows, "analyst sentiment trends"
+            )
+            if not latest:
                 return json_response(
                     200,
                     {
@@ -316,7 +323,7 @@ def handle(
                         "recentTrends": [],
                     },
                 )
-            latest = dict(rows[0])
+            latest = dict(latest)
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")

@@ -69,7 +69,7 @@ class QualityChecker(BaseCheck):
                         "threshold_pct": max_null_pct,
                     },
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("null_anomaly", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_zero_or_identical(self, cur) -> None:
@@ -187,7 +187,7 @@ class QualityChecker(BaseCheck):
                     f"{ident_count} symbols with identical OHLC (threshold {ident_threshold})",
                     {"count": ident_count, "threshold": ident_threshold},
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("zero_data", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_ohlc_sanity(self, cur) -> None:
@@ -229,7 +229,7 @@ class QualityChecker(BaseCheck):
                     "OHLC relationships valid",
                     None,
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("ohlc_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_volume_sanity(self, cur) -> None:
@@ -291,5 +291,5 @@ class QualityChecker(BaseCheck):
                         "high_threshold": high_vol_threshold,
                     },
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("volume_sanity", ERROR, "price_daily", f"Check failed: {e}", None)

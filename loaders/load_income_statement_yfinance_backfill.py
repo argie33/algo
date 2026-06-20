@@ -71,7 +71,7 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                         f"{symbol}: yfinance has no income statement data. Cannot backfill."
                     )
                     return None
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(
                     f"{symbol}: yfinance fetch failed: {e}. Skipping backfill."
                 )

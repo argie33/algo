@@ -216,7 +216,7 @@ class AWSProductionConfigValidator:
             self.checks_passed.append("CloudWatch accessible for monitoring")
             return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"CloudWatch configuration check failed: {e}. "
                 "Cannot validate CloudWatch readiness."
@@ -288,7 +288,7 @@ class AWSProductionConfigValidator:
             try:
                 result = validator_fn()
                 logger.info(f"  {'[OK]' if result else '[WARNING]'}")
-            except Exception as e:
+            except (FileNotFoundError, IOError, OSError) as e:
                 logger.error(f"  [ERROR] {str(e)[:80]}")
 
         # Summary

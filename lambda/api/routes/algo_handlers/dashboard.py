@@ -446,7 +446,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when drawdown from peak ≥ {threshold_dd:.0f}%",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"CB1 (drawdown) computation failed: {type(e).__name__}: {e}")
             breakers.append(
                 {

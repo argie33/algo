@@ -169,7 +169,7 @@ class IncomeStatementLoader(OptimalLoader):
             return filtered or None
         except RuntimeError:
             raise
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[INCOME_STATEMENT] SEC EDGAR error for {symbol}: {e}. "
                 "API failure prevents data fetch. Cannot proceed."

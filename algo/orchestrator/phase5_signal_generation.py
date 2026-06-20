@@ -220,7 +220,7 @@ def _check_liquidity_parallel(candidate: dict, run_date: _date) -> tuple[dict, b
         if not liq_ok:
             logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
         return candidate, liq_ok
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.warning(
             f"[PHASE 5] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}"
         )
@@ -542,7 +542,7 @@ def run(
                 return PhaseResult(
                     5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
                 )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 5 CRITICAL] Could not validate upstream dependencies: {e}"
         logger.critical(msg, exc_info=True)
         log_phase_result_fn(5, "signal_generation", "halt", msg)
