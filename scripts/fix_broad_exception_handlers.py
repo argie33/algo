@@ -12,9 +12,8 @@ Usage:
 
 import argparse
 import re
-import sys
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 
 class ExceptionHandler(NamedTuple):
@@ -132,7 +131,7 @@ def print_handlers_summary(file_path: Path, handlers: list[ExceptionHandler]):
         by_priority.setdefault(h.priority, 0)
         by_priority[h.priority] += 1
 
-    print(f"\n[SUMMARY]")
+    print("\n[SUMMARY]")
     for priority in ["P1", "P2", "P3", "REVIEW"]:
         if priority in by_priority:
             print(f"   {priority}: {by_priority[priority]} handlers")
@@ -221,10 +220,10 @@ def main():
                     if h.priority != "SKIP":
                         show_context(file_path, h)
 
-    print(f"\n\n[TOTAL SUMMARY]")
-    print(f"{'='*50}")
+    print("\n\n[TOTAL SUMMARY]")
+    print("=" * 50)
     print(f"Total broad exception handlers found: {total_handlers}")
-    print(f"\nBy category:")
+    print("\nBy category:")
     for category in sorted(by_category.keys()):
         print(f"  {category:>15}: {by_category[category]:>3}")
 

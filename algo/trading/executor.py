@@ -18,7 +18,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, cast
+from typing import Any
 
 import requests
 
@@ -296,6 +296,7 @@ class TradeExecutor:
 
         # Compute targets if missing — based on R-multiples from actual stop
         # Convert to Decimal BEFORE arithmetic to avoid IEEE 754 precision loss
+        # Keep ALL calculations in Decimal until final float conversion to prevent drift
         entry_price_dec = Decimal(str(entry_price))
         stop_price_dec = Decimal(str(stop_loss_price))
         risk_per_share_decimal = entry_price_dec - stop_price_dec
@@ -315,8 +316,13 @@ class TradeExecutor:
                 "message": f"Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)",
             }
         if target_1_price is None:
-            t1_r = float(self.config.get("t1_target_r_multiple", 1.5))
-            target_1_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            # Keep R-multiple as Decimal for arithmetic precision
+            t1_r_config = self.config.get("t1_target_r_multiple", 1.5)
+            t1_r_dec = Decimal(str(t1_r_config))
+            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
+            target_1_price_dec = entry_price_dec + (risk_per_share_decimal * t1_r_dec)
+            target_1_price_dec = target_1_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_1_price = float(target_1_price_dec)
             if target_1_price <= entry_price:
                 return {
                     "success": False,
@@ -325,8 +331,13 @@ class TradeExecutor:
                     "message": f"Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}",
                 }
         if target_2_price is None:
-            t2_r = float(self.config.get("t2_target_r_multiple", 3.0))
-            target_2_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            # Keep R-multiple as Decimal for arithmetic precision
+            t2_r_config = self.config.get("t2_target_r_multiple", 3.0)
+            t2_r_dec = Decimal(str(t2_r_config))
+            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
+            target_2_price_dec = entry_price_dec + (risk_per_share_decimal * t2_r_dec)
+            target_2_price_dec = target_2_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_2_price = float(target_2_price_dec)
             if target_2_price <= entry_price:
                 return {
                     "success": False,
@@ -335,8 +346,13 @@ class TradeExecutor:
                     "message": f"Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}",
                 }
         if target_3_price is None:
-            t3_r = float(self.config.get("t3_target_r_multiple", 4.0))
-            target_3_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            # Keep R-multiple as Decimal for arithmetic precision
+            t3_r_config = self.config.get("t3_target_r_multiple", 4.0)
+            t3_r_dec = Decimal(str(t3_r_config))
+            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
+            target_3_price_dec = entry_price_dec + (risk_per_share_decimal * t3_r_dec)
+            target_3_price_dec = target_3_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_3_price = float(target_3_price_dec)
             if target_3_price <= entry_price:
                 return {
                     "success": False,
@@ -637,21 +653,32 @@ class TradeExecutor:
 
             # If fill price differs from signal price (slippage), recalculate targets based on actual fill
             if executed_price and executed_price != entry_price:
-                slippage_pct = float(((Decimal(str(executed_price)) - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                executed_price_dec = Decimal(str(executed_price))
+                entry_price_dec_slip = Decimal(str(entry_price))
+                slippage_pct = float(((executed_price_dec - entry_price_dec_slip) / entry_price_dec_slip * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
                 logger.info(
                     _redact_for_logs(
                         f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})"
                     )
                 )
-                # Recalculate targets from actual fill price
-                actual_risk_per_share = Decimal(str(executed_price)) - Decimal(str(stop_loss_price))
+                # Recalculate targets from actual fill price, keeping all math in Decimal
+                stop_price_dec_slip = Decimal(str(stop_loss_price))
+                actual_risk_per_share = executed_price_dec - stop_price_dec_slip
                 if actual_risk_per_share > 0:
-                    t1_r = float(self.config.get("t1_target_r_multiple", 1.5))
-                    t2_r = float(self.config.get("t2_target_r_multiple", 3.0))
-                    t3_r = float(self.config.get("t3_target_r_multiple", 4.0))
-                    target_1_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-                    target_2_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-                    target_3_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    # Keep R-multiples as Decimal for consistent precision
+                    t1_r_config = self.config.get("t1_target_r_multiple", 1.5)
+                    t2_r_config = self.config.get("t2_target_r_multiple", 3.0)
+                    t3_r_config = self.config.get("t3_target_r_multiple", 4.0)
+                    t1_r_dec = Decimal(str(t1_r_config))
+                    t2_r_dec = Decimal(str(t2_r_config))
+                    t3_r_dec = Decimal(str(t3_r_config))
+                    # Recalculate all targets in Decimal, then quantize and convert to float
+                    target_1_price_dec = executed_price_dec + (actual_risk_per_share * t1_r_dec)
+                    target_1_price = float(target_1_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    target_2_price_dec = executed_price_dec + (actual_risk_per_share * t2_r_dec)
+                    target_2_price = float(target_2_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    target_3_price_dec = executed_price_dec + (actual_risk_per_share * t3_r_dec)
+                    target_3_price = float(target_3_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
             # Compute initial position size pct using live or snapshot portfolio value
             _pv_for_pct = self._get_portfolio_value()
@@ -1051,7 +1078,7 @@ class TradeExecutor:
         new_stop_price: float | None = None,
         cur: Any | None = None,
     ) -> dict[str, Any]:
-        """Exit all or part of a position.
+        """Exit all or part of a position with guaranteed transaction atomicity.
 
         Args:
             trade_id: trade to exit
@@ -1064,10 +1091,17 @@ class TradeExecutor:
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
 
-        IMPORTANT: Transaction Safety
-        - If cur is provided, operation is part of parent transaction (exit_engine.py flow)
-        - If cur is None, operation opens its own transaction (backward compatibility)
-        - All database writes are atomic within a single transaction
+        TRANSACTION SAFETY GUARANTEES:
+        - All updates (algo_trades, algo_positions, audit log) are atomic: all succeed or all rollback
+        - Trade rows are locked (FOR UPDATE) to prevent concurrent modifications
+        - Position rows are locked (FOR UPDATE OF p) to prevent concurrent modifications
+        - After each critical update, rowcount is verified (must equal 1) to detect lost updates
+        - After position update, position state is re-fetched and validated for consistency
+        - If any update fails, the entire transaction is rolled back, preventing orphaned state
+        - Audit log failure causes transaction rollback (data integrity > temporary logging gap)
+
+        If cur is provided (from exit_engine.py), all operations join the parent transaction.
+        If cur is None, each operation opens its own transaction (backward compatibility).
         """
         if exit_fraction == 0:
             if new_stop_price is None:
@@ -1133,8 +1167,9 @@ class TradeExecutor:
             }
 
         def _execute_exit(cur):
+            # TRANSACTION GUARD 1: Verify trade is not already closed (idempotency)
             cur.execute(
-                """SELECT status FROM algo_trades WHERE trade_id = %s""",
+                """SELECT status FROM algo_trades WHERE trade_id = %s FOR UPDATE""",
                 (trade_id,),
             )
             trade_status_row = cur.fetchone()
@@ -1145,13 +1180,15 @@ class TradeExecutor:
                     "duplicate": True,
                 }
 
+            # TRANSACTION GUARD 2: Fetch all trade and position data with row locks
+            # FOR UPDATE prevents concurrent modifications mid-transaction
             cur.execute(
                 """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.trade_id = %s""",
+                WHERE t.trade_id = %s FOR UPDATE OF t, p""",
                 (trade_id,),
             )
             row = cur.fetchone()
@@ -1256,6 +1293,7 @@ class TradeExecutor:
             if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:
                 pnl_pct = 0.0
 
+            # TRANSACTION GUARD 3: Update algo_trades and verify success (atomic with position update)
             if full_exit:
                 # If this is an estimated price, store it in estimated_exit_price for Phase 7 reconciliation
                 estimated_price = exit_price if is_estimated_price else None
@@ -1281,6 +1319,9 @@ class TradeExecutor:
                         trade_id,
                     ),
                 )
+                # Verify update succeeded (must affect exactly 1 row for transaction safety)
+                if cur.rowcount != 1:
+                    raise DatabaseError(f"Trade update failed: expected 1 row updated, got {cur.rowcount}")
             else:
                 cur.execute(
                     """UPDATE algo_trades
@@ -1296,12 +1337,16 @@ class TradeExecutor:
                         trade_id,
                     ),
                 )
+                # Verify update succeeded
+                if cur.rowcount != 1:
+                    raise DatabaseError(f"Partial exit log update failed: expected 1 row updated, got {cur.rowcount}")
 
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
             new_qty_dec = current_qty_dec - shares_exited_dec
             new_qty = float(new_qty_dec)
 
+            # TRANSACTION GUARD 4: Update position with safety checks
             effective_stop = (
                 new_stop_price if new_stop_price is not None else stop_loss_price
             )
@@ -1315,11 +1360,34 @@ class TradeExecutor:
             )
 
             if not update_success:
-                return {
-                    "success": False,
-                    "message": update_error or "Position update failed",
-                }
+                # Position update failed — transaction will be rolled back by caller
+                # This prevents orphaned state where trade is marked closed but position is still open
+                raise DatabaseError(update_error or "Position update failed during exit")
 
+            # TRANSACTION GUARD 5: Verify position state consistency after update
+            # Re-fetch position to confirm updates were applied correctly
+            cur.execute(
+                """SELECT quantity, status FROM algo_positions WHERE position_id = %s""",
+                (position_id,),
+            )
+            verify_row = cur.fetchone()
+            if verify_row:
+                final_qty = verify_row[0]
+                final_status = verify_row[1]
+                # Consistency check: if we did full exit, position must be closed
+                if full_exit and final_status != "closed":
+                    raise DatabaseError(
+                        f"Position consistency error: full exit executed but position status is '{final_status}' (expected 'closed')"
+                    )
+                # Consistency check: if partial exit, position must still be open with reduced qty
+                if not full_exit and (final_status != "open" or final_qty != new_qty):
+                    raise DatabaseError(
+                        f"Position consistency error: partial exit expected {new_qty} shares and 'open' status, "
+                        f"got {final_qty} shares and '{final_status}'"
+                    )
+
+            # TRANSACTION GUARD 6: Audit log is part of atomic transaction
+            # Failure here causes entire transaction to roll back, preventing orphaned state
             try:
                 cur.execute(
                     """INSERT INTO algo_audit_log (action_type, symbol, action_date,
@@ -1344,10 +1412,14 @@ class TradeExecutor:
                         "success",
                     ),
                 )
+                # Verify audit log insert succeeded (must affect exactly 1 row)
+                if cur.rowcount != 1:
+                    raise DatabaseError(f"Audit log insert failed: expected 1 row, got {cur.rowcount}")
             except (DatabaseError, Exception) as audit_e:
                 logger.critical(
                     f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {type(audit_e).__name__}: {audit_e}"
                 )
+                # Raise error to trigger transaction rollback — audit log failures prevent data integrity
                 raise AuditLogError(f"Failed to log trade exit: {audit_e}") from audit_e
 
             try:
@@ -1412,3 +1484,144 @@ class TradeExecutor:
         except Exception as e:
             logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
             return {"success": False, "message": f"Unexpected error: {type(e).__name__}"}
+
+    def validate_position_against_alpaca(self, symbol: str) -> dict[str, Any]:
+        """Validate that local DB position matches Alpaca position for a symbol.
+
+        Called immediately after order placement to detect partial fills early.
+        If Alpaca has a different quantity than our DB, corrects the DB to match.
+
+        Returns: {
+            'valid': bool,
+            'db_quantity': int,
+            'alpaca_quantity': int,
+            'corrected': bool,
+            'message': str
+        }
+        """
+        try:
+            resp = requests.get(
+                f"{self.alpaca_base_url}/v2/positions/{symbol}",
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_secret,
+                },
+                timeout=get_api_timeout(),
+            )
+
+            if resp.status_code == 404:
+                # Position doesn't exist in Alpaca yet (order not filled)
+                return {
+                    "valid": True,
+                    "db_quantity": None,
+                    "alpaca_quantity": 0,
+                    "corrected": False,
+                    "message": f"{symbol}: position not yet filled in Alpaca",
+                }
+
+            if resp.status_code != 200:
+                return {
+                    "valid": False,
+                    "db_quantity": None,
+                    "alpaca_quantity": None,
+                    "corrected": False,
+                    "message": f"Alpaca /v2/positions/{symbol} returned HTTP {resp.status_code}",
+                }
+
+            alpaca_pos = resp.json()
+            alpaca_qty = int(float(alpaca_pos.get("qty", 0)))
+
+            if alpaca_qty <= 0:
+                return {
+                    "valid": True,
+                    "db_quantity": None,
+                    "alpaca_quantity": 0,
+                    "corrected": False,
+                    "message": f"{symbol}: no position in Alpaca",
+                }
+
+            # Check DB for this position
+            def _check_db_quantity(cur):
+                cur.execute(
+                    """
+                    SELECT entry_quantity FROM algo_trades
+                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
+                    ORDER BY trade_date DESC LIMIT 1
+                """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                return int(row[0]) if row and row[0] else None
+
+            db_qty = self._with_cursor(_check_db_quantity)
+
+            if db_qty is None:
+                # No DB record yet — this is fine (async order, not yet in DB)
+                return {
+                    "valid": True,
+                    "db_quantity": None,
+                    "alpaca_quantity": alpaca_qty,
+                    "corrected": False,
+                    "message": f"{symbol}: position not yet in DB",
+                }
+
+            # Compare quantities
+            if db_qty == alpaca_qty:
+                return {
+                    "valid": True,
+                    "db_quantity": db_qty,
+                    "alpaca_quantity": alpaca_qty,
+                    "corrected": False,
+                    "message": f"{symbol}: quantities match ({alpaca_qty}sh)",
+                }
+
+            # Mismatch detected — correct DB to match Alpaca (source of truth)
+            def _correct_quantity(cur):
+                cur.execute(
+                    """
+                    UPDATE algo_trades
+                    SET entry_quantity = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
+                    ORDER BY trade_date DESC LIMIT 1
+                """,
+                    (alpaca_qty, symbol),
+                )
+                return True
+
+            self._with_cursor(_correct_quantity)
+            logger.warning(
+                f"[POSITION_DRIFT] {symbol}: corrected DB quantity {db_qty} → {alpaca_qty} (Alpaca source of truth)"
+            )
+
+            try:
+                notify(
+                    severity="warning",
+                    title="Position Quantity Corrected",
+                    message=f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} to match Alpaca after partial fill.",
+                    symbol=symbol,
+                    details={
+                        "symbol": symbol,
+                        "db_quantity": db_qty,
+                        "alpaca_quantity": alpaca_qty,
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send position correction alert: {e}")
+
+            return {
+                "valid": False,
+                "db_quantity": db_qty,
+                "alpaca_quantity": alpaca_qty,
+                "corrected": True,
+                "message": f"{symbol}: partial fill detected and corrected ({db_qty} → {alpaca_qty})",
+            }
+
+        except requests.RequestException as e:
+            logger.error(f"[POSITION_VALIDATION] Failed to validate {symbol}: {e}")
+            return {
+                "valid": False,
+                "db_quantity": None,
+                "alpaca_quantity": None,
+                "corrected": False,
+                "message": f"Alpaca connection error: {e}",
+            }
