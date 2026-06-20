@@ -17,20 +17,21 @@ import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
-_metrics_buffer: Dict[str, list] = {}
+_metrics_buffer: dict[str, list] = {}
 
 
 def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> None:
     """Emit duration metric to CloudWatch if AWS SDK available.
 
     Gracefully handles unavailable AWS SDK or credentials (not in AWS env).
-    Logs errors for actual failures (invalid data, API errors).
+    IMPORTANT: CloudWatch failures are logged as ERROR (not silent).
+    Operational observability loss is serious but non-fatal to trading.
     """
     try:
         import boto3
@@ -50,14 +51,18 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
                 }
             ],
         )
+        logger.debug(f"[METRICS] CloudWatch metric emitted for {operation_name}")
     except ImportError:
-        logger.debug("boto3 not available; CloudWatch metrics disabled")
+        logger.debug("[METRICS] boto3 not available; CloudWatch metrics disabled")
     except Exception as e:
         error_msg = str(e).lower()
         if any(phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]):
-            logger.debug(f"AWS credentials unavailable; CloudWatch metrics skipped")
+            logger.debug("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
         else:
-            logger.warning(f"CloudWatch metric failed for {operation_name}: {e}")
+            logger.error(
+                f"[OBSERVABILITY_LOSS] CloudWatch metric failed for {operation_name}: {e}. "
+                f"Operational metrics will not reach CloudWatch. Check AWS credentials and network connectivity."
+            )
 
 
 class TimeBlock:
@@ -153,7 +158,7 @@ def time_operation(operation_name: str, log_level: str = "info"):
         yield timer
 
 
-def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
+def get_metrics_summary() -> dict[str, dict[str, Any]]:
     """
     Get summary statistics of all recorded operations.
 

@@ -15,6 +15,7 @@ import psycopg2.sql
 from routes.utils import error_response
 
 from utils.db.sql_safety import assert_safe_column, assert_safe_table
+from utils.validation import AlpacaResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,32 @@ def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple
     return scoped_sql, {"user_id": user_id}
 
 
+def _validate_credentials_structure(creds: Any) -> bool:
+    """Validate that credentials dict has required Alpaca API fields.
+
+    Args:
+        creds: Credentials dict to validate
+
+    Returns:
+        True if credentials have both 'key' and 'secret' fields, False otherwise
+    """
+    if not isinstance(creds, dict):
+        logger.error(
+            f"[ALPACA] Credentials must be dict, got {type(creds).__name__}"
+        )
+        return False
+
+    if "key" not in creds or not creds["key"]:
+        logger.error("[ALPACA] Credentials missing or empty 'key' field")
+        return False
+
+    if "secret" not in creds or not creds["secret"]:
+        logger.error("[ALPACA] Credentials missing or empty 'secret' field")
+        return False
+
+    return True
+
+
 def get_user_alpaca_credentials(
     cur, user_id: str, default_to_shared: bool = True
 ) -> dict[str, str] | None:
@@ -98,6 +125,7 @@ def get_user_alpaca_credentials(
 
     Attempts to fetch user-scoped Alpaca credentials. Falls back to shared
     credentials if user doesn't have their own (for backward compatibility).
+    Validates credential structure before returning to prevent silent failures.
 
     Args:
         cur: Database cursor
@@ -113,20 +141,44 @@ def get_user_alpaca_credentials(
         logger.debug(
             f"[ALPACA] Attempting to load user-scoped credentials for {user_id}"
         )
-        return get_alpaca_credentials(user_id=user_id)
+        creds = get_alpaca_credentials(user_id=user_id)
+
+        # Validate credentials structure
+        if creds and not _validate_credentials_structure(creds):
+            logger.error(
+                f"[ALPACA] User-scoped credentials for {user_id} failed validation"
+            )
+            if default_to_shared:
+                logger.debug("[ALPACA] Falling back to shared credentials after validation failure")
+                creds = None
+            else:
+                return None
+
+        if creds:
+            return creds
+
     except Exception as e:
         logger.warning(
             f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}"
         )
-        if default_to_shared:
-            logger.debug("[ALPACA] Falling back to shared credentials")
-            try:
-                from config.credential_manager import get_alpaca_credentials
 
-                return get_alpaca_credentials(user_id=None)
-            except Exception as fallback_err:
-                raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
-        return None
+    if default_to_shared:
+        logger.debug("[ALPACA] Falling back to shared credentials")
+        try:
+            from config.credential_manager import get_alpaca_credentials
+
+            creds = get_alpaca_credentials(user_id=None)
+
+            # Validate shared credentials structure
+            if creds and not _validate_credentials_structure(creds):
+                logger.error("[ALPACA] Shared credentials failed validation")
+                return None
+
+            return creds
+        except Exception as fallback_err:
+            raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
+
+    return None
 
 
 def validate_user_resource_access(

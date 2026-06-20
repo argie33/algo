@@ -13,6 +13,7 @@ from routes.utils import (
     safe_json_serialize,
     success_response,
 )
+from utils.validation import DatabaseResultValidator
 
 
 # C-4 FIX: Import route status for health endpoint
@@ -221,17 +222,49 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
             # Get user pool description to find app client
             pool_response = cognito.describe_user_pool(UserPoolId=cognito_user_pool_id)
+
+            # Validate pool response is a dict
+            if not isinstance(pool_response, dict):
+                logger.warning(
+                    f"Invalid Cognito pool response type: {type(pool_response).__name__}"
+                )
+                health["cognito_verification_skipped"] = True
+                return success_response(health)
+
             pool_response.get("UserPool", {})
 
             # List app clients in this user pool
             apps_response = cognito.list_user_pool_clients(
                 UserPoolId=cognito_user_pool_id, MaxResults=10
             )
+
+            # Validate apps response is a dict
+            if not isinstance(apps_response, dict):
+                logger.warning(
+                    f"Invalid Cognito apps response type: {type(apps_response).__name__}"
+                )
+                health["cognito_verification_skipped"] = True
+                return success_response(health)
+
             clients = apps_response.get("UserPoolClients", [])
+
+            # Validate clients is a list
+            if not isinstance(clients, list):
+                logger.warning(
+                    f"Invalid UserPoolClients type: {type(clients).__name__}. Expected list."
+                )
+                health["cognito_verification_skipped"] = True
+                return success_response(health)
 
             # Find matching client
             matching_client = None
             for client in clients:
+                # Validate each client is a dict before accessing
+                if not isinstance(client, dict):
+                    logger.warning(
+                        f"Invalid client type in list: {type(client).__name__}. Skipping."
+                    )
+                    continue
                 if client.get("ClientId") == configured_client_id:
                     matching_client = client
                     break

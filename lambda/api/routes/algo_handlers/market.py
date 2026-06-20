@@ -203,10 +203,13 @@ def _get_data_status(cur) -> dict:
                 if MarketCalendar.is_trading_day(expected_date):
                     break
                 expected_date -= timedelta(days=1)
-        except Exception:
-            # Fallback: weekday check if MarketCalendar unavailable
-            while expected_date.weekday() >= 5:
-                expected_date -= timedelta(days=1)
+        except Exception as e:
+            # Fail fast if MarketCalendar unavailable — weekday check is wrong for holidays
+            raise RuntimeError(
+                f"Data freshness check requires MarketCalendar: {e}. "
+                f"Cannot accurately determine expected data date (weekday check ignores holidays). "
+                f"Data freshness checks will have false positives/negatives if we continue."
+            ) from e
 
         sources = []
         summary = {"ok": 0, "stale": 0, "empty": 0, "error": 0}

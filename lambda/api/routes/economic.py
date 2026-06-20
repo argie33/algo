@@ -16,6 +16,7 @@ from routes.utils import (
     list_response,
     safe_json_serialize,
 )
+from utils.validation import DatabaseResultValidator
 
 
 logger = logging.getLogger(__name__)
@@ -217,13 +218,29 @@ def _get_leading_indicators(cur) -> Dict:
                 FROM latest
                 WHERE rn = 1
             """)
-        latest_rows = {
-            row["series_id"]: (
-                float(row["value"]) if row["value"] else None,
-                row["date"],
+        latest_data = cur.fetchall()
+
+        # Validate latest data
+        if not DatabaseResultValidator.validate_rows_not_empty(
+            latest_data, "economic latest indicators query"
+        ):
+            latest_data = []
+
+        latest_rows = {}
+        for row in latest_data:
+            if row is None:
+                logger.warning("NULL row in economic latest data")
+                continue
+            series_id = row.get("series_id")
+            if not series_id:
+                logger.warning("Row missing series_id in economic latest data")
+                continue
+            # Safely convert value to float
+            value = DatabaseResultValidator.safe_get_float(
+                row, "value", default=None, strict=False
             )
-            for row in cur.fetchall()
-        }
+            date = row.get("date")
+            latest_rows[series_id] = (value, date)
 
         cur.execute("""
                 SELECT series_id, date, value
@@ -232,6 +249,12 @@ def _get_leading_indicators(cur) -> Dict:
                 ORDER BY series_id, date DESC
             """)
         all_history = cur.fetchall()
+
+        # Validate all history data
+        if not DatabaseResultValidator.validate_rows_not_empty(
+            all_history, "economic history query"
+        ):
+            all_history = []
 
         # Group by series_id
         history_by_series = {}

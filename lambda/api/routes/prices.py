@@ -17,6 +17,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+from utils.validation import DatabaseResultValidator
 
 
 logger = logging.getLogger(__name__)
@@ -94,9 +95,26 @@ def handle(
                 rows = execute_with_timeout(
                     cur, batch_query, [symbols, limit], timeout_sec=20
                 )
+
+                # Validate rows is not None and not empty
+                if not DatabaseResultValidator.validate_rows_not_empty(
+                    rows, "prices batch query"
+                ):
+                    rows = []
+
                 found_symbols = set()
                 for row in rows:
-                    sym = row["symbol"]
+                    # Validate row is not None before accessing
+                    if row is None:
+                        logger.warning("NULL row in prices batch query result")
+                        continue
+
+                    # Safely extract symbol
+                    sym = row.get("symbol")
+                    if not sym:
+                        logger.warning("Row missing symbol in prices batch query")
+                        continue
+
                     result[sym].append(safe_json_serialize(dict(row)))
                     found_symbols.add(sym)
 
@@ -114,11 +132,28 @@ def handle(
                         WHERE rn <= %s
                         ORDER BY symbol, date DESC
                     """.format(etf_table_name)
-                    rows = execute_with_timeout(
+                    etf_rows = execute_with_timeout(
                         cur, etf_query, [missing, limit], timeout_sec=20
                     )
-                    for row in rows:
-                        sym = row["symbol"]
+
+                    # Validate ETF rows
+                    if not DatabaseResultValidator.validate_rows_not_empty(
+                        etf_rows, "prices ETF query"
+                    ):
+                        etf_rows = []
+
+                    for row in etf_rows:
+                        # Validate row is not None before accessing
+                        if row is None:
+                            logger.warning("NULL row in prices ETF query result")
+                            continue
+
+                        # Safely extract symbol
+                        sym = row.get("symbol")
+                        if not sym:
+                            logger.warning("Row missing symbol in prices ETF query")
+                            continue
+
                         result[sym].append(safe_json_serialize(dict(row)))
 
                 return json_response(200, {"symbols": result, "limit": limit})

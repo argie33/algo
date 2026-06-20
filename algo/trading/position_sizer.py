@@ -17,6 +17,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 from algo.infrastructure import get_alpaca_timeout
+from algo.trading.exceptions import ConfigurationError, DatabaseError, DataUnavailable
 from utils.db.context import DatabaseContext
 
 
@@ -83,9 +84,9 @@ class PositionSizer:
                 )
         except (ValueError, RuntimeError) as e:
             logger.error(f"Error fetching portfolio snapshot: {e}")
-        except Exception as e:
-            logger.error(f"Database error fetching portfolio snapshot: {type(e).__name__}: {e}")
-            raise
+        except DatabaseError as e:
+            logger.error(f"Database error fetching portfolio snapshot: {e}")
+            raise DataUnavailable(f"Portfolio snapshot unavailable due to database error: {e}") from e
 
         # CRITICAL: No valid portfolio value available. Fail-closed.
         # Better to skip trading than risk wrong position sizing.
@@ -111,7 +112,7 @@ class PositionSizer:
             _creds = _get_cm().get_alpaca_credentials()
             key = _creds.get("key")
             secret = _creds.get("secret")
-        except Exception as e:
+        except (ImportError, AttributeError, KeyError) as e:
             logger.debug(
                 f"Failed to get credentials from credential manager, falling back to env vars: {e}"
             )
@@ -139,7 +140,7 @@ class PositionSizer:
                 if response.status_code == 200:
                     try:
                         data = response.json()
-                    except (ValueError, Exception) as e:
+                    except ValueError as e:
                         raise RuntimeError(f"Invalid JSON response from Alpaca portfolio API: {e}") from e
 
                     if "portfolio_value" in data and data["portfolio_value"] is not None:
@@ -173,8 +174,10 @@ class PositionSizer:
                 raise RuntimeError(
                     f"Portfolio value retrieval failed after {max_retries} attempts: {e}"
                 ) from e
+            except RuntimeError:
+                raise
             except Exception as e:
-                raise RuntimeError(f"Operation failed: {e}") from e
+                raise RuntimeError(f"Alpaca API error: {type(e).__name__}: {e}") from e
         # Should never reach here (all paths raise or return above)
         raise RuntimeError("CRITICAL: Alpaca portfolio value retrieval exhausted all retries without a result.")
 
@@ -343,28 +346,26 @@ class PositionSizer:
 
         B13: Fail-closed — on error, assume high value to prevent over-sizing.
         """
+        def fetch_positions_value(cur):
+            cur.execute("""
+                SELECT COALESCE(SUM(position_value), 0) as total
+                FROM algo_positions
+                WHERE status = 'open'
+            """)
+            result = cur.fetchone()
+            return Decimal(str(result[0])) if result else Decimal(0)
+
         try:
-
-            def fetch_positions_value(cur):
-                cur.execute("""
-                    SELECT COALESCE(SUM(position_value), 0) as total
-                    FROM algo_positions
-                    WHERE status = 'open'
-                """)
-                result = cur.fetchone()
-                return Decimal(str(result[0])) if result else Decimal(0)
-
             result: Any = self._with_cursor(fetch_positions_value)
             if result is not None:
                 return cast(Decimal, result)
             raise RuntimeError("Portfolio value query returned no data")
-        except Exception as e:
-            logger.error(
-                f"ERROR: Could not fetch position values: {e} - failing closed to prevent inaccurate position sizing"
-            )
-            raise RuntimeError(
-                f"Portfolio value unavailable - cannot calculate safe position size: {e}"
-            )
+        except (RuntimeError, ValueError) as e:
+            logger.error(f"Could not fetch position values: {e}")
+            raise DataUnavailable(f"Portfolio value unavailable - cannot calculate safe position size: {e}") from e
+        except DatabaseError as e:
+            logger.error(f"Database error fetching position values: {e}")
+            raise DataUnavailable(f"Portfolio value unavailable due to database error: {e}") from e
 
     def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
@@ -442,13 +443,23 @@ class PositionSizer:
                 signal_date,
                 portfolio_value=portfolio_value,
             )
-        except Exception as e:
+        except (DataUnavailable, ConfigurationError, ValueError) as e:
+            logger.error(f"Position sizing calculation failed: {type(e).__name__}: {e}")
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "error",
                 "reason": str(e),
+            }
+        except Exception as e:
+            logger.exception(f"Unexpected error in position sizing: {type(e).__name__}: {e}")
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "error",
+                "reason": f"Unexpected error: {type(e).__name__}",
             }
 
     def _calculate_with_external_cursor(
@@ -610,11 +621,21 @@ class PositionSizer:
                 "reason": f"{shares} shares @ ${entry_price:.2f} = ${position_value:.2f} ({position_pct_of_portfolio:.1f}%)",
             }
 
-        except Exception as e:
+        except (DataUnavailable, ConfigurationError, ValueError, RuntimeError) as e:
+            logger.error(f"Position calculation failed: {type(e).__name__}: {e}")
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "error",
                 "reason": str(e),
+            }
+        except Exception as e:
+            logger.exception(f"Unexpected error during position calculation: {type(e).__name__}: {e}")
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "error",
+                "reason": f"Unexpected error: {type(e).__name__}",
             }

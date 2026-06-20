@@ -111,7 +111,7 @@ def _validate_webhook_url(url: str) -> bool:
 
 
 class AlertManager:
-    """Send alerts via email and webhook."""
+    """Send alerts via email and webhook. Fails hard if no channels configured."""
 
     def __init__(self):
         self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv(
@@ -125,13 +125,21 @@ class AlertManager:
         self.smtp_user = os.getenv("ALERT_SMTP_USER", "")
         self.smtp_password = self._load_smtp_password()
 
+        # Fail fast if email is configured but incomplete
+        if self.email_to and not (self.smtp_host and self.smtp_user and self.smtp_password):
+            raise RuntimeError(
+                "Email alerts configured (ALERT_EMAIL_TO set) but SMTP credentials incomplete. "
+                "Set ALERT_SMTP_HOST, ALERT_SMTP_USER, ALERT_SMTP_PASSWORD or remove ALERT_EMAIL_TO."
+            )
+
         # SECURITY FIX: Validate webhook URL before using (prevent SSRF)
         webhook_url_raw = os.getenv("ALERT_WEBHOOK_URL", "")
         if webhook_url_raw and not _validate_webhook_url(webhook_url_raw):
-            logger.error(f"[SECURITY] Invalid webhook URL rejected: {webhook_url_raw}")
-            self.webhook_url = ""
-        else:
-            self.webhook_url = webhook_url_raw
+            raise RuntimeError(
+                f"[SECURITY] Invalid webhook URL in ALERT_WEBHOOK_URL: {webhook_url_raw}. "
+                "Must be HTTPS with whitelisted domain (Slack, Teams, Discord)."
+            )
+        self.webhook_url = webhook_url_raw
 
         # SMS via Twilio
         self.phone_numbers = [
@@ -141,37 +149,48 @@ class AlertManager:
         ]
         self.twilio_client = None
         if TWILIO_AVAILABLE and os.getenv("TWILIO_ACCOUNT_SID"):
+            if not os.getenv("TWILIO_AUTH_TOKEN") or not os.getenv("TWILIO_PHONE_NUMBER"):
+                raise RuntimeError(
+                    "Twilio SMS configured (TWILIO_ACCOUNT_SID set) but credentials incomplete. "
+                    "Set TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER or remove TWILIO_ACCOUNT_SID."
+                )
             try:
                 self.twilio_client = TwilioClient(
                     os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
                 )
                 self.twilio_from = os.getenv("TWILIO_PHONE_NUMBER", "")
             except Exception as e:
-                logger.warning(f"Twilio init failed: {e}")
+                raise RuntimeError(f"Twilio client initialization failed: {e}") from e
 
-        # Warn if alerts are not configured for production
+        # Fail fast if no alert channels configured
         if not (self.email_to or self.webhook_url or self.twilio_client):
-            logger.warning(
+            raise RuntimeError(
                 "[ALERT CONFIG] No alert channels configured. "
-                "Set ALERT_EMAIL_TO, ALERT_SMTP_USER, and ALERT_SMTP_PASSWORD for email alerts, "
-                "or ALERT_WEBHOOK_URL for Slack/Teams, "
-                "or Twilio credentials for SMS alerts. "
-                "Without alerts, trading issues will not be notified."
+                "Set at least one of: ALERT_EMAIL_TO + ALERT_SMTP_* (email), "
+                "ALERT_WEBHOOK_URL (Slack/Teams/Discord), or TWILIO_* (SMS). "
+                "Cannot proceed without alert capability."
             )
 
     def _load_smtp_password(self) -> str:
-        """Load SMTP password from environment variable (set by Lambda or via Terraform)."""
-        # Lambda passes ALERT_SMTP_PASSWORD as environment variable
-        # Terraform variable alert_smtp_password → Lambda ALERT_SMTP_PASSWORD
-        return os.getenv("ALERT_SMTP_PASSWORD", "")
+        """Load SMTP password from environment variable. Fails if empty when email is configured."""
+        password = os.getenv("ALERT_SMTP_PASSWORD", "")
+        if not password and os.getenv("ALERT_EMAIL_TO"):
+            raise ValueError(
+                "ALERT_SMTP_PASSWORD not set but ALERT_EMAIL_TO is configured. "
+                "Set ALERT_SMTP_PASSWORD or remove ALERT_EMAIL_TO."
+            )
+        return password
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
-        """Send alert when patrol finds issues.
+        """Send CRITICAL alert when patrol finds issues. Fails hard on send failure.
 
         Args:
             patrol_run_id: ID of patrol run
             counts: dict with keys 'critical', 'error', 'warn', 'info'
             flagged_findings: list of finding dicts with keys check, severity, target, message
+
+        Raises:
+            RuntimeError: If alert sending fails for any configured channel
         """
         critical = counts.get("critical", 0)
         error = counts.get("error", 0)
@@ -213,26 +232,36 @@ class AlertManager:
         # SMS message (short version)
         sms_text = f"[ALGO {severity}] Data Patrol: {critical} critical, {error} error. Check email for details."
 
+        # Data patrol alerts are CRITICAL — they must reach ops or trading should halt.
+        # Fail hard if any send fails (don't silently continue).
+        send_errors = []
+
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
             except Exception as e:
-                logger.error(f"Email alert failed (non-blocking): {e}")
+                send_errors.append(f"Email: {e}")
 
         if self.phone_numbers and self.twilio_client:
             try:
                 self._send_sms(sms_text)
             except Exception as e:
-                logger.error(f"SMS alert failed (non-blocking): {e}")
+                send_errors.append(f"SMS: {e}")
 
         if self.webhook_url:
             try:
                 self._send_webhook(subject, critical, error, warn, flagged_findings)
             except Exception as e:
-                logger.error(f"Webhook alert failed (non-blocking): {e}")
+                send_errors.append(f"Webhook: {e}")
+
+        if send_errors:
+            raise RuntimeError(
+                f"[CRITICAL] Data patrol alert send failed for run {patrol_run_id}: {'; '.join(send_errors)}. "
+                "Ops team may not have received notification of critical data issues."
+            )
 
     def send_position_alert(self, symbol, alert_type, message, details=None):
-        """Send alert for position-related issues.
+        """Send alert for position-related issues. Non-blocking (logs errors only).
 
         Args:
             symbol: stock symbol
@@ -259,16 +288,16 @@ class AlertManager:
             try:
                 self._send_email(subject, body_text)
             except Exception as e:
-                logger.error(f"Email alert failed (non-blocking): {e}")
+                logger.error(f"Position alert email failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
                 self._send_webhook_simple(subject, message, alert_type)
             except Exception as e:
-                logger.error(f"Webhook alert failed (non-blocking): {e}")
+                logger.error(f"Position alert webhook failed (non-blocking): {e}")
 
     def send_loader_alert(self, findings):
-        """Send alert when loader fails or data is stale.
+        """Send alert when loader fails or data is stale. Non-blocking.
 
         Args:
             findings: list of (severity, check, message) tuples from LoaderMonitor
@@ -318,7 +347,7 @@ class AlertManager:
             try:
                 self._send_email(subject, body_text)
             except Exception as e:
-                logger.error(f"Email alert failed (non-blocking): {e}")
+                logger.error(f"Loader alert email failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
@@ -326,10 +355,10 @@ class AlertManager:
                     subject, f"{severity}: Data loaders failing", "LOADER_FAILURE"
                 )
             except Exception as e:
-                logger.error(f"Webhook alert failed (non-blocking): {e}")
+                logger.error(f"Loader alert webhook failed (non-blocking): {e}")
 
     def critical(self, message: str):
-        """Send a generic critical alert.
+        """Send a generic critical alert. Non-blocking.
 
         Args:
             message: Alert message
@@ -343,19 +372,19 @@ class AlertManager:
             try:
                 self._send_email(subject, body_text)
             except Exception as e:
-                logger.error(f"Email alert failed (non-blocking): {e}")
+                logger.error(f"Critical alert email failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
                 self._send_webhook_simple(subject, message, "CRITICAL")
             except Exception as e:
-                logger.error(f"Webhook alert failed (non-blocking): {e}")
+                logger.error(f"Critical alert webhook failed (non-blocking): {e}")
 
         if self.phone_numbers and self.twilio_client:
             try:
                 self._send_sms(f"[ALGO CRITICAL] {message[:160]}")
             except Exception as e:
-                logger.error(f"SMS alert failed (non-blocking): {e}")
+                logger.error(f"Critical alert SMS failed (non-blocking): {e}")
 
     def _send_email(self, subject, body):
         """Send email via SMTP."""
@@ -382,6 +411,7 @@ class AlertManager:
             logger.info(f"Email sent: {subject}")
         except Exception as e:
             logger.error(f"Email failed: {e}")
+            raise
 
     def _send_webhook(self, subject, critical, error, warn, findings):
         """Send Slack-compatible webhook."""
@@ -424,7 +454,8 @@ class AlertManager:
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {subject}")
         except Exception as e:
-            logger.error(f"Webhook delivery failed (non-blocking): {e}")
+            logger.error(f"Webhook delivery failed: {e}")
+            raise
 
     def _send_webhook_simple(self, title, message, alert_type):
         """Send simple Slack webhook for position alerts."""
@@ -452,7 +483,8 @@ class AlertManager:
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {title}")
         except Exception as e:
-            logger.error(f"Webhook delivery failed (non-blocking): {e}")
+            logger.error(f"Webhook delivery failed: {e}")
+            raise
 
     def _send_sms(self, message):
         """Send SMS via Twilio to all configured numbers."""
@@ -467,6 +499,7 @@ class AlertManager:
                 logger.info(f"SMS sent to {phone}")
             except Exception as e:
                 logger.error(f"SMS to {phone} failed: {e}")
+                raise
 
 
 if __name__ == "__main__":

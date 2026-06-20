@@ -24,6 +24,18 @@ import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.reporting import TradeNotificationService, notify
+from algo.trading.exceptions import (
+    AuditLogError,
+    DatabaseError,
+    DuplicatePosition,
+    ExchangeAPIError,
+    NotificationError,
+    OrderExecutionError,
+    OrderRejected,
+    PortfolioValueError,
+    PretradeCheckFailed,
+    TradingError,
+)
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry, StructuredDBLogger
@@ -279,18 +291,16 @@ class TradeExecutor:
                     "message": f"Symbol {symbol} already has an open position. Close it before entering another.",
                     "duplicate": True,
                 }
-        except Exception as e:
-            logger.error(f"Failed to check for duplicate position: {e}")
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "duplicate_check_failed",
-                "message": f"Cannot verify duplicate position status due to database error: {e!s}. Order halted for safety.",
-            }
+        except (DatabaseError, Exception) as e:
+            logger.error(f"Failed to check for duplicate position: {type(e).__name__}: {e}")
+            raise DuplicatePosition(f"Cannot verify duplicate position status: {e!s}. Order halted for safety.") from e
 
         # Compute targets if missing — based on R-multiples from actual stop
-        risk_per_share = entry_price - stop_loss_price
-        if risk_per_share <= 0:
+        # Convert to Decimal BEFORE arithmetic to avoid IEEE 754 precision loss
+        entry_price_dec = Decimal(str(entry_price))
+        stop_price_dec = Decimal(str(stop_loss_price))
+        risk_per_share_decimal = entry_price_dec - stop_price_dec
+        if risk_per_share_decimal <= 0:
             return {
                 "success": False,
                 "trade_id": "",
@@ -298,7 +308,7 @@ class TradeExecutor:
                 "message": f"Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)",
             }
         # Additional guard: stop must be at least 1% below entry (meaningful risk)
-        if stop_loss_price >= entry_price * 0.99:
+        if stop_price_dec >= entry_price_dec * Decimal("0.99"):
             return {
                 "success": False,
                 "trade_id": "",
@@ -307,7 +317,7 @@ class TradeExecutor:
             }
         if target_1_price is None:
             t1_r = float(self.config.get("t1_target_r_multiple", 1.5))
-            target_1_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            target_1_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_1_price <= entry_price:
                 return {
                     "success": False,
@@ -317,7 +327,7 @@ class TradeExecutor:
                 }
         if target_2_price is None:
             t2_r = float(self.config.get("t2_target_r_multiple", 3.0))
-            target_2_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            target_2_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_2_price <= entry_price:
                 return {
                     "success": False,
@@ -327,7 +337,7 @@ class TradeExecutor:
                 }
         if target_3_price is None:
             t3_r = float(self.config.get("t3_target_r_multiple", 4.0))
-            target_3_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            target_3_price = float((Decimal(str(entry_price)) + (risk_per_share_decimal * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_3_price <= entry_price:
                 return {
                     "success": False,
@@ -547,7 +557,7 @@ class TradeExecutor:
                     order_class="bracket",
                 )
                 if not order_result["success"]:
-                    # Alert on Alpaca API failure
+                    # Alert on Alpaca API failure (non-blocking)
                     try:
                         from algo.reporting import AlertManager
 
@@ -557,8 +567,8 @@ class TradeExecutor:
                             "CRITICAL",
                             f'Order submission failed: {order_result.get("message", "Unknown error")}',
                         )
-                    except Exception as e:
-                        logger.warning(f"Failed to send execution failure alert: {e}")
+                    except NotificationError as alert_e:
+                        logger.warning(f"Failed to send execution failure alert (non-blocking): {alert_e}")
                     return {
                         "success": False,
                         "trade_id": trade_id,
@@ -607,15 +617,15 @@ class TradeExecutor:
                 if order_status not in ("filled", "partially_filled"):
                     # Order pending, rejected, or cancelled — don't create position yet
                     if order_status in ("rejected", "cancelled", "expired"):
-                        # B7: Alert on order rejection
+                        # B7: Alert on order rejection (non-blocking)
                         try:
                             notify(
                                 "critical",
                                 title=f"Order {order_status.upper()}: {symbol}",
                                 message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) — {order_status}",
                             )
-                        except Exception as e:
-                            logger.warning(f"Failed to send rejection alert: {e}")
+                        except NotificationError as alert_e:
+                            logger.warning(f"Failed to send rejection alert (non-blocking): {alert_e}")
                         # Alpaca rejected the order
                         return {
                             "success": False,
@@ -833,7 +843,7 @@ class TradeExecutor:
                         side="BUY",
                         execution_latency_ms=execution_latency_ms,
                     )
-                    # Alert if slippage excessive
+                    # Alert if slippage excessive (non-blocking)
                     if "alert" in tca_result:
                         try:
                             alert_data = tca_result["alert"]
@@ -842,12 +852,12 @@ class TradeExecutor:
                                 title=f"TCA Alert: {alert_data['severity']}",
                                 message=alert_data["message"],
                             )
-                        except Exception as alert_e:
-                            logger.warning(f"Failed to send TCA alert: {alert_e}")
-                except Exception as tca_e:
-                    logger.warning(f"TCA recording failed: {tca_e}")
+                        except NotificationError as alert_e:
+                            logger.warning(f"Failed to send TCA alert (non-blocking): {alert_e}")
+                except (DatabaseError, Exception) as tca_e:
+                    logger.warning(f"TCA recording failed: {type(tca_e).__name__}: {tca_e} (non-blocking)")
 
-            # Send trade entry notification
+            # Send trade entry notification (non-blocking)
             try:
                 notif_service = TradeNotificationService()
                 notif_service._send_notification(
@@ -866,8 +876,8 @@ class TradeExecutor:
                         "trade_id": trade_id,
                     },
                 )
-            except Exception as notif_e:
-                logger.warning(f"Failed to send entry notification: {notif_e}")
+            except NotificationError as notif_e:
+                logger.warning(f"Failed to send entry notification (non-blocking): {notif_e}")
 
             return {
                 "success": True,
@@ -884,15 +894,70 @@ class TradeExecutor:
                 "status": "error",
                 "message": "Unknown error",
             }
+        except DuplicatePosition as e:
+            logger.error(f"Trade blocked (duplicate/idempotency): {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "duplicate",
+                "message": str(e),
+                "duplicate": True,
+            }
+        except PretradeCheckFailed as e:
+            logger.error(f"Pre-trade checks failed: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "pretrade_check_failed",
+                "message": str(e),
+            }
+        except PortfolioValueError as e:
+            logger.critical(f"Portfolio value unavailable, trade rejected: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "portfolio_value_unavailable",
+                "message": str(e),
+            }
+        except OrderRejected as e:
+            logger.error(f"Order rejected by Alpaca: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "order_rejected",
+                "message": str(e),
+            }
+        except OrderExecutionError as e:
+            logger.error(f"Order execution failed: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "order_failed",
+                "message": str(e),
+            }
+        except DatabaseError as e:
+            logger.critical(f"Database error during trade execution (order orphan risk): {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "database_error",
+                "message": f"Database operation failed: {e}",
+            }
+        except TradingError as e:
+            logger.error(f"Trading error: {type(e).__name__}: {e}")
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "trading_error",
+                "message": str(e),
+            }
         except Exception as e:
-            # B6: Orphaned order prevention — if Alpaca filled but DB write failed,
-            # cancel the order before rollback to prevent naked position
-            logger.error(f"Trade execution failed: {e}")
+            logger.exception(f"Unexpected error during trade execution: {type(e).__name__}: {e}")
             return {
                 "success": False,
                 "trade_id": "",
                 "status": "error",
-                "message": f"{type(e).__name__}: {e}",
+                "message": f"Unexpected error: {type(e).__name__}",
             }
 
     # ---------- Exit (full or partial) ----------
@@ -985,6 +1050,7 @@ class TradeExecutor:
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
+        cur: Any | None = None,
     ) -> dict[str, Any]:
         """Exit all or part of a position.
 
@@ -995,8 +1061,14 @@ class TradeExecutor:
             exit_fraction: 0 = stop-raise-only (no exit order); 0 < f <= 1 for partial/full exits
             exit_stage: optional 'target_1' | 'target_2' | 'target_3' | 'stop' | 'time' | 'distribution'
             new_stop_price: if provided, raise the stop on the residual shares (trailing stop)
+            cur: Optional existing cursor (for transactional batching). If None, opens own context.
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
+
+        IMPORTANT: Transaction Safety
+        - If cur is provided, operation is part of parent transaction (exit_engine.py flow)
+        - If cur is None, operation opens its own transaction (backward compatibility)
+        - All database writes are atomic within a single transaction
         """
         if exit_fraction == 0:
             if new_stop_price is None:
@@ -1005,8 +1077,8 @@ class TradeExecutor:
                     "message": "stop-raise-only (fraction=0) requires new_stop_price",
                 }
 
-            def _raise_stop(cur):
-                cur.execute(
+            def _raise_stop(cursor):
+                cursor.execute(
                     """UPDATE algo_positions p
                        SET current_stop_price = %s
                        FROM algo_trades t
@@ -1021,7 +1093,7 @@ class TradeExecutor:
                         new_stop_price,
                     ),
                 )
-                updated = cur.rowcount > 0
+                updated = cursor.rowcount > 0
                 return {
                     "success": True,
                     "message": (
@@ -1032,11 +1104,21 @@ class TradeExecutor:
                 }
 
             try:
-                return self._with_cursor(_raise_stop) or {
-                    "success": False,
-                    "message": "Stop raise failed",
-                }
+                if cur is not None:
+                    return _raise_stop(cur) or {
+                        "success": False,
+                        "message": "Stop raise failed",
+                    }
+                else:
+                    return self._with_cursor(_raise_stop) or {
+                        "success": False,
+                        "message": "Stop raise failed",
+                    }
+            except DatabaseError as e:
+                logger.error(f"Database error raising stop: {e}")
+                return {"success": False, "message": f"Database error: {e}"}
             except Exception as e:
+                logger.error(f"Unexpected error raising stop: {type(e).__name__}: {e}")
                 return {"success": False, "message": f"Stop raise failed: {e}"}
 
         if not (0 < exit_fraction <= 1.0):
@@ -1138,8 +1220,8 @@ class TradeExecutor:
                             title=f"EXIT ORDER FAILED: {symbol}",
                             message=f'Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get("message")}',
                         )
-                    except Exception as e:
-                        logger.warning(f"Failed to send exit failure alert: {e}")
+                    except NotificationError as e:
+                        logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
                     return {
                         "success": False,
                         "message": f'Exit order failed: {exit_order_result.get("message")}',
@@ -1263,11 +1345,11 @@ class TradeExecutor:
                         "success",
                     ),
                 )
-            except Exception as audit_e:
+            except (DatabaseError, Exception) as audit_e:
                 logger.critical(
-                    f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {audit_e}"
+                    f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {type(audit_e).__name__}: {audit_e}"
                 )
-                raise
+                raise AuditLogError(f"Failed to log trade exit: {audit_e}") from audit_e
 
             try:
                 notif_service = TradeNotificationService()
@@ -1287,8 +1369,8 @@ class TradeExecutor:
                         "trade_id": trade_id,
                     },
                 )
-            except Exception as notif_e:
-                logger.warning(f"Failed to send exit notification: {notif_e}")
+            except NotificationError as notif_e:
+                logger.warning(f"Failed to send exit notification (non-blocking): {notif_e}")
 
             return {
                 "success": True,
@@ -1305,15 +1387,32 @@ class TradeExecutor:
             }
 
         try:
-            return self._with_cursor(_execute_exit) or {
-                "success": False,
-                "trade_id": "",
-                "status": "error",
-                "message": "Unknown error",
-            }
+            if cur is not None:
+                return _execute_exit(cur) or {
+                    "success": False,
+                    "trade_id": "",
+                    "status": "error",
+                    "message": "Unknown error",
+                }
+            else:
+                return self._with_cursor(_execute_exit) or {
+                    "success": False,
+                    "trade_id": "",
+                    "status": "error",
+                    "message": "Unknown error",
+                }
+        except AuditLogError as e:
+            logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
+            return {"success": False, "message": f"Audit log failure: {e}"}
+        except DatabaseError as e:
+            logger.error(f"Database error during trade exit: {e}")
+            return {"success": False, "message": f"Database error: {e}"}
+        except TradingError as e:
+            logger.error(f"Trading error during exit: {type(e).__name__}: {e}")
+            return {"success": False, "message": str(e)}
         except Exception as e:
-            logger.error(f"Trade exit failed: {e}")
-            return {"success": False, "message": f"{type(e).__name__}: {e}"}
+            logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
+            return {"success": False, "message": f"Unexpected error: {type(e).__name__}"}
 
     # ---------- Helpers ----------
 
@@ -1468,9 +1567,11 @@ class TradeExecutor:
                     }
                 else:
                     # Default: T1 at 1.5R as the take-profit leg
-                    risk = entry_price - stop_loss_price
-                    if risk > 0:
-                        tp = entry_price + (1.5 * risk)
+                    # Use Decimal for precision
+                    risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
+                    if risk_dec > 0:
+                        tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
+                        tp = float(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
                         order_data["take_profit"] = {
                             "limit_price": str(round(tp, 2)),
                         }

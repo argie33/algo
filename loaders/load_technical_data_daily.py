@@ -286,6 +286,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         # Mansfield Relative Strength: (rs_line / 52wk_ma_of_rs_line - 1) * 100
         # rs_line = close / spy_close; requires SPY prices aligned to same dates
         if spy_rows:
+            import numpy as np
             from algo.infrastructure.market_calendar import US_HOLIDAYS
 
             spy_df = pd.DataFrame(spy_rows)
@@ -296,10 +297,35 @@ class TechnicalDataDailyLoader(OptimalLoader):
             cbd = CustomBusinessDay(holidays=holidays)
             target_index = pd.DatetimeIndex(df["date"].values, freq=cbd)
             spy_aligned = spy_closes.reindex(target_index)
-            rs_line = df["close"].values / spy_aligned.values
-            rs_line_s = pd.Series(rs_line, index=df.index)
-            rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
-            df["mansfield_rs"] = (rs_line_s / rs_line_52w_ma - 1) * 100
+
+            # Defensive check: zero or NaN SPY prices would cause division by zero
+            if (spy_aligned == 0).any() or spy_aligned.isna().all():
+                logger.warning(
+                    f"[{symbol}] SPY alignment invalid (zeros or all NaN) — cannot compute Mansfield RS"
+                )
+                df["mansfield_rs"] = None
+            else:
+                # Forward-fill NaN values from missing SPY dates to avoid division by zero
+                spy_filled = spy_aligned.fillna(method='pad')
+                rs_line = df["close"].values / spy_filled.values
+                rs_line_s = pd.Series(rs_line, index=df.index)
+                # Replace infinities with NaN
+                rs_line_s = rs_line_s.replace([np.inf, -np.inf], np.nan)
+
+                rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
+
+                # Defensive check: if rolling mean is all NaN, can't compute ratio
+                if rs_line_52w_ma.isna().all():
+                    logger.debug(
+                        f"[{symbol}] Insufficient RS history for 52-week MA (need 126+ days)"
+                    )
+                    df["mansfield_rs"] = None
+                else:
+                    # Only compute where both rs_line and its MA are valid (avoid NaN division)
+                    mansfield_result = (rs_line_s / rs_line_52w_ma - 1) * 100
+                    # Replace infinities with NaN (safeguard against edge cases)
+                    mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
+                    df["mansfield_rs"] = mansfield_result
         else:
             df["mansfield_rs"] = None
 

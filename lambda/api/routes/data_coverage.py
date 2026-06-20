@@ -55,7 +55,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
 
         row = rows[0] if rows else None
         if not row:
-            return error_response(500, "no_data_error", "No price data available")
+            return error_response(503, "no_data", "Price data not yet available")
 
         total_symbols = row["total_symbols"]
         sp500_total = row["sp500_total"]
@@ -89,16 +89,10 @@ def get_price_coverage(cur) -> Dict[str, Any]:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
-        logger.error(f"[PRICE_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
-    except Exception as e:
-        logger.error(f"[PRICE_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
+        code, error_type, message = handle_db_error(e, "get price coverage")
+        return error_response(code, error_type, message)
 
 
 def get_technical_coverage(cur) -> Dict[str, Any]:
@@ -120,7 +114,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return error_response(500, "no_data_error", "No technical data available")
+            return error_response(503, "no_data", "Technical data not yet available")
 
         symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
@@ -149,16 +143,10 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
-        logger.error(f"[TECHNICAL_COVERAGE] Database error: {type(e).__name__}: {e}")
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
-    except Exception as e:
-        logger.error(f"[TECHNICAL_COVERAGE] Unexpected error: {type(e).__name__}: {e}")
-        return error_response(
-            500, "data_processing_error", "Failed to retrieve data coverage"
-        )
+        code, error_type, message = handle_db_error(e, "get technical coverage")
+        return error_response(code, error_type, message)
 
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:

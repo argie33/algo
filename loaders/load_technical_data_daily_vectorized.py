@@ -282,21 +282,41 @@ class VectorizedTechnicalLoader:
                         spy_df["date"] = pd.to_datetime(spy_df["date"])
                         spy_closes = spy_df.set_index("date")["close"]
 
-                        holidays = list(US_HOLIDAYS.keys())
-                        cbd = CustomBusinessDay(holidays=holidays)
-                        target_index = pd.DatetimeIndex(
-                            symbol_df["date"].values, freq=cbd
-                        )
-                        spy_aligned = spy_closes.reindex(target_index)
+                        # Defensive check: zero or all-NaN SPY prices would cause division by zero
+                        if (spy_closes == 0).any() or spy_closes.isna().all():
+                            logger.debug(f"SPY alignment invalid for {symbol} (zeros or all NaN)")
+                            symbol_df["mansfield_rs"] = None
+                        else:
+                            import numpy as np
+                            holidays = list(US_HOLIDAYS.keys())
+                            cbd = CustomBusinessDay(holidays=holidays)
+                            target_index = pd.DatetimeIndex(
+                                symbol_df["date"].values, freq=cbd
+                            )
+                            spy_aligned = spy_closes.reindex(target_index)
 
-                        rs_line = symbol_df["close"].values / spy_aligned.values
-                        rs_line_s = pd.Series(rs_line, index=symbol_df.index)
-                        rs_line_52w_ma = rs_line_s.rolling(
-                            window=252, min_periods=126
-                        ).mean()
-                        symbol_df["mansfield_rs"] = (
-                            rs_line_s / rs_line_52w_ma - 1
-                        ) * 100
+                            # Forward-fill NaN values from missing SPY dates
+                            spy_filled = spy_aligned.fillna(method='pad')
+                            rs_line = symbol_df["close"].values / spy_filled.values
+                            rs_line_s = pd.Series(rs_line, index=symbol_df.index)
+                            # Replace infinities with NaN
+                            rs_line_s = rs_line_s.replace([np.inf, -np.inf], np.nan)
+
+                            rs_line_52w_ma = rs_line_s.rolling(
+                                window=252, min_periods=126
+                            ).mean()
+
+                            # Only compute if rolling mean is not all NaN
+                            if rs_line_52w_ma.isna().all():
+                                logger.debug(f"Insufficient RS history for {symbol} (need 126+ days)")
+                                symbol_df["mansfield_rs"] = None
+                            else:
+                                mansfield_result = (
+                                    rs_line_s / rs_line_52w_ma - 1
+                                ) * 100
+                                # Replace infinities with NaN
+                                mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
+                                symbol_df["mansfield_rs"] = mansfield_result
                 except Exception as e:
                     logger.debug(f"Could not compute Mansfield RS for {symbol} (optional enrichment): {e}")
                     symbol_df["mansfield_rs"] = None

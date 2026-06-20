@@ -24,18 +24,14 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+from utils.validation import CognitoValidator
 
 
 logger = logging.getLogger(__name__)
 
 
 def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    return "admin" in groups
+    return CognitoValidator.validate_admin_access(jwt_claims)
 
 
 def handle(

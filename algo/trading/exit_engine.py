@@ -27,6 +27,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 import requests
 
+from algo.trading.exceptions import DatabaseError, DataUnavailable, ExchangeAPIError
 from utils.db import DatabaseContext
 
 
@@ -201,7 +202,8 @@ class ExitEngine:
                         logger.info(f"      (exit {int(fraction*100)}%)")
 
                     # Route through executor for all cases (stop-raise-only when fraction=0)
-                    # This ensures audit logging and atomic updates for all position changes
+                    # Pass cursor for transactional integrity: all exit updates in same transaction
+                    # as position queries and state checks above (prevents orphaned state)
                     result = self.executor.exit_trade(
                         trade_id=trade_id,
                         exit_price=cur_price if fraction > 0 else None,
@@ -209,6 +211,7 @@ class ExitEngine:
                         exit_fraction=fraction,  # 0 for stop-raise-only
                         exit_stage=stage,
                         new_stop_price=new_stop,
+                        cur=cur,
                     )
                     if fraction == 0 and result.get("success"):
                         logger.info(f"      -> Stop raised to ${new_stop:.2f}")
@@ -236,15 +239,18 @@ class ExitEngine:
                     for (trade_id,) in closed_trades:
                         if auditor:
                             auditor.audit_exit(trade_id)
-                except Exception as audit_err:
-                    logger.error(f"Warning: Failed to audit closed trades: {audit_err}")
+                except (DatabaseError, ValueError) as audit_err:
+                    logger.error(f"Warning: Failed to audit closed trades (non-blocking): {type(audit_err).__name__}: {audit_err}")
 
                 return exits_executed
+            except (ValueError, RuntimeError) as e:
+                logger.error(f"Exit engine error (configuration or data): {type(e).__name__}: {e}")
+                raise
+            except DatabaseError as e:
+                logger.critical(f"Exit engine database error (halting): {e}")
+                raise
             except Exception as e:
-                logger.error(f"Error in exit engine: {e}")
-                import traceback
-
-                traceback.print_exc()
+                logger.exception(f"Unexpected error in exit engine: {type(e).__name__}: {e}")
                 raise
 
     # ---------- Decision logic ----------
@@ -572,10 +578,14 @@ class ExitEngine:
                 raise RuntimeError(
                     f"Alpaca quote API error for {symbol}: status {response.status_code}"
                 )
-        except requests.Timeout:
-            raise RuntimeError(f"Alpaca quote API timeout for {symbol}")
+        except requests.Timeout as e:
+            raise ExchangeAPIError(f"Alpaca quote API timeout for {symbol}") from e
+        except requests.RequestException as e:
+            raise ExchangeAPIError(f"Alpaca quote API request error for {symbol}: {e}") from e
+        except (RuntimeError, ValueError):
+            raise
         except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise ExchangeAPIError(f"Alpaca quote API error for {symbol}: {type(e).__name__}: {e}") from e
 
     def _fetch_recent_prices(
         self, cur, symbol: str, current_date

@@ -24,6 +24,7 @@ from routes.utils import (
     list_response,
     safe_limit,
 )
+from utils.validation import CognitoValidator
 
 
 logger = logging.getLogger(__name__)
@@ -31,12 +32,7 @@ logger = logging.getLogger(__name__)
 
 def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    return "admin" in groups
+    return CognitoValidator.validate_admin_access(jwt_claims)
 
 
 def handle(

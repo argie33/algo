@@ -25,6 +25,7 @@ from routes.utils import (
 # setup_imports is imported by parent module (lambda_function or api_router),
 # so utils is already available in sys.path
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
+from utils.validation import CognitoValidator
 
 
 logger = logging.getLogger(__name__)
@@ -35,18 +36,9 @@ def _check_admin_access(jwt_claims: dict) -> bool:
 
     Checks the 'cognito:groups' claim for 'admin' group membership.
     Never trust role from query params - only from JWT signature.
+    Validates JWT claims structure before checking group membership.
     """
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    is_admin = "admin" in groups
-    if not is_admin:
-        logger.info(
-            f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}"
-        )
-    return is_admin
+    return CognitoValidator.validate_admin_access(jwt_claims)
 
 
 def _audit_log_admin_action(
@@ -441,11 +433,40 @@ def _verify_user_email(body: dict | None = None) -> dict:
         username = req.username
 
         # Update user attributes to mark email as verified
-        cognito_client.admin_update_user_attributes(
+        response = cognito_client.admin_update_user_attributes(
             UserPoolId=cognito_user_pool_id,
             Username=username,
             UserAttributes=[{"Name": "email_verified", "Value": "true"}],
         )
+
+        # Validate Cognito response
+        if not isinstance(response, dict):
+            logger.error(
+                f"Invalid Cognito response type: {type(response).__name__}. "
+                f"Expected dict."
+            )
+            return error_response(
+                503, "cognito_error", "Invalid response from Cognito service"
+            )
+
+        # Check for error in response
+        if response.get("Error"):
+            error_msg = response["Error"].get("Message", "Unknown error")
+            logger.error(f"Cognito error: {error_msg}")
+            return error_response(503, "cognito_error", f"Cognito error: {error_msg}")
+
+        # Verify HTTP status indicates success
+        http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        if http_status not in (200, 201):
+            logger.error(
+                f"Cognito returned unexpected status code: {http_status}. "
+                f"Expected 200 or 201."
+            )
+            return error_response(
+                503,
+                "cognito_error",
+                f"Cognito operation failed with status {http_status}",
+            )
 
         logger.info(f"Email verified for user: {username}")
         return json_response(

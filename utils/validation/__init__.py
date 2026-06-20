@@ -15,6 +15,11 @@ inline try/except or silent defaults elsewhere in the codebase.
 from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 from .domain import create_default_registry
+from .external_services import (
+    CognitoValidator,
+    DatabaseResultValidator,
+    DynamoDBValidator,
+)
 from .framework import (
     EASTERN_TZ,
     EnumValidator,
@@ -91,6 +96,9 @@ __all__ = [
     "get_freshness_rule",
     "AlpacaResponseValidator",
     "APIResponseValidator",
+    "CognitoValidator",
+    "DynamoDBValidator",
+    "DatabaseResultValidator",
     "validate_table_schema",
     "RateLimitValidator",
     "ParallelismValidator",

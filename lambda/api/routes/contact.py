@@ -20,16 +20,12 @@ from routes.utils import (
     list_response,
     safe_limit,
 )
+from utils.validation import CognitoValidator, DynamoDBValidator
 
 
 def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    return "admin" in groups
+    return CognitoValidator.validate_admin_access(jwt_claims)
 
 
 logger = logging.getLogger(__name__)
@@ -81,31 +77,67 @@ def _is_contact_spam(email: str) -> bool:
         # SECURITY S-03: Perform all operations regardless of result to prevent timing attacks
         # Even if email not in DB, we do a full DynamoDB roundtrip to avoid timing differences
         response = table.get_item(Key={"email": email_hash})
-        item = response.get("Item", {})
+
+        # Validate get_item response
+        validation = DynamoDBValidator.validate_get_item_response(response)
+        if not validation["valid"]:
+            DynamoDBValidator.log_validation_errors(validation["errors"], "contact spam check")
+            logger.error(
+                f"DynamoDB get_item validation failed: {validation['errors']}. Rejecting request for safety."
+            )
+            return True  # Fail safe: reject if we can't verify rate limit
+
+        item = validation["item"] or {}
         submission_times = item.get("submission_times", [])
-        recent_submissions = [t for t in submission_times if t > window_start]
+
+        # Validate submission_times is a list
+        if not isinstance(submission_times, list):
+            logger.error(
+                f"Invalid submission_times type: {type(submission_times).__name__}. Expected list."
+            )
+            return True  # Fail safe
+
+        recent_submissions = [t for t in submission_times if isinstance(t, int) and t > window_start]
 
         is_rate_limited = len(recent_submissions) >= CONTACT_RATE_LIMIT_REQUESTS
 
         if not is_rate_limited:
             # Not rate limited - add this submission
             recent_submissions.append(now)
-            table.put_item(
+            put_response = table.put_item(
                 Item={
                     "email": email_hash,
                     "submission_times": recent_submissions,
                     "ttl": now + CONTACT_RATE_LIMIT_WINDOW,
                 }
             )
+            # Validate put_item response
+            put_validation = DynamoDBValidator.validate_put_item_response(put_response)
+            if not put_validation["valid"]:
+                DynamoDBValidator.log_validation_errors(
+                    put_validation["errors"], "contact spam check - put"
+                )
+                logger.error(
+                    f"DynamoDB put_item validation failed: {put_validation['errors']}"
+                )
         else:
             # Rate limited - still do a write operation to mask timing
             # Write a dummy update (no-op, same data) to keep DynamoDB latency consistent
-            table.update_item(
+            update_response = table.update_item(
                 Key={"email": email_hash},
                 UpdateExpression="SET #ts = :ts",
                 ExpressionAttributeNames={"#ts": "submission_times"},
                 ExpressionAttributeValues={":ts": submission_times},
             )
+            # Validate update_item response
+            update_validation = DynamoDBValidator.validate_update_item_response(update_response)
+            if not update_validation["valid"]:
+                DynamoDBValidator.log_validation_errors(
+                    update_validation["errors"], "contact spam check - update"
+                )
+                logger.error(
+                    f"DynamoDB update_item validation failed: {update_validation['errors']}"
+                )
 
         # SECURITY S-03: Use constant-time comparison (HMAC) to prevent timing leak
         # Since result is the same either way (200 OK with success message),

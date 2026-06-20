@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
+import json
 import logging
 import statistics
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
+
+import psycopg2
+import requests
 
 from algo.reporting import notify
 from config.alpaca_config import get_alpaca_base_url
@@ -37,7 +41,7 @@ class DailyReconciliation:
                 raise ValueError("Alpaca base URL not configured")
 
             self.trading_client = True  # Signals credentials are available
-        except Exception as e:
+        except (KeyError, ValueError, AttributeError) as e:
             logger.critical(f"Alpaca credential initialization FAILED: {e}")
             try:
                 notify(
@@ -45,8 +49,8 @@ class DailyReconciliation:
                     title="Reconciliation Initialization Failed",
                     message=f"Alpaca credentials unavailable: {e}. Reconciliation cannot proceed.",
                 )
-            except Exception as notify_e:
-                logger.warning(f"Failed to send credential failure notification: {notify_e}")
+            except Exception:
+                logger.warning("Failed to send credential failure notification")
             raise ValueError(f"Alpaca credential initialization failed: {e}") from e
 
     def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
@@ -555,7 +559,7 @@ class DailyReconciliation:
                 "unrealized_pnl": unrealized_pnl,
             }
 
-        except Exception as e:
+        except (ValueError, requests.RequestException, json.JSONDecodeError, KeyError, TypeError) as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -709,7 +713,7 @@ class DailyReconciliation:
                     logger.info(
                         f"   Exit fill reconciled: {symbol} {trade_id} @ ${filled_price:.2f} ({pnl_pct:.1f}%)"
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, ValueError, TypeError) as e:
                     cur.execute("ROLLBACK TO SAVEPOINT reconcile_fill")
                     logger.warning(f"   Exit fill reconcile failed for {symbol}: {e}")
 
@@ -717,7 +721,7 @@ class DailyReconciliation:
                 "updated": updated,
                 "message": f"Reconciled {updated} exit fills with actual Alpaca prices",
             }
-        except Exception as e:
+        except (requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
             logger.warning(f"Exit fill reconciliation error: {e}")
             return {"updated": 0, "message": f"Error: {e}"}
 
@@ -780,7 +784,7 @@ class DailyReconciliation:
                 "stale_count": 0,
                 "message": "All estimated prices reconciled",
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, ValueError, TypeError) as e:
             logger.error(f"Stale price audit failed: {e}")
             return {"status": "ERROR", "error": str(e)}
 
@@ -825,7 +829,7 @@ class DailyReconciliation:
                     self.__dict__.update(d)
 
             alpaca_positions = [_Pos(p) for p in raw_positions]
-        except Exception as e:
+        except (requests.RequestException, json.JSONDecodeError, KeyError, TypeError) as e:
             return {"imported": 0, "orphaned": 0, "message": f"Fetch failed: {e}"}
 
         # Check both algo_positions and algo_trades for open positions
@@ -874,7 +878,7 @@ class DailyReconciliation:
                 if row is not None:
                     db_qty = int(row[0]) if row[0] is not None else 0
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
-                    qty_int = int(round(qty))
+                    qty_int = round(qty)
                     if abs(db_qty - qty_int) > 0:
                         # Alpaca is the source of truth — correct the DB quantity
                         try:
@@ -885,7 +889,7 @@ class DailyReconciliation:
                             logger.warning(
                                 f"[RECONCILE] Corrected {sym} quantity: DB had {db_qty}, Alpaca has {qty_int}"
                             )
-                        except Exception as e:
+                        except psycopg2.DatabaseError as e:
                             logger.error(f"  Could not correct {sym} quantity in DB: {e}")
                         try:
                             notify(
@@ -1516,7 +1520,7 @@ class DailyReconciliation:
                 exit_date,
                 entry_price,
                 exit_price,
-                r_mult,
+                _r_mult,
             ) in trades_to_update:
                 try:
                     cur.execute("SAVEPOINT mae_mfe_update")
@@ -1629,7 +1633,7 @@ class DailyReconciliation:
                 exit_date,
                 exit_price,
                 est_price,
-                recon_at,
+                _recon_at,
                 note,
             ) in pending:
                 variance_pct = None

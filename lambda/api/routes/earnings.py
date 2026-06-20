@@ -15,6 +15,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+from utils.validation import DatabaseResultValidator
 
 
 logger = logging.getLogger(__name__)
@@ -56,11 +57,18 @@ def handle(
                 (symbol.upper(), limit),
                 timeout_sec=3,
             )
+
+            # Validate rows
+            if not DatabaseResultValidator.validate_rows_not_empty(
+                rows, "earnings history query"
+            ):
+                rows = []
+
             freshness = check_data_freshness(
                 cur, "earnings_history", "earnings_date", warning_days=7
             )
             return list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
 
@@ -84,11 +92,16 @@ def handle(
             (limit,),
             timeout_sec=5,
         )
+
+        # Validate rows
+        if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings all query"):
+            rows = []
+
         freshness = check_data_freshness(
             cur, "earnings_history", "earnings_date", warning_days=7
         )
         return list_response(
-            [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+            [safe_json_serialize(dict(r)) for r in rows],
             data_freshness=freshness,
         )
     except (

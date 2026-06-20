@@ -20,7 +20,7 @@ from utils.rate_limiting import (
     check_admin_rate_limit,
     check_public_rate_limit,
 )
-from utils.validation import safe_float_strict
+from utils.validation import CognitoValidator, safe_float_strict
 
 from .algo_handlers.config import (
     _get_algo_config,
@@ -99,12 +99,7 @@ logger = logging.getLogger(__name__)
 
 def _check_admin_access(jwt_claims: dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    return "admin" in groups
+    return CognitoValidator.validate_admin_access(jwt_claims)
 
 
 def handle(
