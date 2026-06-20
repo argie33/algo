@@ -1122,7 +1122,7 @@ class PriceLoader(OptimalLoader):
                     from algo.reporting import MetricsPublisher
 
                     metrics = MetricsPublisher()
-                    metrics.add_metric(  # type: ignore
+                    metrics.add_metric(
                         "RateLimitErrors",
                         1,
                         unit="Count",
