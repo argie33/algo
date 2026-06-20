@@ -50,9 +50,33 @@ class DailyReconciliation:
             raise ValueError(f"Alpaca credential initialization failed: {e}") from e
 
     def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
-        """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data."""
+        """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
+
+        CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable
+        to prevent accidental trading with mock portfolio values if the flag is misconfigured.
+        """
         if dry_run:
-            logger.info("[RECONCILIATION] DRY RUN: Returning mock portfolio snapshot")
+            import os
+
+            dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "false").strip().lower() in (
+                "true", "1", "yes"
+            )
+            if not dry_run_enabled:
+                logger.critical(
+                    "[RECONCILIATION SAFETY GATE FAILED] dry_run=True passed but ORCHESTRATOR_DRY_RUN environment variable not explicitly set. "
+                    "Refusing to return mock portfolio data to prevent accidental trading with fake values. "
+                    "This is a critical safety check. If you intentionally want dry run mode, set ORCHESTRATOR_DRY_RUN=true"
+                )
+                raise ValueError(
+                    "CRITICAL: dry_run=True but ORCHESTRATOR_DRY_RUN not enabled. "
+                    "Mock data rejected to prevent accidental trading. Set ORCHESTRATOR_DRY_RUN=true to enable dry-run mode."
+                )
+
+            logger.warning(
+                "[RECONCILIATION] DRY RUN ACTIVE: Returning mock portfolio snapshot. "
+                "This is for testing only — all returned data is synthetic. "
+                "ENSURE ORCHESTRATOR_DRY_RUN is set to false in production."
+            )
             return {
                 "success": True,
                 "portfolio_value": 100000.0,
@@ -62,6 +86,7 @@ class DailyReconciliation:
                 "unrealized_pnl_pct": 0.0,
                 "trades_closed_today": [],
                 "snapshot_date": reconcile_date or datetime.now(timezone.utc).date(),
+                "_is_mock_data": True,
             }
 
         if not reconcile_date:

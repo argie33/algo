@@ -42,6 +42,14 @@ def run(
         reconciliation_succeeded = result.get("success", False)
         status = "success" if reconciliation_succeeded else "error"
 
+        # CRITICAL: Detect and warn if mock data is being returned (indicates dry run mode)
+        if result.get("_is_mock_data", False):
+            logger.critical(
+                "[PHASE 7 SAFETY] Mock data detected in reconciliation result. "
+                "This indicates dry_run mode is active. Portfolio value and cash are SYNTHETIC. "
+                "Verify this is intentional and ORCHESTRATOR_DRY_RUN is set in the environment."
+            )
+
         if reconciliation_succeeded:
             required_keys = ["portfolio_value", "positions", "unrealized_pnl"]
             missing_keys = [k for k in required_keys if k not in result or result[k] is None]

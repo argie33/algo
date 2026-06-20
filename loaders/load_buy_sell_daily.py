@@ -242,15 +242,12 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # Require at least 3000 symbols with prices before generating signals
                 if price_coverage_symbols < 3000:
-                    logger.warning(
+                    raise RuntimeError(
                         f"{symbol}: price_daily incomplete for {end}: only "
                         f"{price_coverage_symbols} symbols (expected >= 3000). "
-                        "Rejecting all signals until stock_prices_daily completes."
+                        "Cannot generate signals without sufficient price data coverage. "
+                        "Verify stock_prices_daily loader completed successfully."
                     )
-                    self._log_rejection_if_available(
-                        symbol, end, "price_daily_incomplete_coverage"
-                    )
-                    return []
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (
                     (tech_coverage_symbols / price_coverage_symbols * 100)
