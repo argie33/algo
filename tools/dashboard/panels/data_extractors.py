@@ -71,10 +71,14 @@ def safe_get_field(data: dict[str, Any], field: str, default: Any = None) -> Any
 
 # Extract common field accessors as functions to reduce repetition in panels
 def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
-    """Extract common config display parameters."""
+    """Extract common config display parameters.
+
+    Returns dict with all required config fields. No defaults—validation already
+    confirmed data presence at API boundary layer.
+    """
     return {
-        "mode": cfg.get("mode", "?"),
-        "enabled": cfg.get("enabled", True),
+        "mode": cfg["mode"],
+        "enabled": cfg["enabled"],
         "max_pos_n": cfg.get("max_pos_n"),
         "max_sec_n": cfg.get("max_sec_n"),
         "min_score": cfg.get("min_score"),
@@ -84,8 +88,12 @@ def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
-    """Extract risk metrics for display (only if valid data)."""
-    if not isinstance(risk, dict):
+    """Extract risk metrics for display (only if valid data).
+
+    Returns zero-filled dict only for optional metrics. Required fields
+    are guaranteed by validation at API boundary.
+    """
+    if not isinstance(risk, dict) or has_error(risk):
         return {}
     return {
         "var95": risk.get("var95", 0),
@@ -97,12 +105,16 @@ def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
-    """Extract run status info (error already checked)."""
-    if not isinstance(run, dict):
-        return {"success": False, "halted": False, "run_at": None}
+    """Extract run status info (error already checked).
+
+    Returns only for valid run data. If error present, caller should
+    have already checked has_error() and returned error panel.
+    """
+    if not isinstance(run, dict) or has_error(run):
+        return {}
     return {
-        "success": run.get("success", False),
-        "halted": run.get("halted", False),
+        "success": run["success"],
+        "halted": run["halted"],
         "errored": run.get("errored", False),
         "run_at": run.get("run_at"),
         "run_id": run.get("run_id"),

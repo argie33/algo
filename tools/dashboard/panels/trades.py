@@ -43,7 +43,7 @@ def _extract_items(data: Any) -> list:
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
-        return data.get("items") or data.get("trades") or []
+        return data.get("items") or data.get("trades", [])
     return []
 
 

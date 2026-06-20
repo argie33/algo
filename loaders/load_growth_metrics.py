@@ -91,7 +91,7 @@ class GrowthMetricsLoader(OptimalLoader):
             # EPS growth
             if len(all_years) > lookback and all_years[idx] and latest_eps:
                 _prev_year2, _prev_rev2, prev_eps = all_years[idx]
-                if prev_eps and prev_eps > 0:
+                if prev_eps and prev_eps > 0 and float(latest_eps) > 0:
                     # Convert to float to support Decimal types from database
                     latest_eps_f = float(latest_eps)
                     prev_eps_f = float(prev_eps)

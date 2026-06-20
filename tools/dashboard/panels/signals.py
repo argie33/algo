@@ -57,8 +57,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = (scores or {}).get("top") or []
-    buy_sigs = sig.get("buy_sigs") or []
+    top_scores = (scores or {}).get("top", [])
+    buy_sigs = sig.get("buy_sigs", [])
     total_screened = sig.get("total", 0)
     is_placeholder = (
         not top_scores
@@ -81,10 +81,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             ds = str(d)[:10]
     else:
         ds = "--"
-    g = sig.get("grades") or {}
+    g = sig.get("grades", {})
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
-    top_a = sig.get("top_a") or []
-    near = sig.get("near") or []
+    top_a = sig.get("top_a", [])
+    near = sig.get("near", [])
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
@@ -110,10 +110,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
-    trend = sig.get("trend") or []
+    trend = sig.get("trend", [])
     spark_s = ""
     if len(trend) >= 2:
-        counts = [int(t.get("buy_n") or 0) for t in reversed(trend)]
+        counts = [int(t.get("buy_n", 0)) for t in reversed(trend)]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
@@ -152,15 +152,15 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not sig_eval.get("_error"):
-        ev_tot = sig_eval.get("total") or 0
+        ev_tot = sig_eval.get("total", 0)
         ev_t1 = sig_eval.get("t1")
         ev_t2 = sig_eval.get("t2")
         ev_t3 = sig_eval.get("t3")
         ev_t4 = sig_eval.get("t4")
-        ev_t5 = sig_eval.get("t5") or 0
-        ev_avg = sig_eval.get("avg_score") or 0
+        ev_t5 = sig_eval.get("t5", 0)
+        ev_avg = sig_eval.get("avg_score", 0)
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected = sig_eval.get("rejected") or []
+        rejected = sig_eval.get("rejected", [])
         if rejected:
             block_parts = []
             for rj in rejected[:3]:
@@ -223,18 +223,22 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=7)
 
         for score_item in scored_with_signals:
-            sym = score_item.get("symbol") or "--"
+            sym = score_item.get("symbol", "--")
             comp_score = score_item.get("composite_score")
-            sector = (score_item.get("sector") or "")[:12]
+            sector = (score_item.get("sector", ""))[:12]
             sym_norm = str(sym).upper().strip()
             sig_obj = buy_sig_details.get(sym_norm, {})
 
             # Extract signal details
-            swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score") or 0
-            entry_qual = sig_obj.get("entry_quality_score") or swing_score
+            swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score")
+            if swing_score is None:
+                swing_score = 0
+            entry_qual = sig_obj.get("entry_quality_score", swing_score)
             buy_lvl = sig_obj.get("buylevel")
             stop_lvl = sig_obj.get("stoplevel")
-            price = sig_obj.get("close") or score_item.get("current_price")
+            price = sig_obj.get("close")
+            if price is None:
+                price = score_item.get("current_price")
 
             # Calculate R/R ratio
             rr_ratio = None
@@ -285,7 +289,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
         t.add_column("Sector", no_wrap=True, max_width=12)
         for sc in top_scores[:15]:
-            sym = sc.get("symbol") or "--"
+            sym = sc.get("symbol", "--")
             comp = sc.get("composite_score")
             mom = sc.get("momentum_score")
             qual = sc.get("quality_score")
@@ -293,7 +297,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             stab = sc.get("stability_score")
             rs_pct = sc.get("rs_percentile")
             chg = sc.get("change_percent")
-            sector = (sc.get("sector") or "")[:12]
+            sector = (sc.get("sector", ""))[:12]
             comp_v = float(comp) if comp is not None else 0
             sc_c = _composite_score_color(comp_v)
 
@@ -358,8 +362,8 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = (scores or {}).get("top") or []
-    buy_sigs = sig.get("buy_sigs") or []
+    top_scores = (scores or {}).get("top", [])
+    buy_sigs = sig.get("buy_sigs", [])
     total = sig.get("total", 0)
     is_placeholder = (
         not top_scores and not buy_sigs and total == 0 and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
@@ -379,7 +383,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             ds = str(d)[:10]
     else:
         ds = "--"
-    g = sig.get("grades") or {}
+    g = sig.get("grades", {})
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
@@ -395,7 +399,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         ),
     ]
 
-    top_a = sig.get("top_a") or []
+    top_a = sig.get("top_a", [])
     if top_a:
         parts = []
         for s in top_a:
@@ -408,9 +412,9 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not sig_eval.get("_error"):
-        ev_tot = sig_eval.get("total") or 0
-        ev_t5 = sig_eval.get("t5") or 0
-        ev_avg = sig_eval.get("avg_score") or 0
+        ev_tot = sig_eval.get("total", 0)
+        ev_t5 = sig_eval.get("t5", 0)
+        ev_avg = sig_eval.get("avg_score", 0)
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         t1 = sig_eval.get("t1")
         t2 = sig_eval.get("t2")
@@ -425,7 +429,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             )
         else:
             funnel = f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]  [dim]avg score:[/]{ev_avg:.0f}"
-        rejected = sig_eval.get("rejected") or []
+        rejected = sig_eval.get("rejected", [])
         if rejected:
             block_items = []
             for rj in rejected:
@@ -468,7 +472,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         sig_tbl.add_column("vs200%", justify="right", no_wrap=True, min_width=7)
         sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
         for sc in top_scores:
-            sym = str(sc.get("symbol") or "--")
+            sym = str(sc.get("symbol", "--"))
             sym_norm = sym.upper().strip()
             comp = sc.get("composite_score")
             mom = sc.get("momentum_score")
@@ -480,10 +484,14 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             rs_pct = sc.get("rs_percentile")
             price = sc.get("current_price")
             chg = sc.get("change_percent")
-            mom_inputs = sc.get("momentum_inputs") or {}
-            vs50 = sc.get("price_vs_sma_50") or mom_inputs.get("price_vs_sma_50")
-            vs200 = sc.get("price_vs_sma_200") or mom_inputs.get("price_vs_sma_200")
-            sector = (sc.get("sector") or "")[:14]
+            mom_inputs = sc.get("momentum_inputs", {})
+            vs50 = sc.get("price_vs_sma_50")
+            if vs50 is None:
+                vs50 = mom_inputs.get("price_vs_sma_50")
+            vs200 = sc.get("price_vs_sma_200")
+            if vs200 is None:
+                vs200 = mom_inputs.get("price_vs_sma_200")
+            sector = (sc.get("sector", ""))[:14]
             comp_v = float(comp) if comp is not None else 0
             sc_c = _composite_score_color(comp_v)
 

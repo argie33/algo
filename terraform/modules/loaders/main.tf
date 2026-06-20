@@ -406,6 +406,7 @@ locals {
     # Market health & economic data
     "market_health_daily"    = "load_market_health_daily.py"
     "market_exposure_daily"  = "load_market_exposure_daily.py"
+    "options_chains"         = "load_options_chains.py"
     "fred_economic_data"     = "load_fred_economic_data.py"
     "economic_metrics_daily" = "load_economic_metrics_daily.py"
     "trend_template_data"    = "load_trend_criteria_data.py"
@@ -610,6 +611,13 @@ locals {
       description = "Signal themes (momentum/reversal/breakout) - Daily 5:00am ET"
     }
 
+    # Options data — put/call volumes for options signals
+    # 8:00pm UTC = 4:00pm ET (right at market close)
+    "options_chains" = {
+      schedule    = "cron(0 20 ? * MON-FRI *)"
+      description = "Options chains (put/call volumes) - Daily 4:00pm ET"
+    }
+
     # NOTE: These loaders are managed via the Step Functions EOD pipeline:
     # - trend_template_data, algo_metrics_daily, swing_trader_scores
     # signal_quality_scores, technical_data_daily, buy_sell_daily were removed
@@ -714,6 +722,9 @@ locals {
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+
+    # Options chains — yfinance options data, 5000+ symbols, rate-limited
+    "options_chains" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Market exposure daily — computes market regime + 0-100 risk allocation score from 12 quantitative factors
     # Lightweight: ~2-5 seconds (vectorized computation, minimal DB load). Runs EOD to guarantee availability.

@@ -1,4 +1,4 @@
-"""Health and orchestration panel functions."""
+﻿"""Health and orchestration panel functions."""
 
 import json
 import logging
@@ -847,19 +847,24 @@ def panel_algo_health(
             rows.append(Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts)))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95", 0)) > 0:
         rows.append(Rule(style="dim"))
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        var_c = _var_color(risk.get("var95", 0))
+        var95_val = risk.get("var95", 0)
+        beta_val = risk.get("beta", 0)
+        conc5_val = risk.get("conc5", 0)
+        cvar95_val = risk.get("cvar95", 0)
+        svar_val = risk.get("svar")
+        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+        conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
+        var_c = _var_color(var95_val)
         risk_parts = [
-            f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
-            f"[dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
+            f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
         ]
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]")
+        if svar_val and float(svar_val) > 0:
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
@@ -1098,9 +1103,9 @@ def panel_algo_health_expanded(
     )
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
-        entries_exec = int(today_m_e.get("entries") or 0)
+        entries_exec = int(today_m_e.get("entries", 0))
     if not exits_exec:
-        exits_exec = int(today_m_e.get("exits") or 0)
+        exits_exec = int(today_m_e.get("exits", 0))
 
     action_parts_e = []
     if signals_gen > 0:
@@ -1152,19 +1157,24 @@ def panel_algo_health_expanded(
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     # Risk snapshot
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95", 0)) > 0:
         right_rows.append(Rule(style="dim"))
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
+        var95_val_e = risk.get("var95", 0)
+        beta_val_e = risk.get("beta", 0)
+        conc5_val_e = risk.get("conc5", 0)
+        cvar95_val_e = risk.get("cvar95", 0)
+        svar_val_e = risk.get("svar")
+        beta_c = R if beta_val_e >= 1.2 else (Y if beta_val_e >= 0.8 else G)
+        conc_c = R if conc5_val_e >= 35 else (Y if conc5_val_e >= 25 else "white")
+        var_c = R if var95_val_e >= 4 else (Y if var95_val_e >= 2 else "white")
         risk_parts_e = [
-            f"[dim]VaR95:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
-            f"[dim]CVaR:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]",
-            f"[dim]Top5:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
+            f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
+            f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_val_e:.2f}[/]",
+            f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]",
         ]
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]")
+        if svar_val_e and float(svar_val_e) > 0:
+            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{float(svar_val_e):.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
     # Notifications
@@ -1230,3 +1240,4 @@ __all__ = [
     "panel_orch",
     "panel_status",
 ]
+

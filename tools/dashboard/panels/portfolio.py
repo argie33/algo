@@ -47,10 +47,12 @@ def _calculate_adjusted_win_rate(perf, pos):
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
     if not perf or perf.get("_error"):
-        return perf.get("wr") or 0, perf.get("w") or 0, perf.get("l") or 0
+        return 0, 0, 0
 
-    closed_wins = perf.get("w") or 0
-    closed_losses = perf.get("l") or 0
+    closed_wins = perf.get("w")
+    closed_losses = perf.get("l")
+    if closed_wins is None or closed_losses is None:
+        return 0, 0, 0
     losing_open = 0
 
     if pos and not pos.get("_error"):
@@ -92,7 +94,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     mxdd = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
-    max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
+    max_n = int(cfg.get("max_pos_n", 0)) if cfg else 0
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
     # Header: portfolio value + age
@@ -205,8 +207,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
     wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    closed_wins = perf.get("w") or 0
-    closed_losses = perf.get("l") or 0
+    closed_wins = perf.get("w") if perf else 0
+    closed_losses = perf.get("l") if perf else 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
@@ -302,13 +304,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     rows = [header, tbl]
 
     # Equity curve sparkline
-    equity_vals = perf.get("equity_vals") or []
+    equity_vals = perf.get("equity_vals", [])
     if len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
     # Recent daily returns (last 5 snapshots)
-    recent_rets = perf.get("recent_rets") or []
+    recent_rets = perf.get("recent_rets", [])
     if recent_rets:
         parts = []
         for item in recent_rets[-5:]:
@@ -386,7 +388,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Cash:",
             fmt_money(cash),
         )
-        max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
+        max_n = int(cfg.get("max_pos_n", 0)) if cfg else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
         ptbl.add_row("Open Positions:", slots_s, "Day Return:", dr_s)
@@ -408,17 +410,17 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     # ── Performance metrics ────────────────────────────────────────────────────
     if perf and not perf.get("_error") and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
-        n = perf.get("n") or 0
-        w = perf.get("w") or 0
-        closed_losses = perf.get("l") or 0
-        streak = perf.get("streak") or 0
+        n = perf.get("n", 0)
+        w = perf.get("w", 0)
+        closed_losses = perf.get("l", 0)
+        streak = perf.get("streak", 0)
         pnl_val = perf.get("pnl")
         unrlzd_pnl = perf.get("unrealized_pnl")
         open_cnt = perf.get("open_count")
         pf = perf.get("profit_factor")
         sharpe_v = perf.get("sharpe")
         exp = perf.get("expectancy")
-        dd_v = perf.get("maxdd") or 0
+        dd_v = perf.get("maxdd", 0)
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
@@ -483,13 +485,13 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(perfblk)
 
         # Equity sparkline
-        equity_vals = perf.get("equity_vals") or []
+        equity_vals = perf.get("equity_vals", [])
         if len(equity_vals) >= 3:
             sp = sparkline(equity_vals, width=50)
             rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
         # Recent daily returns
-        recent_rets = perf.get("recent_rets") or []
+        recent_rets = perf.get("recent_rets", [])
         if recent_rets:
             from datetime import datetime
 
@@ -573,34 +575,39 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(Rule(style="dim"))
 
     # ── Risk metrics ──────────────────────────────────────────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95", 0)) > 0:
         rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
         rtbl = Table.grid(padding=(0, 3), expand=False)
         rtbl.add_column("label", style="dim")
         rtbl.add_column("val")
         rtbl.add_column("label2", style="dim")
         rtbl.add_column("val2")
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
+        var95_val = risk.get("var95", 0)
+        beta_val = risk.get("beta", 0)
+        conc5_val = risk.get("conc5", 0)
+        svar_val = risk.get("svar")
+        cvar95_val = risk.get("cvar95", 0)
+        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+        conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
+        var_c = R if var95_val >= 4 else (Y if var95_val >= 2 else "white")
         rtbl.add_row(
             "VaR (95%):",
-            Text(f"{(risk.get('var95') or 0):.2f}%", style=var_c),
+            Text(f"{var95_val:.2f}%", style=var_c),
             "CVaR (95%):",
-            Text(f"{(risk.get('cvar95') or 0):.2f}%", style=var_c),
+            Text(f"{cvar95_val:.2f}%", style=var_c),
         )
         rtbl.add_row(
             "Portfolio Beta:",
-            Text(f"{(risk.get('beta') or 0):.2f}", style=beta_c),
+            Text(f"{beta_val:.2f}", style=beta_c),
             "Top-5 Concentration:",
-            Text(f"{(risk.get('conc5') or 0):.0f}%", style=conc_c),
+            Text(f"{conc5_val:.0f}%", style=conc_c),
         )
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
+        if svar_val and float(svar_val) > 0:
             rtbl.add_row(
                 "Stressed VaR:",
-                Text(f"{(risk.get('svar') or 0):.2f}%", style=R),
+                Text(f"{float(svar_val):.2f}%", style=R),
                 "Risk Date:",
-                Text(str(risk.get("date") or "--")[:10], style="dim"),
+                Text(str(risk.get("date", "--"))[:10], style="dim"),
             )
         rows.append(rtbl)
 
@@ -617,7 +624,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             for p in pos_items:
                 if not isinstance(p, dict):
                     continue
-                sym = p.get("symbol") or "--"
+                sym = p.get("symbol", "--")
                 val = safe_float(p.get("position_value"), default=None)
                 pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
                 pct = val / pv_total * 100 if (val and pv_total) else 0

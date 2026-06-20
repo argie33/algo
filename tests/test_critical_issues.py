@@ -186,17 +186,17 @@ class TestOrchestratorPhases:
 
         assert hasattr(phase2_circuit_breakers, "run"), "Phase 2 run function not found"
 
-    def test_phase5_signal_generation_exists(self):
-        """Phase 5 signal generation should exist."""
-        from algo.orchestrator import phase5_signal_generation
+    def test_phase5_exposure_policy_exists(self):
+        """Phase 5 exposure policy should exist."""
+        from algo.orchestrator import phase5_exposure_policy
 
-        assert hasattr(phase5_signal_generation, "run"), "Phase 5 run function not found"
+        assert hasattr(phase5_exposure_policy, "run"), "Phase 5 run function not found"
 
-    def test_phase7_reconciliation_exists(self):
-        """Phase 7 reconciliation should exist."""
-        from algo.orchestrator import phase7_reconciliation
+    def test_phase7_signal_generation_exists(self):
+        """Phase 7 signal generation should exist."""
+        from algo.orchestrator import phase7_signal_generation
 
-        assert hasattr(phase7_reconciliation, "run"), "Phase 7 run function not found"
+        assert hasattr(phase7_signal_generation, "run"), "Phase 7 run function not found"
 
 
 class TestDatabaseConnectivity:
