@@ -289,7 +289,11 @@ def _compute_win_rate(cur) -> float:
 
 
 def _check_any_triggered(metrics: dict) -> bool:
-    """Check if any circuit breaker is triggered based on thresholds."""
+    """Check if any circuit breaker is triggered based on thresholds.
+
+    If a required metric is missing or None, fail closed (return True).
+    This ensures data quality issues don't silently pass safety checks.
+    """
     thresholds = {
         "portfolio_drawdown_pct": 20.0,
         "daily_loss_pct": 2.0,
@@ -302,42 +306,75 @@ def _check_any_triggered(metrics: dict) -> bool:
         "win_rate_last_30_pct": 40.0,  # Below 40% triggers
     }
 
-    # Portfolio drawdown
-    if metrics.get("portfolio_drawdown_pct", 0) >= thresholds["portfolio_drawdown_pct"]:
+    # Portfolio drawdown - fail closed if unavailable
+    dd = metrics.get("portfolio_drawdown_pct")
+    if dd is None:
+        logger.error("portfolio_drawdown_pct missing: failing closed (CB1 triggered)")
+        return True
+    if dd >= thresholds["portfolio_drawdown_pct"]:
         return True
 
-    # Daily loss
-    if metrics.get("daily_loss_pct", 0) >= thresholds["daily_loss_pct"]:
+    # Daily loss - fail closed if unavailable
+    dl = metrics.get("daily_loss_pct")
+    if dl is None:
+        logger.error("daily_loss_pct missing: failing closed (CB2 triggered)")
+        return True
+    if dl >= thresholds["daily_loss_pct"]:
         return True
 
-    # Consecutive losses
-    if metrics.get("consecutive_losses", 0) >= thresholds["consecutive_losses"]:
+    # Consecutive losses - fail closed if unavailable
+    cl = metrics.get("consecutive_losses")
+    if cl is None:
+        logger.error("consecutive_losses missing: failing closed (CB3 triggered)")
+        return True
+    if cl >= thresholds["consecutive_losses"]:
         return True
 
-    # VIX
+    # VIX - fail closed if unavailable
     vix = metrics.get("vix_level")
-    if vix is not None and vix >= thresholds["vix_level"]:
+    if vix is None:
+        logger.error("vix_level missing: failing closed (CB4 triggered)")
+        return True
+    if vix >= thresholds["vix_level"]:
         return True
 
-    # Weekly loss
-    if metrics.get("weekly_loss_pct", 0) >= thresholds["weekly_loss_pct"]:
+    # Weekly loss - fail closed if unavailable
+    wl = metrics.get("weekly_loss_pct")
+    if wl is None:
+        logger.error("weekly_loss_pct missing: failing closed (CB5 triggered)")
+        return True
+    if wl >= thresholds["weekly_loss_pct"]:
         return True
 
-    # Market stage
-    if metrics.get("market_stage", 0) == thresholds["market_stage"]:
+    # Market stage - fail closed if unavailable
+    ms = metrics.get("market_stage")
+    if ms is None:
+        logger.error("market_stage missing: failing closed (CB6 triggered)")
+        return True
+    if ms == thresholds["market_stage"]:
         return True
 
-    # Open risk
-    if metrics.get("open_risk_pct", 0) >= thresholds["open_risk_pct"]:
+    # Open risk - fail closed if unavailable
+    or_ = metrics.get("open_risk_pct")
+    if or_ is None:
+        logger.error("open_risk_pct missing: failing closed (CB7 triggered)")
+        return True
+    if or_ >= thresholds["open_risk_pct"]:
         return True
 
-    # SPY change
-    spy_change = metrics.get("spy_prior_day_change_pct", 0)
+    # SPY change - fail closed if unavailable
+    spy_change = metrics.get("spy_prior_day_change_pct")
+    if spy_change is None:
+        logger.error("spy_prior_day_change_pct missing: failing closed (CB8 triggered)")
+        return True
     if spy_change <= thresholds["spy_prior_day_change_pct"]:
         return True
 
-    # Win rate (below 40%)
-    wr = metrics.get("win_rate_last_30_pct", 0)
+    # Win rate - fail closed if unavailable
+    wr = metrics.get("win_rate_last_30_pct")
+    if wr is None:
+        logger.error("win_rate_last_30_pct missing: failing closed (CB9 triggered)")
+        return True
     if wr < thresholds["win_rate_last_30_pct"] and wr > 0:
         return True
 
@@ -345,7 +382,11 @@ def _check_any_triggered(metrics: dict) -> bool:
 
 
 def _count_triggered(metrics: dict) -> int:
-    """Count how many circuit breakers are triggered."""
+    """Count how many circuit breakers are triggered.
+
+    If a required metric is missing or None, fail closed (count as triggered).
+    This ensures data quality issues don't silently reduce triggered count.
+    """
     count = 0
     thresholds = {
         "portfolio_drawdown_pct": 20.0,
@@ -359,26 +400,58 @@ def _count_triggered(metrics: dict) -> int:
         "win_rate_last_30_pct": 40.0,
     }
 
-    if metrics.get("portfolio_drawdown_pct", 0) >= thresholds["portfolio_drawdown_pct"]:
+    dd = metrics.get("portfolio_drawdown_pct")
+    if dd is None:
         count += 1
-    if metrics.get("daily_loss_pct", 0) >= thresholds["daily_loss_pct"]:
+    elif dd >= thresholds["portfolio_drawdown_pct"]:
         count += 1
-    if metrics.get("consecutive_losses", 0) >= thresholds["consecutive_losses"]:
+
+    dl = metrics.get("daily_loss_pct")
+    if dl is None:
         count += 1
+    elif dl >= thresholds["daily_loss_pct"]:
+        count += 1
+
+    cl = metrics.get("consecutive_losses")
+    if cl is None:
+        count += 1
+    elif cl >= thresholds["consecutive_losses"]:
+        count += 1
+
     vix = metrics.get("vix_level")
-    if vix is not None and vix >= thresholds["vix_level"]:
+    if vix is None:
         count += 1
-    if metrics.get("weekly_loss_pct", 0) >= thresholds["weekly_loss_pct"]:
+    elif vix >= thresholds["vix_level"]:
         count += 1
-    if metrics.get("market_stage", 0) == thresholds["market_stage"]:
+
+    wl = metrics.get("weekly_loss_pct")
+    if wl is None:
         count += 1
-    if metrics.get("open_risk_pct", 0) >= thresholds["open_risk_pct"]:
+    elif wl >= thresholds["weekly_loss_pct"]:
         count += 1
-    spy_change = metrics.get("spy_prior_day_change_pct", 0)
-    if spy_change <= thresholds["spy_prior_day_change_pct"]:
+
+    ms = metrics.get("market_stage")
+    if ms is None:
         count += 1
-    wr = metrics.get("win_rate_last_30_pct", 0)
-    if wr < thresholds["win_rate_last_30_pct"] and wr > 0:
+    elif ms == thresholds["market_stage"]:
+        count += 1
+
+    or_ = metrics.get("open_risk_pct")
+    if or_ is None:
+        count += 1
+    elif or_ >= thresholds["open_risk_pct"]:
+        count += 1
+
+    spy_change = metrics.get("spy_prior_day_change_pct")
+    if spy_change is None:
+        count += 1
+    elif spy_change <= thresholds["spy_prior_day_change_pct"]:
+        count += 1
+
+    wr = metrics.get("win_rate_last_30_pct")
+    if wr is None:
+        count += 1
+    elif wr < thresholds["win_rate_last_30_pct"] and wr > 0:
         count += 1
 
     return count
