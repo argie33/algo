@@ -230,13 +230,33 @@ class VectorizedSwingScoresLoader:
                 if trend is None:
                     continue
 
+                # Apply hard gate: minimum trend score
+                # (consistent with SwingTraderScore.compute)
+                minervini = trend.get("minervini_trend_score", 0)
+                minervini = float(minervini) if pd.notna(minervini) else 0.0
+
+                # Skip stocks with insufficient trend strength (gate: minervini >= 5)
+                if minervini < 5:
+                    logger.debug(
+                        f"{symbol}: minervini={minervini} < 5, skipping (trend too weak)"
+                    )
+                    continue
+
                 # Compute component scores; use defaults when upstream tables are empty
                 # Handle NaN values from pandas (convert to defaults)
-                minervini = trend.get("minervini_trend_score", 75)
-                setup_score = float(minervini) if pd.notna(minervini) else 75.0
+                setup_score = minervini
 
-                weinstein = trend.get("weinstein_stage", 2)
-                trend_score = float(weinstein) * 25.0 if pd.notna(weinstein) else 50.0
+                # Apply hard gate: Weinstein stage must be 2
+                # (uptrend phase)
+                weinstein = trend.get("weinstein_stage", 0)
+                weinstein = int(weinstein) if pd.notna(weinstein) else 0
+                if weinstein != 2:
+                    logger.debug(
+                        f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)"
+                    )
+                    continue
+
+                trend_score = float(weinstein) * 25.0
 
                 rsi = tech.get("rsi", 50) if tech is not None else 50.0
                 rsi = float(rsi) if pd.notna(rsi) else 50.0
