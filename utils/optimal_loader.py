@@ -674,18 +674,25 @@ class OptimalLoader(ABC):
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
             for row in rows:
-                # Use PostgreSQL's standard NULL marker (\N) for None values
-                # This correctly interprets as NULL for all column types (TEXT, NUMERIC, etc.)
-                # without relying on empty strings which PostgreSQL converts to 0 in NUMERIC columns
-                writer.writerow({k: ("\\N" if v is None else v) for k, v in row.items()})
+                # ISSUE: PostgreSQL's CSV format with NULL '' was interpreting empty
+                # strings as 0 for NUMERIC columns instead of NULL. Root cause: when
+                # the COPY command sees NULL '', it treats '' as the NULL marker, but
+                # then PostgreSQL's type coercion interprets empty string → 0 for NUMERIC.
+                # Solution: Use a special marker that won't be confused (e.g., actual NULL
+                # indicator). For now, convert None to empty string (default behavior)
+                # and remove the explicit NULL '' directive to use PostgreSQL's default.
+                writer.writerow({k: ("" if v is None else v) for k, v in row.items()})
             buf.seek(0)
             col_ids = [psycopg2.sql.Identifier(c) for c in columns]
+            # Use PostgreSQL's DEFAULT NULL handling: empty fields in CSV = NULL
+            # This avoids the issue where explicit NULL '' causes empty → 0 conversion
             cur.copy_expert(
                 psycopg2.sql.SQL(
-                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV)"
+                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({}))"
                 ).format(
                     psycopg2.sql.Identifier(staging),
                     psycopg2.sql.SQL(",").join(col_ids),
+                    psycopg2.sql.SQL(",").join(col_ids),  # FORCE_NULL all columns to interpret empty as NULL
                 ),
                 buf,
             )
