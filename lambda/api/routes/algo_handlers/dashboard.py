@@ -481,7 +481,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when today's loss ≥ {threshold_dl:.0f}%",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB2 (daily_loss) computation failed: {type(e).__name__}: {e}"
             )
@@ -512,7 +512,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt after {threshold_cl} consecutive losing trades",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB3 (consecutive_losses) computation failed: {type(e).__name__}: {e}"
             )
@@ -543,7 +543,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"CB4 (vix_spike) computation failed: {type(e).__name__}: {e}")
             breakers.append(
                 {
@@ -572,7 +572,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when 7-day loss ≥ {threshold_wl:.0f}%",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB5 (weekly_loss) computation failed: {type(e).__name__}: {e}"
             )
@@ -602,7 +602,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": "Halt when market enters Stage 4 (confirmed downtrend)",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB6 (market_stage) computation failed: {type(e).__name__}: {e}"
             )
@@ -633,7 +633,7 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio",
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB7 (total_risk) computation failed: {type(e).__name__}: {e}"
             )
