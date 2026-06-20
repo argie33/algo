@@ -376,16 +376,16 @@ class PositionMonitor:
             symbol,
             entry_price,
             init_stop,
-            t1_price,
-            t2_price,
-            t3_price,
+            _t1_price,
+            _t2_price,
+            _t3_price,
             trade_date,
-            signal_date,
+            _signal_date,
             position_id,
             quantity,
             target_hits,
             current_stop,
-            db_current_price,
+            _db_current_price,
         ) = row
 
         entry_price = float(entry_price)
@@ -413,7 +413,7 @@ class PositionMonitor:
 
         # 1. Current market data
         try:
-            cur_price, atr, sma_50, ema_12 = self._fetch_current_market(
+            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(
                 symbol, current_date, cur
             )
         except ValueError as e:
@@ -1099,7 +1099,7 @@ class PositionMonitor:
                 )
                 return adjustments
 
-            for pos_id, symbol, db_qty, db_stop, entry_price in positions:
+            for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
                     url = f"{alpaca_base_url}/v2/positions/{symbol}"
                     headers = {
