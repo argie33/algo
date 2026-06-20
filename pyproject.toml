@@ -63,9 +63,7 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "tests.*",
-    "tools.dashboard.data_validation",
     "utils.loaders.helpers",
-    "tools.dashboard.*",
     "algo.algo_data_patrol",
     "algo.backtest.run_backtest",
     "algo.signals.trendline",
@@ -77,6 +75,12 @@ module = [
     "loaders.load_sentiment_aggregate",
     "loaders.load_technical_data_daily",
     "utils.validation.registry",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tools.dashboard.data_validation",
 ]
 ignore_errors = true
 

@@ -40,7 +40,7 @@ from algo.trading.exceptions import (
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
-from utils.trading import PositionStatus, TradeStatus
+from utils.trading import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
 
@@ -98,6 +98,11 @@ class TradeExecutor:
         from algo.trading import PreTradeChecks
 
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
+
+        # Wire trade validator for entry validation and duplicate detection
+        from algo.trading.trade_validator import TradeValidator
+
+        self.validator = TradeValidator(config, self.pretrade)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
         if "execution_mode" not in config or not config.get("execution_mode"):
@@ -224,94 +229,58 @@ class TradeExecutor:
         if target_3_price is not None:
             target_3_price = Decimal(str(target_3_price))
 
+        # Default dates if not provided
         if not signal_date:
             signal_date = datetime.now(timezone.utc).date()
         if not entry_date:
             entry_date = datetime.now(timezone.utc).date()
 
-        if entry_date < signal_date:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid: entry_date {entry_date} must be >= signal_date {signal_date}",
-            }
-
-        if entry_price <= 0:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid entry price: {entry_price} (must be > 0)",
-            }
-        if stop_loss_price <= 0:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid stop loss price: {stop_loss_price} (must be > 0)",
-            }
-        if shares <= 0:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid share count: {shares} (must be > 0)",
-            }
-
         portfolio_value = self._get_portfolio_value()
-        if not portfolio_value or portfolio_value <= 0:
-            logger.error(f"execute_trade: cannot determine portfolio value for {symbol}, aborting")
+
+        # Validate all entry preconditions using TradeValidator
+        valid, error_msg, validation_result = self.validator.validate_entry_preconditions(
+            symbol=symbol,
+            entry_price=entry_price,
+            stop_loss_price=stop_loss_price,
+            shares=shares,
+            portfolio_value=portfolio_value,
+            signal_date=signal_date,
+            entry_date=entry_date,
+            target_1_price=target_1_price,
+            target_2_price=target_2_price,
+            target_3_price=target_3_price,
+        )
+        if not valid:
             return {
                 "success": False,
                 "trade_id": "",
-                "status": "portfolio_value_unavailable",
-                "message": "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
-            }
-        position_value = shares * entry_price
-        try:
-            pretrade_passed, pretrade_reason = self.pretrade.run_all(
-                symbol=symbol,
-                position_value=float(position_value),
-                portfolio_value=float(portfolio_value) if portfolio_value else 0,
-                side="BUY",
-            )
-        except ValueError as e:
-            logger.error(f"Pre-trade validation failed with critical error: {e}")
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "pretrade_check_failed",
-                "message": f"Pre-trade check failed: {e!s}",
-            }
-        if not pretrade_passed:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "pretrade_check_failed",
-                "message": f"Pre-trade check failed: {pretrade_reason}",
+                "status": "invalid",
+                "message": error_msg,
             }
 
-        # P2 FIX: IDEMPOTENCY CHECK - Prevent duplicate positions on same symbol
-        def _check_duplicate_position(cur):
-            cur.execute(
-                """
-                SELECT symbol FROM algo_positions
-                WHERE symbol = %s AND status = %s
-                LIMIT 1
-                """,
-                (symbol, PositionStatus.OPEN.value),
-            )
-            return cur.fetchone()
+        # Apply auto-calculated targets if generated
+        if "target_1_price" in validation_result:
+            target_1_price = validation_result["target_1_price"]
+        if "target_2_price" in validation_result:
+            target_2_price = validation_result["target_2_price"]
+        if "target_3_price" in validation_result:
+            target_3_price = validation_result["target_3_price"]
+
+        # Check for duplicate position
+        def _check_dup_pos(cur):
+            is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
+            if is_dup:
+                return {"error": msg}
+            return None
 
         try:
-            existing_pos = self._with_cursor(_check_duplicate_position)
-            if existing_pos:
+            dup_result = self._with_cursor(_check_dup_pos)
+            if dup_result and "error" in dup_result:
                 return {
                     "success": False,
                     "trade_id": "",
                     "status": "duplicate_position",
-                    "message": f"Symbol {symbol} already has an open position. Close it before entering another.",
+                    "message": dup_result["error"],
                     "duplicate": True,
                 }
         except DatabaseError as e:
@@ -319,74 +288,6 @@ class TradeExecutor:
             raise DuplicatePositionError(
                 f"Cannot verify duplicate position status: {e!s}. Order halted for safety."
             ) from e
-
-        stop_price_dec = Decimal(str(stop_loss_price))
-        risk_per_share_decimal = entry_price - stop_price_dec
-        if risk_per_share_decimal <= 0:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid_stop",
-                "message": f"Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)",
-            }
-        if stop_price_dec >= entry_price * Decimal("0.99"):
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "bad_stop",
-                "message": f"Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)",
-            }
-        if target_1_price is None:
-            t1_r_dec = Decimal(str(self.config.get("t1_target_r_multiple", 1.5)))
-            target_1_price = (entry_price + (risk_per_share_decimal * t1_r_dec)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if target_1_price <= entry_price:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "invalid",
-                    "message": f"Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}",
-                }
-        if target_2_price is None:
-            t2_r_dec = Decimal(str(self.config.get("t2_target_r_multiple", 3.0)))
-            target_2_price = (entry_price + (risk_per_share_decimal * t2_r_dec)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if target_2_price <= entry_price:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "invalid",
-                    "message": f"Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}",
-                }
-        if target_3_price is None:
-            t3_r_dec = Decimal(str(self.config.get("t3_target_r_multiple", 4.0)))
-            target_3_price = (entry_price + (risk_per_share_decimal * t3_r_dec)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if target_3_price <= entry_price:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "invalid",
-                    "message": f"Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}",
-                }
-
-        if target_1_price and target_2_price and target_1_price >= target_2_price:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid target hierarchy: target_1 ${target_1_price:.2f} >= target_2 ${target_2_price:.2f}",
-            }
-        if target_2_price and target_3_price and target_2_price >= target_3_price:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": f"Invalid target hierarchy: target_2 ${target_2_price:.2f} >= target_3 ${target_3_price:.2f}",
-            }
 
         import hashlib
 
@@ -402,128 +303,66 @@ class TradeExecutor:
             # closure as local for the entire function scope).
             nonlocal target_1_price, target_2_price, target_3_price
 
-            # Schema migration: idempotency_key now added by migration 004, not runtime
-            cur.execute(
-                "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
-                (idempotency_key,),
+            prior_trade_id = None
+            reentry_count = 0
+
+            # Check idempotency key
+            is_dup, error_msg, existing_trade_id = self.validator.check_idempotent_duplicate(
+                cur, symbol, signal_date, entry_price, stop_loss_price
             )
-            existing_idempotent = cur.fetchone()
-            if existing_idempotent:
-                logger.warning(
-                    f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {existing_idempotent[0]})"
-                )
+            if is_dup:
                 return {
                     "success": False,
-                    "trade_id": existing_idempotent[0],
+                    "trade_id": existing_trade_id or "",
                     "status": "duplicate",
                     "duplicate": True,
-                    "message": f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)",
+                    "message": error_msg,
                 }
 
-            cur.execute(
-                "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
-                (symbol, PositionStatus.OPEN.value),
-            )
-            if cur.fetchone():
+            # Check for open position in symbol
+            is_dup, error_msg = self.validator.check_open_position_in_symbol(cur, symbol)
+            if is_dup:
                 return {
                     "success": False,
                     "trade_id": "",
                     "status": "duplicate",
                     "duplicate": True,
-                    "message": f"Already have open position in {symbol}",
+                    "message": error_msg,
                 }
 
-            cur.execute(
-                """
-                SELECT trade_id FROM algo_trades
-                WHERE symbol = %s AND COALESCE(signal_date, '1900-01-01') = COALESCE(%s, '1900-01-01')
-                  AND status IN (%s, %s)
-                LIMIT 1
-                """,
-                (
-                    symbol,
-                    signal_date,
-                    TradeStatus.OPEN.value,
-                    TradeStatus.PENDING.value,
-                ),
+            # Check for signal fingerprint duplicate
+            is_dup, error_msg, existing_trade_id = self.validator.check_signal_fingerprint_duplicate(
+                cur, symbol, signal_date, entry_price, stop_loss_price
             )
-            existing = cur.fetchone()
-            if existing:
-                # B9: Log duplicate with visibility for pattern monitoring
-                signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
-                logger.warning(f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})")
+            if is_dup:
                 return {
                     "success": False,
-                    "trade_id": existing[0],
+                    "trade_id": existing_trade_id or "",
                     "status": "duplicate",
                     "duplicate": True,
-                    "message": f"Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})",
+                    "message": error_msg,
                 }
 
-            # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
-            cur.execute(
-                """
-                SELECT COUNT(*) FROM algo_trades
-                WHERE symbol = %s AND status IN (%s, %s)
-                  AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
-                """,
-                (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
-            )
-            result = cur.fetchone()
-            pending_count = result[0] if result else 0
-            if pending_count > 0:
+            # Check for pending trades
+            has_pending, error_msg, _ = self.validator.check_pending_trades(cur, symbol)
+            if has_pending:
                 return {
                     "success": False,
                     "trade_id": "",
                     "status": "pending_trade_exists",
-                    "message": f"{symbol}: {pending_count} pending/open trade(s) exist. Close before re-entering.",
+                    "message": error_msg,
                 }
 
-            # Find most recent CLOSED trade for this symbol in the last 30 days
-            cur.execute(
-                """
-                SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
-                       COALESCE(reentry_count, 0) AS reentry_count
-                FROM algo_trades
-                WHERE symbol = %s AND status = %s
-                  AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
-                ORDER BY exit_date DESC NULLS LAST, id DESC
-                LIMIT 1
-                """,
-                (symbol, TradeStatus.CLOSED.value),
-            )
-            prior = cur.fetchone()
-            reentry_count = 0
-            prior_trade_id = None
-            if prior:
-                prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
-                # If prior trade was a stop-out, we're attempting a re-entry
-                if exit_reason and ("STOP" in (exit_reason or "").upper() or "TIME" in (exit_reason or "").upper()):
-                    max_reentries = int(self.config.get("max_reentries_per_name", 2))
-                    prior_reentry_count = int(prior_reentry)
-                    if prior_reentry_count >= max_reentries:
-                        return {
-                            "success": False,
-                            "trade_id": "",
-                            "status": "reentry_blocked",
-                            "reentry_blocked": True,
-                            "message": f"{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {max_reentries} max",
-                        }
-                    # NEW: Enforce minimum days between stop-out and re-entry (reset period for failed setup)
-                    min_days_wait = int(self.config.get("min_days_before_reentry_same_symbol", 5))
-                    if exit_date:
-                        from datetime import date as _date
-
-                        exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
-                        days_since_exit = (datetime.now(timezone.utc).date() - exit_d).days
-                        if days_since_exit < min_days_wait:
-                            return {
-                                "success": False,
-                                "trade_id": "",
-                                "status": "reentry_cooldown",
-                                "message": f"{symbol}: only {days_since_exit}d since stop-out; require {min_days_wait}d before re-entry (reset period)",
-                            }
-                    reentry_count = prior_reentry_count + 1
+            # Check re-entry rules
+            valid, error_msg, reentry_count = self.validator.check_reentry_rules(cur, symbol)
+            if not valid:
+                return {
+                    "success": False,
+                    "trade_id": "",
+                    "status": "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown",
+                    "reentry_blocked": True,
+                    "message": error_msg,
+                }
 
             execution_mode = self.config.get("execution_mode", "paper")
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"

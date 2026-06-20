@@ -68,8 +68,8 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal", "")).replace("_", " ").title()
-        wks = sec_rot.get("weeks", 1)
+        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
+        wks = sec_rot.get("weeks") or 1
         def_s = sec_rot.get("def_score")
         cyc_s = sec_rot.get("cyc_score")
         strength = sec_rot.get("strength")
@@ -114,7 +114,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Top sector rankings with 1-week and 4-week rank changes
     srank_items = (
-        srank.get("items", [])
+        srank.get("items") or []
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
@@ -144,7 +144,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Top industries (sub-sector groups)
     irank_items = (
-        irank.get("items", [])
+        irank.get("items") or []
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )
@@ -201,10 +201,10 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     ]
 
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal", "")).replace("_", " ").title()
-        wks = sec_rot.get("weeks", 1)
-        def_s = float(sec_rot.get("def_score", 0))
-        cyc_s = float(sec_rot.get("cyc_score", 0))
+        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
+        wks = sec_rot.get("weeks") or 1
+        def_s = float(sec_rot.get("def_score") or 0)
+        cyc_s = float(sec_rot.get("cyc_score") or 0)
         strength = float(sec_rot.get("strength", 0))
         sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
         rot_date = sec_rot.get("date")
@@ -261,7 +261,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
     srank_items_exp = (
-        srank.get("items", [])
+        srank.get("items") or []
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
@@ -281,7 +281,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # All industries — full names, 1wk change
     irank_items_exp = (
-        irank.get("items", [])
+        irank.get("items") or []
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )

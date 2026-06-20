@@ -59,9 +59,15 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     # Extract fields once after error checks
-    top_scores = scores.get("top", []) if not has_error(scores) else []
-    buy_sigs = sig.get("buy_sigs", [])
-    total_screened = sig.get("total", 0)
+    top_scores = scores.get("top") if scores and not has_error(scores) else None
+    if top_scores is None:
+        top_scores = []
+    buy_sigs = sig.get("buy_sigs")
+    if buy_sigs is None:
+        buy_sigs = []
+    total_screened = sig.get("total")
+    if total_screened is None:
+        total_screened = 0
     is_placeholder = (
         not top_scores
         and not buy_sigs
@@ -69,8 +75,12 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
     )
 
-    raw = sig.get("n", 0)
-    total = sig.get("total", 0)
+    raw = sig.get("n")
+    if raw is None:
+        raw = 0
+    total = sig.get("total")
+    if total is None:
+        total = 0
     d = sig.get("date")
     if hasattr(d, "strftime"):
         ds = d.strftime("%b %d")
@@ -84,14 +94,22 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     else:
         ds = "--"
     # Extract grade counts once
-    grades = sig.get("grades", {})
+    grades = sig.get("grades")
+    if grades is None:
+        grades = {}
     ga = int(grades.get("a")) if grades.get("a") is not None else None
     gb = int(grades.get("b")) if grades.get("b") is not None else None
     gc = int(grades.get("c")) if grades.get("c") is not None else None
     gd = int(grades.get("d")) if grades.get("d") is not None else None
-    top_a = sig.get("top_a", [])
-    near = sig.get("near", [])
-    trend = sig.get("trend", [])
+    top_a = sig.get("top_a")
+    if top_a is None:
+        top_a = []
+    near = sig.get("near")
+    if near is None:
+        near = []
+    trend = sig.get("trend")
+    if trend is None:
+        trend = []
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()

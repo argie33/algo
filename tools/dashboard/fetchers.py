@@ -881,7 +881,9 @@ def fetch_algo_metrics(c):
             return d
         if isinstance(d, dict):
             return [d]
-        return []
+        error_msg = f"Algo metrics API response unexpected type: expected list or dict, got {type(d).__name__}"
+        logger.error(error_msg)
+        return {"_error": error_msg}
     except Exception as e:
         error_msg = _format_fetcher_error("algo_metrics", e)
         logger.error(error_msg)
@@ -1066,7 +1068,9 @@ def fetch_exec_history(c):
             return raw.get("items", [])
         if isinstance(raw, list):
             return raw
-        return []
+        error_msg = f"Execution history API response unexpected type: expected list or dict, got {type(raw).__name__}"
+        logger.error(error_msg)
+        return {"_error": error_msg}
     except Exception as e:
         error_msg = _format_fetcher_error("exec_hist", e)
         logger.error(error_msg)
@@ -1104,7 +1108,9 @@ def fetch_audit_log(c):
             return raw.get("items", [])
         if isinstance(raw, list):
             return raw
-        return []
+        error_msg = f"Audit log API response unexpected type: expected list or dict, got {type(raw).__name__}"
+        logger.error(error_msg)
+        return {"_error": error_msg}
     except Exception as e:
         error_msg = _format_fetcher_error("audit", e)
         logger.error(error_msg)

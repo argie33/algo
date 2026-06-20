@@ -44,8 +44,8 @@ def panel_circuit(cb):
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
-    n_f = cb.get("n", 0)
-    any_f = cb.get("any", False)
+    n_f = cb["n"]
+    any_f = cb["any"]
     hc = R if any_f else G
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)
@@ -57,16 +57,16 @@ def panel_circuit(cb):
         def fmt_b(br):
             if br is None:
                 return ""
-            fired = br.get("fired", False)
+            fired = br["fired"]
             thr = br.get("thr")
             cur = br.get("cur")
             lbl_s = str(br.get("lbl", "N/A"))[:20]
             if thr is None or cur is None:
-                thr_s = "--" if thr is None else f"{float(thr or 0):.0f}"
+                thr_s = "--" if thr is None else f"{float(thr):.0f}"
                 cur_s = "--" if cur is None else str(cur)
                 return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{br.get('u', '')!s}[dim]/{thr_s}{br.get('u', '')!s}[/]"
-            thr_f = float(thr or 1)
-            cur_f = float(cur or 0)
+            thr_f = float(thr) if thr is not None else 1.0
+            cur_f = float(cur) if cur is not None else 0.0
             if thr_f > 0:
                 util = cur_f / thr_f
             elif thr_f < 0 and cur_f < 0:
@@ -109,8 +109,8 @@ def panel_circuit_expanded(cb):
     if err_panel:
         return err_panel
 
-    n_f = cb.get("n", 0)
-    any_f = cb.get("any", False)
+    n_f = cb["n"]
+    any_f = cb["any"]
     if any_f:
         rows.append(
             Text.from_markup(f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]")
@@ -142,7 +142,7 @@ def panel_circuit_expanded(cb):
             cur = br.get("cur")
             thr = br.get("thr")
             u = str(br.get("u") or "")
-            fired = br.get("fired", False)
+            fired = br["fired"]
 
             if cur is None or thr is None:
                 cur_s = f"{cur}{u}" if cur is not None else "--"
@@ -150,8 +150,8 @@ def panel_circuit_expanded(cb):
                 util_bar = Text("-- / --", style="dim")
                 status = Text("UNKNOWN", style="dim")
             else:
-                thr_f = float(thr or 1)
-                cur_f = float(cur or 0)
+                thr_f = float(thr) if thr is not None else 1.0
+                cur_f = float(cur) if cur is not None else 0.0
                 if thr_f > 0:
                     util = cur_f / thr_f
                 elif thr_f < 0 and cur_f < 0:
@@ -181,7 +181,7 @@ def panel_circuit_expanded(cb):
                     if fired
                     else (
                         "white"
-                        if (cur is not None and thr is not None and float(cur or 0) / float(thr or 1) >= 0.75)
+                        if (cur is not None and thr is not None and float(cur) / float(thr) >= 0.75)
                         else "dim"
                     ),
                 ),

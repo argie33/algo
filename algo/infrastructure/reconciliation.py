@@ -14,8 +14,6 @@ from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.price_auditor import PriceAuditor
 from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
-from config.alpaca_config import get_alpaca_base_url
-from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
 
@@ -40,6 +38,10 @@ class DailyReconciliation:
             self.alpaca_sync = AlpacaSyncManager(config)
             self.analytics = ReconciliationAnalytics()
             self.price_auditor = PriceAuditor(config)
+            # Cache Alpaca credentials for direct access
+            self._alpaca_key = self.alpaca_sync._alpaca_key
+            self._alpaca_secret = self.alpaca_sync._alpaca_secret
+            self._alpaca_base_url = self.alpaca_sync._alpaca_base_url
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
             logger.critical(f"Reconciliation manager initialization FAILED: {e}")

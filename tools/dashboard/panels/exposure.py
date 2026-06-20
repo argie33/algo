@@ -139,7 +139,7 @@ def panel_exposure_compact(exp_f):
         if sf is None:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
-            pts = float(f.get("pts", 0))
+            pts = float(f["pts"]) if "pts" in f else 0.0
             bar = mini_bar(pts, max_pts, w=4)
             fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             det = factor_detail(key)
@@ -252,7 +252,7 @@ def panel_exposure_expanded(exp_f):
             )
             continue
 
-        pts = float(f.get("pts", 0))
+        pts = float(f["pts"]) if "pts" in f else 0.0
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
@@ -278,9 +278,9 @@ def panel_exposure_expanded(exp_f):
             v = f.get("value")
             val_s = f"VIX {v:.1f}" if v is not None else "--"
         elif key == "new_highs_lows":
-            nh = f.get("new_highs", 0)
-            nl = f.get("new_lows", 0)
-            net = (nh or 0) - (nl or 0)
+            nh = f.get("new_highs") if "new_highs" in f else 0
+            nl = f.get("new_lows") if "new_lows" in f else 0
+            net = (nh if nh is not None else 0) - (nl if nl is not None else 0)
             val_s = f"NH:{nh} NL:{nl} net:{net:+d}"
         elif key == "credit_spread":
             v = f.get("value")

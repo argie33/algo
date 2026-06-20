@@ -38,12 +38,24 @@ from ..utilities import (
 )
 
 
-def _extract_items(data: Any) -> list:
-    """Extract items list from various data structure formats."""
+def _extract_items(data: Any) -> list | dict:
+    """Extract items list from various data structure formats.
+
+    Fail-fast: Propagates error dicts instead of silently returning empty list.
+    Returns error dict if present, otherwise returns items list.
+    """
+    if data is None:
+        return []
+    # Propagate error dicts (contains _error field)
+    if isinstance(data, dict) and "_error" in data:
+        return data
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
-        return data.get("items") or data.get("trades", [])
+        if "items" in data and isinstance(data["items"], list):
+            return data["items"]
+        if "trades" in data and isinstance(data["trades"], list):
+            return data["trades"]
     return []
 
 

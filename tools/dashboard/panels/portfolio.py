@@ -196,9 +196,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     if perf_anl and _error_panel("performance analytics", perf_anl, "PERFORMANCE", border="green"):
         return _error_panel("performance analytics", perf_anl, "PERFORMANCE", border="green")
 
-    streak = perf.get("streak") if perf.get("streak") is not None else 0
-    str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-    str_c = G if streak >= 0 else R
+    streak = perf.get("streak")
+    if streak is not None:
+        str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
+        str_c = G if streak >= 0 else R
+    else:
+        str_s = "--"
+        str_c = "dim"
     unrlzd = perf.get("unrealized_pnl")
     pnl_val = perf.get("pnl")
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
@@ -212,9 +216,9 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
     wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    closed_wins = perf.get("w") if perf else 0
-    closed_losses = perf.get("l") if perf else 0
-    losing_open = (adj_l or 0) - (closed_losses or 0)
+    closed_wins = perf.get("w")
+    closed_losses = perf.get("l")
+    losing_open = (adj_l or 0) - (closed_losses or 0) if closed_losses is not None else 0
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
@@ -393,7 +397,8 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Cash:",
             fmt_money(cash),
         )
-        max_n = int(cfg.get("max_pos_n", 0)) if cfg else 0
+        max_n_val = cfg.get("max_pos_n") if cfg else None
+        max_n = int(max_n_val) if max_n_val else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
         ptbl.add_row("Open Positions:", slots_s, "Day Return:", dr_s)
@@ -415,17 +420,17 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     # ── Performance metrics ────────────────────────────────────────────────────
     if perf and not perf.get("_error") and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
-        n = perf.get("n", 0)
-        w = perf.get("w", 0)
-        closed_losses = perf.get("l", 0)
-        streak = perf.get("streak", 0)
+        n = perf.get("n")
+        w = perf.get("w")
+        closed_losses = perf.get("l")
+        streak = perf.get("streak")
         pnl_val = perf.get("pnl")
         unrlzd_pnl = perf.get("unrealized_pnl")
         open_cnt = perf.get("open_count")
         pf = perf.get("profit_factor")
         sharpe_v = perf.get("sharpe")
         exp = perf.get("expectancy")
-        dd_v = perf.get("maxdd", 0)
+        dd_v = perf.get("maxdd")
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
@@ -436,9 +441,9 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
         exp_c = G if (exp is None or exp >= 0) else R
-        str_c = G if streak >= 0 else R
-        str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-        dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
+        str_c = G if (streak is not None and streak >= 0) else R
+        str_s = f"+{streak}W" if (streak is not None and streak >= 0) else (f"{abs(streak)}L" if streak is not None else "--")
+        dd_c = R if (dd_v is not None and dd_v >= 15) else (Y if (dd_v is not None and dd_v >= 5) else G)
 
         perfblk = Table.grid(padding=(0, 3), expand=False)
         perfblk.add_column("label", style="dim")
@@ -471,7 +476,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         perfblk.add_row(
             "Max Drawdown:",
-            Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
+            Text(f"-{dd_v:.1f}%" if (dd_v is not None and dd_v > 0) else "--", style=dd_c),
             "Sharpe (annl.):",
             Text(f"{sharpe_v:.2f}" if sharpe_v is not None else "--", style="white"),
         )
@@ -490,13 +495,13 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(perfblk)
 
         # Equity sparkline
-        equity_vals = perf.get("equity_vals", [])
-        if len(equity_vals) >= 3:
+        equity_vals = perf.get("equity_vals")
+        if equity_vals and len(equity_vals) >= 3:
             sp = sparkline(equity_vals, width=50)
             rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
         # Recent daily returns
-        recent_rets = perf.get("recent_rets", [])
+        recent_rets = perf.get("recent_rets")
         if recent_rets:
             from datetime import datetime
 

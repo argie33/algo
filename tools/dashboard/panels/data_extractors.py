@@ -58,7 +58,10 @@ def safe_get_list(data: Any) -> list:
     if isinstance(data, list):
         return data
     if isinstance(data, dict) and not has_error(data):
-        return data.get("items", []) or data.get("data", []) or []
+        if "items" in data and isinstance(data["items"], list):
+            return data["items"]
+        if "data" in data and isinstance(data["data"], list):
+            return data["data"]
     return []
 
 
@@ -90,17 +93,19 @@ def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
 def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
     """Extract risk metrics for display (only if valid data).
 
-    Returns zero-filled dict only for optional metrics. Required fields
-    are guaranteed by validation at API boundary.
+    Fail-fast: Risk metrics (VaR, CVaR, Beta, concentration) are critical
+    financial data. Missing values are not replaced with 0; that would be
+    catastrophically misleading for position sizing. All fields must be
+    present after error check passes.
     """
     if not isinstance(risk, dict) or has_error(risk):
         return {}
     return {
-        "var95": risk.get("var95", 0),
-        "cvar95": risk.get("cvar95", 0),
-        "svar": risk.get("svar", 0),
-        "beta": risk.get("beta", 0),
-        "conc5": risk.get("conc5", 0),
+        "var95": risk["var95"],
+        "cvar95": risk["cvar95"],
+        "svar": risk.get("svar"),
+        "beta": risk["beta"],
+        "conc5": risk["conc5"],
     }
 
 
@@ -115,11 +120,11 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     return {
         "success": run["success"],
         "halted": run["halted"],
-        "errored": run.get("errored", False),
+        "errored": run["errored"],
         "run_at": run.get("run_at"),
         "run_id": run.get("run_id"),
         "phase_results": run.get("phase_results", []),
-        "halt_reason": run.get("halt_reason", ""),
-        "summary": run.get("summary", ""),
-        "_source": run.get("_source", ""),
+        "halt_reason": run.get("halt_reason"),
+        "summary": run.get("summary"),
+        "_source": run.get("_source"),
     }

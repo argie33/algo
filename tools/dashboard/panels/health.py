@@ -45,11 +45,13 @@ from ._helpers import (
 )
 
 
-def _var_color(var95: float) -> str:
+def _var_color(var95: float | None) -> str:
     """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
-    if (var95 or 0) >= 4:
+    if var95 is None:
+        return "dim"
+    if var95 >= 4:
         return R
-    if (var95 or 0) >= 2:
+    if var95 >= 2:
         return Y
     return "white"
 
@@ -80,9 +82,9 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
         var95_val = risk["var95"]
-        beta_val = risk.get("beta", 0)
-        cvar95_val = risk.get("cvar95", 0)
-        conc5_val = risk.get("conc5", 0)
+        beta_val = risk["beta"]
+        cvar95_val = risk["cvar95"]
+        conc5_val = risk["conc5"]
         svar_val = risk.get("svar")
         beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
         var_c = _var_color(var95_val)
@@ -228,8 +230,12 @@ def panel_status(
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
         rows.append(Text.from_markup(f"{sts}{age_s}"))
     cfg_v = cfg or {}
-    mode = cfg_v.get("mode", "")
-    en = cfg_v.get("enabled", True)
+    mode = cfg_v.get("mode")
+    if mode is None:
+        mode = ""
+    en = cfg_v.get("enabled")
+    if en is None:
+        en = True
     mc = G if "LIVE" in str(mode) else Y
     ec = G if en else R
     en_s = "ENABLED" if en else "DISABLED"
@@ -259,15 +265,15 @@ def panel_status(
     # Execution history summary — last 7 runs
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist:
-        n_ok = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() in ("success", "completed"))
-        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() == "halted")
-        n_err = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() in ("error", "failed"))
+        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h = n_ok / total_h * 100 if total_h else 0
         wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
         badges = []
         for r in valid_hist[:7]:
-            s = (r.get("overall_status", "")).lower()
+            s = (r.get("overall_status") or "").lower()
             if s in ("success", "completed"):
                 badges.append(f"[{G}]OK[/]")
             elif s == "halted":
@@ -283,7 +289,7 @@ def panel_status(
             )
         )
         last_halt = next(
-            (r for r in valid_hist if (r.get("overall_status", "")).lower() == "halted"),
+            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
             None,
         )
         if last_halt:
@@ -296,10 +302,12 @@ def panel_status(
         rows.append(Rule(style="dim"))
 
     # Current run status — shown prominently even when history is empty
-    run_id = (run.get("run_id", "")) if run and not has_error(run) else ""
+    run_id = run.get("run_id") if (run and not has_error(run)) else None
     run_at = run.get("run_at") if run else None
     if not run_id and act and not has_error(act):
-        run_id = (act.get("run_id", ""))[:26]
+        act_run_id = act.get("run_id")
+        if act_run_id:
+            run_id = act_run_id[:26]
         run_at = act.get("run_at")
     if run_id:
         age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
@@ -519,9 +527,9 @@ def panel_status(
         for m in valid_metrics[:5]:
             d = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            ta = int(m.get("total_actions", 0))
-            en = int(m.get("entries", 0))
-            ex = int(m.get("exits", 0))
+            ta = int(m["total_actions"]) if "total_actions" in m else 0
+            en = int(m["entries"]) if "entries" in m else 0
+            ex = int(m["exits"]) if "exits" in m else 0
             rows.append(
                 Text.from_markup(
                     f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
@@ -715,10 +723,10 @@ def panel_algo_health(
         algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     )
     today_m = valid_metrics[0] if valid_metrics else {}
-    if not entries_exec:
-        entries_exec = int(today_m.get("entries", 0))
-    if not exits_exec:
-        exits_exec = int(today_m.get("exits", 0))
+    if not entries_exec and "entries" in today_m:
+        entries_exec = int(today_m["entries"])
+    if not exits_exec and "exits" in today_m:
+        exits_exec = int(today_m["exits"])
 
     # "What did the algo do today?" summary — the core insight
     action_parts = []
@@ -759,13 +767,13 @@ def panel_algo_health(
     # ── C: Run history (last 7 runs as badges) ───────────────────────────────
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist:
-        n_ok = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() in ("success", "completed"))
-        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() == "halted")
-        n_err = sum(1 for r in valid_hist if (r.get("overall_status", "")).lower() in ("error", "failed"))
+        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         badges = []
         for r in valid_hist[:7]:
-            s = (r.get("overall_status", "")).lower()
+            s = (r.get("overall_status") or "").lower()
             badges.append(
                 f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
             )
@@ -779,7 +787,7 @@ def panel_algo_health(
             )
         )
         last_halt = next(
-            (r for r in valid_hist if (r.get("overall_status", "")).lower() == "halted"),
+            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
             None,
         )
         if last_halt:
@@ -851,9 +859,9 @@ def panel_algo_health(
     if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
         rows.append(Rule(style="dim"))
         var95_val = risk["var95"]
-        beta_val = risk.get("beta", 0)
-        conc5_val = risk.get("conc5", 0)
-        cvar95_val = risk.get("cvar95", 0)
+        beta_val = risk["beta"]
+        conc5_val = risk["conc5"]
+        cvar95_val = risk["cvar95"]
         svar_val = risk.get("svar")
         beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
         conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
@@ -1139,13 +1147,13 @@ def panel_algo_health_expanded(
     # Full run history
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
-        n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status", "")).lower() in ("success", "completed"))
+        n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status") or "").lower() in ("success", "completed"))
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
         for r in valid_hist_e:
-            s = (r.get("overall_status", "")).lower()
+            s = (r.get("overall_status") or "").lower()
             dt = r.get("started_at")
             dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
             ic = G if s in ("success", "completed") else (Y if s == "halted" else R)

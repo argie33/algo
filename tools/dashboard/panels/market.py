@@ -123,12 +123,13 @@ def panel_market_full(mkt, sentiment=None):
 
     # Fear & Greed
     if sentiment and not has_error(sentiment):
-        fg_v = sentiment.get("fg", 0)
-        fg_lbl = (sentiment.get("label", ""))[:16]
-        fg_c = sentiment.get("color", "dim")
-        fg_bar = int(fg_v / 100 * 8)
-        fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
-        lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
+        fg_v = sentiment.get("fg")
+        if fg_v is not None:
+            fg_lbl = (sentiment.get("label", ""))[:16]
+            fg_c = sentiment.get("color", "dim")
+            fg_bar = int(fg_v / 100 * 8)
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
+            lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
@@ -341,18 +342,27 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
         if sentiment and not has_error(sentiment):
-            fg_v = sentiment.get("fg", 0)
-            fg_lbl = (sentiment.get("label", ""))[:14]
-            fg_c = sentiment.get("color", "dim")
+            fg_v = sentiment.get("fg")
+            if fg_v is None:
+                fg_v = 0
+            fg_lbl = (sentiment.get("label") or "")[:14]
+            fg_c = sentiment.get("color")
+            if fg_c is None:
+                fg_c = "dim"
             fg_bar = int(fg_v / 100 * 6)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
             line5 += f"  [dim]Fear/Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
-            mode = cfg.get("mode", "?")
+            mode = cfg.get("mode")
+            if mode is None:
+                mode = "?"
             mc2 = G if "LIVE" in str(mode) else Y
-            en_s = "ENABLED" if cfg.get("enabled", True) else "DISABLED"
-            ec = G if cfg.get("enabled", True) else R
+            enabled = cfg.get("enabled")
+            if enabled is None:
+                enabled = True
+            en_s = "ENABLED" if enabled else "DISABLED"
+            ec = G if enabled else R
             min_score = cfg.get("min_score")
             max_n = cfg.get("max_pos_n")
             max_sec = cfg.get("max_sec_n")

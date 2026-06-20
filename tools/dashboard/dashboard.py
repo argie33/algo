@@ -45,13 +45,13 @@ except ImportError:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
+                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
                 try:
-                    tty.setraw(fd)
+                    tty.setraw(fd)  # type: ignore[attr-defined]
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
             except Exception:
                 return ""
         return ""
@@ -159,8 +159,8 @@ class _RenderWrapper:
         self.elapsed = 0.0
         self.frame = 0
         self.view_mode = "normal"
-        self.watch_interval = None
-        self.last_load_time = None
+        self.watch_interval: int | None = None
+        self.last_load_time: float | None = None
         self.refreshing = False
         self._state_lock = threading.Lock()
 
@@ -459,9 +459,9 @@ def _check_auth_lost() -> Panel | None:
             "[bold red]Authentication Lost[/]\n"
             "[dim]Token refresh failed - please re-authenticate[/]\n\n"
             "[yellow]To continue:[/]\n"
-            "[dim]• Restart the dashboard\n"
-            "• Or set COGNITO_USERNAME + COGNITO_PASSWORD environment variables\n"
-            "• Then run the dashboard again[/]"
+            "[dim]� Restart the dashboard\n"
+            "� Or set COGNITO_USERNAME + COGNITO_PASSWORD environment variables\n"
+            "� Then run the dashboard again[/]"
         )
         return Panel(
             Text.from_markup(content),
@@ -471,16 +471,16 @@ def _check_auth_lost() -> Panel | None:
     return None
 
 
-def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
+def _handle_render_error(e: Exception, recovery_status: str | None = None) -> Panel:
     """Create an error panel for render failures with recovery info."""
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
     error_line = f"{type(e).__name__}: {str(e)[:80]}"
     if recovery_status:
-        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+        content = f"[bold red]�  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
     else:
-        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]"
+        content = f"[bold red]�  Render Error[/]\n[dim]{error_line}[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -518,32 +518,32 @@ def render_dashboard(
         logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
         view_mode = "normal"
 
-    run = data.get("run") or {}
-    cfg = data.get("cfg") or {}
-    mkt = data.get("mkt") or {}
-    port = data.get("port") or {}
-    perf = data.get("perf") or {}
-    pos = data.get("pos") or {}
-    sig = data.get("sig") or {}
-    hlth = data.get("health") or {}  # keep raw dict; ready_to_trade/critical_stale available to panels
-    cb = data.get("cb") or {}
-    rec = data.get("trades") or {}
-    srank = _extract_items(data.get("srank") or {})
-    act = data.get("activity") or {}
-    exp_f = data.get("exp_factors") or {}
-    eco = data.get("eco") or {}
-    notifs = data.get("notifs") or []
-    sentiment = data.get("sentiment") or {}
-    econ_cal = _extract_items(data.get("econ_cal") or {})
-    risk = data.get("risk") or {}
-    perf_anl = data.get("perf_anl") or {}
-    sig_eval = data.get("sig_eval") or {}
-    sec_rot = data.get("sec_rot") or {}
-    algo_metrics = _extract_items(data.get("algo_metrics") or {})
-    irank = _extract_items(data.get("irank") or {})
-    audit = _extract_items(data.get("audit") or {})
-    exec_hist = _extract_items(data.get("exec_hist") or {})
-    scores = data.get("scores") or {}
+    run = data.get("run")
+    cfg = data.get("cfg")
+    mkt = data.get("mkt")
+    port = data.get("port")
+    perf = data.get("perf")
+    pos = data.get("pos")
+    sig = data.get("sig")
+    hlth = data.get("health")  # keep raw dict; ready_to_trade/critical_stale available to panels
+    cb = data.get("cb")
+    rec = data.get("trades")
+    srank = _extract_items(data.get("srank"))
+    act = data.get("activity")
+    exp_f = data.get("exp_factors")
+    eco = data.get("eco")
+    notifs = data.get("notifs")
+    sentiment = data.get("sentiment")
+    econ_cal = _extract_items(data.get("econ_cal"))
+    risk = data.get("risk")
+    perf_anl = data.get("perf_anl")
+    sig_eval = data.get("sig_eval")
+    sec_rot = data.get("sec_rot")
+    algo_metrics = _extract_items(data.get("algo_metrics"))
+    irank = _extract_items(data.get("irank"))
+    audit = _extract_items(data.get("audit"))
+    exec_hist = _extract_items(data.get("exec_hist"))
+    scores = data.get("scores")
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
@@ -552,10 +552,10 @@ def render_dashboard(
 
     refresh_s = ""
     if refreshing:
-        refresh_s = "  [cyan]â†»[/]"
+        refresh_s = "  [cyan]↻[/]"
     elif watch_interval is not None and last_load_time is not None:
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
-        refresh_s = f"  [dim]â†»{secs}s[/]"
+        refresh_s = f"  [dim]↻{secs}s[/]"
 
     hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
     exp_panel = panel_exposure_compact(exp_f)
@@ -900,9 +900,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         else:
                             live.update(loading_layout(current_frame, data_source=data_source))
                     else:
-                        if render_error is None:
+                        if render_error is None and render_layout is not None:
                             live.update(render_layout)
-                        else:
+                        elif render_error is not None:
                             error_panel = _handle_render_error(render_error, error_status)
                             try:
                                 live.update(error_panel)
