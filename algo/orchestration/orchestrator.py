@@ -1044,12 +1044,12 @@ class Orchestrator:
             )
         )
 
-        # Phase 3: Position Monitor (depends on Phase 2)
+        # Phase 3: Position Monitor (always runs, even if Phase 2 fails)
         executor.register_phase(
             PhaseDefinition(
                 phase_num=3,
                 phase_name="POSITION MONITOR",
-                dependencies=[2],
+                dependencies=[],
                 execute_fn=self._executor_phase_3,
                 skip_if_halted=True,
             )
@@ -1127,9 +1127,8 @@ class Orchestrator:
 
     def _executor_phase_1(self, **kwargs):
         """Executor wrapper for Phase 1."""
-        result = self.phase_1_data_freshness()
-        # phase_1_data_freshness already returns result; just pass it through
-        return getattr(self, "_phase1_result", None) or result
+        self.phase_1_data_freshness()
+        return getattr(self, "_phase1_result", None)
 
     def _executor_phase_2(self, **kwargs):
         """Executor wrapper for Phase 2."""
@@ -1143,7 +1142,6 @@ class Orchestrator:
 
     def _executor_phase_3a(self, **kwargs):
         """Executor wrapper for Phase 3a."""
-        # Import phase function
         from algo.orchestrator.phase3a_reconciliation import run as run_phase3a
 
         result = run_phase3a(
@@ -1164,11 +1162,7 @@ class Orchestrator:
     def _executor_phase_4(self, **kwargs):
         """Executor wrapper for Phase 4."""
         self.phase_4_exit_execution()
-        result = getattr(self, "_phase4_result", None)
-        if result is None:
-            # Fallback if phase didn't set result
-            result = self.phase_4_exit_execution()
-        return result
+        return getattr(self, "_phase4_result", None)
 
     def _executor_phase_5(self, **kwargs):
         """Executor wrapper for Phase 5."""
@@ -1277,176 +1271,14 @@ class Orchestrator:
 
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self._health_check_diagnostics()
-            try:
-                phase_1_start = time.time()
-                logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
-                with TimeBlock("phase_1_data_freshness"):
-                    from algo.orchestrator.phase1_data_freshness import (
-                        run as run_phase1,
-                    )
 
-                    phase1_result = run_phase1(
-                        self.config,
-                        self.run_date,
-                        self.dry_run,
-                        self.alerts,
-                        self.verbose,
-                        self.log_phase_result,
-                    )
-                    self._phase1_result = phase1_result
-                    if phase1_result.halted:
-                        logger.error("\nPhase 1 failed: prices not loaded or coverage insufficient.")
-                        self.log_phase_result(1, "data_freshness", "halt", phase1_result.error or "")
-                        self.phase_7_reconcile()
-                        return cast(dict[str, Any], self._final_report())
-                phase_1_elapsed = time.time() - phase_1_start
-                logger.info(
-                    f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"\nERROR in phase 1 (data freshness): {e}. Running Phase 7 (reconciliation) before halting."
-                )
-                self.log_phase_result(1, "data_freshness", "error", str(e))
-                self.phase_7_reconcile()
+            executor = self._setup_executor()
+            with TimeBlock("orchestrator_executor"):
+                executor_result = executor.run()
+
+            if not executor_result.get("success"):
+                logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {executor_result.get('error_phase')}")
                 return cast(dict[str, Any], self._final_report())
-
-            phase_2_start = time.time()
-            logger.info(f"\n[PHASE 2] Starting at {datetime.now(timezone.utc).isoformat()}")
-            with TimeBlock("phase_2_circuit_breakers"):
-                phase_2_passed = self.phase_2_circuit_breakers()
-            phase_2_elapsed = time.time() - phase_2_start
-            logger.info(f"[PHASE 2] Completed in {phase_2_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
-
-            if not phase_2_passed:
-                logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
-                phase2_result = getattr(self, "_phase2_result", None)
-                halt_reason = (
-                    phase2_result.error if phase2_result and phase2_result.error else "Circuit breaker triggered"
-                )
-                self._set_halt_flag(halt_reason)
-                self.phase_3_position_monitor()
-                self.phase_3b_exposure_policy()
-                self.phase_4_exit_execution()
-                self.phase_7_reconcile()
-                return cast(dict[str, Any], self._final_report())
-
-            # Phase 2 passed: no circuit breakers active. If Phase 1 also passed,
-            # clear halt flag to resume normal trading (both data fresh + no risk issues)
-            self._clear_halt_flag("Phase 2 passed: all circuit breakers clear")
-
-            # Phase 3: Position Monitor
-            phase_3_start = time.time()
-            logger.info(f"\n[PHASE 3] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_3_position_monitor"):
-                    self.phase_3_position_monitor()
-                phase_3_elapsed = time.time() - phase_3_start
-                logger.info(
-                    f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
-                self.log_phase_result(3, "position_monitor", "error", str(e))
-
-            # Phase 3b: Exposure Policy
-            phase_3b_start = time.time()
-            logger.info(f"\n[PHASE 3b] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_3b_exposure_policy"):
-                    self.phase_3b_exposure_policy()
-                phase_3b_elapsed = time.time() - phase_3b_start
-                logger.info(
-                    f"[PHASE 3b] Completed in {phase_3b_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
-                self.log_phase_result("3b", "exposure_policy", "error", str(e))
-
-            # Phase 4: Exit Execution
-            phase_4_start = time.time()
-            logger.info(f"\n[PHASE 4] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_4_exit_execution"):
-                    result = self.phase_4_exit_execution()
-                    if not result:
-                        logger.critical(
-                            "HALT: Phase 4 (Exit Execution) returned False — running Phase 7 for snapshot then stopping."
-                        )
-                        self.phase_7_reconcile()
-                        return cast(dict[str, Any], self._final_report())
-                phase_4_elapsed = time.time() - phase_4_start
-                logger.info(
-                    f"[PHASE 4] Completed in {phase_4_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
-                self.log_phase_result(4, "exit_execution", "error", str(e))
-
-            # Phase 5: Signal Generation
-            phase_5_start = time.time()
-            logger.info(f"\n[PHASE 5] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_5_signal_generation"):
-                    result = self.phase_5_signal_generation()
-                    if not result:
-                        # ISSUE #10 FIX: Provide context about why Phase 5 halted
-                        # Phase 5's phase_5_signal_generation() method logs halt reason internally
-                        logger.critical(
-                            "HALT: Phase 5 (Signal Generation) halted — no signal-based trades will be generated. "
-                            "See logs above for halt reason (likely data quality degradation). Skipping Phase 6."
-                        )
-                        # Phase 7 must still run: it creates the portfolio snapshot that Phase 5
-                        # needs on its next invocation. Skipping Phase 7 here causes a deadlock
-                        # where Phase 5 always halts (no snapshot) and Phase 7 never creates one.
-                        self.phase_7_reconcile()
-                        return cast(dict[str, Any], self._final_report())
-                phase_5_elapsed = time.time() - phase_5_start
-                logger.info(
-                    f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
-                self.log_phase_result(5, "signal_generation", "error", str(e))
-
-            # Phase 6: Entry Execution
-            phase_6_start = time.time()
-            logger.info(f"\n[PHASE 6] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_6_entry_execution"):
-                    result = self.phase_6_entry_execution()
-                    if not result:
-                        # ISSUE #10 FIX: Provide context about why Phase 6 halted
-                        logger.critical(
-                            "HALT: Phase 6 (Entry Execution) halted — no new signal-based trades will be entered. "
-                            "See logs above for halt reason. Running Phase 7 before exit."
-                        )
-                        # Phase 7 must still run — portfolio snapshot required for circuit breakers next invocation.
-                        self.phase_7_reconcile()
-                        return cast(dict[str, Any], self._final_report())
-                phase_6_elapsed = time.time() - phase_6_start
-                logger.info(
-                    f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
-                self.log_phase_result(6, "entry_execution", "error", str(e))
-
-            # Phase 7: Reconciliation (fail-open — doesn't execute trades, just records state)
-            phase_7_start = time.time()
-            logger.info(f"\n[PHASE 7] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_7_reconciliation"):
-                    result = self.phase_7_reconcile()
-                # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
-                # (positions may already be executed, so we must sync state)
-                phase_7_elapsed = time.time() - phase_7_start
-                logger.info(
-                    f"[PHASE 7] Completed in {phase_7_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-                )
-            except Exception as e:
-                logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
-                self.log_phase_result(7, "reconciliation", "error", str(e))
 
             # Log performance metrics and total time
             log_metrics_summary()
