@@ -39,7 +39,24 @@ def lambda_handler(event, context):
                 "body": json.dumps({"error": "loader_name required"}),
             }
 
-        task_count = int(event.get("task_count", 1))
+        # Issue #14: task_count should be explicit when specified (no implicit default)
+        task_count_raw = event.get("task_count")
+        if task_count_raw is None:
+            # If not specified, require default via environment or use 1 as documented default
+            task_count = int(os.getenv("DEFAULT_LOADER_TASK_COUNT", "1"))
+        else:
+            try:
+                task_count = int(task_count_raw)
+                if task_count < 1:
+                    return {
+                        "statusCode": 400,
+                        "body": json.dumps({"error": "task_count must be >= 1"}),
+                    }
+            except (ValueError, TypeError):
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": f"task_count not numeric: {task_count_raw}"}),
+                }
         project_name = os.getenv("PROJECT_NAME", "algo")
         os.getenv("ENVIRONMENT", "dev")
         cluster_arn = os.getenv("ECS_CLUSTER_ARN")

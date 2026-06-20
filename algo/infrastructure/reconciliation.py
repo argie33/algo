@@ -875,28 +875,30 @@ class DailyReconciliation:
                 if cur_price <= 0:
                     raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: current price {cur_price} <= 0 — cannot import")
 
-                # Validate market value if provided
+                # Validate market value — required field, no fallback computation allowed
                 pos_value_raw = getattr(ap, "market_value", None)
-                if pos_value_raw is not None:
+                if pos_value_raw is None:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value is required but missing — cannot import")
+                try:
                     pos_value = float(pos_value_raw)
-                    if pos_value <= 0:
-                        logger.warning(f"[import_alpaca] {sym}: Market value invalid {pos_value} — recalculating")
-                        pos_value = qty * cur_price
-                else:
-                    pos_value = qty * cur_price
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value not numeric '{pos_value_raw}' — cannot import") from e
+                if pos_value <= 0:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value {pos_value} <= 0 — cannot import")
 
-                # Get PnL (may be missing for very new positions — compute from prices, don't mask with 0)
+                # Get PnL — both fields required, no fallback to 0 allowed
                 pnl_raw = getattr(ap, "unrealized_pl", None)
                 pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
 
-                if pnl_raw is not None and pnl_pct_raw is not None:
+                if pnl_raw is None:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_pl is required but missing — cannot import")
+                if pnl_pct_raw is None:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_plpc is required but missing — cannot import")
+                try:
                     pnl = float(pnl_raw)
                     pnl_pct = float(pnl_pct_raw) * 100
-                elif cur_price is not None and avg_entry is not None and cur_price > 0 and avg_entry > 0:
-                    pnl_pct = ((cur_price - avg_entry) / avg_entry) * 100
-                    pnl = (cur_price - avg_entry) * qty
-                else:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: Cannot compute PnL (missing prices) — cannot import")
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: PnL fields not numeric — cannot import") from e
 
                 position_id = f"EXT-{sym}-{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 trade_id = f"EXT-{sym}"
@@ -1137,11 +1139,23 @@ class DailyReconciliation:
                     continue
                 cur_price = float(cur_price_raw)
                 pos_value_raw = getattr(ap, "market_value", None)
-                pos_value = float(pos_value_raw) if pos_value_raw else qty * cur_price
+                if pos_value_raw is None:
+                    continue
+                try:
+                    pos_value = float(pos_value_raw)
+                except (ValueError, TypeError):
+                    continue
+                if pos_value <= 0:
+                    continue
                 pnl_raw = getattr(ap, "unrealized_pl", None)
-                pnl = float(pnl_raw) if pnl_raw else 0.0
                 pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
-                pnl_pct = (float(pnl_pct_raw) * 100) if pnl_pct_raw else 0.0
+                if pnl_raw is None or pnl_pct_raw is None:
+                    continue
+                try:
+                    pnl = float(pnl_raw)
+                    pnl_pct = (float(pnl_pct_raw) * 100)
+                except (ValueError, TypeError):
+                    continue
                 position_id = f"EXT-{sym}-{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 trade_id = f"EXT-{sym}"
                 cur.execute("SAVEPOINT retry_sp")

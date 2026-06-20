@@ -76,7 +76,7 @@ from tools.dashboard.cognito_auth import (
 from tools.dashboard.cognito_auth import (
     save_tokens,
 )
-from tools.dashboard.error_boundary import error_summary_panel
+from tools.dashboard.error_boundary import error_summary_panel, error_summary_panel_expanded
 from tools.dashboard.error_recovery import RenderRecovery
 from tools.dashboard.fetchers import load_all
 from tools.dashboard.formatters import mkt_hours_str
@@ -146,6 +146,7 @@ KEY_MAP = {
     "b": "circuit",
     "x": "exposure",
     "m": "market",
+    "d": "errors",
 }
 
 
@@ -511,6 +512,7 @@ def render_dashboard(
         "trades",
         "economic",
         "portfolio",
+        "errors",
     }
     if view_mode not in valid_modes:
         logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
@@ -703,6 +705,13 @@ def render_dashboard(
             *_exp_top,
             panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
         )
+
+    if view_mode == "errors":
+        error_panel_exp = error_summary_panel_expanded(data)
+        if error_panel_exp:
+            return _expanded_layout(*_exp_top, error_panel_exp)
+        # Fall back to normal if no errors
+        return outer
 
     return outer
 

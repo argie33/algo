@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 """Market Events & Corporate Actions Handler
 
@@ -19,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from typing import Any
 
+import psycopg2
 import requests
 
 from algo.infrastructure import (
@@ -63,8 +61,11 @@ class MarketEventHandler:
             try:
                 data = resp.json()
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Invalid JSON response from {url}: {e}")
-                return None
+                logger.error(f"CRITICAL: Invalid JSON response from {url}: {e}")
+                raise RuntimeError(
+                    f"Cannot parse market event status from {url}. "
+                    f"Invalid JSON: {e}. Check data provider and retry."
+                ) from e
             status = data.get("status", "").upper()
             tradable = data.get("tradable", False)
 

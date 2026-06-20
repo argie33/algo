@@ -83,10 +83,12 @@ def panel_exposure_compact(exp_f):
             v = f.get("value")
             return f" {v:.1f}" if v is not None else ""
         if key == "new_highs_lows":
-            nh = f.get("new_highs", 0)
-            nl = f.get("new_lows", 0)
-            net = (nh or 0) - (nl or 0)
-            return f" {'+' if net >= 0 else ''}{net}"
+            nh = f.get("new_highs")
+            nl = f.get("new_lows")
+            if nh is not None and nl is not None:
+                net = nh - nl
+                return f" {'+' if net >= 0 else ''}{net}"
+            return ""
         if key == "credit_spread":
             v = f.get("value")
             return f" {v:.2f}" if v is not None else ""
@@ -158,9 +160,9 @@ def panel_exposure_compact(exp_f):
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
-    raw_bar = mini_bar(raw or 0, 100, w=8)
-    raw_s = f"{(raw or 0):.0f}" if raw is not None else "--"
-    epct_s = f"{(epct or 0):.0f}" if epct is not None else "--"
+    raw_bar = mini_bar(raw if raw is not None else 0, 100, w=8)
+    raw_s = f"{raw:.0f}" if raw is not None else "--"
+    epct_s = f"{epct:.0f}" if epct is not None else "--"
     header = Text.from_markup(
         f"[dim]Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar} [dim]↳ allocation[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:24]}[/]"
     )
@@ -190,9 +192,9 @@ def panel_exposure_expanded(exp_f):
     tc = TIER_COLOR.get(tier, "dim")
 
     # Header summary
-    raw_bar = mini_bar(raw or 0, 100, w=12)
-    raw_s = f"{(raw or 0):.0f}" if raw is not None else "--"
-    epct_s = f"{(epct or 0):.0f}" if epct is not None else "--"
+    raw_bar = mini_bar(raw if raw is not None else 0, 100, w=12)
+    raw_s = f"{raw:.0f}" if raw is not None else "--"
+    epct_s = f"{epct:.0f}" if epct is not None else "--"
     rows.append(
         Text.from_markup(
             f"[dim]Raw Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar}  "

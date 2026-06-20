@@ -390,7 +390,13 @@ class ExitEngine:
             hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
             return hit_date == current_date
 
-        require_pb = bool(self.config.get("require_target_pullback", False))
+        if "require_target_pullback" not in self.config:
+            raise ValueError(
+                "CRITICAL: 'require_target_pullback' config missing. "
+                "Cannot determine whether pullback validation is required for exits. "
+                "Check configuration setup."
+            )
+        require_pb = bool(self.config["require_target_pullback"])
 
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:

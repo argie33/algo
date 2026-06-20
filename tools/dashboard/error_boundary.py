@@ -99,7 +99,46 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
 
     border_color = R if failed_errors else Y
     title = (
-        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]"
+        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] expand[/]"
+    )
+
+    return Panel(
+        Text.from_markup(content),
+        title=title,
+        border_style=border_color,
+        padding=(0, 1),
+    )
+
+
+def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
+    """Generate expanded panel showing all failed data fetchers and stale data with full details.
+
+    Shows complete error messages without truncation for full visibility into data problems.
+    Returns None if no errors or stale data, otherwise returns a Panel listing them.
+    """
+    failed_errors = []
+    stale_data = []
+
+    for key, data in data_dict.items():
+        if not has_error(data):
+            continue
+        error_msg = get_error_message(data) or "Unknown error"
+
+        if is_data_stale(data):
+            stale_data.append(f"[{Y}]⚠ {key}[/]:\n  [dim]{error_msg}[/]")
+        else:
+            failed_errors.append(f"[{R}]✗ {key}[/]:\n  [dim]{error_msg}[/]")
+
+    if not failed_errors and not stale_data:
+        return None
+
+    # Show stale data warning in yellow, hard errors in red
+    content_parts = failed_errors + stale_data
+    content = "\n\n".join(content_parts)
+
+    border_color = R if failed_errors else Y
+    title = (
+        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] collapse[/]"
     )
 
     return Panel(

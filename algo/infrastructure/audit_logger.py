@@ -305,5 +305,8 @@ class TradeAuditLogger:
                     result[row[0]] = row[1]
                 return result
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Exit rule distribution failed: {e}")
-            return {}
+            logger.error(f"CRITICAL: Exit rule distribution failed due to database error: {e}")
+            raise RuntimeError(
+                f"Cannot compute exit rule distribution. Database error: {e}. "
+                f"Check database connectivity and exit_rules table schema."
+            ) from e

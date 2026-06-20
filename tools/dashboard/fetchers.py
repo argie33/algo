@@ -141,11 +141,31 @@ def fetch_run(c):
             return data
         # api_call already returns unwrapped data (statusCode + fields at top level)
         inner = data
+        # Phases is required — fail if missing (Issue #5)
+        if "phases" not in inner:
+            error_msg = "Last-run API response missing required field: phases"
+            logger.error(error_msg)
+            return {"_error": error_msg}
         phases = inner.get("phases") or []
         halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
+        # Timestamps are required — fail if all are missing (Issue #6)
+        run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
+        if not run_at:
+            error_msg = "Last-run API response missing all timestamp fields (run_at, completed_at, started_at)"
+            logger.error(error_msg)
+            return {"_error": error_msg}
+        # Success and halted flags are required — fail if missing (Issue #7)
+        if "success" not in inner:
+            error_msg = "Last-run API response missing required field: success"
+            logger.error(error_msg)
+            return {"_error": error_msg}
+        if "halted" not in inner:
+            error_msg = "Last-run API response missing required field: halted"
+            logger.error(error_msg)
+            return {"_error": error_msg}
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
         derived_errored = bool(errored_phases) or (
@@ -153,9 +173,9 @@ def fetch_run(c):
         )
         return {
             "run_id": inner.get("run_id"),
-            "run_at": inner.get("run_at") or inner.get("completed_at") or inner.get("started_at"),
-            "success": inner.get("success", False),
-            "halted": inner.get("halted", False),
+            "run_at": run_at,
+            "success": inner.get("success"),
+            "halted": inner.get("halted"),
             "errored": api_errored if api_errored is not None else derived_errored,
             "summary": inner.get("summary"),
             "halt_reason": halt_reason,
@@ -181,10 +201,34 @@ def fetch_algo_config(c):
             return {"_error": "Config response is not a dict"}
         # API returns {items: [{key, value, value_type, ...}], total: N}
         items = raw.get("items", [])
+        if not items:
+            error_msg = "Config API response has no items (empty config)"
+            logger.error(error_msg)
+            return {"_error": error_msg}
         cfg = {i["key"]: i.get("value") for i in items if "key" in i}
+        # Issue #8: enable_algo is REQUIRED — no default to True (fail-closed)
+        if "enable_algo" not in cfg:
+            error_msg = "Config missing required field: enable_algo"
+            logger.error(error_msg)
+            return {"_error": error_msg}
+        # Issue #10: All critical config values required; no silent None
+        required_config = [
+            "execution_mode",
+            "max_position_size_pct",
+            "max_positions",
+            "max_positions_per_sector",
+            "min_swing_score",
+            "base_risk_pct",
+            "t1_target_r_multiple",
+        ]
+        missing = [k for k in required_config if k not in cfg]
+        if missing:
+            error_msg = f"Config missing required fields: {missing}"
+            logger.error(error_msg)
+            return {"_error": error_msg}
         # Boolean string conversion
-        en_raw = cfg.get("enable_algo", "true")
-        enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else True
+        en_raw = cfg.get("enable_algo")
+        enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else False
         return {
             "enabled": enabled,
             "mode": cfg.get("execution_mode"),
@@ -254,19 +298,17 @@ def fetch_market(c):
             record_data_quality_issue("market", "critical_field", "conversion_failed", str(e))
             return {"_error": error_msg}
 
-        # regime is in current; fall back to active_tier.name
+        # Issue #9: Market regime is REQUIRED — no fallback to "unknown"
         tier = current.get("regime")
         if not tier:
-            active_tier = mkt.get("active_tier")
-            if isinstance(active_tier, dict):
-                tier = active_tier.get("name")
-        if not tier:
-            logger.warning(
-                f"[MARKET] Missing market regime and active_tier.name. "
-                f"Current keys: {list(current.keys())}, Mkt keys: {list(mkt.keys())}. "
-                "Using 'unknown' but data quality issue detected."
+            error_msg = (
+                f"[MARKET CRITICAL] Market regime missing from current.regime. "
+                f"Cannot position size without regime tier. "
+                f"Current keys: {list(current.keys())}"
             )
-            tier = "unknown"
+            logger.error(error_msg)
+            record_data_quality_issue("market", "critical_field", "missing_regime")
+            return {"_error": error_msg}
 
         return {
             "pct": safe_float(current.get("exposure_pct"), default=None),

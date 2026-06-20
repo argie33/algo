@@ -383,7 +383,19 @@ class OrderManager:
                             "message": f"Invalid response format: {e}",
                         }
                     order_id = data.get("id")
-                    filled_price = float(data.get("filled_avg_price")) if data.get("filled_avg_price") else None
+                    # Issue #13: filled_avg_price is required — no silent None
+                    if not order_id:
+                        logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing order id")
+                        return {"success": False, "message": "Alpaca response missing order id"}
+                    filled_price_raw = data.get("filled_avg_price")
+                    if not filled_price_raw:
+                        logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}")
+                        return {"success": False, "message": "Alpaca response missing filled_avg_price"}
+                    try:
+                        filled_price = float(filled_price_raw)
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"[SEND_EXIT] {symbol}: filled_avg_price not numeric: {e}")
+                        return {"success": False, "message": f"filled_avg_price not numeric: {e}"}
                     logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
                     return {
                         "success": True,

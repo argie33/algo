@@ -133,15 +133,34 @@ def lambda_handler(event, context):
         run_date_str = event.get("date") or event.get("run_date")
 
         # Parse run_identifier from EventBridge Scheduler to determine run purpose
-        # ONLY evening run (after market close) should skip trading by default
-        # Preclose run (3 PM ET) should trade — it's the final opportunity before market close
+        # Issue #15: dry_run should be explicit; default based on run_identifier only if not specified
         run_identifier = event.get("run_identifier", "")
-        if run_identifier == "evening":
-            # Evening orchestrator runs AFTER market close (5:30 PM ET) — no trading allowed
-            dry_run = event.get("dry_run", True)
-        elif run_identifier == "preclose":
-            # Preclose orchestrator runs BEFORE market close (3 PM ET) — this MUST trade
-            dry_run = event.get("dry_run", False)
+        if not run_identifier:
+            logger.error("run_identifier is required (evening or preclose)")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "run_identifier required"}),
+            }
+
+        # Determine dry_run: use explicit value if provided, otherwise default by run_identifier
+        dry_run_raw = event.get("dry_run")
+        if dry_run_raw is not None:
+            # Explicit value provided — use it
+            dry_run = bool(dry_run_raw)
+        else:
+            # No explicit value — use sensible default by run time
+            if run_identifier == "evening":
+                # Evening orchestrator runs AFTER market close (5:30 PM ET) — no trading allowed
+                dry_run = True
+            elif run_identifier == "preclose":
+                # Preclose orchestrator runs BEFORE market close (3 PM ET) — this MUST trade
+                dry_run = False
+            else:
+                logger.error(f"Unknown run_identifier: {run_identifier} (must be 'evening' or 'preclose')")
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": f"Unknown run_identifier: {run_identifier}"}),
+                }
 
         # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
         execution_mode = (

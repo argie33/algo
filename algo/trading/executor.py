@@ -100,10 +100,14 @@ class TradeExecutor:
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
-        execution_mode = config.get("execution_mode", "paper")
-        if not execution_mode:
-            execution_mode = "paper"
-        execution_mode = execution_mode.lower()
+        if "execution_mode" not in config or not config.get("execution_mode"):
+            raise ValueError(
+                "CRITICAL: 'execution_mode' config missing or empty. "
+                "Cannot proceed without explicit execution mode (paper/review/auto). "
+                "Silently defaulting to paper would hide configuration errors. "
+                "Check configuration and restart."
+            )
+        execution_mode = str(config["execution_mode"]).lower()
 
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
@@ -826,10 +830,21 @@ class TradeExecutor:
                     ),
                 )
 
-            # Phase 3.2: Record execution quality (TCA) for every fill
-            if order_status == "filled" or (order_status == "partially_filled" and execution_mode == "auto"):
+            # Phase 3.2: Record execution quality (TCA) for fills in AUTO mode only
+            # (MANUAL mode fills don't have order send time recorded; latency is undefined)
+            if execution_mode == "auto" and (order_status == "filled" or order_status == "partially_filled"):
                 try:
-                    execution_latency_ms = int((time.time() - getattr(self, "_order_send_time", time.time())) * 1000)
+                    if not hasattr(self, "_order_send_time"):
+                        raise RuntimeError(
+                            f"[TCA CRITICAL] {symbol}: _order_send_time not set in AUTO mode. "
+                            "Cannot record TCA without accurate send timestamp."
+                        )
+                    execution_latency_ms = int((time.time() - self._order_send_time) * 1000)
+                    if execution_latency_ms < 0:
+                        raise ValueError(
+                            f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms. "
+                            "Clock skew or time tracking error."
+                        )
                     tca_result = self.tca.record_fill(
                         trade_id=trade_id,
                         symbol=symbol,

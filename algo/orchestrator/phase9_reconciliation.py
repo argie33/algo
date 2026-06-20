@@ -424,8 +424,8 @@ def run(
                 logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
             else:
                 logger.info("No trades recorded today (metrics not updated)")
-                    metrics_status = "warn"
-                    metrics_summary = "No trades recorded"
+                metrics_status = "warn"
+                metrics_summary = "No trades recorded"
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to update algo_metrics_daily: {e}")
             metrics_summary = f"error: {str(e)[:60]}"
