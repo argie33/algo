@@ -556,12 +556,6 @@ def run(
 
     signal_source = "buysell_breakout"
 
-    if not raw_candidates:
-        msg = f"No candidates (source={signal_source}) for {run_date} with composite_score >= {min_composite_score}"
-        logger.warning(f"[PHASE 5] {msg}")
-        log_phase_result_fn(5, "signal_generation", "halt", msg)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
-
     # ISSUE #3 FIX: All trend and close quality validation now happens at SQL level in _get_candidates_from_buysell().
     # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality, swing_score IS NOT NULL.
     # This eliminates wasted I/O and ensures silent data quality drift is detected immediately.

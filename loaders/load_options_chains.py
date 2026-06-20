@@ -50,14 +50,14 @@ class OptionsLoader:
         iv_inserted = 0
         symbols_processed = 0
 
-        with DatabaseContext() as db:
-            for i in range(0, len(symbols), self.batch_size):
-                batch = symbols[i : i + self.batch_size]
-                logger.info(f"Processing batch {i // self.batch_size + 1} ({len(batch)} symbols)")
+        for i in range(0, len(symbols), self.batch_size):
+            batch = symbols[i : i + self.batch_size]
+            logger.info(f"Processing batch {i // self.batch_size + 1} ({len(batch)} symbols)")
 
+            with DatabaseContext("write") as cur:
                 for symbol in batch:
                     try:
-                        c_cnt, iv_cnt = self._load_symbol_options(db, symbol, eval_date)
+                        c_cnt, iv_cnt = self._load_symbol_options(cur, symbol, eval_date)
                         chains_inserted += c_cnt
                         iv_inserted += iv_cnt
                         symbols_processed += 1
@@ -65,7 +65,7 @@ class OptionsLoader:
                         logger.debug(f"Failed to load options for {symbol}: {e}")
                         continue
 
-                time.sleep(0.5)  # Rate limit yfinance
+            time.sleep(0.5)  # Rate limit yfinance
 
         duration = time.time() - start_time
         result = {
@@ -77,7 +77,7 @@ class OptionsLoader:
         logger.info(f"Options load complete: {result}")
         return result
 
-    def _load_symbol_options(self, db, symbol: str, eval_date: date) -> tuple[int, int]:
+    def _load_symbol_options(self, cur, symbol: str, eval_date: date) -> tuple[int, int]:
         """Load options chains and IV for a single symbol. Returns (chains, iv)."""
         chains_inserted = 0
         iv_inserted = 0
@@ -97,14 +97,14 @@ class OptionsLoader:
 
                 if not calls_df.empty or not puts_df.empty:
                     chains_inserted = self._insert_options_chains(
-                        db, symbol, calls_df, puts_df, eval_date
+                        cur, symbol, calls_df, puts_df, eval_date
                     )
             except Exception as e:
                 logger.debug(f"Failed to get chain for {symbol}: {e}")
 
             # Load IV history from multiple expirations
             try:
-                iv_inserted = self._insert_iv_history(db, symbol, options_list, eval_date)
+                iv_inserted = self._insert_iv_history(cur, symbol, options_list, eval_date)
             except Exception as e:
                 logger.debug(f"Failed to load IV for {symbol}: {e}")
 
@@ -114,51 +114,48 @@ class OptionsLoader:
         return chains_inserted, iv_inserted
 
     def _insert_options_chains(
-        self, db, symbol: str, calls_df, puts_df, eval_date: date
+        self, cur, symbol: str, calls_df, puts_df, eval_date: date
     ) -> int:
         """Insert options chain data (put/call volumes)."""
         inserted = 0
 
-        with db.cursor() as cur:
-            # Process calls
-            for _, row in calls_df.iterrows():
-                try:
-                    vol = row.get("volume")
-                    if vol and vol > 0:
-                        cur.execute(
-                            """
-                            INSERT INTO options_chains
-                            (symbol, option_type, strike_price, volume, quote_date)
-                            VALUES (%s, %s, %s, %s, %s)
-                            """,
-                            (symbol, "call", float(row["strike"]), int(vol), eval_date),
-                        )
-                        inserted += 1
-                except Exception as e:
-                    logger.debug(f"Failed to insert call for {symbol}: {e}")
+        # Process calls
+        for _, row in calls_df.iterrows():
+            try:
+                vol = row.get("volume")
+                if vol and vol > 0:
+                    cur.execute(
+                        """
+                        INSERT INTO options_chains
+                        (symbol, option_type, strike_price, volume, quote_date)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (symbol, "call", float(row["strike"]), int(vol), eval_date),
+                    )
+                    inserted += 1
+            except Exception as e:
+                logger.debug(f"Failed to insert call for {symbol}: {e}")
 
-            # Process puts
-            for _, row in puts_df.iterrows():
-                try:
-                    vol = row.get("volume")
-                    if vol and vol > 0:
-                        cur.execute(
-                            """
-                            INSERT INTO options_chains
-                            (symbol, option_type, strike_price, volume, quote_date)
-                            VALUES (%s, %s, %s, %s, %s)
-                            """,
-                            (symbol, "put", float(row["strike"]), int(vol), eval_date),
-                        )
-                        inserted += 1
-                except Exception as e:
-                    logger.debug(f"Failed to insert put for {symbol}: {e}")
-
-            db.commit()
+        # Process puts
+        for _, row in puts_df.iterrows():
+            try:
+                vol = row.get("volume")
+                if vol and vol > 0:
+                    cur.execute(
+                        """
+                        INSERT INTO options_chains
+                        (symbol, option_type, strike_price, volume, quote_date)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (symbol, "put", float(row["strike"]), int(vol), eval_date),
+                    )
+                    inserted += 1
+            except Exception as e:
+                logger.debug(f"Failed to insert put for {symbol}: {e}")
 
         return inserted
 
-    def _insert_iv_history(self, db, symbol: str, options_list: list, eval_date: date) -> int:
+    def _insert_iv_history(self, cur, symbol: str, options_list: list, eval_date: date) -> int:
         """Insert IV history: current IV + high/low from available expirations."""
         try:
             iv_values = []
@@ -182,30 +179,28 @@ class OptionsLoader:
             iv_52w_high = max(iv_values)
             iv_52w_low = min(iv_values)
 
-            with db.cursor() as cur:
-                # Try INSERT first, then UPDATE if it already exists
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO iv_history
-                        (symbol, date, current_iv, iv_52w_high, iv_52w_low)
-                        VALUES (%s, %s, %s, %s, %s)
-                        """,
-                        (symbol, eval_date, float(current_iv), float(iv_52w_high), float(iv_52w_low)),
-                    )
-                except Exception:
-                    # Row already exists, update it
-                    cur.execute(
-                        """
-                        UPDATE iv_history
-                        SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
-                        WHERE symbol = %s AND date = %s
-                        """,
-                        (float(current_iv), float(iv_52w_high), float(iv_52w_low), symbol, eval_date),
-                    )
+            # Try INSERT first, then UPDATE if it already exists
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO iv_history
+                    (symbol, date, current_iv, iv_52w_high, iv_52w_low)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (symbol, eval_date, float(current_iv), float(iv_52w_high), float(iv_52w_low)),
+                )
+            except Exception:
+                # Row already exists, update it
+                cur.execute(
+                    """
+                    UPDATE iv_history
+                    SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
+                    WHERE symbol = %s AND date = %s
+                    """,
+                    (float(current_iv), float(iv_52w_high), float(iv_52w_low), symbol, eval_date),
+                )
 
-                db.commit()
-                return 1
+            return 1
 
         except Exception as e:
             logger.debug(f"IV history failed for {symbol}: {e}")
