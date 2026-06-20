@@ -32,7 +32,7 @@ class SignalPatternsMixin:
         try:
             with DatabaseContext("read") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (ValueError, TypeError, IndexError, RuntimeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_signal_pattern_thresholds(self) -> dict[str, int]:
@@ -56,7 +56,7 @@ class SignalPatternsMixin:
                 cur.execute(query, keys_list)
                 for k, v in cur.fetchall():
                     thresholds[k] = int(v)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, RuntimeError) as e:
             logger.debug(
                 f"Could not load signal pattern thresholds: {e} — using defaults"
             )
@@ -130,7 +130,7 @@ class SignalPatternsMixin:
         except (ValueError, TypeError, IndexError) as e:
             logger.debug(f"Base detection error for {symbol}: {e}")
             return {"in_base": False, "reason": f"Calculation error: {str(e)[:50]}"}
-        except Exception as e:
+        except (RuntimeError, AttributeError, KeyError) as e:
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {"in_base": False, "reason": "Unexpected error"}
 
@@ -245,7 +245,6 @@ class SignalPatternsMixin:
                 return {
                     "type": "wide_and_loose",
                     "quality": "D",
-                    "characteristics": characteristics,
                     **characteristics,
                 }
 
@@ -254,9 +253,8 @@ class SignalPatternsMixin:
                 return {
                     "type": "vcp",
                     "quality": "A" if vcp.get("tight_pattern") else "B",
-                    "characteristics": {**characteristics, **vcp},
                     **characteristics,
-                    "vcp": vcp,
+                    **vcp,
                 }
 
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
@@ -271,7 +269,6 @@ class SignalPatternsMixin:
                 return {
                     "type": "flat_base",
                     "quality": "A" if duration >= 7 and depth <= 10 else "B",
-                    "characteristics": characteristics,
                     **characteristics,
                 }
 
@@ -579,7 +576,7 @@ class SignalPatternsMixin:
             spread_pct = (cmax - cmin) / cmin * 100.0 if cmin > 0 else 100
             is_tight = spread_pct <= 1.5
 
-            ranges_pct = [(h - l) / l * 100.0 for h, l in zip(highs, lows) if l > 0]
+            ranges_pct = [(h - low) / low * 100.0 for h, low in zip(highs, lows, strict=False) if low > 0]
             avg_range = sum(ranges_pct) / len(ranges_pct) if ranges_pct else 100
             is_quiet = avg_range <= 6.0
 
@@ -660,7 +657,6 @@ class SignalPatternsMixin:
             for cons_weeks in (1, 2, 3):
                 if len(rows) < 4 + cons_weeks:
                     continue
-                cons_section = closes[-cons_weeks:]
                 cons_highs = highs[-cons_weeks:]
                 cons_lows = lows[-cons_weeks:]
                 cons_high = max(cons_highs)

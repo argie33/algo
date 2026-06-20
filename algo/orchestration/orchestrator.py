@@ -418,11 +418,11 @@ class Orchestrator:
 
                 logger.info("  Table Freshness Status:")
                 try:
-                    for table, desc in tables_to_check:
+                    for table, _desc in tables_to_check:
                         assert_safe_table(table)
 
                     union_parts = []
-                    for table, desc in tables_to_check:
+                    for table, _desc in tables_to_check:
                         table_safe = assert_safe_table(table)
                         union_parts.append(f"SELECT '{table}' as table_name, MAX(date) as latest_date FROM {table_safe}")
 

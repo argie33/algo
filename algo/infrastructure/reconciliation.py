@@ -1113,7 +1113,7 @@ class DailyReconciliation:
                     ),
                 )
                 imported += 1
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"  Failed to import {sym}: {e}")
                 cur.execute("ROLLBACK TO SAVEPOINT import_sp")
                 try:
