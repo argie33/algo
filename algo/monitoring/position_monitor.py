@@ -848,13 +848,13 @@ class PositionMonitor:
 
             # Fallback: estimate from last reported quarter + 90-day cycle
             cur.execute(
-                "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
+                "SELECT MAX(earnings_date) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if not row or not row[0]:
                 raise ValueError(f"No earnings history available for {symbol}")
-            est = row[0] + timedelta(days=45)
+            est = row[0] + timedelta(days=90)
             while est < current_date:
                 est += timedelta(days=90)
             days = (est - current_date).days
