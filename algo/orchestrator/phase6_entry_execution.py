@@ -89,7 +89,7 @@ def _batch_fetch_technical_data(
                 LEFT JOIN sma_50_data sma ON sma.symbol = lp.symbol
                 LEFT JOIN atr_data atr ON atr.symbol = lp.symbol
                 """,
-                symbols + [run_date] + symbols + [run_date] + symbols + [run_date, period],
+                [*symbols, run_date, *symbols, run_date, *symbols, run_date, period],
             )
             rows = cur.fetchall()
             result = {}
