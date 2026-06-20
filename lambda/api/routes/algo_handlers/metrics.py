@@ -22,6 +22,7 @@ from routes.utils import (
 
 from utils.validation import (
     APIResponseValidator,
+    format_decimal_string,
     safe_float,
     safe_float_strict,
     safe_int,
@@ -140,19 +141,19 @@ def _get_algo_performance(cur) -> dict:
                 "winning_trades": winning_fb,
                 "losing_trades": losing_fb,
                 "breakeven_trades": breakeven_fb,
-                "win_rate_pct": wr_fb,
-                "win_rate": wr_fb,
-                "profit_factor": pf_fb,
-                "total_pnl_dollars": safe_float_strict(fb.get("total_pnl_dollars"), allow_none=True),
-                "avg_win_pct": safe_float_strict(fb.get("avg_win_pct"), allow_none=True),
-                "avg_loss_pct": safe_float_strict(fb.get("avg_loss_pct"), allow_none=True),
-                "avg_win_r": avg_win_r,
-                "avg_loss_r": avg_loss_r,
-                "best_trade_pct": safe_float_strict(fb.get("best_trade_pct"), allow_none=True),
-                "worst_trade_pct": safe_float_strict(fb.get("worst_trade_pct"), allow_none=True),
+                "win_rate_pct": format_decimal_string(wr_fb, precision=2, allow_none=True),
+                "win_rate": format_decimal_string(wr_fb, precision=2, allow_none=True),
+                "profit_factor": format_decimal_string(pf_fb, precision=2, allow_none=True),
+                "total_pnl_dollars": format_decimal_string(fb.get("total_pnl_dollars"), precision=2, allow_none=True),
+                "avg_win_pct": format_decimal_string(fb.get("avg_win_pct"), precision=2, allow_none=True),
+                "avg_loss_pct": format_decimal_string(fb.get("avg_loss_pct"), precision=2, allow_none=True),
+                "avg_win_r": format_decimal_string(avg_win_r, precision=3, allow_none=True),
+                "avg_loss_r": format_decimal_string(avg_loss_r, precision=3, allow_none=True),
+                "best_trade_pct": format_decimal_string(fb.get("best_trade_pct"), precision=2, allow_none=True),
+                "worst_trade_pct": format_decimal_string(fb.get("worst_trade_pct"), precision=2, allow_none=True),
                 "sharpe_annualized": None,
                 "max_drawdown_pct": None,
-                "expectancy_r": exp_r,
+                "expectancy_r": format_decimal_string(exp_r, precision=3, allow_none=True),
                 "current_streak": 0,
                 "equity_vals": [],
                 "recent_rets": [],
@@ -306,39 +307,39 @@ def _get_algo_performance(cur) -> dict:
             "winning_trades": winning,
             "losing_trades": losing,
             "breakeven_trades": breakeven,
-            "win_rate": safe_float_strict(metrics.get("win_rate_pct"), allow_none=True),
-            "win_rate_pct": safe_float_strict(metrics.get("win_rate_pct"), allow_none=True),
-            "win_rate_pct_adjusted": win_rate_pct_adjusted,
+            "win_rate": format_decimal_string(metrics.get("win_rate_pct"), precision=2, allow_none=True),
+            "win_rate_pct": format_decimal_string(metrics.get("win_rate_pct"), precision=2, allow_none=True),
+            "win_rate_pct_adjusted": format_decimal_string(win_rate_pct_adjusted, precision=1, allow_none=True),
             "win_rate_confidence": (
                 "high"
                 if win_loss_total >= 30
                 else ("medium" if win_loss_total >= 10 else "low")
             ),
-            "profit_factor": safe_float_strict(metrics.get("profit_factor"), allow_none=True),
-            "total_pnl_dollars": safe_float_strict(metrics.get("total_pnl_dollars"), allow_none=True),
-            "total_pnl_pct": safe_float_strict(metrics.get("total_pnl_pct"), allow_none=True),
-            "total_return_pct": safe_float_strict(metrics.get("cagr_pct"), allow_none=True),
-            "avg_trade_pct": safe_float_strict(metrics.get("avg_trade_pct"), allow_none=True),
-            "avg_win_pct": safe_float_strict(trade_stats.get("avg_win_pct"), allow_none=True),
-            "avg_loss_pct": safe_float_strict(trade_stats.get("avg_loss_pct"), allow_none=True),
-            "avg_win_r": safe_float_strict(trade_stats.get("avg_win_r"), allow_none=True),
-            "avg_loss_r": safe_float_strict(trade_stats.get("avg_loss_r"), allow_none=True),
-            "gross_win_dollars": safe_float_strict(trade_stats.get("gross_win_dollars"), allow_none=True),
-            "gross_loss_dollars": safe_float_strict(trade_stats.get("gross_loss_dollars"), allow_none=True),
+            "profit_factor": format_decimal_string(metrics.get("profit_factor"), precision=2, allow_none=True),
+            "total_pnl_dollars": format_decimal_string(metrics.get("total_pnl_dollars"), precision=2, allow_none=True),
+            "total_pnl_pct": format_decimal_string(metrics.get("total_pnl_pct"), precision=2, allow_none=True),
+            "total_return_pct": format_decimal_string(metrics.get("cagr_pct"), precision=2, allow_none=True),
+            "avg_trade_pct": format_decimal_string(metrics.get("avg_trade_pct"), precision=2, allow_none=True),
+            "avg_win_pct": format_decimal_string(trade_stats.get("avg_win_pct"), precision=2, allow_none=True),
+            "avg_loss_pct": format_decimal_string(trade_stats.get("avg_loss_pct"), precision=2, allow_none=True),
+            "avg_win_r": format_decimal_string(trade_stats.get("avg_win_r"), precision=3, allow_none=True),
+            "avg_loss_r": format_decimal_string(trade_stats.get("avg_loss_r"), precision=3, allow_none=True),
+            "gross_win_dollars": format_decimal_string(trade_stats.get("gross_win_dollars"), precision=2, allow_none=True),
+            "gross_loss_dollars": format_decimal_string(trade_stats.get("gross_loss_dollars"), precision=2, allow_none=True),
             "open_losses_count": open_losses_count,
-            "total_open_losses_dollars": total_open_losses_dollars,
-            "best_trade_pct": safe_float_strict(metrics.get("best_trade_pct"), allow_none=True),
-            "worst_trade_pct": safe_float_strict(metrics.get("worst_trade_pct"), allow_none=True),
-            "sharpe_annualized": safe_float_strict(metrics.get("sharpe_ratio"), allow_none=True),
-            "sharpe_ratio": safe_float_strict(metrics.get("sharpe_ratio"), allow_none=True),
+            "total_open_losses_dollars": format_decimal_string(total_open_losses_dollars, precision=2, allow_none=True),
+            "best_trade_pct": format_decimal_string(metrics.get("best_trade_pct"), precision=2, allow_none=True),
+            "worst_trade_pct": format_decimal_string(metrics.get("worst_trade_pct"), precision=2, allow_none=True),
+            "sharpe_annualized": format_decimal_string(metrics.get("sharpe_ratio"), precision=3, allow_none=True),
+            "sharpe_ratio": format_decimal_string(metrics.get("sharpe_ratio"), precision=3, allow_none=True),
             "sharpe_confidence": "high",
-            "sortino_annualized": safe_float_strict(metrics.get("sortino_ratio"), allow_none=True),
-            "sortino_ratio": safe_float_strict(metrics.get("sortino_ratio"), allow_none=True),
-            "max_drawdown_pct": safe_float_strict(metrics.get("max_drawdown_pct"), allow_none=True),
-            "calmar_ratio": safe_float_strict(metrics.get("calmar_ratio"), allow_none=True),
-            "expectancy_r": expectancy_r,
-            "avg_hold_days": safe_float_strict(metrics.get("avg_holding_days"), allow_none=True),
-            "avg_holding_days": safe_float_strict(metrics.get("avg_holding_days"), allow_none=True),
+            "sortino_annualized": format_decimal_string(metrics.get("sortino_ratio"), precision=3, allow_none=True),
+            "sortino_ratio": format_decimal_string(metrics.get("sortino_ratio"), precision=3, allow_none=True),
+            "max_drawdown_pct": format_decimal_string(metrics.get("max_drawdown_pct"), precision=2, allow_none=True),
+            "calmar_ratio": format_decimal_string(metrics.get("calmar_ratio"), precision=3, allow_none=True),
+            "expectancy_r": format_decimal_string(expectancy_r, precision=3, allow_none=True),
+            "avg_hold_days": format_decimal_string(metrics.get("avg_holding_days"), precision=1, allow_none=True),
+            "avg_holding_days": format_decimal_string(metrics.get("avg_holding_days"), precision=1, allow_none=True),
             "portfolio_snapshots": len(equity_vals),
             "best_win_streak": int(metrics.get("best_win_streak")) if metrics.get("best_win_streak") is not None else None,
             "worst_loss_streak": int(metrics.get("worst_loss_streak")) if metrics.get("worst_loss_streak") is not None else None,
@@ -407,16 +408,16 @@ def _get_algo_portfolio(cur) -> dict:
                 }
             )
         data = safe_dict_convert(row)
-        pv = safe_float_strict(data.get("total_portfolio_value"), allow_none=True)
+        pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
         return success_response(
             {
                 "total_portfolio_value": pv,
-                "total_cash": safe_float_strict(data.get("total_cash"), allow_none=True),
+                "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
                 "position_count": safe_int(data.get("position_count")),
-                "daily_return_pct": safe_float_strict(data.get("daily_return_pct"), allow_none=True),
+                "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
                 "unrealized_pnl": {
-                    "total_dollars": safe_float_strict(data.get("unrealized_pnl_total"), allow_none=True),
-                    "total_pct": safe_float_strict(data.get("unrealized_pnl_pct"), allow_none=True),
+                    "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
+                    "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
                     "winning_positions": safe_int(
                         data.get("unrealized_pnl_winning_count")
                     ),
@@ -429,9 +430,9 @@ def _get_algo_portfolio(cur) -> dict:
                     "source": data.get("unrealized_pnl_source", "open_positions_only"),
                     "note": "Includes only open positions (no closed trades, no dividends)",
                 },
-                "cumulative_return_pct": safe_float_strict(data.get("cumulative_return_pct"), allow_none=True),
-                "max_drawdown_pct": safe_float_strict(data.get("max_drawdown_pct"), allow_none=True),
-                "largest_position_pct": safe_float_strict(data.get("largest_position_pct"), allow_none=True),
+                "cumulative_return_pct": format_decimal_string(data.get("cumulative_return_pct"), precision=2, allow_none=True),
+                "max_drawdown_pct": format_decimal_string(data.get("max_drawdown_pct"), precision=2, allow_none=True),
+                "largest_position_pct": format_decimal_string(data.get("largest_position_pct"), precision=2, allow_none=True),
                 "last_run": data.get("snapshot_date"),
             }
         )
@@ -481,7 +482,7 @@ def _get_daily_return_histogram(cur) -> dict:
             buckets_dict[bucket_mid] += 1
 
     buckets = [
-        {"mid": round(mid, 2), "count": count}
+        {"mid": format_decimal_string(mid, precision=2), "count": count}
         for mid, count in sorted(buckets_dict.items())
     ]
 
@@ -490,8 +491,8 @@ def _get_daily_return_histogram(cur) -> dict:
     std_ret = math.sqrt(variance)
     stats = {
         "count": len(returns),
-        "mean": round(mean_ret, 2),
-        "std": round(std_ret, 2),
+        "mean": format_decimal_string(mean_ret, precision=2),
+        "std": format_decimal_string(std_ret, precision=2),
     }
 
     response = list_response(buckets, total=len(buckets), limit=None, offset=None)

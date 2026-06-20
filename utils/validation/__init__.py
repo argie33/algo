@@ -30,6 +30,7 @@ from .framework import (
     ValidationResult,
     Validator,
     ValidatorRegistry,
+    format_decimal_string,
     get_global_registry,
     log_data_issue,
     safe_bool,
@@ -74,6 +75,7 @@ __all__ = [
     # Registry factories
     "create_default_registry",
     # Numeric conversions
+    "format_decimal_string",
     "safe_float",
     "safe_float_strict",
     "safe_int",

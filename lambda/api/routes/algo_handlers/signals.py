@@ -22,6 +22,7 @@ from routes.utils import (
 )
 
 from utils.validation import (
+    format_decimal_string,
     safe_float,
     safe_int,
 )
@@ -111,16 +112,16 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
         return json_response(200, {
             "symbol": symbol,
             "sector": sector,
-            "entry_price": round(entry_price, 2) if entry_price else None,
+            "entry_price": format_decimal_string(entry_price, precision=2, allow_none=True),
             "shares": shares,
-            "position_dollars": round(actual_dollars, 2),
-            "pct_of_portfolio": round(pct_of_portfolio, 2),
-            "portfolio_value": round(portfolio_value, 2),
+            "position_dollars": format_decimal_string(actual_dollars, precision=2),
+            "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
+            "portfolio_value": format_decimal_string(portfolio_value, precision=2),
             "open_positions": open_positions,
             "available_slots": available_slots,
             "sector_exposure": {
-                "current_pct": round((current_sector_dollars / portfolio_value * 100), 2) if portfolio_value > 0 else 0,
-                "projected_pct": round(projected_sector_pct, 2),
+                "current_pct": format_decimal_string((current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0, precision=2),
+                "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
                 "warning": sector_warning,
                 "warning_msg": f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)" if sector_warning else None,
             },
@@ -200,27 +201,27 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
                 shares_to_sell = int(shares * alloc_pct)
                 targets[f"target_{r_multiple}"] = {
                     "r_multiple": f"{r_multiple}R",
-                    "price": round(target_price, 2),
+                    "price": format_decimal_string(target_price, precision=2),
                     "shares_to_sell": shares_to_sell,
-                    "profit_at_target": round(profit_total, 2),
+                    "profit_at_target": format_decimal_string(profit_total, precision=2),
                 }
 
         return json_response(
             200,
             {
                 "symbol": symbol,
-                "entry_price": round(entry_price, 2),
+                "entry_price": format_decimal_string(entry_price, precision=2),
                 "stop_loss_price": (
-                    round(stop_loss_price, 2) if stop_loss_price else None
+                    format_decimal_string(stop_loss_price, precision=2, allow_none=False) if stop_loss_price else None
                 ),
                 "shares": shares,
-                "pct_of_portfolio": round(pct_of_portfolio, 2),
+                "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
                 "risk_amount": (
-                    round(total_risk_amount, 2) if total_risk_amount else None
+                    format_decimal_string(total_risk_amount, precision=2) if total_risk_amount else None
                 ),
-                "position_value": round(shares * entry_price, 2),
+                "position_value": format_decimal_string(shares * entry_price, precision=2),
                 "targets": targets,
-                "portfolio_value": round(portfolio_value, 2),
+                "portfolio_value": format_decimal_string(portfolio_value, precision=2),
             },
         )
 

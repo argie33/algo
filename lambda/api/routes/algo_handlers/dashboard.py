@@ -22,6 +22,7 @@ from routes.utils import (
 
 from utils.validation import (
     APIResponseValidator,
+    format_decimal_string,
     safe_float,
     safe_float_strict,
     safe_int,
@@ -225,20 +226,21 @@ def _get_algo_status(cur) -> dict:
         if snap:
             pv = safe_float(snap["total_portfolio_value"])
             portfolio = {
-                "total_portfolio_value": round(pv, 2),
-                "total_cash": round(safe_float(snap["total_cash"]) or 0, 2),
+                "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
+                "total_cash": format_decimal_string(safe_float(snap["total_cash"]) or 0, precision=2),
                 "position_count": safe_int(snap["position_count"]),
-                "daily_return_pct": round(safe_float(snap["daily_return_pct"]), 2),
-                "unrealized_pnl_pct": round(
+                "daily_return_pct": format_decimal_string(safe_float(snap["daily_return_pct"]), precision=2, allow_none=True),
+                "unrealized_pnl_pct": format_decimal_string(
                     (
                         (safe_float(snap["unrealized_pnl_total"]) / pv * 100)
-                        if pv > 0
+                        if pv and pv > 0
                         else 0
                     ),
-                    2,
+                    precision=2,
+                    allow_none=False,
                 ),
-                "unrealized_pnl_dollars": round(
-                    safe_float(snap["unrealized_pnl_total"]) or 0, 2
+                "unrealized_pnl_dollars": format_decimal_string(
+                    safe_float(snap["unrealized_pnl_total"]) or 0, precision=2
                 ),
             }
     except (
@@ -741,6 +743,15 @@ def _get_circuit_breakers(cur) -> dict:
         freshness = check_data_freshness(
             cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1
         )
+
+        for breaker in breakers:
+            if breaker["unit"] == "%":
+                breaker["current"] = format_decimal_string(breaker["current"], precision=2, allow_none=True)
+                breaker["threshold"] = format_decimal_string(breaker["threshold"], precision=2, allow_none=False)
+            elif breaker["unit"] == "" and breaker["id"] == "vix_spike":
+                breaker["current"] = format_decimal_string(breaker["current"], precision=2, allow_none=True)
+                breaker["threshold"] = format_decimal_string(breaker["threshold"], precision=2, allow_none=False)
+
         return json_response(
             200,
             {

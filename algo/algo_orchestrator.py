@@ -645,10 +645,17 @@ class Orchestrator:
                     )
 
         except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, RuntimeError) as e:
-            logger.warning(
-                f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}"
-            )
-            # Don't halt trading for this check - it's advisory
+            error_msg = f"[OOM_PREVENTION] CRITICAL: Could not check/kill long-running loaders: {e}"
+            logger.critical(error_msg)
+            try:
+                self.alerts.send_position_alert(
+                    "OOM_PREVENTION",
+                    "LOADER_HEALTH_CHECK_FAILED",
+                    error_msg + " RDS connection pool exhaustion may occur. Proceeding with caution.",
+                    {"error": str(e), "context": "Long-running loader health check failed"}
+                )
+            except (OSError, TimeoutError, ValueError) as alert_err:
+                logger.error(f"[OOM_PREVENTION] Could not send alert: {alert_err}")
 
     def _validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.

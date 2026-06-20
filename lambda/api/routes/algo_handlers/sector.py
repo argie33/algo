@@ -21,6 +21,7 @@ from routes.utils import (
 )
 
 from utils.validation import (
+    format_decimal_string,
     safe_float,
     safe_int,
 )
@@ -157,10 +158,10 @@ def _get_algo_evaluate(cur) -> dict:
                 },
                 "sector_exposure": sector_exposure,
                 "portfolio_health": {
-                    "today_return_pct": safe_float(today_return),
+                    "today_return_pct": format_decimal_string(today_return, precision=2, allow_none=True),
                     "unrealized_pnl": {
-                        "total_dollars": safe_float(unrealized_pnl_total),
-                        "total_pct": safe_float(unrealized_pnl_pct),
+                        "total_dollars": format_decimal_string(unrealized_pnl_total, precision=2, allow_none=True),
+                        "total_pct": format_decimal_string(unrealized_pnl_pct, precision=2, allow_none=True),
                         "winning_positions": safe_int(winning_count),
                         "losing_positions": safe_int(losing_count),
                         "breakeven_positions": safe_int(breakeven_count),

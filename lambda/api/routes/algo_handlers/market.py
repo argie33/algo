@@ -22,6 +22,7 @@ from routes.utils import (
 )
 
 from utils.validation import (
+    format_decimal_string,
     safe_float,
     safe_float_strict,
     safe_int,
@@ -477,8 +478,8 @@ def _get_market_factors(cur) -> dict:
                 factors = {}
 
         data = {
-            "exposure_pct": safe_float_strict(data_dict.get("exposure_pct"), allow_none=True),
-            "raw_score": safe_float_strict(data_dict.get("raw_score"), allow_none=True),
+            "exposure_pct": format_decimal_string(data_dict.get("exposure_pct"), precision=2, allow_none=True),
+            "raw_score": format_decimal_string(data_dict.get("raw_score"), precision=2, allow_none=True),
             "regime": data_dict.get("regime"),
             "factors": factors,
         }

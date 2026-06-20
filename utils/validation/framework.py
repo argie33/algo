@@ -326,6 +326,44 @@ def safe_float_strict(value: Any, context: str = "", allow_none: bool = False) -
         raise ValueError(f"{context}: cannot convert {value!r} to float") from e
 
 
+def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = True) -> str | None:
+    """Convert financial value to string with fixed precision to prevent JSON float precision loss.
+
+    Serializes as string (not float) to preserve penny-level accuracy across JSON boundaries.
+    IEEE 754 floats lose precision on financial numbers; strings preserve exact values.
+
+    Args:
+        value: Value to convert (can be Decimal, float, int, str, None)
+        precision: Number of decimal places (default 2 for dollars/percentages)
+        allow_none: If True, return None for None values; if False, raise
+
+    Returns:
+        String representation with fixed precision, or None if allow_none=True and value is None
+
+    Example:
+        format_decimal_string(Decimal("123.456"), precision=2) → "123.46"
+        format_decimal_string(1.23456789, precision=3) → "1.235"
+        format_decimal_string(None, allow_none=True) → None
+    """
+    if value is None:
+        if allow_none:
+            return None
+        raise ValueError("Cannot convert None to decimal string")
+
+    if isinstance(value, bool):
+        raise ValueError("Cannot convert bool to decimal string")
+
+    try:
+        f = float(value)
+        if math.isnan(f):
+            raise ValueError("NaN value rejected")
+        if math.isinf(f):
+            raise ValueError("Infinity value rejected")
+        return f"{f:.{precision}f}"
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Cannot convert {value!r} to decimal string") from e
+
+
 def safe_int(value: Any, default: int = 0, context: str = "") -> int:
     """Convert value to int safely, handling None, invalid strings.
 

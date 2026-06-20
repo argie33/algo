@@ -60,6 +60,9 @@ export const ENDPOINT_SCHEMAS = {
     type: 'object',
     requiredFields: [],
     requireNonEmpty: false,
+    decimalFields: [
+      'breakers.*.current', 'breakers.*.threshold',
+    ],
   },
 
   // Trading positions and trades
@@ -97,7 +100,18 @@ export const ENDPOINT_SCHEMAS = {
       'profit_factor', 'win_rate_pct', 'win_rate_pct_adjusted', 'avg_win_pct', 'avg_loss_pct',
       'expectancy_r', 'avg_win_r', 'avg_loss_r', 'avg_hold_days', 'max_drawdown_pct',
       'total_pnl_dollars', 'gross_win_dollars', 'gross_loss_dollars',
-      'total_open_losses_dollars', 'total_trades',
+      'total_open_losses_dollars', 'total_pnl_pct', 'avg_trade_pct', 'best_trade_pct',
+      'worst_trade_pct', 'sharpe_ratio', 'sortino_ratio', 'win_rate',
+    ],
+  },
+  '/api/algo/portfolio': {
+    type: 'object',
+    requiredFields: [],
+    requireNonEmpty: false,
+    decimalFields: [
+      'total_portfolio_value', 'total_cash', 'daily_return_pct',
+      'unrealized_pnl.total_dollars', 'unrealized_pnl.total_pct',
+      'cumulative_return_pct', 'max_drawdown_pct', 'largest_position_pct',
     ],
   },
 
@@ -135,6 +149,24 @@ export const ENDPOINT_SCHEMAS = {
     decimalFields: [
       'current.exposure_pct', 'current.raw_score',
       'market_health.vix_level',
+    ],
+  },
+  '/api/algo/market-factors': {
+    type: 'object',
+    requiredFields: [],
+    requireNonEmpty: false,
+    decimalFields: [
+      'exposure_pct', 'raw_score',
+    ],
+  },
+  '/api/algo/evaluate': {
+    type: 'object',
+    requiredFields: [],
+    requireNonEmpty: false,
+    decimalFields: [
+      'portfolio_health.today_return_pct',
+      'portfolio_health.unrealized_pnl.total_dollars',
+      'portfolio_health.unrealized_pnl.total_pct',
     ],
   },
   '/api/algo/equity-curve': {
