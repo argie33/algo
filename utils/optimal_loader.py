@@ -772,7 +772,7 @@ class OptimalLoader(ABC):
             ) from e
 
         if not rows:
-            logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
+            logger.warning(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
             self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
             return 0
         logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows")

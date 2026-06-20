@@ -57,7 +57,7 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
     except Exception as e:
         error_msg = str(e).lower()
         if any(phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]):
-            logger.debug("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
+            logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
         else:
             logger.error(
                 f"[OBSERVABILITY_LOSS] CloudWatch metric failed for {operation_name}: {e}. "

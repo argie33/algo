@@ -271,7 +271,7 @@ def get_loader_health(cur) -> Dict[str, Any]:
                         status = "stale" if days_old > 7 else "fresh"
                         table_health.append((table, status, last_update, count))
                 except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                    logger.debug(f"[LOADER_HEALTH] Table {table} not found - skipping")
+                    logger.warning(f"[LOADER_HEALTH] Table {table} not found - skipping")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                     logger.warning(
                         f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"

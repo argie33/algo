@@ -165,7 +165,7 @@ def cleanup_expired_keys(
             logger.info(f"Cleaned up {deleted_count} expired idempotency keys")
         return deleted_count
     except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError):
-        logger.debug("Cleanup skipped: idempotency key table does not exist")
+        logger.warning("Cleanup skipped: idempotency key table does not exist")
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to clean up idempotency keys: {type(e).__name__}: {e}")

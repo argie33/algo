@@ -198,7 +198,7 @@ class SLAMonitor:
     def publish_metric(self) -> None:
         """Publish SLA status as CloudWatch metric."""
         if MetricsPublisher is None:
-            logger.debug("MetricsPublisher not available, skipping SLA metric publication")
+            logger.warning("MetricsPublisher not available, skipping SLA metric publication")
             return
 
         try:
