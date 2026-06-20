@@ -41,12 +41,20 @@ class AdvancedFilters:
         self._signals = None  # SignalComputer, lazy-init
 
     def _load_config_val(self, key: str, default):
-        """Load a config value from AlgoConfig, with fallback to default."""
+        """Load a config value from AlgoConfig, with fallback to default.
+
+        Raises on database/connection errors — those indicate system failure.
+        Returns default only if config value is missing.
+        """
         try:
             val = self.config.get(key)
             return val if val is not None else default
+        except (RuntimeError, IOError, OSError) as e:
+            raise RuntimeError(
+                f"CRITICAL: Database/connection error loading config[{key}]: {e}"
+            ) from e
         except Exception as e:
-            logger.debug(f"_load_config_val({key}) failed: {e}")
+            logger.debug(f"Config value {key} unavailable, using default: {e}")
             return default
 
     # ---------- Pre-load: market context ----------
@@ -210,31 +218,51 @@ class AdvancedFilters:
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
-            # MOMENTUM (40)
-            rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
-            components["relative_strength"] = {
-                "pts": round(rs_pts, 1),
-                "excess_vs_spy": rs_value,
-            }
-            subscores["momentum"] += rs_pts
+            # MOMENTUM (40) — missing data in soft scoring is INCOMPLETE VALIDATION, hard-fail
+            try:
+                rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
+                components["relative_strength"] = {
+                    "pts": round(rs_pts, 1),
+                    "excess_vs_spy": rs_value,
+                }
+                subscores["momentum"] += rs_pts
+            except ValueError as e:
+                hard_fail = f"Mansfield RS score unavailable: {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
-            sec_pts = self._sector_momentum_score(sector)
-            components["sector_strength"] = round(sec_pts, 1)
-            subscores["momentum"] += sec_pts
+            try:
+                sec_pts = self._sector_momentum_score(sector)
+                components["sector_strength"] = round(sec_pts, 1)
+                subscores["momentum"] += sec_pts
+            except ValueError as e:
+                hard_fail = f"Sector momentum score unavailable: {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
-            ind_pts = self._industry_momentum_score(industry)
-            components["industry_strength"] = round(ind_pts, 1)
-            subscores["momentum"] += ind_pts
+            try:
+                ind_pts = self._industry_momentum_score(industry)
+                components["industry_strength"] = round(ind_pts, 1)
+                subscores["momentum"] += ind_pts
+            except ValueError as e:
+                hard_fail = f"Industry momentum score unavailable: {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
-            vol_pts, vol_ratio = self._volume_confirmation_score(
-                symbol, signal_date, cur
-            )
-            components["volume_ratio"] = vol_ratio
-            subscores["momentum"] += vol_pts
+            try:
+                vol_pts, vol_ratio = self._volume_confirmation_score(
+                    symbol, signal_date, cur
+                )
+                components["volume_ratio"] = vol_ratio
+                subscores["momentum"] += vol_pts
+            except ValueError as e:
+                hard_fail = f"Volume confirmation score unavailable: {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
-            trend_pts = self._price_trend_score(symbol, signal_date, cur)
-            components["price_trend_pts"] = round(trend_pts, 1)
-            subscores["momentum"] += trend_pts
+            try:
+                trend_pts = self._price_trend_score(symbol, signal_date, cur)
+                components["price_trend_pts"] = round(trend_pts, 1)
+                subscores["momentum"] += trend_pts
+            except ValueError as e:
+                hard_fail = f"Price trend score unavailable: {str(e)[:40]}"
+                logger.warning(f"  {symbol}: {hard_fail}")
 
             setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
             components["setup_quality"] = setup_breakdown
@@ -290,27 +318,24 @@ class AdvancedFilters:
     def _mansfield_rs_score(self, symbol, signal_date, cur):
         """Compute Mansfield-style RS percentile vs SPY.
 
-        Returns 0 score if RS data unavailable (graceful degradation).
-        Raises on actual errors (DB/API failure).
+        Raises:
+            ValueError: If RS data unavailable (missing price history)
         """
         if self._signals is None:
             self._signals = SignalComputer()
 
-        try:
-            rs_percentile = self._signals._rs_percentile_vs_spy(
-                cur, symbol, signal_date, lookback=60
-            )
-        except ValueError as e:
-            # Missing data — graceful degradation to 0 score
-            logger.debug(f"RS percentile unavailable for {symbol}: {e}")
-            return 0.0, None
-        # RuntimeError, ConnectionError, etc. propagate to caller
+        rs_percentile = self._signals._rs_percentile_vs_spy(
+            cur, symbol, signal_date, lookback=60
+        )
+        # ValueError (missing data) and other errors propagate to caller
 
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
         return pts, round(rs_percentile, 1)
 
     def _sector_momentum_score(self, sector):
-        if not sector or not self._strong_sectors:
+        if not self._strong_sectors:
+            raise ValueError("Sector ranking data not loaded — call load_market_context() first")
+        if not sector:
             return 0.0
         rank = (
             self._sector_full_ranking.get(sector, 99)
@@ -321,7 +346,9 @@ class AdvancedFilters:
         return max(0.0, self.W_MOMENTUM_SECTOR * (1.0 - (rank - 1) / 10.0))
 
     def _industry_momentum_score(self, industry):
-        if not industry or not self._strong_industries:
+        if self._strong_industries is None:
+            raise ValueError("Industry ranking data not loaded — call load_market_context() first")
+        if not industry:
             return 0.0
         return self.W_MOMENTUM_INDUSTRY if industry in self._strong_industries else 0.0
 
@@ -341,11 +368,15 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or not row[0] or not row[1]:
-            return 0.0, None
+            raise ValueError(
+                f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength"
+            )
         vol = float(row[0])
         avg = float(row[1])
         if avg <= 0:
-            return 0.0, None
+            raise ValueError(
+                f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption"
+            )
         ratio = vol / avg
         # 1.5x = full points
         pts = max(
@@ -359,25 +390,11 @@ class AdvancedFilters:
         +2 pts each if 5d return positive, 20d return positive,
         +1 pt if also a BUY signal on weekly timeframe (very strong combo).
 
-        Returns 0 if period data unavailable (degradation).
-        Raises on data retrieval errors.
+        Raises:
+            ValueError: If price data unavailable (insufficient history)
         """
-        r5 = None
-        r20 = None
-        try:
-            r5 = self._period_return(symbol, signal_date, 5, cur)
-        except ValueError as e:
-            # Missing price data — graceful degradation
-            logger.debug(f"5d return data unavailable for {symbol}: {e}")
-
-        try:
-            r20 = self._period_return(symbol, signal_date, 20, cur)
-        except ValueError as e:
-            # Missing price data — graceful degradation
-            logger.debug(f"20d return data unavailable for {symbol}: {e}")
-
-        if r5 is None or r20 is None:
-            return 0.0
+        r5 = self._period_return(symbol, signal_date, 5, cur)
+        r20 = self._period_return(symbol, signal_date, 20, cur)
         score = 0.0
         if r5 > 0:
             score += 2.0
