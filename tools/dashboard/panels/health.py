@@ -77,19 +77,24 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        var_c = _var_color(risk.get("var95", 0))
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95", 0)) > 0:
+        var95_val = risk.get("var95", 0)
+        beta_val = risk.get("beta", 0)
+        cvar95_val = risk.get("cvar95", 0)
+        conc5_val = risk.get("conc5", 0)
+        svar_val = risk.get("svar")
+        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+        var_c = _var_color(var95_val)
         svar_s = (
-            f"\n[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
-            if risk.get("svar") and float(risk.get("svar") or 0) > 0
+            f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
+            if svar_val and float(svar_val) > 0
             else ""
         )
         var_line = (
-            f"\n[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]"
-            f"  [dim]CVaR 95%:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]"
-            f"  [dim]Portfolio Beta:[/][{beta_c}]{(risk.get('beta') or 0):.2f}[/]"
-            f"  [dim]Top-5 Conc:[/][white]{(risk.get('conc5') or 0):.0f}%[/]" + svar_s
+            f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
+            f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
+            f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+            f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
         )
 
     if not run or run.get("_error"):
@@ -330,7 +335,7 @@ def panel_status(
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
-        phase_results = run.get("phase_results") or []
+        phase_results = run.get("phase_results", [])
         for p in phase_results:
             raw = (p.get("name") or p.get("phase", "")).lower()
             parts = raw.split("_")
@@ -513,9 +518,9 @@ def panel_status(
         for m in valid_metrics[:5]:
             d = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            ta = int(m.get("total_actions") or 0)
-            en = int(m.get("entries") or 0)
-            ex = int(m.get("exits") or 0)
+            ta = int(m.get("total_actions", 0))
+            en = int(m.get("entries", 0))
+            ex = int(m.get("exits", 0))
             rows.append(
                 Text.from_markup(
                     f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
@@ -641,7 +646,7 @@ def panel_algo_health(
         return 0
 
     if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results") or []:
+        for p in run.get("phase_results", []):
             raw = (p.get("name") or p.get("phase", "")).lower()
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
@@ -710,9 +715,9 @@ def panel_algo_health(
     )
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
-        entries_exec = int(today_m.get("entries") or 0)
+        entries_exec = int(today_m.get("entries", 0))
     if not exits_exec:
-        exits_exec = int(today_m.get("exits") or 0)
+        exits_exec = int(today_m.get("exits", 0))
 
     # "What did the algo do today?" summary — the core insight
     action_parts = []
@@ -741,8 +746,8 @@ def panel_algo_health(
         for m in valid_metrics[:5]:
             d = m.get("date")
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = int(m.get("entries") or 0)
-            ex = int(m.get("exits") or 0)
+            en = int(m.get("entries", 0))
+            ex = int(m.get("exits", 0))
             e_c = G if en > 0 else DIM
             x_c = Y if ex > 0 else DIM
             day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}↑[/][{x_c}]{ex}↓[/]")
@@ -1044,7 +1049,7 @@ def panel_algo_health_expanded(
 
     phase_badges_e: list = []
     if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results") or []:
+        for p in run.get("phase_results", []):
             raw = (p.get("name") or p.get("phase", "")).lower()
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
@@ -1069,7 +1074,7 @@ def panel_algo_health_expanded(
     entries_exec = 0
     exits_exec = 0
     if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results") or []:
+        for p in run.get("phase_results", []):
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try:
@@ -1116,8 +1121,8 @@ def panel_algo_health_expanded(
         for m in valid_metrics_e[:5]:
             d = m.get("date")
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = int(m.get("entries") or 0)
-            ex = int(m.get("exits") or 0)
+            en = int(m.get("entries", 0))
+            ex = int(m.get("exits", 0))
             e_c = G if en > 0 else DIM
             x_c = Y if ex > 0 else DIM
             day_parts_e.append(f"[dim]{d_s}:[/][{e_c}]{en}up[/][{x_c}]{ex}dn[/]")

@@ -202,7 +202,7 @@ def _get_algo_performance(cur) -> dict:
         breakeven = int(breakeven_raw) if breakeven_raw is not None else None
         win_loss_total = (winning if winning is not None else 0) + (losing if losing is not None else 0)
 
-        # Compute trade-level metrics missing from algo_performance_metrics
+        # Compute trade-level metrics missing from algo_performance_metrics (CRITICAL for performance panel)
         trade_stats = {}
         try:
             cur.execute("""
@@ -220,9 +220,10 @@ def _get_algo_performance(cur) -> dict:
             if ts_row:
                 trade_stats = safe_dict_convert(ts_row)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as te:
-            logger.warning(f"Could not compute trade-level stats: {te}")
+            logger.error(f"CRITICAL: Could not compute trade-level stats: {te}")
+            return error_response(503, "data_unavailable", f"Trade metrics unavailable: {type(te).__name__}")
 
-        # Compute current win/loss streak from most recent closed trades
+        # Compute current win/loss streak from most recent closed trades (CRITICAL for performance panel)
         current_streak = 0
         try:
             cur.execute("""
@@ -251,7 +252,8 @@ def _get_algo_performance(cur) -> dict:
                         else:
                             break
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ce:
-            logger.warning(f"Could not compute current streak: {ce}")
+            logger.error(f"CRITICAL: Could not compute current streak: {ce}")
+            return error_response(503, "data_unavailable", f"Streak computation failed: {type(ce).__name__}")
 
         # Compute open losses for adjusted win rate
         open_losses_count = 0
@@ -298,7 +300,7 @@ def _get_algo_performance(cur) -> dict:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
 
-        # Equity curve values from portfolio snapshots for sparkline and recent returns strip
+        # Equity curve values from portfolio snapshots for sparkline and recent returns strip (CRITICAL for performance panel)
         equity_vals: list = []
         recent_rets: list = []
         try:
@@ -331,8 +333,12 @@ def _get_algo_performance(cur) -> dict:
                     ]
                     for r in snap_rows[-10:]
                 ]
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as eq_err:
+            logger.error(f"CRITICAL: Could not fetch equity sparkline data for performance: {eq_err}")
+            return error_response(503, "data_unavailable", f"Portfolio snapshot data unavailable: {type(eq_err).__name__}")
         except (ValueError, ZeroDivisionError, TypeError) as eq_err:
-            logger.warning(f"Could not fetch equity sparkline data for performance: {eq_err}")
+            logger.error(f"CRITICAL: Equity data format error: {eq_err}")
+            return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(eq_err).__name__}")
 
         fds = format_decimal_string  # Shorthand for readability
         response_data = {
@@ -467,24 +473,15 @@ def _get_algo_portfolio(cur) -> dict:
             "last_run": data.get("snapshot_date"),
         }
         return success_response(_ensure_portfolio_fields(response_data))
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"CRITICAL: Portfolio fetch database error: {type(e).__name__}: {e}")
+        return error_response(503, "data_unavailable", f"Portfolio data unavailable: {type(e).__name__}")
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.error(f"Portfolio fetch error: {type(e).__name__}: {e}")
-        error_data = {
-            "total_portfolio_value": None,
-            "total_cash": None,
-            "position_count": 0,
-            "_error": "Portfolio data unavailable",
-        }
-        return success_response(_ensure_portfolio_fields(error_data))
+        logger.error(f"CRITICAL: Portfolio data format error: {type(e).__name__}: {e}")
+        return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(e).__name__}")
     except Exception as e:
-        logger.error(f"Portfolio fetch unexpected error: {type(e).__name__}: {e}", exc_info=True)
-        error_data = {
-            "total_portfolio_value": None,
-            "total_cash": None,
-            "position_count": 0,
-            "_error": "Portfolio data unavailable",
-        }
-        return success_response(_ensure_portfolio_fields(error_data))
+        logger.error(f"CRITICAL: Portfolio fetch unexpected error: {type(e).__name__}: {e}", exc_info=True)
+        return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
 
 

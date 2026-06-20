@@ -665,10 +665,13 @@ def _get_markets(cur) -> dict:
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
+            else:
+                return error_response(503, "data_unavailable", "Market health data not available (market_health_daily empty)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
-            logger.warning(f"Could not fetch market_health_daily: {mhe}")
+            logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
+            return error_response(503, "data_unavailable", f"Market health unavailable: {type(mhe).__name__}")
 
-        # Fetch latest SPY close for dashboard header
+        # Fetch latest SPY close for dashboard header (critical for position sizing)
         spy_close = None
         try:
             cur.execute("""
@@ -677,10 +680,12 @@ def _get_markets(cur) -> dict:
                 ORDER BY date DESC LIMIT 1
             """)
             spy_row = cur.fetchone()
-            if spy_row:
-                spy_close = safe_float(spy_row["close"]) if spy_row["close"] else None
+            if not spy_row or spy_row["close"] is None:
+                return error_response(503, "data_unavailable", "SPY price data not available")
+            spy_close = safe_float(spy_row["close"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
-            logger.warning(f"Could not fetch SPY price: {spy_e}")
+            logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
+            return error_response(503, "data_unavailable", f"SPY price unavailable: {type(spy_e).__name__}")
 
         current_date = row.get("date")
 
