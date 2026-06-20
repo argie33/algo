@@ -39,6 +39,7 @@ from algo.trading.exceptions import (
 )
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
+from utils.safe_data_conversion import safe_float
 from utils.db import DatabaseContext, OptimisticLockRetry
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,
