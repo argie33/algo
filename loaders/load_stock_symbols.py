@@ -2,6 +2,7 @@
 """Stock Symbols Loader - Load all tradable symbols from NASDAQ/NYSE."""
 
 import csv
+import json
 import logging
 import os
 import re
@@ -10,14 +11,13 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+import psycopg2
 import requests
 
 from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
-import json
-import psycopg2
 
 
 logger = logging.getLogger(__name__)

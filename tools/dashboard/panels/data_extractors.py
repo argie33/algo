@@ -77,11 +77,13 @@ def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
     """Extract common config display parameters.
 
     Returns dict with all required config fields. No defaults—validation already
-    confirmed data presence at API boundary layer.
+    confirmed data presence at API boundary layer. Call only after has_error() check.
     """
+    if not isinstance(cfg, dict) or has_error(cfg):
+        return {"_error": "Config data unavailable"}
     return {
-        "mode": cfg["mode"],
-        "enabled": cfg["enabled"],
+        "mode": cfg.get("mode"),
+        "enabled": cfg.get("enabled"),
         "max_pos_n": cfg.get("max_pos_n"),
         "max_sec_n": cfg.get("max_sec_n"),
         "min_score": cfg.get("min_score"),
@@ -96,16 +98,16 @@ def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
     Fail-fast: Risk metrics (VaR, CVaR, Beta, concentration) are critical
     financial data. Missing values are not replaced with 0; that would be
     catastrophically misleading for position sizing. All fields must be
-    present after error check passes.
+    present after error check passes. Returns error marker if data invalid.
     """
     if not isinstance(risk, dict) or has_error(risk):
-        return {}
+        return {"_error": "Risk metrics unavailable"}
     return {
-        "var95": risk["var95"],
-        "cvar95": risk["cvar95"],
+        "var95": risk.get("var95"),
+        "cvar95": risk.get("cvar95"),
         "svar": risk.get("svar"),
-        "beta": risk["beta"],
-        "conc5": risk["conc5"],
+        "beta": risk.get("beta"),
+        "conc5": risk.get("conc5"),
     }
 
 
@@ -114,16 +116,17 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
 
     Returns only for valid run data. If error present, caller should
     have already checked has_error() and returned error panel.
+    Returns error marker if data invalid.
     """
     if not isinstance(run, dict) or has_error(run):
-        return {}
+        return {"_error": "Run info unavailable"}
     phase_results = run.get("phase_results")
     if phase_results is None:
         phase_results = []
     return {
-        "success": run["success"],
-        "halted": run["halted"],
-        "errored": run["errored"],
+        "success": run.get("success"),
+        "halted": run.get("halted"),
+        "errored": run.get("errored"),
         "run_at": run.get("run_at"),
         "run_id": run.get("run_id"),
         "phase_results": phase_results,

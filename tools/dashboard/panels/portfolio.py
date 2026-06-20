@@ -418,7 +418,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     rows.append(Rule(style="dim"))
 
     # ── Performance metrics ────────────────────────────────────────────────────
-    if perf and not perf.get("_error") and not perf.get("_no_data"):
+    if perf and not has_error(perf) and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n = perf.get("n")
         w = perf.get("w")
@@ -529,7 +529,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     rows.append(Rule(style="dim"))
 
     # ── Performance Analytics (rolling) ──────────────────────────────────────
-    if perf_anl and not perf_anl.get("_error"):
+    if perf_anl and not has_error(perf_anl):
         rows.append(Text.from_markup("[dim bold]ROLLING ANALYTICS[/]"))
         anl = Table.grid(padding=(0, 3), expand=False)
         anl.add_column("label", style="dim")
@@ -628,7 +628,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
             pv_total = (
-                safe_float(port.get("total_portfolio_value"), default=0) if port and not port.get("_error") else 0
+                safe_float(port.get("total_portfolio_value"), default=0) if port and not has_error(port) else 0
             )
             conc_rows = []
             for p in pos_items:

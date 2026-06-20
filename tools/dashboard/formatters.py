@@ -5,6 +5,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import Any
 
+from .error_boundary import has_error
 from .utilities import (
     CY,
     DIM,
@@ -221,7 +222,7 @@ def next_run_str() -> str:
         from .api_data_layer import api_call
 
         resp = api_call("/api/algo/schedule")
-        if not resp.get("_error") and "schedule" in resp:
+        if not has_error(resp) and "schedule" in resp:
             schedule = resp.get("schedule", [])
             if schedule and isinstance(schedule, list):
                 result = _next_run_from_schedule(schedule)

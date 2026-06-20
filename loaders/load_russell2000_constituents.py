@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Russell 2000 Constituents Loader - Mark Russell 2000 membership (Market-wide)."""
 
+import json
 import logging
 import socket
 import sys
@@ -12,7 +13,6 @@ from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
-import json
 
 
 logger = logging.getLogger(__name__)

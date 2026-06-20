@@ -11,6 +11,8 @@ callers to distinguish between "no data" and "error fetching data".
 import logging
 from typing import Any
 
+from .error_boundary import has_error
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ def extract_field(data: dict[str, Any], field_name: str, default: Any = None) ->
     if not isinstance(data, dict):
         return default
 
-    if data.get("_error"):
+    if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     return data.get(field_name, default)
@@ -53,7 +55,7 @@ def extract_items_list(data: dict[str, Any]) -> list:
     if not isinstance(data, dict):
         return []
 
-    if data.get("_error"):
+    if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     items = data.get("items")
@@ -76,7 +78,7 @@ def extract_data_or_empty(data: Any, default_type: type = dict) -> Any:
     Raises:
         DataExtractionError: If data is dict with _error field
     """
-    if isinstance(data, dict) and data.get("_error"):
+    if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     if isinstance(data, default_type):

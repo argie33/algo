@@ -13,13 +13,13 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 import pandas as pd
+import psycopg2
 
 from loaders.runner import run_loader
 from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-import psycopg2
 
 
 logger = logging.getLogger(__name__)

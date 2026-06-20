@@ -279,8 +279,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             if buy_lvl and stop_lvl and float(stop_lvl) > 0:
                 try:
                     rr_ratio = (float(buy_lvl) - float(stop_lvl)) / float(stop_lvl)
-                except (ValueError, TypeError, ZeroDivisionError):
-                    pass
+                except (ValueError, TypeError, ZeroDivisionError) as e:
+                    logger.debug(f"Failed to calculate R/R ratio for {sym}: {e}")
 
             comp_v = float(comp_score) if comp_score is not None else 0
             comp_c = _composite_score_color(comp_v)
@@ -398,13 +398,17 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
 
     top_scores = (scores or {}).get("top", [])
     buy_sigs = sig.get("buy_sigs", [])
-    total = sig.get("total", 0)
+    total = sig.get("total")
+    if total is None:
+        return _error_panel("signals", {"_error": "Missing signal total count"}, "SIGNALS", border="magenta")
     is_placeholder = (
         not top_scores and not buy_sigs and total == 0 and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
     )
 
-    raw = sig.get("n", 0)
-    total = sig.get("total", 0)
+    raw = sig.get("n")
+    if raw is None:
+        return _error_panel("signals", {"_error": "Missing signal count (n)"}, "SIGNALS", border="magenta")
+    total = sig.get("total")
     d = sig.get("date")
     if hasattr(d, "strftime"):
         ds = d.strftime("%b %d")

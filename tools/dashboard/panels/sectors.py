@@ -113,11 +113,15 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         rows.append(sec_tbl)
 
     # Top sector rankings with 1-week and 4-week rank changes
-    srank_items = (
-        srank.get("items") or []
-        if isinstance(srank, dict) and "items" in srank
-        else (srank if isinstance(srank, list) else [])
-    )
+    srank_items = None
+    if isinstance(srank, dict) and "items" in srank:
+        srank_items = srank.get("items")
+        if not isinstance(srank_items, list):
+            srank_items = None
+    elif isinstance(srank, list):
+        srank_items = srank
+    if srank_items is None:
+        srank_items = []
     srank_error = has_error(srank) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items if not srank_error][:6]
     if valid_srank:
@@ -143,11 +147,15 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         rows.append(srank_tbl)
 
     # Top industries (sub-sector groups)
-    irank_items = (
-        irank.get("items") or []
-        if isinstance(irank, dict) and "items" in irank
-        else (irank if isinstance(irank, list) else [])
-    )
+    irank_items = None
+    if isinstance(irank, dict) and "items" in irank:
+        irank_items = irank.get("items")
+        if not isinstance(irank_items, list):
+            irank_items = None
+    elif isinstance(irank, list):
+        irank_items = irank
+    if irank_items is None:
+        irank_items = []
     irank_error = has_error(irank) if isinstance(irank, dict) else None
     valid_irank = irank_items if irank_items and not irank_error else []
     if valid_irank:
@@ -202,20 +210,28 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
-        wks = sec_rot.get("weeks") or 1
-        def_s = float(sec_rot.get("def_score") or 0)
-        cyc_s = float(sec_rot.get("cyc_score") or 0)
-        strength = float(sec_rot.get("strength", 0))
-        sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
-        rot_date = sec_rot.get("date")
-        date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
-        rows.append(
-            Text.from_markup(
-                f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
-                f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]{date_s}"
+        wks = sec_rot.get("weeks")
+        if wks is None:
+            wks = 1
+        def_s_raw = sec_rot.get("def_score")
+        cyc_s_raw = sec_rot.get("cyc_score")
+        strength_raw = sec_rot.get("strength")
+        if def_s_raw is not None and cyc_s_raw is not None and strength_raw is not None:
+            def_s = float(def_s_raw)
+            cyc_s = float(cyc_s_raw)
+            strength = float(strength_raw)
+            sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
+            rot_date = sec_rot.get("date")
+            date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
+            rows.append(
+                Text.from_markup(
+                    f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
+                    f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]{date_s}"
+                )
             )
-        )
-        rows.append(Rule(style="dim"))
+            rows.append(Rule(style="dim"))
+        else:
+            logger.warning(f"Sector rotation missing required fields: def_score={def_s_raw}, cyc_score={cyc_s_raw}, strength={strength_raw}")
 
     # Full portfolio by sector
     # Issue 3.1 FIX: Use unified normalization function
@@ -271,11 +287,15 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             rows.append(Rule(style="dim"))
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
-    srank_items_exp = (
-        srank.get("items") or []
-        if isinstance(srank, dict) and "items" in srank
-        else (srank if isinstance(srank, list) else [])
-    )
+    srank_items_exp = None
+    if isinstance(srank, dict) and "items" in srank:
+        srank_items_exp = srank.get("items")
+        if not isinstance(srank_items_exp, list):
+            srank_items_exp = None
+    elif isinstance(srank, list):
+        srank_items_exp = srank
+    if srank_items_exp is None:
+        srank_items_exp = []
     srank_error_exp = has_error(srank) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:

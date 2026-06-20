@@ -46,6 +46,9 @@ from ._helpers import (
 from .data_extractors import (
     extract_config_params,
     extract_risk_metrics,
+    safe_get_dict,
+    safe_get_field,
+    safe_get_list,
 )
 
 
@@ -212,56 +215,10 @@ def panel_status(
 
     rows: list = []
 
-    # Extract items from data dicts
-    hlth_items = (
-        hlth.get("items", [])
-        if isinstance(hlth, dict) and "items" in hlth
-        else (hlth if isinstance(hlth, list) else [])
-    )
+    # Extract items from data dicts using safe helpers
+    hlth_items = safe_get_list(hlth)
 
-    # ── Run status + schedule + mode + trading config ────────────────────────────
-    run_valid = run and not has_error(run)
-    act_valid = act and not has_error(act)
-    run_id_top = (run.get("run_id", "")) if run_valid else ((act.get("run_id", "")) if act_valid else "")
-    run_at_top = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
-    if run_id_top or run_at_top:
-        sts = (
-            "[bold bright_green]✓ COMPLETED[/]"
-            if (run_valid and run.get("success") and not run.get("halted"))
-            else (
-                "[bold yellow]~ HALTED[/]"
-                if (run_valid and run.get("halted"))
-                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and run.get("errored")) else "[dim]RUN[/]")
-            )
-        )
-        age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
-        rows.append(Text.from_markup(f"{sts}{age_s}"))
-    cfg_v = cfg or {}
-    mode = cfg_v.get("mode")
-    if mode is None:
-        mode = ""
-    en = cfg_v.get("enabled")
-    if en is None:
-        en = True
-    mc = G if "LIVE" in str(mode) else Y
-    ec = G if en else R
-    en_s = "ENABLED" if en else "DISABLED"
-    next_r = next_run_str()
-    rows.append(Text.from_markup(f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"))
-    # Trading config params — visible context for position sizing decisions
-    cfg_parts = []
-    if cfg_v.get("max_pos_n"):
-        cfg_parts.append(f"[dim]slots:[/][white]{cfg_v.get('max_pos_n')}[/]")
-    if cfg_v.get("max_sec_n"):
-        cfg_parts.append(f"[dim]sector≤4:[/][white]{cfg_v.get('max_sec_n')}[/]")
-    if cfg_v.get("base_risk"):
-        cfg_parts.append(f"[dim]risk:[/][white]{cfg_v.get('base_risk')}%[/]")
-    if cfg_v.get("t1_r"):
-        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v.get('t1_r')}R[/]")
-    if cfg_parts:
-        rows.append(Text.from_markup("  ".join(cfg_parts)))
-    rows.append(Rule(style="dim"))
-
+    # Helper to count phase list items
     def _pc(v):
         if isinstance(v, list):
             return len(v)
@@ -269,18 +226,65 @@ def panel_status(
             return v
         return 0
 
+    # ── Run status + schedule + mode + trading config ────────────────────────────
+    run_valid = run and not has_error(run)
+    act_valid = act and not has_error(act)
+    run_id_top = safe_get_field(run, "run_id", "") if run_valid else (safe_get_field(act, "run_id", "") if act_valid else "")
+    run_at_top = safe_get_field(run, "run_at") if run_valid else (safe_get_field(act, "run_at") if act_valid else None)
+    if run_id_top or run_at_top:
+        sts = (
+            "[bold bright_green]✓ COMPLETED[/]"
+            if (run_valid and safe_get_field(run, "success") and not safe_get_field(run, "halted"))
+            else (
+                "[bold yellow]~ HALTED[/]"
+                if (run_valid and safe_get_field(run, "halted"))
+                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and safe_get_field(run, "errored")) else "[dim]RUN[/]")
+            )
+        )
+        age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
+        rows.append(Text.from_markup(f"{sts}{age_s}"))
+
+    # Config extraction — use helper to reduce .get() calls
+    cfg_v = safe_get_dict(cfg)
+    cfg_params = extract_config_params(cfg_v) if cfg_v else {}
+    mode = cfg_params.get("mode", "")
+    en = cfg_params.get("enabled", True)
+    mc = G if "LIVE" in str(mode) else Y
+    ec = G if en else R
+    en_s = "ENABLED" if en else "DISABLED"
+    next_r = next_run_str()
+    rows.append(Text.from_markup(f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"))
+
+    # Trading config params — visible context for position sizing decisions
+    cfg_parts = []
+    max_pos_n = cfg_params.get("max_pos_n")
+    max_sec_n = cfg_params.get("max_sec_n")
+    base_risk = cfg_params.get("base_risk")
+    t1_r = cfg_params.get("t1_r")
+    if max_pos_n:
+        cfg_parts.append(f"[dim]slots:[/][white]{max_pos_n}[/]")
+    if max_sec_n:
+        cfg_parts.append(f"[dim]sector≤4:[/][white]{max_sec_n}[/]")
+    if base_risk:
+        cfg_parts.append(f"[dim]risk:[/][white]{base_risk}%[/]")
+    if t1_r:
+        cfg_parts.append(f"[dim]T1:[/][white]{t1_r}R[/]")
+    if cfg_parts:
+        rows.append(Text.from_markup("  ".join(cfg_parts)))
+    rows.append(Rule(style="dim"))
+
     # Execution history summary — last 7 runs
-    valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
+    valid_hist = safe_get_list(exec_hist)
     if valid_hist:
-        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
-        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
-        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
+        n_ok = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h = n_ok / total_h * 100 if total_h else 0
         wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
         badges = []
         for r in valid_hist[:7]:
-            s = (r.get("overall_status") or "").lower()
+            s = (safe_get_field(r, "overall_status", "") or "").lower()
             if s in ("success", "completed"):
                 badges.append(f"[{G}]OK[/]")
             elif s == "halted":
@@ -296,12 +300,12 @@ def panel_status(
             )
         )
         last_halt = next(
-            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
+            (r for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted"),
             None,
         )
         if last_halt:
-            lhr = last_halt.get("halt_reason", "")
-            lph = _fmt_phases_halted(last_halt.get("phases_halted"))
+            lhr = safe_get_field(last_halt, "halt_reason", "")
+            lph = _fmt_phases_halted(safe_get_field(last_halt, "phases_halted"))
             body = lhr or lph
             if body:
                 ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
@@ -309,30 +313,30 @@ def panel_status(
         rows.append(Rule(style="dim"))
 
     # Current run status — shown prominently even when history is empty
-    run_id = run.get("run_id") if (run and not has_error(run)) else None
-    run_at = run.get("run_at") if run else None
-    if not run_id and act and not has_error(act):
-        act_run_id = act.get("run_id")
+    run_id = safe_get_field(run, "run_id") if run_valid else None
+    run_at = safe_get_field(run, "run_at") if run else None
+    if not run_id and act_valid:
+        act_run_id = safe_get_field(act, "run_id")
         if act_run_id:
             run_id = act_run_id[:26]
-        run_at = act.get("run_at")
+        run_at = safe_get_field(act, "run_at")
     if run_id:
         age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         r_stat = ""
-        if run and not has_error(run):
-            if run.get("success"):
+        if run_valid:
+            if safe_get_field(run, "success"):
                 r_stat = f"  [{G}]OK COMPLETED[/]"
-            elif run.get("halted"):
+            elif safe_get_field(run, "halted"):
                 r_stat = f"  [{Y}]~ HALTED[/]"
-            elif run.get("errored"):
+            elif safe_get_field(run, "errored"):
                 r_stat = f"  [{R}]X ERROR[/]"
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
-        if run and not has_error(run):
-            n_done = _pc(run.get("phases_completed"))
-            n_hlt = _pc(run.get("phases_halted"))
-            n_err = _pc(run.get("phases_errored"))
+        if run_valid:
+            n_done = _pc(safe_get_field(run, "phases_completed"))
+            n_hlt = _pc(safe_get_field(run, "phases_halted"))
+            n_err = _pc(safe_get_field(run, "phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -372,13 +376,15 @@ def panel_status(
 
             # Show error or key data for failed/halted phases
             err = p.get("error") or ""
-            pdata = p.get("data") or {}
+            pdata = p.get("data")
             if isinstance(pdata, str):
                 try:
                     pdata = json.loads(pdata)
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"Failed to parse phase data JSON: {e}")
-                    pdata = {}
+                    pdata = None
+            elif not isinstance(pdata, dict) and pdata is not None:
+                pdata = None
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
@@ -458,14 +464,16 @@ def panel_status(
     ]
     for a in trade_evts[:4]:
         at = a.get("action_type", "")
-        det = a.get("details") or {}
+        det = a.get("details")
         if isinstance(det, str):
             try:
                 det = json.loads(det)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse action details JSON: {e}")
-                det = {}
-        sym = det.get("symbol", "")
+                det = None
+        elif not isinstance(det, dict) and det is not None:
+            det = None
+        sym = det.get("symbol", "") if det else ""
         ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
@@ -679,16 +687,18 @@ def panel_algo_health(
                 else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
             )
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
-            pdata = p.get("data") or {}
+            pdata = p.get("data")
             if isinstance(pdata, str):
                 try:
                     pdata = json.loads(pdata)
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"Failed to parse phase metrics data JSON: {e}")
-                    pdata = {}
-            sg = pdata.get("signals_generated")
-            ee = pdata.get("entries_executed") or pdata.get("trades_executed")
-            xe = pdata.get("exits_executed")
+                    pdata = None
+            elif not isinstance(pdata, dict) and pdata is not None:
+                pdata = None
+            sg = pdata.get("signals_generated") if pdata else None
+            ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) if pdata else None
+            xe = pdata.get("exits_executed") if pdata else None
             if sg:
                 signals_gen = max(signals_gen, int(sg))
             if ee:
@@ -1099,16 +1109,18 @@ def panel_algo_health_expanded(
     exits_exec = 0
     if run_valid and run.get("_source") == "exec_log":
         for p in run.get("phase_results", []):
-            pdata = p.get("data") or {}
+            pdata = p.get("data")
             if isinstance(pdata, str):
                 try:
                     import json as _json
 
                     pdata = _json.loads(pdata)
                 except Exception:
-                    pdata = {}
-            sg = pdata.get("signals_generated")
-            ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+                    pdata = None
+            elif not isinstance(pdata, dict) and pdata is not None:
+                pdata = None
+            sg = pdata.get("signals_generated") if pdata else None
+            ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) if pdata else None
             xe = pdata.get("exits_executed")
             if sg:
                 signals_gen = max(signals_gen, int(sg))

@@ -17,6 +17,7 @@ if __name__ == "__main__" and __package__ is None:
 import logging
 
 from .api_data_layer import api_call
+from .error_boundary import has_error
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -30,7 +31,7 @@ print("1. MARKETS API (/api/algo/markets)")
 print("-" * 80)
 try:
     mkt_response = api_call("/api/algo/markets")
-    if mkt_response.get("_error"):
+    if has_error(mkt_response):
         print(f"ERROR: {mkt_response.get('_error')}")
     else:
         mkt_data = mkt_response.get("data", {})
@@ -52,7 +53,7 @@ print("\n2. RISK METRICS API (/api/algo/risk-metrics)")
 print("-" * 80)
 try:
     risk_response = api_call("/api/algo/risk-metrics")
-    if risk_response.get("_error"):
+    if has_error(risk_response):
         print(f"ERROR: {risk_response.get('_error')}")
     else:
         risk_data = risk_response.get("data", {})
@@ -86,7 +87,7 @@ print("\n3. POSITIONS API (/api/algo/positions)")
 print("-" * 80)
 try:
     pos_response = api_call("/api/algo/positions")
-    if pos_response.get("_error"):
+    if has_error(pos_response):
         print(f"ERROR: {pos_response.get('_error')}")
     else:
         pos_data = pos_response.get("data", {})
@@ -119,7 +120,7 @@ print("\n4. PORTFOLIO API (/api/algo/portfolio)")
 print("-" * 80)
 try:
     port_response = api_call("/api/algo/portfolio")
-    if port_response.get("_error"):
+    if has_error(port_response):
         print(f"ERROR: {port_response.get('_error')}")
     else:
         port_data = port_response.get("data", {})

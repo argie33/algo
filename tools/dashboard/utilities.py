@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from rich.console import Console
 
 from .data_validation import safe_float
+from .error_boundary import get_error_message, has_error
 
 
 # ── globals ───────────────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ def normalize_positions_data(data):
         (positions_list, timestamp, has_error) tuple
     """
     if isinstance(data, dict):
-        if data.get("_error"):
+        if has_error(data):
             return data, None, True
         if "items" in data:
             return data.get("items", []), data.get("timestamp"), False
@@ -217,10 +218,10 @@ def extract_items_and_error(data):
         (items_list, error_msg) tuple
     """
     if isinstance(data, dict):
-        if data.get("_error"):
-            return [], data.get("_error")
+        if has_error(data):
+            return [], get_error_message(data)
         if "items" in data:
-            return data.get("items", []), data.get("_error")
+            return data.get("items", []), None
         # Dict without items or error — log and fail
         logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
         raise ValueError(

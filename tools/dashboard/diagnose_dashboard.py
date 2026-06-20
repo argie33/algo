@@ -181,7 +181,7 @@ def diagnose_fetchers_verbose():
         endpoint = meta.get("endpoint", "?")
 
         # Determine status
-        if isinstance(result, dict) and result.get("_error"):
+        if has_error(result):
             status = "ERROR"
         elif isinstance(result, dict) and result.get("_data_stale"):
             status = "STALE"

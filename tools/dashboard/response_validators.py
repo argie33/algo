@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from .data_validation import StrictValidationError, safe_float, safe_int
+from .error_boundary import has_error
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ def validate_portfolio_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Portfolio response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data  # Propagate error responses as-is
 
     # Check that all field keys are present (values can be None for optional fields)
@@ -73,7 +74,7 @@ def validate_performance_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Performance response not a dict: {type(data)}")
 
-    if data.get("_error") or data.get("_no_data"):
+    if has_error(data) or data.get("_no_data"):
         return data  # Propagate error responses
 
     # If performance data exists, ensure all core fields are present
@@ -103,7 +104,7 @@ def validate_positions_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Positions response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If data has items array, validate it's a list
@@ -130,7 +131,7 @@ def validate_signals_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Signals response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If signals exist, validate items array structure
@@ -157,7 +158,7 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Config response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # Validate optional numeric fields if present (but don't require them to exist)
@@ -192,7 +193,7 @@ def validate_risk_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Risk response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If risk metrics are present, they must be convertible to float
@@ -215,7 +216,7 @@ def validate_market_data_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Market data response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # Market data has flexible structure; just ensure it's a dict if present
@@ -230,7 +231,7 @@ def validate_health_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Health response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # Health response should have at least some status indicators
@@ -249,7 +250,7 @@ def validate_last_run_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Last run response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # Require run_id and success indicator
@@ -267,7 +268,7 @@ def validate_trades_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Trades response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If data has items array, validate it's a list
@@ -286,7 +287,7 @@ def validate_markets_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Markets response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # Markets response can have nested structure (current, market_health, etc)
@@ -305,7 +306,7 @@ def validate_dashboard_signals_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Dashboard signals response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If signals exist, validate items array structure
@@ -324,7 +325,7 @@ def validate_circuit_breakers_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Circuit breakers response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If breakers array exists, it must be a list
@@ -342,7 +343,7 @@ def validate_sector_rotation_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Sector rotation response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     # If items array exists, it must be a list
@@ -360,7 +361,7 @@ def validate_generic_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Response not a dict: {type(data)}")
 
-    if data.get("_error"):
+    if has_error(data):
         return data
 
     return data

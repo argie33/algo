@@ -169,8 +169,8 @@ class OptionsLoader:
                         iv_col = calls_df.get("impliedVolatility")
                         if iv_col is not None:
                             iv_values.extend(iv_col.dropna().tolist())
-                except Exception:
-                    continue
+                except Exception as e:
+                    logger.debug(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}")
 
             if not iv_values:
                 return 0

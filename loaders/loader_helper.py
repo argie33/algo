@@ -14,10 +14,11 @@ Usage in loader scripts:
     from utils import ...
 """
 
+import json
 import socket
 import sys
 from pathlib import Path
-import json
+
 import requests
 
 

@@ -195,8 +195,8 @@ def panel_economic_pulse(eco, econ_cal=None):
                     vals = f" [dim]F={float(f_v):.1f}[/]"
                 if p_v is not None:
                     vals += f"[dim] P={float(p_v):.1f}[/]"
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Failed to parse economic calendar values: {e}")
             et = ev.get("event_time")
             et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
             rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
@@ -396,8 +396,8 @@ def panel_economic_expanded(eco, econ_cal=None):
                     vals = f"  [dim]F={float(f_v):.1f}[/]"
                 if p_v is not None:
                     vals += f"[dim]  P={float(p_v):.1f}[/]"
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Failed to parse economic calendar values: {e}")
             et_s = f"  [dim]{str(ev.get('event_time') or '')[:5]}[/]" if ev.get("event_time") else ""
             rows.append(
                 Text.from_markup(

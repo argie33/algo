@@ -240,13 +240,14 @@ def panel_market_expanded(mkt, sentiment=None):
     rows.append(grid)
 
     if sentiment and not has_error(sentiment):
-        rows.append(Rule(style="dim"))
-        fg_v = sentiment.get("fg", 0)
-        fg_lbl = (sentiment.get("label", ""))[:22]
-        fg_c = sentiment.get("color", "dim")
-        fg_bar_f = int(fg_v / 100 * 24)
-        fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
-        rows.append(Text.from_markup(f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"))
+        fg_v = sentiment.get("fg")
+        if fg_v is not None:
+            rows.append(Rule(style="dim"))
+            fg_lbl = (sentiment.get("label", ""))[:22]
+            fg_c = sentiment.get("color", "dim")
+            fg_bar_f = int(fg_v / 100 * 24)
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
+            rows.append(Text.from_markup(f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"))
 
     rows.append(Rule(style="dim"))
     hc = Y if halts else G

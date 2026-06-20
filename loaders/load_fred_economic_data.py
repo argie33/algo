@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """FRED Economic Data Loader — Market-wide macroeconomic indicators."""
 
+import json
 import logging
 import socket
 import sys
@@ -16,7 +17,6 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
 from utils.optimal_loader import OptimalLoader
-import json
 
 
 logger = logging.getLogger(__name__)

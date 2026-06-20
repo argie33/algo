@@ -156,7 +156,9 @@ def fetch_run(c):
             record_data_quality_issue("run", "validation", "missing_fields", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        phases = inner.get("phases") or []
+        phases = inner.get("phases")
+        if phases is None:
+            phases = []
         halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
@@ -291,8 +293,13 @@ def fetch_market(c):
             return mkt
 
         # API response is unwrapped so data is at top level (statusCode + fields)
-        current = mkt.get("current") or {}
-        market_health = mkt.get("market_health") or {}
+        current = mkt.get("current")
+        market_health = mkt.get("market_health")
+        if not isinstance(current, dict) or not isinstance(market_health, dict):
+            error_msg = "Market API response missing 'current' or 'market_health' dict"
+            logger.error(error_msg)
+            record_data_quality_issue("market", "critical_field", "missing_current_or_health")
+            return FetcherValidator.build_error_response(error_msg)
 
         # VIX and SPY are critical - fail if missing or invalid
         try:
@@ -450,13 +457,19 @@ def fetch_portfolio(c):
             record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
             return FetcherValidator.build_error_response(error_msg)
 
+        unrealized_pnl_dict = port.get("unrealized_pnl")
+        unrealized_pnl_pct = None
+        if unrealized_pnl_dict is not None:
+            if isinstance(unrealized_pnl_dict, dict):
+                unrealized_pnl_pct = safe_float(unrealized_pnl_dict.get("total_pct"), default=None)
+
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
             "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
-            "unrealized_pnl_pct": safe_float((port.get("unrealized_pnl") or {}).get("total_pct"), default=None),
+            "unrealized_pnl_pct": unrealized_pnl_pct,
             "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),
             "max_drawdown_pct": safe_float(port.get("max_drawdown_pct"), default=None),
             "largest_position_pct": safe_float(port.get("largest_position_pct"), default=None),
@@ -516,6 +529,13 @@ def fetch_perf(c):
             record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
             return FetcherValidator.build_error_response(error_msg)
 
+        equity_vals = perf.get("equity_vals")
+        if not isinstance(equity_vals, list):
+            equity_vals = None
+        recent_rets = perf.get("recent_rets")
+        if not isinstance(recent_rets, list):
+            recent_rets = None
+
         return {
             "n": n,
             "w": w,
@@ -532,8 +552,8 @@ def fetch_perf(c):
             "profit_factor": safe_float(perf.get("profit_factor"), default=None),
             "expectancy": safe_float(perf.get("expectancy_r"), default=None),
             "avg_r": safe_float(perf.get("expectancy_r"), default=None),
-            "equity_vals": perf.get("equity_vals") or [],
-            "recent_rets": perf.get("recent_rets") or [],
+            "equity_vals": equity_vals,
+            "recent_rets": recent_rets,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf", e)
@@ -644,14 +664,34 @@ def fetch_signals(c):
             return FetcherValidator.build_error_response(error_msg)
 
         result = data
-        buy_sigs = result.get("buy_sigs") or []
-        near = result.get("near") or []
-        top_a = result.get("top_a") or []
-        trend = result.get("trend") or []
-        grades = result.get("grades") or {}
+        buy_sigs = result.get("buy_sigs")
+        if not isinstance(buy_sigs, list):
+            buy_sigs = None
+        near = result.get("near")
+        if not isinstance(near, list):
+            near = None
+        top_a = result.get("top_a")
+        if not isinstance(top_a, list):
+            top_a = None
+        trend = result.get("trend")
+        if not isinstance(trend, list):
+            trend = None
+        grades = result.get("grades")
+        if not isinstance(grades, dict):
+            grades = None
+
+        n = result.get("n")
+        if n is None and buy_sigs:
+            n = len(buy_sigs)
+        total = result.get("total")
+        if total is None and n is not None:
+            total = n
+        elif total is None and buy_sigs:
+            total = len(buy_sigs)
+
         return {
-            "n": result.get("n", len(buy_sigs)),
-            "total": result.get("total", result.get("n", len(buy_sigs))),
+            "n": n,
+            "total": total,
             "buy_sigs": buy_sigs,
             "grades": grades,
             "near": near,
@@ -682,11 +722,13 @@ def fetch_sector_ranking(c):
 
         raw = data
         if isinstance(raw, dict):
-            items = raw.get("items") or []
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
         elif isinstance(raw, list):
             items = raw
         else:
-            items = []
+            items = None
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
@@ -709,14 +751,21 @@ def fetch_activity(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = raw.get("items") or [] if isinstance(raw, dict) else []
-        run_at = items[0].get("action_date") if items else None
-        phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
+        items = None
+        if isinstance(raw, dict):
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+        run_at = None
+        phases = []
+        if items:
+            run_at = items[0].get("action_date") if items else None
+            phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
             "run_id": None,
             "run_at": run_at,
             "phases": phases,
-            "recent_actions": items[:20],
+            "recent_actions": items[:20] if items else None,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
@@ -795,11 +844,18 @@ def fetch_health(c):
 
         inner = data
         if not isinstance(inner, dict):
-            inner = {}
-        raw_sources = inner.get("sources") or []
-        critical_stale = inner.get("critical_stale") or []
+            error_msg = "Health API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("health", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+        raw_sources = inner.get("sources")
+        if not isinstance(raw_sources, list):
+            raw_sources = None
+        critical_stale = inner.get("critical_stale")
+        if not isinstance(critical_stale, list):
+            critical_stale = None
         sources = []
-        for s in raw_sources:
+        for s in (raw_sources or []):
             name = s.get("name", "")
             # API now returns role (CRIT/IMP/NORM); fall back to freshness_config if absent
             role = s.get("role")
@@ -825,10 +881,13 @@ def fetch_health(c):
                     "row_count": s.get("row_count"),
                 }
             )
+        summary = inner.get("summary")
+        if not isinstance(summary, dict):
+            summary = None
         return {
             "items": sources,
             "ready_to_trade": inner.get("ready_to_trade"),
-            "summary": inner.get("summary", {}),
+            "summary": summary,
             "critical_stale": critical_stale,
         }
     except Exception as e:
@@ -1020,7 +1079,13 @@ def fetch_notifications(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        items = None
+        if isinstance(raw, dict):
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+        elif isinstance(raw, list):
+            items = raw
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
@@ -1082,7 +1147,13 @@ def fetch_economic_calendar(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        items = None
+        if isinstance(raw, dict):
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+        elif isinstance(raw, list):
+            items = raw
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
@@ -1197,7 +1268,11 @@ def fetch_sector_rotation(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else []
+        items = None
+        if isinstance(raw, dict):
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
         if not items:
             error_msg = "No sector rotation data available"
             logger.error(error_msg)
@@ -1235,7 +1310,13 @@ def fetch_industry_ranking(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        items = None
+        if isinstance(raw, dict):
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+        elif isinstance(raw, list):
+            items = raw
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("irank", e)
@@ -1263,7 +1344,10 @@ def fetch_exec_history(c):
 
         raw = data
         if isinstance(raw, dict):
-            return raw.get("items", [])
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+            return items
         if isinstance(raw, list):
             return raw
         error_msg = f"Execution history API response unexpected type: expected list or dict, got {type(raw).__name__}"
@@ -1322,7 +1406,10 @@ def fetch_audit_log(c):
 
         raw = data
         if isinstance(raw, dict):
-            return raw.get("items", [])
+            items = raw.get("items")
+            if not isinstance(items, list):
+                items = None
+            return items
         if isinstance(raw, list):
             return raw
         error_msg = f"Audit log API response unexpected type: expected list or dict, got {type(raw).__name__}"

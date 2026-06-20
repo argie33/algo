@@ -7,6 +7,7 @@ from typing import Any
 from rich.panel import Panel
 from rich.text import Text
 
+from ..error_boundary import has_error
 from ..utilities import (
     CY,
     DIM,
@@ -116,15 +117,17 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
-        pdata = p.get("data") or {}
+        pdata = p.get("data")
         if isinstance(pdata, str):
             try:
                 pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse phase data JSON: {e}")
-                pdata = {}
+                pdata = None
+        elif not isinstance(pdata, dict) and pdata is not None:
+            pdata = None
         detail = next(
-            (str(pdata[k]) for k in _FIELDS if pdata.get(k) and len(str(pdata.get(k))) > 3),
+            (str(pdata[k]) for k in _FIELDS if pdata and pdata.get(k) and len(str(pdata.get(k))) > 3),
             "",
         )
         if detail:
@@ -167,7 +170,7 @@ def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Pan
             padding=(0, 1),
         )
 
-    if isinstance(data, dict) and data.get("_error"):
+    if has_error(data):
         error_msg = data.get("_error", "Unknown error")
         return Panel(
             Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
@@ -181,7 +184,10 @@ def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Pan
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
     """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding."""
-    cur, old = r.get("current_rank", 0), r.get(wk)
+    cur = r.get("current_rank")
+    if cur is None:
+        return "[dim]--[/]"
+    old = r.get(wk)
     if old is None:
         return ""
     d = int(old) - int(cur)

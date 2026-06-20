@@ -102,15 +102,17 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
-        pdata = p.get("data") or {}
+        pdata = p.get("data")
         if isinstance(pdata, str):
             try:
                 pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse phase data JSON: {e}")
-                pdata = {}
+                pdata = None
+        elif not isinstance(pdata, dict) and pdata is not None:
+            pdata = None
         detail = next(
-            (str(pdata[k]) for k in fields if pdata.get(k) and len(str(pdata.get(k))) > 3),
+            (str(pdata[k]) for k in fields if pdata and pdata.get(k) and len(str(pdata.get(k))) > 3),
             "",
         )
         if detail:
