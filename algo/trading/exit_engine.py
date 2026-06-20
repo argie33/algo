@@ -136,7 +136,10 @@ class ExitEngine:
                         t1_price = float(t1_price) if t1_price else None
                         t2_price = float(t2_price) if t2_price else None
                         t3_price = float(t3_price) if t3_price else None
-                        target_hits = int(target_hits or 0)
+                        if target_hits is None:
+                            logger.error(f"  {symbol}: CRITICAL DATA CORRUPTION - target_hits is NULL in database")
+                            continue
+                        target_hits = int(target_hits)
                     except (TypeError, ValueError) as e:
                         logger.warning(f"  {symbol}: skip (invalid price data: {e})")
                         continue
