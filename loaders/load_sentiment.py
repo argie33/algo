@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Market Sentiment Loader - Aggregate sentiment score from AAII, NAAIM, CNN Fear/Greed."""
+"""Market Sentiment Loader - Aggregate sentiment score from AAII, NAAIM, CNN Fear/Greed.
+
+Run:
+    python3 load_sentiment.py
+"""
 
 import logging
 import sys
 from datetime import date
-from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
@@ -22,82 +26,62 @@ class SentimentLoader(OptimalLoader):
 
     def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute a single MARKET sentiment score from available data sources."""
-        try:
-            with DatabaseContext("read") as cur:
-                scores = []
+        with DatabaseContext("read") as cur:
+            scores = []
 
-                # CNN Fear & Greed: scale 0-100 → already 0-100
-                cur.execute("""
-                    SELECT fear_greed_value
-                    FROM fear_greed_index
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    scores.append(float(row[0]))
+            # CNN Fear & Greed: scale 0-100 → already 0-100
+            cur.execute("""
+                SELECT fear_greed_value
+                FROM fear_greed_index
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                scores.append(float(row[0]))
 
-                # AAII sentiment: bullish% as 0-100 score
-                cur.execute("""
-                    SELECT bullish
-                    FROM aaii_sentiment
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    scores.append(float(row[0]))
+            # AAII sentiment: bullish% as 0-100 score
+            cur.execute("""
+                SELECT bullish
+                FROM aaii_sentiment
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                scores.append(float(row[0]))
 
-                # NAAIM exposure index: 0-200 scale → normalize to 0-100
-                cur.execute("""
-                    SELECT naaim_number_mean
-                    FROM naaim
-                    ORDER BY date DESC
-                    LIMIT 1
-                """)
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    scores.append(min(float(row[0]) / 2.0, 100.0))
+            # NAAIM exposure index: 0-200 scale → normalize to 0-100
+            cur.execute("""
+                SELECT naaim_number_mean
+                FROM naaim
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                scores.append(min(float(row[0]) / 2.0, 100.0))
 
-                if not scores:
-                    logger.info("No sentiment source data available")
-                    return None
+            if not scores:
+                logger.info("No sentiment source data available")
+                return None
 
-                avg_score = sum(scores) / len(scores)
-                if avg_score > 65:
-                    label = "Bullish"
-                elif avg_score > 40:
-                    label = "Neutral"
-                else:
-                    label = "Bearish"
+            avg_score = sum(scores) / len(scores)
+            if avg_score > 65:
+                label = "Bullish"
+            elif avg_score > 40:
+                label = "Neutral"
+            else:
+                label = "Bearish"
 
-                return [
-                    {
-                        "symbol": "MARKET",
-                        "sentiment_score": round(avg_score, 4),
-                        "sentiment_label": label,
-                    }
-                ]
-
-        except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
-
-
-def main():
-    try:
-        loader = SentimentLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} sentiment records loaded")
-            return 0
-        else:
-            logger.error("FAILED: No sentiment records loaded")
-            return 1
-    except Exception as e:
-        logger.error(f"Sentiment load failed: {e}", exc_info=True)
-        return 1
+            return [
+                {
+                    "symbol": "MARKET",
+                    "sentiment_score": round(avg_score, 4),
+                    "sentiment_label": label,
+                }
+            ]
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SentimentLoader, global_mode=True))

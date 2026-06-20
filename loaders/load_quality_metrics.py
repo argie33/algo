@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-import sys
-
-
-"""
-Quality Metrics Loader - Optimal Pattern (Refactored)
+"""Quality Metrics Loader - Optimal Pattern.
 
 Computes fundamental quality metrics from annual financials:
 - Operating Margin: Operating Income / Revenue
@@ -14,16 +10,18 @@ Computes fundamental quality metrics from annual financials:
 - Quality Score: Composite (0-100)
 
 Requires: annual_income_statement, annual_balance_sheet populated
+
+Run:
+    python3 load_quality_metrics.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import argparse
 import logging
+import sys
 from datetime import date
-from typing import Any, Optional
+from typing import Any
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -37,44 +35,40 @@ class QualityMetricsLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute quality metrics from balance sheet and income statement."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT revenue, operating_income, net_income
-                    FROM annual_income_statement
-                    WHERE symbol = %s
-                    ORDER BY fiscal_year DESC
-                    LIMIT 1
-                """,
-                    (symbol,),
-                )
-                income_row = cur.fetchone()
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT revenue, operating_income, net_income
+                FROM annual_income_statement
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC
+                LIMIT 1
+            """,
+                (symbol,),
+            )
+            income_row = cur.fetchone()
 
-                cur.execute(
-                    """
-                    SELECT total_assets, stockholders_equity, current_assets, total_liabilities,
-                           current_liabilities, inventory
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s
-                    ORDER BY fiscal_year DESC
-                    LIMIT 1
-                """,
-                    (symbol,),
-                )
-                balance_row = cur.fetchone()
+            cur.execute(
+                """
+                SELECT total_assets, stockholders_equity, current_assets,
+                       total_liabilities, current_liabilities, inventory
+                FROM annual_balance_sheet
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC
+                LIMIT 1
+            """,
+                (symbol,),
+            )
+            balance_row = cur.fetchone()
 
-                # Require at least income statement; balance sheet is optional
-                if not income_row:
-                    return None
-
-                metrics = self._compute_metrics(symbol, income_row, balance_row)
-                if metrics:
-                    return [metrics]
+            # Require at least income statement; balance sheet is optional
+            if not income_row:
                 return None
 
-        except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            metrics = self._compute_metrics(symbol, income_row, balance_row)
+            if metrics:
+                return [metrics]
+            return None
 
     @staticmethod
     def _compute_metrics(
@@ -185,7 +179,7 @@ class QualityMetricsLoader(OptimalLoader):
             score += roe_score
 
         score = max(0, min(100, score))
-        # Note: quality_score is computed but not stored in DB (no column in quality_metrics table)
+        # Note: quality_score not stored in DB (no column in quality_metrics table)
         # metrics['quality_score'] = float(round(score, 1))
 
         return metrics
@@ -195,34 +189,5 @@ class QualityMetricsLoader(OptimalLoader):
         return rows
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Quality metrics loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    parser.add_argument(
-        "--parallelism", type=int, default=get_default_parallelism("quality_metrics")
-    )
-    args = parser.parse_args()
-
-    symbols = (
-        [s.strip().upper() for s in args.symbols.split(",")]
-        if args.symbols
-        else get_active_symbols(timeout_secs=60)
-    )
-
-    loader = QualityMetricsLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(QualityMetricsLoader))
