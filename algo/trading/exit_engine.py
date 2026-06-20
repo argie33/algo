@@ -25,6 +25,7 @@ import logging
 from datetime import datetime, timezone
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
+import psycopg2
 import requests
 
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
@@ -118,9 +119,9 @@ class ExitEngine:
                         t3_hit_time,
                     ) = row
 
-                    # Issue #22: Verify position still open (not already exited in same run)
+                    # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
                     cur.execute(
-                        "SELECT status FROM algo_positions WHERE position_id = %s",
+                        "SELECT status FROM algo_positions WHERE position_id = %s FOR UPDATE",
                         (_position_id,),
                     )
                     status_row = cur.fetchone()
@@ -581,14 +582,10 @@ class ExitEngine:
                 raise RuntimeError(
                     f"Alpaca quote API error for {symbol}: status {response.status_code}"
                 )
-        except requests.Timeout as e:
-            raise ExchangeAPIError(f"Alpaca quote API timeout for {symbol}") from e
         except requests.RequestException as e:
-            raise ExchangeAPIError(f"Alpaca quote API request error for {symbol}: {e}") from e
+            raise ExchangeAPIError(f"Alpaca quote API error for {symbol}: {type(e).__name__}: {e}") from e
         except (RuntimeError, ValueError):
             raise
-        except (requests.RequestException, requests.Timeout) as e:
-            raise ExchangeAPIError(f"Alpaca quote API error for {symbol}: {type(e).__name__}: {e}") from e
 
     def _fetch_recent_prices(
         self, cur, symbol: str, current_date
