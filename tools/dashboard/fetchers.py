@@ -975,27 +975,42 @@ def fetch_economic_pulse(c):
 
         # Extract yield curve data
         d = yc_data
-        curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
-        spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
-        credit = d.get("credit", {}) if isinstance(d, dict) else {}
-        credit_latest = credit.get("currentSpreads", {}) if isinstance(credit, dict) else {}
-        t10 = safe_float(curve.get("10Y"), default=None)
-        t2 = safe_float(curve.get("2Y"), default=None)
-        t3m = safe_float(curve.get("3M"), default=None)
-        t6m = safe_float(curve.get("6M"), default=None)
-        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None)
-        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None)
-        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None)
-        ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
+        curve = None
+        spreads = None
+        credit = None
+        credit_latest = None
+        if isinstance(d, dict):
+            curve = d.get("currentCurve")
+            spreads = d.get("spreads")
+            credit = d.get("credit")
+        if isinstance(credit, dict):
+            credit_latest = credit.get("currentSpreads")
+
+        t10 = safe_float(curve.get("10Y"), default=None) if isinstance(curve, dict) else None
+        t2 = safe_float(curve.get("2Y"), default=None) if isinstance(curve, dict) else None
+        t3m = safe_float(curve.get("3M"), default=None) if isinstance(curve, dict) else None
+        t6m = safe_float(curve.get("6M"), default=None) if isinstance(curve, dict) else None
+        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None) if isinstance(spreads, dict) else None
+        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None) if isinstance(spreads, dict) else None
+        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None) if isinstance(credit_latest, dict) else None
+        ig = None
+        if isinstance(credit_latest, dict):
+            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
 
         # Extract indicators data
         d2 = ind_data
-        indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
-        by_series = {
-            i["series_id"]: safe_float(i.get("rawValue"), default=None)
-            for i in indicators
-            if isinstance(i, dict) and i.get("series_id")
-        }
+        indicators = None
+        if isinstance(d2, dict):
+            indicators = d2.get("indicators")
+            if not isinstance(indicators, list):
+                indicators = None
+        by_series = {}
+        if indicators:
+            by_series = {
+                i["series_id"]: safe_float(i.get("rawValue"), default=None)
+                for i in indicators
+                if isinstance(i, dict) and i.get("series_id")
+            }
         fed_funds = by_series.get("FEDFUNDS")
         cpi_yoy = by_series.get("CPIAUCSL")
         unrate = by_series.get("UNRATE")

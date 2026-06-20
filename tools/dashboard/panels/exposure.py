@@ -146,14 +146,22 @@ def panel_exposure_compact(exp_f):
             det_s = f" [dim]{det.strip()}[/]" if det else ""
             items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}")
 
-    sr = factors.get("sector_rotation") if factors and isinstance(factors.get("sector_rotation"), dict) else {}
-    eco = factors.get("economic_overlay") if factors and isinstance(factors.get("economic_overlay"), dict) else {}
+    sr = None
+    eco = None
+    if factors and isinstance(factors, dict):
+        sr_raw = factors.get("sector_rotation")
+        if isinstance(sr_raw, dict):
+            sr = sr_raw
+        eco_raw = factors.get("economic_overlay")
+        if isinstance(eco_raw, dict):
+            eco = eco_raw
+
     sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
     eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
-    if sr_pen < 0:
+    if sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
-    if eco_pen < 0:
+    if eco_pen < 0 and eco:
         eco_err = (eco.get("error", ""))[:18]
         items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
 
@@ -312,18 +320,26 @@ def panel_exposure_expanded(exp_f):
     rows.append(tbl)
 
     # Penalty/bonus adjustments
-    sr = factors.get("sector_rotation") if factors and isinstance(factors.get("sector_rotation"), dict) else {}
-    eco = factors.get("economic_overlay") if factors and isinstance(factors.get("economic_overlay"), dict) else {}
+    sr = None
+    eco = None
+    if factors and isinstance(factors, dict):
+        sr_raw = factors.get("sector_rotation")
+        if isinstance(sr_raw, dict):
+            sr = sr_raw
+        eco_raw = factors.get("economic_overlay")
+        if isinstance(eco_raw, dict):
+            eco = eco_raw
+
     sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
     eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
-        if sr_pen != 0:
+        if sr_pen != 0 and sr:
             sig = (sr.get("signal", "")).replace("_", " ")
             sc = R if sr_pen < 0 else G
             rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
-        if eco_pen != 0:
+        if eco_pen != 0 and eco:
             eco_err = (eco.get("error", ""))[:30]
             ec = R if eco_pen < 0 else G
             rows.append(

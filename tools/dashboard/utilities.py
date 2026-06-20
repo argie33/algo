@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from rich.console import Console
 
 from .data_validation import safe_float
-from .error_boundary import get_error_message, has_error
+from .error_boundary import has_error
 
 
 # ── globals ───────────────────────────────────────────────────────────────────
@@ -217,6 +217,8 @@ def extract_items_and_error(data):
     Returns:
         (items_list, error_msg) tuple
     """
+    from .error_boundary import get_error_message
+
     if isinstance(data, dict):
         if has_error(data):
             return [], get_error_message(data)

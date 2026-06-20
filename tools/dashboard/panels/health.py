@@ -512,7 +512,7 @@ def panel_status(
                 rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"))
 
     # Notifications (up to 4)
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and has_error(notifs))) else []
+    valid_notifs = safe_get_list(notifs)
     if valid_notifs:
         rows.append(Rule(style="dim"))
         sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
@@ -525,27 +525,25 @@ def panel_status(
             "max drawdown": "MaxDD hit",
         }
         for n in valid_notifs[:4]:
-            sc = sev_colors.get(n.get("severity", "info"), DIM)
-            raw_t = n.get("title") or ""
+            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            raw_t = safe_get_field(n, "title", "") or ""
             tl = raw_t.lower()
             title = next((v for k, v in short_names.items() if k in tl), raw_t[:24])
-            age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else " "
+            age = fmt_age(safe_get_field(n, "created_at"))
+            unread = "-" if not safe_get_field(n, "seen", True) else " "
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
-    valid_metrics = (
-        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
-    )
+    valid_metrics = safe_get_list(algo_metrics)
     if valid_metrics:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
         for m in valid_metrics[:5]:
-            d = m.get("date")
+            d = safe_get_field(m, "date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            ta = int(m["total_actions"]) if "total_actions" in m else 0
-            en = int(m["entries"]) if "entries" in m else 0
-            ex = int(m["exits"]) if "exits" in m else 0
+            ta = int(safe_get_field(m, "total_actions", 0)) if "total_actions" in m else 0
+            en = int(safe_get_field(m, "entries", 0)) if "entries" in m else 0
+            ex = int(safe_get_field(m, "exits", 0)) if "exits" in m else 0
             rows.append(
                 Text.from_markup(
                     f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
@@ -553,28 +551,28 @@ def panel_status(
             )
 
     # Data loader status (errors/stale from data_loader_status table)
-    valid_loader = loader if (loader and not (isinstance(loader, dict) and has_error(loader))) else []
-    problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
-    running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
+    valid_loader = safe_get_list(loader)
+    problem_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) in ("error", "failed", "stale")]
+    running_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) == "loading"]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
     if problem_loader:
         rows.append(Rule(style="dim"))
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
         rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
-            nm = str((r.get("table_name") or "--")[:14])
-            st = r.get("status") or "?"
-            age = r.get("age_days")
+            nm = str((safe_get_field(r, "table_name", "") or "--")[:14])
+            st = safe_get_field(r, "status") or "?"
+            age = safe_get_field(r, "age_days")
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
-            err = (r.get("error_message") or "")[:20]
+            err = (safe_get_field(r, "error_message", "") or "")[:20]
             rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
             rows.append(Rule(style="dim"))
             for r in running_loader[:3]:
-                nm = (r.get("table_name") or "")[:12]
-                pct = r.get("completion_pct")
+                nm = (safe_get_field(r, "table_name", "") or "")[:12]
+                pct = safe_get_field(r, "completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
         elif ok_count > 0:
@@ -582,20 +580,20 @@ def panel_status(
             rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log — most recent notable actions
-    valid_audit = audit if (audit and not (isinstance(audit, dict) and has_error(audit))) else []
+    valid_audit = safe_get_list(audit)
     if valid_audit:
         notable = [
             a
             for a in valid_audit
-            if any(k in (a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+            if any(k in (safe_get_field(a, "action_type", "") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim]Audit:[/]"))
             for a in notable:
-                at = (a.get("action_type") or "").replace("_", " ")
-                sym = a.get("symbol") or ""
-                st = a.get("status", "")
+                at = (safe_get_field(a, "action_type", "") or "").replace("_", " ")
+                sym = safe_get_field(a, "symbol", "") or ""
+                st = safe_get_field(a, "status", "")
                 sc = G if st == "success" else (Y if st == "warn" else R)
                 rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
@@ -918,8 +916,8 @@ def panel_algo_health(
         }
         notif_parts = []
         for n in valid_notifs[:5]:
-            sc = sev_colors.get(n.get("severity", "info"), DIM)
-            raw_t = n.get("title") or ""
+            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            raw_t = safe_get_field(n, "title", "") or ""
             title = next(
                 (v for k, v in short_names.items() if k in raw_t.lower()),
                 raw_t[:20],
@@ -1230,8 +1228,8 @@ def panel_algo_health_expanded(
                 continue
             sc = sev_colors.get(n.get("severity", "info"), DIM)
             title = n.get("title") or ""
-            age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "."
+            age = fmt_age(safe_get_field(n, "created_at"))
+            unread = "-" if not safe_get_field(n, "seen", True) else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
     # Audit log

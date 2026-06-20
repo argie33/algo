@@ -4,38 +4,25 @@ Ensures all panels gracefully handle missing or error data, preventing silent fa
 and making error state visible to operators.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from rich.panel import Panel
 from rich.text import Text
 
-from .utilities import DIM, R, Y
-
-
-def has_error(data: Any) -> bool:
-    """Check if data has error marker (includes stale data as error state)."""
-    if not isinstance(data, dict):
-        return False
-    return "_error" in data or data.get("_data_stale", False)
-
-
-def is_data_stale(data: Any) -> bool:
-    """Check if data is marked as stale (too old to be reliable)."""
-    return isinstance(data, dict) and data.get("_data_stale", False)
+from .error_types import get_error_message_plain, has_error, is_data_stale
 
 
 def get_error_message(data: Any) -> str | None:
-    """Extract error message from data if present.
+    """Extract error message from data with Rich markup formatting.
 
     Distinguishes between stale data and hard errors for better visibility.
     """
-    if not isinstance(data, dict):
+    plain_msg = get_error_message_plain(data)
+    if plain_msg is None:
         return None
     if is_data_stale(data):
         return f"[yellow]⚠ STALE[/]: {data.get('_error', 'Data too old')}"
-    if "_error" in data:
-        return cast(str, data.get("_error", "Unknown error"))
-    return None
+    return plain_msg
 
 
 def safe_get(data: Any, key: str, default: Any = None) -> Any:
@@ -74,6 +61,8 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     Distinguishes between hard errors (red) and stale data (yellow).
     Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
+    from .utilities import R, Y
+
     failed_errors = []
     stale_data = []
 
