@@ -454,7 +454,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             row.get("symbol") is not None
             and row.get("date") is not None
             and row.get("score") is not None
-            and 0 <= float(row.get("score", 0)) <= 100
+            and 0 <= safe_float(row.get("score", 0), default=0, context="score") <= 100
         )
 
     def _validate_source_dependencies(

@@ -1386,7 +1386,7 @@ class TradeExecutor:
                 }
 
             alpaca_pos = resp.json()
-            alpaca_qty = int(float(alpaca_pos.get("qty", 0)))
+            alpaca_qty = int(safe_float(alpaca_pos.get("qty", 0), default=0, context="qty"))
 
             if alpaca_qty <= 0:
                 return {
