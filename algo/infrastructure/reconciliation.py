@@ -1770,8 +1770,8 @@ class DailyReconciliation:
             raise ValueError(
                 f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}"
             )
-        except Exception as e:
-            raise ValueError(f"Could not fetch Alpaca account: {e}")
+        except (requests.RequestException, requests.Timeout, ValueError, KeyError, AttributeError) as e:
+            raise ValueError(f"Could not fetch Alpaca account: {e}") from e
 
     def _fetch_initial_capital(self, cur):
         """Get the actual initial capital from Alpaca account history.
