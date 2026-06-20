@@ -1284,7 +1284,8 @@ class DailyReconciliation:
             "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
             "WHERE resolved = FALSE AND failed_at > NOW() - INTERVAL '1 day'"
         )
-        failure_count = cur.fetchone()[0] if cur.fetchone() else 0
+        failure_row = cur.fetchone()
+        failure_count = failure_row[0] if failure_row else 0
         if failure_count > 5:
             try:
                 notify(

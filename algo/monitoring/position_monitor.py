@@ -968,14 +968,15 @@ class PositionMonitor:
         )
 
     def _print_recommendation(self, rec):
-        ", ".join(rec["flags"]) if rec["flags"] else "none"
+        flags_str = ", ".join(rec["flags"]) if rec["flags"] else "none"
         logger.info(
             f"  {rec['symbol']:6s}  qty={rec['quantity']:<5d} "
             f"price=${rec['current_price']:7.2f}  "
             f"R={rec['r_multiple']:+.2f}  "
             f"P&L={rec['unrealized_pct']:+.2f}%  "
             f"days={rec['days_held']:<3d} "
-            f"hits={rec['target_hits']}"
+            f"hits={rec['target_hits']}  "
+            f"flags={flags_str}"
         )
 
     def check_corporate_actions(self):

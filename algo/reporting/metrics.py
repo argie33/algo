@@ -155,9 +155,9 @@ class MetricsPublisher:
             dimensions=dims,
         )
 
-    def add_metric(self, metric_name: str, value: float, unit: str = "Count") -> None:
+    def add_metric(self, metric_name: str, value: float, unit: str = "Count", dimensions: Optional[Dict[str, str]] = None) -> None:
         """Emit a single metric immediately (no batching)."""
-        self._emit(metric_name, value, unit)
+        self._emit(metric_name, value, unit, dimensions)
         self._flush()
 
     def put_circuit_breaker(self, breaker_name: str, fired: bool) -> None:

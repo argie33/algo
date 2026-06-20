@@ -222,10 +222,10 @@ class SLAMonitor:
                 f"LoaderSLACompliance_{self.loader_name}",
                 compliance,
                 unit="None",
-                dimensions={"LoaderName": self.loader_name},
+                dimensions={
+                    "LoaderName": self.loader_name,
+                },
             )
-
-            metrics.flush()
         except Exception as e:
             logger.debug(f"Failed to publish SLA metrics: {e}")
 

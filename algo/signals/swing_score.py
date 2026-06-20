@@ -742,9 +742,9 @@ class SwingTraderScore:
         )
         return pts, {
             "rs_percentile_60d": round(rs_60, 1) if rs_60 is not None else None,
-            "return_1m": round(r1 * 100, 1),
-            "return_3m": round(r3 * 100, 1),
-            "return_6m": round(r6 * 100, 1),
+            "return_1m": round(r1 * 100, 1) if r1 is not None else None,
+            "return_3m": round(r3 * 100, 1) if r3 is not None else None,
+            "return_6m": round(r6 * 100, 1) if r6 is not None else None,
             "short_interest_pct": (
                 round(short_interest, 1) if short_interest is not None else None
             ),

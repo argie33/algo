@@ -25,7 +25,7 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timezone
-from typing import Dict, Optional
+from typing import Optional
 
 from utils.db.context import DatabaseContext
 from utils.loaders.config import get_default_parallelism

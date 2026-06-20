@@ -293,7 +293,7 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         return default
 
 
-def safe_float_strict(value: Any, context: str = "", allow_none: bool = False) -> float:
+def safe_float_strict(value: Any, context: str = "", allow_none: bool = False) -> Any:
     """Convert value to float in strict mode, raising on failure.
 
     Args:
@@ -350,7 +350,7 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
-def safe_int_strict(value: Any, context: str = "", allow_none: bool = False) -> int:
+def safe_int_strict(value: Any, context: str = "", allow_none: bool = False) -> Any:
     """Convert value to int in strict mode.
 
     Args:

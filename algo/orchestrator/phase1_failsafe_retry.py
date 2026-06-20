@@ -68,7 +68,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
             "halt_required": bool,         # True if critical loaders still failing
         }
     """
-    results = {
+    results: dict[str, Any] = {
         "incomplete_loaders": [],
         "retried": [],
         "recovered": [],

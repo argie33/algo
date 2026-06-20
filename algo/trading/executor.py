@@ -1377,17 +1377,19 @@ class TradeExecutor:
                     snapshot_date
                     and (datetime.now(timezone.utc).date() - snapshot_date).days > 1
                 ):
-                    logger.warning(f"[PORTFOLIO] STALE SNAPSHOT: from {snapshot_date}")
+                    error_msg = f"[PORTFOLIO] STALE SNAPSHOT: from {snapshot_date} (age > 1 day). Cannot trade with stale portfolio data."
+                    logger.critical(error_msg)
                     try:
                         notify(
-                            severity="warning",
-                            title="Portfolio Value Stale",
-                            message=f"Using portfolio snapshot from {snapshot_date} (now using {pv:.0f})",
+                            severity="critical",
+                            title="Portfolio Value Stale — Trading Halted",
+                            message=f"Portfolio snapshot from {snapshot_date} is too old. Cannot execute trades.",
                         )
                     except Exception as notif_e:
                         logger.debug(
                             f"Failed to send portfolio staleness notification: {notif_e}"
                         )
+                    raise RuntimeError(error_msg)
                 return pv
             return None
 

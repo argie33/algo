@@ -76,8 +76,10 @@ class VectorizedTechnicalLoader:
         try:
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)
             if not all_prices:
-                logger.warning("No price data found")
-                return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0, "latest_date": None}
+                raise RuntimeError(
+                    f"[PRICES] No price data found for {len(symbols)} symbols in date range "
+                    f"{start_date} to {end_date}. Cannot compute technical indicators without price data."
+                )
 
             logger.info(
                 f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols"

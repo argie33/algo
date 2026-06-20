@@ -290,7 +290,8 @@ class AdvancedFilters:
     def _mansfield_rs_score(self, symbol, signal_date, cur):
         """Compute Mansfield-style RS percentile vs SPY.
 
-        Returns 0 score if RS calculation fails (degraded but not hard-failed).
+        Returns 0 score if RS data unavailable (graceful degradation).
+        Raises on actual errors (DB/API failure).
         """
         if self._signals is None:
             self._signals = SignalComputer()
@@ -299,9 +300,11 @@ class AdvancedFilters:
             rs_percentile = self._signals._rs_percentile_vs_spy(
                 cur, symbol, signal_date, lookback=60
             )
-        except (ValueError, RuntimeError) as e:
-            logger.debug(f"RS percentile failed for {symbol}: {e}")
+        except ValueError as e:
+            # Missing data — graceful degradation to 0 score
+            logger.debug(f"RS percentile unavailable for {symbol}: {e}")
             return 0.0, None
+        # RuntimeError, ConnectionError, etc. propagate to caller
 
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
         return pts, round(rs_percentile, 1)
@@ -355,18 +358,23 @@ class AdvancedFilters:
         """Multi-timeframe alignment (Elder Triple Screen):
         +2 pts each if 5d return positive, 20d return positive,
         +1 pt if also a BUY signal on weekly timeframe (very strong combo).
+
+        Returns 0 if period data unavailable (degradation).
+        Raises on data retrieval errors.
         """
         r5 = None
         r20 = None
         try:
             r5 = self._period_return(symbol, signal_date, 5, cur)
-        except (ValueError, RuntimeError) as e:
-            logger.debug(f"5d return calculation failed for {symbol}: {e}")
+        except ValueError as e:
+            # Missing price data — graceful degradation
+            logger.debug(f"5d return data unavailable for {symbol}: {e}")
 
         try:
             r20 = self._period_return(symbol, signal_date, 20, cur)
-        except (ValueError, RuntimeError) as e:
-            logger.debug(f"20d return calculation failed for {symbol}: {e}")
+        except ValueError as e:
+            # Missing price data — graceful degradation
+            logger.debug(f"20d return data unavailable for {symbol}: {e}")
 
         if r5 is None or r20 is None:
             return 0.0
@@ -389,10 +397,10 @@ class AdvancedFilters:
             if cur.fetchone():
                 score += 1.0
         except Exception as e:
-            logging.debug(
-                f"Weekly alignment check failed for {symbol}: {e} (continuing without bonus)"
+            # Weekly data missing or unavailable — continue without bonus
+            logger.debug(
+                f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)"
             )
-            # Continue without bonus — don't halt on weekly alignment check failure
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
 
@@ -404,6 +412,9 @@ class AdvancedFilters:
         +1 pt:  pivot breakout fired today on volume
         +1 pt:  Minervini power trend (20%+ in 21 days)
         Capped at 5.
+
+        Returns 0 score if setup data unavailable (graceful degradation).
+        Raises on data retrieval errors.
         """
         try:
             if self._signals is None:
@@ -412,8 +423,11 @@ class AdvancedFilters:
             vcp = self._signals.vcp_detection(symbol, signal_date)
             pivot = self._signals.pivot_breakout(symbol, signal_date)
             power = self._signals.power_trend(symbol, signal_date)
-        except Exception as e:
-            return 0.0, {"error": str(e)[:60]}
+        except ValueError as e:
+            # Missing setup detection data — graceful degradation to 0 score
+            logger.debug(f"Setup quality data unavailable for {symbol}: {e}")
+            return 0.0, {}
+        # Other exceptions (RuntimeError, ConnectionError, etc.) propagate to caller
 
         pts = 0.0
         if base.get("in_base") and base.get("breakout_imminent"):
@@ -521,24 +535,27 @@ class AdvancedFilters:
         return pts, round(q, 1)
 
     def _earnings_quality_score(self, symbol, cur):
-        try:
-            cur.execute(
-                """
-                SELECT earnings_quality_score FROM earnings_metrics
-                WHERE symbol = %s AND earnings_quality_score IS NOT NULL
-                ORDER BY report_date DESC LIMIT 1
-                """,
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None:
-                return 0.0, None
-            score = float(row[0])
-            pts = (score / 100.0) * self.W_QUALITY_EARNINGS
-            return pts, round(score, 1)
-        except Exception as e:
-            logger.debug(f"Earnings quality score calculation failed: {e}")
+        """Compute earnings quality score from earnings_metrics.
+
+        Returns 0 score if data unavailable (graceful degradation).
+        Raises on data retrieval errors.
+        """
+        cur.execute(
+            """
+            SELECT earnings_quality_score FROM earnings_metrics
+            WHERE symbol = %s AND earnings_quality_score IS NOT NULL
+            ORDER BY report_date DESC LIMIT 1
+            """,
+            (symbol,),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None:
+            # Missing earnings quality data — graceful degradation
+            logger.debug(f"Earnings quality data unavailable for {symbol}")
             return 0.0, None
+        score = float(row[0])
+        pts = (score / 100.0) * self.W_QUALITY_EARNINGS
+        return pts, round(score, 1)
 
     # ============= CATALYST =============
 
