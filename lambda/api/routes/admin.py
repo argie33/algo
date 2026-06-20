@@ -21,12 +21,13 @@ from routes.utils import (
     normalize_to_utc_datetime,
     safe_json_serialize,
 )
-from types import JWTClaims, RouteBody, RouteParams, RouteResponse
 
 # setup_imports is imported by parent module (lambda_function or api_router),
 # so utils is already available in sys.path
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 from utils.validation import CognitoValidator
+
+from ..types import JWTClaims, RouteBody, RouteParams, RouteResponse
 
 
 logger = logging.getLogger(__name__)
