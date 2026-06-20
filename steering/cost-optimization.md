@@ -1,16 +1,16 @@
 # AWS Cost Optimization Guide
 
-**Goal:** Maintain lean infrastructure while supporting full data pipeline + trading system. Current estimated monthly cost: $80-145 (dev environment).
+**Goal:** Maintain lean infrastructure while supporting full data pipeline + trading system. Estimated monthly cost: $80-145 (dev environment).
 
-## Summary of Optimizations Applied (2026-06-20)
+## Optimizations in Place
 
-| Change | Savings | Implementation |
-|--------|---------|-----------------|
-| CloudWatch log retention 7 → 5 days | $1-2/month | terraform: `cloudwatch_log_retention_days = 5` |
-| Code bucket expiration 90 → 60 days | $3-5/month | terraform: `code_bucket_expiration_days = 60` |
-| Data bucket expiration 30 → 21 days | $2-3/month | terraform: `data_bucket_expiration_days = 21` |
-| S3 Intelligent-Tiering on logs | 15-20% savings on archive storage | Already enabled: `log_archive_intelligent_tiering_enabled = true` |
-| **Total Optimizations** | **$6-10/month** | All values set in `terraform/terraform.tfvars` |
+| Area | Strategy | Savings | Implementation |
+|------|----------|---------|-----------------|
+| CloudWatch logs | 5-day retention | $1-2/month | `cloudwatch_log_retention_days = 5` in terraform |
+| Code bucket | 60-day expiration | $3-5/month | `code_bucket_expiration_days = 60` in terraform |
+| Data bucket | 21-day expiration | $2-3/month | `data_bucket_expiration_days = 21` in terraform |
+| Archive storage | S3 Intelligent-Tiering | 15-20% savings | `log_archive_intelligent_tiering_enabled = true` |
+| **Total Impact** | **Combined approach** | **$6-10/month** | All configured in `terraform/terraform.tfvars` |
 
 ## Cost Breakdown by Component
 
@@ -226,6 +226,5 @@ aws cloudwatch get-metric-statistics \
 
 ---
 
-**Last Updated:** 2026-06-20  
-**Total Optimizations Applied:** $6-10/month savings  
-**Estimated Current Cost:** $80-145/month (dev)
+**Optimization Impact:** $6-10/month savings  
+**Estimated Cost:** $80-145/month (dev)

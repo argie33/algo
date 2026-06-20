@@ -6,7 +6,6 @@ import logging
 import os
 import uuid
 from datetime import date
-from typing import Dict, Optional
 
 import psycopg2
 import psycopg2.errors
@@ -26,17 +25,18 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+
 from utils.validation import CognitoValidator
 
 
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
+def _check_admin_access(jwt_claims: dict | None) -> bool:
     return CognitoValidator.validate_admin_access(jwt_claims)
 
 
-def _compute_request_signature(idempotency_key: str, body: Dict) -> str:
+def _compute_request_signature(idempotency_key: str, body: dict) -> str:
     """Compute a hash of the idempotency key and request body.
 
     Returns a deterministic signature to detect duplicate requests.
@@ -45,7 +45,7 @@ def _compute_request_signature(idempotency_key: str, body: Dict) -> str:
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def _check_idempotency(cur, signature: str) -> Optional[Dict]:
+def _check_idempotency(cur, signature: str) -> dict | None:
     """Check if this request signature has been processed before.
 
     Returns the cached response if found, None otherwise.
@@ -68,7 +68,7 @@ def _check_idempotency(cur, signature: str) -> Optional[Dict]:
         return None
 
 
-def _store_idempotent_response(cur, signature: str, response: Dict) -> None:
+def _store_idempotent_response(cur, signature: str, response: dict) -> None:
     """Cache the response for this idempotent request signature."""
     try:
         cur.execute(
@@ -87,11 +87,11 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Optional[Dict] = None,
-    jwt_claims: Optional[Dict] = None,
-    headers: Optional[Dict] = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+    headers: dict | None = None,
+) -> dict:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
@@ -125,10 +125,10 @@ def handle(
                 status_filter = status_filter.lower()
 
             where_clauses = []
-            args = []
+            where_args = []
             if status_filter:
                 where_clauses.append("status = %s")
-                args.append(status_filter)
+                where_args.append(status_filter)
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
             query = f"""
@@ -141,13 +141,13 @@ def handle(
                 WHERE {where_sql}
                 ORDER BY created_at DESC LIMIT %s OFFSET %s
             """
-            args.extend([limit, offset])
+            query_args = where_args + [limit, offset]
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
-            cur.execute(query, args[:-2])  # Exclude limit and offset from trade query
+            cur.execute(query, query_args)
             trades = cur.fetchall()
-            # Count total trades (reuse where_sql and first N args, exclude limit/offset)
+            # Count total trades (use only where clause args, no limit/offset)
             count_query = f"SELECT COUNT(*) FROM algo_trades WHERE {where_sql}"
-            count_args = args[:-2]
+            count_args = where_args
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute(count_query, count_args)
             count_row = cur.fetchone()
@@ -185,7 +185,7 @@ def handle(
         raise_db_error(e, "handle trades")
 
 
-def _create_manual_trade(cur, body: Dict, idempotency_key: Optional[str] = None) -> Dict:
+def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) -> dict:
     """POST /api/trades/manual — manually log a trade entry.
 
     If idempotency_key is provided, uses it to prevent duplicate requests.
@@ -212,11 +212,24 @@ def _create_manual_trade(cur, body: Dict, idempotency_key: Optional[str] = None)
             raise_api_error(400, "bad_request", "Invalid request")
 
         symbol = req.symbol
-        trade_type = req.trade_type
+        trade_type = req.trade_type.lower()
         quantity = req.quantity
         price = req.price
         execution_date = req.execution_date or date.today().isoformat()
         stop_loss = req.stop_loss_price
+
+        # Business logic validation: stop loss must be within valid range
+        if stop_loss is not None:
+            if trade_type == "buy" and stop_loss >= price:
+                raise_api_error(
+                    400, "bad_request",
+                    f"For BUY trades, stop_loss_price ({stop_loss}) must be below entry_price ({price})"
+                )
+            elif trade_type == "sell" and stop_loss <= price:
+                raise_api_error(
+                    400, "bad_request",
+                    f"For SELL trades, stop_loss_price ({stop_loss}) must be above entry_price ({price})"
+                )
 
         trade_id = f"MANUAL-{uuid.uuid4().hex[:12].upper()}"
         trade_date = date.fromisoformat(execution_date)

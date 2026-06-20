@@ -1,7 +1,6 @@
 """Route: economic"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -16,6 +15,7 @@ from routes.utils import (
     list_response,
     safe_json_serialize,
 )
+
 from utils.validation import DatabaseResultValidator
 
 
@@ -26,10 +26,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict = None,
+    jwt_claims: dict = None,
+) -> dict:
     """Handle /api/economic and /api/economic/* endpoints."""
     try:
         if path == "/api/economic/VIX":
@@ -144,7 +144,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_leading_indicators(cur) -> Dict:
+def _get_leading_indicators(cur) -> dict:
     """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
@@ -373,7 +373,7 @@ def _get_leading_indicators(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _get_yield_curve_full(cur) -> Dict:
+def _get_yield_curve_full(cur) -> dict:
     """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""
