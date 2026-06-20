@@ -49,8 +49,16 @@ def run(
 
     phase_start = time.time()
 
-    min_coverage_pct = config.get("phase1_min_coverage_pct", 75) if config else 75
-    min_symbol_count = config.get("phase1_min_symbol_count", 5000) if config else 5000
+    if config:
+        min_coverage_pct = config.get("phase1_min_coverage_pct", 75)
+        min_symbol_count = config.get("phase1_min_symbol_count", 5000)
+    else:
+        logger.warning(
+            "[PHASE 1] Config not provided: using hardcoded thresholds "
+            "(min_coverage_pct=75%, min_symbol_count=5000)"
+        )
+        min_coverage_pct = 75
+        min_symbol_count = 5000
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
