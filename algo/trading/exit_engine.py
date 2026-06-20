@@ -148,7 +148,10 @@ class ExitEngine:
                         cur, symbol, current_date
                     )
                     if cur_price is None:
-                        continue
+                        raise RuntimeError(
+                            f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
+                            "— cannot evaluate exits without market data"
+                        )
 
                     days_held = (current_date - trade_date).days
 

@@ -256,8 +256,10 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.warning("Beta exposure skipped: no open positions")
-                    return None
+                    raise RuntimeError(
+                        "Beta exposure calculation failed: no open positions exist. "
+                        "Risk dashboard requires position data to compute beta exposure."
+                    )
 
                 cur.execute(
                     "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -411,8 +413,10 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.warning("Concentration report skipped: no open positions")
-                    return None
+                    raise RuntimeError(
+                        "Concentration report failed: no open positions exist. "
+                        "Risk dashboard requires position data to compute concentration metrics."
+                    )
 
                 cur.execute(
                     "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
