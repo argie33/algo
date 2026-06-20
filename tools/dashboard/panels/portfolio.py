@@ -23,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
+from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,
     fmt_money,
@@ -38,6 +39,7 @@ from ..utilities import (
     normalize_positions_data,
 )
 from ._helpers import _error_panel
+from .data_extractors import extract_config_params
 
 
 def _calculate_adjusted_win_rate(perf, pos):
@@ -46,7 +48,7 @@ def _calculate_adjusted_win_rate(perf, pos):
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
-    if not perf or perf.get("_error"):
+    if not perf or has_error(perf):
         return 0, 0, 0
 
     closed_wins = perf.get("w")
@@ -55,7 +57,7 @@ def _calculate_adjusted_win_rate(perf, pos):
         return 0, 0, 0
     losing_open = 0
 
-    if pos and not pos.get("_error"):
+    if pos and not has_error(pos):
         pos_items, _, _ = normalize_positions_data(pos)
         for p in pos_items:
             if isinstance(p, dict):
@@ -81,9 +83,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
     if err_panel:
         return err_panel
-    if _error_panel("config", cfg, "PORTFOLIO", border="green"):
+    if has_error(cfg):
         return _error_panel("config", cfg, "PORTFOLIO", border="green")
 
+    # Extract portfolio metrics (error already checked above)
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -94,7 +97,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     mxdd = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
-    max_n = int(cfg.get("max_pos_n", 0)) if cfg else 0
+    cfg_data = extract_config_params(cfg) if isinstance(cfg, dict) else {}
+    max_n = int(cfg_data.get("max_pos_n", 0)) if cfg_data.get("max_pos_n") else 0
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
     # Header: portfolio value + age
@@ -146,8 +150,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    if risk and not risk.get("_error") and risk.get("var95") is not None and float(risk.get("var95")) > 0:
-        var_v = risk.get("var95")
+    if risk and not has_error(risk) and risk.get("var95") is not None and float(risk["var95"]) > 0:
+        var_v = risk["var95"]
         cvar_v = risk.get("cvar95")
         beta_v = risk.get("beta")
         conc5_v = risk.get("conc5")
@@ -260,7 +264,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     )
 
     # Rolling analytics
-    if perf_anl and not perf_anl.get("_error"):
+    if perf_anl and not has_error(perf_anl):
         sharpe252 = perf_anl.get("sharpe252")
         sortino = perf_anl.get("sortino")
         calmar = perf_anl.get("calmar")
