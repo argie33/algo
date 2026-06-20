@@ -836,6 +836,21 @@ class Orchestrator:
         # No halt flag check: exits must always run to reduce risk even when entries are halted.
         from algo.orchestrator.phase4_exit_execution import run as run_phase4
 
+        position_recs = getattr(self, "_position_recs", None)
+        exposure_actions = getattr(self, "_exposure_actions", None)
+        if position_recs is None:
+            logger.error(
+                "FATAL: Phase 4 requires _position_recs from Phase 3, but attribute is missing. "
+                "This indicates Phase 3 failed to complete successfully."
+            )
+            raise RuntimeError("Phase 4 cannot proceed: Phase 3 data (_position_recs) not available")
+        if exposure_actions is None:
+            logger.error(
+                "FATAL: Phase 4 requires _exposure_actions from Phase 3, but attribute is missing. "
+                "This indicates Phase 3 failed to complete successfully."
+            )
+            raise RuntimeError("Phase 4 cannot proceed: Phase 3 data (_exposure_actions) not available")
+
         result = run_phase4(
             self.config,
             self.run_date,
@@ -843,8 +858,8 @@ class Orchestrator:
             self.alerts,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_position_recs", []),
-            getattr(self, "_exposure_actions", []),
+            position_recs,
+            exposure_actions,
             self._check_halt_flag,
         )
         return not result.halted
@@ -858,12 +873,20 @@ class Orchestrator:
         self.log_phase_start(5, "SIGNAL GENERATION & RANKING")
         from algo.orchestrator.phase5_signal_generation import run as run_phase5
 
+        exposure_constraints = getattr(self, "_exposure_constraints", None)
+        if exposure_constraints is None:
+            logger.error(
+                "FATAL: Phase 5 requires _exposure_constraints from Phase 3b, but attribute is missing. "
+                "This indicates Phase 3b (Exposure Policy) failed to complete successfully."
+            )
+            raise RuntimeError("Phase 5 cannot proceed: Phase 3b data (_exposure_constraints) not available")
+
         result = run_phase5(
             self.run_date,
             self.dry_run,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_exposure_constraints", {}),
+            exposure_constraints,
             self._check_halt_flag,
             phase1_degraded=False,
             config=self.config,
@@ -882,14 +905,29 @@ class Orchestrator:
         self.log_phase_start(6, "ENTRY EXECUTION")
         from algo.orchestrator.phase6_entry_execution import run as run_phase6
 
+        qualified_trades = getattr(self, "_qualified_trades", None)
+        exposure_constraints = getattr(self, "_exposure_constraints", None)
+        if qualified_trades is None:
+            logger.error(
+                "FATAL: Phase 6 requires _qualified_trades from Phase 5, but attribute is missing. "
+                "This indicates Phase 5 (Signal Generation) failed to complete successfully."
+            )
+            raise RuntimeError("Phase 6 cannot proceed: Phase 5 data (_qualified_trades) not available")
+        if exposure_constraints is None:
+            logger.error(
+                "FATAL: Phase 6 requires _exposure_constraints from Phase 3b, but attribute is missing. "
+                "This indicates Phase 3b (Exposure Policy) failed to complete successfully."
+            )
+            raise RuntimeError("Phase 6 cannot proceed: Phase 3b data (_exposure_constraints) not available")
+
         result = run_phase6(
             self.config,
             self.run_date,
             self.dry_run,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_qualified_trades", []),
-            getattr(self, "_exposure_constraints", None),
+            qualified_trades,
+            exposure_constraints,
             self._check_halt_flag,
         )
         self.phase_results.setdefault(6, {})["trades_executed"] = result.data.get(
