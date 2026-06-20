@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from typing import List, Optional
 
 from utils.db.context import DatabaseContext
 
@@ -89,35 +88,71 @@ def enrich_technical_data(
                 f"Found {len(records_to_update)} records with NULL technical data, enriching..."
             )
 
-            # Update each record with technical data
-            for record_id, symbol, signal_date in [
-                (r[0], r[1], r[2]) for r in records_to_update
-            ]:
-                try:
-                    # Fetch technical data for this symbol and date
-                    cur.execute(
-                        """
-                        SELECT rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs
-                        FROM technical_data_daily
-                        WHERE symbol = %s AND date = %s
-                    """,
-                        (symbol, signal_date),
-                    )
+            # CLUSTER 4 FIX: Batch-fetch all technical data instead of per-symbol queries
+            # N+1 Problem: Previous code executed 1 query per record (could be 10,000+ queries)
+            # Solution: Fetch all relevant technical data in 1-2 queries, use local dict for lookups
+            records_list = [(r[0], r[1], r[2]) for r in records_to_update]
+            if records_list:
+                symbols_set = {r[1] for r in records_list}
+                min_date = min(r[2] for r in records_list)
+                max_date = max(r[2] for r in records_list)
 
-                    tech_row = cur.fetchone()
-                    if not tech_row:
-                        # Try previous day's data if current day missing
-                        cur.execute(
-                            """
-                            SELECT rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs
-                            FROM technical_data_daily
-                            WHERE symbol = %s AND date <= %s
-                            ORDER BY date DESC
-                            LIMIT 1
-                        """,
-                            (symbol, signal_date),
+                # Fetch all technical data for the relevant symbols and date range
+                # This single query replaces thousands of per-symbol queries
+                placeholders = ",".join(["%s"] * len(symbols_set))
+                cur.execute(
+                    f"""
+                    SELECT symbol, date, rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs
+                    FROM technical_data_daily
+                    WHERE symbol IN ({placeholders})
+                    AND date >= %s - INTERVAL '10 days'
+                    AND date <= %s
+                    ORDER BY symbol, date DESC
+                """,
+                    [*symbols_set, min_date, max_date],
+                )
+
+                # Build a nested dict: tech_data[symbol][date] = row_data
+                tech_data_by_symbol_date: dict = {}
+                tech_data_by_symbol_latest: dict = {}  # Fallback: latest data for each symbol
+                for row in cur.fetchall():
+                    symbol, row_date, rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs = row
+                    if symbol not in tech_data_by_symbol_date:
+                        tech_data_by_symbol_date[symbol] = {}
+                    if row_date not in tech_data_by_symbol_date[symbol]:
+                        tech_data_by_symbol_date[symbol][row_date] = (
+                            rsi,
+                            sma_50,
+                            sma_200,
+                            ema_21,
+                            atr,
+                            adx,
+                            mansfield_rs,
                         )
-                        tech_row = cur.fetchone()
+                    # Track latest data per symbol for fallback
+                    if symbol not in tech_data_by_symbol_latest:
+                        tech_data_by_symbol_latest[symbol] = (
+                            rsi,
+                            sma_50,
+                            sma_200,
+                            ema_21,
+                            atr,
+                            adx,
+                            mansfield_rs,
+                        )
+
+            # Update each record with technical data (now using precomputed data)
+            for record_id, symbol, signal_date in records_list:
+                try:
+                    # O(1) lookup: tech_data was precomputed for all symbols/dates
+                    tech_row = None
+                    if records_list:
+                        # Try exact date first
+                        if symbol in tech_data_by_symbol_date and signal_date in tech_data_by_symbol_date[symbol]:
+                            tech_row = tech_data_by_symbol_date[symbol][signal_date]
+                        # Fallback: use latest data for this symbol
+                        elif symbol in tech_data_by_symbol_latest:
+                            tech_row = tech_data_by_symbol_latest[symbol]
 
                     if tech_row:
                         rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs = tech_row

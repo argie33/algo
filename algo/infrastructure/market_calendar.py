@@ -9,6 +9,7 @@ Uses standard US market holidays. Can be extended for other markets.
 import logging
 from datetime import date as _date
 from datetime import datetime, time
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 
@@ -69,11 +70,13 @@ class MarketCalendar:
     """Check market status and trading hours."""
 
     @staticmethod
-    def is_trading_day(check_date=None):
-        """Check if market is open on given date."""
-        if not check_date:
-            check_date = _date.today()
+    @lru_cache(maxsize=1024)
+    def _is_trading_day_cached(check_date: _date) -> bool:
+        """Internal cached version of is_trading_day check.
 
+        LRU cache prevents N+1 queries on repeated date lookups.
+        Maxsize=1024 covers ~3 years of trading days (252/year).
+        """
         # Weekend
         if check_date.weekday() >= 5:
             return False
@@ -83,6 +86,50 @@ class MarketCalendar:
             return False
 
         return True
+
+    @staticmethod
+    def is_trading_day(check_date=None):
+        """Check if market is open on given date.
+
+        Cached to prevent N+1 lookups when processing many dates.
+        """
+        if not check_date:
+            check_date = _date.today()
+
+        return MarketCalendar._is_trading_day_cached(check_date)
+
+    @staticmethod
+    def get_trading_days(start: _date, end: _date) -> list[_date]:
+        """Batch compute trading days in a date range.
+
+        Used by loaders to precompute trading day flags for many dates at once.
+        Much faster than calling is_trading_day() for each row individually.
+
+        Returns list of dates in [start, end] that are trading days, in chronological order.
+        """
+        from datetime import timedelta
+
+        trading_days = []
+        current = start
+        while current <= end:
+            if MarketCalendar._is_trading_day_cached(current):
+                trading_days.append(current)
+            current += timedelta(days=1)
+        return trading_days
+
+    @staticmethod
+    def create_trading_day_set(start: _date, end: _date) -> set[_date]:
+        """Create a set of trading days for O(1) membership testing.
+
+        Used by loaders that need fast membership checks: "is this date a trading day?"
+        Set lookup is O(1) vs dict lookup which is O(1) but has higher overhead.
+
+        Example:
+            trading_days = MarketCalendar.create_trading_day_set(start, end)
+            if row_date in trading_days:
+                process(row)
+        """
+        return set(MarketCalendar.get_trading_days(start, end))
 
     @staticmethod
     def is_early_close(check_date=None):
