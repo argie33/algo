@@ -32,7 +32,6 @@ import argparse
 import logging
 import sys
 from datetime import date, timedelta
-from typing import Dict, List, Optional
 
 from utils.db.context import DatabaseContext
 
@@ -40,7 +39,7 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def _get_trading_dates(start: date, end: date) -> List[date]:
+def _get_trading_dates(start: date, end: date) -> list[date]:
     """Get all trading dates between start and end from price_daily."""
     try:
         with DatabaseContext("read") as cur:
@@ -58,7 +57,7 @@ def _get_trading_dates(start: date, end: date) -> List[date]:
         return []
 
 
-def _get_daily_buy_signals(signal_date: date, min_composite: float) -> List[Dict]:
+def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict]:
     """Get BUY signals for a date, sorted by signal_quality_score desc.
 
     Ranks by signal_quality_score (contemporaneous — no look-ahead bias).
@@ -126,7 +125,7 @@ def _get_daily_sell_signals(signal_date: date) -> set:
         return set()
 
 
-def _get_price_on_date(symbol: str, target_date: date) -> Optional[float]:
+def _get_price_on_date(symbol: str, target_date: date) -> float | None:
     """Get close price at or before target_date."""
     try:
         with DatabaseContext("read") as cur:
@@ -140,7 +139,7 @@ def _get_price_on_date(symbol: str, target_date: date) -> Optional[float]:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def _get_prices_batch(symbols: List[str], target_date: date) -> Dict[str, float]:
+def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
     """Get close prices for multiple symbols on target_date."""
     if not symbols:
         return {}
@@ -172,7 +171,7 @@ def run_backtest(
     max_hold_days: int = 60,
     position_size_pct: float = 10.0,
     strategy_name: str = "composite_score_signals",
-) -> Dict:
+) -> dict:
     """Run backtest and return results dict."""
     logger.info(
         f"[BACKTEST] Starting {strategy_name}: {start_date} to {end_date}, "
@@ -188,8 +187,8 @@ def run_backtest(
     logger.info(f"[BACKTEST] {len(trading_dates)} trading days to simulate")
 
     capital = initial_capital
-    positions: Dict[str, Dict] = {}  # symbol → {entry_price, shares, entry_date, stop, target}
-    completed_trades: List[Dict] = []
+    positions: dict[str, dict] = {}  # symbol → {entry_price, shares, entry_date, stop, target}
+    completed_trades: list[dict] = []
     equity_curve = []
 
     for sim_date in trading_dates:
@@ -336,8 +335,6 @@ def run_backtest(
     win_count = len(winning_trades)
     loss_count = len(losing_trades)
     win_rate_pct = (win_count / total_trades * 100) if total_trades > 0 else 0
-    avg_win = (sum(t["profit_loss_pct"] for t in winning_trades) / win_count) if win_count > 0 else 0
-    avg_loss = (sum(t["profit_loss_pct"] for t in losing_trades) / loss_count) if loss_count > 0 else 0
     best_trade = max((t["profit_loss_pct"] for t in completed_trades), default=0)
     worst_trade = min((t["profit_loss_pct"] for t in completed_trades), default=0)
     avg_hold = (
@@ -418,7 +415,7 @@ def run_backtest(
     return results
 
 
-def save_results(results: Dict) -> Optional[int]:
+def save_results(results: dict) -> int | None:
     """Write backtest results to backtest_runs and backtest_trades tables.
 
     Returns run_id integer on success, None on failure.
@@ -472,7 +469,10 @@ def save_results(results: Dict) -> Optional[int]:
                     results["worst_trade_pct"],
                 ),
             )
-            run_id = cur.fetchone()[0]
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Backtest run insert failed: RETURNING run_id returned no row")
+            run_id = row[0]
 
         # Write individual trades
         if trades and run_id:
@@ -558,26 +558,27 @@ def main():
         logger.error("Backtest returned no results")
         return 1
 
-    # Print summary
-    print("\n" + "=" * 60)
-    print(f"BACKTEST RESULTS: {results['strategy_name']}")
-    print("=" * 60)
-    print(f"Period:          {results['start_date']} to {results['end_date']}")
-    print(f"Initial Capital: ${results['initial_capital']:,.0f}")
-    print(f"Final Capital:   ${results['final_capital']:,.0f}")
-    print(f"Total Return:    {results['total_return_pct']:+.2f}%")
-    print(f"Ann. Return:     {results['annualized_return_pct']:+.2f}%")
-    print(f"Max Drawdown:    {results['max_drawdown_pct']:.2f}%")
-    print(f"Sharpe Ratio:    {results['sharpe_ratio']}")
-    print(f"Win Rate:        {results['win_rate_pct']:.1f}%")
-    print(f"Profit Factor:   {results['profit_factor']:.2f}")
-    print(f"Total Trades:    {results['total_trades']}")
-    print(f"Wins/Losses:     {results['winning_trades']}/{results['losing_trades']}")
-    print(f"Avg Trade:       {results['avg_trade_return_pct']:+.2f}%")
-    print(f"Best Trade:      {results['best_trade_pct']:+.2f}%")
-    print(f"Worst Trade:     {results['worst_trade_pct']:+.2f}%")
-    print(f"Avg Hold:        {results['avg_holding_days']:.1f} days")
-    print("=" * 60)
+    # Log summary
+    separator = "=" * 60
+    logger.info(f"\n{separator}")
+    logger.info(f"BACKTEST RESULTS: {results['strategy_name']}")
+    logger.info(separator)
+    logger.info(f"Period:          {results['start_date']} to {results['end_date']}")
+    logger.info(f"Initial Capital: ${results['initial_capital']:,.0f}")
+    logger.info(f"Final Capital:   ${results['final_capital']:,.0f}")
+    logger.info(f"Total Return:    {results['total_return_pct']:+.2f}%")
+    logger.info(f"Ann. Return:     {results['annualized_return_pct']:+.2f}%")
+    logger.info(f"Max Drawdown:    {results['max_drawdown_pct']:.2f}%")
+    logger.info(f"Sharpe Ratio:    {results['sharpe_ratio']}")
+    logger.info(f"Win Rate:        {results['win_rate_pct']:.1f}%")
+    logger.info(f"Profit Factor:   {results['profit_factor']:.2f}")
+    logger.info(f"Total Trades:    {results['total_trades']}")
+    logger.info(f"Wins/Losses:     {results['winning_trades']}/{results['losing_trades']}")
+    logger.info(f"Avg Trade:       {results['avg_trade_return_pct']:+.2f}%")
+    logger.info(f"Best Trade:      {results['best_trade_pct']:+.2f}%")
+    logger.info(f"Worst Trade:     {results['worst_trade_pct']:+.2f}%")
+    logger.info(f"Avg Hold:        {results['avg_holding_days']:.1f} days")
+    logger.info(separator)
 
     trades_list = results.pop("trades", [])
     results.pop("equity_curve", [])
@@ -586,12 +587,12 @@ def main():
         results["trades"] = trades_list
         run_id = save_results(results)
         if run_id:
-            print(f"\nSaved to DB: run_id={run_id}")
+            logger.info(f"[BACKTEST] Saved to DB: run_id={run_id}")
         else:
-            print("\nFailed to save to DB (see logs)")
+            logger.error("[BACKTEST] Failed to save to DB (see logs)")
             return 1
     else:
-        print("\n[DRY RUN] Results not saved to DB")
+        logger.info("[BACKTEST] [DRY RUN] Results not saved to DB")
 
     return 0
 

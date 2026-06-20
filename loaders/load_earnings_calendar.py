@@ -4,6 +4,7 @@
 import argparse
 import logging
 import sys
+import time
 from datetime import date, timedelta
 
 from utils.loaders.config import get_default_parallelism
@@ -21,69 +22,131 @@ class EarningsCalendarLoader(OptimalLoader):
     primary_key = ("symbol", "earnings_date")
     watermark_field = "updated_at"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._failed_symbols: dict[str, int] = {}
+        self._failed_symbols_lock = __import__("threading").Lock()
+        self._max_per_symbol_retries = 3
+
+    def _track_symbol_failure(self, symbol: str) -> bool:
+        """Track symbol failure and return True if we should retry."""
+        with self._failed_symbols_lock:
+            failures = self._failed_symbols.get(symbol, 0)
+            if failures < self._max_per_symbol_retries:
+                self._failed_symbols[symbol] = failures + 1
+                return True
+            return False
+
     def fetch_incremental(
         self, symbol: str, since: date | None
     ) -> list[dict] | None:
-        """Fetch earnings dates from yfinance for a symbol.
+        """Fetch earnings dates from yfinance for a symbol with retry logic.
 
         Keeps historical earnings (past 60 days) to properly gate blackout windows.
         Future earnings ensure new earnings surprises are caught before trading.
         """
-        try:
-            import pandas as pd
+        import pandas as pd
 
-            from utils.external.yfinance import get_ticker
+        from utils.external.yfinance import get_ticker
 
-            ticker = get_ticker(symbol)
-            if not ticker:
-                raise RuntimeError(
-                    f"[EARNINGS_CALENDAR] Failed to fetch ticker for {symbol}. "
-                    "Cannot retrieve earnings dates without valid ticker."
-                )
+        max_retries = 3
+        base_delay = 2.0
 
-            results = []
+        for attempt in range(max_retries):
             try:
-                cal = ticker.calendar
-                if cal and isinstance(cal, dict) and "Earnings Date" in cal:
-                    earnings_date = cal["Earnings Date"]
-                    # Keep 60 days of history + all future dates to properly gate blackout windows
-                    cutoff_date = date.today() - timedelta(days=60)
-                    if earnings_date and earnings_date >= cutoff_date:
-                        results.append(
-                            {
-                                "symbol": symbol,
-                                "earnings_date": (
-                                    earnings_date
-                                    if isinstance(earnings_date, date)
-                                    else pd.Timestamp(earnings_date).date()
-                                ),
-                                "announce_time": None,
-                                "eps_estimate": (
-                                    float(cal.get("Earnings Average"))
-                                    if cal.get("Earnings Average")
-                                    else None
-                                ),
-                                "actual_eps": None,
-                                "revenue_estimate": (
-                                    int(cal.get("Revenue Average"))
-                                    if cal.get("Revenue Average")
-                                    else None
-                                ),
-                                "actual_revenue": None,
-                                "fiscal_period": None,
-                            }
-                        )
-            except Exception as e:
-                logger.debug(f"[{symbol}] ticker.calendar error: {e}")
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    logger.warning(
+                        f"[{symbol}] Failed to create ticker object (attempt {attempt + 1}/{max_retries})"
+                    )
+                    if not self._track_symbol_failure(symbol):
+                        logger.error(f"[{symbol}] Exceeded max retries for ticker creation")
+                        return None
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        time.sleep(delay)
+                    continue
 
-            if not results:
-                raise RuntimeError(
-                    f"[EARNINGS_CALENDAR] No earnings date found for {symbol}. "
-                    "Cannot load earnings data without upcoming dates."
+                results = []
+                try:
+                    cal = ticker.calendar
+                    if cal and isinstance(cal, dict) and "Earnings Date" in cal:
+                        earnings_date = cal["Earnings Date"]
+                        cutoff_date = date.today() - timedelta(days=60)
+                        if earnings_date and earnings_date >= cutoff_date:
+                            results.append(
+                                {
+                                    "symbol": symbol,
+                                    "earnings_date": (
+                                        earnings_date
+                                        if isinstance(earnings_date, date)
+                                        else pd.Timestamp(earnings_date).date()
+                                    ),
+                                    "announce_time": None,
+                                    "eps_estimate": (
+                                        float(cal.get("Earnings Average"))
+                                        if cal.get("Earnings Average")
+                                        else None
+                                    ),
+                                    "actual_eps": None,
+                                    "revenue_estimate": (
+                                        int(cal.get("Revenue Average"))
+                                        if cal.get("Revenue Average")
+                                        else None
+                                    ),
+                                    "actual_revenue": None,
+                                    "fiscal_period": None,
+                                }
+                            )
+                            logger.debug(f"[{symbol}] Found earnings date: {earnings_date}")
+                            return results
+                    else:
+                        logger.debug(f"[{symbol}] No earnings date in calendar (within cutoff)")
+                        return []
+
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.warning(
+                        f"[{symbol}] Error parsing earnings calendar (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    if not self._track_symbol_failure(symbol):
+                        logger.error(f"[{symbol}] Exceeded max retries for calendar parsing")
+                        return None
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        time.sleep(delay)
+
+            except (ConnectionError, TimeoutError) as e:
+                is_timeout = isinstance(e, TimeoutError)
+                error_type = "timeout" if is_timeout else "connection"
+                logger.warning(
+                    f"[{symbol}] {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}"
                 )
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                if not self._track_symbol_failure(symbol):
+                    logger.error(f"[{symbol}] Exceeded max retries for {error_type} errors")
+                    return None
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    time.sleep(delay)
+
+            except Exception as e:
+                error_msg = str(e).lower()
+                is_rate_limit = "429" in error_msg or "rate" in error_msg or "too many" in error_msg
+                if is_rate_limit:
+                    logger.warning(
+                        f"[{symbol}] Rate limit error (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    if not self._track_symbol_failure(symbol):
+                        logger.error(f"[{symbol}] Exceeded max retries for rate limit errors")
+                        return None
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        time.sleep(delay)
+                else:
+                    logger.error(f"[{symbol}] Unexpected error fetching earnings: {e}")
+                    return None
+
+        logger.error(f"[{symbol}] Failed to fetch earnings after {max_retries} retries")
+        return None
 
 
 def main():

@@ -1,8 +1,10 @@
 /**
  * Data Caching Layer
- * Provides in-memory caching for API responses with TTL and refresh strategies
- * Includes schema validation to prevent returning stale mismatched data
- * Tracks fetch timestamps to indicate data freshness
+ * Provides in-memory caching for API responses with TTL and event-driven invalidation
+ * TTL-based: Cached data expires after configurable timeout (default: 5 minutes)
+ * Event-driven: Cache entries are automatically cleared on API errors (5xx, timeouts, etc.)
+ * Schema validation: Prevents returning stale mismatched data on schema changes
+ * Fetch tracking: Tracks fetch timestamps to indicate data freshness
  */
 
 const cacheStore = new Map();
@@ -40,7 +42,8 @@ function validateSchema(data, expectedSchema) {
  * Get cached data or fetch fresh data
  * @param {string} key - Cache key
  * @param {object} params - Query parameters
- * @param {object} options - Caching options (ttl, fetchFunction, cacheType, forceRefresh, expectedSchema)
+ * @param {object} options - Caching options (ttl, fetchFunction, cacheType, forceRefresh, expectedSchema, onError)
+ *   - onError: Function called when fetch fails; receives error and cacheKey. Defaults to clearing cache entry.
  * @returns {Promise<any>} Cached or fresh data
  */
 async function get(key, params = {}, options = {}) {
@@ -50,6 +53,7 @@ async function get(key, params = {}, options = {}) {
     cacheType = 'default',
     forceRefresh = false,
     expectedSchema = null,
+    onError = null,
   } = options;
 
   const cacheKey = `${cacheType}:${key}:${JSON.stringify(params)}`;
@@ -73,13 +77,20 @@ async function get(key, params = {}, options = {}) {
 
   // Fetch fresh data
   if (fetchFunction) {
-    const data = await fetchFunction();
-    // Cache the result
-    cacheStore.set(cacheKey, {
-      data,
-      expiresAt: Date.now() + ttl,
-    });
-    return data;
+    try {
+      const data = await fetchFunction();
+      // Cache the result
+      cacheStore.set(cacheKey, {
+        data,
+        expiresAt: Date.now() + ttl,
+      });
+      return data;
+    } catch (error) {
+      // Call error handler (default: invalidate cache entry on error)
+      const errorHandler = onError || ((err, key) => cacheStore.delete(key));
+      errorHandler(error, cacheKey);
+      throw error;
+    }
   }
 
   return null;
@@ -128,6 +139,19 @@ function clear(pattern = null) {
 }
 
 /**
+ * Invalidate cache entry on API error (used as error handler)
+ * Prevents stale data from being served after API 500 errors
+ * @param {string} key - Cache key to invalidate
+ * @param {object} options - Options including cacheType
+ */
+function invalidateOnError(key, options = {}) {
+  const { cacheType = 'default' } = options;
+  const pattern = `^${cacheType}:${key}`;
+  clear(pattern);
+  console.debug(`[Cache] Invalidated "${key}" on API error`);
+}
+
+/**
  * Get cache size (for debugging)
  * @returns {number} Number of cached items
  */
@@ -167,6 +191,7 @@ export default {
   get,
   set,
   clear,
+  invalidateOnError,
   size,
   getMetadata,
 };
