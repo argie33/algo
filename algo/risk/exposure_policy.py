@@ -114,8 +114,8 @@ def tier_for_exposure(exposure_pct):
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""
 
-    def __init__(self, config=None):
-        self.config = config
+    def __init__(self):
+        pass
 
     def get_active_tier(self, eval_date=None):
         """Look up the most recent exposure score and return its policy tier."""

@@ -52,7 +52,7 @@ def run(
         if exposure.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 
-        policy = ExposurePolicy(config)
+        policy = ExposurePolicy()
         constraints = policy.get_entry_constraints(run_date)
 
         if constraints:
@@ -76,7 +76,7 @@ def run(
                 logger.warning(
                     f"Transaction aborted, retrying with fresh connection: {e}"
                 )
-                policy = ExposurePolicy(config)
+                policy = ExposurePolicy()
                 actions = policy.review_existing_positions(run_date)
             else:
                 raise

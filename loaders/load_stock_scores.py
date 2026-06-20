@@ -44,15 +44,15 @@ class StockScoresLoader(OptimalLoader):
     watermark_field: str = ""  # No date watermark, we compute all at once
 
     def fetch_incremental(self, symbol: str, since: date | None):
-        """Compute stock scores for this symbol."""
-        try:
-            score_result = self._compute_stock_score(symbol)
-            if score_result:
-                return [score_result]
-            return []
-        except Exception as e:
-            logger.warning(f"Stock score computation error for {symbol}: {e}")
-            return []
+        """Compute stock scores for this symbol.
+
+        Returns list with score if computed successfully, or empty list if data insufficient.
+        Raises exception on actual errors (database, calculation failures).
+        """
+        score_result = self._compute_stock_score(symbol)
+        if score_result:
+            return [score_result]
+        return []
 
     def _compute_stock_score(self, symbol: str) -> dict | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
@@ -205,6 +205,7 @@ class StockScoresLoader(OptimalLoader):
                     "current_ratio": float(row[5]) if row[5] else None,
                     "quick_ratio": float(row[6]) if row[6] else None,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -225,6 +226,7 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_3y": float(row[4]) if row[4] else None,
                     "eps_growth_5y": float(row[5]) if row[5] else None,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -245,6 +247,7 @@ class StockScoresLoader(OptimalLoader):
                     "dividend_yield": float(row[4]) if row[4] else None,
                     "fcf_yield": float(row[5]) if row[5] else None,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -262,6 +265,7 @@ class StockScoresLoader(OptimalLoader):
                     "insider_ownership": float(row[1]) if row[1] else None,
                     "short_interest": float(row[2]) if row[2] else None,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -281,6 +285,7 @@ class StockScoresLoader(OptimalLoader):
                     "beta": float(row[3]) if row[3] else None,
                     "debt_to_assets": float(row[4]) if row[4] else None,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -341,6 +346,7 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_6m": momentum_6m,
                     "momentum_12m": momentum_12m,
                 }
+            return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 

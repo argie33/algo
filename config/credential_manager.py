@@ -484,22 +484,15 @@ class CredentialManager:
             except Exception as e:
                 logger.warning(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
 
-        # Step 4: Fall back to individual secrets (legacy format)
+        # Step 4: Try individual secrets (legacy format) — get_password already tries Secrets Manager then env var
         try:
             key = self.get_password("alpaca/key", default=None)
-        except ValueError as e:
-            logger.debug(f"[CREDENTIALS] Failed to retrieve alpaca/key secret: {e}, falling back to APCA_API_KEY_ID env var")
-            key = os.getenv("APCA_API_KEY_ID")
-
-        try:
             secret = self.get_password("alpaca/secret", default=None)
-        except ValueError as e:
-            logger.debug(f"[CREDENTIALS] Failed to retrieve alpaca/secret secret: {e}, falling back to APCA_API_SECRET_KEY env var")
-            secret = os.getenv("APCA_API_SECRET_KEY")
-
-        if key and secret:
-            logger.info("[CREDENTIALS] Alpaca credentials loaded successfully")
+            logger.info("[CREDENTIALS] Alpaca credentials loaded from legacy secrets")
             return {"key": key, "secret": secret}
+        except ValueError:
+            # Neither legacy secret nor env var found; will fail below with explicit error
+            pass
 
         # FIX H-3: No credentials found from any fresh source
         # CRITICAL: We DO NOT fall back to stale cached credentials when Secrets Manager is unreachable.
