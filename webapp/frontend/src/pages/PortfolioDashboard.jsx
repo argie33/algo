@@ -23,8 +23,10 @@ import {
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Legend, ReferenceLine,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useDataStalenessCheck, safeGetNonPhantomArray } from '../hooks/useDataStalenessCheck';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { DataAgeIndicator, StaleDataWarning } from '../components/DataAgeIndicator';
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
 import { safeGetMarketCurrent } from '../utils/dataValidation';
@@ -196,19 +198,31 @@ function PortfolioDashboardPage() {
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
   const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading || histogramLoading || distLoading || holdingLoading || stageLoading;
 
+  // Check for stale data across all queries (phantom data detection)
+  const stalenessCheck = useDataStalenessCheck({
+    status: { data: status, error: statusError },
+    positions: { data: positions, error: posError },
+    performance: { data: perf, error: perfError },
+    trades: { data: trades, error: tradesError },
+    markets: { data: markets, error: marketsError },
+    equity: { data: equityItems, error: equityError },
+  });
+
   // Normalize paginated responses using consistent extraction pattern
   const positionsList = extractArray(positions);
   const tradesList = extractArray(trades);
   const equityCurve = extractArray(equityItems);
   const sectorAllocation = extractArray(positions, 'sector_allocation');
 
-  // Apply null safety and domain-specific filtering
-  const safePositionsList = positionsList.length > 0 ? positionsList : [];
+  // Filter out phantom data (positions/trades that are too old)
+  const safePositionsList = stalenessCheck.canShowPositions && positionsList.length > 0
+    ? positionsList
+    : [];
   const openTradesCount = tradesList.filter(t => t && t.status === 'open').length;
-  const safeTradesList = tradesList.length > 0
+  const safeTradesList = stalenessCheck.canShowTradeData && tradesList.length > 0
     ? tradesList.filter(t => t && t.status === 'closed')
     : [];
-  const safeEquityCurve = equityCurve.length > 0
+  const safeEquityCurve = stalenessCheck.canShowTradeData && equityCurve.length > 0
     ? equityCurve.filter(item => item && typeof item === 'object' && item.snapshot_date && item.total_portfolio_value != null)
     : [];
 
@@ -368,6 +382,19 @@ function PortfolioDashboardPage() {
         </div>
       )}
 
+      {/* Phantom data warning (critical sections with >2hr old cached data) */}
+      {stalenessCheck.hasCriticalStale && (
+        <StaleDataWarning
+          sections={stalenessCheck.phantomSections}
+          age={Math.max(...Object.values(stalenessCheck.dataAges).map(d => d.age || 0))}
+          onRetry={() => {
+            refetchStatus();
+            refetchPositions();
+            refetchMarkets();
+          }}
+        />
+      )}
+
       {/* Top KPI strip */}
       {isPrimaryLoading ? (
         <div className="grid grid-4">
@@ -422,7 +449,17 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Ratios row */}
-      {hasCachedPerf && <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}><CachedDataBadge /> Performance Metrics (from cache)</div>}
+      {hasCachedPerf && (
+        <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <CachedDataBadge />
+          <DataAgeIndicator
+            fetchedAt={perf?._fetchedAt}
+            isFromCache={perf?._fromCache}
+            isStale={perf?._isStale}
+            label="Performance Metrics"
+          />
+        </div>
+      )}
       {isPrimaryLoading ? (
         <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
           <SkeletonKpi />

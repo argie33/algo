@@ -27,10 +27,10 @@ Signal source priority:
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
 from datetime import timedelta
-from typing import Callable, Dict, List, Optional, Tuple
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
@@ -56,7 +56,7 @@ _REQUIRED_SIGNAL_FIELDS = {
 }
 
 
-def _validate_signal_completeness(candidates: List[Dict], source: str) -> Tuple[List[Dict], int]:
+def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[list[dict], int]:
     """ISSUE #8 FIX: Filter signals with missing required fields for Phase 6.
 
     Logs each incomplete signal explicitly (so operators see what was excluded).
@@ -94,7 +94,7 @@ def _validate_signal_completeness(candidates: List[Dict], source: str) -> Tuple[
     return complete_signals, incomplete_count
 
 
-def _check_market_regime(run_date: _date) -> Dict:
+def _check_market_regime(run_date: _date) -> dict:
     """Return current market regime from market_exposure_daily."""
 
     try:
@@ -132,7 +132,17 @@ def _check_market_regime(run_date: _date) -> Dict:
                     "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
                 }
 
-            halt_reasons = json.loads(row[3]) if row[3] else []
+            halt_reasons = []
+            if row[3]:
+                try:
+                    halt_reasons = json.loads(row[3])
+                    if not isinstance(halt_reasons, list):
+                        logger.warning(f"[PHASE 5] halt_reasons_json is not a list: {type(halt_reasons)}")
+                        halt_reasons = []
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"[PHASE 5] Malformed halt_reasons JSON: {e} — treating as empty list")
+                    halt_reasons = []
+
             return {
                 "is_entry_allowed": bool(row[0]),
                 "exposure_pct": float(row[1]),
@@ -145,11 +155,11 @@ def _check_market_regime(run_date: _date) -> Dict:
             "is_entry_allowed": False,
             "exposure_pct": 0,
             "regime": "unknown",
-            "halt_reasons": [f"Market regime read failed: {type(e).__name__}: {str(e)}"],
+            "halt_reasons": [f"Market regime read failed: {type(e).__name__}: {e!s}"],
         }
 
 
-def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> Dict:
+def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> dict:
     """Detect upstream data quality issues by comparing expected vs. actual swing_trader_scores coverage.
 
     Returns dict with: {"swing_scores_missing": count_by_symbol, "has_drift": bool, "drift_symbols": list}
@@ -202,7 +212,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
     return drift
 
 
-def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, bool]:
+def _check_liquidity_parallel(candidate: dict, run_date: _date) -> tuple[dict, bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
         liquidity = LiquidityChecks(config={})
@@ -212,14 +222,14 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
         return candidate, liq_ok
     except Exception as e:
         logger.warning(
-            f"[PHASE 5] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {str(e)}"
+            f"[PHASE 5] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}"
         )
         return candidate, False
 
 
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
-) -> List[Dict]:
+) -> list[dict]:
     """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking + swing_trader_scores.
 
     Returns candidates that have BOTH a recent BUY signal (pivot breakout above swing high
@@ -348,7 +358,7 @@ def _get_candidates_from_buysell(
         ) from e
 
 
-def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3) -> List[Dict]:
+def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3) -> list[dict]:
     """Fallback: fetch candidates from stock_scores + swing_trader_scores with current prices.
 
     Used when buy_sell_daily has no fresh BUY signals (e.g., EOD loader hasn't run yet).
@@ -452,8 +462,8 @@ def run(
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable,
-    exposure_constraints: Optional[Dict] = None,
-    check_halt_flag: Optional[Callable] = None,
+    exposure_constraints: dict | None = None,
+    check_halt_flag: Callable | None = None,
     phase1_degraded: bool = False,
     config=None,
 ) -> PhaseResult:
@@ -472,6 +482,73 @@ def run(
         config.get("phase5_min_composite_score", _MIN_COMPOSITE_SCORE)
         if config else _MIN_COMPOSITE_SCORE
     )
+
+    # CRITICAL: Validate upstream dependencies before signal generation
+    # These checks prevent cascading failures when upstream data is incomplete
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SET LOCAL statement_timeout = '10000ms'")
+
+            # Validate stock_scores table exists and has data
+            cur.execute("SELECT COUNT(*) FROM stock_scores")
+            stock_scores_row = cur.fetchone()
+            stock_scores_count = stock_scores_row[0] if stock_scores_row else 0
+            if stock_scores_count == 0:
+                msg = (
+                    "[PHASE 5 CRITICAL] stock_scores table is empty. "
+                    "Cannot generate signals without stock quality rankings. "
+                    "Verify stock_scores loader completed successfully. "
+                    "Check data_loader_status for stock_scores and related loaders."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(5, "signal_generation", "halt", msg)
+                return PhaseResult(
+                    5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+                )
+
+            # Validate market_exposure_daily has fresh data with valid exposure_pct
+            cur.execute(
+                """
+                SELECT COUNT(*), COUNT(CASE WHEN exposure_pct IS NOT NULL THEN 1 END)
+                FROM market_exposure_daily
+                WHERE date = %s
+                """,
+                (run_date,),
+            )
+            exposure_row = cur.fetchone()
+            exposure_count = exposure_row[0] if exposure_row else 0
+            exposure_valid = exposure_row[1] if exposure_row and len(exposure_row) > 1 else 0
+
+            if exposure_count == 0:
+                msg = (
+                    f"[PHASE 5 CRITICAL] market_exposure_daily has no data for {run_date}. "
+                    "Cannot determine market regime for position sizing. "
+                    "Check that market exposure pipeline completed."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(5, "signal_generation", "halt", msg)
+                return PhaseResult(
+                    5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+                )
+
+            if exposure_valid == 0:
+                msg = (
+                    f"[PHASE 5 CRITICAL] market_exposure_daily for {run_date} has NULL exposure_pct. "
+                    "Cannot size positions without valid market exposure data. "
+                    "Check exposure computation pipeline."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(5, "signal_generation", "halt", msg)
+                return PhaseResult(
+                    5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+                )
+    except Exception as e:
+        msg = f"[PHASE 5 CRITICAL] Could not validate upstream dependencies: {e}"
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(5, "signal_generation", "halt", msg)
+        return PhaseResult(
+            5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+        )
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():

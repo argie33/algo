@@ -127,8 +127,32 @@ def run(
             6, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active"
         )
 
-    # Exposure policy check
-    if exposure_constraints and exposure_constraints.get("halt_new_entries"):
+    # Exposure policy validation (fail-closed if constraints invalid)
+    # CRITICAL: exposure_constraints MUST be provided by Phase 3b and have valid fields
+    if exposure_constraints is None:
+        msg = (
+            "[PHASE 6 CRITICAL] exposure_constraints not provided by Phase 3b. "
+            "Cannot execute entries without market exposure limits. "
+            "Verify Phase 3b (Exposure Policy) completed successfully."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+    # Validate that exposure_constraints has required fields
+    required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
+    missing_fields = [f for f in required_fields if f not in exposure_constraints]
+    if missing_fields:
+        msg = (
+            f"[PHASE 6 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
+            "Cannot size positions without complete constraints."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+    # Check for halt flag set by exposure policy
+    if exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get(
             "halt_reason", "Exposure policy halted new entries"
         )

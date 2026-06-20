@@ -6,9 +6,10 @@ Verify pipeline-loaded tables are fresh before trading:
 1. price_daily: Must have last trading day data (75%+ symbol coverage) — HALT if stale
 2. market_health_daily: Market breadth metrics — HALT if stale
 3. market_exposure_daily: Market regime / exposure limits — HALT if stale
-4. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
-5. swing_trader_scores: Legacy scoring — WARNING if stale
-6. sector_ranking: Sector data for last trading day — WARNING if stale
+4. earnings_calendar: Earnings dates for blackout window gating — HALT if stale
+5. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
+6. swing_trader_scores: Legacy scoring — WARNING if stale
+7. sector_ranking: Sector data for last trading day — WARNING if stale
 
 Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
 Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (no longer in pipeline).
@@ -117,9 +118,36 @@ def run(
                 "SET statement_timeout = 15000"
             )  # 15s timeout for multi-table checks
 
+            # CRITICAL: Validate that stock_scores table has data (Phase 5 dependency)
+            # stock_scores must be populated by its loader before Phase 5 can generate signals
+            cur.execute("SELECT COUNT(*) FROM stock_scores")
+            stock_scores_count_row = cur.fetchone()
+            stock_scores_count = stock_scores_count_row[0] if stock_scores_count_row else 0
+
+            if stock_scores_count == 0:
+                logger.critical(
+                    "[PHASE 1] stock_scores table is empty — signal generation cannot proceed. "
+                    "Check that stock_scores loader completed successfully."
+                )
+                log_phase_result_fn(
+                    1,
+                    "stock_scores_empty",
+                    "halt",
+                    "stock_scores table empty (loader incomplete?)",
+                )
+                return PhaseResult(
+                    1,
+                    "stock_scores_empty",
+                    "halted",
+                    {},
+                    True,
+                    "stock_scores table is empty — loader may not have completed",
+                )
+
             # Find reference date from price_daily (most reliable source)
             cur.execute("SELECT MAX(date) FROM price_daily")
-            max_date = cur.fetchone()[0]
+            row = cur.fetchone()
+            max_date = row[0] if row and row[0] is not None else None
 
             if max_date is None:
                 logger.critical("[PHASE 1] price_daily table is empty")
@@ -162,13 +190,17 @@ def run(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date <= %s",
                 (recent_cutoff, max_date),
             )
-            symbols_loaded = cur.fetchone()[0]
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Symbol count query failed for recent period")
+            symbols_loaded = row[0]
             prior_cutoff = recent_cutoff - td(days=2)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date < %s",
                 (prior_cutoff, recent_cutoff),
             )
-            prior_count = cur.fetchone()[0] or symbols_loaded
+            row = cur.fetchone()
+            prior_count = row[0] if row and row[0] is not None else symbols_loaded
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
@@ -199,6 +231,7 @@ def run(
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
+                "earnings_calendar": "Earnings dates (blackout window gating)",
             }
             # Warning-only tables: stale → logged, trading continues
             warn_tables = {

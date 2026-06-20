@@ -52,9 +52,27 @@ def test_phase5_fails_without_buysell_signals():
     with patch('algo.orchestrator.phase5_signal_generation.DatabaseContext') as mock_db_context:
         with patch('algo.orchestrator.phase5_signal_generation._check_market_regime',
                    side_effect=mock_check_market_regime):
-            # When _get_candidates_from_buysell queries for signals, return empty list
+            # Mock cursor that handles both validation queries and candidate fetch queries
             mock_cursor = MagicMock()
-            mock_cursor.fetchall.return_value = []  # Empty — no signals found
+
+            # Setup for validation queries (stock_scores count and market_exposure_daily check)
+            # These use fetchone()
+            call_count = [0]
+
+            def mock_fetchone():
+                call_count[0] += 1
+                if call_count[0] == 1:  # stock_scores COUNT
+                    return (100,)  # Return 100 rows (non-empty)
+                elif call_count[0] == 2:  # market_exposure_daily validation
+                    return (1, 1)  # (count, count_with_valid_exposure_pct)
+                else:
+                    return None
+
+            def mock_fetchall():
+                return []  # Empty — no buy_sell_daily signals found
+
+            mock_cursor.fetchone.side_effect = mock_fetchone
+            mock_cursor.fetchall.return_value = []
 
             mock_context_manager = MagicMock()
             mock_context_manager.__enter__.return_value = mock_cursor
@@ -130,31 +148,47 @@ def test_phase5_works_with_buysell_signals():
 
                 mock_cursor = MagicMock()
 
+                # Setup for validation queries (stock_scores count and market_exposure_daily check)
+                call_count = [0]
+
+                def mock_fetchone():
+                    call_count[0] += 1
+                    if call_count[0] == 1:  # stock_scores COUNT
+                        return (100,)
+                    elif call_count[0] == 2:  # market_exposure_daily validation
+                        return (1, 1)
+                    else:
+                        return None
+
                 # Return sample buy_sell_daily signal
-                mock_cursor.fetchall.return_value = [
-                    (
-                        'AAPL',  # symbol
-                        75.0,    # composite_score
-                        80.0,    # quality_score
-                        70.0,    # growth_score
-                        72.0,    # momentum_score
-                        85.0,    # rs_percentile
-                        185.5,   # close
-                        186.0,   # high
-                        184.0,   # low
-                        180.0,   # sma_50
-                        'Technology',  # sector
-                        'Semiconductors',  # industry
-                        184.0,   # buylevel
-                        180.0,   # stoplevel
-                        8.5,     # strength (signal_strength)
-                        12.0,    # volume_surge_pct
-                        'breakout',  # market_stage
-                        test_date,  # signal_date
-                        75.0,    # swing_score (from sts.score via COALESCE)
-                        None,    # swing_components (from sts.components)
-                    )
-                ]
+                def mock_fetchall():
+                    return [
+                        (
+                            'AAPL',  # symbol
+                            75.0,    # composite_score
+                            80.0,    # quality_score
+                            70.0,    # growth_score
+                            72.0,    # momentum_score
+                            85.0,    # rs_percentile
+                            185.5,   # close
+                            186.0,   # high
+                            184.0,   # low
+                            180.0,   # sma_50
+                            'Technology',  # sector
+                            'Semiconductors',  # industry
+                            184.0,   # buylevel
+                            180.0,   # stoplevel
+                            8.5,     # strength (signal_strength)
+                            12.0,    # volume_surge_pct
+                            'breakout',  # market_stage
+                            test_date,  # signal_date
+                            75.0,    # swing_score (from sts.score via COALESCE)
+                            None,    # swing_components (from sts.components)
+                        )
+                    ]
+
+                mock_cursor.fetchone.side_effect = mock_fetchone
+                mock_cursor.fetchall.side_effect = mock_fetchall
 
                 mock_context_manager = MagicMock()
                 mock_context_manager.__enter__.return_value = mock_cursor
@@ -233,31 +267,47 @@ def test_phase5_rejects_null_swing_scores():
 
             mock_cursor = MagicMock()
 
+            # Setup for validation queries
+            call_count = [0]
+
+            def mock_fetchone():
+                call_count[0] += 1
+                if call_count[0] == 1:  # stock_scores COUNT
+                    return (100,)
+                elif call_count[0] == 2:  # market_exposure_daily validation
+                    return (1, 1)
+                else:
+                    return None
+
             # Return buy_sell_daily signal with NULL swing_score
-            mock_cursor.fetchall.return_value = [
-                (
-                    'TSLA',  # symbol
-                    75.0,    # composite_score
-                    80.0,    # quality_score
-                    70.0,    # growth_score
-                    72.0,    # momentum_score
-                    85.0,    # rs_percentile
-                    185.5,   # close
-                    186.0,   # high
-                    184.0,   # low
-                    180.0,   # sma_50
-                    'Technology',  # sector
-                    'Auto',  # industry
-                    184.0,   # buylevel
-                    180.0,   # stoplevel
-                    8.5,     # strength (signal_strength)
-                    12.0,    # volume_surge_pct
-                    'breakout',  # market_stage
-                    test_date,  # signal_date
-                    None,    # swing_score is NULL — this is the key test case
-                    None,    # swing_components
-                )
-            ]
+            def mock_fetchall():
+                return [
+                    (
+                        'TSLA',  # symbol
+                        75.0,    # composite_score
+                        80.0,    # quality_score
+                        70.0,    # growth_score
+                        72.0,    # momentum_score
+                        85.0,    # rs_percentile
+                        185.5,   # close
+                        186.0,   # high
+                        184.0,   # low
+                        180.0,   # sma_50
+                        'Technology',  # sector
+                        'Auto',  # industry
+                        184.0,   # buylevel
+                        180.0,   # stoplevel
+                        8.5,     # strength (signal_strength)
+                        12.0,    # volume_surge_pct
+                        'breakout',  # market_stage
+                        test_date,  # signal_date
+                        None,    # swing_score is NULL — this is the key test case
+                        None,    # swing_components
+                    )
+                ]
+
+            mock_cursor.fetchone.side_effect = mock_fetchone
+            mock_cursor.fetchall.side_effect = mock_fetchall
 
             mock_context_manager = MagicMock()
             mock_context_manager.__enter__.return_value = mock_cursor
@@ -321,31 +371,47 @@ def test_phase5_rejects_null_signal_strength():
 
             mock_cursor = MagicMock()
 
+            # Setup for validation queries
+            call_count = [0]
+
+            def mock_fetchone():
+                call_count[0] += 1
+                if call_count[0] == 1:  # stock_scores COUNT
+                    return (100,)
+                elif call_count[0] == 2:  # market_exposure_daily validation
+                    return (1, 1)
+                else:
+                    return None
+
             # Return buy_sell_daily signal with NULL signal_strength (strength column)
-            mock_cursor.fetchall.return_value = [
-                (
-                    'NVDA',  # symbol
-                    75.0,    # composite_score
-                    80.0,    # quality_score
-                    70.0,    # growth_score
-                    72.0,    # momentum_score
-                    85.0,    # rs_percentile
-                    185.5,   # close
-                    186.0,   # high
-                    184.0,   # low
-                    180.0,   # sma_50
-                    'Technology',  # sector
-                    'Semiconductors',  # industry
-                    184.0,   # buylevel
-                    180.0,   # stoplevel
-                    None,    # strength (signal_strength) is NULL — this is the key test case
-                    12.0,    # volume_surge_pct
-                    'breakout',  # market_stage
-                    test_date,  # signal_date
-                    75.0,    # swing_score
-                    None,    # swing_components
-                )
-            ]
+            def mock_fetchall():
+                return [
+                    (
+                        'NVDA',  # symbol
+                        75.0,    # composite_score
+                        80.0,    # quality_score
+                        70.0,    # growth_score
+                        72.0,    # momentum_score
+                        85.0,    # rs_percentile
+                        185.5,   # close
+                        186.0,   # high
+                        184.0,   # low
+                        180.0,   # sma_50
+                        'Technology',  # sector
+                        'Semiconductors',  # industry
+                        184.0,   # buylevel
+                        180.0,   # stoplevel
+                        None,    # strength (signal_strength) is NULL — this is the key test case
+                        12.0,    # volume_surge_pct
+                        'breakout',  # market_stage
+                        test_date,  # signal_date
+                        75.0,    # swing_score
+                        None,    # swing_components
+                    )
+                ]
+
+            mock_cursor.fetchone.side_effect = mock_fetchone
+            mock_cursor.fetchall.side_effect = mock_fetchall
 
             mock_context_manager = MagicMock()
             mock_context_manager.__enter__.return_value = mock_cursor

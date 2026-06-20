@@ -2,11 +2,13 @@
  * Data Caching Layer
  * Provides in-memory caching for API responses with TTL and refresh strategies
  * Includes schema validation to prevent returning stale mismatched data
+ * Tracks fetch timestamps to indicate data freshness
  */
 
 const cacheStore = new Map();
 
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_STALE_AGE = 2 * 60 * 60 * 1000; // 2 hours - age at which data is considered phantom
 
 /**
  * Validate cached data has expected structure
@@ -99,9 +101,11 @@ function set(key, data, options = {}) {
     return;
   }
 
+  const now = Date.now();
   cacheStore.set(cacheKey, {
     data,
-    expiresAt: Date.now() + ttl,
+    expiresAt: now + ttl,
+    fetchedAt: now,
   });
 }
 
@@ -131,10 +135,39 @@ function size() {
   return cacheStore.size;
 }
 
+/**
+ * Get metadata about cached data (age, freshness)
+ * @param {string} key - Cache key
+ * @param {object} options - Options including cacheType
+ * @returns {object|null} Metadata with fetchedAt, age (ms), isStale
+ */
+function getMetadata(key, options = {}) {
+  const { cacheType = 'default' } = options;
+  const cacheKey = `${cacheType}:${key}`;
+
+  if (!cacheStore.has(cacheKey)) {
+    return null;
+  }
+
+  const cached = cacheStore.get(cacheKey);
+  const now = Date.now();
+  const age = cached.fetchedAt ? now - cached.fetchedAt : 0;
+  const isStale = age > MAX_STALE_AGE;
+
+  return {
+    fetchedAt: cached.fetchedAt || null,
+    age,
+    isStale,
+    isExpired: now >= cached.expiresAt,
+    expiresAt: cached.expiresAt,
+  };
+}
+
 export default {
   get,
   set,
   clear,
   size,
+  getMetadata,
 };
 

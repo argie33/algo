@@ -10,6 +10,12 @@ import dataCache from '../services/dataCache';
  *   extractData strips the axios wrapper + {success, data} envelope,
  *   returning the clean inner data object or array.
  *
+ * Tracks fetch timestamps and timeout. Returns data with metadata:
+ *   - _fetchedAt: timestamp when data was last fetched
+ *   - _age: age of data in milliseconds
+ *   - _fromCache: true if using fallback cache
+ *   - _isStale: true if data is older than MAX_STALE_AGE (2 hours)
+ *
  * Usage:
  *   const { data, loading, error } = useApiQuery(
  *     ['sectors', { limit: 20 }],
@@ -25,6 +31,7 @@ export const useApiQuery = (
     retry = 3,
     enabled = true,
     cacheKey = null,
+    timeout = 15000,
     ...restOptions
   } = {}
 ) => {
@@ -43,11 +50,47 @@ export const useApiQuery = (
     return err.message || 'Failed to load data';
   };
 
+  // Helper to add timeout to a promise
+  const withTimeout = (promise, ms) => {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Request timeout after ${ms}ms`)), ms)
+    );
+    return Promise.race([promise, timeoutPromise]);
+  };
+
+  // Helper to add fetch metadata to data
+  const addMetadata = (data, fetchedAt = Date.now(), isFromCache = false) => {
+    if (!data || typeof data !== 'object') return data;
+
+    const now = Date.now();
+    const age = now - fetchedAt;
+    const isStale = age > (2 * 60 * 60 * 1000); // 2 hours
+
+    if (Array.isArray(data)) {
+      return data.map(item => ({
+        ...item,
+        _fetchedAt: fetchedAt,
+        _age: age,
+        _fromCache: isFromCache,
+        _isStale: isStale,
+      }));
+    }
+
+    return {
+      ...data,
+      _fetchedAt: fetchedAt,
+      _age: age,
+      _fromCache: isFromCache,
+      _isStale: isStale,
+    };
+  };
+
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
+      const fetchStartTime = Date.now();
       try {
-        const response = await queryFn();
+        const response = await withTimeout(queryFn(), timeout);
         const freshData = extractData(response);
         // Unwrap single-object envelope: {data: payload, statusCode, success} → payload
         // Lambda always returns json_response(200, payload) which wraps in {data: payload}.
@@ -67,18 +110,17 @@ export const useApiQuery = (
           console.warn('[useApiQuery] Failed to cache data:', cacheErr.message);
           // Continue anyway - cache failure shouldn't break the query
         }
-        return result;
+        return addMetadata(result, fetchStartTime, false);
       } catch (err) {
         console.warn('[useApiQuery] Query failed', err);
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);
+          const metadata = await dataCache.getMetadata(actualCacheKey);
           if (cachedData) {
-            console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey);
-            if (Array.isArray(cachedData)) {
-              return cachedData;
-            }
-            return { ...cachedData, fromCache: true };
+            console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey, metadata);
+            const cachedFetchTime = metadata?.fetchedAt || fetchStartTime;
+            return addMetadata(cachedData, cachedFetchTime, true);
           }
         } catch (cacheErr) {
           console.warn('[useApiQuery] Failed to retrieve cached fallback:', cacheErr.message);
