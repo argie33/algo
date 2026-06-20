@@ -15,6 +15,7 @@ from routes.utils import (
     error_response,
     handle_db_error,
     json_response,
+    list_response,
     normalize_to_utc_datetime,
     safe_dict_convert,
     safe_json_serialize,
@@ -775,7 +776,7 @@ def _get_trend_criteria(cur) -> dict:
         {"name": "Stage 2 Uptrend (Weinstein)", "passing": safe_int(row["stage2"]), "total": total_symbols},
     ]
 
-    return json_response(200, {"criteria": criteria, "total_symbols": total_symbols})
+    return list_response(criteria, total=total_symbols, limit=None, offset=None)
 
 
 

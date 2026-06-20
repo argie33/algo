@@ -9,7 +9,10 @@ concurrent updates modify records between read and update.
 
 import logging
 import time
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+from utils.db.structured_logging import StructuredDBLogger
 
 
 logger = logging.getLogger(__name__)
@@ -17,7 +20,9 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def _get_retry_delay(attempt: int, base_delay_ms: int = 100, max_delay_ms: int = 5000) -> float:
+def _get_retry_delay(
+    attempt: int, base_delay_ms: int = 100, max_delay_ms: int = 5000
+) -> float:
     delay_ms = base_delay_ms * (2**attempt)
     delay_ms = min(delay_ms, max_delay_ms)
     return float(delay_ms / 1000.0)
@@ -33,6 +38,9 @@ class OptimisticLockRetry:
         max_attempts: int = 3,
         base_delay_ms: int = 100,
         max_delay_ms: int = 5000,
+        query: str | None = None,
+        params: Any | None = None,
+        context: dict[str, Any] | None = None,
     ) -> bool:
         """Retry an operation if it fails due to optimistic lock conflict (rowcount==0).
 
@@ -52,16 +60,22 @@ class OptimisticLockRetry:
 
             success = OptimisticLockRetry.retry_on_race_condition(
                 do_update,
-                operation_name="update_position_quantity"
+                operation_name="update_position_quantity",
+                query="UPDATE positions SET ...",
+                params=(new_qty, pos_id, current_qty),
+                context={"position_id": pos_id, "stock_id": "AAPL"}
             )
             ```
 
         Args:
-            operation: Callable that returns True if successful, False if optimistic lock failed
+            operation: Callable returning True on success, False on lock failed
             operation_name: Name for logging
             max_attempts: Maximum retry attempts (default 3)
             base_delay_ms: Initial backoff delay in milliseconds (default 100)
             max_delay_ms: Maximum backoff delay in milliseconds (default 5000)
+            query: Optional SQL query for logging context
+            params: Optional query parameters for logging context
+            context: Optional operational context (position_id, stock_id, etc.)
 
         Returns: True if operation succeeded, False if failed after all retries
 
@@ -72,28 +86,52 @@ class OptimisticLockRetry:
                 success = operation()
                 if success:
                     if attempt > 0:
-                        logger.info(
-                            f"[Retry] {operation_name} succeeded after {attempt + 1} attempts"
-                        )
+                        msg = f"[Retry] {operation_name} succeeded after {attempt + 1} attempts"
+                        logger.info(msg)
                     return True
                 # Optimistic lock failed (rowcount == 0), retry
                 if attempt < max_attempts - 1:
                     delay = _get_retry_delay(attempt, base_delay_ms, max_delay_ms)
-                    logger.debug(
-                        f"[Retry] {operation_name} failed (race condition), retrying in {delay:.2f}s..."
+                    StructuredDBLogger.log_retry(
+                        operation_name=operation_name,
+                        query=query or "<operation>",
+                        params=params,
+                        error=None,
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                        delay_seconds=delay,
+                        context=context,
                     )
                     time.sleep(delay)
             except Exception as e:
                 # Non-transient error, fail immediately
+                StructuredDBLogger.log_db_error(
+                    operation_name=operation_name,
+                    query=query or "<operation>",
+                    params=params,
+                    error=e,
+                    context=context,
+                    retry_attempt=attempt,
+                    max_attempts=max_attempts,
+                )
                 logger.error(
                     f"[Retry] {operation_name} failed with non-transient error: {e}"
                 )
                 raise
 
         # All retries exhausted
-        logger.error(
-            f"[Retry] {operation_name} failed after {max_attempts} attempts (race condition)"
+        error = RuntimeError("race condition (optimistic lock failed)")
+        StructuredDBLogger.log_db_error(
+            operation_name=operation_name,
+            query=query or "<operation>",
+            params=params,
+            error=error,
+            context=context,
+            retry_attempt=max_attempts - 1,
+            max_attempts=max_attempts,
         )
+        msg = f"[Retry] {operation_name} failed after {max_attempts} attempts"
+        logger.error(msg)
         return False
 
     @staticmethod
@@ -103,8 +141,11 @@ class OptimisticLockRetry:
         max_attempts: int = 3,
         base_delay_ms: int = 100,
         max_delay_ms: int = 5000,
-        should_retry: Optional[Callable[[Exception], bool]] = None,
-    ) -> Optional[T]:
+        should_retry: Callable[[Exception], bool] | None = None,
+        query: str | None = None,
+        params: Any | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> T | None:
         """Retry an operation on specific exceptions (e.g., connection timeouts).
 
         Args:
@@ -113,7 +154,10 @@ class OptimisticLockRetry:
             max_attempts: Maximum retry attempts (default 3)
             base_delay_ms: Initial backoff delay in milliseconds (default 100)
             max_delay_ms: Maximum backoff delay in milliseconds (default 5000)
-            should_retry: Callable(Exception) -> bool to determine if exception is retryable
+            should_retry: Callable(Exception) -> bool for exception is retryable
+            query: Optional SQL query for logging context
+            params: Optional query parameters for logging context
+            context: Optional operational context (stock_id, trade_id, etc.)
 
         Returns: Operation result if successful, None if failed after retries
 
@@ -139,13 +183,21 @@ class OptimisticLockRetry:
             try:
                 result = operation()
                 if attempt > 0:
-                    logger.info(
-                        f"[Retry] {operation_name} succeeded after {attempt + 1} attempts"
-                    )
+                    msg = f"[Retry] {operation_name} succeeded after {attempt + 1} attempts"
+                    logger.info(msg)
                 return result
             except Exception as e:
                 last_error = e
                 if not should_retry(e):
+                    StructuredDBLogger.log_db_error(
+                        operation_name=operation_name,
+                        query=query or "<operation>",
+                        params=params,
+                        error=e,
+                        context=context,
+                        retry_attempt=attempt,
+                        max_attempts=max_attempts,
+                    )
                     logger.error(
                         f"[Retry] {operation_name} failed with non-retryable error: {e}"
                     )
@@ -153,12 +205,30 @@ class OptimisticLockRetry:
 
                 if attempt < max_attempts - 1:
                     delay = _get_retry_delay(attempt, base_delay_ms, max_delay_ms)
-                    logger.warning(
-                        f"[Retry] {operation_name} failed ({type(e).__name__}), retrying in {delay:.2f}s..."
+                    StructuredDBLogger.log_retry(
+                        operation_name=operation_name,
+                        query=query or "<operation>",
+                        params=params,
+                        error=e,
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                        delay_seconds=delay,
+                        context=context,
                     )
                     time.sleep(delay)
 
-        error_msg = f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
+        error_msg = (
+            f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
+        )
+        StructuredDBLogger.log_db_error(
+            operation_name=operation_name,
+            query=query or "<operation>",
+            params=params,
+            error=last_error or RuntimeError(error_msg),
+            context=context,
+            retry_attempt=max_attempts - 1,
+            max_attempts=max_attempts,
+        )
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 

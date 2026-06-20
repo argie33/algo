@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from routes.utils import (
     check_data_freshness,
@@ -29,7 +29,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
+def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
@@ -43,10 +43,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Optional[Dict] = None,
-    jwt_claims: Optional[Dict] = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Route risk dashboard endpoints."""
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
@@ -72,7 +72,7 @@ def handle(
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
 
 
-def _get_comprehensive_risk_dashboard(cur) -> Dict:
+def _get_comprehensive_risk_dashboard(cur) -> dict:
     """Get all current risk metrics in one view."""
     try:
         result = {
@@ -90,11 +90,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             result["drawdown"] = drawdown_info  # type: ignore[assignment]
         except Exception as e:
             logger.warning(f"Drawdown fetch failed: {e}")
-            result["drawdown"] = {  # type: ignore[assignment]
-                "errorType": "fetch_failed",
-                "message": str(e),
-                "_error": str(e),
-            }
+            result["drawdown"] = None
 
         # Exposure tier
         try:
@@ -102,11 +98,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             result["exposure_tier"] = tier_info  # type: ignore[assignment]
         except Exception as e:
             logger.warning(f"Exposure tier fetch failed: {e}")
-            result["exposure_tier"] = {  # type: ignore[assignment]
-                "errorType": "fetch_failed",
-                "message": str(e),
-                "_error": str(e),
-            }
+            result["exposure_tier"] = None
 
         # VIX metrics
         try:
@@ -208,7 +200,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _fetch_drawdown_info(cur) -> Dict[str, Any]:
+def _fetch_drawdown_info(cur) -> dict[str, Any]:
     """Get current portfolio drawdown and thresholds.
 
     CAVEAT: Intraday drawdowns are invisible. Only EOD snapshots are tracked, so if the algo
@@ -254,7 +246,7 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     }
 
 
-def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
+def _fetch_exposure_tier_info(cur) -> dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
     try:
         rows = execute_with_timeout(
@@ -293,7 +285,7 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     }
 
 
-def _get_drawdown_metrics(cur) -> Dict:
+def _get_drawdown_metrics(cur) -> dict:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
         info = _fetch_drawdown_info(cur)
@@ -303,7 +295,7 @@ def _get_drawdown_metrics(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _get_exposure_tier_info(cur) -> Dict:
+def _get_exposure_tier_info(cur) -> dict:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
         info = _fetch_exposure_tier_info(cur)
@@ -313,7 +305,7 @@ def _get_exposure_tier_info(cur) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _get_position_sizing_audit(cur, days: int) -> Dict:
+def _get_position_sizing_audit(cur, days: int) -> dict:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
         audit_rows = execute_with_timeout(
@@ -377,7 +369,7 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _get_stop_loss_audit(cur, days: int) -> Dict:
+def _get_stop_loss_audit(cur, days: int) -> dict:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
         cur.execute(
@@ -433,7 +425,7 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _get_exit_rules_distribution(cur, days: int) -> Dict:
+def _get_exit_rules_distribution(cur, days: int) -> dict:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
         cur.execute(

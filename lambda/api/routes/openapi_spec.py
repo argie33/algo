@@ -1,9 +1,9 @@
 """Route: openapi_spec - Serve OpenAPI specification and UI."""
 
 import logging
-from typing import Dict
 
 from openapi_spec import generate_openapi_spec
+from routes.utils import error_response, json_response
 
 
 logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle OpenAPI spec endpoints.
 
     /api/openapi.json - OpenAPI 3.0 specification (machine-readable)
@@ -30,15 +30,10 @@ def handle(
     elif path == "/api/redoc" or path.startswith("/api/redoc?"):
         return _handle_redoc_ui()
     else:
-        return {
-            "statusCode": 404,
-            "errorType": "not_found",
-            "message": "OpenAPI endpoint not found",
-            "_error": "not_found",
-        }
+        return error_response(404, "not_found", "OpenAPI endpoint not found")
 
 
-def _handle_openapi_json() -> Dict:
+def _handle_openapi_json() -> dict:
     """Serve the OpenAPI specification as JSON.
 
     Returns the complete OpenAPI 3.0 spec that can be used by:
@@ -49,25 +44,13 @@ def _handle_openapi_json() -> Dict:
     """
     try:
         spec = generate_openapi_spec()
-        return {
-            "statusCode": 200,
-            "data": spec,
-            "headers": {
-                "Content-Type": "application/json",
-                "Cache-Control": "public, max-age=3600",
-            },
-        }
+        return json_response(200, spec)
     except Exception as e:
         logger.error(f"Error generating OpenAPI spec: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "errorType": "internal_error",
-            "message": "Failed to generate OpenAPI specification",
-            "_error": "internal_error",
-        }
+        return error_response(500, "internal_error", "Failed to generate OpenAPI specification")
 
 
-def _handle_swagger_ui() -> Dict:
+def _handle_swagger_ui() -> dict:
     """Serve Swagger UI for interactive API documentation.
 
     Returns HTML with Swagger UI pointing to /api/openapi.json.
@@ -116,7 +99,7 @@ def _handle_swagger_ui() -> Dict:
     }
 
 
-def _handle_redoc_ui() -> Dict:
+def _handle_redoc_ui() -> dict:
     """Serve ReDoc UI for API documentation.
 
     Returns HTML with ReDoc pointing to /api/openapi.json.

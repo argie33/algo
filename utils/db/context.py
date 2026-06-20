@@ -11,16 +11,104 @@ THE RIGHT WAY: All database access goes through this context manager.
 """
 
 import logging
-from typing import Optional
+from typing import Any
 
 from psycopg2.extras import DictCursor
 
 from utils.db.connection import get_db_connection
 from utils.db.pooled_context_var import get_pooled_connection
+from utils.db.structured_logging import StructuredDBLogger
 
 
 logger = logging.getLogger(__name__)
 __all__ = ["DatabaseContext"]
+
+
+class _ErrorLoggedCursor:
+    """Wraps cursor to log structured errors on query failures.
+
+    Captures:
+    - The SQL query that failed
+    - Query parameters
+    - Error type and message
+    - Operational context (extracted from params if possible)
+    """
+
+    def __init__(self, cursor, operation_name: str = "db_operation"):
+        self.cursor = cursor
+        self.operation_name = operation_name
+        self.last_query: str | None = None
+        self.last_args: Any | None = None
+
+    def execute(self, query: str, args=None):
+        """Execute query with error logging."""
+        self.last_query = query
+        self.last_args = args
+        try:
+            return self.cursor.execute(query, args)
+        except Exception as e:
+            context = StructuredDBLogger.extract_context_from_params(args)
+            StructuredDBLogger.log_db_error(
+                operation_name=self.operation_name,
+                query=query,
+                params=args,
+                error=e,
+                context=context if context else None,
+            )
+            raise
+
+    def executemany(self, query: str, args):
+        """Execute many with error logging."""
+        self.last_query = query
+        self.last_args = args
+        try:
+            return self.cursor.executemany(query, args)
+        except Exception as e:
+            context = StructuredDBLogger.extract_context_from_params(args)
+            StructuredDBLogger.log_db_error(
+                operation_name=self.operation_name,
+                query=query,
+                params=args,
+                error=e,
+                context=context if context else None,
+            )
+            raise
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    def fetchmany(self, size: int | None = None):
+        return self.cursor.fetchmany(size)
+
+    def close(self):
+        return self.cursor.close()
+
+    @property
+    def description(self):
+        return self.cursor.description
+
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+    @property
+    def connection(self):
+        return self.cursor.connection
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return self.cursor.__exit__(*args)
+
+    def __iter__(self):
+        return iter(self.cursor)
+
+    def __getattr__(self, name):
+        return getattr(self.cursor, name)
 
 
 class _CorrelationIdCursor:
@@ -49,11 +137,10 @@ class _CorrelationIdCursor:
         )
         if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
-        return (
-            self.cursor.execute(query_str)
-            if not hasattr(query, "as_string") and args is None
-            else self.cursor.execute(query_str, args)
-        )
+
+        if not hasattr(query, "as_string") and args is None:
+            return self.cursor.execute(query_str)
+        return self.cursor.execute(query_str, args)
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
@@ -72,7 +159,7 @@ class _CorrelationIdCursor:
     def fetchall(self):
         return self.cursor.fetchall()
 
-    def fetchmany(self, size: Optional[int] = None):
+    def fetchmany(self, size: int | None = None):
         return self.cursor.fetchmany(size)
 
     def close(self):
@@ -141,7 +228,7 @@ class DatabaseContext:
         role: str = "read",
         timeout: int = 30,
         cursor_factory=DictCursor,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
         enable_correlation_tracking: bool = True,
     ):
         """Initialize context.
@@ -150,10 +237,11 @@ class DatabaseContext:
             role: 'read' or 'write' (controls commit/rollback behavior)
             timeout: Connection timeout in seconds
             cursor_factory: psycopg2 cursor factory
-            correlation_id: Explicit correlation_id. If None and enable_correlation_tracking=True,
-                           tries to auto-retrieve from context (loaders only).
-            enable_correlation_tracking: If True, attempts to auto-retrieve correlation_id from context
-                                        if not explicitly provided. Set to False for API calls.
+            correlation_id: Explicit correlation_id. If None and
+                enable_correlation_tracking=True, tries to auto-retrieve from
+                context (loaders only).
+            enable_correlation_tracking: If True, auto-retrieve correlation_id
+                from context if not explicitly provided. Set False for API.
         """
         self.role = role
         self.timeout = timeout
@@ -167,7 +255,7 @@ class DatabaseContext:
         self._externally_managed = False  # Track if connection is from pooled context
 
     @staticmethod
-    def _get_loader_correlation_id() -> Optional[str]:
+    def _get_loader_correlation_id() -> str | None:
         """Auto-retrieve correlation_id from context (loaders only)."""
         try:
             from utils.infrastructure import get_correlation_id
@@ -210,16 +298,30 @@ class DatabaseContext:
                     )
                 except Exception as e:
 
-                    raise RuntimeError(f"Unexpected error: {e}") from e  # Non-critical; continue without session-level tracking
+                    msg = f"Unexpected error: {e}"
+                    raise RuntimeError(msg) from e
 
-            # Wrap cursor to auto-inject correlation_id into SQL comments (loaders only)
+            # Wrap cursor with error logging + correlation_id tracing
             if self.correlation_id:
-                return _CorrelationIdCursor(self.cur, self.correlation_id)
-            return self.cur
+                # First wrap with correlation ID injection
+                cor_cursor = _CorrelationIdCursor(self.cur, self.correlation_id)
+                # Then wrap with error logging
+                op_name = "loader_db_operation"
+                return _ErrorLoggedCursor(cor_cursor, operation_name=op_name)
+
+            # Just error logging, no correlation ID
+            return _ErrorLoggedCursor(self.cur, operation_name="db_operation")
         except Exception as e:
+            context = {"error_type": type(e).__name__, "timeout": self.timeout}
             logger.error(
                 f"[DB_CONTEXT_ERROR] Failed to get database connection: {e}",
                 exc_info=True,
+            )
+            StructuredDBLogger.log_db_error(
+                operation_name="connection_acquisition",
+                query="<connection>",
+                error=e,
+                context=context,
             )
             raise
 
@@ -229,8 +331,8 @@ class DatabaseContext:
         OPTIMIZATION: If connection is externally managed (from pooled context),
         don't close it - let OptimalLoader manage its lifecycle.
 
-        Guarantees: Rollback is ALWAYS called on exception to prevent "transaction is aborted"
-        state from poisoning the connection pool.
+        Guarantees: Rollback is ALWAYS called on exception to prevent
+        "transaction is aborted" state from poisoning the connection pool.
         """
         try:
             # Always try to close cursor, but don't let cursor errors prevent rollback
@@ -243,16 +345,13 @@ class DatabaseContext:
             try:
                 if self.conn:
                     if not self._externally_managed:
-                        # Only close connections we acquired (not pooled context connections)
+                        # Only close connections we acquired
                         if exc_type is None and self.role == "write":
                             self.conn.commit()
                         else:
                             # Always rollback for:
                             # - Any exception (clears aborted transaction)
-                            # - Read connections with no exception (clears any internally-caught
-                            #   sub-query failures that left the connection in an aborted state;
-                            #   without this, the broken connection goes back to the pool and
-                            #   poisons the next request with InFailedSqlTransaction errors)
+                            # - Read connections (clears internally-caught failures)
                             self.conn.rollback()
                         self.conn.close()
                     else:
@@ -262,7 +361,7 @@ class DatabaseContext:
                         else:
                             self.conn.rollback()
                         logger.debug(
-                            "[DB_CONTEXT] Not closing externally-managed connection (OptimalLoader will close)"
+                            "[DB_CONTEXT] Not closing externally-managed connection"
                         )
             except Exception as e:
                 logger.warning(

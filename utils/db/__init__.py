@@ -19,25 +19,27 @@ from .pooled_context_var import (
 from .query_cache import QueryCache
 from .retry import OptimisticLockRetry
 from .sql_safety import assert_safe_column, assert_safe_table, safe_select_count
+from .structured_logging import StructuredDBLogger
 
 
 __all__ = [
     "DatabaseContext",
-    "get_db_connection",
-    "register_connection_callbacks",
     "DynamoDBHealthCheck",
     "DynamoDBLockManager",
-    "RDSPoolMonitor",
-    "PooledConnectionManager",
+    "OptimisticLockRetry",
     "PoolSemaphore",
-    "get_pool_status",
+    "PooledConnectionManager",
     "PooledDatabaseContext",
-    "set_pooled_connection",
+    "QueryCache",
+    "RDSPoolMonitor",
+    "StructuredDBLogger",
+    "assert_safe_column",
+    "assert_safe_table",
+    "get_db_connection",
+    "get_pool_status",
     "get_pooled_connection",
     "has_pooled_connection",
-    "QueryCache",
-    "OptimisticLockRetry",
-    "assert_safe_table",
-    "assert_safe_column",
+    "register_connection_callbacks",
     "safe_select_count",
+    "set_pooled_connection",
 ]

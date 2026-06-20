@@ -3,7 +3,6 @@
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict
 
 import boto3
 import psycopg2
@@ -18,6 +17,7 @@ from routes.utils import (
     error_response,
     handle_db_error,
     json_response,
+    list_response,
     normalize_to_utc_datetime,
     safe_json_serialize,
 )
@@ -30,7 +30,7 @@ from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Dict) -> bool:
+def _check_admin_access(jwt_claims: dict) -> bool:
     """Check if user has admin access from verified JWT claims only.
 
     Checks the 'cognito:groups' claim for 'admin' group membership.
@@ -83,10 +83,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Require admin role for all admin endpoints (bypass in dev mode)
@@ -157,7 +157,7 @@ def handle(
 
 
 @db_route_handler("get loader status")
-def _get_loader_status(cur) -> Dict:
+def _get_loader_status(cur) -> dict:
     """Get status of all data loaders from data_loader_status table.
 
     Reads from data_loader_status, which OptimalLoader updates after each run
@@ -178,14 +178,10 @@ def _get_loader_status(cur) -> Dict:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(
-            200,
-            {
-                "status": "no_runs",
-                "message": "No loader runs recorded yet",
-                "loaders": [],
-            },
-        )
+        response = list_response([], total=0, limit=None, offset=None)
+        response["status"] = "no_runs"
+        response["message"] = "No loader runs recorded yet"
+        return response
 
     now = datetime.now(timezone.utc)
     loaders = []
@@ -234,23 +230,20 @@ def _get_loader_status(cur) -> Dict:
             f"[LOADER_STATUS] Unexpected error in freshness check: {type(e).__name__}: {e}"
         )
         freshness = None
-    return json_response(
-        200,
-        {
-            "status": "ok",
-            "loaders": loaders,
-            "summary": {
-                "total": len(loaders),
-                "healthy": len([loader for loader in loaders if loader["health"] == "fresh"]),
-                "stale": len([loader for loader in loaders if loader["health"] == "stale"]),
-            },
-            "data_freshness": freshness,
-        },
-    )
+    response = list_response(loaders, total=len(loaders), limit=None, offset=None)
+    response["status"] = "ok"
+    response["summary"] = {
+        "total": len(loaders),
+        "healthy": len([loader for loader in loaders if loader["health"] == "fresh"]),
+        "stale": len([loader for loader in loaders if loader["health"] == "stale"]),
+    }
+    if freshness:
+        response["data_freshness"] = freshness
+    return response
 
 
 @db_route_handler("get system health")
-def _get_system_health(cur) -> Dict:
+def _get_system_health(cur) -> dict:
     """Get overall system health status."""
     health_data = {"status": "healthy", "components": {}}
     cur.execute("SET LOCAL statement_timeout = '3000ms'")
@@ -307,9 +300,9 @@ def _get_system_health(cur) -> Dict:
 
     table_counts = {}
     tables = ["stock_symbols", "price_daily", "algo_trades", "algo_positions"]
-    table_placeholders = ",".join([psycopg2.sql.SQL("{}").format(psycopg2.sql.Identifier(t)).as_string(cur) for t in tables])
+    ",".join([psycopg2.sql.SQL("{}").format(psycopg2.sql.Identifier(t)).as_string(cur) for t in tables])
     try:
-        cur.execute(f"""
+        cur.execute("""
             SELECT
                 'stock_symbols' as table_name, COUNT(*) as cnt FROM stock_symbols
             UNION ALL
@@ -335,7 +328,7 @@ def _get_system_health(cur) -> Dict:
 
 
 @db_route_handler("get database stats")
-def _get_database_stats(cur) -> Dict:
+def _get_database_stats(cur) -> dict:
     """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -374,7 +367,7 @@ def _get_database_stats(cur) -> Dict:
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur) -> Dict:
+def _get_data_quality(cur) -> dict:
     """Get data quality metrics."""
     quality = {"timestamp": datetime.now(timezone.utc).isoformat(), "checks": {}}
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
@@ -424,7 +417,7 @@ def _get_data_quality(cur) -> Dict:
     return json_response(200, quality)
 
 
-def _verify_user_email(body: Dict = None) -> Dict:
+def _verify_user_email(body: dict | None = None) -> dict:
     """Verify a user's email in Cognito (dev/testing only)."""
     try:
         req = VerifyUserEmailRequest(**(body or {}))

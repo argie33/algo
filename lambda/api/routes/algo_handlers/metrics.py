@@ -15,6 +15,7 @@ from routes.utils import (
     error_response,
     handle_db_error,
     json_response,
+    list_response,
     safe_dict_convert,
     success_response,
 )
@@ -458,7 +459,9 @@ def _get_daily_return_histogram(cur) -> dict:
     ]
 
     if not returns:
-        return json_response(200, {"buckets": [], "stats": None})
+        response = list_response([], total=0, limit=None, offset=None)
+        response["stats"] = None
+        return response
 
     bucket_width = 0.5
     min_ret = min(returns)
@@ -491,7 +494,9 @@ def _get_daily_return_histogram(cur) -> dict:
         "std": round(std_ret, 2),
     }
 
-    return json_response(200, {"buckets": buckets, "stats": stats})
+    response = list_response(buckets, total=len(buckets), limit=None, offset=None)
+    response["stats"] = stats
+    return response
 
 
 
@@ -516,7 +521,7 @@ def _get_holding_period_distribution(cur) -> dict:
     ]
 
     if not durations:
-        return json_response(200, {"buckets": []})
+        return list_response([], total=0, limit=None, offset=None)
 
     buckets: list[dict[str, int | str]] = [
         {"range": "0-3 days", "count": 0},
@@ -548,7 +553,7 @@ def _get_holding_period_distribution(cur) -> dict:
             buckets[7]["count"] += 1
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return json_response(200, {"buckets": filtered_buckets})
+    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
 
 
 
@@ -626,13 +631,13 @@ def _get_performance_metrics_endpoint(cur) -> dict:
     return json_response(
         200,
         {
-            "winRate": (
+            "win_rate": (
                 safe_float_strict(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
             ),
-            "profitFactor": safe_float_strict(row["profit_factor"]),
+            "profit_factor": safe_float_strict(row["profit_factor"]),
             "expectancy": safe_float_strict(row["avg_trade_pct"]),
-            "sharpeRatio": safe_float_strict(row["sharpe_ratio"]),
-            "maxDrawdown": (
+            "sharpe_ratio": safe_float_strict(row["sharpe_ratio"]),
+            "max_drawdown": (
                 safe_float_strict(row["max_drawdown_pct"]) / 100
                 if row["max_drawdown_pct"]
                 else None
@@ -676,14 +681,14 @@ def _get_portfolio_summary(cur) -> dict:
     return json_response(
         200,
         {
-            "totalValue": round(total_value, 2) if total_value else None,
+            "total_value": round(total_value, 2) if total_value else None,
             "cash": round(cash, 2) if cash else None,
             "invested": round(invested, 2) if invested else None,
             "positions": positions or 0,
-            "dailyChange": (
+            "daily_change": (
                 round(daily_change_dollars, 2) if daily_change_dollars else None
             ),
-            "dailyChangePercent": (
+            "daily_change_percent": (
                 round(daily_return_pct, 2) if daily_return_pct else None
             ),
         },
@@ -767,11 +772,11 @@ def _get_stage_distribution(cur) -> dict:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(200, {"distribution": []})
+        return list_response([], total=0, limit=None, offset=None)
 
     distribution = [{"phase": r["phase"], "count": safe_int(r["count"])} for r in rows]
 
-    return json_response(200, {"distribution": distribution})
+    return list_response(distribution, total=len(distribution), limit=None, offset=None)
 
 
 
@@ -793,7 +798,7 @@ def _get_trade_distribution(cur) -> dict:
     ]
 
     if not r_multiples:
-        return json_response(200, {"buckets": []})
+        return list_response([], total=0, limit=None, offset=None)
 
     buckets = [
         {"range": "<-2R", "count": 0, "min": -999},
@@ -822,7 +827,7 @@ def _get_trade_distribution(cur) -> dict:
             buckets[6]["count"] += 1
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return json_response(200, {"buckets": filtered_buckets})
+    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
 
 
 
