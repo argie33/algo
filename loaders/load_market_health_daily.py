@@ -118,23 +118,32 @@ class MarketHealthDailyLoader(OptimalLoader):
             else:
                 logger.warning(f"VIX unavailable: {e}. Continuing with missing VIX values.")
 
-        # Merge today's put/call ratio from SPY options (non-critical enrichment)
+        # Merge today's put/call ratio from SPY options (REQUIRED - fail if unavailable)
         try:
             today_pc = self._fetch_put_call_ratio(end)
             if today_pc is not None:
                 for m in health_metrics:
                     if m["date"] == end.isoformat():
                         m["put_call_ratio"] = today_pc
+            else:
+                # On non-trading days, put/call is legitimately unavailable
+                logger.debug("Put/call ratio unavailable (non-trading day or no options data)")
         except RuntimeError as e:
-            logger.warning(f"Put/call ratio enrichment failed: {e}. Continuing with missing put/call data.")
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Put/call ratio computation failed: {e}. "
+                "This is a REQUIRED metric for market health. Failing loudly per fail-fast policy."
+            ) from e
 
-        # Merge yield curve slope from economic_metrics_daily (non-critical enrichment)
+        # Merge yield curve slope from economic_metrics_daily (REQUIRED - fail if unavailable)
         try:
             yield_curve = self._fetch_yield_curve_data(start, end)
             for m in health_metrics:
                 m["yield_curve_slope"] = yield_curve.get(m["date"])
         except RuntimeError as e:
-            logger.warning(f"Yield curve enrichment failed: {e}. Continuing with missing yield curve data.")
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Yield curve data fetch failed: {e}. "
+                "This is a REQUIRED metric for market health. Failing loudly per fail-fast policy."
+            ) from e
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
@@ -270,12 +279,8 @@ class MarketHealthDailyLoader(OptimalLoader):
                     chain = _throttled_yf_request(lambda e=exp: ticker.option_chain(e))
                     total_puts += float(chain.puts["volume"].fillna(0).sum())
                     total_calls += float(chain.calls["volume"].fillna(0).sum())
-                except (AttributeError, KeyError, ValueError, TypeError) as e:
-                    logger.warning(f"Put/call: option_chain({exp}) data format error: {e}")
-                    chain_errors += 1
-                    continue
-                except (ValueError, ZeroDivisionError, TypeError) as e:
-                    logger.warning(f"Put/call: option_chain({exp}) unexpected error: {e}")
+                except (AttributeError, KeyError, ValueError, TypeError, ZeroDivisionError) as e:
+                    logger.warning(f"Put/call: option_chain({exp}) fetch error: {e}")
                     chain_errors += 1
                     continue
 

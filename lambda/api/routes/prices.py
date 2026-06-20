@@ -1,7 +1,6 @@
 """Route: prices"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -11,12 +10,14 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
     safe_json_serialize,
     safe_limit,
 )
+
 from utils.validation import DatabaseResultValidator
 
 
@@ -38,16 +39,16 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     try:
         parts = path.split("/")
 
         # /api/prices?symbols=AAPL,MSFT (simple query format - redirect to batch-history)
         if len(parts) == 3 and parts[2] in ["prices", "prices?symbols"]:
-            symbols_raw = (params.get("symbols", [None])[0] if params else None) or ""
+            symbols_raw = extract_param(params, "symbols", required=False, default="")
             if symbols_raw:
                 # Delegate to batch-history handler logic
                 symbols = [
@@ -68,30 +69,28 @@ def handle(
                         )
 
                 limit = safe_limit(
-                    params.get("limit", [None])[0] if params else None,
+                    extract_param(params, "limit", required=False),
                     max_val=252,
                     default=30,
                 )
-                timeframe = (
-                    params.get("timeframe", [None])[0] if params else None
-                ) or "daily"
+                timeframe = extract_param(params, "timeframe", required=False, default="daily")
                 table_name = _TABLE_MAP.get(timeframe, "price_daily")
                 etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
 
                 result = {sym: [] for sym in symbols}
 
-                batch_query = """
+                batch_query = f"""
                     WITH ranked AS (
                         SELECT symbol, date, open, high, low, close, volume,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM {}
+                        FROM {table_name}
                         WHERE symbol = ANY(%s)
                     )
                     SELECT symbol, date, open, high, low, close, volume
                     FROM ranked
                     WHERE rn <= %s
                     ORDER BY symbol, date DESC
-                """.format(table_name)
+                """
                 rows = execute_with_timeout(
                     cur, batch_query, [symbols, limit], timeout_sec=20
                 )
@@ -120,18 +119,18 @@ def handle(
 
                 missing = [s for s in symbols if s not in found_symbols]
                 if missing:
-                    etf_query = """
+                    etf_query = f"""
                         WITH ranked AS (
                             SELECT symbol, date, open, high, low, close, volume,
                                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                            FROM {}
+                            FROM {etf_table_name}
                             WHERE symbol = ANY(%s)
                         )
                         SELECT symbol, date, open, high, low, close, volume
                         FROM ranked
                         WHERE rn <= %s
                         ORDER BY symbol, date DESC
-                    """.format(etf_table_name)
+                    """
                     etf_rows = execute_with_timeout(
                         cur, etf_query, [missing, limit], timeout_sec=20
                     )
@@ -169,14 +168,12 @@ def handle(
                 return error_response(400, "bad_request", "Invalid symbol")
 
             limit = safe_limit(
-                params.get("limit", [None])[0] if params else None,
+                extract_param(params, "limit", required=False),
                 max_val=2000,
                 default=252,
             )
-            timeframe = (
-                params.get("timeframe", [None])[0] if params else None
-            ) or "daily"
-            days_str = params.get("days", [None])[0] if params else None
+            timeframe = extract_param(params, "timeframe", required=False, default="daily")
+            days_str = extract_param(params, "days", required=False)
 
             table_name = _TABLE_MAP.get(timeframe, "price_daily")
 
@@ -190,30 +187,30 @@ def handle(
                         f" AND date >= CURRENT_DATE - INTERVAL '{days_int} days'"
                     )
                 except ValueError:
-                    pass
+                    logger.debug(f"Invalid days parameter: {days_str}, ignoring date filter")
 
             # Query stock price table first; fall back to ETF table if no results
             etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
-            query = """
+            query = f"""
                 SELECT date, open, high, low, close, volume
-                FROM {}
-                WHERE {}
+                FROM {table_name}
+                WHERE {where_clause}
                 ORDER BY date DESC
                 LIMIT %s
-            """.format(table_name, where_clause)
-            rows = execute_with_timeout(cur, query, qparams + [limit], timeout_sec=10)
+            """
+            rows = execute_with_timeout(cur, query, [*qparams, limit], timeout_sec=10)
             used_table = table_name
             if not rows:
                 # No data in stock table — try ETF table
-                etf_query = """
+                etf_query = f"""
                     SELECT date, open, high, low, close, volume
-                    FROM {}
-                    WHERE {}
+                    FROM {etf_table_name}
+                    WHERE {where_clause}
                     ORDER BY date DESC
                     LIMIT %s
-                """.format(etf_table_name, where_clause)
+                """
                 rows = execute_with_timeout(
-                    cur, etf_query, qparams + [limit], timeout_sec=10
+                    cur, etf_query, [*qparams, limit], timeout_sec=10
                 )
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
@@ -226,7 +223,7 @@ def handle(
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
         # Replaces N concurrent per-symbol calls with one batch query.
         elif len(parts) >= 4 and parts[3] == "batch-history":
-            symbols_raw = (params.get("symbols", [None])[0] if params else None) or ""
+            symbols_raw = extract_param(params, "symbols", required=False, default="")
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
             if not symbols:
                 return error_response(400, "bad_request", "symbols parameter required")
@@ -239,13 +236,11 @@ def handle(
                     return error_response(400, "bad_request", f"Invalid symbol: {sym}")
 
             limit = safe_limit(
-                params.get("limit", [None])[0] if params else None,
+                extract_param(params, "limit", required=False),
                 max_val=252,
                 default=30,
             )
-            timeframe = (
-                params.get("timeframe", [None])[0] if params else None
-            ) or "daily"
+            timeframe = extract_param(params, "timeframe", required=False, default="daily")
             table_name = _TABLE_MAP.get(timeframe, "price_daily")
             etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
 

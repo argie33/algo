@@ -120,8 +120,8 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                 if eps_row is not None:
                     try:
                         eps_val = float(eps_row[idx]) if eps_row[idx] else None
-                    except (KeyError, TypeError, ValueError):
-                        pass
+                    except (KeyError, TypeError, ValueError) as e:
+                        logger.debug(f"{symbol} FY {fiscal_year}: Failed to extract EPS: {e}")
 
                 # Build backfill row
                 backfill_rows.append(

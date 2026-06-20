@@ -5,7 +5,7 @@ import re
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -37,7 +37,7 @@ QUERY_TIMEOUTS = {
 }
 
 
-def set_query_timeout(cur, timeout_ms: Optional[int] = None, timeout_name: str = "default"):
+def set_query_timeout(cur, timeout_ms: int | None = None, timeout_name: str = "default"):
     """Set statement timeout for the current transaction.
 
     Args:
@@ -80,9 +80,23 @@ def normalize_to_utc_datetime(dt):
     )
 
 
-def safe_limit(limit_str, max_val=5000):
-    """Parse and validate limit parameter. Always fails fast on invalid input."""
+def safe_limit(limit_str, max_val=5000, default=None):
+    """Parse and validate limit parameter. Optionally use default if missing.
+
+    Args:
+        limit_str: Limit value (string or None)
+        max_val: Maximum allowed value
+        default: Default value if limit_str is None/empty. If None, raises error on missing.
+
+    Returns:
+        Validated limit value (between 1 and max_val)
+
+    Raises:
+        BadRequest: If limit_str invalid and no default provided
+    """
     if not limit_str:
+        if default is not None:
+            return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "limit parameter is required")
     try:
         value = int(limit_str)
@@ -105,9 +119,23 @@ def safe_offset(offset_str, max_val=1000000):
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "offset must be a valid integer")
 
-def safe_days(days_str, max_val=365):
-    """Parse and validate days parameter. Always fails fast on invalid input."""
+def safe_days(days_str, max_val=365, default=None):
+    """Parse and validate days parameter. Optionally use default if missing.
+
+    Args:
+        days_str: Days value (string or None)
+        max_val: Maximum allowed value
+        default: Default value if days_str is None/empty. If None, raises error on missing.
+
+    Returns:
+        Validated days value (between 1 and max_val)
+
+    Raises:
+        BadRequest: If days_str invalid and no default provided
+    """
     if not days_str:
+        if default is not None:
+            return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "days parameter is required")
     try:
         value = int(days_str)
@@ -117,9 +145,22 @@ def safe_days(days_str, max_val=365):
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "days must be a valid integer")
 
-def safe_page(page_str):
-    """Parse and validate page parameter. Always fails fast on invalid input."""
+def safe_page(page_str, default=None):
+    """Parse and validate page parameter. Optionally use default if missing.
+
+    Args:
+        page_str: Page value (string or None)
+        default: Default value if page_str is None/empty. If None, raises error on missing.
+
+    Returns:
+        Validated page number (>= 1)
+
+    Raises:
+        BadRequest: If page_str invalid and no default provided
+    """
     if not page_str:
+        if default is not None:
+            return max(default, 1)
         raise_api_error(400, "BadRequest", "page parameter is required")
     try:
         value = int(page_str)
@@ -269,6 +310,32 @@ def raise_db_error(error, context="database operation"):
         raise QueryTimeout(message)
     else:
         raise ServiceUnavailable(message)
+
+
+def extract_param(params, key: str, required: bool = False, default: str | None = None) -> str | None:
+    """Extract parameter from CGI-style params dict (dict of lists).
+
+    Args:
+        params: Query parameters as dict of lists (from urllib.parse.parse_qs)
+        key: Parameter name to extract
+        required: If True, raise error if parameter missing
+        default: Default value if parameter missing and not required
+
+    Returns:
+        Parameter value (first element from list) or default
+
+    Raises:
+        BadRequest: If required parameter is missing
+    """
+    if not params or key not in params or not params[key]:
+        if required:
+            raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")
+        return default
+
+    value = params[key][0] if isinstance(params[key], list) else params[key]
+    return value if value else (default if not required else (
+        raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")
+    ))
 
 
 def raise_api_error(status_code, error_type, message):

@@ -19,6 +19,7 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
+import psycopg2
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -492,8 +493,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             rsi_val = float(rsi)
                             if 40 < rsi_val < 80:
                                 volume_confirmation_score += 10
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
                     if (
                         macd is not None
                         and macd_signal is not None
@@ -503,16 +504,16 @@ class SignalQualityScoresLoader(OptimalLoader):
                         try:
                             if float(macd) > float(macd_signal):
                                 volume_confirmation_score += 10
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
                 elif signal_type == "SELL":
                     if rsi is not None and not pd.isna(rsi):
                         try:
                             rsi_val = float(rsi)
                             if 20 < rsi_val < 60:
                                 volume_confirmation_score += 10
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
                     if (
                         macd is not None
                         and macd_signal is not None
@@ -522,8 +523,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                         try:
                             if float(macd) < float(macd_signal):
                                 volume_confirmation_score += 10
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
 
                 # Trend template score (0-25): minervini score and stage
                 trend_template_score = 0
@@ -540,8 +541,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                                 trend_template_score += 10
                             else:
                                 trend_template_score += 5
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
 
                     if weinstein_stage is not None and not pd.isna(weinstein_stage):
                         try:
@@ -550,8 +551,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                                 trend_template_score += 10
                             else:
                                 trend_template_score += 3
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to convert RSI to float: {e}")
 
                 trend_template_score = min(25, trend_template_score)
 

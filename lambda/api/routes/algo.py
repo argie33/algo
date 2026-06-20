@@ -122,7 +122,7 @@ def handle(
             if isinstance(e, APIException):
                 raise
         except ImportError:
-            pass
+            logger.debug("APIException module not available, treating as unhandled error")
         logger.error(f"[ALGO] unhandled {type(e).__name__}: {e}", exc_info=True)
         raise_db_error(e, "handle algo")
 
