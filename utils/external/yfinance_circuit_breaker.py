@@ -173,7 +173,7 @@ class YFinanceIPCircuitBreaker:
                     "last_success_time": row[4],
                     "reason": str(row[5]) if row[5] is not None else "",
                 }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to read ban state from PostgreSQL: {e}")
             return None
 
@@ -223,7 +223,7 @@ class YFinanceIPCircuitBreaker:
                 )
             self._cached_state = None
             logger.info("[YFINANCE-CIRCUIT-BREAKER] Ban state cleared (cooldown expired)")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to clear ban state: {e}")
 
     def get_diagnostics(self) -> dict[str, Any]:

@@ -64,7 +64,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                     }
                 ]
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[ALGO_METRICS] Failed to compute daily metrics: {e}. "
                 "Cannot proceed without performance tracking."

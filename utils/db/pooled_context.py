@@ -58,7 +58,7 @@ class PooledDatabaseContext:
         try:
             self.cursor = self.connection.cursor(cursor_factory=self.cursor_factory)
             return self.cursor
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"[POOLED_CONTEXT] Failed to create cursor: {e}", exc_info=True
             )
@@ -72,7 +72,7 @@ class PooledDatabaseContext:
         try:
             if self.cursor and self.close_cursor_on_exit:
                 self.cursor.close()
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[POOLED_CONTEXT] Error closing cursor: {e}")
 
         # Auto-commit on success (if we're in an explicit transaction)
@@ -81,12 +81,12 @@ class PooledDatabaseContext:
                 # Check if connection is in autocommit mode
                 if not self.connection.autocommit:
                     self.connection.commit()
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[POOLED_CONTEXT] Error committing: {e}")
         else:
             # Rollback on exception
             try:
                 if not self.connection.autocommit:
                     self.connection.rollback()
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"Operation failed: {e}") from e

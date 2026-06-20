@@ -105,7 +105,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "watermarks": watermarks,
             }
             logger.debug(f"Batch context: end={end}, bs_signals={actual_symbols}, watermarks={len(watermarks)} symbols")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for signal_quality_scores: {e}. "
                 "Cannot proceed without end_date and signal availability verification."
@@ -153,7 +153,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                         )
                         if last_bs and last_bs < end:
                             end = last_bs
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(f"Could not check buy_sell_daily max date: {e}")
 
         # On ECS restart the in-memory watermark is empty, so since=None.
@@ -289,7 +289,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     {"date": r[0].isoformat(), "signal_type": r[1]}
                     for r in cur.fetchall()
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[SIGNALS] Failed to fetch buy/sell signals for {symbol}: {e}. "
                 "Signal quality assessment requires valid signal data."
@@ -314,7 +314,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     }
                     for r in cur.fetchall()
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[TECHNICAL] Failed to fetch technical data for {symbol}: {e}. "
                 "Signal quality requires technical analysis data."
@@ -339,7 +339,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     }
                     for r in cur.fetchall()
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[TREND] Failed to fetch trend data for {symbol}: {e}. "
                 "Signal quality assessment requires trend analysis."
@@ -396,7 +396,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     }
                     for r in cur.fetchall()
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[VCP] Failed to fetch VCP patterns for {symbol}: {e}. "
                 "VCP pattern recognition is authoritative for trend confirmation."
@@ -414,7 +414,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 row = cur.fetchone()
                 if row and row[0] is not None:
                     return {"institutional_ownership": float(row[0])}
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
         return {}
 
@@ -686,7 +686,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     )
 
             return results
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[QUALITY] Failed to compute signal quality scores for {symbol}: {e}. "
                 "Quality assessment is authoritative for signal reliability."
@@ -768,7 +768,7 @@ def _sync_scores_to_buy_sell():
             rows = cur.rowcount
             if rows > 0:
                 logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to sync signal quality scores to buy_sell_daily: {e}")
         raise RuntimeError(
             f"[SYNC_FAILURE] Signal quality score sync failed: {e}. "

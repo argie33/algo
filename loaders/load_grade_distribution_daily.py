@@ -109,7 +109,7 @@ class GradeDistributionDailyLoader(OptimalLoader):
 
                 return [result] if result else None
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

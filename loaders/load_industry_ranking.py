@@ -115,7 +115,7 @@ class IndustryRankingLoader(OptimalLoader):
                     for r in rows
                 ]
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

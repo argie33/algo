@@ -68,7 +68,7 @@ class DataAgeValidator:
                 )
                 result = cur.fetchone()
                 max_date = result[0] if result else None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[{table_name}] Could not query {date_column}: {e}")
             return {
                 "is_fresh": False,

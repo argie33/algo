@@ -3,7 +3,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ class CheckResult:
         severity: str,
         target_table: str,
         message: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         self.check_name = check_name
         self.severity = severity
@@ -29,7 +29,7 @@ class CheckResult:
         self.message = message
         self.details = details or {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "check": self.check_name,
             "severity": self.severity,
@@ -47,10 +47,10 @@ class BaseCheck(ABC):
 
     def __init__(self, config: "PatrolConfig"):
         self.config = config
-        self.results: List[CheckResult] = []
+        self.results: list[CheckResult] = []
 
     @abstractmethod
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute the check and return results.
 
         Args:
@@ -59,7 +59,6 @@ class BaseCheck(ABC):
         Returns:
             List of CheckResult objects
         """
-        pass
 
     def log(
         self,
@@ -67,7 +66,7 @@ class BaseCheck(ABC):
         severity: str,
         target: str,
         message: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> CheckResult:
         """Create and store a result."""
         result = CheckResult(check_name, severity, target, message, details)

@@ -2,8 +2,9 @@
 
 import logging
 import traceback
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -40,9 +41,20 @@ def run(
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
+        from utils.db import DatabaseContext
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date)
+
+        # Check for partial fills that need immediate reconciliation
+        with DatabaseContext("write") as cur:
+            partial_fill_result = recon.check_partial_fills(cur)
+            if partial_fill_result.get("mismatches", 0) > 0:
+                logger.warning(
+                    f"[PHASE_3A] Detected {partial_fill_result['mismatches']} "
+                    f"partial fills — corrected quantities to match Alpaca"
+                )
+                result["partial_fill_corrections"] = partial_fill_result
 
         if result.get("success"):
             log_phase_result_fn(

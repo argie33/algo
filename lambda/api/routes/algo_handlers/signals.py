@@ -97,7 +97,7 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
             for sr in cur.fetchall():
                 if sr["sector"]:
                     sector_exposure[sr["sector"]] = safe_float(sr["sector_value"]) or 0.0
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
 

@@ -205,7 +205,7 @@ class StockScoresLoader(OptimalLoader):
                     "quick_ratio": float(row[6]) if row[6] else None,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_growth_metrics(self, cur, symbol: str) -> dict | None:
@@ -226,7 +226,7 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_5y": float(row[5]) if row[5] else None,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_value_metrics(self, cur, symbol: str) -> dict | None:
@@ -247,7 +247,7 @@ class StockScoresLoader(OptimalLoader):
                     "fcf_yield": float(row[5]) if row[5] else None,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_positioning_metrics(self, cur, symbol: str) -> dict | None:
@@ -265,7 +265,7 @@ class StockScoresLoader(OptimalLoader):
                     "short_interest": float(row[2]) if row[2] else None,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_stability_metrics(self, cur, symbol: str) -> dict | None:
@@ -285,7 +285,7 @@ class StockScoresLoader(OptimalLoader):
                     "debt_to_assets": float(row[4]) if row[4] else None,
                 }
             return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_momentum_metrics(self, cur, symbol: str) -> dict | None:

@@ -70,7 +70,7 @@ class EarningsHistoryLoader(OptimalLoader):
                         q = (dt.month - 1) // 3 + 1
                         qstart_month = (q - 1) * 3 + 1
                         quarter_str = f"{dt.year}-{qstart_month:02d}-01"
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Exception: {e}")
                         quarter_str = ed[:10]
 
@@ -84,7 +84,7 @@ class EarningsHistoryLoader(OptimalLoader):
                             "surprise_percent": _safe_float(surprise_pct),
                         }
                     )
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logging.debug(f"Earnings row error {symbol} {idx}: {e}")
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
@@ -100,7 +100,7 @@ class EarningsHistoryLoader(OptimalLoader):
                 rows = list(seen.values())
 
             return rows
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             error_msg = f"Failed to fetch earnings history for {symbol}: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e

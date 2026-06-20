@@ -3,7 +3,9 @@
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import psycopg2
 
 from .base import CheckResult
 
@@ -17,7 +19,7 @@ class PatrolLogger:
     def __init__(self, run_id: str):
         self.run_id = run_id
 
-    def log_configuration(self, cur, config: Dict[str, Any]) -> None:
+    def log_configuration(self, cur, config: dict[str, Any]) -> None:
         """Log patrol configuration snapshot at start of run."""
         try:
             cur.execute(
@@ -35,10 +37,10 @@ class PatrolLogger:
                     json.dumps(config),
                 ),
             )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log patrol configuration: {e}")
 
-    def log_results(self, cur, results: List[CheckResult]) -> None:
+    def log_results(self, cur, results: list[CheckResult]) -> None:
         """Log all check results to database."""
         if results:
             try:
@@ -60,7 +62,7 @@ class PatrolLogger:
                         for result in results
                     ],
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to log patrol results: {e}")
 
     def log_performance(self, cur, elapsed_seconds: float, status: str) -> None:
@@ -90,7 +92,7 @@ class PatrolLogger:
             logger.error(f"Failed to log patrol performance: {e}")
 
     def update_completion_status(
-        self, ready: bool, elapsed_seconds: Optional[float] = None
+        self, ready: bool, elapsed_seconds: float | None = None
     ) -> None:
         """Update DynamoDB with patrol completion status."""
         import os
@@ -119,7 +121,7 @@ class PatrolLogger:
             logger.info(
                 f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})"
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(
                 f"[PATROL] Could not update DynamoDB completion status: {e}"
             )

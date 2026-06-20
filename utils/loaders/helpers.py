@@ -125,7 +125,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
                     )
                     rows = cur.fetchall()
                     result["symbols"] = [row[0] for row in rows]
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 result["error"] = e
 
         # Run in thread with timeout for Windows compatibility

@@ -3,6 +3,8 @@
 import logging
 from datetime import date as _date
 
+import psycopg2
+
 from algo.signals import SignalComputer
 from utils.db import DatabaseContext
 from utils.signals import GradeClassifier
@@ -419,7 +421,7 @@ class AdvancedFilters:
             )
             if cur.fetchone():
                 score += 1.0
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # Weekly data missing or unavailable — continue without bonus
             logger.debug(
                 f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)"

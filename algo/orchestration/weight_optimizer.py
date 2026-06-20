@@ -13,7 +13,7 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 
 import logging
 from datetime import date as _date
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar
 
 
 try:
@@ -67,7 +67,7 @@ class WeightOptimizer:
             )
         self.config = config
 
-    def get_current_weights(self) -> Dict[str, int]:
+    def get_current_weights(self) -> dict[str, int]:
         """Fetch current weights from algo_config."""
         weights = {}
         for component, key in self.COMPONENT_KEYS.items():
@@ -77,7 +77,7 @@ class WeightOptimizer:
 
     def optimize(
         self, report_date: _date, lookback_trades: int = 40
-    ) -> Dict[str, int] | None:
+    ) -> dict[str, int] | None:
         """
         Compute optimal weights from IC values.
 
@@ -107,7 +107,7 @@ class WeightOptimizer:
                     "Weights cannot be optimized without sufficient closed trade history."
                 )
 
-            ic_list: List[float] = []
+            ic_list: list[float] = []
             for comp in self.COMPONENTS:
                 ic = ic_values.get(comp, {}).get("ic_value", 0)
                 ic_list.append(float(ic))
@@ -129,10 +129,10 @@ class WeightOptimizer:
             logger.info(f"Optimal weights on {report_date}: {optimal}")
             return optimal
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _solve_weights(self, ic_array: np.ndarray) -> Dict[str, int] | None:
+    def _solve_weights(self, ic_array: np.ndarray) -> dict[str, int] | None:
         """
         Solve constrained optimization for weights.
 
@@ -193,10 +193,10 @@ class WeightOptimizer:
             }
             return result_dict
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _equal_weights(self) -> Dict[str, int]:
+    def _equal_weights(self) -> dict[str, int]:
         """Return equal weights (7 components → ~14.3% each)."""
         base = 100 // len(self.COMPONENTS)
         remainder = 100 % len(self.COMPONENTS)
@@ -210,7 +210,7 @@ class WeightOptimizer:
         report_date: _date,
         regime: str = "confirmed_uptrend",
         dry_run: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run full optimization cycle: compute → blend → persist.
 
@@ -322,8 +322,8 @@ class WeightOptimizer:
     def _log_changes(
         self,
         report_date: _date,
-        old_weights: Dict[str, int],
-        new_weights: Dict[str, int],
+        old_weights: dict[str, int],
+        new_weights: dict[str, int],
         regime: str,
         blend_alpha: float,
     ) -> None:

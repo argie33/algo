@@ -69,7 +69,7 @@ def _audit_log_admin_action(
         psycopg2.DatabaseError,
     ) as e:
         logger.warning(f"[AUDIT_LOG] Database error: {type(e).__name__}: {e}")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[AUDIT_LOG] Unexpected error: {type(e).__name__}: {e}")
 
 

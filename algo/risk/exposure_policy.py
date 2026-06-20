@@ -3,7 +3,9 @@
 import logging
 import math
 from datetime import date as _date
-from typing import Any, Dict, List
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 #   correction           < 25%
 #
 # Upper bounds are exclusive (except the top tier) — no boundary overlap.
-EXPOSURE_TIERS: List[Dict[str, Any]] = [
+EXPOSURE_TIERS: list[dict[str, Any]] = [
     {
         "name": "confirmed_uptrend",
         "min_pct": 70,
@@ -141,7 +143,7 @@ class ExposurePolicy:
                     "halt_reasons": row[3],
                     "tier": tier,
                 }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def review_existing_positions(self, eval_date=None):
@@ -181,7 +183,7 @@ class ExposurePolicy:
                     if action and action["action"] != "hold":
                         actions.append(action)
                 return actions
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Position review failed: {e}") from e
 
     def _evaluate_position(self, row, tier):

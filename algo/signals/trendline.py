@@ -10,7 +10,6 @@ HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, Optional
 
 from utils.db import DatabaseContext
 
@@ -43,13 +42,13 @@ class TrendlineSupport:
                     (symbol, end_date - timedelta(days=days), end_date),
                 )
                 return cur.fetchall()
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch price history for {symbol}: {e}. "
                 "Cannot evaluate support trendlines without price data."
             ) from e
 
-    def find_support_line(self, symbol: str, eval_date: date) -> Optional[Dict]:
+    def find_support_line(self, symbol: str, eval_date: date) -> dict | None:
         """
         Find 2-point rising support line.
 
@@ -158,7 +157,7 @@ class TrendlineSupport:
 
     def validate_entry_near_trendline(
         self, symbol: str, eval_date: date, entry_price: float
-    ) -> Dict:
+    ) -> dict:
         """
         Check if entry_price is near (above) the support trendline.
 

@@ -245,7 +245,7 @@ class TCAEngine:
                     "avg_execution_latency_ms": int(avg_latency_dec.quantize(Decimal('1'), rounding=ROUND_HALF_UP)),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"TCA: daily_report failed: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -311,6 +311,6 @@ class TCAEngine:
                     "high_slippage_pct": float((Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"TCA: monthly_summary failed: {e}")
             return {"status": "error", "message": str(e)}

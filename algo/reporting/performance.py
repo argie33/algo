@@ -1,3 +1,6 @@
+import psycopg2
+
+
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
 
@@ -16,7 +19,7 @@ import json
 import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from utils.db import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
@@ -45,7 +48,7 @@ class LivePerformance:
     def __init__(self, config):
         self.config = config
 
-    def rolling_sharpe(self, lookback_days: int = 252) -> Optional[float]:
+    def rolling_sharpe(self, lookback_days: int = 252) -> float | None:
         """Compute rolling Sharpe ratio from daily portfolio returns.
 
         H17 FIX: Includes unrealized gains/losses from open trades since
@@ -79,10 +82,10 @@ class LivePerformance:
             ]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def win_rate(self, lookback_trades: int = 50) -> Optional[Dict[str, float]]:
+    def win_rate(self, lookback_trades: int = 50) -> dict[str, float] | None:
         """Compute win rate and average R-multiple from closed trades.
 
         Args:
@@ -157,10 +160,10 @@ class LivePerformance:
                 "avg_win_r": round(avg_win_r, 3),
                 "avg_loss_r": round(avg_loss_r, 3),
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def expectancy(self, lookback_trades: int = 50) -> Optional[float]:
+    def expectancy(self, lookback_trades: int = 50) -> float | None:
         """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
 
         Args:
@@ -184,7 +187,7 @@ class LivePerformance:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def max_drawdown(self) -> Optional[float]:
+    def max_drawdown(self) -> float | None:
         """Compute maximum drawdown from peak portfolio value.
 
         Returns:
@@ -204,10 +207,10 @@ class LivePerformance:
 
             values = [float(row[1]) for row in rows]
             return MetricsCalculator.calculate_max_drawdown(values)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def rolling_sortino(self, lookback_days: int = 252) -> Optional[float]:
+    def rolling_sortino(self, lookback_days: int = 252) -> float | None:
         """Annualized Sortino ratio — penalizes only downside volatility.
 
         More appropriate than Sharpe for directional swing strategies where
@@ -235,10 +238,10 @@ class LivePerformance:
             ]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def calmar_ratio(self, lookback_days: int = 252) -> Optional[float]:
+    def calmar_ratio(self, lookback_days: int = 252) -> float | None:
         """Calmar ratio = annualized return / abs(max drawdown).
 
         Standard benchmark for trend-following strategies. Higher is better.
@@ -260,10 +263,10 @@ class LivePerformance:
 
             values = [float(r[0]) for r in rows]
             return MetricsCalculator.calculate_calmar_ratio(values)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
+    def backtest_vs_live_comparison(self) -> dict[str, Any] | None:
         """Compare live metrics to backtest reference metrics.
 
         Returns:
@@ -278,7 +281,7 @@ class LivePerformance:
                 logger.info(f"Performance: Reference metrics not found at {ref_file}")
                 return None
 
-            with open(ref_file, "r") as f:
+            with open(ref_file) as f:
                 backtest_metrics = json.load(f)
 
             # Compute live metrics
@@ -317,8 +320,8 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def generate_daily_report(
-        self, report_date: Optional[date] = None
-    ) -> Dict[str, Any]:
+        self, report_date: date | None = None
+    ) -> dict[str, Any]:
         """Generate comprehensive daily performance report.
 
         Args:

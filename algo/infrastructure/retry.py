@@ -22,7 +22,7 @@ import functools
 import logging
 import random
 import time
-from typing import Callable, Tuple, Type
+from collections.abc import Callable
 
 from algo.infrastructure.constants import (
     ALPACA_DATA_RATE_LIMIT_CPM,
@@ -46,7 +46,7 @@ def retry(
     max_delay: float = RETRY_MAX_DELAY_SEC,
     backoff: float = RETRY_BACKOFF_MULTIPLIER,
     jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable:
     """
     Exponential backoff retry decorator.

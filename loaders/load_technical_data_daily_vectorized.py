@@ -317,7 +317,7 @@ class VectorizedTechnicalLoader:
                                 # Replace infinities with NaN
                                 mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
                                 symbol_df["mansfield_rs"] = mansfield_result
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.debug(f"Could not compute Mansfield RS for {symbol} (optional enrichment): {e}")
                     symbol_df["mansfield_rs"] = None
 
@@ -630,7 +630,7 @@ def main():
 
         return 0 if final_status == "completed" else 1
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)
         _update_tech_loader_status("FAILED", f"Unexpected error: {e!s}")
         return 1

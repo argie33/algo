@@ -104,7 +104,7 @@ class TradeRecorder:
                 )
                 return True
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"Failed to record entry for {symbol}: {e}. "
                 "Cannot proceed without recording trade entry."
@@ -219,7 +219,7 @@ class TradeRecorder:
                 )
                 return True
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"Failed to record exit for {symbol}: {e}. "
                 "Cannot proceed without recording trade exit."
@@ -248,7 +248,7 @@ class TradeRecorder:
 
                 return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to update price for {symbol}: {e}. "
                 "Cannot proceed without updating position price."
@@ -283,7 +283,7 @@ class TradeRecorder:
                     for r in rows
                 ]
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"Failed to get open positions: {e}. "
                 "Cannot proceed without accurate position tracking."

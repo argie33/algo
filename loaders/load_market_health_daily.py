@@ -69,7 +69,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                                 if isinstance(row[0], date)
                                 else date.fromisoformat(str(row[0]))
                             )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[MARKET_HEALTH] Failed to read watermark from market_health_daily: {e}. "
                     "Cannot determine incremental load point."
@@ -274,7 +274,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     logger.warning(f"Put/call: option_chain({exp}) data format error: {e}")
                     chain_errors += 1
                     continue
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.warning(f"Put/call: option_chain({exp}) unexpected error: {e}")
                     chain_errors += 1
                     continue
@@ -318,7 +318,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             if result:
                 logger.info(f"Fetched yield curve data: {len(result)} days")
             return result
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[YIELD_CURVE] Failed to fetch yield curve data from economic_metrics_daily: {e}. "
                 "Cannot compute market health without yield curve slope data."
@@ -357,7 +357,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                                 "new_highs_count": int(r[2]),
                                 "new_lows_count": int(r[3]),
                             }
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         raise RuntimeError(
                             f"[BREADTH] Failed to fetch cached breadth data: {e}. "
                             "Cannot verify previously computed market breadth metrics."
@@ -416,7 +416,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     }
 
                 return result
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BREADTH] Failed to compute breadth data: {e}. "
                 "Advance/decline ratio and new highs/lows are authoritative for market health."
@@ -441,7 +441,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     }
                     for r in cur.fetchall()
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[PRICE_DATA] Failed to fetch price data for {symbol}: {e}. "
                 "Cannot compute market health without SPY price data."
@@ -721,7 +721,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
         logger.info(f"Upserted {len(records)} VIX family price rows into price_daily")
         return len(records)
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(
             f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
             "Market health daily depends on VIX/index price data availability."

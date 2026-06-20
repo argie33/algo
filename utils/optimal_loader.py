@@ -333,7 +333,7 @@ class OptimalLoader(ABC):
                 )
         except RuntimeError:
             raise
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[{self.table_name}] Failed to fetch RDS connection count from CloudWatch: {e}. "
                 "Infrastructure visibility loss—must resolve CloudWatch connectivity before proceeding."
@@ -571,7 +571,7 @@ class OptimalLoader(ABC):
                     logger.debug(f"Constraint already exists: {e}")
                 else:
                     logger.warning(f"Cannot create constraint: {e}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Error checking/creating constraint: {e}")
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
@@ -764,7 +764,13 @@ class OptimalLoader(ABC):
             previous = wm_store.get(symbol) if wm_store else None
             previous_date = self._parse_watermark_date(previous)  # type: ignore[assignment]
 
-        rows = self.fetch_incremental(symbol, previous_date)
+        try:
+            rows = self.fetch_incremental(symbol, previous_date)
+        except Exception as e:
+            raise RuntimeError(
+                f"[{self.table_name}] {symbol}: Failed to fetch data: {e}"
+            ) from e
+
         if not rows:
             logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
             self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
@@ -1488,7 +1494,13 @@ class OptimalLoader(ABC):
                     else None
                 )
 
-            rows = self.fetch_global(since)
+            try:
+                rows = self.fetch_global(since)
+            except Exception as e:
+                raise RuntimeError(
+                    f"[{self.table_name}] fetch_global failed: {e}"
+                ) from e
+
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned no rows")
                 return 0

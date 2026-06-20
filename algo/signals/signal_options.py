@@ -9,7 +9,7 @@ Gracefully handle missing options data (many small-caps have no options).
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 
-    def iv_rank_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
+    def iv_rank_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         def _fetch_iv(cur):
             cur.execute(
                 """
@@ -59,11 +59,11 @@ class SignalOptionsMixin:
 
         try:
             return self._with_cursor(_fetch_iv) or {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}  # type: ignore[attr-defined]
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"IV rank signal failed for {symbol}: {e}")
             return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
-    def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
+    def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Stock-level put/call ratio from options_chains.
 
@@ -125,7 +125,7 @@ class SignalOptionsMixin:
         self,
         symbol: str,
         eval_date: _date,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Options-implied move = current_IV * sqrt(days_to_expiry / 365)
 
@@ -189,7 +189,7 @@ class SignalOptionsMixin:
                 "underpriced": False,
                 "bonus_pts": 0.0,
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Implied move signal failed for {symbol}: {e}")
             return {
                 "implied_move_pct": None,
@@ -198,7 +198,7 @@ class SignalOptionsMixin:
                 "bonus_pts": 0.0,
             }
 
-    def options_signal(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
+    def options_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Aggregate all options signals for use in momentum component scoring.
 

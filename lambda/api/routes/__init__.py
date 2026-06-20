@@ -18,6 +18,7 @@ __all__ = [
     "research",
     "audit",
     "trades",
+    "positions",
     "admin",
     "contact",
     "settings",

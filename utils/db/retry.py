@@ -186,7 +186,7 @@ class OptimisticLockRetry:
                     msg = f"[Retry] {operation_name} succeeded after {attempt + 1} attempts"
                     logger.info(msg)
                 return result
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 last_error = e
                 if not should_retry(e):
                     StructuredDBLogger.log_db_error(

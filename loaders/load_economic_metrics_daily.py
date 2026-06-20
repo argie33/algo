@@ -78,7 +78,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                             cpi_error = "prev_cpi_zero"
                     else:
                         cpi_error = "no_current_cpi"
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     cpi_error = f"cpi_error:{type(e).__name__}"
                     logger.warning(f"Failed to compute CPI YoY: {e}")
 
@@ -117,7 +117,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                             spy_error = "prev_price_zero"
                     else:
                         spy_error = f"insufficient_data:{len(spy_rows)}"
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     spy_error = f"spy_error:{type(e).__name__}"
                     logger.warning(f"Failed to compute SPY price change: {e}")
 
@@ -153,7 +153,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         ycs_10y2y = round(dgs10 - dgs2, 3)
                     else:
                         ycs_error = f"missing_data:DGS10={dgs10},DGS2={dgs2}"
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     ycs_error = f"ycs_error:{type(e).__name__}"
                     logger.warning(f"Failed to compute yield curve slope: {e}")
 

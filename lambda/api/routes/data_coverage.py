@@ -321,22 +321,22 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
             logger.debug(f"[SAVEPOINT_RELEASE] Database error: {type(e).__name__}: {e}")
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
-            except Exception as sp_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                 logger.debug(
                     f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(
                 f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}"
             )
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
-            except Exception as sp_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                 logger.debug(
                     f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
                 )
         return result
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         # fn failed - rollback the savepoint and return error dict
         try:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
@@ -344,7 +344,7 @@ def _safe_call(cur, fn) -> Dict[str, Any]:
             logger.warning(
                 f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}"
             )
-        except Exception as rollback_err:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
             logger.warning(
                 f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}"
             )

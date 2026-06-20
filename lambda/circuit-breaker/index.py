@@ -124,7 +124,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
             )
             return current_pnl, open_pnl, variance
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             last_err = e
             logger.warning(f"DB attempt {attempt}/{max_attempts} failed: {e}")
             if attempt < max_attempts:

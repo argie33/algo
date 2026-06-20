@@ -312,7 +312,7 @@ class DataSourceRouter:
         except TimeoutError as e:
             logger.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
             raise Exception(f"yfinance timeout: {e}")
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             if any(
                 keyword in str(e).lower()
                 for keyword in [
@@ -449,7 +449,7 @@ class DataSourceRouter:
         except TimeoutError as e:
             logger.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
             raise Exception(f"yfinance batch timeout: {e}")
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             if any(
                 keyword in str(e).lower()
                 for keyword in [

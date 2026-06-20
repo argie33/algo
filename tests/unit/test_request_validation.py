@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 from models.requests import (
     ContactSubmissionRequest,
     ManualTradeRequest,
+    PositionUpdateRequest,
     PreTradeImpactRequest,
     TradePreviewRequest,
     VerifyUserEmailRequest,
@@ -594,6 +595,261 @@ class TestManualTradeRequest:
             stop_loss_price=155.00,
         )
         assert req.stop_loss_price == 155.00
+
+
+class TestPositionUpdateRequest:
+    """Test POST /api/position/update request validation."""
+
+    def test_valid_minimal_request(self):
+        """Valid request with required position_id only."""
+        req = PositionUpdateRequest(position_id=1)
+        assert req.position_id == 1
+        assert req.quantity is None
+        assert req.stop_loss_price is None
+
+    def test_valid_quantity_update(self):
+        """Valid request updating quantity."""
+        req = PositionUpdateRequest(position_id=1, quantity=100)
+        assert req.position_id == 1
+        assert req.quantity == 100
+
+    def test_valid_stop_loss_update(self):
+        """Valid request updating stop loss."""
+        req = PositionUpdateRequest(position_id=1, stop_loss_price=145.50)
+        assert req.position_id == 1
+        assert req.stop_loss_price == 145.50
+
+    def test_valid_target_prices_update(self):
+        """Valid request updating target prices."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            target_1_price=155.00,
+            target_2_price=165.00,
+            target_3_price=175.00,
+        )
+        assert req.target_1_price == 155.00
+        assert req.target_2_price == 165.00
+        assert req.target_3_price == 175.00
+
+    def test_missing_position_id_rejected(self):
+        """Missing position_id is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(quantity=100)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "position_id" for err in errors)
+
+    def test_zero_position_id_rejected(self):
+        """Zero position_id is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=0)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "position_id" for err in errors)
+
+    def test_negative_position_id_rejected(self):
+        """Negative position_id is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=-1)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "position_id" for err in errors)
+
+    def test_zero_quantity_rejected(self):
+        """Zero quantity is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, quantity=0)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "quantity" for err in errors)
+
+    def test_negative_quantity_rejected(self):
+        """Negative quantity is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, quantity=-100)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "quantity" for err in errors)
+
+    def test_unreasonably_large_quantity_rejected(self):
+        """Quantity over 1,000,000 is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, quantity=1_000_001)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "quantity" for err in errors)
+
+    def test_valid_large_quantity_accepted(self):
+        """Quantity up to 1,000,000 is accepted."""
+        req = PositionUpdateRequest(position_id=1, quantity=1_000_000)
+        assert req.quantity == 1_000_000
+
+    def test_zero_stop_loss_rejected(self):
+        """Zero stop loss price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, stop_loss_price=0)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "stop_loss_price" for err in errors)
+
+    def test_negative_stop_loss_rejected(self):
+        """Negative stop loss price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, stop_loss_price=-10.50)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "stop_loss_price" for err in errors)
+
+    def test_unreasonably_large_stop_loss_rejected(self):
+        """Stop loss price over $1M is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, stop_loss_price=1_000_001)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "stop_loss_price" for err in errors)
+
+    def test_zero_target_price_rejected(self):
+        """Zero target price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, target_1_price=0)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "target_1_price" for err in errors)
+
+    def test_negative_target_price_rejected(self):
+        """Negative target price is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, target_2_price=-100)
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "target_2_price" for err in errors)
+
+    def test_stop_loss_vs_entry_validation_long(self):
+        """For long positions, stop loss must be below entry price."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            stop_loss_price=155.00,
+            position_type="buy",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_stop_loss_vs_entry()
+        assert "must be below" in str(exc_info.value)
+
+    def test_stop_loss_vs_entry_validation_short(self):
+        """For short positions, stop loss must be above entry price."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            stop_loss_price=145.00,
+            position_type="sell",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_stop_loss_vs_entry()
+        assert "must be above" in str(exc_info.value)
+
+    def test_stop_loss_too_close_to_entry_long(self):
+        """Stop loss too close to entry price (long) is rejected."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            stop_loss_price=149.995,
+            position_type="long",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_stop_loss_vs_entry()
+        assert "too close" in str(exc_info.value)
+
+    def test_valid_stop_loss_for_long(self):
+        """Valid stop loss below entry for long position."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            stop_loss_price=145.00,
+            position_type="buy",
+        )
+        req.validate_stop_loss_vs_entry()  # Should not raise
+
+    def test_valid_stop_loss_for_short(self):
+        """Valid stop loss above entry for short position."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            stop_loss_price=155.00,
+            position_type="short",
+        )
+        req.validate_stop_loss_vs_entry()  # Should not raise
+
+    def test_targets_must_be_above_entry_long(self):
+        """For long positions, targets must be above entry price."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            target_1_price=145.00,
+            position_type="buy",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_targets_vs_entry()
+        assert "must be above" in str(exc_info.value)
+
+    def test_targets_must_be_below_entry_short(self):
+        """For short positions, targets must be below entry price."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            target_2_price=155.00,
+            position_type="sell",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_targets_vs_entry()
+        assert "must be below" in str(exc_info.value)
+
+    def test_valid_targets_for_long(self):
+        """Valid targets above entry for long position."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            entry_price=150.00,
+            target_1_price=155.00,
+            target_2_price=165.00,
+            target_3_price=175.00,
+            position_type="buy",
+        )
+        req.validate_targets_vs_entry()  # Should not raise
+
+    def test_targets_must_be_ordered_ascending_long(self):
+        """For long positions, targets must be in ascending order."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            target_1_price=170.00,
+            target_2_price=160.00,
+            target_3_price=180.00,
+            position_type="long",
+        )
+        with pytest.raises(ValueError) as exc_info:
+            req.validate_targets_ordered()
+        assert "ascending order" in str(exc_info.value)
+
+    def test_valid_targets_ordered(self):
+        """Valid targets in correct order."""
+        req = PositionUpdateRequest(
+            position_id=1,
+            target_1_price=155.00,
+            target_2_price=165.00,
+            target_3_price=175.00,
+            position_type="long",
+        )
+        req.validate_targets_ordered()  # Should not raise
+
+    def test_position_type_normalized_to_lowercase(self):
+        """Position type is normalized to lowercase."""
+        req = PositionUpdateRequest(position_id=1, position_type="BUY")
+        assert req.position_type == "buy"
+
+    def test_invalid_position_type_rejected(self):
+        """Invalid position type is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            PositionUpdateRequest(position_id=1, position_type="invalid")
+        errors = exc_info.value.errors()
+        assert any(err["loc"][0] == "position_type" for err in errors)
+
+    def test_position_type_sell_valid(self):
+        """Position type 'sell' is valid."""
+        req = PositionUpdateRequest(position_id=1, position_type="sell")
+        assert req.position_type == "sell"
+
+    def test_position_type_short_valid(self):
+        """Position type 'short' is valid."""
+        req = PositionUpdateRequest(position_id=1, position_type="short")
+        assert req.position_type == "short"
 
 
 if __name__ == "__main__":

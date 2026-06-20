@@ -148,7 +148,7 @@ class VectorizedSwingScoresLoader:
                 return pd.DataFrame(
                     cur.fetchall(), columns=["symbol", "date", "composite_sqs"]
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to fetch signal scores: {e}")
             return pd.DataFrame()
 
@@ -169,7 +169,7 @@ class VectorizedSwingScoresLoader:
                     cur.fetchall(),
                     columns=["symbol", "date", "rsi", "atr_14", "volume_ma_50"],
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to fetch technical data: {e}")
             return pd.DataFrame()
 
@@ -197,7 +197,7 @@ class VectorizedSwingScoresLoader:
                         "trend_direction",
                     ],
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to fetch trend data: {e}")
             return pd.DataFrame()
 
@@ -366,7 +366,7 @@ class VectorizedSwingScoresLoader:
 
                 return inserted
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 

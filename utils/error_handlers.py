@@ -38,7 +38,7 @@ def log_sanitizer(operation: str = "operation"):
         with log_sanitizer("fetch user data") as safe_log:
             try:
                 # risky operation
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 safe_log.error(e, context={"user_id": user_id})
 
     Args:

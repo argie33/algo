@@ -55,7 +55,7 @@ class TrendCriteriaLoader(OptimalLoader):
                         f"[TrendCriteria] Price data only available to {max_price_date}, using that as end date"
                     )
                     end = max_price_date
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[TrendCriteria] Failed to query max price date from database: {e}. "
                 "Cannot determine batch context without authoritative price data availability."

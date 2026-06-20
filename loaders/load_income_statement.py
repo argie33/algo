@@ -124,7 +124,7 @@ class IncomeStatementLoader(OptimalLoader):
                     (symbol,),
                 )
                 return {row[0] for row in cur.fetchall()}
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[INCOME_STATEMENT] Failed to query {self.table_name} for {symbol} (revenue=NULL check): {e}. "
                 "Database error prevents incremental loading. Cannot proceed."

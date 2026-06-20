@@ -93,7 +93,7 @@ class YFinanceWrapper:
                 )
                 logger.info(f"Created yfinance session (attempt {attempt + 1})")
                 return session
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 logger.warning(f"Failed to create session (attempt {attempt + 1}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2**attempt)

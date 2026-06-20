@@ -41,7 +41,7 @@ def get_db_connection():
             connect_timeout=10,
         )
         return conn
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Database connection failed: {e}")
         raise
 

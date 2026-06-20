@@ -18,7 +18,7 @@ Alerts:
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from utils.db import DatabaseContext
 
@@ -34,7 +34,7 @@ class ValueAtRisk:
 
     def historical_var(
         self, confidence: float = 0.95, lookback_days: int = 252
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute historical simulation VaR.
 
         Args:
@@ -98,12 +98,12 @@ class ValueAtRisk:
                     "data_points": len(returns),
                 }
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def cvar(
         self, confidence: float = 0.95, lookback_days: int = 252
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
 
         Args:
@@ -173,10 +173,10 @@ class ValueAtRisk:
                     "tail_event_count": len(tail_losses),
                 }
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def stressed_var(self, confidence: float = 0.99) -> Optional[Dict[str, Any]]:
+    def stressed_var(self, confidence: float = 0.99) -> dict[str, Any] | None:
         """Compute stressed VaR using worst 12-month rolling window.
 
         Conservative measure for stress periods.
@@ -237,10 +237,10 @@ class ValueAtRisk:
                     "interpretation": f"Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%",
                 }
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def beta_exposure(self) -> Optional[Dict[str, Any]]:
+    def beta_exposure(self) -> dict[str, Any] | None:
         """Compute portfolio beta exposure vs. S&P 500.
 
         Returns:
@@ -348,7 +348,7 @@ class ValueAtRisk:
                                     var = sum((r - m_mean) ** 2 for r in m_rets) / n
                                     if var > 0:
                                         estimated_beta = round(cov / var, 2)
-                        except Exception as e:
+                        except (ValueError, ZeroDivisionError, TypeError) as e:
                             raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 
                     weighted_beta = estimated_beta * position_weight
@@ -373,7 +373,7 @@ class ValueAtRisk:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def concentration_report(self) -> Optional[Dict[str, Any]]:
+    def concentration_report(self) -> dict[str, Any] | None:
         """Generate concentration report: top holdings, sectors, industries.
 
         Returns:
@@ -429,8 +429,8 @@ class ValueAtRisk:
                 portfolio_value = float(portfolio_row[0])
 
                 top_holdings = []
-                sector_exposure: Dict[str, float] = {}
-                industry_exposure: Dict[str, float] = {}
+                sector_exposure: dict[str, float] = {}
+                industry_exposure: dict[str, float] = {}
 
                 excluded_count = 0
                 for symbol, qty, cur_price, entry_price, sector, industry in positions:
@@ -508,8 +508,8 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def generate_daily_risk_report(
-        self, report_date: Optional[date] = None
-    ) -> Dict[str, Any]:
+        self, report_date: date | None = None
+    ) -> dict[str, Any]:
         """Generate comprehensive daily risk report.
 
         Args:
@@ -558,8 +558,8 @@ class ValueAtRisk:
                 else "  Top 5 Concentration: <unavailable>"
             )
 
-            alerts: List[str] = []
-            result: Dict[str, Any] = {
+            alerts: list[str] = []
+            result: dict[str, Any] = {
                 "report_date": report_date,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "status": "ok",

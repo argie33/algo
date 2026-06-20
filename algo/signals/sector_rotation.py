@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 
 """
@@ -286,7 +289,7 @@ class SectorRotationDetector:
                         details_json,
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True
             )

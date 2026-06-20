@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager

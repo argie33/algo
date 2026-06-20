@@ -2,7 +2,6 @@
 """Price sanity checks - extreme moves, corporate actions, sequence continuity."""
 
 import logging
-from typing import List
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 class PriceSanityChecker(BaseCheck):
     """Check price data for extreme moves, corporate actions, and sequence gaps."""
 
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute all price sanity checks."""
         self.results = []
 
@@ -86,7 +85,7 @@ class PriceSanityChecker(BaseCheck):
                     "No extreme moves detected",
                     None,
                 )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log("price_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_corporate_actions(self, cur) -> None:
@@ -180,5 +179,5 @@ class PriceSanityChecker(BaseCheck):
                     "SPY price sequence contiguous",
                     None,
                 )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log("sequence", ERROR, "price_daily", f"Check failed: {e}", None)

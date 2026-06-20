@@ -31,11 +31,14 @@ import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, Skel
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
 import { safeGetMarketCurrent, safeNumericValue, ensureArray } from '../utils/dataValidation';
 import { add } from '../utils/decimalMath';
+import {
+  toSafeNumber, safeDivide, safePercentage, safePortfolioValue, safePnlPercentage,
+  safeAccumulate, safeGet, safeGetArray, isValidCalculation, buildSafeObject,
+} from '../utils/safeCalculations';
 
 const Pnl = ({ value, suffix = '' }) => {
-  if (value == null) return <span className="muted">—</span>;
-  const v = Number(value);
-  if (isNaN(v)) return <span className="muted">—</span>;
+  const v = toSafeNumber(value, null);
+  if (v === null) return <span className="muted">—</span>;
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
   const sign = v > 0 ? '+' : '';
   return (
@@ -241,17 +244,11 @@ function PortfolioDashboardPage() {
     distribution_days: currentExp.distribution_days_4w ?? currentExp.distribution_days ?? 0,
   };
 
-  // Compute portfolio metrics with decimal precision
-  const unrealizedPnl = portfolio.unrealized_pnl_dollars ?? 0;
-  const totalPositionValue = safePositionsList.length > 0
-    ? parseFloat(safePositionsList.reduce((s, p) => {
-        const val = p?.position_value ?? '0';
-        return add(s, val, 2);
-      }, '0'))
-    : 0;
-  const totalValue = (portfolio.total_value != null && !isNaN(Number(portfolio.total_value)))
-    ? parseFloat(portfolio.total_value)
-    : (totalPositionValue || 0);
+  // Compute portfolio metrics with safe calculations
+  const unrealizedPnl = toSafeNumber(safeGet(portfolio, 'unrealized_pnl_dollars'), 0);
+  const totalPositionValue = safePortfolioValue(safePositionsList);
+  const portfolioTotalValue = toSafeNumber(safeGet(portfolio, 'total_value'), null);
+  const totalValue = portfolioTotalValue !== null ? portfolioTotalValue : totalPositionValue;
 
   // Unified error and cache detection using helper functions
   const hasCachedPerf = isCached(perf);
@@ -433,7 +430,7 @@ function PortfolioDashboardPage() {
           />
           <Kpi
             label="Unrealized P&L"
-            value={<Pnl value={totalValue > 0 ? (unrealizedPnl / totalValue * 100) : null} suffix="%" />}
+            value={<Pnl value={safePnlPercentage(unrealizedPnl, totalValue)} suffix="%" />}
             sub={`$${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(0)} unrealized`}
             icon={Activity}
             tone={unrealizedPnl >= 0 ? 'up' : 'down'}
@@ -867,25 +864,26 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
       <div className="card-body">
         <div className={`grid grid-${gridCols}`} style={{ gap: 'var(--space-3)' }}>
           {breakers.map(b => {
-            const utilPct = b.threshold > 0
-              ? Math.min(100, Math.round((Number(b.current) / Number(b.threshold)) * 100))
-              : 0;
-            const tone = b.triggered ? 'down' : utilPct > 75 ? '' : 'up';
-            const color = b.triggered ? 'var(--danger)'
+            const current = toSafeNumber(b.current, 0);
+            const threshold = toSafeNumber(b.threshold, 1);
+            const utilPct = Math.min(100, Math.round(safePercentage(current, threshold, 0)));
+            const triggered = b.triggered === true;
+            const tone = triggered ? 'down' : utilPct > 75 ? '' : 'up';
+            const color = triggered ? 'var(--danger)'
                         : utilPct > 75 ? 'var(--amber)' : 'var(--success)';
             return (
               <div key={b.id} className="card" style={{ padding: 'var(--space-3)' }}>
                 <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                  <div className="t-xs muted strong">{b.label}</div>
-                  <span className={`badge ${b.triggered ? 'badge-danger' : 'badge-success'}`}
+                  <div className="t-xs muted strong">{safeGet(b, 'label', 'Breaker')}</div>
+                  <span className={`badge ${triggered ? 'badge-danger' : 'badge-success'}`}
                         style={{ fontSize: 'var(--t-2xs)' }}>
-                    {b.triggered ? 'TRIPPED' : 'OK'}
+                    {triggered ? 'TRIPPED' : 'OK'}
                   </span>
                 </div>
                 <div className={`mono tnum ${tone}`} style={{ fontSize: 'var(--t-lg)', fontWeight: 'var(--w-bold)' }}>
-                  {b.current}{b.unit}
+                  {current}{safeGet(b, 'unit', '')}
                   <span className="muted t-xs" style={{ marginLeft: 6, fontWeight: 'var(--w-medium)' }}>
-                    / {b.threshold}{b.unit}
+                    / {threshold}{safeGet(b, 'unit', '')}
                   </span>
                 </div>
                 <div style={{
@@ -896,7 +894,7 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
                   <div style={{ height: '100%', width: `${utilPct}%`, background: color, transition: 'width 200ms' }} />
                 </div>
                 <div className="t-2xs muted" style={{ marginTop: 'var(--space-2)', lineHeight: 1.3 }}>
-                  {b.description}
+                  {safeGet(b, 'description', '')}
                 </div>
               </div>
             );
@@ -911,10 +909,12 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
 function EquityCurve({ series, loading }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
-    return series.map(s => ({
-      date: String(s.snapshot_date || '').slice(5, 10),
-      value: Number(s.total_portfolio_value || 0),
-    })).filter(d => d.value > 0);
+    return series
+      .map(s => ({
+        date: String(safeGet(s, 'snapshot_date', '')).slice(5, 10),
+        value: toSafeNumber(safeGet(s, 'total_portfolio_value'), 0),
+      }))
+      .filter(d => d.value > 0);
   }, [series]);
 
   return (
@@ -962,8 +962,8 @@ function DrawdownChart({ series, loading }) {
     if (!series || series.length === 0) return [];
     return series
       .map(s => ({
-        date: String(s.snapshot_date || '').slice(5, 10),
-        dd: Number(s.drawdown_pct || 0),
+        date: String(safeGet(s, 'snapshot_date', '')).slice(5, 10),
+        dd: toSafeNumber(safeGet(s, 'drawdown_pct'), 0),
       }))
       .filter(s => s.dd !== 0 || s.date);
   }, [series]);
@@ -1012,8 +1012,8 @@ function DrawdownChart({ series, loading }) {
 function DailyReturnHistogram({ histogram_data, loading, error }) {
   const { buckets, stats } = useMemo(() => {
     if (!histogram_data || typeof histogram_data !== 'object') return { buckets: [], stats: null };
-    const bucketList = Array.isArray(histogram_data.buckets) ? histogram_data.buckets : [];
-    const statData = histogram_data.stats && typeof histogram_data.stats === 'object' ? histogram_data.stats : null;
+    const bucketList = safeGetArray(histogram_data, 'buckets', []);
+    const statData = safeGet(histogram_data, 'stats', null);
     return { buckets: bucketList, stats: statData };
   }, [histogram_data]);
 
@@ -1073,8 +1073,7 @@ function DailyReturnHistogram({ histogram_data, loading, error }) {
 // ─── Trade outcome distribution ────────────────────────────────────────────
 function TradeDistribution({ distribution_data, loading, error }) {
   const buckets = useMemo(() => {
-    if (!distribution_data || typeof distribution_data !== 'object') return [];
-    return Array.isArray(distribution_data.buckets) ? distribution_data.buckets : [];
+    return safeGetArray(distribution_data, 'buckets', []);
   }, [distribution_data]);
 
   return (
@@ -1126,8 +1125,7 @@ function TradeDistribution({ distribution_data, loading, error }) {
 // ─── Holding period histogram ──────────────────────────────────────────────
 function HoldingPeriodHistogram({ holding_data, error }) {
   const buckets = useMemo(() => {
-    if (!holding_data || typeof holding_data !== 'object') return [];
-    return Array.isArray(holding_data.buckets) ? holding_data.buckets : [];
+    return safeGetArray(holding_data, 'buckets', []);
   }, [holding_data]);
 
   return (
@@ -1173,23 +1171,25 @@ function RLadderPanel({ positions, loading, onSelect }) {
   const ladders = useMemo(() => {
     if (!Array.isArray(posArray) || posArray.length === 0) return [];
     return posArray
-      .filter(p => p && p.ladder_pct_stop != null && p.ladder_pct_entry != null && p.ladder_pct_current != null)
+      .filter(p => p && toSafeNumber(safeGet(p, 'ladder_pct_stop'), null) !== null &&
+                      toSafeNumber(safeGet(p, 'ladder_pct_entry'), null) !== null &&
+                      toSafeNumber(safeGet(p, 'ladder_pct_current'), null) !== null)
       .map(p => ({
-        symbol: p.symbol,
-        r_multiple: p.r_multiple,
-        entry: p.avg_entry_price,
-        cur: p.current_price,
-        stop: p.stop_loss_price,
-        t1: p.target_1_price,
-        t2: p.target_2_price,
-        t3: p.target_3_price,
-        unrealized_pnl_pct: p.unrealized_pnl_pct,
-        pStop: p.ladder_pct_stop,
-        pEntry: p.ladder_pct_entry,
-        pCur: p.ladder_pct_current,
-        pT1: p.ladder_pct_t1,
-        pT2: p.ladder_pct_t2,
-        pT3: p.ladder_pct_t3,
+        symbol: safeGet(p, 'symbol', '—'),
+        r_multiple: toSafeNumber(safeGet(p, 'r_multiple'), null),
+        entry: toSafeNumber(safeGet(p, 'avg_entry_price'), 0),
+        cur: toSafeNumber(safeGet(p, 'current_price'), 0),
+        stop: toSafeNumber(safeGet(p, 'stop_loss_price'), 0),
+        t1: toSafeNumber(safeGet(p, 'target_1_price'), null),
+        t2: toSafeNumber(safeGet(p, 'target_2_price'), null),
+        t3: toSafeNumber(safeGet(p, 'target_3_price'), null),
+        unrealized_pnl_pct: toSafeNumber(safeGet(p, 'unrealized_pnl_pct'), 0),
+        pStop: toSafeNumber(safeGet(p, 'ladder_pct_stop'), 0),
+        pEntry: toSafeNumber(safeGet(p, 'ladder_pct_entry'), 0),
+        pCur: toSafeNumber(safeGet(p, 'ladder_pct_current'), 0),
+        pT1: toSafeNumber(safeGet(p, 'ladder_pct_t1'), null),
+        pT2: toSafeNumber(safeGet(p, 'ladder_pct_t2'), null),
+        pT3: toSafeNumber(safeGet(p, 'ladder_pct_t3'), null),
       }));
   }, [posArray]);
 
@@ -1269,17 +1269,19 @@ function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
   const data = useMemo(() => {
     if (!Array.isArray(posArray) || posArray.length === 0) return [];
     return posArray
-      .filter(p => p && (p.open_risk_dollars || 0) > 0)
+      .filter(p => {
+        const risk = toSafeNumber(safeGet(p, 'open_risk_dollars'), 0);
+        return risk > 0;
+      })
       .map(p => ({
-        symbol: p?.symbol,
-        risk: Number(p?.open_risk_dollars) || 0,
-        risk_pct: Number(p?.risk_pct) || 0,
+        symbol: safeGet(p, 'symbol', '—'),
+        risk: toSafeNumber(safeGet(p, 'open_risk_dollars'), 0),
+        risk_pct: toSafeNumber(safeGet(p, 'risk_pct'), 0),
       }))
-      .sort((a, b) => (b.risk || 0) - (a.risk || 0));
+      .sort((a, b) => toSafeNumber(b.risk, 0) - toSafeNumber(a.risk, 0));
   }, [posArray]);
-  // Risk percentage is pre-computed per-position; aggregate using backend-computed total
-  const totalRisk = data.reduce((s, d) => s + d.risk, 0);
-  const riskPct = data.length > 0 ? data.reduce((s, d) => s + d.risk_pct, 0) : 0;
+  const totalRisk = safeAccumulate(data, 'risk', 0);
+  const riskPct = safeAccumulate(data, 'risk_pct', 0);
 
   return (
     <div className="card">
@@ -1372,11 +1374,8 @@ function SectorConcentration({ sector_allocation, loading }) {
 // ─── Stage phase donut ─────────────────────────────────────────────────────
 function StagePhaseDonut({ distribution, loading, error }) {
   const data = useMemo(() => {
-    if (!distribution || typeof distribution !== 'object') return [];
-    const distArray = Array.isArray(distribution.distribution) ? distribution.distribution : [];
-    return distArray.filter(item => item && typeof item === 'object').length > 0
-      ? distArray.filter(item => item && typeof item === 'object')
-      : [];
+    const distArray = safeGetArray(distribution, 'distribution', []);
+    return distArray.filter(item => item && typeof item === 'object');
   }, [distribution]);
 
   const colorFor = (p) => {
@@ -1472,37 +1471,37 @@ function PositionHealthTable({ positions, loading, onSelect }) {
                   <tr key={i}
                       onClick={() => onSelect(p.symbol)}
                       style={{ cursor: 'pointer' }}>
-                    <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{p.symbol}</span></td>
-                    <td className="t-xs muted">{p.sector || '—'}</td>
-                    <td className="num mono tnum muted">{p.days_since_entry ?? '—'}</td>
+                    <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{safeGet(p, 'symbol', '—')}</span></td>
+                    <td className="t-xs muted">{safeGet(p, 'sector', '—')}</td>
+                    <td className="num mono tnum muted">{toSafeNumber(safeGet(p, 'days_since_entry'), null) ?? '—'}</td>
                     <td className="num"><RChip r={p.r_multiple} /></td>
                     <td className="num"><Pnl value={p.unrealized_pnl_pct} suffix="%" /></td>
                     <td className="num mono tnum down">
-                      {p.distance_to_stop_pct != null ? `-${num(p.distance_to_stop_pct, 1)}%` : '—'}
+                      {toSafeNumber(safeGet(p, 'distance_to_stop_pct'), null) !== null ? `-${num(safeGet(p, 'distance_to_stop_pct'), 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t1_pct != null ? `+${num(p.distance_to_t1_pct, 1)}%` : '—'}
+                      {toSafeNumber(safeGet(p, 'distance_to_t1_pct'), null) !== null ? `+${num(safeGet(p, 'distance_to_t1_pct'), 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t2_pct != null ? `+${num(p.distance_to_t2_pct, 1)}%` : '—'}
+                      {toSafeNumber(safeGet(p, 'distance_to_t2_pct'), null) !== null ? `+${num(safeGet(p, 'distance_to_t2_pct'), 1)}%` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.distance_to_t3_pct != null ? `+${num(p.distance_to_t3_pct, 1)}%` : '—'}
+                      {toSafeNumber(safeGet(p, 'distance_to_t3_pct'), null) !== null ? `+${num(safeGet(p, 'distance_to_t3_pct'), 1)}%` : '—'}
                     </td>
                     <td>
-                      {p.weinstein_stage != null
-                        ? <span className="badge mono">S{p.weinstein_stage}</span>
+                      {toSafeNumber(safeGet(p, 'weinstein_stage'), null) != null
+                        ? <span className="badge mono">S{safeGet(p, 'weinstein_stage')}</span>
                         : <span className="muted">—</span>}
                     </td>
                     <td className="num mono tnum">
-                      {p.minervini_trend_score != null ? `${p.minervini_trend_score}/8` : '—'}
+                      {toSafeNumber(safeGet(p, 'minervini_trend_score'), null) != null ? `${safeGet(p, 'minervini_trend_score')}/8` : '—'}
                     </td>
                     <td className="num mono tnum">
-                      {p.pct_from_52w_low != null ? `+${num(p.pct_from_52w_low, 0)}%` : '—'}
+                      {toSafeNumber(safeGet(p, 'pct_from_52w_low'), null) != null ? `+${num(safeGet(p, 'pct_from_52w_low'), 0)}%` : '—'}
                     </td>
                     <td>
                       <span className="badge" style={{ textTransform: 'uppercase', fontSize: 'var(--t-2xs)' }}>
-                        {(p.stage_in_exit_plan || 'init').toString()}
+                        {(safeGet(p, 'stage_in_exit_plan', 'init')).toString()}
                       </span>
                     </td>
                   </tr>

@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 
 """
@@ -10,7 +13,7 @@ Identifies alpha drivers, detects signal degradation, enables dynamic weight opt
 import json
 import logging
 from datetime import date as _date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 try:
@@ -51,7 +54,7 @@ class SignalAttributionEngine:
 
     def compute_ic(
         self, report_date: _date, lookback_trades: int = 40
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Compute Information Coefficient for each component.
 
@@ -189,7 +192,7 @@ class SignalAttributionEngine:
                     f"IC computation complete for {report_date}. Samples: {len(trades)}"
                 )
                 return ic_results
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"IC computation failed: {e}")
             return {
                 comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0}
@@ -198,7 +201,7 @@ class SignalAttributionEngine:
 
     def compute_ic_by_regime(
         self, report_date: _date, lookback_trades: int = 40
-    ) -> Dict[str, Dict]:
+    ) -> dict[str, dict]:
         """
         Compute IC broken down by market regime.
 
@@ -215,7 +218,7 @@ class SignalAttributionEngine:
         from algo.orchestration import RegimeManager
 
         regime_mgr = RegimeManager()
-        regime_results: Dict[str, Dict[str, Dict[str, Any]]] = {
+        regime_results: dict[str, dict[str, dict[str, Any]]] = {
             regime: {} for regime in RegimeManager.REGIMES
         }
 
@@ -242,7 +245,7 @@ class SignalAttributionEngine:
                     return regime_results
 
                 # Group trades by regime at entry date
-                trades_by_regime: Dict[str, List[Tuple[Any, ...]]] = {
+                trades_by_regime: dict[str, list[tuple[Any, ...]]] = {
                     regime: [] for regime in RegimeManager.REGIMES
                 }
 
@@ -348,13 +351,13 @@ class SignalAttributionEngine:
 
                 logger.info(f"IC by regime computation complete for {report_date}.")
                 return regime_results
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"IC by regime computation failed: {e}")
             return regime_results
 
     def compute_ic_decay(
-        self, report_date: _date, horizons: Optional[List[int]] = None
-    ) -> Dict[str, Dict[int, float]]:
+        self, report_date: _date, horizons: list[int] | None = None
+    ) -> dict[str, dict[int, float]]:
         """
         Compute IC at different lookback horizons.
 
@@ -369,7 +372,7 @@ class SignalAttributionEngine:
         if horizons is None:
             horizons = [10, 20, 40]
 
-        decay_results: Dict[str, Dict[int, float]] = {}
+        decay_results: dict[str, dict[int, float]] = {}
 
         for horizon in horizons:
             ic_results = self.compute_ic(report_date, lookback_trades=horizon)
@@ -383,7 +386,7 @@ class SignalAttributionEngine:
     def persist(
         self,
         report_date: _date,
-        ic_values: Dict[str, Dict[str, float]],
+        ic_values: dict[str, dict[str, float]],
         regime: str = "unknown",
     ) -> None:
         """
@@ -427,7 +430,7 @@ class SignalAttributionEngine:
 
     def get_trailing_ic(
         self, component: str, days: int = 60
-    ) -> List[Tuple[_date, float]]:
+    ) -> list[tuple[_date, float]]:
         """
         Get rolling IC for a component over last N days.
 
@@ -444,7 +447,7 @@ class SignalAttributionEngine:
                     (component, days),
                 )
                 return [(row[0], float(row[1])) for row in cur.fetchall()]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get trailing IC: {e}")
             return []
 

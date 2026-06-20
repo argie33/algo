@@ -114,7 +114,7 @@ def handle(
                     f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}"
                 )
                 raise_db_error(e, "market breadth query")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}"
                 )
@@ -136,7 +136,7 @@ def handle(
                         f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}"
                     )
                     freshness = {}
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(
                         f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}"
                     )
@@ -176,7 +176,7 @@ def handle(
                     f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}"
                 )
                 raise_db_error(e, "market technicals query")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}"
                 )
@@ -232,7 +232,7 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
@@ -253,12 +253,12 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
                 base["breadth"] = {}
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}"
                 )
@@ -269,7 +269,7 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
@@ -302,7 +302,7 @@ def handle(
             ) as e:
                 logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
                 base["mcclellan_oscillator"] = []
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
                 base["mcclellan_oscillator"] = []
 
@@ -365,7 +365,7 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
@@ -383,11 +383,11 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[TOP_MOVERS] Unexpected error: {type(e).__name__}")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
@@ -396,7 +396,7 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
@@ -505,7 +505,7 @@ def handle(
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
                     )
-                except Exception as sp_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
                     logger.debug(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
                     )
@@ -539,7 +539,7 @@ def handle(
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
                 raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[SEASONALITY] Monthly query error: {type(e).__name__}")
                 raise_db_error(e, "seasonality monthly query")
 
@@ -567,7 +567,7 @@ def handle(
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")
                 raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
                 raise_db_error(e, "seasonality day of week query")
 
@@ -734,7 +734,7 @@ def handle(
                         else None
                     ),
                 }
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"[SENTIMENT_AAII] Error: {type(e).__name__}")
                 raise_db_error(e, "AAII sentiment query")
 
@@ -788,7 +788,7 @@ def handle(
                         else None
                     ),
                 }
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"[SENTIMENT_NAAIM] Error: {type(e).__name__}")
                 raise_db_error(e, "NAAIM sentiment query")
 
@@ -835,7 +835,7 @@ def handle(
                     "trend": fg_trend,
                     "data": fg_rows,
                 }
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"[SENTIMENT_FG] Error: {type(e).__name__}")
                 raise_db_error(e, "fear/greed sentiment query")
 
@@ -959,7 +959,7 @@ def handle(
                     return json_response(
                         200, {"current": None, "history": [], "signals": {}}
                     )
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"[NAAIM] Error: {type(e).__name__}")
                 raise_db_error(e, "NAAIM query")
         elif path == "/api/market/latest":

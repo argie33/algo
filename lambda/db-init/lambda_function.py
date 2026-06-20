@@ -233,7 +233,7 @@ def lambda_handler(event, context):
                 )
             else:
                 logger.info("Step 0: No stale connections found (advisory locks clean)")
-        except Exception as _e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as _e:
             logger.warning(f"Step 0: Advisory lock cleanup failed (non-fatal): {_e}")
 
         # Step 1: Ensure stocks user exists (as master user)
@@ -267,7 +267,7 @@ def lambda_handler(event, context):
                         (creds["password"],),
                     )
                     logger.info(f"Updated existing {creds['user']} user password")
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.info(f"User update failed, creating new user: {e}")
                     try:
                         master_cursor.execute(
@@ -302,13 +302,13 @@ def lambda_handler(event, context):
                             ).format(psycopg2.sql.Identifier(creds["user"]))
                         )
                         logger.info(f"Granted permissions to {creds['user']}")
-                    except Exception as e2:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e2:
                         logger.error(f"Failed to create/update user: {e2}")
 
                 master_cursor.close()
                 master_conn.close()
                 logger.info("✅ Stocks user setup complete")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"Could not connect as master user to create stocks user: {e}"
                 )
@@ -342,7 +342,7 @@ def lambda_handler(event, context):
                     ).format(psycopg2.sql.Identifier(table))
                 )
                 logger.info(f"Added MACD columns to {table}")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.info(f"MACD columns may already exist on {table}: {e}")
 
         # Add historical rank columns to industry_ranking (idempotent)
@@ -357,7 +357,7 @@ def lambda_handler(event, context):
                 "ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER"
             )
             logger.info("Added historical rank columns to industry_ranking")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"industry_ranking history columns may already exist: {e}")
 
         sql_script = ""
@@ -424,6 +424,6 @@ def lambda_handler(event, context):
         logger.error(f"Database connection failed: {e}")
         return {"statusCode": 503, "body": json.dumps(f"DB connection failed: {e}")}
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Init failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": json.dumps(f"Init failed: {e}")}

@@ -122,7 +122,7 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
                     "halt_threshold": 35.0,
                     "risk_reduction_multiplier": risk_reduction,
                 }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"VIX fetch failed: {e}")
 
         # Position sizing statistics
@@ -160,7 +160,7 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
                         else None
                     ),
                 }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Position sizing stats fetch failed: {e}")
 
         # Exit rules distribution (top 5)
@@ -272,7 +272,7 @@ def _fetch_exposure_tier_info(cur) -> dict[str, Any]:
                     "correction": 0.0,
                 }.get(tier.lower() if tier else "", 1.0),
             }
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.warning(f"Exposure tier computation failed, using defaults: {e}")
 
     return {
@@ -362,7 +362,7 @@ def _get_position_sizing_audit(cur, days: int) -> dict:
             )
 
         return list_response(items)
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch position sizing audit")
         return error_response(code, error_type, message)
 
@@ -418,7 +418,7 @@ def _get_stop_loss_audit(cur, days: int) -> dict:
             )
 
         return list_response(items)
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch stop loss audit")
         return error_response(code, error_type, message)
 
@@ -468,7 +468,7 @@ def _get_exit_rules_distribution(cur, days: int) -> dict:
             )
 
         return list_response(items)
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch exit rules distribution")
         return error_response(code, error_type, message)
 

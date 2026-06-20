@@ -136,24 +136,25 @@ def _get_algo_performance(cur) -> dict:
                 pf_fb = round(abs(avg_win_r / avg_loss_r), 2)
             breakeven_fb_raw = fb.get("breakeven_trades")
             breakeven_fb = int(breakeven_fb_raw) if breakeven_fb_raw is not None else 0
+            fds = format_decimal_string  # Shorthand for readability
             fallback_data: dict = {
                 "total_trades": total_fb,
                 "winning_trades": winning_fb,
                 "losing_trades": losing_fb,
                 "breakeven_trades": breakeven_fb,
-                "win_rate_pct": format_decimal_string(wr_fb, precision=2, allow_none=True),
-                "win_rate": format_decimal_string(wr_fb, precision=2, allow_none=True),
-                "profit_factor": format_decimal_string(pf_fb, precision=2, allow_none=True),
-                "total_pnl_dollars": format_decimal_string(fb.get("total_pnl_dollars"), precision=2, allow_none=True),
-                "avg_win_pct": format_decimal_string(fb.get("avg_win_pct"), precision=2, allow_none=True),
-                "avg_loss_pct": format_decimal_string(fb.get("avg_loss_pct"), precision=2, allow_none=True),
-                "avg_win_r": format_decimal_string(avg_win_r, precision=3, allow_none=True),
-                "avg_loss_r": format_decimal_string(avg_loss_r, precision=3, allow_none=True),
-                "best_trade_pct": format_decimal_string(fb.get("best_trade_pct"), precision=2, allow_none=True),
-                "worst_trade_pct": format_decimal_string(fb.get("worst_trade_pct"), precision=2, allow_none=True),
+                "win_rate_pct": fds(wr_fb, precision=2, allow_none=True),
+                "win_rate": fds(wr_fb, precision=2, allow_none=True),
+                "profit_factor": fds(pf_fb, precision=2, allow_none=True),
+                "total_pnl_dollars": fds(fb.get("total_pnl_dollars"), 2, True),
+                "avg_win_pct": fds(fb.get("avg_win_pct"), 2, True),
+                "avg_loss_pct": fds(fb.get("avg_loss_pct"), 2, True),
+                "avg_win_r": fds(avg_win_r, 3, True),
+                "avg_loss_r": fds(avg_loss_r, 3, True),
+                "best_trade_pct": fds(fb.get("best_trade_pct"), 2, True),
+                "worst_trade_pct": fds(fb.get("worst_trade_pct"), 2, True),
                 "sharpe_annualized": None,
                 "max_drawdown_pct": None,
-                "expectancy_r": format_decimal_string(exp_r, precision=3, allow_none=True),
+                "expectancy_r": fds(exp_r, precision=3, allow_none=True),
                 "current_streak": 0,
                 "equity_vals": [],
                 "recent_rets": [],
@@ -195,7 +196,7 @@ def _get_algo_performance(cur) -> dict:
             ts_row = cur.fetchone()
             if ts_row:
                 trade_stats = safe_dict_convert(ts_row)
-        except Exception as te:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as te:
             logger.warning(f"Could not compute trade-level stats: {te}")
 
         # Compute current win/loss streak from most recent closed trades
@@ -218,7 +219,7 @@ def _get_algo_performance(cur) -> dict:
                         current_streak -= 1
                     else:
                         break
-        except Exception as ce:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as ce:
             logger.warning(f"Could not compute current streak: {ce}")
 
         # Compute open losses for adjusted win rate
@@ -250,7 +251,7 @@ def _get_algo_performance(cur) -> dict:
                     win_rate_pct_adjusted = round(
                         (win_count / total_adj * 100) if total_adj > 0 else wr, 1
                     )
-        except Exception as pe:
+        except (ValueError, ZeroDivisionError, TypeError) as pe:
             logger.warning(f"Could not compute open losses: {pe}")
 
         # Compute expectancy_r from win_rate and average R multiples
@@ -262,7 +263,7 @@ def _get_algo_performance(cur) -> dict:
             if wr is not None and avg_wr is not None and avg_lr is not None:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
 
@@ -299,47 +300,48 @@ def _get_algo_performance(cur) -> dict:
                     ]
                     for r in snap_rows[-10:]
                 ]
-        except Exception as eq_err:
+        except (ValueError, ZeroDivisionError, TypeError) as eq_err:
             logger.warning(f"Could not fetch equity sparkline data for performance: {eq_err}")
 
+        fds = format_decimal_string  # Shorthand for readability
         response_data = {
             "total_trades": total_trades,
             "winning_trades": winning,
             "losing_trades": losing,
             "breakeven_trades": breakeven,
-            "win_rate": format_decimal_string(metrics.get("win_rate_pct"), precision=2, allow_none=True),
-            "win_rate_pct": format_decimal_string(metrics.get("win_rate_pct"), precision=2, allow_none=True),
-            "win_rate_pct_adjusted": format_decimal_string(win_rate_pct_adjusted, precision=1, allow_none=True),
+            "win_rate": fds(metrics.get("win_rate_pct"), 2, True),
+            "win_rate_pct": fds(metrics.get("win_rate_pct"), 2, True),
+            "win_rate_pct_adjusted": fds(win_rate_pct_adjusted, 1, True),
             "win_rate_confidence": (
                 "high"
                 if win_loss_total >= 30
                 else ("medium" if win_loss_total >= 10 else "low")
             ),
-            "profit_factor": format_decimal_string(metrics.get("profit_factor"), precision=2, allow_none=True),
-            "total_pnl_dollars": format_decimal_string(metrics.get("total_pnl_dollars"), precision=2, allow_none=True),
-            "total_pnl_pct": format_decimal_string(metrics.get("total_pnl_pct"), precision=2, allow_none=True),
-            "total_return_pct": format_decimal_string(metrics.get("cagr_pct"), precision=2, allow_none=True),
-            "avg_trade_pct": format_decimal_string(metrics.get("avg_trade_pct"), precision=2, allow_none=True),
-            "avg_win_pct": format_decimal_string(trade_stats.get("avg_win_pct"), precision=2, allow_none=True),
-            "avg_loss_pct": format_decimal_string(trade_stats.get("avg_loss_pct"), precision=2, allow_none=True),
-            "avg_win_r": format_decimal_string(trade_stats.get("avg_win_r"), precision=3, allow_none=True),
-            "avg_loss_r": format_decimal_string(trade_stats.get("avg_loss_r"), precision=3, allow_none=True),
-            "gross_win_dollars": format_decimal_string(trade_stats.get("gross_win_dollars"), precision=2, allow_none=True),
-            "gross_loss_dollars": format_decimal_string(trade_stats.get("gross_loss_dollars"), precision=2, allow_none=True),
+            "profit_factor": fds(metrics.get("profit_factor"), 2, True),
+            "total_pnl_dollars": fds(metrics.get("total_pnl_dollars"), 2, True),
+            "total_pnl_pct": fds(metrics.get("total_pnl_pct"), 2, True),
+            "total_return_pct": fds(metrics.get("cagr_pct"), 2, True),
+            "avg_trade_pct": fds(metrics.get("avg_trade_pct"), 2, True),
+            "avg_win_pct": fds(trade_stats.get("avg_win_pct"), 2, True),
+            "avg_loss_pct": fds(trade_stats.get("avg_loss_pct"), 2, True),
+            "avg_win_r": fds(trade_stats.get("avg_win_r"), 3, True),
+            "avg_loss_r": fds(trade_stats.get("avg_loss_r"), 3, True),
+            "gross_win_dollars": fds(trade_stats.get("gross_win_dollars"), 2, True),
+            "gross_loss_dollars": fds(trade_stats.get("gross_loss_dollars"), 2, True),
             "open_losses_count": open_losses_count,
-            "total_open_losses_dollars": format_decimal_string(total_open_losses_dollars, precision=2, allow_none=True),
-            "best_trade_pct": format_decimal_string(metrics.get("best_trade_pct"), precision=2, allow_none=True),
-            "worst_trade_pct": format_decimal_string(metrics.get("worst_trade_pct"), precision=2, allow_none=True),
-            "sharpe_annualized": format_decimal_string(metrics.get("sharpe_ratio"), precision=3, allow_none=True),
-            "sharpe_ratio": format_decimal_string(metrics.get("sharpe_ratio"), precision=3, allow_none=True),
+            "total_open_losses_dollars": fds(total_open_losses_dollars, 2, True),
+            "best_trade_pct": fds(metrics.get("best_trade_pct"), 2, True),
+            "worst_trade_pct": fds(metrics.get("worst_trade_pct"), 2, True),
+            "sharpe_annualized": fds(metrics.get("sharpe_ratio"), 3, True),
+            "sharpe_ratio": fds(metrics.get("sharpe_ratio"), 3, True),
             "sharpe_confidence": "high",
-            "sortino_annualized": format_decimal_string(metrics.get("sortino_ratio"), precision=3, allow_none=True),
-            "sortino_ratio": format_decimal_string(metrics.get("sortino_ratio"), precision=3, allow_none=True),
-            "max_drawdown_pct": format_decimal_string(metrics.get("max_drawdown_pct"), precision=2, allow_none=True),
-            "calmar_ratio": format_decimal_string(metrics.get("calmar_ratio"), precision=3, allow_none=True),
-            "expectancy_r": format_decimal_string(expectancy_r, precision=3, allow_none=True),
-            "avg_hold_days": format_decimal_string(metrics.get("avg_holding_days"), precision=1, allow_none=True),
-            "avg_holding_days": format_decimal_string(metrics.get("avg_holding_days"), precision=1, allow_none=True),
+            "sortino_annualized": fds(metrics.get("sortino_ratio"), 3, True),
+            "sortino_ratio": fds(metrics.get("sortino_ratio"), 3, True),
+            "max_drawdown_pct": fds(metrics.get("max_drawdown_pct"), 2, True),
+            "calmar_ratio": fds(metrics.get("calmar_ratio"), 3, True),
+            "expectancy_r": fds(expectancy_r, 3, True),
+            "avg_hold_days": fds(metrics.get("avg_holding_days"), 1, True),
+            "avg_holding_days": fds(metrics.get("avg_holding_days"), 1, True),
             "portfolio_snapshots": len(equity_vals),
             "best_win_streak": int(metrics.get("best_win_streak")) if metrics.get("best_win_streak") is not None else None,
             "worst_loss_streak": int(metrics.get("worst_loss_streak")) if metrics.get("worst_loss_streak") is not None else None,
@@ -436,7 +438,7 @@ def _get_algo_portfolio(cur) -> dict:
                 "last_run": data.get("snapshot_date"),
             }
         )
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Portfolio fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Portfolio data unavailable")
 
@@ -600,14 +602,14 @@ def _get_performance_analytics(cur) -> dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
         return success_response(_null_response)
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
         code, error_type, message = handle_db_error(e, "fetch performance analytics")
@@ -733,14 +735,14 @@ def _get_risk_metrics(cur) -> dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
         return success_response(_null_response)
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
         code, error_type, message = handle_db_error(e, "fetch risk metrics")

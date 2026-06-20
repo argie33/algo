@@ -27,7 +27,7 @@ def get_rds_credentials():
         from config.credential_manager import get_db_credentials
 
         return get_db_credentials()
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
@@ -68,7 +68,7 @@ def query_rds_signals(credentials):
                 "recent_signals": [dict(r) for r in recent],
                 "status": "success",
             }
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         return {"error": str(e), "status": "failed"}
 
 
@@ -86,7 +86,7 @@ def get_alpaca_credentials():
             "secret_key": creds.get("secret"),
             "base_url": base_url,
         }
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to get Alpaca credentials: {e}")
         return {
             "api_key": None,
@@ -141,7 +141,7 @@ def get_alpaca_trades():
             ],
             "status": "success",
         }
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         return {"error": str(e), "status": "failed"}
 
 

@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 """Market Events & Corporate Actions Handler
 
@@ -339,7 +342,7 @@ class MarketEventHandler:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
                 f"MarketEventHandler: handle_market_circuit_breaker error: {e}"
             )

@@ -35,13 +35,13 @@ class DataPatrol:
     """Orchestrate data patrol checks and coordinate results."""
 
     def __init__(self):
-        self.results: List[CheckResult] = []
+        self.results: list[CheckResult] = []
         self.run_id: str = ""
         self.config: PatrolConfig = None
         self.logger: PatrolLogger = None
-        self.check_timings: Dict[str, float] = {}
+        self.check_timings: dict[str, float] = {}
 
-    def run(self, quick: bool = False, validate_alpaca: bool = False) -> Dict[str, Any]:
+    def run(self, quick: bool = False, validate_alpaca: bool = False) -> dict[str, Any]:
         """Run all data patrol checks.
 
         Args:
@@ -110,7 +110,7 @@ class DataPatrol:
                 self.check_timings[check_name] = elapsed
                 logger.error(f"Check {check_name} failed: {e}", exc_info=True)
 
-    def summarize(self, cur, elapsed_seconds: Optional[float] = None) -> Dict[str, Any]:
+    def summarize(self, cur, elapsed_seconds: float | None = None) -> dict[str, Any]:
         """Summarize patrol results."""
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for result in self.results:

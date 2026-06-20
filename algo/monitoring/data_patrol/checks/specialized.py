@@ -4,7 +4,6 @@
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone
-from typing import List
 
 from utils.db import assert_safe_table
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 class SpecializedChecker(BaseCheck):
     """Check specialized data tables: earnings, fundamentals, technical indicators."""
 
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute specialized checks."""
         self.results = []
 
@@ -111,7 +110,7 @@ class SpecializedChecker(BaseCheck):
                 f"{pct:.1f}% symbol coverage ({est_syms}/{price_syms})",
                 {"coverage_pct": round(pct, 1)},
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log(
                 "earnings_coverage",
                 WARN,
@@ -249,7 +248,7 @@ class SpecializedChecker(BaseCheck):
                     "No NaN/Infinity values in technical data",
                     None,
                 )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log(
                 "derived_metrics",
                 ERROR,

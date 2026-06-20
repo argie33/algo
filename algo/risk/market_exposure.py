@@ -62,6 +62,7 @@ from datetime import date as _date
 
 from psycopg2 import sql as pgsql
 
+from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
 
 
@@ -86,14 +87,14 @@ class MarketExposure:
     W_AAII = 3                # extremes-only scoring (was 4pt)
 
     def __init__(self):
-        pass
+        self.calculator = MarketFactorCalculator()
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def try_load_cached(self, eval_date=None):
@@ -217,8 +218,8 @@ class MarketExposure:
             avail_max = 0.0  # sum of weights for factors that have real data
 
             # --- 1. Trend 30-week MA (SPY vs SMA_150 + slope) ---
-            t30 = self._trend_30wk(eval_date, cur)
-            t30_pts, t30_avail = self._wt_pts(t30, self.W_TREND_30WK)
+            t30 = self.calculator.trend_30wk(eval_date, cur)
+            t30_pts, t30_avail = self.calculator._wt_pts(t30, self.W_TREND_30WK)
             avail_max += t30_avail
             factors["trend_30wk"] = {
                 **t30,
@@ -229,8 +230,8 @@ class MarketExposure:
             logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
 
             # --- 2. SPY 12-month momentum (TSMOM — most replicated quant signal) ---
-            mom = self._spy_momentum(eval_date, cur)
-            mom_pts, mom_avail = self._wt_pts(mom, self.W_SPY_MOMENTUM)
+            mom = self.calculator.spy_momentum(eval_date, cur)
+            mom_pts, mom_avail = self.calculator._wt_pts(mom, self.W_SPY_MOMENTUM)
             avail_max += mom_avail
             factors["spy_momentum"] = {
                 **mom,
@@ -241,8 +242,8 @@ class MarketExposure:
             logger.debug(f"  SPY 12-month momentum: {mom_pts:.1f} pts")
 
             # --- 3. Breadth: % stocks above 50-DMA ---
-            b50 = self._pct_above_ma(eval_date, ma_days=50, cur=cur)
-            b50_pts, b50_avail = self._wt_pts(b50, self.W_BREADTH_50)
+            b50 = self.calculator._pct_above_ma(eval_date, ma_days=50, cur=cur)
+            b50_pts, b50_avail = self.calculator._wt_pts(b50, self.W_BREADTH_50)
             avail_max += b50_avail
             factors["breadth_50dma"] = {
                 **b50,
@@ -255,8 +256,8 @@ class MarketExposure:
             )
 
             # --- 4. Breadth: % stocks above 200-DMA ---
-            b200 = self._pct_above_ma(eval_date, ma_days=200, cur=cur)
-            b200_pts, b200_avail = self._wt_pts(b200, self.W_BREADTH_200)
+            b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
+            b200_pts, b200_avail = self.calculator._wt_pts(b200, self.W_BREADTH_200)
             avail_max += b200_avail
             factors["breadth_200dma"] = {
                 **b200,
@@ -269,8 +270,8 @@ class MarketExposure:
             )
 
             # --- 5. Selling pressure (heavy-volume down days) ---
-            sp = self._selling_pressure_factor(eval_date, cur)
-            sp_pts, sp_avail = self._wt_pts(sp, self.W_SELLING_PRESSURE)
+            sp = self.calculator.selling_pressure(eval_date, cur)
+            sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)
             avail_max += sp_avail
             factors["distribution_days"] = {  # key preserved for frontend/API compatibility
                 **sp,
@@ -286,19 +287,19 @@ class MarketExposure:
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
             # Term structure (VIX3M) is optional: if missing, calculation proceeds with level only.
             try:
-                vix = self._vix_regime(eval_date, cur)
+                vix = self.calculator.vix_regime(eval_date, cur)
             except RuntimeError as e:
                 logger.critical(f"[VIX CRITICAL] Exposure calculation halted: {e}")
                 raise
-            vix_pts, vix_avail = self._wt_pts(vix, self.W_VIX)
+            vix_pts, vix_avail = self.calculator._wt_pts(vix, self.W_VIX)
             avail_max += vix_avail
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
             logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
 
             # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
-            pc = self._put_call_ratio(eval_date, cur)
-            pc_pts, pc_avail = self._wt_pts(pc, self.W_PUT_CALL)
+            pc = self.calculator.put_call_ratio(eval_date, cur)
+            pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
             avail_max += pc_avail
             factors["put_call_ratio"] = {
                 **pc,
@@ -309,8 +310,8 @@ class MarketExposure:
             logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
-            nhnl = self._new_highs_lows(eval_date, cur)
-            nhnl_pts, nhnl_avail = self._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
+            nhnl = self.calculator.new_highs_lows(eval_date, cur)
+            nhnl_pts, nhnl_avail = self.calculator._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
             avail_max += nhnl_avail
             factors["new_highs_lows"] = {
                 **nhnl,
@@ -321,16 +322,16 @@ class MarketExposure:
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
-            ad = self._ad_line(eval_date, cur)
-            ad_pts, ad_avail = self._wt_pts(ad, self.W_AD_LINE)
+            ad = self.calculator.ad_line(eval_date, cur)
+            ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
-            cs = self._credit_spread(eval_date, cur)
-            cs_pts, cs_avail = self._wt_pts(cs, self.W_CREDIT_SPREAD)
+            cs = self.calculator.credit_spread(eval_date, cur)
+            cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
             factors["credit_spread"] = {
                 **cs,
@@ -341,8 +342,8 @@ class MarketExposure:
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 11. AAII sentiment (contrarian at extremes only) ---
-            aaii = self._aaii(eval_date, cur)
-            aaii_pts, aaii_avail = self._wt_pts(aaii, self.W_AAII)
+            aaii = self.calculator.aaii(eval_date, cur)
+            aaii_pts, aaii_avail = self.calculator._wt_pts(aaii, self.W_AAII)
             avail_max += aaii_avail
             factors["aaii_sentiment"] = {
                 **aaii,
@@ -353,8 +354,8 @@ class MarketExposure:
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
             # --- 12. NAAIM professional manager exposure (contrarian at extremes) ---
-            naaim = self._naaim(eval_date, cur)
-            naaim_pts, naaim_avail = self._wt_pts(naaim, self.W_NAAIM)
+            naaim = self.calculator.naaim(eval_date, cur)
+            naaim_pts, naaim_avail = self.calculator._wt_pts(naaim, self.W_NAAIM)
             avail_max += naaim_avail
             factors["naaim"] = {
                 **naaim,

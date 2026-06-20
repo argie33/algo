@@ -190,7 +190,7 @@ class PositionSizer:
                 ) from e
             except RuntimeError:
                 raise
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 raise RuntimeError(f"Alpaca API error: {type(e).__name__}: {e}") from e
         # Should never reach here (all paths raise or return above)
         raise RuntimeError("CRITICAL: Alpaca portfolio value retrieval exhausted all retries without a result.")

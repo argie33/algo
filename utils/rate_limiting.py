@@ -436,7 +436,7 @@ def _check_dynamodb_rate_limit(
 
         return True, None
 
-    except Exception as e:
+    except (requests.RequestException, requests.Timeout) as e:
         logger.error(
             f"DynamoDB rate limit check failed: {e}, falling back to in-memory"
         )

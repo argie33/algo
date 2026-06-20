@@ -2,7 +2,9 @@
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
 
@@ -18,7 +20,7 @@ class DailyFinanceReport:
 
         self.regime_mgr = RegimeManager()
 
-    def generate(self, report_date: Optional[_date] = None) -> Dict[str, Any]:
+    def generate(self, report_date: _date | None = None) -> dict[str, Any]:
         """
         Generate comprehensive daily report.
 
@@ -55,7 +57,7 @@ class DailyFinanceReport:
             logger.info(f"Daily report generated for {report_date}")
             return report
 
-    def _fetch_portfolio(self, cur, report_date: _date) -> Dict[str, Any]:
+    def _fetch_portfolio(self, cur, report_date: _date) -> dict[str, Any]:
         """Portfolio value, P&L, drawdown."""
         try:
             cur.execute(
@@ -106,11 +108,11 @@ class DailyFinanceReport:
                 "ytd_pnl_pct": round(ytd_pnl_pct, 2),
                 "open_positions": self._count_open_positions(cur, report_date),
             }
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Portfolio fetch failed: {e}")
             return {}
 
-    def _fetch_risk(self, cur, report_date: _date) -> Dict[str, Any]:
+    def _fetch_risk(self, cur, report_date: _date) -> dict[str, Any]:
         """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics."""
         try:
             cur.execute(
@@ -131,11 +133,11 @@ class DailyFinanceReport:
                 "max_drawdown_pct": round(float(row[2]), 2) if row[2] else None,
                 "calmar": round(float(row[3]), 4) if row[3] else None,
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Risk fetch failed: {e}")
             return {}
 
-    def _fetch_strategy(self, cur, report_date: _date) -> Dict[str, Any]:
+    def _fetch_strategy(self, cur, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics."""
         try:
             cur.execute(
@@ -156,11 +158,11 @@ class DailyFinanceReport:
                 "avg_trade_pct": round(float(row[2]), 2) if row[2] else None,
                 "best_trade_pct": round(float(row[3]), 2) if row[3] else None,
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Strategy fetch failed: {e}")
             return {}
 
-    def _fetch_components(self, cur, report_date: _date) -> Dict[str, Any]:
+    def _fetch_components(self, cur, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component."""
         try:
             cur.execute(
@@ -185,11 +187,11 @@ class DailyFinanceReport:
                     components[comp] = {"status": "no_data"}
 
             return components
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Components fetch failed: {e}")
             return {}
 
-    def _fetch_regime(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_regime(self, report_date: _date) -> dict[str, Any]:
         """Current regime and parameter multipliers."""
         try:
             regime = self.regime_mgr.get_current_regime(report_date)
@@ -209,7 +211,7 @@ class DailyFinanceReport:
             logger.debug(f"Regime fetch failed: {e}")
             return {}
 
-    def _fetch_signals(self, cur, report_date: _date) -> Dict[str, Any]:
+    def _fetch_signals(self, cur, report_date: _date) -> dict[str, Any]:
         """Signal counts for today."""
         try:
             cur.execute(
@@ -241,11 +243,11 @@ class DailyFinanceReport:
                 "passed_tiers": tier_passed,
                 "entries_today": entries,
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Signals fetch failed: {e}")
             return {}
 
-    def format_text(self, report: Dict[str, Any]) -> str:
+    def format_text(self, report: dict[str, Any]) -> str:
         """Format report as text for logs."""
         regime = report.get("regime", {})
         components = report.get("components", {})
@@ -361,7 +363,7 @@ class DailyFinanceReport:
 
         return "\n".join(lines)
 
-    def _check_thresholds(self, report: Dict[str, Any]) -> List[str]:
+    def _check_thresholds(self, report: dict[str, Any]) -> list[str]:
         """Check metric thresholds and return warnings."""
         warnings = []
 
@@ -425,7 +427,7 @@ class DailyFinanceReport:
             )
             result = cur.fetchone()
             return result[0] if result else 0
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Exception: {e}")
             return 0
 

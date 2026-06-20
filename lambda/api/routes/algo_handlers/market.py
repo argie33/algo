@@ -648,7 +648,7 @@ def _get_markets(cur) -> dict:
                         ),
                     }
                 )
-        except Exception as se:
+        except (ValueError, ZeroDivisionError, TypeError) as se:
             logger.warning(f"Could not fetch sector rankings: {se}")
 
         # Fetch market health from market_health_daily for dashboard KPIs
@@ -665,7 +665,7 @@ def _get_markets(cur) -> dict:
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
-        except Exception as mhe:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.warning(f"Could not fetch market_health_daily: {mhe}")
 
         # Fetch latest SPY close for dashboard header
@@ -679,7 +679,7 @@ def _get_markets(cur) -> dict:
             spy_row = cur.fetchone()
             if spy_row:
                 spy_close = safe_float(spy_row["close"]) if spy_row["close"] else None
-        except Exception as spy_e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.warning(f"Could not fetch SPY price: {spy_e}")
 
         current_date = row.get("date")

@@ -205,3 +205,153 @@ class ManualTradeRequest(BaseModel):
             raise ValueError("Stop loss price must be greater than 0")
         return v
 
+
+class PositionUpdateRequest(BaseModel):
+    """Request model for POST/PUT /api/position/update - Update position parameters."""
+
+    position_id: int = Field(..., description="Position ID to update")
+    quantity: Optional[int] = Field(
+        None, description="Updated quantity (must be positive if provided)", gt=0
+    )
+    stop_loss_price: Optional[float] = Field(
+        None, description="Updated stop loss price (must be > 0 and make sense)"
+    )
+    target_1_price: Optional[float] = Field(
+        None, description="Target 1 price (must be > entry_price for buys)"
+    )
+    target_2_price: Optional[float] = Field(
+        None, description="Target 2 price (must be > entry_price for buys)"
+    )
+    target_3_price: Optional[float] = Field(
+        None, description="Target 3 price (must be > entry_price for buys)"
+    )
+    entry_price: Optional[float] = Field(
+        None, description="Entry price (used for validation of stop loss and targets)"
+    )
+    position_type: Optional[str] = Field(
+        None, description="Position type: 'buy' or 'sell' (used for validation)"
+    )
+
+    @field_validator("position_id")
+    @classmethod
+    def validate_position_id(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Position ID must be a positive integer")
+        return v
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None:
+            if not isinstance(v, int) or isinstance(v, bool):
+                raise ValueError("Quantity must be an integer")
+            if v <= 0:
+                raise ValueError("Quantity must be positive")
+            if v > 1_000_000:
+                raise ValueError("Quantity is unreasonably large (max 1,000,000)")
+        return v
+
+    @field_validator("stop_loss_price")
+    @classmethod
+    def validate_stop_loss_price(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None:
+            if v <= 0:
+                raise ValueError("Stop loss price must be greater than 0")
+            if v > 1_000_000:
+                raise ValueError("Stop loss price is unreasonably large (max $1M)")
+        return v
+
+    @field_validator("target_1_price", "target_2_price", "target_3_price")
+    @classmethod
+    def validate_target_price(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None:
+            if v <= 0:
+                raise ValueError("Target price must be greater than 0")
+            if v > 1_000_000:
+                raise ValueError("Target price is unreasonably large (max $1M)")
+        return v
+
+    @field_validator("entry_price")
+    @classmethod
+    def validate_entry_price(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None:
+            if v <= 0:
+                raise ValueError("Entry price must be greater than 0")
+            if v > 1_000_000:
+                raise ValueError("Entry price is unreasonably large (max $1M)")
+        return v
+
+    @field_validator("position_type")
+    @classmethod
+    def validate_position_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v_lower = v.lower()
+            if v_lower not in ("buy", "sell", "long", "short"):
+                raise ValueError('Position type must be "buy", "sell", "long", or "short"')
+            return v_lower
+        return None
+
+    def validate_stop_loss_vs_entry(self) -> None:
+        """Cross-field validation: stop loss must be within bounds of entry price."""
+        if self.stop_loss_price is None or self.entry_price is None:
+            return
+
+        if self.position_type and self.position_type in ("buy", "long"):
+            if self.stop_loss_price >= self.entry_price:
+                raise ValueError(
+                    f"For long positions, stop_loss_price ({self.stop_loss_price}) "
+                    f"must be below entry_price ({self.entry_price})"
+                )
+            risk_amount = self.entry_price - self.stop_loss_price
+            if risk_amount < 0.01:
+                raise ValueError(
+                    f"Stop loss is too close to entry price (min risk: $0.01)"
+                )
+        elif self.position_type and self.position_type in ("sell", "short"):
+            if self.stop_loss_price <= self.entry_price:
+                raise ValueError(
+                    f"For short positions, stop_loss_price ({self.stop_loss_price}) "
+                    f"must be above entry_price ({self.entry_price})"
+                )
+            risk_amount = self.stop_loss_price - self.entry_price
+            if risk_amount < 0.01:
+                raise ValueError(
+                    f"Stop loss is too close to entry price (min risk: $0.01)"
+                )
+
+    def validate_targets_vs_entry(self) -> None:
+        """Cross-field validation: targets must be above entry price (for longs)."""
+        if self.entry_price is None:
+            return
+
+        targets = [self.target_1_price, self.target_2_price, self.target_3_price]
+        for i, target in enumerate(targets, 1):
+            if target is None:
+                continue
+
+            if self.position_type and self.position_type in ("buy", "long"):
+                if target <= self.entry_price:
+                    raise ValueError(
+                        f"Target {i} ({target}) must be above entry_price ({self.entry_price})"
+                    )
+            elif self.position_type and self.position_type in ("sell", "short"):
+                if target >= self.entry_price:
+                    raise ValueError(
+                        f"Target {i} ({target}) must be below entry_price ({self.entry_price})"
+                    )
+
+    def validate_targets_ordered(self) -> None:
+        """Cross-field validation: targets should be in ascending order (for longs)."""
+        targets = [self.target_1_price, self.target_2_price, self.target_3_price]
+        valid_targets = [t for t in targets if t is not None]
+
+        if len(valid_targets) < 2:
+            return
+
+        if self.position_type and self.position_type in ("buy", "long"):
+            for i in range(len(valid_targets) - 1):
+                if valid_targets[i] >= valid_targets[i + 1]:
+                    raise ValueError(
+                        "Targets must be in ascending order (T1 < T2 < T3) for long positions"
+                    )
+

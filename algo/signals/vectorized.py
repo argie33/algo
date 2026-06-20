@@ -16,7 +16,7 @@ Architecture:
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -34,8 +34,8 @@ class VectorizedSignalGenerator:
         self.min_history = 50  # Minimum bars required for technical indicators
 
     def fetch_all_price_data(
-        self, symbols: List[str], eval_date: _date
-    ) -> Tuple[Dict[str, List[Dict[str, Any]]], _date]:
+        self, symbols: list[str], eval_date: _date
+    ) -> tuple[dict[str, list[dict[str, Any]]], _date]:
         """
         Fetch all price data for all symbols in ONE query.
         Automatically falls back to most recent date if eval_date has no data.
@@ -85,7 +85,7 @@ class VectorizedSignalGenerator:
                 rows = cur.fetchall()
 
                 # Organize by symbol into structured arrays
-                data_by_symbol: Dict[str, List[Dict[str, Any]]] = {}
+                data_by_symbol: dict[str, list[dict[str, Any]]] = {}
                 for row in rows:
                     symbol = row[0]
                     if symbol not in data_by_symbol:
@@ -102,14 +102,14 @@ class VectorizedSignalGenerator:
                     )
 
                 return data_by_symbol, price_date
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             error_msg = f"[VECTORIZED] Failed to fetch price data: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
     def compute_minervini_parallel(
-        self, data_by_symbol: Dict, eval_date: _date
-    ) -> Dict[str, Dict]:
+        self, data_by_symbol: dict, eval_date: _date
+    ) -> dict[str, dict]:
         """
         Compute Minervini 8-point trend template for all symbols.
 
@@ -242,8 +242,8 @@ class VectorizedSignalGenerator:
         return results
 
     def compute_weinstein_stage_parallel(
-        self, data_by_symbol: Dict, eval_date: _date
-    ) -> Dict[str, Dict]:
+        self, data_by_symbol: dict, eval_date: _date
+    ) -> dict[str, dict]:
         """Compute Weinstein 4-stage classification for all symbols."""
         results = {}
 
@@ -284,7 +284,7 @@ class VectorizedSignalGenerator:
                         stage = 1  # Base building
 
                 results[symbol] = {"stage": stage, "confidence": 0.75}
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(
                     f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}"
                 )
@@ -293,8 +293,8 @@ class VectorizedSignalGenerator:
         return results
 
     def compute_power_trend_parallel(
-        self, data_by_symbol: Dict, eval_date: _date
-    ) -> Dict[str, Dict]:
+        self, data_by_symbol: dict, eval_date: _date
+    ) -> dict[str, dict]:
         """Compute power trend: 20%+ gain in 21 days."""
         results = {}
 
@@ -335,7 +335,7 @@ class VectorizedSignalGenerator:
             result[i] = np.nanmean(arr[i - window + 1 : i + 1])
         return result
 
-    def run(self, symbols: List[str], eval_date: _date) -> Dict:
+    def run(self, symbols: list[str], eval_date: _date) -> dict:
         """
         Run all signal computations in parallel.
 

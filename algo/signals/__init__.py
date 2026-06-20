@@ -7,8 +7,8 @@ from .vectorized import VectorizedSignalGenerator
 
 
 __all__ = [
-    "SignalComputer",
-    "VectorizedSignalGenerator",
-    "SwingTraderScore",
     "SignalAttributionEngine",
+    "SignalComputer",
+    "SwingTraderScore",
+    "VectorizedSignalGenerator",
 ]

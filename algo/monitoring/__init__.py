@@ -12,13 +12,13 @@ from .position_monitor import PositionMonitor
 
 
 __all__ = [
-    "get_pool_status",
-    "check_stuck_connections",
-    "on_connect",
-    "on_disconnect",
-    "PositionMonitor",
     "DataPatrol",
     "PipelineHealth",
+    "PositionMonitor",
+    "check_stuck_connections",
+    "get_pool_status",
+    "on_connect",
+    "on_disconnect",
 ]
 
 # Wire pool tracking into the db module. utils.db cannot import us directly (circular dep),

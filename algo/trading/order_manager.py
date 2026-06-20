@@ -198,7 +198,7 @@ class OrderManager:
                     "success": False,
                     "message": f"Failed to cancel: {resp.status_code}",
                 }
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout) as e:
             return {"success": False, "message": f"Error cancelling order: {e!s}"}
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
@@ -226,7 +226,7 @@ class OrderManager:
             if resp.status_code == 200:
                 try:
                     data = resp.json()
-                except Exception as parse_err:
+                except (requests.RequestException, requests.Timeout) as parse_err:
                     raise RuntimeError(f"Operation failed: {parse_err}") from parse_err
 
                 validation = validator.validate_order_status_response(data)
@@ -237,7 +237,7 @@ class OrderManager:
 
                 if validation["status"] == "filled":
                     return cast(float, validation["filled_avg_price"])
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
@@ -270,7 +270,7 @@ class OrderManager:
                 if resp.status_code == 200:
                     try:
                         data = resp.json()
-                    except Exception as e:
+                    except (requests.RequestException, requests.Timeout) as e:
                         raise RuntimeError(f"Operation failed: {e}") from e
                     filled_qty = data.get("filled_qty")
                     if filled_qty is not None:
@@ -279,7 +279,7 @@ class OrderManager:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
                         time.sleep(wait_time)
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt
                     time.sleep(wait_time)
@@ -315,7 +315,7 @@ class OrderManager:
                 if resp.status_code == 200:
                     try:
                         data = resp.json()
-                    except Exception as e:
+                    except (requests.RequestException, requests.Timeout) as e:
                         error_msg = f"Order status response is invalid JSON for {alpaca_order_id}: {e}. Response text: {resp.text[:200]}"
                         logger.error(error_msg)
                         raise ValueError(error_msg) from e
@@ -327,7 +327,7 @@ class OrderManager:
                             f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s..."
                         )
                         time.sleep(wait_time)
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt
                     logger.debug(
@@ -390,7 +390,7 @@ class OrderManager:
                 if resp.status_code in (200, 201):
                     try:
                         data = resp.json()
-                    except Exception as e:
+                    except (requests.RequestException, requests.Timeout) as e:
                         logger.error(
                             f"[SEND_EXIT] {symbol}: Failed to parse exit response JSON: {e}"
                         )

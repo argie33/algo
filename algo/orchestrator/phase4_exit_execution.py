@@ -2,8 +2,9 @@
 
 import logging
 import traceback
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -21,9 +22,9 @@ def run(
     alerts: AlertManager,
     verbose: bool,
     log_phase_result_fn: Callable,
-    position_recs: List[Dict[str, Any]],
-    exposure_actions: List[Dict[str, Any]],
-    check_halt_flag: Optional[Callable] = None,
+    position_recs: list[dict[str, Any]],
+    exposure_actions: list[dict[str, Any]],
+    check_halt_flag: Callable | None = None,
 ) -> PhaseResult:
     """Execute Phase 4: Exit Execution.
 

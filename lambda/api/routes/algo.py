@@ -92,6 +92,7 @@ from .algo_handlers.signals import (
     _get_swing_scores,
     _get_swing_scores_history,
 )
+from .positions import handle as handle_positions
 
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,10 @@ def _dispatch(
         if not isinstance(body, dict):
             raise_api_error(400, "bad_request", "Request body must be a JSON object")
         return _calculate_pre_trade_impact(cur, body)
+
+    # Position management endpoints
+    if path.startswith("/api/position/"):
+        return handle_positions(cur, path, method, params, body, jwt_claims)
 
     # Dispatch to handler functions by path
     if path == "/api/algo/status":

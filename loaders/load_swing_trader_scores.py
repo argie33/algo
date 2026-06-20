@@ -88,7 +88,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                 "end_date": end,
             }
             logger.debug(f"Batch context: end={end}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for swing_trader_scores: {e}. "
                 "Cannot proceed without end_date and data coverage verification."
@@ -491,7 +491,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                     if row[0] == 0:
                         failures.append(f"{table_name}_missing")
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Source validation failed for {symbol}: {e}")
             failures.append("validation_error")
 

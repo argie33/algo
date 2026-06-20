@@ -51,7 +51,7 @@ class CompanyProfileLoader(OptimalLoader):
                     ),
                 }
             ]
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[COMPANY_PROFILE] Failed to fetch profile for {symbol}: {e}. "
                 "Cannot proceed without sector/industry data."

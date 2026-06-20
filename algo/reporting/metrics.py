@@ -3,7 +3,7 @@
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class MetricsPublisher:
         metric_name: str,
         value: float,
         unit: str = "Count",
-        dimensions: Optional[Dict[str, str]] = None,
+        dimensions: dict[str, str] | None = None,
     ) -> None:
         datum: dict[str, Any] = {
             "MetricName": metric_name,
@@ -88,7 +88,7 @@ class MetricsPublisher:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def put_orchestrator_result(self, success: bool, phase_results: Dict) -> None:
+    def put_orchestrator_result(self, success: bool, phase_results: dict) -> None:
         """Publish overall run success/failure + per-phase breakdown."""
         self._emit("OrchestratorSuccess", 1 if success else 0)
         self._emit("OrchestratorFailure", 0 if success else 1)
@@ -155,7 +155,7 @@ class MetricsPublisher:
             dimensions=dims,
         )
 
-    def add_metric(self, metric_name: str, value: float, unit: str = "Count", dimensions: Optional[Dict[str, str]] = None) -> None:
+    def add_metric(self, metric_name: str, value: float, unit: str = "Count", dimensions: dict[str, str] | None = None) -> None:
         """Emit a single metric immediately (no batching)."""
         self._emit(metric_name, value, unit, dimensions)
         self._flush()

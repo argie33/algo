@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 """
 Algo Configuration System (Hot-Reload Enabled)
@@ -27,14 +30,14 @@ def validate_environment():
     """
     try:
         assert_credentials(on_failure="raise")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Credential validation failed: {e}")
         raise RuntimeError(f"Critical credential error: {e}")
 
 
 try:
     validate_environment()
-except Exception as e:
+except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
     raise
 
@@ -1284,7 +1287,7 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"[AlgoConfig] FATAL: {e}")
             raise
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
     def get_critical_thresholds_summary(self):
@@ -1556,7 +1559,7 @@ class AlgoConfig:
                     )
             logger.info(f"[OK] Initialized {len(self.DEFAULTS)} config defaults")
             return True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def reload(self):

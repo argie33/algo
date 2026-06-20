@@ -2,7 +2,9 @@
 """Data quality checks - NULL anomalies, OHLC sanity, zero values, volume sanity."""
 
 import logging
-from typing import List, cast
+from typing import cast
+
+import psycopg2
 
 from ..base import BaseCheck, CheckResult
 from ..config import CRIT, ERROR, INFO, WARN
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 class QualityChecker(BaseCheck):
     """Check data quality: NULLs, OHLC relationships, zero values, volume."""
 
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute all quality checks."""
         self.results = []
 
@@ -162,7 +164,7 @@ class QualityChecker(BaseCheck):
                     """,
                         (ident_symbols,),
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Could not mark suspicious OHLC: {e}")
 
             if ident_count > ident_threshold:

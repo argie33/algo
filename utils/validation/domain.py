@@ -497,7 +497,7 @@ class TableDataValidator(Validator):
                             all_errors.append(
                                 f"{context}.{col_name}: invalid date type {type(value).__name__}"
                             )
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         all_errors.append(
                             f"{context}.{col_name}: date conversion failed: {e}"
                         )

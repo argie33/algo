@@ -256,7 +256,7 @@ def raise_db_error(error, context="database operation"):
     # Use centralized classification to determine status code and error type
     try:
         status_code, _, message = classify_exception(error)
-    except Exception:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError):
         status_code = 503
         message = f"Error during {context}"
 
@@ -387,7 +387,7 @@ def execute_with_timeout(
                     safe_log.warning(e)
                 try:
                     cur.connection.rollback()
-                except Exception as rollback_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
                     logger.debug(
                         f"Failed to rollback after query timeout: {rollback_err}"
                     )
@@ -397,16 +397,16 @@ def execute_with_timeout(
                     safe_log.warning(e)
                 try:
                     cur.connection.rollback()
-                except Exception as rollback_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
                     logger.debug(f"Failed to rollback after final timeout: {rollback_err}")
                 raise e
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             last_error = e
             with log_sanitizer("query execution") as safe_log:
                 safe_log.error(e)
             try:
                 cur.connection.rollback()
-            except Exception as rollback_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
                 logger.debug(f"Failed to rollback after query error: {rollback_err}")
             # Re-raise so routes can handle database errors properly
             raise e
@@ -632,7 +632,7 @@ def handle_db_error(error, context="database operation", query=None, params=None
     # Use centralized classification (handles both psycopg2 and custom exceptions)
     try:
         status_code, error_type, message = classify_exception(error)
-    except Exception:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError):
         # Fallback to old logic if import fails
         status_code = 500
         error_type = "database_error"

@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
@@ -37,7 +40,6 @@ logger = logging.getLogger(__name__)
 
 class PositionValidationError(Exception):
     """Raised when a position fails validation and cannot be monitored."""
-    pass
 
 
 class PositionMonitor:
@@ -133,7 +135,7 @@ class PositionMonitor:
                             # Try Alpaca cancellation
                             try:
                                 self._cancel_on_alpaca(trade_id)
-                            except Exception as api_e:
+                            except (ValueError, ZeroDivisionError, TypeError) as api_e:
                                 logger.warning(f"Could not cancel {trade_id} on Alpaca: {api_e}")
 
                             # Collect for batch DB update
@@ -172,7 +174,7 @@ class PositionMonitor:
                                    ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
                                 audit_entries,
                             )
-                        except Exception as audit_e:
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as audit_e:
                             logger.critical(
                                 f"[AUDIT_FAILURE] Could not update stale orders or log to audit trail: {audit_e}"
                             )
@@ -320,7 +322,7 @@ class PositionMonitor:
                     sp_name = f"sp_pos_{i}"
                     cur.execute(f"SAVEPOINT {sp_name}")
                     self._persist_review(rec, cur)
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
@@ -553,7 +555,7 @@ class PositionMonitor:
                 logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
             else:
                 logger.warning(f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}")
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout) as e:
             logger.warning(f"Could not cancel {trade_id} on Alpaca: {e}")
 
     def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
@@ -603,7 +605,7 @@ class PositionMonitor:
                     raise RuntimeError(
                         f"Alpaca cancel returned unexpected status {resp.status_code} for {trade_id}: {resp.text}. DB update blocked to maintain broker/DB state consistency."
                     )
-            except Exception as api_e:
+            except (requests.RequestException, requests.Timeout) as api_e:
                 raise RuntimeError(
                     f"Failed to cancel order {trade_id} on Alpaca: {api_e}. DB update blocked to maintain broker/DB state consistency."
                 ) from api_e
@@ -630,7 +632,7 @@ class PositionMonitor:
                 ),
             )
 
-        except Exception as db_e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_e:
             raise RuntimeError(
                 f"Failed to cancel and update {trade_id}: {db_e}"
             ) from db_e
@@ -863,7 +865,7 @@ class PositionMonitor:
             return days
         except ValueError:
             raise
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(f"Could not determine earnings for {symbol}: {e}") from e
 
     def _fetch_market_dist_days(self, current_date, cur):
@@ -1004,7 +1006,7 @@ class PositionMonitor:
                 creds = cm.get_alpaca_credentials()
                 alpaca_key = creds.get("key")
                 alpaca_secret = creds.get("secret")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"Could not retrieve Alpaca credentials: {e}. Skipping Alpaca sync."
                 )
@@ -1162,7 +1164,7 @@ class PositionMonitor:
                     if positions
                     else []
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Failed to fetch open positions: {e}")
                 return []
 

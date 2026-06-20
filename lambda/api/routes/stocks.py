@@ -284,7 +284,7 @@ def handle(
                 return error_response(
                     503, "connection_error", "Database connection failed - please retry"
                 )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"Deep-value query failed: {type(e).__name__}: {str(e)[:200]}",
                     extra={"operation": "deep-value"},

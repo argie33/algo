@@ -5,7 +5,9 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
+
+import psycopg2
 
 from algo.reporting import AlertManager
 from utils.db import DatabaseContext
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: dict | None = None):
         if config is None:
             raise ValueError(
                 "TradeNotificationService requires explicit config dict; "
@@ -27,7 +29,7 @@ class TradeNotificationService:
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
 
-    def get_recent_events(self, minutes: int = 5) -> List[Dict]:
+    def get_recent_events(self, minutes: int = 5) -> list[dict]:
         """Fetch recent audit log events."""
         try:
             with DatabaseContext("read") as cur:
@@ -42,12 +44,12 @@ class TradeNotificationService:
                 """,
                     (cutoff,),
                 )
-                return cast(List[Dict[Any, Any]], cur.fetchall())
+                return cast(list[dict[Any, Any]], cur.fetchall())
         except Exception as e:
             logger.error(f"[NOTIF] Failed to fetch events: {e}")
             return []
 
-    def _format_trade_entry_alert(self, event: Dict) -> Optional[str]:
+    def _format_trade_entry_alert(self, event: dict) -> str | None:
         """Format trade entry notification."""
         try:
             details = (
@@ -72,7 +74,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _format_trade_exit_alert(self, event: Dict) -> Optional[str]:
+    def _format_trade_exit_alert(self, event: dict) -> str | None:
         """Format trade exit notification."""
         try:
             details = (
@@ -147,8 +149,8 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         severity: str,
         title: str,
         message: str,
-        symbol: Optional[str] = None,
-        details: Optional[dict] = None,
+        symbol: str | None = None,
+        details: dict | None = None,
     ):
         """Save notification to database."""
         try:
@@ -169,7 +171,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     ),
                 )
                 logger.info(f"[NOTIF] Saved to DB: {title}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[NOTIF] DB save failed: {e}")
 
     def _send_notification(
@@ -178,8 +180,8 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         message: str,
         kind: str = "trade",
         severity: str = "info",
-        symbol: Optional[str] = None,
-        details: Optional[dict] = None,
+        symbol: str | None = None,
+        details: dict | None = None,
     ):
         """Send notification via email, webhook, and database."""
         try:
@@ -200,8 +202,8 @@ def notify(
     severity: str,
     title: str,
     message: str,
-    symbol: Optional[str] = None,
-    details: Optional[dict] = None,
+    symbol: str | None = None,
+    details: dict | None = None,
 ):
     """Convenience function to send alerts without managing service lifecycle."""
     try:
@@ -218,7 +220,7 @@ def notify(
         logger.error(f"notify() failed: {e}")
 
 
-def notify_signal_staleness(stale_tables: List[str], details: Optional[dict] = None):
+def notify_signal_staleness(stale_tables: list[str], details: dict | None = None):
     """Alert when trading signals become stale or unavailable.
 
     Triggered by Phase 1 data freshness check or data patrol when critical

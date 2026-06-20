@@ -13,7 +13,7 @@ import json
 import logging
 from datetime import date as _date
 from datetime import timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from utils.db import DatabaseContext
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class SignalTradePerformancePopulator:
     """Extract component attribution from closed trades."""
 
-    def populate_closed_trades(self, lookback_days: int = 7) -> Dict[str, Any]:
+    def populate_closed_trades(self, lookback_days: int = 7) -> dict[str, Any]:
         try:
             with DatabaseContext("write") as cur:
                 # Find closed trades not yet in signal_trade_performance
@@ -66,7 +66,7 @@ class SignalTradePerformancePopulator:
                     }
 
                 inserted_count = 0
-                component_returns: Dict[str, List[Tuple[float, float]]] = {
+                component_returns: dict[str, list[tuple[float, float]]] = {
                     comp: []
                     for comp in [
                         "setup_quality",
@@ -178,7 +178,7 @@ class SignalTradePerformancePopulator:
                             ),
                         )
                         inserted_count += 1
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to insert trade {trade_id_int}: {e}")
                         continue
 
@@ -195,7 +195,7 @@ class SignalTradePerformancePopulator:
                             "pvalue": round(float(pvalue), 4),
                             "sample_size": len(data_points),
                         }
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.debug(f"IC calculation failed for {comp_name}: {e}")
 
             logger.info(
@@ -208,7 +208,7 @@ class SignalTradePerformancePopulator:
                 "message": f"Inserted {inserted_count} trades, computed IC for {len(ic_values)} components",
             }
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"Signal trade performance population failed: {e}", exc_info=True
             )
@@ -230,7 +230,7 @@ class SignalTradePerformancePopulator:
         }
     )
 
-    def get_trailing_ic(self, component: str, days: int = 60) -> List[Dict[str, Any]]:
+    def get_trailing_ic(self, component: str, days: int = 60) -> list[dict[str, Any]]:
         """
         Get rolling IC for a component over trailing period.
 
@@ -275,6 +275,6 @@ class SignalTradePerformancePopulator:
                     for row in rows
                 ]
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Rolling IC calculation failed for {component}: {e}")
             return []

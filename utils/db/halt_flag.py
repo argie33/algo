@@ -391,7 +391,7 @@ class HaltFlagManager:
                 )
             logger.debug("[HALT_FLAG] Cleared in RDS")
             return True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[HALT_FLAG] Failed to clear in RDS: {e}")
             return False
 

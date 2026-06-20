@@ -224,7 +224,7 @@ def validate_user_resource_access(
         )
         result = cur.fetchone()
         return result is not None
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Operation failed: {e}") from e
 
 

@@ -8,7 +8,7 @@ Default: ±7 days from earnings date is a blackout period.
 import logging
 from datetime import date as _date
 from datetime import timedelta
-from typing import Any, Dict
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -40,7 +40,7 @@ class EarningsBlackout:
         self.days_before = int(self.config.get("earnings_blackout_days_before", 7))
         self.days_after = int(self.config.get("earnings_blackout_days_after", 3))
 
-    def run(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
+    def run(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """Check if eval_date is in earnings blackout window (Issue #27: trading day aware).
 
         Uses MarketCalendar to compute trading days, not calendar days.
@@ -93,7 +93,7 @@ class EarningsBlackout:
             raise ValueError(
                 f"Earnings calendar table missing for {symbol} — explicit halt (table infrastructure failure)"
             ) from e
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(
                 f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt"
             ) from e
@@ -117,7 +117,7 @@ class EarningsBlackout:
                 rows = cur.fetchall()
 
             return [{"date": row[0]} for row in rows]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(
                 f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt"
             ) from e

@@ -3,7 +3,9 @@
 """Momentum and breakout signal methods — TD Sequential, power trend, pocket pivot, distribution."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
+
+import psycopg2
 
 from utils.db.context import DatabaseContext
 
@@ -19,10 +21,10 @@ class SignalMomentumMixin:
         try:
             with DatabaseContext("read") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def td_sequential(self, symbol: str, eval_date) -> dict[str, Any]:
         def _fetch_data(cur):
             # M6: Compute count fresh from price data each time
             # Count inherently resets daily as it's based on bar-by-bar closes
@@ -84,7 +86,7 @@ class SignalMomentumMixin:
 
             completed_9_today = setup_count == 9
             last_9_date = None
-            for offset in range(0, min(5, len(sell_count_history))):
+            for offset in range(min(5, len(sell_count_history))):
                 idx = -1 - offset
                 if sell_count_history[idx] == 9 or buy_count_history[idx] == 9:
                     last_9_date = dates[
@@ -165,7 +167,7 @@ class SignalMomentumMixin:
             "perfected": False,
         }
 
-    def power_trend(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def power_trend(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
         These are the strongest setups for stocks already in motion.
@@ -187,7 +189,7 @@ class SignalMomentumMixin:
 
         return self._with_cursor(_compute) or {"power_trend": False, "return_21d": None}
 
-    def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def pivot_breakout(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
@@ -229,13 +231,13 @@ class SignalMomentumMixin:
 
         try:
             return self._with_cursor(_check_pivot) or {"breakout": False}
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {"breakout": False}
 
     def pocket_pivot(
         self, symbol: str, eval_date, lookback_days: int = 10
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Pocket Pivot (re-accumulation signal): an up day where volume >= highest
         down-day volume in the prior lookback_days.

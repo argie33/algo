@@ -175,7 +175,7 @@ class FearGreedIndexLoader(OptimalLoader):
                     f"[FEAR_GREED] HTTP error from CNN: {e}. "
                     "Check CNN API status and rate limits."
                 ) from e
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 raise RuntimeError(
                     f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}."
                 ) from e

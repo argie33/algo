@@ -156,7 +156,7 @@ def ExternalAPIContext(
         # Yield to caller
         yield
 
-    except Exception as e:
+    except (requests.RequestException, requests.Timeout) as e:
         duration = time.time() - start_time
         context = {
             "api_name": api_name,
@@ -258,7 +258,7 @@ def TransactionContext(
         duration = time.time() - start_time
         logger.debug(f"[TRANSACTION] {operation} committed in {duration:.3f}s")
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         duration = time.time() - start_time
         logger.error(f"[TRANSACTION] {operation} failed after {duration:.3f}s: {e}")
 
@@ -266,7 +266,7 @@ def TransactionContext(
             try:
                 cur.connection.rollback()
                 logger.error(f"[TRANSACTION] Rolled back {operation}")
-            except Exception as rollback_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
                 logger.error(
                     f"[TRANSACTION] Failed to rollback {operation}: {rollback_err}"
                 )

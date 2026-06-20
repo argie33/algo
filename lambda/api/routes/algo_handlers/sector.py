@@ -257,7 +257,7 @@ def _get_sector_breadth(cur) -> dict:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
             cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        except Exception as sp_err:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
             logger.debug(f"Failed to rollback sector_breadth_check savepoint: {sp_err}")
         code, error_type, message = handle_db_error(e, "get sector breadth")
         return error_response(code, error_type, message)

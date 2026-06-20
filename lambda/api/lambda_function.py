@@ -110,7 +110,7 @@ def fetch_cloudfront_domain_from_secrets():
                 "[CloudFront] boto3 not available, skipping Secrets Manager fetch"
             )
             return None, "boto3 not available"
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(
                 f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
             )
@@ -280,16 +280,16 @@ def test_db_connection():
                 return True, None
             else:
                 return False, "Connection test query returned unexpected result"
-        except Exception as qe:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as qe:
             try:
                 conn.close()
-            except Exception as close_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
                 logger.error(f"[DB_TEST_FAILED] Failed to close connection after query error: {close_err}")
                 raise RuntimeError(
                     f"Cold start database test failed to clean up: {close_err}"
                 ) from close_err
             raise qe
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error_msg = (
             f"Database connection test failed at cold start: {type(e).__name__}: {e!s}. "
             "Verify RDS Proxy is running and network connectivity is available."
@@ -562,7 +562,7 @@ def _get_cognito_jwks():
             _JWKS_CACHE = response.json()
             _JWKS_CACHE_TIME = now
             return _JWKS_CACHE
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
@@ -1162,7 +1162,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                             from api_utils.token_blocklist import revoke_token
 
                             revoke_token(jti, int(exp))
-                        except Exception as e:
+                        except (ValueError, ZeroDivisionError, TypeError) as e:
                             logger.error(f"[LOGOUT] Blocklist write failed: {e}")
                     logger.info(f"[LOGOUT] User {jwt_claims.get('sub')} logged out")
                     log_api_request(event, 200)
@@ -1180,7 +1180,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 response = api_router.route_request(
                     cur, path, method, params, body, jwt_claims=jwt_claims
                 )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             cors_headers = get_cors_headers(event)
 
             # SECURITY FIX: Don't leak error details to client; log full details server-side only

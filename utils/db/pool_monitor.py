@@ -137,7 +137,7 @@ class RDSPoolMonitor:
 
                 return slow_queries
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Failed to query slow queries: {e}")
             raise
 
@@ -172,7 +172,7 @@ class RDSPoolMonitor:
 
                 return states
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get connection breakdown: {e}")
             raise
 

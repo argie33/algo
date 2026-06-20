@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import date as _date
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
 
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
@@ -30,11 +29,11 @@ class TableHealth:
     table_name: str
     status: HealthStatus
     row_count: int = 0
-    latest_date: Optional[_date] = None
+    latest_date: _date | None = None
     age_days: int = 0
     sla_days: int = 7
     last_checked: datetime = field(default_factory=datetime.now)
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     @property
     def is_healthy(self) -> bool:
@@ -58,7 +57,7 @@ class TableHealth:
         }
         return self.table_name in critical_tables
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "table": self.table_name,
             "status": self.status.value,
@@ -77,10 +76,10 @@ class PipelineStatus:
     """Overall pipeline health status."""
 
     timestamp: datetime = field(default_factory=datetime.now)
-    tables: Dict[str, TableHealth] = field(default_factory=dict)
+    tables: dict[str, TableHealth] = field(default_factory=dict)
     is_healthy: bool = True
-    critical_alerts: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    critical_alerts: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def healthy_count(self) -> int:
@@ -96,7 +95,7 @@ class PipelineStatus:
             return 0.0
         return (self.healthy_count / self.total_count) * 100
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "timestamp": self.timestamp.isoformat(),
             "is_healthy": self.is_healthy,

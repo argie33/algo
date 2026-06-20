@@ -204,7 +204,7 @@ class SignalsDailyLoader(OptimalLoader):
                     else:
                         # Try string conversion as fallback
                         since = date.fromisoformat(str(max_date).split(' ')[0])
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
                     "Cannot determine incremental load point for buy/sell signal computation."
@@ -347,7 +347,7 @@ class SignalsDailyLoader(OptimalLoader):
                     today_et = datetime.now(EASTERN_TZ).date()
                     age_days = (today_et - max_date).days
                     return age_days
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
@@ -418,7 +418,7 @@ class SignalsDailyLoader(OptimalLoader):
                         f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price"
                     )
                 return rows
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "
                 "Cannot generate signals without complete technical data."
@@ -864,7 +864,7 @@ def main():
             logger.info(
                 f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
             )
-    except Exception as dep_err:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as dep_err:
         raise RuntimeError(
             f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}. "
             "Buy/sell signals require technical data availability."

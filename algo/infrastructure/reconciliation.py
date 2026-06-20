@@ -461,7 +461,7 @@ class DailyReconciliation:
                         mean_return = statistics.mean(returns)
                         if std_dev > 0:
                             sharpe_ratio = mean_return / std_dev * (252**0.5)
-                    except Exception as e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         logger.warning(f"Sharpe calculation failed: {e}")
 
                 cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
@@ -1023,7 +1023,7 @@ class DailyReconciliation:
                         target_1 = avg_entry + (2 * r)  # 2R
                         target_2 = avg_entry + (3 * r)  # 3R
                         target_3 = avg_entry + (4 * r)  # 4R
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.critical(
                         f"[RECONCILIATION] Failed to calculate stop/targets for imported {sym}: {e} — "
                         f"cannot proceed with risk calculation. Position cannot be imported without proper risk limits."
@@ -1122,7 +1122,7 @@ class DailyReconciliation:
                         "(symbol, error_message, retry_count) VALUES (%s, %s, 0)",
                         (sym, str(e)[:500]),
                     )
-                except Exception as fail_e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as fail_e:
                     logger.error(f"  Could not log import failure for {sym}: {fail_e}")
 
         # Retry failed imports and alert if multiple failures
@@ -1153,7 +1153,7 @@ class DailyReconciliation:
                     logger.debug(
                         f"Found {len(pending_symbols)} symbols with pending orders: {pending_symbols}"
                     )
-            except Exception as e:
+            except (requests.RequestException, requests.Timeout) as e:
                 logger.warning(f"Could not fetch pending orders: {e}")
 
         # Find orphans (in our DB but not in Alpaca positions AND not pending)
@@ -1281,7 +1281,7 @@ class DailyReconciliation:
                             target_1_retry = avg_entry + (2 * r)
                             target_2_retry = avg_entry + (3 * r)
                             target_3_retry = avg_entry + (4 * r)
-                    except Exception as atr_e:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as atr_e:
                         logger.error(
                             f"[RETRY_IMPORT] Failed to calculate ATR-based stops for {sym}: {atr_e}"
                         )
@@ -1337,7 +1337,7 @@ class DailyReconciliation:
                     )
                     retried += 1
                     logger.info(f"  Retried import of {sym} successfully")
-                except Exception as retry_e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as retry_e:
                     cur.execute("ROLLBACK TO SAVEPOINT retry_sp")
                     logger.warning(f"  Retry import of {sym} failed: {retry_e}")
                     cur.execute(
@@ -1347,7 +1347,7 @@ class DailyReconciliation:
                         "WHERE symbol = %s AND resolved = FALSE",
                         (sym,),
                     )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(f"  Retry prep for {sym} failed: {e}")
         cur.execute(
             "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
@@ -1631,7 +1631,7 @@ class DailyReconciliation:
 
                     cur.execute("RELEASE SAVEPOINT mae_mfe_update")
                     updates += 1
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     cur.execute("ROLLBACK TO SAVEPOINT mae_mfe_update")
                     logger.warning(
                         f"Failed to compute MAE/MFE for trade {trade_id}: {e}"
@@ -1641,9 +1641,117 @@ class DailyReconciliation:
                 "updated": updates,
                 "reason": f"Computed MAE/MFE for {updates} closed trades",
             }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Error in compute_closed_trade_metrics: {e}")
             return {"updated": 0, "reason": f"Error: {e}"}
+
+    def check_partial_fills(self, cur) -> dict:
+        """Check for partial fills that haven't been reconciled with Alpaca.
+
+        Detects when orders were only partially filled but the local DB thinks
+        they're fully filled. This catches the case when Alpaca fills part of an
+        order and then network fails before we can sync.
+
+        Returns: dict with reconciliation status and any detected drift
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            return {"checked": 0, "message": "No Alpaca credentials"}
+
+        try:
+            import requests
+
+            resp = requests.get(
+                f"{self._alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
+                headers={
+                    "APCA-API-KEY-ID": self._alpaca_key,
+                    "APCA-API-SECRET-KEY": self._alpaca_secret,
+                },
+                timeout=self.config.get("api_request_timeout_seconds", 5),
+            )
+
+            if resp.status_code != 200:
+                return {"checked": 0, "message": f"Alpaca orders API {resp.status_code}"}
+
+            orders = resp.json()
+            if not isinstance(orders, list):
+                return {"checked": 0, "message": "Unexpected Alpaca response format"}
+
+            # Check each order against our DB records
+            mismatches = []
+            for order in orders:
+                symbol = order.get("symbol")
+                alpaca_qty = float(order.get("qty", 0))
+                alpaca_filled_qty = float(order.get("filled_qty", 0))
+                order_status = order.get("status")
+
+                if not symbol or alpaca_filled_qty <= 0:
+                    continue
+
+                # Find corresponding trade in our DB
+                cur.execute(
+                    """
+                    SELECT trade_id, entry_quantity, status
+                    FROM algo_trades
+                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
+                    ORDER BY trade_date DESC LIMIT 1
+                """,
+                    (symbol,),
+                )
+
+                db_row = cur.fetchone()
+                if db_row is None:
+                    continue
+
+                db_trade_id, db_qty, db_status = db_row
+
+                # Check for mismatch
+                db_qty_int = int(db_qty) if db_qty else 0
+                alpaca_filled_int = int(alpaca_filled_qty)
+
+                if alpaca_filled_int > 0 and db_qty_int != alpaca_filled_int:
+                    # Quantity drift detected — Alpaca has different fill than DB
+                    mismatches.append({
+                        "symbol": symbol,
+                        "trade_id": db_trade_id,
+                        "db_quantity": db_qty_int,
+                        "alpaca_filled": alpaca_filled_int,
+                        "alpaca_status": order_status,
+                    })
+
+                    # Correct the DB quantity to match Alpaca (source of truth)
+                    cur.execute(
+                        "UPDATE algo_trades SET entry_quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE trade_id = %s",
+                        (alpaca_filled_int, db_trade_id),
+                    )
+                    logger.warning(
+                        f"[PARTIAL_FILL] Corrected {symbol} quantity: DB had {db_qty_int}, Alpaca filled {alpaca_filled_int}"
+                    )
+
+                    try:
+                        notify(
+                            severity="warning",
+                            title="Partial Fill Detected and Corrected",
+                            message=f"{symbol}: Quantity corrected from {db_qty_int} to {alpaca_filled_int} to match Alpaca.",
+                            symbol=symbol,
+                            details={
+                                "symbol": symbol,
+                                "db_quantity": db_qty_int,
+                                "alpaca_filled": alpaca_filled_int,
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning(f"Could not send partial fill alert: {e}")
+
+            return {
+                "checked": len(orders),
+                "mismatches": len(mismatches),
+                "message": f"Checked {len(orders)} orders; corrected {len(mismatches)} partial fills",
+                "details": mismatches,
+            }
+
+        except (requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
+            logger.warning(f"Partial fill check error: {e}")
+            return {"checked": 0, "message": f"Error: {e}"}
 
     def check_pending_reconciliations(self, cur) -> dict:
         """Identify and report on trades pending Phase 7 price reconciliation.

@@ -150,7 +150,7 @@ class TestCacheInvalidationUtility:
 
     def test_cache_invalidation_exports_functions(self):
         """Verify cacheInvalidation.js exports required functions."""
-        with open("webapp/frontend/src/utils/cacheInvalidation.js", "r") as f:
+        with open("webapp/frontend/src/utils/cacheInvalidation.js") as f:
             code = f.read()
             # Verify exports
             assert "invalidatePositionCache" in code, "Should export invalidatePositionCache"

@@ -68,7 +68,7 @@ def fetch_cloudfront_domain_from_secrets():
                 "[CloudFront] credential_manager not available, skipping Secrets Manager fetch"
             )
             return None, "credential_manager not available"
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(
                 f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
             )

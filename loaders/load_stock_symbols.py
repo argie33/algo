@@ -178,7 +178,7 @@ class StockSymbolsLoader(OptimalLoader):
                         [(row["symbol"], row["security_name"]) for row in etf_rows],
                     )
             logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to refresh etf_symbols: {e}")
 
 

@@ -584,7 +584,7 @@ class ExitEngine:
             raise ExchangeAPIError(f"Alpaca quote API request error for {symbol}: {e}") from e
         except (RuntimeError, ValueError):
             raise
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout) as e:
             raise ExchangeAPIError(f"Alpaca quote API error for {symbol}: {type(e).__name__}: {e}") from e
 
     def _fetch_recent_prices(

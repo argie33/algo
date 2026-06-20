@@ -1804,7 +1804,7 @@ class PriceLoader(OptimalLoader):
                             },
                         )
                         m.flush()
-                    except Exception as metric_err:
+                    except (ValueError, ZeroDivisionError, TypeError) as metric_err:
                         logger.debug(
                             f"Could not publish circuit breaker metric: {metric_err}"
                         )
@@ -2002,7 +2002,7 @@ class PriceLoader(OptimalLoader):
                     logger.info(
                         f"[FINAL_RETRY] Recovered {successful_final}/{len(final_retry_symbols)} symbols"
                     )
-                except Exception as final_retry_err:
+                except (ValueError, ZeroDivisionError, TypeError) as final_retry_err:
                     logger.warning(
                         f"[FINAL_RETRY] Final retry failed: {final_retry_err}"
                     )
@@ -2152,12 +2152,12 @@ def _invalidate_phase1_cache():
                 "[CACHE INVALIDATION] ✓ POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
             )
             return
-        except Exception as poison_err:
+        except (ValueError, ZeroDivisionError, TypeError) as poison_err:
             logger.error(
                 f"[CACHE INVALIDATION] ✗ POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}"
             )
 
-    except Exception as setup_err:
+    except (ValueError, ZeroDivisionError, TypeError) as setup_err:
         logger.error(f"[CACHE INVALIDATION] Setup error: {setup_err}")
 
     # Step 3: Both deletion AND poisoning failed - CRITICAL: MUST HALT
@@ -2327,7 +2327,7 @@ def main():
                 logger.debug(f"Could not close lock connection: {close_err}")
             _lock_conn = None
             return 0
-    except Exception as _lock_err:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
         logger.warning(
             "[MAIN] Advisory lock check failed (%s) — proceeding without lock",
             _lock_err,

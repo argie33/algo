@@ -281,7 +281,7 @@ def lambda_handler(event, context):
                         "CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date DESC)"
                     )
                     logger.info("[SCHEMA FIX] sector_ranking schema fixed successfully")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(
                 f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway..."
             )

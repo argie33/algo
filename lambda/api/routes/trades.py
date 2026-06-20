@@ -180,7 +180,7 @@ def handle(
             result["data_freshness"] = freshness
             return json_response(200, result)
         raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[TRADES] Unhandled error: {type(e).__name__}: {e}")
         raise_db_error(e, "handle trades")
 

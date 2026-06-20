@@ -67,7 +67,7 @@ def handle(
                     timeout_sec=2,
                 )
                 aaii_row = aaii_rows[0] if aaii_rows else None
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(
                     f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}"
                 )
@@ -85,7 +85,7 @@ def handle(
                     timeout_sec=2,
                 )
                 naaim_row = naaim_rows[0] if naaim_rows else None
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(
                     f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}"
                 )

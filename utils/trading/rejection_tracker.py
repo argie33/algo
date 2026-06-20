@@ -18,7 +18,7 @@ class RejectionTracker:
         try:
             with DatabaseContext("write") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Database operation failed: {e}. "
                 "Cannot proceed without rejection tracking database."

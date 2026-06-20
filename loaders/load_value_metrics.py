@@ -85,7 +85,7 @@ class ValueMetricsLoader(OptimalLoader):
                     }
                 ]
 
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 err = str(e)
                 if "RateLimit" in err or "Too Many Requests" in err or "429" in err:
                     if attempt < 2:
@@ -117,7 +117,7 @@ def _apply_schema_migrations():
         with DatabaseContext("write") as cur:
             for sql in migrations:
                 cur.execute(sql)
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"Schema migration failed (non-fatal): {e}")
 
 

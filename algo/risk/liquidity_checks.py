@@ -90,7 +90,7 @@ class LiquidityChecks:
 
                 return True, f"ADV {avg_vol:,.0f} ok"
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"ADV check failed for {symbol}: {e} — blocking as safety measure"
             )
@@ -136,7 +136,7 @@ class LiquidityChecks:
 
                 return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure"
             )
@@ -183,7 +183,7 @@ class LiquidityChecks:
 
                 return True, f"{trading_days} trading days of history ok"
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"Price history age check failed for {symbol}: {e} — blocking as safety measure"
             )

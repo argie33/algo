@@ -55,7 +55,7 @@ def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str
                 }
                 for row in rows
             ]
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error querying recent runs: {e}")
         return []
 

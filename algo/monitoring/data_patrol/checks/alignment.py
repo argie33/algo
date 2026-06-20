@@ -2,7 +2,8 @@
 """Data alignment checks - cross-table validation, signal alignment, coverage."""
 
 import logging
-from typing import List
+
+import psycopg2
 
 from utils.db import assert_safe_table
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AlignmentChecker(BaseCheck):
     """Check alignment and consistency across tables."""
 
-    def run(self, cur) -> List[CheckResult]:
+    def run(self, cur) -> list[CheckResult]:
         """Execute all alignment checks."""
         self.results = []
 
@@ -254,7 +255,7 @@ class AlignmentChecker(BaseCheck):
             """)
             row = cur.fetchone()
             baseline = int(row[0]) if row and row[0] is not None else 1
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "cross_align",
                 WARN,

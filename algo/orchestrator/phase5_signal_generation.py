@@ -351,7 +351,7 @@ def _get_candidates_from_buysell(
         complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "buy_sell_daily path")
 
         return complete_candidates
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(
             f"[PHASE 5] Failed to fetch buy_sell_daily candidates: {e}. "
             "Cannot proceed with signal generation without candidate data."
@@ -450,7 +450,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
         complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "stock_scores fallback path")
 
         return complete_candidates
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(
             f"[PHASE 5] Failed to fetch candidates: {e}. "
             "Cannot proceed with signal generation without candidate data."

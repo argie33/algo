@@ -10,10 +10,10 @@ from .staleness import StalenessChecker
 
 
 __all__ = [
-    "StalenessChecker",
-    "QualityChecker",
-    "PriceSanityChecker",
     "AlignmentChecker",
     "CoverageChecker",
+    "PriceSanityChecker",
+    "QualityChecker",
     "SpecializedChecker",
+    "StalenessChecker",
 ]

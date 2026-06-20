@@ -349,7 +349,7 @@ def _get_circuit_breakers(cur) -> dict:
                 )
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
                 missing_tables.append(table)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"Unexpected error checking table {table}: {type(e).__name__}: {e}"
                 )
@@ -675,7 +675,7 @@ def _get_circuit_breakers(cur) -> dict:
                     raise ValueError("Invalid price data")
             else:
                 raise ValueError("Insufficient price history")
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
                 f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}"
             )
@@ -724,7 +724,7 @@ def _get_circuit_breakers(cur) -> dict:
                 )
             else:
                 raise ValueError("No trade data")
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"CB9 (win_rate) computation failed: {type(e).__name__}: {e}")
             breakers.append(
                 {

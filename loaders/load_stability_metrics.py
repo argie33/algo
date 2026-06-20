@@ -158,7 +158,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 logger.debug(f"Dropping extreme beta for {symbol}: {beta}")
                 return None
             return beta
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def transform(self, rows):

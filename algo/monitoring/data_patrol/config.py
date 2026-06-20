@@ -2,7 +2,7 @@
 """Patrol configuration management - loads thresholds from algo_config table."""
 
 import logging
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class PatrolConfig:
     """Load and cache patrol configuration from algo_config table."""
 
     def __init__(self, cur=None):
-        self._config_cache: Dict[str, Any] = {}
+        self._config_cache: dict[str, Any] = {}
         self._loaded = False
         if cur:
             self.load(cur)
@@ -42,13 +42,13 @@ class PatrolConfig:
             logger.warning(f"Could not load patrol config: {e}")
             self._loaded = False
 
-    def get(self, key: str, default: Optional[Union[int, float, str]] = None) -> Optional[Union[int, float, str]]:
+    def get(self, key: str, default: int | float | str | None = None) -> int | float | str | None:
         """Get config value with fallback to default."""
         if key in self._config_cache:
-            return cast(Union[int, float, str], self._config_cache[key])
+            return cast(int | float | str, self._config_cache[key])
         return default
 
-    def get_staleness_windows(self) -> Dict[str, Any]:
+    def get_staleness_windows(self) -> dict[str, Any]:
         """Get all staleness thresholds in days."""
         return {
             "price_daily": self.get("patrol_staleness_price_daily", 7),
@@ -67,21 +67,21 @@ class PatrolConfig:
             "earnings_history": self.get("patrol_staleness_earnings_history", 120),
         }
 
-    def get_coverage_thresholds(self) -> Dict[str, Any]:
+    def get_coverage_thresholds(self) -> dict[str, Any]:
         """Get coverage ratio thresholds."""
         return {
             "error_pct": self.get("patrol_coverage_error_threshold_pct", 95),
             "warn_pct": self.get("patrol_coverage_warning_threshold_pct", 90),
         }
 
-    def get_price_sanity_config(self) -> Dict[str, Any]:
+    def get_price_sanity_config(self) -> dict[str, Any]:
         """Get OHLC/price sanity thresholds."""
         return {
             "max_daily_move_pct": self.get("patrol_max_daily_move_pct", 0.5),
             "max_daily_move_count": self.get("patrol_max_daily_move_count", 10),
         }
 
-    def get_volume_config(self) -> Dict[str, Any]:
+    def get_volume_config(self) -> dict[str, Any]:
         """Get volume sanity thresholds."""
         return {
             "low_threshold": self.get("patrol_low_volume_threshold", 1000),
@@ -89,7 +89,7 @@ class PatrolConfig:
             "new_low_alert": self.get("patrol_new_low_volume_alert", 5),
         }
 
-    def get_quality_config(self) -> Dict[str, Any]:
+    def get_quality_config(self) -> dict[str, Any]:
         """Get data quality thresholds."""
         return {
             "max_null_pct": self.get("patrol_max_null_pct_threshold", 5),
@@ -98,21 +98,21 @@ class PatrolConfig:
             "identical_ohlc_threshold": self.get("patrol_identical_ohlc_threshold", 50),
         }
 
-    def get_cross_validation_config(self) -> Dict[str, Any]:
+    def get_cross_validation_config(self) -> dict[str, Any]:
         """Get cross-validation thresholds."""
         return {
             "price_mismatch_pct": self.get("patrol_price_xval_mismatch_pct", 2),
             "top_n_symbols": self.get("patrol_xval_top_n_symbols", 50),
         }
 
-    def get_corporate_actions_config(self) -> Dict[str, Any]:
+    def get_corporate_actions_config(self) -> dict[str, Any]:
         """Get corporate actions detection config."""
         return {
             "lookback_days": self.get("patrol_corporate_action_lookback_days", 90),
             "drop_ratio": self.get("patrol_corporate_action_drop_ratio", -0.30),
         }
 
-    def get_loader_contracts(self) -> Dict[str, Dict[str, Any]]:
+    def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
         """Get loader contracts with expected output thresholds."""
         return {
             "price_daily": {
@@ -147,7 +147,7 @@ class PatrolConfig:
             },
         }
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         """Return all config as a dict (for logging)."""
         return {
             "staleness_windows": self.get_staleness_windows(),

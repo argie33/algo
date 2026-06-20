@@ -101,7 +101,7 @@ def _batch_fetch_technical_data(
                     "close": float(close) if close else None,
                 }
             return result
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"Batch fetch technical data failed: {e}") from e
 
 

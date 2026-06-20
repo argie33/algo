@@ -119,7 +119,7 @@ class PreTradeChecks:
                 )
                 if cur.fetchone():
                     return (False, f"Position already open for {symbol}")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[PRE-TRADE] Database error checking duplicate position for {symbol}: {e}")
             raise ValueError(f"Cannot validate duplicate position check for {symbol}: {e}") from e
 
@@ -138,7 +138,7 @@ class PreTradeChecks:
                 )
                 if not cur.fetchone():
                     return (False, f"Symbol {symbol} not found in universe")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(f"Symbol validation unavailable for {symbol}: {e}")
 
         try:
@@ -185,7 +185,7 @@ class PreTradeChecks:
                             False,
                             f"Industry {industry} at limit ({industry_count}/{max_industry_positions} positions)",
                         )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[PRE-TRADE] Database error checking sector/industry concentration for {symbol}: {e}")
             raise ValueError(f"Cannot validate sector/industry limits for {symbol}: {e}") from e
 

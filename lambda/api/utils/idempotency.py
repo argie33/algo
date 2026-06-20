@@ -81,7 +81,7 @@ def check_idempotency_key(
             "Idempotency key table does not exist or database error — proceeding without cache"
         )
         return None
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Unexpected error checking idempotency key: {type(e).__name__}: {e}")
         return None
 
@@ -129,7 +129,7 @@ def store_idempotency_key(
             f"Idempotency key storage skipped (table missing or DB error): {type(e).__name__}"
         )
         return False
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to store idempotency key: {type(e).__name__}: {e}")
         return False
 
@@ -167,6 +167,6 @@ def cleanup_expired_keys(
     except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError):
         logger.debug("Cleanup skipped: idempotency key table does not exist")
         return 0
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to clean up idempotency keys: {type(e).__name__}: {e}")
         return 0

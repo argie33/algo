@@ -216,7 +216,7 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                 logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
                 try:
                     pool.putconn(conn, close=True)
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
                 continue
 

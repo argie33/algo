@@ -121,7 +121,7 @@ class LoaderConfigManager:
                 self._rds_connection_cache_time = now
                 return self._rds_connection_cache
             return None
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _compute_adaptive_parallelism(

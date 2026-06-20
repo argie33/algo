@@ -96,6 +96,9 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
     if (!validateForm()) return;
 
+    // CRITICAL: Do NOT update local state optimistically.
+    // Wait for API response before calling success callback.
+    // This ensures UI consistency between local state and API state.
     // Cognito user pool uses email as username (username_attributes = ["email"])
     const result = await register(
       formData.email,
@@ -106,8 +109,10 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
     );
 
     if (result.success) {
+      // Only navigate/change state AFTER API confirms success
       onRegistrationSuccess?.(formData.email, result.nextStep);
     } else if (result.error) {
+      // Form state unchanged on error — user can retry
       setLocalError(result.error);
     }
   };
